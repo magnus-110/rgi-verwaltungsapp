@@ -5579,6 +5579,74 @@ export type Database = {
           },
         ]
       }
+      scheduled_emails: {
+        Row: {
+          account_id: string
+          attachments: Json
+          bcc_addresses: string[] | null
+          body_html: string | null
+          body_text: string
+          cc_addresses: string[] | null
+          created_at: string
+          error_message: string | null
+          id: string
+          reply_to_message_id: string | null
+          scheduled_at: string
+          sent_at: string | null
+          status: string
+          subject: string
+          to_addresses: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          attachments?: Json
+          bcc_addresses?: string[] | null
+          body_html?: string | null
+          body_text?: string
+          cc_addresses?: string[] | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          reply_to_message_id?: string | null
+          scheduled_at: string
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          to_addresses: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          attachments?: Json
+          bcc_addresses?: string[] | null
+          body_html?: string | null
+          body_text?: string
+          cc_addresses?: string[] | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          reply_to_message_id?: string | null
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          to_addresses?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_emails_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "email_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sepa_mandate_audit_log: {
         Row: {
           accepted: boolean
