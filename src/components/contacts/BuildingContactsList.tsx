@@ -211,7 +211,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
       const assignmentIds = assignData.map(a => a.id);
       const contactIds = assignData.map(a => a.contact_id);
 
-      const [sharesRes, phonesRes, emailsRes, costsRes, bankRes] = await Promise.all([
+      const [sharesRes, phonesRes, emailsRes, costsRes, bankRes, personsRes] = await Promise.all([
         assignmentIds.length > 0 
           ? supabase.from("contact_building_shares").select("*").in("assignment_id", assignmentIds)
           : { data: [] },
@@ -226,6 +226,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
           : { data: [] },
         contactIds.length > 0
           ? supabase.from("contact_bank_accounts").select("*").in("contact_id", contactIds)
+          : { data: [] },
+        contactIds.length > 0
+          ? supabase.from("contact_persons").select("id, contact_id, salutation, first_name, last_name, is_primary").in("contact_id", contactIds)
           : { data: [] },
       ]);
 
@@ -248,6 +251,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
           .filter((c: any) => c.assignment_id === a.id)
           .sort(sortByCreated),
         bankAccounts: (bankRes.data || []).filter((b: any) => b.contact_id === a.contact_id),
+        persons: ((personsRes as any).data || [])
+          .filter((p: any) => p.contact_id === a.contact_id)
+          .sort((x: any, y: any) => Number(!!y.is_primary) - Number(!!x.is_primary)),
       })) as unknown as ContactAssignment[];
     },
   });
