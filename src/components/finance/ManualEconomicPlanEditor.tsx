@@ -103,6 +103,26 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     },
   });
 
+  // ── Liegenschafts-spezifische Verteilerschlüssel-Overrides ────────
+  // Werden im "Verteilerschlüssel"-Tab des Gebäudes gepflegt und
+  // überschreiben den default_distribution_key des globalen Kontos.
+  const { data: accountOverrides = [] } = useQuery({
+    queryKey: ["building-account-overrides", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("building_account_overrides" as any)
+        .select("account_id, distribution_key")
+        .eq("building_id", buildingId);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+  const overrideKeyByAccount = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const o of accountOverrides) if (o.distribution_key) m.set(o.account_id, o.distribution_key);
+    return m;
+  }, [accountOverrides]);
+
   // ── Vorjahres-IST aus Buchungen (bank-zentrische Aggregation) ─────
   const { data: prevYearBookings = [] } = useQuery({
     queryKey: ["wp-prev-year-bookings", buildingId, fiscalYear],
@@ -244,12 +264,13 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     return accounts.map((acc: any) => {
       const item = items.find((i) => i.account_id === acc.id);
       const draft = drafts[acc.id];
+      const effectiveDefaultKey = overrideKeyByAccount.get(acc.id) || acc.default_distribution_key || "mea";
       return {
         account_id: acc.id,
         account_number: acc.account_number,
         account_name: acc.account_name,
         category: acc.settlement_section || acc.category || "Sonstige",
-        distribution_key: item?.distribution_key || acc.default_distribution_key || "mea",
+        distribution_key: item?.distribution_key || effectiveDefaultKey,
         planned_amount: draft !== undefined ? draft : Number(item?.planned_amount || 0),
         manually_overridden: draft !== undefined || !!item?.manually_overridden,
         isDistributable: !!acc.is_distributable,
@@ -257,7 +278,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
         previousAmount: sumForAccount(acc.id),
       } as PlanRow;
     });
-  }, [accounts, plan, drafts, prevYearBookings]);
+  }, [accounts, plan, drafts, prevYearBookings, overrideKeyByAccount]);
 
   const totalPlanned = rows.reduce((s, r) => s + r.planned_amount, 0);
   const distributableTotal = rows.filter((r) => r.isDistributable).reduce((s, r) => s + r.planned_amount, 0);
@@ -289,7 +310,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
             account_id: acc.id,
             previous_amount: 0,
             planned_amount: draftVal,
-            distribution_key: acc.default_distribution_key || "mea",
+            distribution_key: overrideKeyByAccount.get(acc.id) || acc.default_distribution_key || "mea",
             manually_overridden: true,
           } as any),
         ));
