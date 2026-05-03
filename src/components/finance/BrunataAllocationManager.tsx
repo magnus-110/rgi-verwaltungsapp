@@ -140,14 +140,15 @@ export function BrunataAllocationManager({ buildingId, periodId, fiscalYear }: B
           const parsed = parseFloat(draft.replace(",", "."));
           if (isNaN(parsed)) return null;
           const existing = hdv.find((h: any) => h.assignment_id === a.id);
-          return {
-            id: existing?.id,
+          const row: any = {
             building_id: buildingId,
             billing_period_id: periodId,
             assignment_id: a.id,
             amount: parsed,
             note: existing?.note ?? `Brunata ${fiscalYear}`,
           };
+          if (existing?.id) row.id = existing.id;
+          return row;
         })
         .filter(Boolean);
 
@@ -159,7 +160,7 @@ export function BrunataAllocationManager({ buildingId, periodId, fiscalYear }: B
 
       const { error } = await supabase
         .from("heating_distribution_values")
-        .upsert(upserts as any[]);
+        .upsert(upserts as any[], { onConflict: "billing_period_id,assignment_id" });
       if (error) throw error;
 
       toast.success(`${upserts.length} Werte gespeichert`);
