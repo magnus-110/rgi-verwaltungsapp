@@ -349,18 +349,31 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   };
 
   // Shares
+  // WICHTIG: Vor dem Insert blurren wir das aktive Eingabefeld und geben pending
+  // onBlur-Saves Zeit, ihre DB-Updates abzusetzen — sonst überschreibt ein zu
+  // früher Refetch die gerade getippte Zahl mit dem alten Wert (Race Condition).
+  const flushPendingEdits = async () => {
+    const el = document.activeElement as HTMLElement | null;
+    if (el && typeof el.blur === "function") el.blur();
+    // Zwei Mikrotask-Ticks: einmal damit onBlur-Handler synchron feuert,
+    // einmal damit die darin angestoßenen Promises beginnen.
+    await new Promise<void>((r) => setTimeout(r, 0));
+    await new Promise<void>((r) => setTimeout(r, 50));
+  };
+
   const addShare = async (assignmentId: string) => {
+    await flushPendingEdits();
     await supabase.from("contact_building_shares").insert({ assignment_id: assignmentId, share_type: "mea", share_value: 0 });
-    refetch();
+    await refetch();
   };
   const updateShare = async (id: string, field: string, value: any) => {
     await supabase.from("contact_building_shares").update({ [field]: value } as any).eq("id", id);
-    refetch();
+    await refetch();
     if (field === "share_type") queryClient.invalidateQueries({ queryKey: ["custom-share-types"] });
   };
   const deleteShare = async (id: string) => {
     await supabase.from("contact_building_shares").delete().eq("id", id);
-    refetch();
+    await refetch();
   };
 
   const saveEditingType = async () => {
