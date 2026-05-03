@@ -12,6 +12,7 @@ import { Fragment } from "react";
 import { toast } from "sonner";
 import { EconomicPlanPreview } from "./EconomicPlanPreview";
 import { sumForAccount, getEffectiveClosingBalance } from "./lib/bookingAggregation";
+import { isReserveContributionAccount } from "@/lib/accountClassification";
 
 interface EconomicPlanEditorProps {
   buildingId: string;
