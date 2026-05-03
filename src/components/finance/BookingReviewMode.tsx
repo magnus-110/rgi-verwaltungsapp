@@ -399,7 +399,9 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
                   </div>
                 )}
               </div>
-            </div>
+              )}
+              </div>
+            </>
           ) : null}
 
           {bookings.length > 0 && currentBooking && (
