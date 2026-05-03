@@ -21,6 +21,7 @@ import { Loader2, RotateCcw, CheckCircle2, Eye, Edit3, AlertTriangle, Save } fro
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { EconomicPlanLayout, PlanRow } from "./EconomicPlanLayout";
+import { isReserveContributionAccount } from "@/lib/accountClassification";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
