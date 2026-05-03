@@ -226,8 +226,23 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
               <Button onClick={() => onOpenChange(false)}>Schließen</Button>
             </div>
           ) : currentBooking ? (
-            <div className="flex-1 flex overflow-hidden">
-              <div className="w-1/2 border-r overflow-y-auto p-6 space-y-4">
+            <>
+              <MobileViewSwitcher
+                mobileView={split.mobileView}
+                onChange={split.setMobileView}
+                listLabel="Daten"
+                detailLabel="Beleg"
+              />
+              <div
+                className="flex-1 flex overflow-hidden"
+                onTouchStart={split.touchHandlers.onTouchStart}
+                onTouchEnd={split.touchHandlers.onTouchEnd}
+              >
+              {split.showList && (
+              <div className={cn("border-r overflow-y-auto p-6 space-y-4", split.isMobile ? "w-full" : "w-1/2")}>
+                {split.isMobile && (
+                  <MobileBackToListButton onClick={split.openDetail} label="Zum Beleg" />
+                )}
                 <div className="flex items-center gap-2 mb-4">
                   <Building2 className="h-5 w-5 text-muted-foreground" />
                   <h3 className="font-semibold text-lg">
