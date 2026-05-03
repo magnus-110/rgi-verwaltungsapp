@@ -92,7 +92,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chart_of_accounts")
-        .select("id, account_number, account_name, category, default_distribution_key, settlement_section")
+        .select("id, account_number, account_name, category, default_distribution_key, settlement_section, is_distributable, is_reserve_funded")
         .eq("is_wirtschaftsplan_relevant", true)
         .or(`building_id.is.null,building_id.eq.${buildingId}`)
         .order("account_number");
@@ -100,6 +100,39 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       return data;
     },
   });
+
+  // ── Vorjahres-IST aus Buchungen (bank-zentrische Aggregation) ─────
+  const { data: prevYearBookings = [] } = useQuery({
+    queryKey: ["wp-prev-year-bookings", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("account_id, counter_account_id, amount, booking_category")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear - 1)
+        .neq("status", "cancelled");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const sumForAccount = (accId: string): number => {
+    return (prevYearBookings as any[]).reduce((s, b) => {
+      if (b.booking_category === "heating_repost") return s;
+      const amt = Number(b.amount) || 0;
+      if (b.account_id === accId) return s + amt;
+      if (b.counter_account_id === accId) return s - amt;
+      return s;
+    }, 0);
+  };
+
+  // ── Wohnfläche der Liegenschaft (Σ area_sqm_override) ─────────────
+  const totalAreaSqm = useMemo(() => {
+    return (assignmentsRaw as any[]).reduce((s, a) => {
+      const v = Number(a.area_sqm_override || 0);
+      return s + (isFinite(v) ? v : 0);
+    }, 0);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Owner/Unit assignments + MEA ──────────────────────────────────
   const { data: assignmentsRaw = [] } = useQuery({
