@@ -103,6 +103,26 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     },
   });
 
+  // ── Liegenschafts-spezifische Verteilerschlüssel-Overrides ────────
+  // Werden im "Verteilerschlüssel"-Tab des Gebäudes gepflegt und
+  // überschreiben den default_distribution_key des globalen Kontos.
+  const { data: accountOverrides = [] } = useQuery({
+    queryKey: ["building-account-overrides", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("building_account_overrides" as any)
+        .select("account_id, distribution_key")
+        .eq("building_id", buildingId);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+  const overrideKeyByAccount = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const o of accountOverrides) if (o.distribution_key) m.set(o.account_id, o.distribution_key);
+    return m;
+  }, [accountOverrides]);
+
   // ── Vorjahres-IST aus Buchungen (bank-zentrische Aggregation) ─────
   const { data: prevYearBookings = [] } = useQuery({
     queryKey: ["wp-prev-year-bookings", buildingId, fiscalYear],
