@@ -126,14 +126,6 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     }, 0);
   };
 
-  // ── Wohnfläche der Liegenschaft (Σ area_sqm_override) ─────────────
-  const totalAreaSqm = useMemo(() => {
-    return (assignmentsRaw as any[]).reduce((s, a) => {
-      const v = Number(a.area_sqm_override || 0);
-      return s + (isFinite(v) ? v : 0);
-    }, 0);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   // ── Owner/Unit assignments + MEA ──────────────────────────────────
   const { data: assignmentsRaw = [] } = useQuery({
     queryKey: ["mep-assignments", buildingId],
@@ -141,7 +133,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       const { data, error } = await supabase
         .from("contact_building_assignments")
         .select(`
-          id, unit_number, contact_id, unit_kind, billing_mode, parent_assignment_id,
+          id, unit_number, contact_id, unit_kind, billing_mode, parent_assignment_id, area_sqm_override,
           contacts(first_name, last_name, company_name),
           contact_building_shares(share_type, share_value)
         `)
@@ -152,6 +144,14 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       return data;
     },
   });
+
+  // ── Wohnfläche der Liegenschaft (Σ area_sqm_override) ─────────────
+  const totalAreaSqm = useMemo(() => {
+    return (assignmentsRaw as any[]).reduce((s, a) => {
+      const v = Number(a.area_sqm_override || 0);
+      return s + (isFinite(v) ? v : 0);
+    }, 0);
+  }, [assignmentsRaw]);
 
   // Nebeneinheiten (Stellplätze etc.) bekommen keine eigene Plan-Zeile.
   // Ihre MEA wird auf die Hauptwohnung des selben Eigentümers in diesem Building aufgeschlagen.
