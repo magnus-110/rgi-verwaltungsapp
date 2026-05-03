@@ -592,7 +592,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       if (total === 0) return;
 
       const distKey = getDistKey(acc.id, acc.default_distribution_key);
-      const shareType = DIST_KEY_TO_SHARE[distKey] || distKey;
+      const shareType = getShareType(distKey);
 
       // Heizkosten-Konten (z. B. 1400) — strikt Brunata-Werte, KEIN MEA-Fallback.
       // Fehlen Brunata-Werte, wird 0 verteilt (Warnung wird in der UI angezeigt).
