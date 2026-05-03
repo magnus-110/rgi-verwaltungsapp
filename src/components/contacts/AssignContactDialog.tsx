@@ -619,7 +619,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
                     />
                     <div>
                       <Label htmlFor="send-invite" className="text-sm cursor-pointer">
-                        Einladung mit Zugangsdaten senden
+                        {editAssignmentId ? "Anmeldedaten erneut senden" : "Einladung mit Zugangsdaten senden"}
                       </Label>
                       <p className="text-xs text-muted-foreground">
                         Login-Daten werden per E-Mail verschickt
