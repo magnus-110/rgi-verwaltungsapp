@@ -50,7 +50,7 @@ const SETTINGS_FIELDS: SettingsField[] = [
   {
     key: "settlement_section",
     label: "Abrechnungssektion",
-    info: "Bestimmt, in welchem Abschnitt der Jahresabrechnung dieses Konto erscheint. Beispiel: Hausmeisterkosten → 'Umlagefähige Ausgaben', Bankkonto → 'Bankkonto'.",
+    info: "Bestimmt, in welchem Abschnitt der Jahresabrechnung dieses Konto erscheint. Beispiel: Hausmeisterkosten → 'Umlagefähige Ausgaben', Bankkonto → 'Bankkonto'. WICHTIG: 'Rücklage (IHR)' setzen für Konten der planmäßigen IHR-Zuführung (z. B. 1930) — sonst wird der Betrag im Wirtschaftsplan fälschlich als Vorschuss zur Kostendeckung statt als Erhaltungsrücklage ausgewiesen.",
     type: "select",
     options: SETTLEMENT_SECTIONS,
   },
