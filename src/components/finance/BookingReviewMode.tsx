@@ -36,6 +36,7 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
   const [confirmedCount, setConfirmedCount] = useState(0);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [editBooking, setEditBooking] = useState<any>(null);
+  const split = useMobileSplitView();
 
   const { data: bookings = [], isLoading, refetch } = useQuery({
     queryKey: ["review-bookings", fiscalYear, buildingId],
