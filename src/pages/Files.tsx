@@ -382,6 +382,7 @@ export function Files() {
           isAdmin
           onDelete={handleDelete}
           onToggleVisibility={handleToggleVisibility}
+          onRenamed={fetchFiles}
           profiles={persons}
           buildings={buildings}
         />
