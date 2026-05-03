@@ -1,34 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { SHARE_TYPES } from "@/lib/shareTypes";
 
 /**
- * Lädt alle vom Nutzer angelegten share_types aus contact_building_shares.
- * Diese repräsentieren benutzerdefinierte Verteilerschlüssel (z.B. "garten",
- * "aufzug_anteil") und sollen überall im Verteilerschlüssel-Dropdown verfügbar sein.
+ * Lädt alle vom Nutzer angelegten share_types aus contact_building_shares,
+ * die NICHT bereits Teil der globalen SHARE_TYPES-Liste sind.
  *
- * Optional auf eine Liegenschaft eingeschränkt (für BuildingDistributionKeysTab).
+ * Diese stellen wirklich frei vergebene Schlüssel dar (z.B. "Haus 9/9a - MEA",
+ * "Spüldienst", "garten") und werden zusätzlich zu den Standard-Schlüsseln im
+ * Verteilerschlüssel-Dropdown angeboten.
  *
- * Bekannte Standard-Schlüssel werden ausgefiltert, damit sie nicht doppelt erscheinen.
+ * Optional auf eine Liegenschaft eingeschränkt.
  */
 
-// Nur Keys ausfiltern, die bereits als feste Optionen im Dropdown stehen
-// (siehe DISTRIBUTION_KEYS in BuildingDistributionKeysTab / DistributionKeysTab).
-// Alles andere, was tatsächlich bei Personen als Anteil hinterlegt ist
-// (z.B. stellplaetze, garagen, warmwasser, ...), soll als wählbarer
-// Verteilerschlüssel erscheinen.
-const STANDARD_SHARE_TYPES = new Set([
-  "mea",
-  "einheit",
-  "einheiten",
-  "personen",
-  "qm",
-  "verbrauch_wasser",
-  "heizkostenverordnung",
-  "heating_individual",
-  "heizk_abr",
-  "direkt",
-  "units",
-]);
+const STANDARD_SHARE_TYPES = new Set(
+  SHARE_TYPES.map((s) => s.value.toLowerCase())
+);
 
 export function useCustomShareTypes(buildingId?: string) {
   return useQuery({

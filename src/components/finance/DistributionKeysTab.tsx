@@ -9,16 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import { useCustomShareTypes } from "@/hooks/useCustomShareTypes";
+import { SHARE_TYPES } from "@/lib/shareTypes";
 
-const DISTRIBUTION_KEYS = [
-  { value: "mea", label: "MEA" },
-  { value: "personen", label: "Nach Personen" },
-  { value: "einheiten", label: "Nach Einheiten" },
-  { value: "verbrauch_wasser", label: "Verbrauch Wasser" },
-  { value: "heizkostenverordnung", label: "Heizkostenverordnung" },
-  { value: "direkt", label: "Direktzuordnung" },
-  { value: "qm", label: "Nach Quadratmeter" },
-];
+const DISTRIBUTION_KEYS = SHARE_TYPES;
 
 export function DistributionKeysTab() {
   const queryClient = useQueryClient();
@@ -183,17 +176,9 @@ export function DistributionKeysTab() {
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {DISTRIBUTION_KEYS.map(k => (
+                                    {allDistKeys.map(k => (
                                       <SelectItem key={k.value} value={k.value}>
                                         {k.label} {k.value === account.default_distribution_key ? "(Standard)" : ""}
-                                      </SelectItem>
-                                    ))}
-                                    {customDistKeys.length > 0 && (
-                                      <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
-                                    )}
-                                    {customDistKeys.map(k => (
-                                      <SelectItem key={k} value={k}>
-                                        {k} {k === account.default_distribution_key ? "(Standard)" : ""}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
