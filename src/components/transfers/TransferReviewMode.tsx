@@ -671,10 +671,15 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
             </>
           )}
         </div>
+        )}
 
         {/* Right: PDF preview */}
-        <div className="w-1/2 flex flex-col bg-muted/30">
+        {split.showDetail && (
+        <div className={cn("flex flex-col bg-muted/30", split.isMobile ? "w-full" : "w-1/2")}>
           <div className="p-3 border-b flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            {split.isMobile && (
+              <MobileBackToListButton onClick={split.openList} label="Daten" />
+            )}
             <FileText className="h-4 w-4" />
             Rechnungs-PDF
           </div>
@@ -692,6 +697,7 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
             )}
           </div>
         </div>
+        )}
       </div>
     </div>
   );
