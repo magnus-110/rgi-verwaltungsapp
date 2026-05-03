@@ -1,6 +1,6 @@
 // Shared helpers for the Communication module: building recipients + variable resolution.
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
-import { firstValidEmail } from "./sanitize-email.ts";
+import { firstValidEmail, extractEmails } from "./sanitize-email.ts";
 
 export type RecipientFilter = {
   roles?: string[]; // e.g. ["eigentuemer","mieter"]
@@ -140,16 +140,25 @@ export async function loadRecipients(
     const titel = primaryPerson?.position || "";
     const vollname = [firstName, lastName].filter(Boolean).join(" ").trim();
 
-    // Email selection: scan all stored emails (primary first), sanitize each value
-    // (handles "x@y.de (Name)", "a@x.de, b@x.de", "Name <x@y.de>"), pick first valid.
+    // Email selection: scan all stored emails (primary first), parse each value
+    // (handles "x@y.de (Name)", "a@x.de, b@x.de", "Name <x@y.de>"). Pick the
+    // first valid address from the merged list. Fall back to ANY person email
+    // (not just primary) if contact_emails has none.
     const eList = emailsByContact.get(a.contact_id) || [];
     const sortedEmails = [...eList].sort((x, y) => Number(!!y.is_primary) - Number(!!x.is_primary));
     let email: string | null = null;
     for (const row of sortedEmails) {
-      const v = firstValidEmail(row?.email);
-      if (v) { email = v; break; }
+      const candidates = extractEmails(row?.email);
+      if (candidates.length > 0) { email = candidates[0]; break; }
     }
-    if (!email) email = firstValidEmail(primaryPerson?.email);
+    if (!email) {
+      // Try every person attached to this contact (primary first)
+      const personSorted = [...personList].sort((x, y) => Number(!!y.is_primary) - Number(!!x.is_primary));
+      for (const p of personSorted) {
+        const v = firstValidEmail(p?.email);
+        if (v) { email = v; break; }
+      }
+    }
 
     if (filter.require_email && !email) continue;
 

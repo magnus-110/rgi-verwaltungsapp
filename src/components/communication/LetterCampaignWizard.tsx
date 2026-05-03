@@ -85,7 +85,12 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) 
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="max-w-3xl max-h-[90vh] overflow-y-auto"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Neuer Serienbrief</DialogTitle>
           <DialogDescription>Schritt {step} von 3 — Vorlage wählen, Empfänger filtern, Briefe generieren.</DialogDescription>
