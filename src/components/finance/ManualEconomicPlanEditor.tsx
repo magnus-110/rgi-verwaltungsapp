@@ -485,11 +485,13 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       const key = normalizeKey(r.distribution_key);
       // Generischer Lookup über shareTotals — Custom-Schlüssel (whg.-mea, gar.-mea, sonder-mea …)
       // werden in shareTotals separat unter ihrem eigenen Key geführt.
-      const totalShareForKey = key === "einheit"
-        ? (shareTotals.einheit || 1)
-        : key === "qm"
-          ? (shareTotals.qm || 1)
-          : (shareTotals[key] && shareTotals[key] > 0 ? shareTotals[key] : (shareTotals.mea || 1));
+      const totalShareForKey = key === "heizk_abr"
+        ? (heatingTotal > 0 ? heatingTotal : 0)
+        : key === "einheit"
+          ? (shareTotals.einheit || 1)
+          : key === "qm"
+            ? (shareTotals.qm || 1)
+            : (shareTotals[key] && shareTotals[key] > 0 ? shareTotals[key] : (shareTotals.mea || 1));
       const yourShareValue = key === "heizk_abr"
         ? (heatingByAssignment[unitId] ?? 0) // Brunata-Vorjahreswert dieser Einheit
         : ownerShareValue(a, key, a.contact_id);
