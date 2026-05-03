@@ -557,9 +557,10 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                   </Tooltip>
                 ) : null
               ) : undefined}
-              secondaryColumn={{
-                label: "€/Monat",
-                render: (row) => formatCurrency(row.planned_amount / 12),
+              variant="gesamt"
+              footer={{
+                distributableTotal,
+                totalAreaSqm,
               }}
             />
 
