@@ -21,16 +21,43 @@ interface BillingSettlementProps {
   fiscalYear: number;
 }
 
+// Mapping Verteilerschlüssel → share_type (in contact_building_shares).
+// Identisch zur Liste im Wirtschaftsplan-Editor + Personen-Tab (siehe src/lib/shareTypes.ts).
+// Identitäts-Mapping für alle in SHARE_TYPES definierten Keys + Custom-MEA-Varianten,
+// damit Custom-Schlüssel (Whg.-MEA, Gar.-MEA, Sonder-MEA, stellplaetze, garagen, ...)
+// genau so verteilt werden wie in der Personen-/Anteils-Pflege gespeichert.
 const DIST_KEY_TO_SHARE: Record<string, string> = {
-  mea: "mea", einheiten: "einheit", units: "einheit", qm: "qm", personen: "personen",
-  verbrauch_wasser: "wasser", verbrauch_warmwasser: "warmwasser",
+  // Standard-Aliase
+  mea: "mea",
+  einheiten: "einheit", einheit: "einheit", units: "einheit",
+  qm: "qm", personen: "personen",
+  garagen: "garagen", stellplaetze: "stellplaetze",
+  verbrauch_wasser: "wasser", wasser: "wasser",
+  verbrauch_warmwasser: "warmwasser", warmwasser: "warmwasser",
   heizkostenverordnung: "heizkosten", heating_individual: "heizkosten",
+  heizkosten: "heizkosten", heizk_abr: "heizkosten", "heizk.abr": "heizkosten",
+  verbrauch_heizung: "heizkosten",
+  direkt: "direkt",
+  // Custom-MEA-Varianten (case-insensitive Lookup über getShareType unten)
+  "whg.-mea": "Whg.-MEA",
+  "gar.-mea": "Gar.-MEA",
+  "sonder-mea": "Sonder-MEA",
+};
+
+// Robuster Lookup: Identitäts-Fallback für unbekannte Custom-Keys,
+// damit jeder in der DB gepflegte share_type direkt verteilt werden kann.
+const getShareType = (distKey: string): string => {
+  if (!distKey) return "mea";
+  const lower = distKey.toLowerCase();
+  return DIST_KEY_TO_SHARE[lower] || DIST_KEY_TO_SHARE[distKey] || distKey;
 };
 
 const SHARE_LABELS: Record<string, string> = {
   mea: "Ges.Tausendstel", einheit: "Einheiten", qm: "Wohnfläche (m²)",
   personen: "Personen", wasser: "Wasserverbr.", warmwasser: "Warmwasserverbr.",
   heizkosten: "Heizk.Abr.", direkt: "Direkt",
+  garagen: "Garagen", stellplaetze: "Stellplätze",
+  "Whg.-MEA": "Whg.-MEA", "Gar.-MEA": "Gar.-MEA", "Sonder-MEA": "Sonder-MEA",
 };
 
 const SECTION_LABELS: Record<string, string> = {
