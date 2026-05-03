@@ -21,6 +21,8 @@ interface Props {
   onAssigned: () => void;
   existingContactIds: string[];
   managementMode?: "weg" | "rent";
+  /** Wenn gesetzt: Dialog läuft im Edit-Modus für dieses Assignment (Kontakt ist fix). */
+  editAssignmentId?: string | null;
 }
 
 interface ContactPerson {
