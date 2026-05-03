@@ -84,6 +84,9 @@ const USAGE_TYPES = [
 
 const SHARE_TYPES = [
   { value: "mea", label: "MEA" },
+  { value: "Whg.-MEA", label: "Whg.-MEA" },
+  { value: "Gar.-MEA", label: "Gar.-MEA" },
+  { value: "Sonder-MEA", label: "Sonder-MEA" },
   { value: "einheit", label: "Einheit" },
   { value: "qm", label: "Quadratmeter" },
   { value: "personen", label: "Personen" },
@@ -227,12 +230,22 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
       
 
+      const sortByCreated = (a: any, b: any) => {
+        const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return ta - tb;
+      };
+
       return assignData.map(a => ({
         ...a,
-        shares: (sharesRes.data || []).filter((s: any) => s.assignment_id === a.id),
+        shares: (sharesRes.data || [])
+          .filter((s: any) => s.assignment_id === a.id)
+          .sort(sortByCreated),
         phones: (phonesRes.data || []).filter((p: any) => p.contact_id === a.contact_id),
         emails: (emailsRes.data || []).filter((e: any) => e.contact_id === a.contact_id),
-        costs: (costsRes.data || []).filter((c: any) => c.assignment_id === a.id),
+        costs: (costsRes.data || [])
+          .filter((c: any) => c.assignment_id === a.id)
+          .sort(sortByCreated),
         bankAccounts: (bankRes.data || []).filter((b: any) => b.contact_id === a.contact_id),
       })) as unknown as ContactAssignment[];
     },
