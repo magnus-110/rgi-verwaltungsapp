@@ -40,22 +40,29 @@ amount = 955.23
 ```
 
 ### Interne Umbuchungen (ohne Bankbezug)
-- `account_id` = **Soll-Seite** (Konto, das **belastet** wird)
-- `counter_account_id` = **Haben-Seite** (Konto, das **entlastet** wird)
+
+> ⚠️ **Achtung — bank-zentrische Konvention, NICHT klassisches Soll/Haben:**
+> Bei `booking_type='expense'` gilt für `sumForAccount`/`signedTotalForAccount`:
+> - `account_id` wird **entlastet** (Effekt: −amount) — die "abgebende" Seite
+> - `counter_account_id` wird **belastet** (Effekt: +amount) — die "empfangende" Seite
+>
+> Das ist konsistent mit Bankzahlungen: bei `expense` verliert die Bank (account_id) Geld,
+> der Aufwand (counter) bekommt die Belastung.
+
+- `account_id` = Konto, das **abgibt / entlastet** wird (verlierende Seite)
+- `counter_account_id` = Konto, das **bekommt / belastet** wird (empfangende Seite)
 - `booking_type` = `expense`
 - `amount` = positiv
 
-> ⚠️ **Häufiger Fehler bei Umbuchungen zwischen Aufwandskonten** (z. B. Wasser → Heizung):
-> Wenn von Konto A Betrag X **abgezogen** und auf Konto B **draufgebucht** werden soll
-> (B wird belastet, A wird entlastet), dann gehört **B in `account_id`** und **A in `counter_account_id`**.
->
-> Beispiel "Umb. Wasser-/Kanalgebühren auf Heizung 159,82 €":
-> ```
-> account_id = 1400 (Heizung wird belastet)
-> counter_account_id = 1040 (Abwasser wird entlastet)
-> booking_type = expense
-> ```
-> Vertauschen führt zu doppelter Belastung des Quellkontos!
+**Beispiel "Umb. Wasser-/Kanalgebühren auf Heizung 159,82 €"** (Anteil Wasser wird auf Heizung umgebucht):
+```
+account_id = 1040 (Abwasser gibt 159,82 € ab → wird entlastet)
+counter_account_id = 1400 (Heizung empfängt 159,82 € → wird belastet)
+booking_type = expense
+amount = 159.82
+```
+→ Effekt 1040: −159,82 (Saldo geht Richtung 0); Effekt 1400: +159,82 (Heizkosten erhöhen sich).
+
 
 **Beispiel: Sollstellung Guthaben Abrechnung 2024 BARANIAK 949,58 €**
 ```
