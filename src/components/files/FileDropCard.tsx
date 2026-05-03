@@ -280,45 +280,92 @@ export function FileDropCard({
                 className="flex items-center gap-2 py-2 text-sm group rounded-md hover:bg-muted/50 px-2 -mx-2 transition-colors"
               >
                 <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                <span className="truncate flex-1 font-medium">{file.display_name}</span>
-                {cat && (
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
-                    {cat.name}
-                  </Badge>
+                {renamingId === file.id ? (
+                  <>
+                    <Input
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        e.stopPropagation();
+                        if (e.key === "Enter") saveRename(file.id);
+                        if (e.key === "Escape") cancelRename();
+                      }}
+                      autoFocus
+                      className="h-7 flex-1 text-sm"
+                      disabled={savingRename}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-primary"
+                      onClick={(e) => { e.stopPropagation(); saveRename(file.id); }}
+                      disabled={savingRename}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={(e) => { e.stopPropagation(); cancelRename(); }}
+                      disabled={savingRename}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span className="truncate flex-1 font-medium">{file.display_name}</span>
+                    {cat && (
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                        {cat.name}
+                      </Badge>
+                    )}
+                    <span className="text-xs text-muted-foreground hidden sm:inline">
+                      {formatFileSize(file.file_size)}
+                    </span>
+                    <span className="text-xs text-muted-foreground hidden md:inline">
+                      {format(new Date(file.created_at), "dd.MM.yy", { locale: de })}
+                    </span>
+                    {onToggleVisibility && (
+                      <Switch
+                        checked={file.visible_to_users}
+                        onCheckedChange={(checked) => {
+                          onToggleVisibility(file.id, checked);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-5 w-9 data-[state=checked]:bg-primary"
+                      />
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                      onClick={(e) => { e.stopPropagation(); startRename(file); }}
+                      title="Umbenennen"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                      onClick={(e) => { e.stopPropagation(); handleDownload(file); }}
+                      disabled={downloading === file.id}
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive"
+                      onClick={(e) => { e.stopPropagation(); onDelete(file.id, file.file_path); }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </>
                 )}
-                <span className="text-xs text-muted-foreground hidden sm:inline">
-                  {formatFileSize(file.file_size)}
-                </span>
-                <span className="text-xs text-muted-foreground hidden md:inline">
-                  {format(new Date(file.created_at), "dd.MM.yy", { locale: de })}
-                </span>
-                {onToggleVisibility && (
-                  <Switch
-                    checked={file.visible_to_users}
-                    onCheckedChange={(checked) => {
-                      onToggleVisibility(file.id, checked);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="h-5 w-9 data-[state=checked]:bg-primary"
-                  />
-                )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 opacity-0 group-hover:opacity-100"
-                  onClick={(e) => { e.stopPropagation(); handleDownload(file); }}
-                  disabled={downloading === file.id}
-                >
-                  <Download className="w-3.5 h-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive"
-                  onClick={(e) => { e.stopPropagation(); onDelete(file.id, file.file_path); }}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
               </div>
             );
           })}
