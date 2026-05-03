@@ -275,16 +275,28 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
 
     const roleValue = isBeirat ? 'beirat' : (managementMode === 'weg' ? 'eigentuemer' : 'mieter');
 
-    const { error } = await supabase.from("contact_building_assignments").insert({
-      contact_id: selectedId,
-      building_id: buildingId,
-      role_in_building: roleValue as any,
-      unit_number: unitNumber || null,
-      floor_location: floorLocation || null,
-      unit_kind: unitKind as any,
-      billing_mode: 'own_billing' as any,
-      parent_assignment_id: null,
-    } as any);
+    let error: any = null;
+    if (editAssignmentId) {
+      const res = await supabase.from("contact_building_assignments").update({
+        role_in_building: roleValue as any,
+        unit_number: unitNumber || null,
+        floor_location: floorLocation || null,
+        unit_kind: unitKind as any,
+      } as any).eq("id", editAssignmentId);
+      error = res.error;
+    } else {
+      const res = await supabase.from("contact_building_assignments").insert({
+        contact_id: selectedId,
+        building_id: buildingId,
+        role_in_building: roleValue as any,
+        unit_number: unitNumber || null,
+        floor_location: floorLocation || null,
+        unit_kind: unitKind as any,
+        billing_mode: 'own_billing' as any,
+        parent_assignment_id: null,
+      } as any);
+      error = res.error;
+    }
 
     if (error) {
       setSaving(false);
@@ -293,12 +305,32 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     }
 
     // Check if contact has email for invitation
-    const hasEmail = addressMode === "new" 
-      ? editEmails.some(e => e.email.trim()) 
-      : selectedContact?.hasEmail;
+    const hasEmail = addressMode === "new"
+      ? editEmails.some(e => e.email.trim())
+      : (selectedContact?.hasEmail || editEmails.some(e => e.email.trim()));
 
-    // Always create auth account if contact has email, only control email sending via send_email flag
-    if (hasEmail) {
+    // Bei Edit-Modus: Account/Einladung nur wenn explizit angekreuzt.
+    // Bei Neu-Anlage: Account immer erstellen wenn E-Mail da, Versand nur bei sendInvite.
+    if (editAssignmentId) {
+      if (sendInvite && hasEmail) {
+        setInviting(true);
+        try {
+          const { error: inviteError } = await supabase.functions.invoke("invite-contact-user", {
+            body: { contact_id: selectedId, building_id: buildingId, management_mode: managementMode, send_email: true },
+          });
+          if (inviteError) {
+            toast({ title: "Aktualisiert, aber Einladung fehlgeschlagen", description: inviteError.message, variant: "destructive" });
+          } else {
+            toast({ title: "Aktualisiert & Einladung gesendet" });
+          }
+        } catch (e) {
+          toast({ title: "Aktualisiert, aber Einladung fehlgeschlagen", variant: "destructive" });
+        }
+        setInviting(false);
+      } else {
+        toast({ title: "Zuordnung aktualisiert" });
+      }
+    } else if (hasEmail) {
       setInviting(true);
       try {
         const { error: inviteError } = await supabase.functions.invoke("invite-contact-user", {
