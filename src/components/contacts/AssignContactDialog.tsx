@@ -649,11 +649,21 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
             )}
             {step === "details" && (
               <>
-                <Button variant="outline" onClick={() => setStep("select")} disabled={isSaving}>
-                  <ChevronLeft className="h-4 w-4 mr-1" /> Zurück
-                </Button>
+                {editAssignmentId ? (
+                  <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+                    Abbrechen
+                  </Button>
+                ) : (
+                  <Button variant="outline" onClick={() => setStep("select")} disabled={isSaving}>
+                    <ChevronLeft className="h-4 w-4 mr-1" /> Zurück
+                  </Button>
+                )}
                 <Button onClick={handleAssign} disabled={isSaving}>
-                  {isSaving ? "..." : sendInvite && hasEmailForInvite ? "Zuordnen & Einladen" : "Zuordnen"}
+                  {isSaving
+                    ? "..."
+                    : editAssignmentId
+                      ? (sendInvite && hasEmailForInvite ? "Speichern & Einladen" : "Speichern")
+                      : (sendInvite && hasEmailForInvite ? "Zuordnen & Einladen" : "Zuordnen")}
                 </Button>
               </>
             )}
