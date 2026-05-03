@@ -545,7 +545,18 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
           </TabsList>
 
           {/* ── Tab: Gesamtplan ─────────────────────────────────── */}
-          <TabsContent value="gesamt" className="mt-4">
+          <TabsContent value="gesamt" className="mt-4 space-y-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap rounded-md border bg-muted/30 px-3 py-2">
+              <div className="text-xs text-muted-foreground">
+                Es werden <strong>{accounts.length}</strong> Konten angezeigt
+                {showAllAccounts ? " (alle Konten der Liegenschaft)" : " (relevant oder mit Vorjahres-Saldo)"}.
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch id="wp-show-all" checked={showAllAccounts} onCheckedChange={setShowAllAccounts} />
+                <Label htmlFor="wp-show-all" className="text-xs cursor-pointer">Alle Konten anzeigen</Label>
+              </div>
+            </div>
+
             <EconomicPlanLayout
               title={`Gesamtwirtschaftsplan ${fiscalYear}`}
               subtitle={`Wirtschaftszeitraum: ${periodLabel}`}
@@ -568,6 +579,21 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                   <span className="text-muted-foreground text-xs">€</span>
                 </div>
               ) : undefined}
+              secondaryColumn={mode === "edit" ? {
+                label: "WP-relevant",
+                render: (row) => {
+                  const acc = (allAccounts as any[]).find((a) => a.id === row.account_id);
+                  const checked = !!acc?.is_wirtschaftsplan_relevant;
+                  return (
+                    <div className="flex items-center justify-end">
+                      <Switch
+                        checked={checked}
+                        onCheckedChange={(v) => toggleWpRelevance(row.account_id, v)}
+                      />
+                    </div>
+                  );
+                },
+              } : undefined}
               renderActionCell={mode === "edit" ? (row) => (
                 row.manually_overridden && row.planned_amount > 0 ? (
                   <Tooltip>
