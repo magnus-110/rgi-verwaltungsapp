@@ -118,6 +118,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   const [bulkResetting, setBulkResetting] = useState(false);
   const [zuordnungOpen, setZuordnungOpen] = useState(false);
   const fieldRefs = useRef<Record<string, HTMLElement | null>>({});
+  const split = useMobileSplitView();
 
   // Multi-row booking state
   const [formRows, setFormRows] = useState<BookingRowData[]>([]);
