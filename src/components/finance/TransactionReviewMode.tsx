@@ -1320,9 +1320,26 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
             <Button onClick={() => onOpenChange(false)}>Schließen</Button>
           </div>
         ) : currentTxn ? (
-          <div className="flex-1 flex overflow-hidden">
+          <>
+            <MobileViewSwitcher
+              mobileView={split.mobileView}
+              onChange={split.setMobileView}
+              listLabel="Buchung"
+              detailLabel="Beleg/KI"
+            />
+            <div
+              className="flex-1 flex overflow-hidden"
+              onTouchStart={split.touchHandlers.onTouchStart}
+              onTouchEnd={split.touchHandlers.onTouchEnd}
+            >
             {/* Left: Transaction details + Booking rows */}
-            <div className="w-1/2 border-r overflow-y-auto">
+            {split.showList && (
+            <div className={cn("border-r overflow-y-auto", split.isMobile ? "w-full" : "w-1/2")}>
+              {split.isMobile && (
+                <div className="px-3 pt-2">
+                  <MobileBackToListButton onClick={split.openDetail} label="Beleg & KI öffnen" />
+                </div>
+              )}
               {/* Transaction summary */}
               <div className="p-4 bg-muted/20 border-b space-y-3">
                 <div className="flex items-center justify-between">
