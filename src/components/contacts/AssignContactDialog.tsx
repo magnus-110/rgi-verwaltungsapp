@@ -144,9 +144,15 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
 
   const filtered = contacts.filter(c => {
     const term = search.toLowerCase();
+    if (!term) return true;
+    const personHit = (c.persons || []).some(p =>
+      (p.first_name || "").toLowerCase().includes(term) ||
+      (p.last_name || "").toLowerCase().includes(term)
+    );
     return (c.first_name || "").toLowerCase().includes(term) ||
       (c.last_name || "").toLowerCase().includes(term) ||
-      (c.company_name || "").toLowerCase().includes(term);
+      (c.company_name || "").toLowerCase().includes(term) ||
+      personHit;
   });
 
   const getName = (c: ContactOption) => {
