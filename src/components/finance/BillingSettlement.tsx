@@ -21,16 +21,43 @@ interface BillingSettlementProps {
   fiscalYear: number;
 }
 
+// Mapping Verteilerschlüssel → share_type (in contact_building_shares).
+// Identisch zur Liste im Wirtschaftsplan-Editor + Personen-Tab (siehe src/lib/shareTypes.ts).
+// Identitäts-Mapping für alle in SHARE_TYPES definierten Keys + Custom-MEA-Varianten,
+// damit Custom-Schlüssel (Whg.-MEA, Gar.-MEA, Sonder-MEA, stellplaetze, garagen, ...)
+// genau so verteilt werden wie in der Personen-/Anteils-Pflege gespeichert.
 const DIST_KEY_TO_SHARE: Record<string, string> = {
-  mea: "mea", einheiten: "einheit", units: "einheit", qm: "qm", personen: "personen",
-  verbrauch_wasser: "wasser", verbrauch_warmwasser: "warmwasser",
+  // Standard-Aliase
+  mea: "mea",
+  einheiten: "einheit", einheit: "einheit", units: "einheit",
+  qm: "qm", personen: "personen",
+  garagen: "garagen", stellplaetze: "stellplaetze",
+  verbrauch_wasser: "wasser", wasser: "wasser",
+  verbrauch_warmwasser: "warmwasser", warmwasser: "warmwasser",
   heizkostenverordnung: "heizkosten", heating_individual: "heizkosten",
+  heizkosten: "heizkosten", heizk_abr: "heizkosten", "heizk.abr": "heizkosten",
+  verbrauch_heizung: "heizkosten",
+  direkt: "direkt",
+  // Custom-MEA-Varianten (case-insensitive Lookup über getShareType unten)
+  "whg.-mea": "Whg.-MEA",
+  "gar.-mea": "Gar.-MEA",
+  "sonder-mea": "Sonder-MEA",
+};
+
+// Robuster Lookup: Identitäts-Fallback für unbekannte Custom-Keys,
+// damit jeder in der DB gepflegte share_type direkt verteilt werden kann.
+const getShareType = (distKey: string): string => {
+  if (!distKey) return "mea";
+  const lower = distKey.toLowerCase();
+  return DIST_KEY_TO_SHARE[lower] || DIST_KEY_TO_SHARE[distKey] || distKey;
 };
 
 const SHARE_LABELS: Record<string, string> = {
   mea: "Ges.Tausendstel", einheit: "Einheiten", qm: "Wohnfläche (m²)",
   personen: "Personen", wasser: "Wasserverbr.", warmwasser: "Warmwasserverbr.",
   heizkosten: "Heizk.Abr.", direkt: "Direkt",
+  garagen: "Garagen", stellplaetze: "Stellplätze",
+  "Whg.-MEA": "Whg.-MEA", "Gar.-MEA": "Gar.-MEA", "Sonder-MEA": "Sonder-MEA",
 };
 
 const SECTION_LABELS: Record<string, string> = {
@@ -521,7 +548,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
   // --- Owner calculation ---
   const getShareTotal = (shareType: string) => {
-    const mapped = DIST_KEY_TO_SHARE[shareType] || shareType;
+    const mapped = getShareType(shareType);
     // For "einheit" (1 Einheit = 1 Anteil) use building unit count, override-aware.
     if (mapped === "einheit") {
       return building?.unit_count_for_billing ?? building?.unit_count ?? assignments.length;
@@ -565,7 +592,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       if (total === 0) return;
 
       const distKey = getDistKey(acc.id, acc.default_distribution_key);
-      const shareType = DIST_KEY_TO_SHARE[distKey] || distKey;
+      const shareType = getShareType(distKey);
 
       // Heizkosten-Konten (z. B. 1400) — strikt Brunata-Werte, KEIN MEA-Fallback.
       // Fehlen Brunata-Werte, wird 0 verteilt (Warnung wird in der UI angezeigt).
@@ -828,19 +855,21 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       } else if (isHeating1400 && heatingDistValues.length === 0) {
         reason = "Verteilerschlüssel 'heizkostenverordnung', aber keine Brunata-Werte für diese Periode";
       } else {
-        const shareType = DIST_KEY_TO_SHARE[distKey];
-        if (!shareType) {
-          reason = `Unbekannter Verteilerschlüssel '${distKey}'`;
-        } else if (shareType === "einheit") {
+        const shareType = getShareType(distKey);
+        if (shareType === "einheit") {
           const totalUnits = building?.unit_count_for_billing ?? building?.unit_count ?? assignments.length;
           if (!totalUnits) reason = "Verteilerschlüssel 'einheiten', aber keine Einheitenzahl gepflegt";
         } else if (shareType === "heizkosten") {
           if (heatingDistValues.length === 0) {
             reason = "Verteilerschlüssel 'heizkostenverordnung', aber keine Brunata-Werte für diese Periode";
           }
+        } else if (shareType === "direkt") {
+          // Direktzuordnung: keine Anteils-Summe nötig
         } else {
           const totalShares = assignments.reduce((s: number, a: any) => {
-            const share = (a.contact_building_shares || []).find((sh: any) => sh.share_type === shareType);
+            const share = (a.contact_building_shares || []).find((sh: any) =>
+              String(sh.share_type || "").toLowerCase() === String(shareType).toLowerCase()
+            );
             return s + (share ? Number(share.share_value) || 0 : 0);
           }, 0);
           if (totalShares <= 0) {
