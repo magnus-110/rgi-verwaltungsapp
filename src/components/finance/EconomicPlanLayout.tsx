@@ -84,7 +84,7 @@ const SECTION_LABELS: Record<string, string> = {
 };
 
 const DIST_KEY_LABELS: Record<string, string> = {
-  mea: "Ges.Tausendstel",
+  mea: "MEA",
   einheit: "Einheiten",
   einheiten: "Einheiten",
   qm: "Wohnfläche",
@@ -93,11 +93,15 @@ const DIST_KEY_LABELS: Record<string, string> = {
   verbrauch_wasser: "Wasserverbrauch",
   verbrauch_heizung: "Heizk.Abr",
   heizk_abr: "Heizk.Abr",
+  heizkostenverordnung: "HeizkostenV",
   direkt: "Direkt",
+  "whg.-mea": "Whg.-MEA",
+  "gar.-mea": "Gar.-MEA",
+  "sonder-mea": "Sonder-MEA",
 };
 
 const formatDistKey = (k?: string | null) => {
-  if (!k) return "Ges.Tausendstel";
+  if (!k) return "MEA";
   return DIST_KEY_LABELS[k.toLowerCase()] || k;
 };
 
