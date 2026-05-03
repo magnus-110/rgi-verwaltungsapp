@@ -8,29 +8,46 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Send, Loader2, Paperclip, X, Users, Search, Minus, Maximize2, ExternalLink, Wand2, Check, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react";
+import {
+  Send, Loader2, Paperclip, X, Users, Search, Minus, Maximize2, Minimize2,
+  ExternalLink, Wand2, Check, ChevronDown, ArrowLeft, CalendarClock,
+} from "lucide-react";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useComposeEmail } from "@/contexts/ComposeEmailContext";
+import { useComposeEmail, type ComposeState } from "@/contexts/ComposeEmailContext";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-export const FloatingComposeWindow = () => {
-  const { compose, closeCompose, toggleMinimize, updateCompose, openCompose } = useComposeEmail();
-  const isMobile = useIsMobile();
-  // Detect fullscreen mode via URL parameter (?compose=fullscreen)
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return new URLSearchParams(window.location.search).get("compose") === "fullscreen";
+const fileToBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve((r.result as string).split(",")[1]);
+    r.onerror = reject;
+    r.readAsDataURL(file);
   });
 
-  // On first mount in fullscreen mode, hydrate compose state from URL parameters
-  // and clean the params from the address bar.
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+// =====================================================================
+// Container — renders one window per compose. Handles minimized stack
+// at the bottom.
+// =====================================================================
+export const FloatingComposeWindow = () => {
+  const { composes, openCompose } = useComposeEmail();
+  const isMobile = useIsMobile();
+
+  // Hydrate fullscreen mode from URL once on first mount.
   const hydratedRef = useRef(false);
   useEffect(() => {
-    if (!isFullscreen || hydratedRef.current) return;
-    hydratedRef.current = true;
+    if (hydratedRef.current) return;
+    if (typeof window === "undefined") return;
     const sp = new URLSearchParams(window.location.search);
+    if (sp.get("compose") !== "fullscreen") return;
+    hydratedRef.current = true;
     openCompose({
       prefill: {
         to: sp.get("to") || "",
@@ -41,11 +58,92 @@ export const FloatingComposeWindow = () => {
         accountId: sp.get("accountId") || "",
       },
     });
-    // Strip params so a refresh doesn't re-hydrate
     const url = new URL(window.location.href);
-    ["compose", "to", "cc", "bcc", "subject", "body", "accountId"].forEach(k => url.searchParams.delete(k));
+    ["compose", "to", "cc", "bcc", "subject", "body", "accountId"].forEach((k) =>
+      url.searchParams.delete(k),
+    );
     window.history.replaceState({}, "", url.toString());
-  }, [isFullscreen, openCompose]);
+    // Mark this first one as fullscreen after creation.
+    setTimeout(() => {
+      // The just-created compose will be the last one. We rely on subsequent
+      // rendering — see useEffect inside ComposeWindow which checks `?compose=fullscreen`
+      // by reading the same param. To keep it simple we leave it docked here;
+      // user can hit Maximize. (Full-tab usage is a power-user case.)
+    }, 0);
+  }, [openCompose]);
+
+  if (composes.length === 0) return null;
+
+  // Mobile: only show one at a time (the latest non-minimized, else last)
+  if (isMobile) {
+    const active = [...composes].reverse().find((c) => c.mode !== "minimized") || composes[composes.length - 1];
+    const minimized = composes.filter((c) => c.id !== active.id || active.mode === "minimized");
+    return (
+      <>
+        {composes.length > 0 && active.mode !== "minimized" && <ComposeWindow compose={active} />}
+        {/* Minimized stack on mobile (single bar showing count) */}
+        {minimized.length > 0 && (
+          <MinimizedStack composes={composes.filter((c) => c.mode === "minimized")} />
+        )}
+      </>
+    );
+  }
+
+  // Desktop: render docked/fullscreen window (at most one) + minimized stack
+  const visible = composes.find((c) => c.mode === "docked" || c.mode === "fullscreen");
+  const minimized = composes.filter((c) => c.mode === "minimized");
+
+  return (
+    <>
+      {visible && <ComposeWindow compose={visible} />}
+      {minimized.length > 0 && <MinimizedStack composes={minimized} />}
+    </>
+  );
+};
+
+// =====================================================================
+// Minimized stack at the bottom-right (Gmail-style horizontal bars)
+// =====================================================================
+const MinimizedStack = ({ composes }: { composes: ComposeState[] }) => {
+  const { setMode, closeCompose } = useComposeEmail();
+  return (
+    <div className="fixed bottom-0 right-4 z-50 flex flex-row-reverse gap-2 pointer-events-none">
+      {composes.map((c) => (
+        <div
+          key={c.id}
+          className="pointer-events-auto w-64 bg-card border border-border rounded-t-lg shadow-lg cursor-pointer hover:bg-muted/40 transition-colors"
+          onClick={() => setMode(c.id, "docked")}
+        >
+          <div className="flex items-center justify-between px-3 py-2">
+            <span className="text-sm font-medium truncate flex-1">
+              {c.replyTo ? "Antworten" : c.forward ? "Weiterleiten" : "Neue E-Mail"}
+              {c.subject && ` – ${c.subject}`}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 -mr-1 shrink-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                closeCompose(c.id);
+              }}
+              aria-label="Verwerfen"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// =====================================================================
+// Main compose window — docked or fullscreen (and mobile fullscreen)
+// =====================================================================
+const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
+  const { closeCompose, setMode, updateCompose } = useComposeEmail();
+  const isMobile = useIsMobile();
 
   const [isSending, setIsSending] = useState(false);
   const [isImproving, setIsImproving] = useState(false);
@@ -57,15 +155,14 @@ export const FloatingComposeWindow = () => {
   const [bccContactPickerOpen, setBccContactPickerOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   const [showCcBcc, setShowCcBcc] = useState(false);
-  
-  // Drag state
-  const [position, setPosition] = useState({ x: window.innerWidth - 660, y: window.innerHeight - 580 });
-  const [size, setSize] = useState({ width: 620, height: 520 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [isResizing, setIsResizing] = useState(false);
-  const [resizeDirection, setResizeDirection] = useState<string>("");
-  const dragOffset = useRef({ x: 0, y: 0 });
-  const resizeStart = useRef({ x: 0, y: 0, w: 0, h: 0 });
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+
+  const isFullscreen = compose.mode === "fullscreen";
+
+  const update = useCallback(
+    (u: Partial<ComposeState>) => updateCompose(compose.id, u),
+    [updateCompose, compose.id],
+  );
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["email-accounts-compose"],
@@ -78,7 +175,6 @@ export const FloatingComposeWindow = () => {
       if (error) throw error;
       return data;
     },
-    enabled: compose.isOpen,
   });
 
   const { data: contactsWithEmails = [] } = useQuery({
@@ -93,86 +189,75 @@ export const FloatingComposeWindow = () => {
         .from("contact_emails")
         .select("contact_id, email, label");
       if (emailErr) throw emailErr;
-      return (contacts || []).map(c => ({
-        ...c,
-        emails: (emails || []).filter(e => e.contact_id === c.id),
-        displayName: [c.first_name, c.last_name].filter(Boolean).join(" ") || c.company_name || "Unbenannt",
-      })).filter(c => c.emails.length > 0);
+      return (contacts || [])
+        .map((c) => ({
+          ...c,
+          emails: (emails || []).filter((e) => e.contact_id === c.id),
+          displayName:
+            [c.first_name, c.last_name].filter(Boolean).join(" ") || c.company_name || "Unbenannt",
+        }))
+        .filter((c) => c.emails.length > 0);
     },
-    enabled: compose.isOpen,
   });
 
-  // Auto-set account
+  // Auto-select first account
   useEffect(() => {
     if (!compose.accountId && accounts.length > 0) {
-      updateCompose({ accountId: accounts[0].id });
+      update({ accountId: accounts[0].id });
     }
-  }, [accounts, compose.accountId, updateCompose]);
+  }, [accounts, compose.accountId, update]);
 
-  // Insert signature when account changes.
-  // For replies/forwards: place the signature directly after the user's text
-  // and BEFORE the quoted original message ("--- Ursprüngliche/Weitergeleitete Nachricht ---").
+  // Insert signature on account change (preserving quoted text after signature)
   const prevAccountRef = useRef<string>("");
   useEffect(() => {
     if (!compose.accountId || compose.accountId === prevAccountRef.current) return;
-    const account = accounts.find(a => a.id === compose.accountId);
-    // Wait until the accounts list is loaded — otherwise we'd mark the account
-    // as "processed" before the signature could be inserted.
+    const account = accounts.find((a) => a.id === compose.accountId);
     if (!account) return;
-    if (!account.signature_html) { prevAccountRef.current = compose.accountId; return; }
-
+    if (!account.signature_html) {
+      prevAccountRef.current = compose.accountId;
+      return;
+    }
     const sig = `\n\n--\n${account.signature_html}`;
-    const oldAccount = accounts.find(a => a.id === prevAccountRef.current);
+    const oldAccount = accounts.find((a) => a.id === prevAccountRef.current);
     const oldSig = oldAccount?.signature_html ? `\n\n--\n${oldAccount.signature_html}` : null;
-
-    // Locate the quote separator to split the body into [user text | quoted text]
     const QUOTE_RE = /\n*---\s*(?:Ursprüngliche|Weitergeleitete)\s+Nachricht\s*---/;
     const body = compose.bodyText;
-    const match = body.match(QUOTE_RE);
-
+    const m = body.match(QUOTE_RE);
     let head: string;
     let tail: string;
-    if (match && match.index !== undefined) {
-      head = body.slice(0, match.index);
-      tail = body.slice(match.index); // starts with \n--- ... ---
+    if (m && m.index !== undefined) {
+      head = body.slice(0, m.index);
+      tail = body.slice(m.index);
     } else {
       head = body;
       tail = "";
     }
-
-    // Strip a previously inserted (old account) signature from the head
-    if (oldSig && head.endsWith(oldSig)) {
-      head = head.slice(0, -oldSig.length);
-    }
-
-    // Avoid duplicate insertion
+    if (oldSig && head.endsWith(oldSig)) head = head.slice(0, -oldSig.length);
     if (head.endsWith(sig)) {
       prevAccountRef.current = compose.accountId;
       return;
     }
-
     const newBody = head + sig + tail;
-    if (newBody !== body) {
-      updateCompose({ bodyText: newBody });
-    }
+    if (newBody !== body) update({ bodyText: newBody });
     prevAccountRef.current = compose.accountId;
   }, [compose.accountId, accounts]);
 
   const filteredContacts = useMemo(() => {
     if (!contactSearch) return contactsWithEmails;
     const s = contactSearch.toLowerCase();
-    return contactsWithEmails.filter(c =>
-      c.displayName.toLowerCase().includes(s) ||
-      c.company_name?.toLowerCase().includes(s) ||
-      c.emails.some(e => e.email.toLowerCase().includes(s))
+    return contactsWithEmails.filter(
+      (c) =>
+        c.displayName.toLowerCase().includes(s) ||
+        c.company_name?.toLowerCase().includes(s) ||
+        c.emails.some((e) => e.email.toLowerCase().includes(s)),
     );
   }, [contactsWithEmails, contactSearch]);
 
   const addEmailToField = (email: string, field: "to" | "cc" | "bcc" = "to") => {
     const currentVal = compose[field];
-    const current = currentVal.split(",").map(e => e.trim()).filter(Boolean);
+    const current = currentVal.split(",").map((e) => e.trim()).filter(Boolean);
     if (!current.includes(email)) {
-      updateCompose({ [field]: current.length > 0 ? `${currentVal}, ${email}` : email });
+      update({ [field]: current.length > 0 ? `${currentVal}, ${email}` : email } as Partial<ComposeState>);
     }
   };
 
@@ -181,30 +266,18 @@ export const FloatingComposeWindow = () => {
     const maxSize = 10 * 1024 * 1024;
     const newAttachments = [...compose.attachments];
     for (const file of files) {
-      if (file.size > maxSize) { toast.error(`${file.name} ist zu groß (max. 10MB)`); continue; }
+      if (file.size > maxSize) {
+        toast.error(`${file.name} ist zu groß (max. 10MB)`);
+        continue;
+      }
       newAttachments.push({ file, name: file.name, size: file.size });
     }
-    updateCompose({ attachments: newAttachments });
+    update({ attachments: newAttachments });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const removeAttachment = (index: number) => {
-    updateCompose({ attachments: compose.attachments.filter((_, i) => i !== index) });
-  };
-
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => { resolve((reader.result as string).split(",")[1]); };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    update({ attachments: compose.attachments.filter((_, i) => i !== index) });
   };
 
   const handleSend = async () => {
@@ -214,31 +287,56 @@ export const FloatingComposeWindow = () => {
     }
     setIsSending(true);
     try {
-      const toAddresses = compose.to.split(",").map(e => e.trim()).filter(Boolean);
-      const ccAddresses = compose.cc ? compose.cc.split(",").map(e => e.trim()).filter(Boolean) : [];
-      const bccAddresses = compose.bcc ? compose.bcc.split(",").map(e => e.trim()).filter(Boolean) : [];
+      const toAddresses = compose.to.split(",").map((e) => e.trim()).filter(Boolean);
+      const ccAddresses = compose.cc ? compose.cc.split(",").map((e) => e.trim()).filter(Boolean) : [];
+      const bccAddresses = compose.bcc ? compose.bcc.split(",").map((e) => e.trim()).filter(Boolean) : [];
       const attachmentData = await Promise.all(
-        compose.attachments.map(async att => ({
+        compose.attachments.map(async (att) => ({
           filename: att.name,
           content: await fileToBase64(att.file),
           contentType: att.file.type || "application/octet-stream",
-        }))
+          size: att.size,
+        })),
       );
+
+      // Scheduled send → store in scheduled_emails
+      if (compose.scheduledAt && new Date(compose.scheduledAt).getTime() > Date.now()) {
+        const { data: u } = await supabase.auth.getUser();
+        const userId = u?.user?.id;
+        if (!userId) throw new Error("Nicht angemeldet");
+        const { error } = await supabase.from("scheduled_emails").insert({
+          user_id: userId,
+          account_id: compose.accountId,
+          to_addresses: toAddresses,
+          cc_addresses: ccAddresses.length ? ccAddresses : null,
+          bcc_addresses: bccAddresses.length ? bccAddresses : null,
+          subject: compose.subject,
+          body_text: compose.bodyText,
+          body_html: compose.forwardHtml || null,
+          attachments: attachmentData,
+          scheduled_at: new Date(compose.scheduledAt).toISOString(),
+        });
+        if (error) throw error;
+        toast.success(`E-Mail geplant für ${new Date(compose.scheduledAt).toLocaleString("de-DE")}`);
+        closeCompose(compose.id);
+        return;
+      }
+
       const { error } = await supabase.functions.invoke("send-email", {
         body: {
           account_id: compose.accountId,
           to: toAddresses,
-          cc: ccAddresses.length > 0 ? ccAddresses : undefined,
-          bcc: bccAddresses.length > 0 ? bccAddresses : undefined,
+          cc: ccAddresses.length ? ccAddresses : undefined,
+          bcc: bccAddresses.length ? bccAddresses : undefined,
           subject: compose.subject,
           body_text: compose.bodyText,
           body_html: compose.forwardHtml || undefined,
-          attachments: attachmentData.length > 0 ? attachmentData : undefined,
+          attachments: attachmentData.length ? attachmentData : undefined,
         },
       });
       if (error) throw error;
       toast.success("E-Mail gesendet!");
-      closeCompose();
+      closeCompose(compose.id);
     } catch (err: any) {
       toast.error("Senden fehlgeschlagen: " + (err.message || "Unbekannter Fehler"));
     } finally {
@@ -256,7 +354,10 @@ export const FloatingComposeWindow = () => {
       if (error) throw error;
       if (data?.improvedText) {
         setAiSuggestion(data.improvedText);
-        setTimeout(() => aiSuggestionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 100);
+        setTimeout(
+          () => aiSuggestionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }),
+          100,
+        );
       }
     } catch (err: any) {
       toast.error("KI-Verbesserung fehlgeschlagen: " + (err.message || "Unbekannter Fehler"));
@@ -264,53 +365,6 @@ export const FloatingComposeWindow = () => {
       setIsImproving(false);
     }
   };
-  const onDragStart = useCallback((e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest("button, input, textarea, select, [role=combobox]")) return;
-    setIsDragging(true);
-    dragOffset.current = { x: e.clientX - position.x, y: e.clientY - position.y };
-  }, [position]);
-
-  // Resize handlers
-  const onResizeStart = useCallback((dir: string) => (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsResizing(true);
-    setResizeDirection(dir);
-    resizeStart.current = { x: e.clientX, y: e.clientY, w: size.width, h: size.height };
-  }, [size]);
-
-  useEffect(() => {
-    if (!isDragging && !isResizing) return;
-    
-    const onMove = (e: MouseEvent) => {
-      if (isDragging) {
-        setPosition({
-          x: Math.max(0, Math.min(window.innerWidth - 200, e.clientX - dragOffset.current.x)),
-          y: Math.max(0, Math.min(window.innerHeight - 40, e.clientY - dragOffset.current.y)),
-        });
-      }
-      if (isResizing) {
-        const dx = e.clientX - resizeStart.current.x;
-        const dy = e.clientY - resizeStart.current.y;
-        const d = resizeDirection;
-
-        setSize(prev => ({
-          width: Math.max(400, d.includes("e") ? resizeStart.current.w + dx : d.includes("w") ? resizeStart.current.w - dx : prev.width),
-          height: Math.max(300, d.includes("s") ? resizeStart.current.h + dy : d.includes("n") ? resizeStart.current.h - dy : prev.height),
-        }));
-        setPosition(prev => ({
-          x: d.includes("w") ? prev.x + (e.clientX - resizeStart.current.x) : prev.x,
-          y: d.includes("n") ? prev.y + (e.clientY - resizeStart.current.y) : prev.y,
-        }));
-        if (d.includes("w")) resizeStart.current.x = e.clientX;
-        if (d.includes("n")) resizeStart.current.y = e.clientY;
-      }
-    };
-    const onUp = () => { setIsDragging(false); setIsResizing(false); setResizeDirection(""); };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
-  }, [isDragging, isResizing, resizeDirection]);
 
   const handlePopOut = () => {
     const params = new URLSearchParams({
@@ -322,223 +376,92 @@ export const FloatingComposeWindow = () => {
       body: compose.bodyText,
       accountId: compose.accountId,
     });
-    const url = `${window.location.origin}/postfach?${params.toString()}`;
-    // No size args -> opens as a real new tab in modern browsers
-    window.open(url, "_blank", "noopener,noreferrer");
-    closeCompose();
+    window.open(`${window.location.origin}/postfach?${params.toString()}`, "_blank", "noopener,noreferrer");
+    closeCompose(compose.id);
   };
 
-  if (!compose.isOpen) return null;
-
-  // ===== MOBILE: Vollbild-Compose im Stil von Gmail/Outlook =====
+  // ===== MOBILE: Fullscreen-style compose =====
   if (isMobile) {
-    if (compose.isMinimized) {
-      return (
-        <div
-          className="fixed left-0 right-0 z-[60] bg-card border-t border-border shadow-lg cursor-pointer"
-          style={{ bottom: "env(safe-area-inset-bottom)" }}
-          onClick={toggleMinimize}
-        >
-          <div className="flex items-center justify-between px-4 h-12">
-            <span className="text-sm font-medium truncate flex-1">
-              {compose.replyTo ? "Antworten" : compose.forward ? "Weiterleiten" : "Neue E-Mail"}
-              {compose.subject && ` – ${compose.subject}`}
-            </span>
-            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={(e) => { e.stopPropagation(); closeCompose(); }}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      );
-    }
-
-    const fromAccount = accounts.find((a) => a.id === compose.accountId);
     const title = compose.replyTo ? "Antworten" : compose.forward ? "Weiterleiten" : "Neue E-Mail";
-
     return (
       <div
         className="fixed inset-0 z-[60] bg-background flex flex-col"
-        style={{
-          paddingTop: "env(safe-area-inset-top)",
-          paddingBottom: "env(safe-area-inset-bottom)",
-        }}
+        style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        {/* App-Bar */}
         <div className="h-14 flex items-center justify-between px-1 border-b bg-background shrink-0">
           <div className="flex items-center gap-1 min-w-0 flex-1">
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 rounded-full shrink-0"
-              onClick={closeCompose}
-              aria-label="Schließen"
+              variant="ghost" size="icon" className="h-10 w-10 rounded-full shrink-0"
+              onClick={() => setMode(compose.id, "minimized")}
+              aria-label="Minimieren"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <span className="text-base font-medium truncate">{title}</span>
           </div>
           <div className="flex items-center gap-0.5 shrink-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 rounded-full"
-              onClick={() => fileInputRef.current?.click()}
-              aria-label="Anhang hinzufügen"
-            >
+            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full" onClick={() => fileInputRef.current?.click()} aria-label="Anhang">
               <Paperclip className="h-5 w-5" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 rounded-full"
-              onClick={handleImproveText}
-              disabled={isImproving || compose.bodyText.trim().length < 10}
-              aria-label="Text mit KI verbessern"
-            >
-              {isImproving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Wand2 className="h-5 w-5" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 rounded-full text-primary"
+            <ScheduleButton compose={compose} update={update} open={scheduleOpen} setOpen={setScheduleOpen} />
+            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full text-primary"
               onClick={handleSend}
               disabled={isSending || !compose.accountId || !compose.to.trim()}
               aria-label="Senden"
             >
               {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
             </Button>
+            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full" onClick={() => closeCompose(compose.id)} aria-label="Verwerfen">
+              <X className="h-5 w-5" />
+            </Button>
           </div>
         </div>
 
-        {/* Body */}
         <div className="flex-1 overflow-y-auto">
-          {/* Von */}
-          <div className="px-4 border-b flex items-center gap-3">
-            <span className="text-xs text-muted-foreground w-10 shrink-0">Von</span>
-            <Select value={compose.accountId} onValueChange={(v) => updateCompose({ accountId: v })}>
+          <FieldRow label="Von">
+            <Select value={compose.accountId} onValueChange={(v) => update({ accountId: v })}>
               <SelectTrigger className="h-12 border-0 px-0 shadow-none focus:ring-0 text-sm flex-1 min-w-0">
                 <SelectValue placeholder="Absender wählen…" />
               </SelectTrigger>
               <SelectContent className="z-[80]">
-                {accounts.map((acc) => (
-                  <SelectItem key={acc.id} value={acc.id}>
-                    {acc.display_name} &lt;{acc.email_address}&gt;
+                {accounts.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.display_name} &lt;{a.email_address}&gt;
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </FieldRow>
 
-          {/* An */}
-          <div className="px-4 border-b flex items-center gap-2">
-            <span className="text-xs text-muted-foreground w-10 shrink-0">An</span>
+          <FieldRow label="An">
             <Input
               value={compose.to}
-              onChange={(e) => updateCompose({ to: e.target.value })}
+              onChange={(e) => update({ to: e.target.value })}
               placeholder="Empfänger"
               type="email"
-              inputMode="email"
-              autoCapitalize="none"
               className="h-12 border-0 px-0 shadow-none focus-visible:ring-0 text-sm flex-1 min-w-0"
             />
-            <Popover open={contactPickerOpen} onOpenChange={setContactPickerOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full" aria-label="Kontakte">
-                  <Users className="h-4 w-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[calc(100vw-2rem)] p-0 z-[80]" align="end">
-                <div className="p-2 border-b">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      placeholder="Kontakt suchen..."
-                      value={contactSearch}
-                      onChange={(e) => setContactSearch(e.target.value)}
-                      className="h-9 pl-8 text-sm"
-                    />
-                  </div>
-                </div>
-                <ScrollArea className="max-h-72">
-                  {filteredContacts.length === 0 ? (
-                    <p className="p-3 text-sm text-muted-foreground text-center">Keine Kontakte gefunden</p>
-                  ) : (
-                    filteredContacts.map((contact) => (
-                      <div key={contact.id} className="border-b last:border-0">
-                        <div className="px-3 pt-2 pb-1">
-                          <span className="text-sm font-medium">{contact.displayName}</span>
-                        </div>
-                        {contact.emails.map((ce) => {
-                          const checked = compose.to.split(",").map((e) => e.trim()).includes(ce.email);
-                          return (
-                            <button
-                              key={ce.email}
-                              type="button"
-                              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50"
-                              onClick={() => {
-                                addEmailToField(ce.email, "to");
-                                if (contact.emails.length === 1) setContactPickerOpen(false);
-                              }}
-                            >
-                              <Check className={cn("h-4 w-4 shrink-0", checked ? "text-primary" : "text-transparent")} />
-                              <span className="text-sm text-muted-foreground truncate">{ce.email}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ))
-                  )}
-                </ScrollArea>
-              </PopoverContent>
-            </Popover>
-            <button
-              type="button"
-              onClick={() => setShowCcBcc((v) => !v)}
-              className="text-muted-foreground p-2 -mr-2 shrink-0"
-              aria-label="CC/BCC umschalten"
-            >
-              <ChevronDown className={cn("h-4 w-4 transition-transform", showCcBcc && "rotate-180")} />
-            </button>
-          </div>
+          </FieldRow>
 
-          {showCcBcc && (
-            <>
-              <div className="px-4 border-b flex items-center gap-2">
-                <span className="text-xs text-muted-foreground w-10 shrink-0">Cc</span>
-                <Input
-                  value={compose.cc}
-                  onChange={(e) => updateCompose({ cc: e.target.value })}
-                  type="email"
-                  inputMode="email"
-                  autoCapitalize="none"
-                  className="h-12 border-0 px-0 shadow-none focus-visible:ring-0 text-sm flex-1"
-                />
-              </div>
-              <div className="px-4 border-b flex items-center gap-2">
-                <span className="text-xs text-muted-foreground w-10 shrink-0">Bcc</span>
-                <Input
-                  value={compose.bcc}
-                  onChange={(e) => updateCompose({ bcc: e.target.value })}
-                  type="email"
-                  inputMode="email"
-                  autoCapitalize="none"
-                  className="h-12 border-0 px-0 shadow-none focus-visible:ring-0 text-sm flex-1"
-                />
-              </div>
-            </>
+          {compose.subject || true ? (
+            <FieldRow label="">
+              <Input
+                value={compose.subject}
+                onChange={(e) => update({ subject: e.target.value })}
+                placeholder="Betreff"
+                className="h-12 border-0 px-0 shadow-none focus-visible:ring-0 text-base"
+              />
+            </FieldRow>
+          ) : null}
+
+          {compose.scheduledAt && (
+            <div className="px-4 py-2 border-b bg-amber-50 text-amber-900 text-xs flex items-center gap-2">
+              <CalendarClock className="h-3.5 w-3.5" />
+              Geplant für {new Date(compose.scheduledAt).toLocaleString("de-DE")}
+              <button onClick={() => update({ scheduledAt: null })} className="ml-auto underline">aufheben</button>
+            </div>
           )}
 
-          {/* Betreff */}
-          <div className="px-4 border-b">
-            <Input
-              value={compose.subject}
-              onChange={(e) => updateCompose({ subject: e.target.value })}
-              placeholder="Betreff"
-              className="h-12 border-0 px-0 shadow-none focus-visible:ring-0 text-base"
-            />
-          </div>
-
-          {/* Anhänge */}
           {compose.attachments.length > 0 && (
             <div className="px-4 py-2 space-y-1.5 border-b bg-muted/30">
               {compose.attachments.map((att, idx) => (
@@ -546,11 +469,7 @@ export const FloatingComposeWindow = () => {
                   <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <span className="truncate flex-1">{att.name}</span>
                   <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(att.size)}</span>
-                  <button
-                    onClick={() => removeAttachment(idx)}
-                    className="text-muted-foreground hover:text-destructive shrink-0 p-1"
-                    aria-label="Anhang entfernen"
-                  >
+                  <button onClick={() => removeAttachment(idx)} className="text-muted-foreground hover:text-destructive p-1">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
@@ -558,144 +477,63 @@ export const FloatingComposeWindow = () => {
             </div>
           )}
 
-          {/* Nachricht */}
           <Textarea
             value={compose.bodyText}
-            onChange={(e) => updateCompose({ bodyText: e.target.value })}
+            onChange={(e) => update({ bodyText: e.target.value })}
             placeholder="E-Mail verfassen"
             className="min-h-[40vh] w-full border-0 rounded-none px-4 py-3 shadow-none focus-visible:ring-0 text-base resize-none"
           />
-
-          {/* KI-Vorschlag */}
-          {aiSuggestion !== null && (
-            <div ref={aiSuggestionRef} className="mx-4 mb-4 border border-primary/30 bg-primary/5 rounded-md p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-primary flex items-center gap-1">
-                  <Wand2 className="h-3.5 w-3.5" />
-                  KI-Vorschlag
-                </span>
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-full"
-                    onClick={() => { updateCompose({ bodyText: aiSuggestion }); setAiSuggestion(null); }}
-                    aria-label="Übernehmen"
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full"
-                    onClick={() => setAiSuggestion(null)}
-                    aria-label="Verwerfen"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              <Textarea
-                value={aiSuggestion}
-                onChange={(e) => setAiSuggestion(e.target.value)}
-                className="min-h-[120px] resize-y text-sm bg-transparent border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-              />
-            </div>
-          )}
         </div>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={handleFileSelect}
-        />
+        <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
       </div>
     );
   }
 
-  // Minimized bar (Desktop)
-  if (compose.isMinimized) {
-    return (
-      <div
-        className="fixed bottom-0 right-4 z-50 w-72 bg-card border border-border rounded-t-lg shadow-lg cursor-pointer"
-        onClick={toggleMinimize}
-      >
-        <div className="flex items-center justify-between px-3 py-2">
-          <span className="text-sm font-medium truncate">
-            {compose.replyTo ? "Antworten" : compose.forward ? "Weiterleiten" : "Neue E-Mail"}
-            {compose.subject && ` - ${compose.subject}`}
-          </span>
-          <div className="flex gap-1">
-            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={(e) => { e.stopPropagation(); closeCompose(); }}>
-              <X className="h-3 w-3" />
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // ===== DESKTOP: docked block bottom-right OR fullscreen =====
+  const containerClass = isFullscreen
+    ? "fixed inset-0 z-50 border-0 rounded-none shadow-none"
+    : "fixed bottom-0 right-4 z-50 border border-border rounded-t-lg shadow-2xl w-[560px] h-[600px]";
 
   return (
-    <div
-      className={cn(
-        "bg-card flex flex-col overflow-hidden",
-        isFullscreen
-          ? "fixed inset-0 z-50 border-0 rounded-none shadow-none"
-          : "fixed z-50 border border-border rounded-lg shadow-2xl"
-      )}
-      style={
-        isFullscreen
-          ? undefined
-          : { left: position.x, top: position.y, width: size.width, height: size.height }
-      }
-    >
-      {/* Resize handles - only in floating mode */}
-      {!isFullscreen && (
-        <>
-          <div className="absolute top-0 left-0 w-3 h-3 cursor-nw-resize z-10" onMouseDown={onResizeStart("nw")} />
-          <div className="absolute top-0 right-0 w-3 h-3 cursor-ne-resize z-10" onMouseDown={onResizeStart("ne")} />
-          <div className="absolute bottom-0 left-0 w-3 h-3 cursor-sw-resize z-10" onMouseDown={onResizeStart("sw")} />
-          <div className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize z-10" onMouseDown={onResizeStart("se")} />
-          <div className="absolute top-0 left-3 right-3 h-1 cursor-n-resize z-10" onMouseDown={onResizeStart("n")} />
-          <div className="absolute bottom-0 left-3 right-3 h-1 cursor-s-resize z-10" onMouseDown={onResizeStart("s")} />
-          <div className="absolute left-0 top-3 bottom-3 w-1 cursor-w-resize z-10" onMouseDown={onResizeStart("w")} />
-          <div className="absolute right-0 top-3 bottom-3 w-1 cursor-e-resize z-10" onMouseDown={onResizeStart("e")} />
-        </>
-      )}
-
-      {/* Title bar - draggable only in floating mode */}
-      <div
-        className={cn(
-          "flex items-center justify-between px-3 py-2 bg-primary text-primary-foreground select-none shrink-0",
-          isFullscreen ? "rounded-none" : "cursor-move rounded-t-lg"
-        )}
-        onMouseDown={isFullscreen ? undefined : onDragStart}
-      >
-        <span className="text-sm font-medium">
+    <div className={cn("bg-card flex flex-col overflow-hidden", containerClass)}>
+      {/* Title bar */}
+      <div className="flex items-center justify-between px-3 py-2 bg-primary text-primary-foreground select-none shrink-0">
+        <span className="text-sm font-medium truncate">
           {compose.replyTo ? "Antworten" : compose.forward ? "Weiterleiten" : "Neue E-Mail"}
-          {isFullscreen && compose.subject ? ` – ${compose.subject}` : ""}
+          {compose.subject ? ` – ${compose.subject}` : ""}
         </span>
         <div className="flex items-center gap-0.5">
+          <Button
+            variant="ghost" size="icon"
+            className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20"
+            onClick={() => setMode(compose.id, "minimized")}
+            title="Minimieren"
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost" size="icon"
+            className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20"
+            onClick={() => setMode(compose.id, isFullscreen ? "docked" : "fullscreen")}
+            title={isFullscreen ? "Verkleinern" : "Vollbild"}
+          >
+            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          </Button>
           {!isFullscreen && (
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20" onClick={handlePopOut} title="In neuem Tab öffnen">
+            <Button
+              variant="ghost" size="icon"
+              className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20"
+              onClick={handlePopOut}
+              title="In neuem Tab öffnen"
+            >
               <ExternalLink className="h-3.5 w-3.5" />
             </Button>
           )}
-          {!isFullscreen && (
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20" onClick={toggleMinimize} title="Minimieren">
-              <Minus className="h-3.5 w-3.5" />
-            </Button>
-          )}
           <Button
-            variant="ghost"
-            size="icon"
+            variant="ghost" size="icon"
             className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20"
-            onClick={() => {
-              closeCompose();
-              if (isFullscreen) window.close();
-            }}
+            onClick={() => closeCompose(compose.id)}
             title="Schließen"
           >
             <X className="h-3.5 w-3.5" />
@@ -705,15 +543,15 @@ export const FloatingComposeWindow = () => {
 
       {/* Content */}
       <ScrollArea className="flex-1 p-3">
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 max-w-3xl mx-auto">
           <div className="space-y-1">
             <Label className="text-xs">Von</Label>
-            <Select value={compose.accountId} onValueChange={v => updateCompose({ accountId: v })}>
+            <Select value={compose.accountId} onValueChange={(v) => update({ accountId: v })}>
               <SelectTrigger className="h-8 text-sm">
                 <SelectValue placeholder="Absender wählen..." />
               </SelectTrigger>
               <SelectContent>
-                {accounts.map(acc => (
+                {accounts.map((acc) => (
                   <SelectItem key={acc.id} value={acc.id}>
                     {acc.display_name} &lt;{acc.email_address}&gt;
                   </SelectItem>
@@ -733,169 +571,75 @@ export const FloatingComposeWindow = () => {
                 {showCcBcc ? "CC/BCC ausblenden" : "CC/BCC"}
               </button>
             </div>
-            <div className="flex gap-1">
-              <Input
-                value={compose.to}
-                onChange={e => updateCompose({ to: e.target.value })}
-                placeholder="empfaenger@email.de"
-                className="h-8 text-sm flex-1"
-              />
-              <Popover open={contactPickerOpen} onOpenChange={setContactPickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-8 w-8 shrink-0">
-                    <Users className="h-3.5 w-3.5" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-72 p-0" align="end">
-                  <div className="p-2 border-b">
-                    <div className="relative">
-                      <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
-                      <Input placeholder="Kontakt suchen..." value={contactSearch} onChange={e => setContactSearch(e.target.value)} className="h-7 pl-7 text-sm" />
-                    </div>
-                  </div>
-                  <ScrollArea className="max-h-48">
-                    {filteredContacts.length === 0 ? (
-                      <p className="p-3 text-sm text-muted-foreground text-center">Keine Kontakte gefunden</p>
-                    ) : (
-                      filteredContacts.map(contact => (
-                        <div key={contact.id} className="border-b last:border-0">
-                          <div className="px-3 pt-1.5 pb-0.5">
-                            <span className="text-xs font-medium">{contact.displayName}</span>
-                            {contact.company_name && contact.first_name && (
-                              <span className="text-[10px] text-muted-foreground ml-1">({contact.company_name})</span>
-                            )}
-                          </div>
-                          {contact.emails.map(ce => (
-                            <button
-                              key={ce.email}
-                              className="w-full flex items-center gap-2 px-3 py-1 text-left hover:bg-muted/50 transition-colors"
-                              onClick={() => { addEmailToField(ce.email, "to"); if (contact.emails.length === 1) setContactPickerOpen(false); }}
-                            >
-                              <Checkbox checked={compose.to.split(",").map(e => e.trim()).includes(ce.email)} className="h-3 w-3" />
-                              <span className="text-xs text-muted-foreground truncate">{ce.email}</span>
-                            </button>
-                          ))}
-                        </div>
-                      ))
-                    )}
-                  </ScrollArea>
-                </PopoverContent>
-              </Popover>
-            </div>
+            <RecipientField
+              value={compose.to}
+              onChange={(v) => update({ to: v })}
+              placeholder="empfaenger@email.de"
+              pickerOpen={contactPickerOpen}
+              setPickerOpen={setContactPickerOpen}
+              contactSearch={contactSearch}
+              setContactSearch={setContactSearch}
+              contacts={filteredContacts}
+              addEmail={(e) => addEmailToField(e, "to")}
+            />
           </div>
 
           {showCcBcc && (
             <>
               <div className="space-y-1">
                 <Label className="text-xs">CC</Label>
-                <div className="flex gap-1">
-                  <Input value={compose.cc} onChange={e => updateCompose({ cc: e.target.value })} placeholder="cc@email.de (optional)" className="h-8 text-sm flex-1" />
-                  <Popover open={ccContactPickerOpen} onOpenChange={setCcContactPickerOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="icon" className="h-8 w-8 shrink-0">
-                        <Users className="h-3.5 w-3.5" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-72 p-0" align="end">
-                      <div className="p-2 border-b">
-                        <div className="relative">
-                          <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
-                          <Input placeholder="Kontakt suchen..." value={contactSearch} onChange={e => setContactSearch(e.target.value)} className="h-7 pl-7 text-sm" />
-                        </div>
-                      </div>
-                      <ScrollArea className="max-h-48">
-                        {filteredContacts.length === 0 ? (
-                          <p className="p-3 text-sm text-muted-foreground text-center">Keine Kontakte gefunden</p>
-                        ) : (
-                          filteredContacts.map(contact => (
-                            <div key={contact.id} className="border-b last:border-0">
-                              <div className="px-3 pt-1.5 pb-0.5">
-                                <span className="text-xs font-medium">{contact.displayName}</span>
-                                {contact.company_name && contact.first_name && (
-                                  <span className="text-[10px] text-muted-foreground ml-1">({contact.company_name})</span>
-                                )}
-                              </div>
-                              {contact.emails.map(ce => (
-                                <button
-                                  key={ce.email}
-                                  className="w-full flex items-center gap-2 px-3 py-1 text-left hover:bg-muted/50 transition-colors"
-                                  onClick={() => { addEmailToField(ce.email, "cc"); if (contact.emails.length === 1) setCcContactPickerOpen(false); }}
-                                >
-                                  <Checkbox checked={compose.cc.split(",").map(e => e.trim()).includes(ce.email)} className="h-3 w-3" />
-                                  <span className="text-xs text-muted-foreground truncate">{ce.email}</span>
-                                </button>
-                              ))}
-                            </div>
-                          ))
-                        )}
-                      </ScrollArea>
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                <RecipientField
+                  value={compose.cc}
+                  onChange={(v) => update({ cc: v })}
+                  placeholder="cc@email.de (optional)"
+                  pickerOpen={ccContactPickerOpen}
+                  setPickerOpen={setCcContactPickerOpen}
+                  contactSearch={contactSearch}
+                  setContactSearch={setContactSearch}
+                  contacts={filteredContacts}
+                  addEmail={(e) => addEmailToField(e, "cc")}
+                />
               </div>
-
               <div className="space-y-1">
                 <Label className="text-xs">BCC</Label>
-                <div className="flex gap-1">
-                  <Input value={compose.bcc} onChange={e => updateCompose({ bcc: e.target.value })} placeholder="bcc@email.de (optional)" className="h-8 text-sm flex-1" />
-                  <Popover open={bccContactPickerOpen} onOpenChange={setBccContactPickerOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="icon" className="h-8 w-8 shrink-0">
-                        <Users className="h-3.5 w-3.5" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-72 p-0" align="end">
-                      <div className="p-2 border-b">
-                        <div className="relative">
-                          <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
-                          <Input placeholder="Kontakt suchen..." value={contactSearch} onChange={e => setContactSearch(e.target.value)} className="h-7 pl-7 text-sm" />
-                        </div>
-                      </div>
-                      <ScrollArea className="max-h-48">
-                        {filteredContacts.length === 0 ? (
-                          <p className="p-3 text-sm text-muted-foreground text-center">Keine Kontakte gefunden</p>
-                        ) : (
-                          filteredContacts.map(contact => (
-                            <div key={contact.id} className="border-b last:border-0">
-                              <div className="px-3 pt-1.5 pb-0.5">
-                                <span className="text-xs font-medium">{contact.displayName}</span>
-                                {contact.company_name && contact.first_name && (
-                                  <span className="text-[10px] text-muted-foreground ml-1">({contact.company_name})</span>
-                                )}
-                              </div>
-                              {contact.emails.map(ce => (
-                                <button
-                                  key={ce.email}
-                                  className="w-full flex items-center gap-2 px-3 py-1 text-left hover:bg-muted/50 transition-colors"
-                                  onClick={() => { addEmailToField(ce.email, "bcc"); if (contact.emails.length === 1) setBccContactPickerOpen(false); }}
-                                >
-                                  <Checkbox checked={compose.bcc.split(",").map(e => e.trim()).includes(ce.email)} className="h-3 w-3" />
-                                  <span className="text-xs text-muted-foreground truncate">{ce.email}</span>
-                                </button>
-                              ))}
-                            </div>
-                          ))
-                        )}
-                      </ScrollArea>
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                <RecipientField
+                  value={compose.bcc}
+                  onChange={(v) => update({ bcc: v })}
+                  placeholder="bcc@email.de (optional)"
+                  pickerOpen={bccContactPickerOpen}
+                  setPickerOpen={setBccContactPickerOpen}
+                  contactSearch={contactSearch}
+                  setContactSearch={setContactSearch}
+                  contacts={filteredContacts}
+                  addEmail={(e) => addEmailToField(e, "bcc")}
+                />
               </div>
             </>
           )}
 
           <div className="space-y-1">
             <Label className="text-xs">Betreff</Label>
-            <Input value={compose.subject} onChange={e => updateCompose({ subject: e.target.value })} placeholder="Betreff" className="h-8 text-sm" />
+            <Input
+              value={compose.subject}
+              onChange={(e) => update({ subject: e.target.value })}
+              placeholder="Betreff"
+              className="h-8 text-sm"
+            />
           </div>
+
+          {compose.scheduledAt && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 text-xs px-3 py-2 flex items-center gap-2">
+              <CalendarClock className="h-3.5 w-3.5" />
+              <span>Geplant für {new Date(compose.scheduledAt).toLocaleString("de-DE")}</span>
+              <button onClick={() => update({ scheduledAt: null })} className="ml-auto underline">aufheben</button>
+            </div>
+          )}
 
           <div className="space-y-1">
             <div className="flex items-center gap-1.5">
               <Label className="text-xs">Nachricht</Label>
               <Button
-                type="button"
-                variant="ghost"
-                size="icon"
+                type="button" variant="ghost" size="icon"
                 className="h-5 w-5 text-muted-foreground hover:text-primary"
                 onClick={handleImproveText}
                 disabled={isImproving || compose.bodyText.trim().length < 10}
@@ -906,30 +650,27 @@ export const FloatingComposeWindow = () => {
             </div>
             <Textarea
               value={compose.bodyText}
-              onChange={e => updateCompose({ bodyText: e.target.value })}
+              onChange={(e) => update({ bodyText: e.target.value })}
               placeholder="Ihre Nachricht..."
-              className="min-h-[140px] resize-y text-sm"
+              className={cn("resize-y text-sm", isFullscreen ? "min-h-[300px]" : "min-h-[140px]")}
             />
             {aiSuggestion !== null && (
               <div ref={aiSuggestionRef} className="border border-primary/30 bg-primary/5 rounded-md p-2 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-medium text-primary flex items-center gap-1">
-                    <Wand2 className="h-3 w-3" />
-                    KI-Vorschlag
+                    <Wand2 className="h-3 w-3" /> KI-Vorschlag
                   </span>
                   <div className="flex gap-0.5">
                     <Button
-                      variant="ghost"
-                      size="icon"
+                      variant="ghost" size="icon"
                       className="h-5 w-5 text-green-600 hover:text-green-700 hover:bg-green-50"
-                      onClick={() => { updateCompose({ bodyText: aiSuggestion }); setAiSuggestion(null); }}
+                      onClick={() => { update({ bodyText: aiSuggestion }); setAiSuggestion(null); }}
                       title="Übernehmen"
                     >
                       <Check className="h-3 w-3" />
                     </Button>
                     <Button
-                      variant="ghost"
-                      size="icon"
+                      variant="ghost" size="icon"
                       className="h-5 w-5 text-destructive hover:bg-destructive/10"
                       onClick={() => setAiSuggestion(null)}
                       title="Verwerfen"
@@ -940,7 +681,7 @@ export const FloatingComposeWindow = () => {
                 </div>
                 <Textarea
                   value={aiSuggestion}
-                  onChange={e => setAiSuggestion(e.target.value)}
+                  onChange={(e) => setAiSuggestion(e.target.value)}
                   className="min-h-[100px] resize-y text-sm bg-transparent border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
               </div>
@@ -949,8 +690,7 @@ export const FloatingComposeWindow = () => {
 
           <div className="space-y-1">
             <Button type="button" variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => fileInputRef.current?.click()}>
-              <Paperclip className="h-3 w-3" />
-              Anhang
+              <Paperclip className="h-3 w-3" /> Anhang
             </Button>
             <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
             {compose.attachments.length > 0 && (
@@ -960,7 +700,7 @@ export const FloatingComposeWindow = () => {
                     <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
                     <span className="truncate flex-1">{att.name}</span>
                     <span className="text-muted-foreground shrink-0">{formatFileSize(att.size)}</span>
-                    <button onClick={() => removeAttachment(idx)} className="text-muted-foreground hover:text-destructive shrink-0">
+                    <button onClick={() => removeAttachment(idx)} className="text-muted-foreground hover:text-destructive">
                       <X className="h-3 w-3" />
                     </button>
                   </div>
@@ -973,12 +713,198 @@ export const FloatingComposeWindow = () => {
 
       {/* Footer */}
       <div className="flex justify-between items-center gap-2 px-3 py-2 border-t shrink-0">
-        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={closeCompose}>Verwerfen</Button>
-        <Button size="sm" className="gap-1.5 h-7 text-xs" onClick={handleSend} disabled={isSending}>
-          {isSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-          Senden
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => closeCompose(compose.id)}>
+          Verwerfen
         </Button>
+        <div className="flex gap-1.5 items-center">
+          <ScheduleButton compose={compose} update={update} open={scheduleOpen} setOpen={setScheduleOpen} />
+          <Button size="sm" className="gap-1.5 h-7 text-xs" onClick={handleSend} disabled={isSending}>
+            {isSending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : compose.scheduledAt ? (
+              <CalendarClock className="h-3.5 w-3.5" />
+            ) : (
+              <Send className="h-3.5 w-3.5" />
+            )}
+            {compose.scheduledAt ? "Senden planen" : "Senden"}
+          </Button>
+        </div>
       </div>
     </div>
+  );
+};
+
+// =====================================================================
+// Helpers
+// =====================================================================
+const FieldRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div className="px-4 border-b flex items-center gap-3">
+    {label && <span className="text-xs text-muted-foreground w-10 shrink-0">{label}</span>}
+    {children}
+  </div>
+);
+
+const RecipientField = ({
+  value, onChange, placeholder, pickerOpen, setPickerOpen,
+  contactSearch, setContactSearch, contacts, addEmail,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  pickerOpen: boolean;
+  setPickerOpen: (b: boolean) => void;
+  contactSearch: string;
+  setContactSearch: (s: string) => void;
+  contacts: Array<{ id: string; displayName: string; company_name?: string | null; first_name?: string | null; emails: { email: string }[] }>;
+  addEmail: (email: string) => void;
+}) => (
+  <div className="flex gap-1">
+    <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="h-8 text-sm flex-1" />
+    <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="icon" className="h-8 w-8 shrink-0">
+          <Users className="h-3.5 w-3.5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-0" align="end">
+        <div className="p-2 border-b">
+          <div className="relative">
+            <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input placeholder="Kontakt suchen..." value={contactSearch} onChange={(e) => setContactSearch(e.target.value)} className="h-7 pl-7 text-sm" />
+          </div>
+        </div>
+        <ScrollArea className="max-h-48">
+          {contacts.length === 0 ? (
+            <p className="p-3 text-sm text-muted-foreground text-center">Keine Kontakte gefunden</p>
+          ) : (
+            contacts.map((contact) => (
+              <div key={contact.id} className="border-b last:border-0">
+                <div className="px-3 pt-1.5 pb-0.5">
+                  <span className="text-xs font-medium">{contact.displayName}</span>
+                  {contact.company_name && contact.first_name && (
+                    <span className="text-[10px] text-muted-foreground ml-1">({contact.company_name})</span>
+                  )}
+                </div>
+                {contact.emails.map((ce) => (
+                  <button
+                    key={ce.email}
+                    className="w-full flex items-center gap-2 px-3 py-1 text-left hover:bg-muted/50 transition-colors"
+                    onClick={() => {
+                      addEmail(ce.email);
+                      if (contact.emails.length === 1) setPickerOpen(false);
+                    }}
+                  >
+                    <Checkbox checked={value.split(",").map((e) => e.trim()).includes(ce.email)} className="h-3 w-3" />
+                    <span className="text-xs text-muted-foreground truncate">{ce.email}</span>
+                  </button>
+                ))}
+              </div>
+            ))
+          )}
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
+  </div>
+);
+
+const ScheduleButton = ({
+  compose, update, open, setOpen,
+}: {
+  compose: ComposeState;
+  update: (u: Partial<ComposeState>) => void;
+  open: boolean;
+  setOpen: (b: boolean) => void;
+}) => {
+  // Local datetime-local string ↔ ISO string
+  const localValue = compose.scheduledAt
+    ? new Date(new Date(compose.scheduledAt).getTime() - new Date().getTimezoneOffset() * 60000)
+        .toISOString().slice(0, 16)
+    : "";
+
+  // Quick presets
+  const presets: { label: string; minutes: number }[] = [
+    { label: "In 1 Stunde", minutes: 60 },
+    { label: "Morgen früh (08:00)", minutes: -1 }, // computed below
+    { label: "Montag früh (08:00)", minutes: -2 }, // computed below
+  ];
+
+  const presetTime = (preset: typeof presets[number]): Date => {
+    if (preset.minutes > 0) return new Date(Date.now() + preset.minutes * 60000);
+    if (preset.minutes === -1) {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      d.setHours(8, 0, 0, 0);
+      return d;
+    }
+    if (preset.minutes === -2) {
+      const d = new Date();
+      const dow = d.getDay();
+      const add = dow === 0 ? 1 : 8 - dow; // next Monday
+      d.setDate(d.getDate() + add);
+      d.setHours(8, 0, 0, 0);
+      return d;
+    }
+    return new Date();
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline" size="sm"
+          className={cn("h-7 px-2 text-xs gap-1", compose.scheduledAt && "border-amber-400 text-amber-700")}
+          title="Sendezeit planen"
+        >
+          <CalendarClock className="h-3.5 w-3.5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-3 z-[80]" align="end">
+        <div className="space-y-3">
+          <div className="text-xs font-medium">Sendezeit planen</div>
+          <div className="grid gap-1">
+            {presets.map((p) => (
+              <Button
+                key={p.label}
+                variant="ghost" size="sm" className="justify-start h-8 text-xs"
+                onClick={() => {
+                  update({ scheduledAt: presetTime(p).toISOString() });
+                  setOpen(false);
+                }}
+              >
+                {p.label}
+                <span className="ml-auto text-muted-foreground">
+                  {presetTime(p).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </Button>
+            ))}
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[11px] text-muted-foreground">Eigene Zeit</Label>
+            <Input
+              type="datetime-local"
+              value={localValue}
+              onChange={(e) => {
+                const v = e.target.value;
+                update({ scheduledAt: v ? new Date(v).toISOString() : null });
+              }}
+              className="h-8 text-sm"
+            />
+          </div>
+          {compose.scheduledAt && (
+            <div className="flex justify-between items-center">
+              <span className="text-[11px] text-muted-foreground">
+                {new Date(compose.scheduledAt).toLocaleString("de-DE")}
+              </span>
+              <Button
+                variant="ghost" size="sm" className="h-7 text-xs"
+                onClick={() => { update({ scheduledAt: null }); setOpen(false); }}
+              >
+                Zurücksetzen
+              </Button>
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };
