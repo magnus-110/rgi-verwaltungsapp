@@ -23,6 +23,13 @@ interface Props {
   managementMode?: "weg" | "rent";
 }
 
+interface ContactPerson {
+  first_name: string | null;
+  last_name: string | null;
+  is_primary: boolean | null;
+  sort_order: number | null;
+}
+
 interface ContactOption {
   id: string;
   first_name: string | null;
@@ -33,6 +40,7 @@ interface ContactOption {
   address_zip: string | null;
   address_city: string | null;
   hasEmail?: boolean;
+  persons?: ContactPerson[];
 }
 
 interface PhoneEntry { phone_number: string; label: string }
@@ -100,15 +108,15 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
   const loadContacts = async () => {
     const { data } = await supabase
       .from("contacts")
-      .select("id, first_name, last_name, company_name, salutation, address_street, address_zip, address_city")
+      .select("id, first_name, last_name, company_name, salutation, address_street, address_zip, address_city, contact_persons(first_name, last_name, is_primary, sort_order)")
       .order("last_name");
-    
+
     if (!data) { setContacts([]); return; }
 
     const { data: emailData } = await supabase.from("contact_emails").select("contact_id");
     const contactIdsWithEmail = new Set((emailData || []).map(e => e.contact_id));
-    
-    setContacts(data.map(c => ({ ...c, hasEmail: contactIdsWithEmail.has(c.id) })));
+
+    setContacts(data.map((c: any) => ({ ...c, persons: c.contact_persons || [], hasEmail: contactIdsWithEmail.has(c.id) })));
   };
 
   // Load full contact data when moving to details step
@@ -136,13 +144,48 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
 
   const filtered = contacts.filter(c => {
     const term = search.toLowerCase();
+    if (!term) return true;
+    const personHit = (c.persons || []).some(p =>
+      (p.first_name || "").toLowerCase().includes(term) ||
+      (p.last_name || "").toLowerCase().includes(term)
+    );
     return (c.first_name || "").toLowerCase().includes(term) ||
       (c.last_name || "").toLowerCase().includes(term) ||
-      (c.company_name || "").toLowerCase().includes(term);
+      (c.company_name || "").toLowerCase().includes(term) ||
+      personHit;
   });
 
   const getName = (c: ContactOption) => {
     if (c.company_name) return c.company_name;
+
+    // Personen-zentrische Anzeige: alle hinterlegten Personen (z.B. Eheleute) kombinieren.
+    const persons = (c.persons || [])
+      .slice()
+      .sort((a, b) => {
+        if (!!b.is_primary !== !!a.is_primary) return (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0);
+        return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+      })
+      .filter(p => p.first_name || p.last_name);
+
+    if (persons.length >= 2) {
+      // Gemeinsamer Nachname → "Thorsten und Petra Streber"
+      const lastNames = persons.map(p => (p.last_name || "").trim());
+      const sameLast = lastNames.every(ln => ln && ln === lastNames[0]);
+      if (sameLast) {
+        const firsts = persons.map(p => (p.first_name || "").trim()).filter(Boolean);
+        return `${firsts.join(" und ")} ${lastNames[0]}`.trim();
+      }
+      // Verschiedene Nachnamen → "Thorsten Streber und Petra Müller"
+      const full = persons.map(p => [p.first_name, p.last_name].filter(Boolean).join(" ").trim()).filter(Boolean);
+      return full.join(" und ");
+    }
+
+    if (persons.length === 1) {
+      const p = persons[0];
+      return [p.first_name, p.last_name].filter(Boolean).join(" ") || "Unbenannt";
+    }
+
+    // Fallback auf Container-Felder
     return [c.salutation, c.first_name, c.last_name].filter(Boolean).join(" ") || "Unbenannt";
   };
 
