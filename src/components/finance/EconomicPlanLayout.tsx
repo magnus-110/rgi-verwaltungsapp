@@ -83,27 +83,9 @@ const SECTION_LABELS: Record<string, string> = {
   Sonstige: "Sonstige Kosten",
 };
 
-const DIST_KEY_LABELS: Record<string, string> = {
-  mea: "MEA",
-  einheit: "Einheiten",
-  einheiten: "Einheiten",
-  qm: "Wohnfläche",
-  stellplaetze: "TG-Stellplätze",
-  personen: "Personen",
-  verbrauch_wasser: "Wasserverbrauch",
-  verbrauch_heizung: "Heizk.Abr",
-  heizk_abr: "Heizk.Abr",
-  heizkostenverordnung: "HeizkostenV",
-  direkt: "Direkt",
-  "whg.-mea": "Whg.-MEA",
-  "gar.-mea": "Gar.-MEA",
-  "sonder-mea": "Sonder-MEA",
-};
+import { getShareTypeLabel } from "@/lib/shareTypes";
 
-const formatDistKey = (k?: string | null) => {
-  if (!k) return "MEA";
-  return DIST_KEY_LABELS[k.toLowerCase()] || k;
-};
+const formatDistKey = (k?: string | null) => getShareTypeLabel(k);
 
 export function EconomicPlanLayout({
   title,
