@@ -1809,7 +1809,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                 </div>
               </Collapsible>
             </div>
-          </div>
+            )}
+            </div>
+          </>
         ) : null}
       </DialogContent>
     </Dialog>
