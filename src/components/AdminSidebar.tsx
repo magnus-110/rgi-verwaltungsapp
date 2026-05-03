@@ -16,6 +16,7 @@ import {
   Users,
   CreditCard,
   Workflow,
+  FolderKanban,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -39,7 +40,8 @@ const menuItems = [
   { title: "NOVA", url: "/documents", icon: Sparkles },
   { title: "Aufgaben", url: "/todos", icon: CheckSquare },
   { title: "Kalender", url: "/calendar", icon: CalendarDays },
-  { title: "Tickets", url: "/tickets", icon: ClipboardList },
+  { title: "Meldungen", url: "/tickets", icon: ClipboardList },
+  { title: "Vorgänge", url: "/tickets/vorgaenge", icon: FolderKanban },
   { title: "Gebäude", url: "/buildings", icon: Castle },
   { title: "Adressen", url: "/contacts", icon: BookUser },
   { title: "Versammlungen", url: "/versammlungen", icon: Users },
@@ -160,12 +162,18 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                   return true;
                 })
                 .map((item) => {
-                  // Aliases: /reports & /tickets/* should activate the "Tickets" item
-                  const aliasActive =
-                    item.url === "/tickets" &&
-                    (currentPath === "/reports" ||
-                      currentPath === "/admin/reports" ||
-                      currentPath.startsWith("/tickets"));
+                  // Aliases:
+                  // - "Meldungen" (/tickets): aktiv bei /tickets exakt, /reports, /admin/reports
+                  // - "Vorgänge" (/tickets/vorgaenge): aktiv bei diesem Pfad
+                  let aliasActive = false;
+                  if (item.url === "/tickets") {
+                    aliasActive =
+                      currentPath === "/tickets" ||
+                      currentPath === "/reports" ||
+                      currentPath === "/admin/reports";
+                  } else if (item.url === "/tickets/vorgaenge") {
+                    aliasActive = currentPath.startsWith("/tickets/vorgaenge");
+                  }
                   return (
                 <SidebarMenuItem key={item.title}>
                    <NavLink 
