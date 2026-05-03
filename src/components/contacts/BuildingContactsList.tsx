@@ -261,6 +261,33 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const getDisplayName = (a: ContactAssignment) => {
     const c = a.contact;
     if (c.company_name) return c.company_name;
+
+    // Wenn mehrere Personen am Kontakt hängen (z. B. Eheleute), alle sinnvoll kombinieren.
+    const persons = (a.persons || []).filter(p => p.first_name || p.last_name);
+    if (persons.length > 1) {
+      // Gruppiere nach Nachname für kompakte Darstellung: "Anna und Peter Müller" / "Müller, Anna und Schmidt, Peter"
+      const byLastName = new Map<string, string[]>();
+      const order: string[] = [];
+      for (const p of persons) {
+        const ln = (p.last_name || "").trim();
+        const fn = (p.first_name || "").trim();
+        if (!byLastName.has(ln)) { byLastName.set(ln, []); order.push(ln); }
+        if (fn) byLastName.get(ln)!.push(fn);
+      }
+      const groups = order.map(ln => {
+        const fns = byLastName.get(ln) || [];
+        if (fns.length === 0) return ln;
+        const fnPart = fns.length === 1 ? fns[0] : `${fns.slice(0, -1).join(", ")} und ${fns[fns.length - 1]}`;
+        return ln ? `${fnPart} ${ln}` : fnPart;
+      });
+      return groups.join(" / ");
+    }
+
+    if (persons.length === 1) {
+      const p = persons[0];
+      return [p.salutation, p.first_name, p.last_name].filter(Boolean).join(" ");
+    }
+
     return [c.salutation, c.first_name, c.last_name].filter(Boolean).join(" ") || "Unbenannt";
   };
 
