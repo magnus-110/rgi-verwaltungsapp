@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { EditBookingDialog } from "./EditBookingDialog";
 import { VendorHistorySection } from "./VendorHistorySection";
+import { useMobileSplitView, MobileViewSwitcher, MobileBackToListButton } from "@/components/shared/MobileSplitView";
 
 interface BookingReviewModeProps {
   open: boolean;
