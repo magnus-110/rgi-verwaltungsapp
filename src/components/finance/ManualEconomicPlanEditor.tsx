@@ -424,7 +424,15 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
   const normalizeKey = (k?: string | null): string => {
     const v = String(k || "mea").toLowerCase();
     if (v === "einheiten") return "einheit";
-    if (v === "verbrauch_heizung" || v === "heizk.abr" || v === "heizk_abr") return "heizk_abr";
+    if (
+      v === "verbrauch_heizung" ||
+      v === "heizk.abr" ||
+      v === "heizk_abr" ||
+      v === "heizkostenverordnung" ||
+      v === "heizkostenv" ||
+      v === "heating_individual" ||
+      v === "heizkosten"
+    ) return "heizk_abr";
     return v;
   };
 
