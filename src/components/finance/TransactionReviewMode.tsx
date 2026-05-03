@@ -1471,9 +1471,16 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                 </div>
               </div>
             </div>
+            )}
 
             {/* Right: Zuordnung (top) + Analyse (bottom, collapsible) */}
-            <div className="w-1/2 flex flex-col overflow-y-auto">
+            {split.showDetail && (
+            <div className={cn("flex flex-col overflow-y-auto", split.isMobile ? "w-full" : "w-1/2")}>
+              {split.isMobile && (
+                <div className="px-3 py-2 border-b">
+                  <MobileBackToListButton onClick={split.openList} label="Zur Buchung" />
+                </div>
+              )}
               {/* ── Zuordnung Section (collapsible, default closed unless AI has matches) ── */}
               <Collapsible open={zuordnungOpen} onOpenChange={setZuordnungOpen}>
                 <div className="shrink-0">
