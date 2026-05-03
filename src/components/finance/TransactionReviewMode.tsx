@@ -28,6 +28,7 @@ import { AccountSearchSelect } from "./AccountSearchSelect";
 import { Section35aEditor } from "./Section35aEditor";
 import { build35aDetailFromSuggestion } from "./build35aDetail";
 import { buildTemplateBookingText } from "./lib/templateBookingText";
+import { useMobileSplitView, MobileViewSwitcher, MobileBackToListButton } from "@/components/shared/MobileSplitView";
 import { parseAmount } from "./lib/parseAmount";
 import { getLineItemGross } from "./lib/lineItemAmount";
 import { InvoiceLineItemsView } from "./InvoiceLineItemsView";
@@ -117,6 +118,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   const [bulkResetting, setBulkResetting] = useState(false);
   const [zuordnungOpen, setZuordnungOpen] = useState(false);
   const fieldRefs = useRef<Record<string, HTMLElement | null>>({});
+  const split = useMobileSplitView();
 
   // Multi-row booking state
   const [formRows, setFormRows] = useState<BookingRowData[]>([]);
@@ -1318,9 +1320,26 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
             <Button onClick={() => onOpenChange(false)}>Schließen</Button>
           </div>
         ) : currentTxn ? (
-          <div className="flex-1 flex overflow-hidden">
+          <>
+            <MobileViewSwitcher
+              mobileView={split.mobileView}
+              onChange={split.setMobileView}
+              listLabel="Buchung"
+              detailLabel="Beleg/KI"
+            />
+            <div
+              className="flex-1 flex overflow-hidden"
+              onTouchStart={split.touchHandlers.onTouchStart}
+              onTouchEnd={split.touchHandlers.onTouchEnd}
+            >
             {/* Left: Transaction details + Booking rows */}
-            <div className="w-1/2 border-r overflow-y-auto">
+            {split.showList && (
+            <div className={cn("border-r overflow-y-auto", split.isMobile ? "w-full" : "w-1/2")}>
+              {split.isMobile && (
+                <div className="px-3 pt-2">
+                  <MobileBackToListButton onClick={split.openDetail} label="Beleg & KI öffnen" />
+                </div>
+              )}
               {/* Transaction summary */}
               <div className="p-4 bg-muted/20 border-b space-y-3">
                 <div className="flex items-center justify-between">
@@ -1452,9 +1471,16 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                 </div>
               </div>
             </div>
+            )}
 
             {/* Right: Zuordnung (top) + Analyse (bottom, collapsible) */}
-            <div className="w-1/2 flex flex-col overflow-y-auto">
+            {split.showDetail && (
+            <div className={cn("flex flex-col overflow-y-auto", split.isMobile ? "w-full" : "w-1/2")}>
+              {split.isMobile && (
+                <div className="px-3 py-2 border-b">
+                  <MobileBackToListButton onClick={split.openList} label="Zur Buchung" />
+                </div>
+              )}
               {/* ── Zuordnung Section (collapsible, default closed unless AI has matches) ── */}
               <Collapsible open={zuordnungOpen} onOpenChange={setZuordnungOpen}>
                 <div className="shrink-0">
@@ -1783,7 +1809,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                 </div>
               </Collapsible>
             </div>
-          </div>
+            )}
+            </div>
+          </>
         ) : null}
       </DialogContent>
     </Dialog>

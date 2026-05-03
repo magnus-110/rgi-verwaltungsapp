@@ -18,6 +18,8 @@ import {
   X, ChevronLeft, ChevronRight, Copy, CheckCircle, CreditCard,
   AlertTriangle, FileText, Loader2, Trash2, Save, Flame
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useMobileSplitView, MobileViewSwitcher, MobileBackToListButton } from "@/components/shared/MobileSplitView";
 
 interface Invoice {
   id: string;
@@ -217,6 +219,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch }: Props) {
   const [index, setIndex] = useState(initialIndex);
   const [notes, setNotes] = useState("");
+  const split = useMobileSplitView();
   const [saving, setSaving] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
@@ -402,10 +405,26 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
         </div>
       </div>
 
+      {/* Mobile View Switcher */}
+      <MobileViewSwitcher
+        mobileView={split.mobileView}
+        onChange={split.setMobileView}
+        listLabel="Daten"
+        detailLabel="PDF"
+      />
+
       {/* Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div
+        className="flex-1 flex overflow-hidden"
+        onTouchStart={split.touchHandlers.onTouchStart}
+        onTouchEnd={split.touchHandlers.onTouchEnd}
+      >
         {/* Left: Transfer data */}
-        <div className="w-1/2 border-r overflow-y-auto p-6 space-y-4">
+        {split.showList && (
+        <div className={cn("border-r overflow-y-auto p-6 space-y-4", split.isMobile ? "w-full" : "w-1/2")}>
+          {split.isMobile && (
+            <MobileBackToListButton onClick={split.openDetail} label="PDF anzeigen" />
+          )}
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold">
               {isPaid ? "Rechnungsinformationen" : "Überweisungsdaten"}
@@ -652,10 +671,15 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
             </>
           )}
         </div>
+        )}
 
         {/* Right: PDF preview */}
-        <div className="w-1/2 flex flex-col bg-muted/30">
+        {split.showDetail && (
+        <div className={cn("flex flex-col bg-muted/30", split.isMobile ? "w-full" : "w-1/2")}>
           <div className="p-3 border-b flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            {split.isMobile && (
+              <MobileBackToListButton onClick={split.openList} label="Daten" />
+            )}
             <FileText className="h-4 w-4" />
             Rechnungs-PDF
           </div>
@@ -673,6 +697,7 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
             )}
           </div>
         </div>
+        )}
       </div>
     </div>
   );

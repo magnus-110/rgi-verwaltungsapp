@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { EditBookingDialog } from "./EditBookingDialog";
 import { VendorHistorySection } from "./VendorHistorySection";
+import { useMobileSplitView, MobileViewSwitcher, MobileBackToListButton } from "@/components/shared/MobileSplitView";
 
 interface BookingReviewModeProps {
   open: boolean;
@@ -35,6 +36,7 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
   const [confirmedCount, setConfirmedCount] = useState(0);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [editBooking, setEditBooking] = useState<any>(null);
+  const split = useMobileSplitView();
 
   const { data: bookings = [], isLoading, refetch } = useQuery({
     queryKey: ["review-bookings", fiscalYear, buildingId],
@@ -224,8 +226,23 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
               <Button onClick={() => onOpenChange(false)}>Schließen</Button>
             </div>
           ) : currentBooking ? (
-            <div className="flex-1 flex overflow-hidden">
-              <div className="w-1/2 border-r overflow-y-auto p-6 space-y-4">
+            <>
+              <MobileViewSwitcher
+                mobileView={split.mobileView}
+                onChange={split.setMobileView}
+                listLabel="Daten"
+                detailLabel="Beleg"
+              />
+              <div
+                className="flex-1 flex overflow-hidden"
+                onTouchStart={split.touchHandlers.onTouchStart}
+                onTouchEnd={split.touchHandlers.onTouchEnd}
+              >
+              {split.showList && (
+              <div className={cn("border-r overflow-y-auto p-6 space-y-4", split.isMobile ? "w-full" : "w-1/2")}>
+                {split.isMobile && (
+                  <MobileBackToListButton onClick={split.openDetail} label="Zum Beleg" />
+                )}
                 <div className="flex items-center gap-2 mb-4">
                   <Building2 className="h-5 w-5 text-muted-foreground" />
                   <h3 className="font-semibold text-lg">
@@ -299,8 +316,15 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
                   <VendorHistorySection booking={currentBooking} />
                 </div>
               </div>
+              )}
 
-              <div className="w-1/2 flex flex-col overflow-hidden">
+              {split.showDetail && (
+              <div className={cn("flex flex-col overflow-hidden", split.isMobile ? "w-full" : "w-1/2")}>
+                {split.isMobile && (
+                  <div className="px-3 py-2 border-b">
+                    <MobileBackToListButton onClick={split.openList} label="Zu den Daten" />
+                  </div>
+                )}
                 {currentBooking.invoice_id && currentBooking.invoices ? (
                   <>
                     <div className="px-4 py-2 border-b bg-muted/20 flex items-center gap-2 shrink-0">
@@ -375,7 +399,9 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
                   </div>
                 )}
               </div>
-            </div>
+              )}
+              </div>
+            </>
           ) : null}
 
           {bookings.length > 0 && currentBooking && (
