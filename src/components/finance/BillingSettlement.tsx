@@ -548,7 +548,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
   // --- Owner calculation ---
   const getShareTotal = (shareType: string) => {
-    const mapped = DIST_KEY_TO_SHARE[shareType] || shareType;
+    const mapped = getShareType(shareType);
     // For "einheit" (1 Einheit = 1 Anteil) use building unit count, override-aware.
     if (mapped === "einheit") {
       return building?.unit_count_for_billing ?? building?.unit_count ?? assignments.length;
