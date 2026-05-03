@@ -28,6 +28,7 @@ import { AccountSearchSelect } from "./AccountSearchSelect";
 import { Section35aEditor } from "./Section35aEditor";
 import { build35aDetailFromSuggestion } from "./build35aDetail";
 import { buildTemplateBookingText } from "./lib/templateBookingText";
+import { useMobileSplitView, MobileViewSwitcher, MobileBackToListButton } from "@/components/shared/MobileSplitView";
 import { parseAmount } from "./lib/parseAmount";
 import { getLineItemGross } from "./lib/lineItemAmount";
 import { InvoiceLineItemsView } from "./InvoiceLineItemsView";
