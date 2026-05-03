@@ -38,6 +38,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
   const qc = useQueryClient();
   const [mode, setMode] = useState<"edit" | "preview">("edit");
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+  const [showAllAccounts, setShowAllAccounts] = useState(false);
 
   // Local edit cache (account_id → planned_amount)
   const [drafts, setDrafts] = useState<Record<string, number>>({});
