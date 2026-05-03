@@ -617,8 +617,10 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                 {(() => {
                   const owner = ownerData.find((o) => o.id === selectedUnitId) || ownerData[0];
                   if (!owner) return null;
-                  const unitRows = buildUnitRows(owner.id, owner.proportion);
+                  const unitRows = buildUnitRows(owner.id);
                   const ownerTotal = unitRows.reduce((s, r) => s + r.planned_amount, 0);
+                  const ownerReserveTotal = unitRows.filter((r) => r.isReserve).reduce((s, r) => s + r.planned_amount, 0);
+                  const ownerAdvanceTotal = ownerTotal - ownerReserveTotal;
                   const calculatedTotal = totalPlanned * owner.proportion;
                   const deviation = ownerTotal - calculatedTotal;
 
@@ -629,8 +631,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                           <CardContent className="py-2 px-3 flex items-center gap-2 text-xs">
                             <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
                             <span className="text-amber-900 dark:text-amber-200">
-                              Σ Einzelplan ({formatCurrency(ownerTotal)}) weicht von berechnetem Anteil
-                              ({formatCurrency(calculatedTotal)}) um {formatCurrency(deviation)} ab.
+                              Σ Einzelplan ({formatCurrency(ownerTotal)}) weicht von linearer MEA-Quote
+                              ({formatCurrency(calculatedTotal)}) um {formatCurrency(deviation)} ab — i.d.R. korrekt, weil je Konto unterschiedliche Schlüssel angewendet werden.
                             </span>
                           </CardContent>
                         </Card>
@@ -641,6 +643,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                         subtitle={`WE ${owner.unitNumber} · ${(owner.proportion * 100).toFixed(2)}% MEA · ${periodLabel}`}
                         buildingName={building?.name}
                         rows={unitRows}
+                        variant="einzel"
+                        footer={{ ownerTotal, ownerReserveTotal, ownerAdvanceTotal }}
                         renderAmountCell={mode === "edit" ? (row) => (
                           <div className="flex items-center gap-1 justify-end">
                             <Input
@@ -687,10 +691,6 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                             </Tooltip>
                           ) : null
                         ) : undefined}
-                        secondaryColumn={{
-                          label: "€/Monat",
-                          render: (row) => formatCurrency(row.planned_amount / 12),
-                        }}
                       />
                     </div>
                   );
