@@ -91,8 +91,10 @@ export function FileList({ files, categories, isAdmin = false, onDelete, onToggl
     }
   };
 
+  const displayName = (f: FileItem) => localNames[f.id] ?? f.display_name;
+
   const filteredFiles = files.filter(f =>
-    f.display_name.toLowerCase().includes(search.toLowerCase())
+    displayName(f).toLowerCase().includes(search.toLowerCase())
   );
 
   const getCategoryName = (categoryId: string | null) => {
