@@ -219,6 +219,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch }: Props) {
   const [index, setIndex] = useState(initialIndex);
   const [notes, setNotes] = useState("");
+  const split = useMobileSplitView();
   const [saving, setSaving] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
