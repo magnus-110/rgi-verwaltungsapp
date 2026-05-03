@@ -84,8 +84,6 @@ const SECTION_LABELS: Record<string, string> = {
   Sonstige: "Sonstige Kosten",
 };
 
-import { getShareTypeLabel } from "@/lib/shareTypes";
-
 const formatDistKey = (k?: string | null) => getShareTypeLabel(k);
 
 export function EconomicPlanLayout({
