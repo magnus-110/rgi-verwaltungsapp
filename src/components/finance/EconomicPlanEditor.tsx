@@ -146,17 +146,11 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
 
       const { data: accs, error: aErr } = await supabase
         .from("chart_of_accounts")
-        .select("id, account_number, account_name, settlement_section, category")
+        .select("id, account_number, account_name, settlement_section, category, is_reserve_funded, reserve_role")
         .or(`building_id.is.null,building_id.eq.${buildingId}`);
       if (aErr) throw aErr;
 
-      const reserveAccs = (accs || []).filter((a: any) =>
-        a.settlement_section === "reserve" ||
-        a.category === "ruecklage" ||
-        a.account_name?.toLowerCase().includes("rücklage") ||
-        a.account_name?.toLowerCase().includes("rucklage") ||
-        a.account_name?.toLowerCase().includes("erhaltung"),
-      );
+      const reserveAccs = (accs || []).filter((a: any) => isReserveContributionAccount(a));
       if (reserveAccs.length === 0) return 0;
 
       const opening4000 = (accs || []).find((a: any) => a.account_number === "4000");
