@@ -1,83 +1,47 @@
 ## Ziel
 
-Die Flags `is_billing_relevant` (abrechnungsrelevant) und `is_wirtschaftsplan_relevant` (wirtschaftsplanrelevant) sollen nicht mehr nur im Kontenrahmen, sondern direkt am Punkt der Verwendung änderbar sein:
+Im manuellen Wirtschaftsplan-Editor (Einzelplan-Ansicht) soll das Konto **1400 – Heizung/Warmwasser** (sowie alle weiteren Konten mit Verteilerschlüssel `heizk_abr` / `HeizkostenV`) den individuellen Anteil eines Eigentümers nicht aus MEA, sondern **proportional aus den Brunata-Werten des Vorjahres** hochrechnen — analog zu HV-Office.
 
-- **Buchungen-Seite** → Toggle pro Konto für **Abrechnungsrelevanz**
-- **Planung & Berichte / Manueller Wirtschaftsplan** → Toggle pro Konto für **Wirtschaftsplanrelevanz**
+## Beispiel (Adolf-Haff-Weg 3, 2026)
 
-Außerdem: Default-Verhalten ändern – jedes Konto mit Bewegung (Saldo ≠ 0) wird automatisch als relevant betrachtet, kann aber an beiden Stellen manuell überschrieben werden.
+- Σ Brunata-Werte 2025 = 5.738,37 €
+- Tobias Baraniak Brunata 2025 = 714,77 € → Anteil 12,4561 %
+- Geplante Gesamtkosten 2026 = 7.500,00 €
+- Hochgerechneter Anteil 2026 = 7.500 × (714,77 / 5.738,37) = **934,06 €** ✓
 
----
+## Was geändert wird
 
-## Konzept
+### `src/components/finance/ManualEconomicPlanEditor.tsx`
 
-### Default-Logik (neu)
-Statt strikt nach dem DB-Flag `is_billing_relevant` / `is_wirtschaftsplan_relevant` zu filtern, gilt:
+1. **Neue Query** `wp-heating-distribution`: lädt alle `heating_distribution_values` der Vorjahres-`billing_period` der Liegenschaft (gemappt: `assignment_id → amount`). Wenn keine Vorjahresperiode existiert oder keine Brunata-Werte vorhanden sind → Fallback wie heute (Anteil 0, mit kleinem Hinweis-Tooltip).
 
-- **Effektive Relevanz** = `Konto hat Saldo ≠ 0 im Wirtschaftsjahr` ODER `manuell aktiviert`
-- Manuell deaktivierte Konten (auch wenn Saldo ≠ 0) werden ausgeblendet/markiert
-- Manuell aktivierte Konten ohne Saldo erscheinen, wenn der Nutzer das wünscht
+2. **Hilfs-Maps**:
+   - `heatingByAssignment`: Map `assignmentId → vorjahres-Brunata-Wert`
+   - `heatingTotal`: Σ aller Werte (Nenner)
 
-### UI-Pattern
-An beiden Stellen (Buchungen + Wirtschaftsplan-Editor) gibt es:
-1. Eine Liste aller Konten des Gebäudes mit Saldo-Spalte
-2. Pro Zeile ein **Switch** „Relevant"
-3. Filter-Tabs/Buttons: **Alle** | **Nur relevante** | **Nur mit Saldo**
-4. Speichern aktualisiert die DB-Flags direkt (so wirkt es sich konsistent in PDFs etc. aus)
+3. **`buildUnitRows` erweitern** (Zeilen 462–467): Sonderfall, wenn `key === "heizk_abr"` UND `heatingTotal > 0`:
+   - `yourShareValue = heatingByAssignment[unitId] ?? 0`
+   - `proportion = yourShareValue / heatingTotal`
+   - Anzeige in den Spalten "Ges Anteil" / "Ihr Anteil" wechselt von „1.000,000 / 0,000" auf reale Brunata-Werte (z.B. 5.738,37 / 714,77).
 
----
+4. **Wenn keine Vorjahres-Brunata-Werte existieren**: bisheriges Verhalten (Anteil 0) bleibt; ein dezenter Tooltip am Konto-Label weist darauf hin, dass Brunata-Werte fehlen.
 
-## Umsetzung
+### `src/components/finance/EconomicPlanLayout.tsx`
 
-### 1. Buchungen-Seite (`BookingsTab.tsx`)
-- Neuer Bereich **„Konten-Übersicht"** (collapsible Card oben oder eigener Sub-Tab)
-- Tabelle: Kontonummer | Bezeichnung | Saldo Wirtschaftsjahr | Switch „Abrechnungsrelevant"
-- Switch togglet `chart_of_accounts.is_billing_relevant` direkt
-- Saldo-Berechnung via bestehendem `sumForAccount`-Pattern (bank-zentrische Aggregation)
-- Filter: „Alle anzeigen / Nur mit Saldo / Nur abrechnungsrelevant"
+Keine strukturelle Änderung — die Spalten "Ges Anteil" / "Ihr Anteil" werden bereits aus `totalShare` / `yourShare` gefüllt; durch (3) bekommen sie automatisch sinnvolle Zahlen.
 
-### 2. Manueller Wirtschaftsplan (`ManualEconomicPlanEditor.tsx`)
-- Aktuelle Query (Zeile 90-102) filtert hart auf `is_wirtschaftsplan_relevant=true` → entfernen
-- Stattdessen: alle Konten des Gebäudes laden, kombiniert mit Vorjahres-Saldo
-- Neue Spalte **„WP-relevant"** mit Switch im Editor-Grid
-- Default-Auswahl beim Anlegen: alle Konten mit Vorjahres-Saldo ≠ 0 ODER bereits gesetztem Flag
-- Switch persistiert `is_wirtschaftsplan_relevant`
-- Filter-Toggle oberhalb: „Nur relevante" (Standard) / „Alle anzeigen"
+## Was bewusst NICHT geändert wird
 
-### 3. Konsistenz / Backwards-Compat
-- Migration nicht nötig – Flags existieren bereits
-- Der bestehende Kontenrahmen-Tab bleibt unverändert (zentrale Pflege weiter möglich)
-- React-Query Invalidation: `["chart-of-accounts"]`, `["wp-accounts-manual"]`, `["bookings*"]` nach jedem Toggle
+- Keine DB-Migration nötig — `heating_distribution_values` und `billing_periods` existieren bereits.
+- Manuelle Overrides pro Zelle bleiben weiterhin möglich (Wert in der Input-Box überschreibt die Hochrechnung).
+- Brunata-Werte werden NICHT auf MEA-Anteile zurückgerechnet; reine Proportional-Verteilung wie HV-Office.
+- Andere Verteilerschlüssel (MEA, qm, Personen, Einheiten, Stellplätze) bleiben unverändert.
 
----
+## Edge Cases
 
-## Technische Details
-
-**Geänderte Dateien:**
-- `src/components/finance/BookingsTab.tsx` – neue Konten-Übersicht + Toggle-Logik
-- `src/components/finance/ManualEconomicPlanEditor.tsx` – Query erweitern, Spalte + Filter
-- ggf. neuer Helper `src/components/finance/lib/accountRelevance.ts` für die Default-Logik (Saldo-basiert)
-
-**Mutation-Pattern (beide Stellen identisch):**
-```ts
-const toggleRelevance = async (accountId: string, field: 'is_billing_relevant'|'is_wirtschaftsplan_relevant', value: boolean) => {
-  await supabase.from("chart_of_accounts").update({ [field]: value }).eq("id", accountId);
-  queryClient.invalidateQueries(...);
-};
-```
-
-**Default-Bestimmung (Saldo-basiert):**
-```ts
-const isEffectivelyRelevant = (account, balance) =>
-  account[flagField] === true || Math.abs(balance) > 0.005;
-```
-
----
-
-## Offene Punkte
-
-Ich gehe davon aus:
-- Toggle wirkt **global** (beeinflusst auch PDFs/Abrechnung), nicht nur die aktuelle Ansicht – das war dein Wunsch laut "weil an diesen zwei Positionen ist es ja wichtig"
-- Default-Sicht: **„Nur relevante"** (also nicht alle ~80 Konten zeigen, sondern nur die mit Saldo + manuell gesetzte)
-
-Falls du lieber willst, dass die Toggles **nur lokal** (z.B. nur für diesen einen Wirtschaftsplan) gelten, müssten wir eine Junction-Table einführen – sag Bescheid, dann passe ich den Plan an.
+| Fall | Verhalten |
+|---|---|
+| Keine Vorjahres-Periode | Anteil 0 + Tooltip „Brunata-Werte fehlen" |
+| Vorjahres-Periode da, aber 0 Brunata-Einträge | Anteil 0 + Tooltip |
+| Eigentümer hat keinen Brunata-Eintrag (z.B. neu) | sein Anteil = 0, andere bleiben korrekt (Σ stimmt) |
+| Eigentümerwechsel im Lauf des Jahres | aktueller Eigentümer erbt den Brunata-Anteil seiner Einheit (assignment_id ist stabil) |
