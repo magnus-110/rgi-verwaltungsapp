@@ -89,14 +89,13 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     },
   });
 
-  // ── Wirtschaftsplan-relevant accounts ─────────────────────────────
-  const { data: accounts = [] } = useQuery({
-    queryKey: ["wp-accounts-manual", buildingId],
+  // ── Alle Konten der Liegenschaft (Filter erfolgt clientseitig) ────
+  const { data: allAccounts = [] } = useQuery({
+    queryKey: ["wp-accounts-manual-all", buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chart_of_accounts")
-        .select("id, account_number, account_name, category, default_distribution_key, settlement_section, is_distributable, is_reserve_funded")
-        .eq("is_wirtschaftsplan_relevant", true)
+        .select("id, account_number, account_name, category, default_distribution_key, settlement_section, is_distributable, is_reserve_funded, is_wirtschaftsplan_relevant")
         .or(`building_id.is.null,building_id.eq.${buildingId}`)
         .order("account_number");
       if (error) throw error;
