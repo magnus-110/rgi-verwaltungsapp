@@ -118,6 +118,37 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     },
   });
 
+  // ── Vorjahres-Brunata-Werte (für Hochrechnung Konto 1400 / heizk_abr) ──
+  const { data: heatingPrev = [] } = useQuery({
+    queryKey: ["wp-heating-distribution-prev", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data: period } = await supabase
+        .from("billing_periods")
+        .select("id")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear - 1)
+        .maybeSingle();
+      if (!period?.id) return [];
+      const { data, error } = await supabase
+        .from("heating_distribution_values")
+        .select("assignment_id, amount")
+        .eq("billing_period_id", period.id);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const heatingByAssignment = useMemo(() => {
+    const m: Record<string, number> = {};
+    (heatingPrev as any[]).forEach((h) => { m[h.assignment_id] = Number(h.amount) || 0; });
+    return m;
+  }, [heatingPrev]);
+
+  const heatingTotal = useMemo(
+    () => Object.values(heatingByAssignment).reduce((s, v) => s + v, 0),
+    [heatingByAssignment]
+  );
+
   const sumForAccount = (accId: string): number => {
     return (prevYearBookings as any[]).reduce((s, b) => {
       if (b.booking_category === "heating_repost") return s;
@@ -454,16 +485,18 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       const key = normalizeKey(r.distribution_key);
       // Generischer Lookup über shareTotals — Custom-Schlüssel (whg.-mea, gar.-mea, sonder-mea …)
       // werden in shareTotals separat unter ihrem eigenen Key geführt.
-      const totalShareForKey = key === "einheit"
-        ? (shareTotals.einheit || 1)
-        : key === "qm"
-          ? (shareTotals.qm || 1)
-          : (shareTotals[key] && shareTotals[key] > 0 ? shareTotals[key] : (shareTotals.mea || 1));
+      const totalShareForKey = key === "heizk_abr"
+        ? (heatingTotal > 0 ? heatingTotal : 0)
+        : key === "einheit"
+          ? (shareTotals.einheit || 1)
+          : key === "qm"
+            ? (shareTotals.qm || 1)
+            : (shareTotals[key] && shareTotals[key] > 0 ? shareTotals[key] : (shareTotals.mea || 1));
       const yourShareValue = key === "heizk_abr"
-        ? 0 // Brunata: vor Abrechnung nicht ermittelbar
+        ? (heatingByAssignment[unitId] ?? 0) // Brunata-Vorjahreswert dieser Einheit
         : ownerShareValue(a, key, a.contact_id);
       const proportion = key === "heizk_abr"
-        ? 0 // Heizung erst nach Brunata-Abrechnung
+        ? (heatingTotal > 0 ? yourShareValue / heatingTotal : 0)
         : (totalShareForKey > 0 ? yourShareValue / totalShareForKey : 0);
 
       const calculated = r.planned_amount * proportion;
