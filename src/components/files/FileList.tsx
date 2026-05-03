@@ -236,6 +236,16 @@ export function FileList({ files, categories, isAdmin = false, onDelete, onToggl
                   )}
                   <TableCell>
                     <div className="flex items-center gap-1">
+                      {isAdmin && renamingId !== file.id && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => startRename(file)}
+                          title="Umbenennen"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
