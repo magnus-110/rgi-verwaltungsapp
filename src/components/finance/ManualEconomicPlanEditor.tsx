@@ -21,6 +21,7 @@ import { Loader2, RotateCcw, CheckCircle2, Eye, Edit3, AlertTriangle, Save } fro
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { EconomicPlanLayout, PlanRow } from "./EconomicPlanLayout";
+import { isReserveContributionAccount } from "@/lib/accountClassification";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -95,7 +96,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chart_of_accounts")
-        .select("id, account_number, account_name, category, default_distribution_key, settlement_section, is_distributable, is_reserve_funded, is_wirtschaftsplan_relevant")
+        .select("id, account_number, account_name, category, default_distribution_key, settlement_section, is_distributable, is_reserve_funded, reserve_role, is_wirtschaftsplan_relevant")
         .or(`building_id.is.null,building_id.eq.${buildingId}`)
         .order("account_number");
       if (error) throw error;
@@ -279,7 +280,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
         planned_amount: draft !== undefined ? draft : Number(item?.planned_amount || 0),
         manually_overridden: draft !== undefined || !!item?.manually_overridden,
         isDistributable: !!acc.is_distributable,
-        isReserve: !!acc.is_reserve_funded,
+        isReserve: isReserveContributionAccount(acc),
         previousAmount: sumForAccount(acc.id),
       } as PlanRow;
     });
