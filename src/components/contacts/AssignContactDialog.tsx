@@ -23,6 +23,13 @@ interface Props {
   managementMode?: "weg" | "rent";
 }
 
+interface ContactPerson {
+  first_name: string | null;
+  last_name: string | null;
+  is_primary: boolean | null;
+  sort_order: number | null;
+}
+
 interface ContactOption {
   id: string;
   first_name: string | null;
@@ -33,6 +40,7 @@ interface ContactOption {
   address_zip: string | null;
   address_city: string | null;
   hasEmail?: boolean;
+  persons?: ContactPerson[];
 }
 
 interface PhoneEntry { phone_number: string; label: string }
