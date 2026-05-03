@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -74,6 +74,17 @@ export function CreateAuditDialog({ open, onOpenChange }: CreateAuditDialogProps
   });
 
   const selectedPeriod = periods.find((p) => p.id === selectedPeriodId);
+
+  // Auto-Default: Vorjahr für Kassenprüfung
+  useEffect(() => {
+    if (!periods.length || selectedPeriodId) return;
+    const previousYear = new Date().getFullYear() - 1;
+    const match =
+      periods.find((p: any) => p.fiscal_year === previousYear) ??
+      periods.find((p: any) => p.fiscal_year < new Date().getFullYear()) ??
+      periods[0];
+    if (match) setSelectedPeriodId(match.id);
+  }, [periods, selectedPeriodId]);
 
   const handleCreate = async () => {
     if (!selectedBuildingId || !selectedPeriodId || !selectedContactId) {
