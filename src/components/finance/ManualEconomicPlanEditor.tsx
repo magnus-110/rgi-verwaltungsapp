@@ -280,7 +280,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
         planned_amount: draft !== undefined ? draft : Number(item?.planned_amount || 0),
         manually_overridden: draft !== undefined || !!item?.manually_overridden,
         isDistributable: !!acc.is_distributable,
-        isReserve: !!acc.is_reserve_funded,
+        isReserve: isReserveContributionAccount(acc),
         previousAmount: sumForAccount(acc.id),
       } as PlanRow;
     });
