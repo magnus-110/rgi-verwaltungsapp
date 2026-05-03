@@ -142,7 +142,15 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
 
   // Load full contact data when moving to details step
   const loadContactDetails = async (contactId: string) => {
-    const contact = contacts.find(c => c.id === contactId);
+    let contact = contacts.find(c => c.id === contactId) as ContactOption | undefined;
+    if (!contact) {
+      const { data } = await supabase
+        .from("contacts")
+        .select("id, first_name, last_name, company_name, salutation, address_street, address_zip, address_city")
+        .eq("id", contactId)
+        .maybeSingle();
+      if (data) contact = data as ContactOption;
+    }
     if (!contact) return;
 
     // Prefill address
