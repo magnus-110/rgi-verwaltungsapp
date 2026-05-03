@@ -287,11 +287,13 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
 
       for (const acc of prevYearTotals) {
         const planned = getPlannedAmount(acc.id, acc.previousAmount);
+        const effKey = overrideKeyByAccount.get(acc.id) || (acc as any).default_distribution_key || "mea";
         const existing = items.find((i: any) => i.account_id === acc.id);
         if (existing) {
           await supabase.from("economic_plan_items" as any).update({
             planned_amount: planned,
             previous_amount: acc.previousAmount,
+            distribution_key: effKey,
           } as any).eq("id", existing.id);
         } else {
           await supabase.from("economic_plan_items" as any).insert({
@@ -299,7 +301,7 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
             account_id: acc.id,
             previous_amount: acc.previousAmount,
             planned_amount: planned,
-            distribution_key: acc.default_distribution_key || "mea",
+            distribution_key: effKey,
           } as any);
         }
       }
