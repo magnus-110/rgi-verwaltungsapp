@@ -171,7 +171,29 @@ export function FileList({ files, categories, isAdmin = false, onDelete, onToggl
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                      <span className="font-medium truncate max-w-[200px]">{file.display_name}</span>
+                      {renamingId === file.id ? (
+                        <div className="flex items-center gap-1 flex-1">
+                          <Input
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveRename(file.id);
+                              if (e.key === "Escape") cancelRename();
+                            }}
+                            autoFocus
+                            className="h-7 text-sm"
+                            disabled={savingRename}
+                          />
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => saveRename(file.id)} disabled={savingRename}>
+                            <Check className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={cancelRename} disabled={savingRename}>
+                            <X className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="font-medium truncate max-w-[200px]">{displayName(file)}</span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
