@@ -90,8 +90,11 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     if (open) {
       loadContacts();
       resetForm();
+      if (editAssignmentId) {
+        loadAssignmentForEdit(editAssignmentId);
+      }
     }
-  }, [open]);
+  }, [open, editAssignmentId]);
 
   const resetForm = () => {
     setStep("select");
@@ -105,6 +108,22 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     setEditStreet(""); setEditZip(""); setEditCity("");
     setEditPhones([]); setEditEmails([]); setEditBanks([]);
     setSendInvite(false);
+  };
+
+  const loadAssignmentForEdit = async (assignmentId: string) => {
+    const { data: a, error } = await supabase
+      .from("contact_building_assignments")
+      .select("contact_id, unit_number, floor_location, unit_kind, role_in_building")
+      .eq("id", assignmentId)
+      .maybeSingle();
+    if (error || !a) return;
+    setSelectedId(a.contact_id);
+    setUnitNumber(a.unit_number || "");
+    setFloorLocation(a.floor_location || "");
+    setUnitKind(((a as any).unit_kind || "apartment") as UnitKind);
+    setIsBeirat((a as any).role_in_building === "beirat");
+    await loadContactDetails(a.contact_id);
+    setStep("details");
   };
 
   const loadContacts = async () => {
