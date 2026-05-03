@@ -44,6 +44,16 @@ serve(async (req) => {
       .or(`building_id.is.null,building_id.eq.${buildingId}`)
       .order("account_number");
 
+    // Fetch building-specific distribution-key overrides
+    const { data: overrides } = await supabase
+      .from("building_account_overrides")
+      .select("account_id, distribution_key")
+      .eq("building_id", buildingId);
+    const overrideMap = new Map<string, string>();
+    for (const o of (overrides || [])) {
+      if (o.distribution_key) overrideMap.set(o.account_id, o.distribution_key);
+    }
+
     // Fetch bookings for last 2 years — INCLUDE counter_account_id for bank-centric aggregation
     const { data: bookings } = await supabase
       .from("bookings")
@@ -81,7 +91,8 @@ serve(async (req) => {
         account_number: acc.account_number,
         account_name: acc.account_name,
         category: acc.category,
-        distribution_key: acc.default_distribution_key || "mea",
+        // Building-specific override > account default > 'mea'
+        distribution_key: overrideMap.get(acc.id) || acc.default_distribution_key || "mea",
         current_year: currentYear,
         prev_year: prevYear,
         trend: prevYear > 0 ? ((currentYear - prevYear) / prevYear) * 100 : 0,
