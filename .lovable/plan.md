@@ -1,65 +1,109 @@
-Ich habe den Fehler tief geprüft. Die Ursache ist nicht, dass „Stellplätze“ fehlt. Der Schlüssel ist korrekt bei den Personen hinterlegt und im gebäudespezifischen Kontenrahmen gespeichert.
+## Problem
 
-Befund für Adolf-Haff-Weg 3:
-- Gebäude hat 8 Einheiten.
-- Anteil „stellplaetze“ existiert bei den Personen: Summe 9 Stellplätze.
-- Im gebäudespezifischen Kontenrahmen ist Konto 1501 „Verwaltervergütung TG“ korrekt auf „stellplaetze“ überschrieben.
-- Im bestehenden Wirtschaftsplan-Item zu Konto 1501 steht aber noch der alte gespeicherte Wert „einheiten“.
+Im Einzelwirtschaftsplan wird die Zeile **„davon X €/Mon. für Erhaltungsrücklage und Y €/Mon. für Vorschüsse zur Kostendeckung"** falsch berechnet. Konkret bei Adolf‑Haff‑Weg 3:
 
-Warum es weiterhin „Einheiten“ zeigt:
-- `ManualEconomicPlanEditor` baut die Zeilen aktuell so:
-  - Wenn ein `economic_plan_items.distribution_key` existiert, wird dieser angezeigt.
-  - Erst wenn dort nichts steht, wird der aktuelle gebäudespezifische Override aus `building_account_overrides` verwendet.
-- Bei Konto 1501 existiert ein altes `economic_plan_items.distribution_key = 'einheiten'`.
-- Deshalb gewinnt der veraltete Plan-Item-Wert über den aktuellen Kontenrahmen-Override „stellplaetze“.
+- Konto **1930 „Planmäßige IHR Wohnungen"** (635,00 €) wird komplett als **Vorschuss zur Kostendeckung** gezählt
+- Erhaltungsrücklage steht auf **0,00 €/Mon.**, obwohl 1930 inhaltlich genau die EHR-Zuführung ist
 
-Zusätzlich gefunden:
-- Konto 1500 hat im Override „einheit“, im Plan-Item aber noch „einheiten“. Das ist nur ein Alias-/Normalisierungsproblem, wirkt optisch ähnlich.
-- Andere echte Anteilsschlüssel bei Adolf-Haff-Weg sind vorhanden und berechenbar: `mea`, `Whg.-MEA`, `Gar.-MEA`, `Sonder-MEA`, `stellplaetze`, `einheit`, `qm`/Fläche im aktuellen Code nur über `area_sqm_override` statt über den gespeicherten Anteil `qm`.
-- Einige Standard-Schlüssel aus der Dropdown-Liste haben bei Adolf-Haff-Weg keine hinterlegten Anteile (`garagen`, `wasser`, `warmwasser`, `heizkosten` usw.). Wenn man sie auswählt, kann die Berechnung aktuell auf MEA zurückfallen oder 0 ergeben. Das sollte nicht still passieren.
+### Ursache
 
-Plan zur Korrektur:
+Die Aufteilung in `ManualEconomicPlanEditor.tsx` (Zeile 741) prüft ausschließlich **`acc.is_reserve_funded`**:
 
-1. Wirtschaftsplan-Zeilen auf den aktuellen Kontenrahmen synchronisieren
-- In `ManualEconomicPlanEditor.tsx` die Priorität ändern:
-  - Gebaüdespezifischer Override aus `building_account_overrides` hat Vorrang.
-  - Danach `chart_of_accounts.default_distribution_key`.
-  - Nur wenn beides fehlt, vorhandenes Plan-Item / Fallback.
-- Damit zeigt Konto 1501 sofort „Stellplätze“, obwohl im alten Plan-Item noch „einheiten“ steht.
+```ts
+const ownerReserveTotal = unitRows.filter((r) => r.isReserve).reduce(...)
+```
 
-2. Bestehende Plan-Items beim Speichern/Öffnen nicht mehr veralten lassen
-- Beim Speichern eines Planbetrags nicht nur `planned_amount`, sondern auch den aktuell effektiven `distribution_key` speichern.
-- Optional beim Laden/Rendern intern den effektiven Schlüssel verwenden, damit alte Daten nicht mehr die UI blockieren.
-- Dadurch wird der bestehende Plan für Adolf-Haff-Weg automatisch wieder konsistent, sobald gespeichert wird.
+In der DB ist aber bei 1930: `is_reserve_funded=false`, `settlement_section=NULL`, `reserve_role=NULL`. Die Erkennung greift nicht.
 
-3. Gebaüdespezifischen Kontenrahmen vollständig berücksichtigen
-- Für globale Konten: `building_account_overrides` verwenden.
-- Für eigene Gebäude-Konten (`chart_of_accounts.building_id = buildingId`): direkt `default_distribution_key` verwenden.
-- Sicherstellen, dass beide Fälle im Wirtschaftsplan gleich behandelt werden.
+Andere Stellen im Code nutzen bereits **breitere, robustere** Erkennungslogik — die Logiken sind nur nicht einheitlich:
 
-4. Schlüssel-Normalisierung zentral machen
-- Eine gemeinsame Normalisierung für `einheit`/`einheiten`, Heizkosten-Aliase und Anteilsschlüssel verwenden.
-- Anzeige und Berechnung sollen denselben normalisierten Wert nutzen.
-- Dadurch werden Alias-Unterschiede nicht mehr als echte Abweichung behandelt.
+| Komponente | Erkennung Rücklagenkonto |
+|---|---|
+| `AssetReportSection.tsx` | `settlement_section='reserve'` ODER `category='ruecklage'` ODER Name enthält „rücklage"/„erhaltung" |
+| `BillingSettlement.tsx` | `settlement_section='reserve'` (Beiträge) bzw. `reserve_role='withdrawal'` / `is_reserve_funded=true` (Entnahmen) |
+| `BalanceCarryForward.tsx` | `settlement_section='reserve'` |
+| **`ManualEconomicPlanEditor.tsx`** | **nur `is_reserve_funded`** ← zu eng |
 
-5. Anteil-Berechnung für alle vorhandenen Share Types absichern
-- `shareTotals` soll alle `contact_building_shares.share_type` generisch summieren.
-- Für `qm` soll geprüft werden: zuerst gespeicherter Anteil `qm`, sonst `area_sqm_override` als Fallback.
-- Für `stellplaetze`, `Whg.-MEA`, `Gar.-MEA`, `Sonder-MEA` etc. wird exakt der passende Anteil verwendet, nicht MEA.
+Konto **1710 „II. Beitragsverpflichtung IHR"** hat bereits korrekt `settlement_section='reserve'`. Konto 1930 wurde nur nie entsprechend markiert. Das ist also keine punktuelle Daten-Korrektur, sondern eine generelle Inkonsistenz, die bei jeder Liegenschaft auftreten kann.
 
-6. Kein stiller Fallback auf MEA bei fehlendem Anteil
-- Wenn ein ausgewählter Schlüssel im Gebäude keine Anteile hat, soll die Berechnung nicht heimlich auf MEA umlegen.
-- Stattdessen: Anteil 0 bzw. Warnhinweis in der Zeile, damit falsche Umlagen sichtbar werden.
-- Beispiel: Wenn „wasser“ ausgewählt ist, aber keine Wasser-Anteile existieren, muss das auffallen.
+## Lösung — in 3 Schichten, damit es für alle Liegenschaften zuverlässig läuft
 
-7. Auch den KI-/Vorjahres-Generator anpassen
-- `supabase/functions/generate-economic-plan/index.ts` nutzt aktuell nur `chart_of_accounts.default_distribution_key` und ignoriert gebäudespezifische Overrides.
-- Das wird angepasst, damit aus Vorjahr generierte Wirtschaftspläne ebenfalls den gebäudespezifischen Kontenrahmen übernehmen.
+### 1. Zentrale Helper-Funktion `isReserveContributionAccount(acc)` (`src/lib/accountClassification.ts`, neu)
 
-8. Kurze Datenprüfung nach Umsetzung
-- Für Adolf-Haff-Weg prüfen:
-  - Konto 1501 zeigt „Stellplätze“.
-  - Gesamtanteil ist 9, nicht 8 oder 16.
-  - Einzelanteil pro Eigentümer entspricht dem hinterlegten Stellplatz-Anteil.
-  - Konto 1500 bleibt „Einheiten“ mit 8 Einheiten.
-- Zusätzlich prüfen, dass vorhandene Custom-Anteile wie `Whg.-MEA`, `Gar.-MEA`, `Sonder-MEA` berechenbar bleiben.
+Eine **Single Source of Truth**, die im gesamten Wirtschaftsplan- und Settlement-Code verwendet wird. Ein Konto zählt als EHR-Zuführung, wenn **eines** dieser Kriterien zutrifft:
+
+1. `settlement_section === 'reserve'` (primär, sauberster Marker)
+2. `is_reserve_funded === true` (Legacy)
+3. `category === 'ruecklage'`
+4. Name-Heuristik als Fallback: enthält `rücklage`, `erhaltung`, `IHR`, `instandhaltung` und ist **kein Entnahme-Konto** (`reserve_role !== 'withdrawal'`)
+
+**Wichtig — Trennung Zuführung vs. Entnahme:** Entnahmekonten (`reserve_role='withdrawal'`, z. B. „Rep. aus Entnahme RL") dürfen NICHT als EHR-Zuführung gezählt werden — sie sind im Wirtschaftsplan Aufwand, nicht Rücklagenbildung.
+
+### 2. Verwendung in `ManualEconomicPlanEditor.tsx`
+
+- Zeile 282: `isReserve: isReserveContributionAccount(acc)` statt nur `!!acc.is_reserve_funded`
+- Damit wird 1930 sofort korrekt zugeordnet, ohne Datenmigration
+- Gleiche Helper-Funktion auch in `EconomicPlanEditor.tsx` (Vorschau / Generator) und `EconomicPlanPreview.tsx` einsetzen, damit PDF-Ausgabe und UI deckungsgleich sind
+
+### 3. Datenbank-Aufräumung + sichtbares UI-Toggle (für saubere Pflege durch User)
+
+**3a. Migration (einmalig, idempotent):** Alle Konten, die per Heuristik als EHR-Zuführung erkannt werden, bekommen `settlement_section = 'reserve'` gesetzt (außer wenn bereits gesetzt oder `reserve_role = 'withdrawal'`). Betrifft Konten wie 1930, 1931, 1932 etc. über alle Mandanten/Liegenschaften hinweg.
+
+**3b. Inline-Toggle im Kontenrahmen** (`ChartOfAccountsTab.tsx` / `AccountSettingsPopover.tsx`):
+Ein klar beschriftetes Toggle „**Erhaltungsrücklagen-Zuführung**" pro Konto, das `settlement_section='reserve'` setzt — analog zu den bestehenden Inline-Toggles für `is_billing_relevant` / `is_wirtschaftsplan_relevant` (siehe Memory „Inline Account Relevance Toggles"). Damit kann der Verwalter pro Liegenschaft im Zweifelsfall manuell korrigieren, ohne Code-Änderung.
+
+### 4. Optional — Anzeige als Plus statt Belastung (zur Klärung)
+
+Aktuell wird die EHR-Zuführung **on top** zum monatlichen Hausgeld erhoben (so ist es bei WEG auch korrekt — sie ist Teil des Hausgeld-Vorschusses gem. §28 WEG, nur zweckgebunden). Wir ändern an der **Berechnung** der monatlichen Belastung also bewusst nichts — nur die **Aufteilung in der Detailzeile** wird korrekt: aus „342,86 €/Mon., davon 0 € EHR + 342,86 € Vorschuss" wird z. B. „342,86 €/Mon., davon **52,92 € EHR** + **289,94 € Vorschuss zur Kostendeckung**".
+
+## Technische Details
+
+**Neue Datei:** `src/lib/accountClassification.ts`
+```ts
+export interface AccountLike {
+  account_name?: string | null;
+  category?: string | null;
+  settlement_section?: string | null;
+  is_reserve_funded?: boolean | null;
+  reserve_role?: string | null;
+}
+
+export function isReserveContributionAccount(acc: AccountLike): boolean {
+  if (acc.reserve_role === "withdrawal") return false; // Entnahme ≠ Zuführung
+  if (acc.settlement_section === "reserve") return true;
+  if (acc.is_reserve_funded === true) return true;
+  if (acc.category === "ruecklage") return true;
+  const name = (acc.account_name || "").toLowerCase();
+  return /rücklage|erhaltung|\bihr\b|instandhaltungsrücklage/.test(name);
+}
+
+export function isReserveWithdrawalAccount(acc: AccountLike): boolean {
+  return acc.reserve_role === "withdrawal" || acc.is_reserve_funded === true;
+  // Hinweis: Legacy is_reserve_funded wurde historisch teils für Entnahmen genutzt.
+  // BillingSettlement.tsx Zeile 356 nutzt diese Logik bereits — beibehalten.
+}
+```
+
+**Edits:**
+- `src/components/finance/ManualEconomicPlanEditor.tsx` Z. 282: Helper nutzen
+- `src/components/finance/EconomicPlanEditor.tsx`: Reserve-Erkennung auf Helper umstellen (Zeilen 134/153)
+- `src/components/finance/EconomicPlanPreview.tsx`: `plannedReserve` / `annualReserve` über Helper ableiten — damit auch der PDF-Druck korrekt EHR vs. Vorschuss zeigt
+- `src/components/finance/AccountSettingsPopover.tsx`: neuer Toggle „Erhaltungsrücklagen-Zuführung" (setzt `settlement_section`)
+- Migration: `UPDATE chart_of_accounts SET settlement_section='reserve' WHERE settlement_section IS NULL AND reserve_role IS DISTINCT FROM 'withdrawal' AND (is_reserve_funded=true OR category='ruecklage' OR account_name ~* 'rücklage|erhaltung|^.*IHR.*$');` (mit Vorabprüfung der Treffer-Liste)
+
+**Memory-Update:** Erweiterung von `mem://features/finance/economic-plan-hv-office-alignment` um den Helper als verbindliche Regel: „EHR/Vorschuss-Split immer über `isReserveContributionAccount`, nie nur `is_reserve_funded`."
+
+## Erwartetes Ergebnis im Screenshot
+
+Statt:
+> davon 0,00 €/Mon. für Erhaltungsrücklage und 342,86 €/Mon. für Vorschüsse zur Kostendeckung
+
+steht:
+> davon **52,92 €/Mon. für Erhaltungsrücklage** und **289,94 €/Mon. für Vorschüsse zur Kostendeckung**
+
+(635 € EHR-Anteil dieser Einheit / 12 = 52,92 €)
+
+Und das funktioniert dann automatisch für **alle Liegenschaften**, weil:
+- Helper greift sofort über die Name/Category-Heuristik (auch ohne DB-Korrektur)
+- Migration räumt Bestand sauber auf
+- Inline-Toggle erlaubt manuelle Korrektur in Sonderfällen
