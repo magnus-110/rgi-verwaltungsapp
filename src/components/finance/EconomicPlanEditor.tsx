@@ -80,6 +80,22 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
     },
   });
 
+  // Building-specific distribution-key overrides
+  const { data: accountOverrides = [] } = useQuery({
+    queryKey: ["building-account-overrides", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("building_account_overrides")
+        .select("account_id, distribution_key")
+        .eq("building_id", buildingId);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+  const overrideKeyByAccount = new Map<string, string>(
+    accountOverrides.filter((o: any) => o.distribution_key).map((o: any) => [o.account_id, o.distribution_key])
+  );
+
   // Previous year bookings — include counter_account_id for bank-centric aggregation
   const { data: prevBookings = [] } = useQuery({
     queryKey: ["prev-bookings-plan", buildingId, fiscalYear],
