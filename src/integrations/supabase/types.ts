@@ -6369,7 +6369,27 @@ export type Database = {
         Returns: string
       }
       get_attendee_by_proxy_token: { Args: { p_token: string }; Returns: Json }
+      get_audit_accounts_by_token: {
+        Args: { p_token: string }
+        Returns: Json[]
+      }
+      get_audit_balances_by_token: {
+        Args: { p_token: string }
+        Returns: Json[]
+      }
+      get_audit_bookings_by_token: {
+        Args: { p_token: string }
+        Returns: Json[]
+      }
       get_audit_by_token: { Args: { p_token: string }; Returns: Json }
+      get_audit_invoices_by_token: {
+        Args: { p_token: string }
+        Returns: Json[]
+      }
+      get_audit_statements_by_token: {
+        Args: { p_token: string }
+        Returns: Json[]
+      }
       get_building_dashboard_stats: {
         Args: { p_building_id: string }
         Returns: Json

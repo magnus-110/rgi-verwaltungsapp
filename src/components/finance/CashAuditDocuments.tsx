@@ -11,15 +11,21 @@ interface CashAuditDocumentsProps {
   buildingId: string;
   fiscalYear: number;
   billingPeriodId: string;
+  tokenMode?: boolean;
+  token?: string;
 }
 
-export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId }: CashAuditDocumentsProps) {
+export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, tokenMode, token }: CashAuditDocumentsProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["statements"]));
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   const { data: statements = [] } = useQuery({
-    queryKey: ["audit-statements", buildingId],
+    queryKey: ["audit-statements", buildingId, tokenMode ? token : "auth"],
     queryFn: async () => {
+      if (tokenMode && token) {
+        const { data } = await supabase.rpc("get_audit_statements_by_token", { p_token: token });
+        return (data as any[]) || [];
+      }
       const { data } = await supabase
         .from("bank_statements")
         .select("id, file_name, file_path, import_date, statement_date_from, statement_date_to")
@@ -30,8 +36,12 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId }: 
   });
 
   const { data: invoices = [] } = useQuery({
-    queryKey: ["audit-invoices", buildingId, fiscalYear],
+    queryKey: ["audit-invoices", buildingId, fiscalYear, tokenMode ? token : "auth"],
     queryFn: async () => {
+      if (tokenMode && token) {
+        const { data } = await supabase.rpc("get_audit_invoices_by_token", { p_token: token });
+        return (data as any[]) || [];
+      }
       const { data } = await supabase
         .from("invoices")
         .select("id, vendor_name, invoice_number, gross_amount, file_path, invoice_date")

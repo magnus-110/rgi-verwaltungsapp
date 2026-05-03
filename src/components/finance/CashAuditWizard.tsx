@@ -186,6 +186,8 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
             progress={progress}
             onProgressChange={handleProgressChange}
             readOnly={isCompleted}
+            tokenMode={tokenMode}
+            token={token}
           />
         </TabsContent>
 
@@ -196,6 +198,8 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
             progress={progress}
             onProgressChange={handleProgressChange}
             readOnly={isCompleted}
+            tokenMode={tokenMode}
+            token={token}
           />
         </TabsContent>
 
@@ -204,6 +208,8 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
             buildingId={audit.building_id}
             fiscalYear={fiscalYear}
             billingPeriodId={audit.billing_period_id}
+            tokenMode={tokenMode}
+            token={token}
           />
         </TabsContent>
       </Tabs>

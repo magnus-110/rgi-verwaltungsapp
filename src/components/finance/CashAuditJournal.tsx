@@ -17,9 +17,11 @@ interface CashAuditJournalProps {
   progress: Record<string, any>;
   onProgressChange: (progress: Record<string, any>) => void;
   readOnly?: boolean;
+  tokenMode?: boolean;
+  token?: string;
 }
 
-export function CashAuditJournal({ buildingId, fiscalYear, progress, onProgressChange, readOnly }: CashAuditJournalProps) {
+export function CashAuditJournal({ buildingId, fiscalYear, progress, onProgressChange, readOnly, tokenMode, token }: CashAuditJournalProps) {
   const [search, setSearch] = useState("");
   const [monthFilter, setMonthFilter] = useState<string>("all");
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
@@ -27,8 +29,12 @@ export function CashAuditJournal({ buildingId, fiscalYear, progress, onProgressC
   const [pdfLoading, setPdfLoading] = useState(false);
 
   const { data: bookings = [] } = useQuery({
-    queryKey: ["audit-journal", buildingId, fiscalYear],
+    queryKey: ["audit-journal", buildingId, fiscalYear, tokenMode ? token : "auth"],
     queryFn: async () => {
+      if (tokenMode && token) {
+        const { data } = await supabase.rpc("get_audit_bookings_by_token", { p_token: token });
+        return (data as any[]) || [];
+      }
       const { data } = await supabase
         .from("bookings")
         .select(`
