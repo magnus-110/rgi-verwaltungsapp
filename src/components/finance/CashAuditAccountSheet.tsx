@@ -15,14 +15,20 @@ interface CashAuditAccountSheetProps {
   progress: Record<string, any>;
   onProgressChange: (progress: Record<string, any>) => void;
   readOnly?: boolean;
+  tokenMode?: boolean;
+  token?: string;
 }
 
-export function CashAuditAccountSheet({ buildingId, fiscalYear, progress, onProgressChange, readOnly }: CashAuditAccountSheetProps) {
+export function CashAuditAccountSheet({ buildingId, fiscalYear, progress, onProgressChange, readOnly, tokenMode, token }: CashAuditAccountSheetProps) {
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
 
   const { data: accounts = [] } = useQuery({
-    queryKey: ["audit-accounts", buildingId, fiscalYear],
+    queryKey: ["audit-accounts", buildingId, fiscalYear, tokenMode ? token : "auth"],
     queryFn: async () => {
+      if (tokenMode && token) {
+        const { data } = await supabase.rpc("get_audit_accounts_by_token", { p_token: token });
+        return (data as any[]) || [];
+      }
       const { data } = await supabase
         .from("chart_of_accounts")
         .select("id, account_number, account_name, category")
@@ -33,8 +39,12 @@ export function CashAuditAccountSheet({ buildingId, fiscalYear, progress, onProg
   });
 
   const { data: bookings = [] } = useQuery({
-    queryKey: ["audit-bookings", buildingId, fiscalYear],
+    queryKey: ["audit-bookings", buildingId, fiscalYear, tokenMode ? token : "auth"],
     queryFn: async () => {
+      if (tokenMode && token) {
+        const { data } = await supabase.rpc("get_audit_bookings_by_token", { p_token: token });
+        return (data as any[]) || [];
+      }
       const { data } = await supabase
         .from("bookings")
         .select("id, booking_date, description, amount, account_id, counter_account_id, receipt_number, booking_type")
