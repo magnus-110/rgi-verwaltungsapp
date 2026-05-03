@@ -72,8 +72,43 @@ export function FileDropCard({
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [savingRename, setSavingRename] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
+
+  const startRename = (file: FileItem) => {
+    setRenamingId(file.id);
+    setRenameValue(file.display_name);
+  };
+
+  const cancelRename = () => {
+    setRenamingId(null);
+    setRenameValue("");
+  };
+
+  const saveRename = async (fileId: string) => {
+    const newName = renameValue.trim();
+    if (!newName) {
+      toast.error("Name darf nicht leer sein");
+      return;
+    }
+    setSavingRename(true);
+    const { error } = await supabase
+      .from("building_files")
+      .update({ display_name: newName })
+      .eq("id", fileId);
+    setSavingRename(false);
+    if (error) {
+      toast.error("Umbenennen fehlgeschlagen");
+    } else {
+      toast.success("Umbenannt");
+      setRenamingId(null);
+      setRenameValue("");
+      onFileUploaded();
+    }
+  };
 
   const handleUpload = useCallback(async (file: File) => {
     if (file.size > 50 * 1024 * 1024) {
