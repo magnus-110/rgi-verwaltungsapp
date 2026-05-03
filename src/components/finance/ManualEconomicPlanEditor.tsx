@@ -377,9 +377,13 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       for (const sh of (a.contact_building_shares || [])) {
         const t = String(sh.share_type || "").toLowerCase();
         const v = Number(sh.share_value) || 0;
-        if (t === "mea" || t === "whg.-mea") totals.mea += v;
-        else if (t === "stellplaetze" || t === "gar.-mea") totals.stellplaetze += v;
+        // WICHTIG: MEA, Whg.-MEA, Gar.-MEA, Sonder-MEA sind EIGENSTÄNDIGE
+        // Verteilerschlüssel und dürfen NICHT zur "mea"-Summe addiert werden.
+        if (t === "mea") totals.mea += v;
+        else if (t === "stellplaetze") totals.stellplaetze += v;
         else if (t === "personen") totals.personen += v;
+        // Custom-Schlüssel (whg.-mea, gar.-mea, sonder-mea, …) separat tracken
+        else if (t) totals[t] = (totals[t] || 0) + v;
       }
     }
     return totals;
@@ -405,11 +409,9 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
         types.map((t) => t.toLowerCase()).includes(String(sh.share_type || "").toLowerCase())
       ).reduce((s: number, sh: any) => s + (Number(sh.share_value) || 0), 0);
 
-    const types =
-      k === "mea" ? ["mea", "whg.-mea"] :
-      k === "stellplaetze" ? ["stellplaetze", "gar.-mea"] :
-      k === "personen" ? ["personen"] :
-      [k];
+    // Strikte 1:1-Zuordnung: jeder Schlüssel zählt nur seinen eigenen share_type.
+    // Whg.-MEA / Gar.-MEA / Sonder-MEA sind separate Custom-Schlüssel.
+    const types = [k];
 
     let sum = collectFor(assignmentRaw, types);
     // Nebeneinheiten desselben Owners hinzuaddieren (gleiches Building)
@@ -450,15 +452,13 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       const isOverridden = overrideAmount !== null;
 
       const key = normalizeKey(r.distribution_key);
+      // Generischer Lookup über shareTotals — Custom-Schlüssel (whg.-mea, gar.-mea, sonder-mea …)
+      // werden in shareTotals separat unter ihrem eigenen Key geführt.
       const totalShareForKey = key === "einheit"
         ? (shareTotals.einheit || 1)
         : key === "qm"
           ? (shareTotals.qm || 1)
-          : key === "stellplaetze"
-            ? (shareTotals.stellplaetze || 1)
-            : key === "personen"
-              ? (shareTotals.personen || 1)
-              : (shareTotals.mea || 1); // Fallback Tausendstel
+          : (shareTotals[key] && shareTotals[key] > 0 ? shareTotals[key] : (shareTotals.mea || 1));
       const yourShareValue = key === "heizk_abr"
         ? 0 // Brunata: vor Abrechnung nicht ermittelbar
         : ownerShareValue(a, key, a.contact_id);
