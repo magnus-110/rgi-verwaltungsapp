@@ -40,10 +40,22 @@ amount = 955.23
 ```
 
 ### Interne Umbuchungen (ohne Bankbezug)
-- `account_id` = **Soll-Seite** (Konto, das belastet wird)
-- `counter_account_id` = **Haben-Seite** (Konto, das entlastet wird)
-- `booking_type` = `expense` (Soll = Belastung der Account-Seite)
+- `account_id` = **Soll-Seite** (Konto, das **belastet** wird)
+- `counter_account_id` = **Haben-Seite** (Konto, das **entlastet** wird)
+- `booking_type` = `expense`
 - `amount` = positiv
+
+> ⚠️ **Häufiger Fehler bei Umbuchungen zwischen Aufwandskonten** (z. B. Wasser → Heizung):
+> Wenn von Konto A Betrag X **abgezogen** und auf Konto B **draufgebucht** werden soll
+> (B wird belastet, A wird entlastet), dann gehört **B in `account_id`** und **A in `counter_account_id`**.
+>
+> Beispiel "Umb. Wasser-/Kanalgebühren auf Heizung 159,82 €":
+> ```
+> account_id = 1400 (Heizung wird belastet)
+> counter_account_id = 1040 (Abwasser wird entlastet)
+> booking_type = expense
+> ```
+> Vertauschen führt zu doppelter Belastung des Quellkontos!
 
 **Beispiel: Sollstellung Guthaben Abrechnung 2024 BARANIAK 949,58 €**
 ```
@@ -62,6 +74,20 @@ account_id = 1800
 counter_account_id = 1300 (Instandhaltungsrücklage)
 booking_type = expense
 amount = 5000.00
+```
+
+### Erstattungen / Gutschriften vom Lieferant auf Bank
+- `account_id` = **Bank** (1800)
+- `counter_account_id` = das ursprüngliche Aufwandskonto
+- `booking_type` = **`income`** (Geld kommt rein)
+- Effekt: Bank +Betrag, Aufwandskonto wird entlastet (Saldo geht Richtung 0)
+
+**Beispiel: Verbrauchsabrechnung 2024 Wassergebühren — Erstattung 429,40 €**
+```
+account_id = 1800
+counter_account_id = 1040
+booking_type = income
+amount = 429.40
 ```
 
 ## Pflichtfelder pro Zeile
