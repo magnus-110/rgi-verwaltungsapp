@@ -24,11 +24,25 @@ export interface AccountLike {
 export function isReserveContributionAccount(acc: AccountLike): boolean {
   if (!acc) return false;
   if (acc.reserve_role === "withdrawal") return false; // Entnahme ≠ Zuführung
+
+  // Explizite Marker — primär:
   if (acc.settlement_section === "reserve") return true;
+
+  // Wenn settlement_section explizit auf einen NICHT-Rücklagen-Wert gesetzt ist
+  // (z. B. operating_non_distributable für 1600 "Lfd. Instandhaltung"), dann
+  // ist es ein Aufwandskonto — Name-Heuristik darf NICHT greifen.
+  const hasExplicitNonReserveSection =
+    !!acc.settlement_section && acc.settlement_section !== "reserve";
+  if (hasExplicitNonReserveSection) return false;
+
   if (acc.is_reserve_funded === true) return true;
   if (acc.category === "ruecklage") return true;
+
+  // Name-Heuristik nur als letzter Fallback und nur, wenn KEIN settlement_section gesetzt.
+  // Bewusst eng gehalten: "instandhaltung" allein ist KEIN Rücklagenindikator
+  // (1600 "Lfd. Instandhaltung / Reparaturen" ist Aufwand, keine Rücklage).
   const name = (acc.account_name || "").toLowerCase();
-  return /rücklage|erhaltung|\bihr\b|instandhaltung/.test(name);
+  return /rücklage|erhaltung|\bihr\b|instandhaltungsrücklage/.test(name);
 }
 
 /**
