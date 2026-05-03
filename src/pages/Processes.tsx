@@ -342,8 +342,8 @@ function InstancesList({ showCompleted }: { showCompleted: boolean }) {
                 <div>
                   <div className="font-semibold">{inst.title}</div>
                   <div className="text-xs text-muted-foreground">
-                    {inst.buildings?.name && <>🏢 {inst.buildings.name} · </>}
-                    {contactName(inst.contacts) && <>👤 {contactName(inst.contacts)} · </>}
+                    {inst.buildings?.name && <>{inst.buildings.name} · </>}
+                    {contactName(inst.contacts) && <>{contactName(inst.contacts)} · </>}
                     Gestartet {format(new Date(inst.started_at), "dd.MM.yyyy", { locale: de })}
                   </div>
                 </div>
@@ -556,8 +556,8 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
         <DialogHeader>
           <DialogTitle>{instance.title}</DialogTitle>
           <DialogDescription>
-            {instance.buildings?.name && <>🏢 {instance.buildings.name} · </>}
-            {contactName(instance.contacts) && <>👤 {contactName(instance.contacts)} · </>}
+            {instance.buildings?.name && <>{instance.buildings.name} · </>}
+            {contactName(instance.contacts) && <>{contactName(instance.contacts)} · </>}
             {done}/{steps.length} erledigt
           </DialogDescription>
         </DialogHeader>
