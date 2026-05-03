@@ -48,7 +48,7 @@ export function useAccountAggregation({
     queryFn: async () => {
       let q = supabase
         .from("chart_of_accounts")
-        .select("id, account_number, account_name, category, sort_order, building_id");
+        .select("id, account_number, account_name, category, sort_order, building_id, is_billing_relevant");
       if (buildingId) q = q.or(`building_id.eq.${buildingId},building_id.is.null`);
       const { data, error } = await q;
       if (error) throw error;
