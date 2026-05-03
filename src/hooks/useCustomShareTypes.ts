@@ -11,24 +11,21 @@ import { supabase } from "@/integrations/supabase/client";
  * Bekannte Standard-Schlüssel werden ausgefiltert, damit sie nicht doppelt erscheinen.
  */
 
+// Nur Keys ausfiltern, die bereits als feste Optionen im Dropdown stehen
+// (siehe DISTRIBUTION_KEYS in BuildingDistributionKeysTab / DistributionKeysTab).
+// Alles andere, was tatsächlich bei Personen als Anteil hinterlegt ist
+// (z.B. stellplaetze, garagen, warmwasser, ...), soll als wählbarer
+// Verteilerschlüssel erscheinen.
 const STANDARD_SHARE_TYPES = new Set([
   "mea",
-  "whg.-mea",
-  "gar.-mea",
-  "sonder-mea",
   "einheit",
   "einheiten",
   "personen",
   "qm",
-  "garagen",
-  "stellplaetze",
-  "wasser",
-  "warmwasser",
   "verbrauch_wasser",
-  "verbrauch_warmwasser",
-  "heizkosten",
   "heizkostenverordnung",
   "heating_individual",
+  "heizk_abr",
   "direkt",
   "units",
 ]);
