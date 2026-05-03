@@ -87,6 +87,45 @@ export const Finance = () => {
     enabled: !!selectedPeriodId,
   });
 
+  // Lade alle Perioden für Auto-Default
+  const { data: allPeriods = [] } = useQuery({
+    queryKey: ["billing-periods-default", selectedBuildingId],
+    queryFn: async () => {
+      if (!selectedBuildingId) return [];
+      const { data, error } = await supabase
+        .from("billing_periods")
+        .select("id, fiscal_year")
+        .eq("building_id", selectedBuildingId)
+        .order("fiscal_year", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!selectedBuildingId,
+  });
+
+  // Auto-Default Wirtschaftsjahr je nach Tab:
+  // - Abrechnung, Planung & Berichte, Kassenprüfung → Vorjahr (currentYear - 1)
+  // - Buchen → aktuelles Jahr
+  useEffect(() => {
+    if (!selectedBuildingId || !allPeriods.length) return;
+    if (selectedPeriodId) return; // User-Auswahl respektieren
+
+    const currentYear = new Date().getFullYear();
+    const previousYear = currentYear - 1;
+    const preferPrevious =
+      activeTab === "abrechnung" ||
+      activeTab === "planung" ||
+      activeTab === "kassenpruefung";
+
+    const targetYear = preferPrevious ? previousYear : currentYear;
+    const match = allPeriods.find((p: any) => p.fiscal_year === targetYear)
+      ?? (preferPrevious
+        ? allPeriods.find((p: any) => p.fiscal_year < currentYear) ?? allPeriods[0]
+        : allPeriods[0]);
+
+    if (match) setSelectedPeriodId(match.id);
+  }, [selectedBuildingId, allPeriods, activeTab, selectedPeriodId]);
+
   const toggleSection = (id: string) => {
     setExpandedSections(prev => {
       const next = new Set(prev);
