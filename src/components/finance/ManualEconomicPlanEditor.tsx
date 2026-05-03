@@ -491,10 +491,10 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
           ? (shareTotals.qm || 1)
           : (shareTotals[key] && shareTotals[key] > 0 ? shareTotals[key] : (shareTotals.mea || 1));
       const yourShareValue = key === "heizk_abr"
-        ? 0 // Brunata: vor Abrechnung nicht ermittelbar
+        ? (heatingByAssignment[unitId] ?? 0) // Brunata-Vorjahreswert dieser Einheit
         : ownerShareValue(a, key, a.contact_id);
       const proportion = key === "heizk_abr"
-        ? 0 // Heizung erst nach Brunata-Abrechnung
+        ? (heatingTotal > 0 ? yourShareValue / heatingTotal : 0)
         : (totalShareForKey > 0 ? yourShareValue / totalShareForKey : 0);
 
       const calculated = r.planned_amount * proportion;
