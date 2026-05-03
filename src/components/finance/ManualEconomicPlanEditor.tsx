@@ -264,12 +264,13 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     return accounts.map((acc: any) => {
       const item = items.find((i) => i.account_id === acc.id);
       const draft = drafts[acc.id];
+      const effectiveDefaultKey = overrideKeyByAccount.get(acc.id) || acc.default_distribution_key || "mea";
       return {
         account_id: acc.id,
         account_number: acc.account_number,
         account_name: acc.account_name,
         category: acc.settlement_section || acc.category || "Sonstige",
-        distribution_key: item?.distribution_key || acc.default_distribution_key || "mea",
+        distribution_key: item?.distribution_key || effectiveDefaultKey,
         planned_amount: draft !== undefined ? draft : Number(item?.planned_amount || 0),
         manually_overridden: draft !== undefined || !!item?.manually_overridden,
         isDistributable: !!acc.is_distributable,
@@ -277,7 +278,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
         previousAmount: sumForAccount(acc.id),
       } as PlanRow;
     });
-  }, [accounts, plan, drafts, prevYearBookings]);
+  }, [accounts, plan, drafts, prevYearBookings, overrideKeyByAccount]);
 
   const totalPlanned = rows.reduce((s, r) => s + r.planned_amount, 0);
   const distributableTotal = rows.filter((r) => r.isDistributable).reduce((s, r) => s + r.planned_amount, 0);
