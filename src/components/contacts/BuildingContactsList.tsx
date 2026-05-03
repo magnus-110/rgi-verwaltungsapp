@@ -678,6 +678,15 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                     size="icon"
                     variant="ghost"
                     className="h-7 w-7"
+                    title="Zuordnung bearbeiten"
+                    onClick={(e) => { e.stopPropagation(); setEditAssignmentId(a.id); setShowAssign(true); }}
+                  >
+                    <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
                     onClick={(e) => { e.stopPropagation(); setDeleteTarget(a); }}
                   >
                     <Trash2 className="h-3.5 w-3.5 text-destructive" />
