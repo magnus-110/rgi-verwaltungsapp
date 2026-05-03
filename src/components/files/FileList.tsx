@@ -39,6 +39,7 @@ interface FileListProps {
   isAdmin?: boolean;
   onDelete?: (fileId: string, filePath: string) => void;
   onToggleVisibility?: (fileId: string, visible: boolean) => void;
+  onRenamed?: () => void;
   profiles?: { user_id: string; first_name: string | null; last_name: string | null }[];
   buildings?: { id: string; name: string }[];
 }
@@ -49,9 +50,46 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function FileList({ files, categories, isAdmin = false, onDelete, onToggleVisibility, profiles, buildings }: FileListProps) {
+export function FileList({ files, categories, isAdmin = false, onDelete, onToggleVisibility, onRenamed, profiles, buildings }: FileListProps) {
   const [search, setSearch] = useState("");
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [savingRename, setSavingRename] = useState(false);
+  const [localNames, setLocalNames] = useState<Record<string, string>>({});
+
+  const startRename = (file: FileItem) => {
+    setRenamingId(file.id);
+    setRenameValue(localNames[file.id] ?? file.display_name);
+  };
+
+  const cancelRename = () => {
+    setRenamingId(null);
+    setRenameValue("");
+  };
+
+  const saveRename = async (fileId: string) => {
+    const newName = renameValue.trim();
+    if (!newName) {
+      toast.error("Name darf nicht leer sein");
+      return;
+    }
+    setSavingRename(true);
+    const { error } = await supabase
+      .from("building_files")
+      .update({ display_name: newName })
+      .eq("id", fileId);
+    setSavingRename(false);
+    if (error) {
+      toast.error("Umbenennen fehlgeschlagen");
+    } else {
+      toast.success("Umbenannt");
+      setLocalNames((prev) => ({ ...prev, [fileId]: newName }));
+      setRenamingId(null);
+      setRenameValue("");
+      onRenamed?.();
+    }
+  };
 
   const filteredFiles = files.filter(f =>
     f.display_name.toLowerCase().includes(search.toLowerCase())
