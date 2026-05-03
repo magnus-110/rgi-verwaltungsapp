@@ -133,6 +133,7 @@ interface ContactAssignment {
   emails: { id: string; email: string; label: string; contact_id: string }[];
   costs: { id: string; cost_type: string; amount: number; reserve_share_monthly: number | null; interval: string; valid_from: string | null; valid_to: string | null }[];
   bankAccounts: { id: string; iban: string | null; bic: string | null; bank_name: string | null; account_holder: string | null; sepa_mandate_ref: string | null }[];
+  persons: { id: string; salutation: string | null; first_name: string | null; last_name: string | null; is_primary: boolean | null }[];
 }
 
 interface Props {
@@ -210,7 +211,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
       const assignmentIds = assignData.map(a => a.id);
       const contactIds = assignData.map(a => a.contact_id);
 
-      const [sharesRes, phonesRes, emailsRes, costsRes, bankRes] = await Promise.all([
+      const [sharesRes, phonesRes, emailsRes, costsRes, bankRes, personsRes] = await Promise.all([
         assignmentIds.length > 0 
           ? supabase.from("contact_building_shares").select("*").in("assignment_id", assignmentIds)
           : { data: [] },
@@ -225,6 +226,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
           : { data: [] },
         contactIds.length > 0
           ? supabase.from("contact_bank_accounts").select("*").in("contact_id", contactIds)
+          : { data: [] },
+        contactIds.length > 0
+          ? supabase.from("contact_persons").select("id, contact_id, salutation, first_name, last_name, is_primary").in("contact_id", contactIds)
           : { data: [] },
       ]);
 
@@ -247,6 +251,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
           .filter((c: any) => c.assignment_id === a.id)
           .sort(sortByCreated),
         bankAccounts: (bankRes.data || []).filter((b: any) => b.contact_id === a.contact_id),
+        persons: ((personsRes as any).data || [])
+          .filter((p: any) => p.contact_id === a.contact_id)
+          .sort((x: any, y: any) => Number(!!y.is_primary) - Number(!!x.is_primary)),
       })) as unknown as ContactAssignment[];
     },
   });
@@ -254,6 +261,33 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const getDisplayName = (a: ContactAssignment) => {
     const c = a.contact;
     if (c.company_name) return c.company_name;
+
+    // Wenn mehrere Personen am Kontakt hängen (z. B. Eheleute), alle sinnvoll kombinieren.
+    const persons = (a.persons || []).filter(p => p.first_name || p.last_name);
+    if (persons.length > 1) {
+      // Gruppiere nach Nachname für kompakte Darstellung: "Anna und Peter Müller" / "Müller, Anna und Schmidt, Peter"
+      const byLastName = new Map<string, string[]>();
+      const order: string[] = [];
+      for (const p of persons) {
+        const ln = (p.last_name || "").trim();
+        const fn = (p.first_name || "").trim();
+        if (!byLastName.has(ln)) { byLastName.set(ln, []); order.push(ln); }
+        if (fn) byLastName.get(ln)!.push(fn);
+      }
+      const groups = order.map(ln => {
+        const fns = byLastName.get(ln) || [];
+        if (fns.length === 0) return ln;
+        const fnPart = fns.length === 1 ? fns[0] : `${fns.slice(0, -1).join(", ")} und ${fns[fns.length - 1]}`;
+        return ln ? `${fnPart} ${ln}` : fnPart;
+      });
+      return groups.join(" / ");
+    }
+
+    if (persons.length === 1) {
+      const p = persons[0];
+      return [p.salutation, p.first_name, p.last_name].filter(Boolean).join(" ");
+    }
+
     return [c.salutation, c.first_name, c.last_name].filter(Boolean).join(" ") || "Unbenannt";
   };
 
@@ -315,18 +349,31 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   };
 
   // Shares
+  // WICHTIG: Vor dem Insert blurren wir das aktive Eingabefeld und geben pending
+  // onBlur-Saves Zeit, ihre DB-Updates abzusetzen — sonst überschreibt ein zu
+  // früher Refetch die gerade getippte Zahl mit dem alten Wert (Race Condition).
+  const flushPendingEdits = async () => {
+    const el = document.activeElement as HTMLElement | null;
+    if (el && typeof el.blur === "function") el.blur();
+    // Zwei Mikrotask-Ticks: einmal damit onBlur-Handler synchron feuert,
+    // einmal damit die darin angestoßenen Promises beginnen.
+    await new Promise<void>((r) => setTimeout(r, 0));
+    await new Promise<void>((r) => setTimeout(r, 50));
+  };
+
   const addShare = async (assignmentId: string) => {
+    await flushPendingEdits();
     await supabase.from("contact_building_shares").insert({ assignment_id: assignmentId, share_type: "mea", share_value: 0 });
-    refetch();
+    await refetch();
   };
   const updateShare = async (id: string, field: string, value: any) => {
     await supabase.from("contact_building_shares").update({ [field]: value } as any).eq("id", id);
-    refetch();
+    await refetch();
     if (field === "share_type") queryClient.invalidateQueries({ queryKey: ["custom-share-types"] });
   };
   const deleteShare = async (id: string) => {
     await supabase.from("contact_building_shares").delete().eq("id", id);
-    refetch();
+    await refetch();
   };
 
   const saveEditingType = async () => {
@@ -508,17 +555,18 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
   // Costs
   const addCost = async (assignmentId: string) => {
+    await flushPendingEdits();
     await supabase.from("contact_building_costs").insert({ assignment_id: assignmentId, cost_type: "Hausgeld", amount: 0, interval: "monatlich" });
-    refetch();
+    await refetch();
   };
   const updateCost = async (id: string, field: string, value: any) => {
     await supabase.from("contact_building_costs").update({ [field]: value }).eq("id", id);
-    refetch();
+    await refetch();
     if (field === "cost_type") queryClient.invalidateQueries({ queryKey: ["custom-cost-types"] });
   };
   const deleteCost = async (id: string) => {
     await supabase.from("contact_building_costs").delete().eq("id", id);
-    refetch();
+    await refetch();
   };
 
   // Phones
