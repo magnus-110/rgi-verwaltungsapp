@@ -133,6 +133,7 @@ interface ContactAssignment {
   emails: { id: string; email: string; label: string; contact_id: string }[];
   costs: { id: string; cost_type: string; amount: number; reserve_share_monthly: number | null; interval: string; valid_from: string | null; valid_to: string | null }[];
   bankAccounts: { id: string; iban: string | null; bic: string | null; bank_name: string | null; account_holder: string | null; sepa_mandate_ref: string | null }[];
+  persons: { id: string; salutation: string | null; first_name: string | null; last_name: string | null; is_primary: boolean | null }[];
 }
 
 interface Props {
