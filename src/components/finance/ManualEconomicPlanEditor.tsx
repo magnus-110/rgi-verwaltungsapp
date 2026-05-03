@@ -301,11 +301,12 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     for (const acc of accounts as any[]) {
       const draftVal = drafts[acc.id];
       if (draftVal === undefined) continue;
+      const effKey = overrideKeyByAccount.get(acc.id) || acc.default_distribution_key || "mea";
       const existing = items.find((i) => i.account_id === acc.id);
       if (existing) {
         ops.push(Promise.resolve(
           supabase.from("economic_plan_items" as any)
-            .update({ planned_amount: draftVal, manually_overridden: true } as any)
+            .update({ planned_amount: draftVal, distribution_key: effKey, manually_overridden: true } as any)
             .eq("id", existing.id),
         ));
       } else {
@@ -315,7 +316,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
             account_id: acc.id,
             previous_amount: 0,
             planned_amount: draftVal,
-            distribution_key: overrideKeyByAccount.get(acc.id) || acc.default_distribution_key || "mea",
+            distribution_key: effKey,
             manually_overridden: true,
           } as any),
         ));
