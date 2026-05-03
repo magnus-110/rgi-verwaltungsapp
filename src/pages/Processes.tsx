@@ -342,8 +342,8 @@ function InstancesList({ showCompleted }: { showCompleted: boolean }) {
                 <div>
                   <div className="font-semibold">{inst.title}</div>
                   <div className="text-xs text-muted-foreground">
-                    {inst.buildings?.name && <>🏢 {inst.buildings.name} · </>}
-                    {contactName(inst.contacts) && <>👤 {contactName(inst.contacts)} · </>}
+                    {inst.buildings?.name && <>{inst.buildings.name} · </>}
+                    {contactName(inst.contacts) && <>{contactName(inst.contacts)} · </>}
                     Gestartet {format(new Date(inst.started_at), "dd.MM.yyyy", { locale: de })}
                   </div>
                 </div>
