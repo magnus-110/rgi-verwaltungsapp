@@ -339,36 +339,118 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     });
   };
 
-  // ── Owner plan calculations ───────────────────────────────────────
+  // ── Maps für Verteilungsschlüssel ─────────────────────────────────
+  // Pro Schlüssel-Typ: Σ aller Anteile in der Liegenschaft.
+  // Berücksichtigt Nebeneinheiten (z.B. Stellplätze für 'stellplaetze').
+  const shareTotals = useMemo(() => {
+    const totals: Record<string, number> = { mea: 0, stellplaetze: 0, einheit: 0, qm: 0, personen: 0 };
+    for (const a of (assignmentsRaw as any[])) {
+      const isApartment = (!a.unit_kind || a.unit_kind === "apartment") && a.billing_mode !== "distribution_only";
+      const area = Number(a.area_sqm_override || 0);
+      if (isApartment) {
+        totals.einheit += 1;
+        if (area > 0) totals.qm += area;
+      }
+      for (const sh of (a.contact_building_shares || [])) {
+        const t = String(sh.share_type || "").toLowerCase();
+        const v = Number(sh.share_value) || 0;
+        if (t === "mea" || t === "whg.-mea") totals.mea += v;
+        else if (t === "stellplaetze" || t === "gar.-mea") totals.stellplaetze += v;
+        else if (t === "personen") totals.personen += v;
+      }
+    }
+    return totals;
+  }, [assignmentsRaw]);
+
+  // Schlüssel auf intern normalisieren
+  const normalizeKey = (k?: string | null): string => {
+    const v = String(k || "mea").toLowerCase();
+    if (v === "einheiten") return "einheit";
+    if (v === "verbrauch_heizung" || v === "heizk.abr" || v === "heizk_abr") return "heizk_abr";
+    return v;
+  };
+
+  // Anteil eines Owners für einen bestimmten Schlüssel ermitteln
+  const ownerShareValue = (assignmentRaw: any, key: string, ownContactId?: string | null): number => {
+    const k = normalizeKey(key);
+    if (k === "einheit") return 1;
+    if (k === "qm") return Number(assignmentRaw?.area_sqm_override || 0);
+
+    // Eigene + Nebeneinheiten desselben Eigentümers (für stellplaetze/mea)
+    const collectFor = (a: any, types: string[]) =>
+      (a?.contact_building_shares || []).filter((sh: any) =>
+        types.map((t) => t.toLowerCase()).includes(String(sh.share_type || "").toLowerCase())
+      ).reduce((s: number, sh: any) => s + (Number(sh.share_value) || 0), 0);
+
+    const types =
+      k === "mea" ? ["mea", "whg.-mea"] :
+      k === "stellplaetze" ? ["stellplaetze", "gar.-mea"] :
+      k === "personen" ? ["personen"] :
+      [k];
+
+    let sum = collectFor(assignmentRaw, types);
+    // Nebeneinheiten desselben Owners hinzuaddieren (gleiches Building)
+    if (ownContactId) {
+      for (const a of (assignmentsRaw as any[])) {
+        if (a.id === assignmentRaw.id) continue;
+        if (a.contact_id !== ownContactId) continue;
+        const isSec = a?.billing_mode === "distribution_only" || (a?.unit_kind && a.unit_kind !== "apartment");
+        if (!isSec) continue;
+        sum += collectFor(a, types);
+      }
+    }
+    return sum;
+  };
+
+  // ── Owner plan calculations (Anteile für Sidebar/MEA-Quote) ──────
   const ownerData = useMemo(() => {
-    const meaOf = (a: any) => {
-      const own = (a.contact_building_shares || []).find((sh: any) => sh.share_type === "mea");
-      const ownVal = own ? Number(own.share_value) : 0;
-      const extra = (a.contact_id && extraMeaByContact.get(a.contact_id)) || 0;
-      return ownVal + extra;
-    };
-    const meaTotal = assignments.reduce((s: number, a: any) => s + meaOf(a), 0);
+    const meaTotal = shareTotals.mea || 1;
     return assignments.map((a: any) => {
       const c = a.contacts;
       const name = c?.company_name || [c?.first_name, c?.last_name].filter(Boolean).join(" ") || "–";
-      const meaValue = meaOf(a);
-      const proportion = meaTotal > 0 ? meaValue / meaTotal : 0;
-      return { id: a.id, name, unitNumber: a.unit_number || "–", meaValue, proportion };
+      const meaValue = ownerShareValue(a, "mea", a.contact_id);
+      const proportion = meaValue / meaTotal;
+      return { id: a.id, name, unitNumber: a.unit_number || "–", meaValue, proportion, raw: a };
     });
-  }, [assignments, extraMeaByContact]);
+  }, [assignments, shareTotals]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Unit-row builder (with override merge) ────────────────────────
-  const buildUnitRows = (unitId: string, proportion: number): PlanRow[] => {
+  // ── Unit-row builder: pro Konto den richtigen Schlüssel anwenden ──
+  const buildUnitRows = (unitId: string): PlanRow[] => {
+    const ownerEntry = ownerData.find((o) => o.id === unitId);
+    if (!ownerEntry) return [];
+    const a = ownerEntry.raw;
     return rows.map((r) => {
       const overrideKey = `${unitId}|${r.account_id}`;
       const draftOverride = unitDrafts[overrideKey];
       const dbOverride = unitItems.find((u: any) => u.unit_id === unitId && u.account_id === r.account_id);
       const overrideAmount = draftOverride !== undefined ? draftOverride : (dbOverride ? Number(dbOverride.amount) : null);
       const isOverridden = overrideAmount !== null;
+
+      const key = normalizeKey(r.distribution_key);
+      const totalShareForKey = key === "einheit"
+        ? (shareTotals.einheit || 1)
+        : key === "qm"
+          ? (shareTotals.qm || 1)
+          : key === "stellplaetze"
+            ? (shareTotals.stellplaetze || 1)
+            : key === "personen"
+              ? (shareTotals.personen || 1)
+              : (shareTotals.mea || 1); // Fallback Tausendstel
+      const yourShareValue = key === "heizk_abr"
+        ? 0 // Brunata: vor Abrechnung nicht ermittelbar
+        : ownerShareValue(a, key, a.contact_id);
+      const proportion = key === "heizk_abr"
+        ? 0 // Heizung erst nach Brunata-Abrechnung
+        : (totalShareForKey > 0 ? yourShareValue / totalShareForKey : 0);
+
+      const calculated = r.planned_amount * proportion;
       return {
         ...r,
-        planned_amount: isOverridden ? overrideAmount! : r.planned_amount * proportion,
+        planned_amount: isOverridden ? overrideAmount! : calculated,
         manually_overridden: isOverridden,
+        totalShare: totalShareForKey,
+        yourShare: yourShareValue,
+        totalAmount: r.planned_amount,
       };
     });
   };
