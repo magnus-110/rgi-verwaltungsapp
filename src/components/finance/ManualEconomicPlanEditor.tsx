@@ -413,6 +413,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
         if (t === "mea") totals.mea += v;
         else if (t === "stellplaetze") totals.stellplaetze += v;
         else if (t === "personen") totals.personen += v;
+        // 'einheit'/'einheiten' werden bereits über isApartment gezählt → hier ignorieren
+        else if (t === "einheit" || t === "einheiten" || t === "qm") { /* skip */ }
         // Custom-Schlüssel (whg.-mea, gar.-mea, sonder-mea, …) separat tracken
         else if (t) totals[t] = (totals[t] || 0) + v;
       }
