@@ -22,6 +22,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { EconomicPlanLayout, PlanRow } from "./EconomicPlanLayout";
 import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface Props {
   buildingId: string;
@@ -36,6 +38,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
   const qc = useQueryClient();
   const [mode, setMode] = useState<"edit" | "preview">("edit");
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+  const [showAllAccounts, setShowAllAccounts] = useState(false);
 
   // Local edit cache (account_id → planned_amount)
   const [drafts, setDrafts] = useState<Record<string, number>>({});
@@ -86,14 +89,13 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     },
   });
 
-  // ── Wirtschaftsplan-relevant accounts ─────────────────────────────
-  const { data: accounts = [] } = useQuery({
-    queryKey: ["wp-accounts-manual", buildingId],
+  // ── Alle Konten der Liegenschaft (Filter erfolgt clientseitig) ────
+  const { data: allAccounts = [] } = useQuery({
+    queryKey: ["wp-accounts-manual-all", buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chart_of_accounts")
-        .select("id, account_number, account_name, category, default_distribution_key, settlement_section, is_distributable, is_reserve_funded")
-        .eq("is_wirtschaftsplan_relevant", true)
+        .select("id, account_number, account_name, category, default_distribution_key, settlement_section, is_distributable, is_reserve_funded, is_wirtschaftsplan_relevant")
         .or(`building_id.is.null,building_id.eq.${buildingId}`)
         .order("account_number");
       if (error) throw error;
@@ -126,7 +128,28 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     }, 0);
   };
 
-  // ── Owner/Unit assignments + MEA ──────────────────────────────────
+  // Effektive Konten: Default = WP-relevant ODER Vorjahres-Saldo ≠ 0.
+  // "Alle anzeigen" zeigt sämtliche Konten der Liegenschaft.
+  const accounts = useMemo(() => {
+    if (showAllAccounts) return allAccounts as any[];
+    return (allAccounts as any[]).filter((a) => {
+      if (a.is_wirtschaftsplan_relevant) return true;
+      return Math.abs(sumForAccount(a.id)) > 0.005;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allAccounts, showAllAccounts, prevYearBookings]);
+
+  // Toggle: Konto WP-relevant ja/nein (persistiert global)
+  const toggleWpRelevance = async (accountId: string, value: boolean) => {
+    const { error } = await supabase
+      .from("chart_of_accounts")
+      .update({ is_wirtschaftsplan_relevant: value })
+      .eq("id", accountId);
+    if (error) { toast.error("Fehler: " + error.message); return; }
+    qc.invalidateQueries({ queryKey: ["wp-accounts-manual-all", buildingId] });
+    qc.invalidateQueries({ queryKey: ["chart-of-accounts"] });
+  };
+
   const { data: assignmentsRaw = [] } = useQuery({
     queryKey: ["mep-assignments", buildingId],
     queryFn: async () => {
@@ -522,7 +545,18 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
           </TabsList>
 
           {/* ── Tab: Gesamtplan ─────────────────────────────────── */}
-          <TabsContent value="gesamt" className="mt-4">
+          <TabsContent value="gesamt" className="mt-4 space-y-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap rounded-md border bg-muted/30 px-3 py-2">
+              <div className="text-xs text-muted-foreground">
+                Es werden <strong>{accounts.length}</strong> Konten angezeigt
+                {showAllAccounts ? " (alle Konten der Liegenschaft)" : " (relevant oder mit Vorjahres-Saldo)"}.
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch id="wp-show-all" checked={showAllAccounts} onCheckedChange={setShowAllAccounts} />
+                <Label htmlFor="wp-show-all" className="text-xs cursor-pointer">Alle Konten anzeigen</Label>
+              </div>
+            </div>
+
             <EconomicPlanLayout
               title={`Gesamtwirtschaftsplan ${fiscalYear}`}
               subtitle={`Wirtschaftszeitraum: ${periodLabel}`}
@@ -545,6 +579,21 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                   <span className="text-muted-foreground text-xs">€</span>
                 </div>
               ) : undefined}
+              secondaryColumn={mode === "edit" ? {
+                label: "WP-relevant",
+                render: (row) => {
+                  const acc = (allAccounts as any[]).find((a) => a.id === row.account_id);
+                  const checked = !!acc?.is_wirtschaftsplan_relevant;
+                  return (
+                    <div className="flex items-center justify-end">
+                      <Switch
+                        checked={checked}
+                        onCheckedChange={(v) => toggleWpRelevance(row.account_id, v)}
+                      />
+                    </div>
+                  );
+                },
+              } : undefined}
               renderActionCell={mode === "edit" ? (row) => (
                 row.manually_overridden && row.planned_amount > 0 ? (
                   <Tooltip>

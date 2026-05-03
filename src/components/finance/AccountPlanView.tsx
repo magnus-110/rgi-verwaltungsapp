@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -145,6 +146,33 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
                       <span className="font-mono tabular-nums text-sm font-semibold w-16">{acc.account_number}</span>
                       <span className="text-sm flex-1 truncate">{acc.account_name}</span>
                       <Badge variant="secondary" className="text-[10px] h-5">{accBookings.length} Buch.</Badge>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div
+                              className="flex items-center gap-1.5 px-2"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Switch
+                                checked={!!(acc as any).is_billing_relevant}
+                                onCheckedChange={async (v) => {
+                                  const { error } = await supabase
+                                    .from("chart_of_accounts")
+                                    .update({ is_billing_relevant: v })
+                                    .eq("id", acc.id);
+                                  if (error) { toast.error("Fehler: " + error.message); return; }
+                                  toast.success(v ? "Konto ist abrechnungsrelevant" : "Konto nicht mehr abrechnungsrelevant");
+                                  queryClient.invalidateQueries({ queryKey: ["coa-aggregation"] });
+                                  queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
+                                }}
+                                className="scale-75"
+                              />
+                              <span className="text-[10px] text-muted-foreground select-none">Abr.</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent><p className="text-xs">Abrechnungsrelevant – beeinflusst Abrechnung & Vermögensbericht</p></TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <span className="text-xs text-muted-foreground tabular-nums w-28 text-right">
                         EB: {formatCurrency(opening)}
                       </span>
