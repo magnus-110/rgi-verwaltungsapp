@@ -855,19 +855,21 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       } else if (isHeating1400 && heatingDistValues.length === 0) {
         reason = "Verteilerschlüssel 'heizkostenverordnung', aber keine Brunata-Werte für diese Periode";
       } else {
-        const shareType = DIST_KEY_TO_SHARE[distKey];
-        if (!shareType) {
-          reason = `Unbekannter Verteilerschlüssel '${distKey}'`;
-        } else if (shareType === "einheit") {
+        const shareType = getShareType(distKey);
+        if (shareType === "einheit") {
           const totalUnits = building?.unit_count_for_billing ?? building?.unit_count ?? assignments.length;
           if (!totalUnits) reason = "Verteilerschlüssel 'einheiten', aber keine Einheitenzahl gepflegt";
         } else if (shareType === "heizkosten") {
           if (heatingDistValues.length === 0) {
             reason = "Verteilerschlüssel 'heizkostenverordnung', aber keine Brunata-Werte für diese Periode";
           }
+        } else if (shareType === "direkt") {
+          // Direktzuordnung: keine Anteils-Summe nötig
         } else {
           const totalShares = assignments.reduce((s: number, a: any) => {
-            const share = (a.contact_building_shares || []).find((sh: any) => sh.share_type === shareType);
+            const share = (a.contact_building_shares || []).find((sh: any) =>
+              String(sh.share_type || "").toLowerCase() === String(shareType).toLowerCase()
+            );
             return s + (share ? Number(share.share_value) || 0 : 0);
           }, 0);
           if (totalShares <= 0) {
