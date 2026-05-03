@@ -102,13 +102,24 @@ Deno.serve(async (req) => {
     } else {
       const filter = (campaign.recipient_filter || {}) as RecipientFilter;
       const freeVars = (campaign.free_vars || {}) as Record<string, string>;
-      recipients = await loadRecipients(admin, campaign.building_id, { ...filter, require_email: true }, freeVars);
+      // First load WITHOUT email requirement to detect "selected but missing email" cases
+      const allSelected = await loadRecipients(admin, campaign.building_id, { ...filter, require_email: false }, freeVars);
+      recipients = allSelected.filter((r) => !!r.email);
+      const missing = allSelected.length - recipients.length;
+      console.log(`[comm-send-bulk-email] campaign=${campaign_id} selected=${allSelected.length} withEmail=${recipients.length} missingEmail=${missing}`);
       await admin.from("comm_recipients").delete().eq("campaign_id", campaign_id);
+
+      if (allSelected.length > 0 && recipients.length === 0) {
+        const sample = allSelected.slice(0, 3).map((r) => r.display_name).join(", ");
+        const msg = `Keine der ${allSelected.length} ausgewählten Personen hat eine hinterlegte E-Mail-Adresse (z. B. ${sample}). Bitte E-Mail-Adressen im Adressbuch ergänzen.`;
+        await admin.from("comm_campaigns").update({ status: "failed", error_message: msg }).eq("id", campaign_id);
+        return json({ error: msg }, 400);
+      }
     }
 
     if (recipients.length === 0) {
       await admin.from("comm_campaigns").update({ status: "failed", error_message: "Keine Empfänger" }).eq("id", campaign_id);
-      return json({ error: "Keine Empfänger" }, 400);
+      return json({ error: "Keine Empfänger ausgewählt" }, 400);
     }
 
     let ok = 0, fail = 0;
