@@ -128,7 +128,28 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     }, 0);
   };
 
-  // ── Owner/Unit assignments + MEA ──────────────────────────────────
+  // Effektive Konten: Default = WP-relevant ODER Vorjahres-Saldo ≠ 0.
+  // "Alle anzeigen" zeigt sämtliche Konten der Liegenschaft.
+  const accounts = useMemo(() => {
+    if (showAllAccounts) return allAccounts as any[];
+    return (allAccounts as any[]).filter((a) => {
+      if (a.is_wirtschaftsplan_relevant) return true;
+      return Math.abs(sumForAccount(a.id)) > 0.005;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allAccounts, showAllAccounts, prevYearBookings]);
+
+  // Toggle: Konto WP-relevant ja/nein (persistiert global)
+  const toggleWpRelevance = async (accountId: string, value: boolean) => {
+    const { error } = await supabase
+      .from("chart_of_accounts")
+      .update({ is_wirtschaftsplan_relevant: value })
+      .eq("id", accountId);
+    if (error) { toast.error("Fehler: " + error.message); return; }
+    qc.invalidateQueries({ queryKey: ["wp-accounts-manual-all", buildingId] });
+    qc.invalidateQueries({ queryKey: ["chart-of-accounts"] });
+  };
+
   const { data: assignmentsRaw = [] } = useQuery({
     queryKey: ["mep-assignments", buildingId],
     queryFn: async () => {
