@@ -555,17 +555,18 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
   // Costs
   const addCost = async (assignmentId: string) => {
+    await flushPendingEdits();
     await supabase.from("contact_building_costs").insert({ assignment_id: assignmentId, cost_type: "Hausgeld", amount: 0, interval: "monatlich" });
-    refetch();
+    await refetch();
   };
   const updateCost = async (id: string, field: string, value: any) => {
     await supabase.from("contact_building_costs").update({ [field]: value }).eq("id", id);
-    refetch();
+    await refetch();
     if (field === "cost_type") queryClient.invalidateQueries({ queryKey: ["custom-cost-types"] });
   };
   const deleteCost = async (id: string) => {
     await supabase.from("contact_building_costs").delete().eq("id", id);
-    refetch();
+    await refetch();
   };
 
   // Phones
