@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useSearchParams, useLocation } from "react-router-dom";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+
 import { Reports } from "./Reports";
 import { CasesGlobalView } from "@/components/cases/CasesGlobalView";
 import { ClipboardList, FolderKanban } from "lucide-react";
