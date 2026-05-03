@@ -198,11 +198,15 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
         distribution_key: item?.distribution_key || acc.default_distribution_key || "mea",
         planned_amount: draft !== undefined ? draft : Number(item?.planned_amount || 0),
         manually_overridden: draft !== undefined || !!item?.manually_overridden,
-      };
+        isDistributable: !!acc.is_distributable,
+        isReserve: !!acc.is_reserve_funded,
+        previousAmount: sumForAccount(acc.id),
+      } as PlanRow;
     });
-  }, [accounts, plan, drafts]);
+  }, [accounts, plan, drafts, prevYearBookings]);
 
   const totalPlanned = rows.reduce((s, r) => s + r.planned_amount, 0);
+  const distributableTotal = rows.filter((r) => r.isDistributable).reduce((s, r) => s + r.planned_amount, 0);
 
   // ── Auto-save (debounced) ─────────────────────────────────────────
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
