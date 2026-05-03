@@ -310,7 +310,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
             account_id: acc.id,
             previous_amount: 0,
             planned_amount: draftVal,
-            distribution_key: acc.default_distribution_key || "mea",
+            distribution_key: overrideKeyByAccount.get(acc.id) || acc.default_distribution_key || "mea",
             manually_overridden: true,
           } as any),
         ));
