@@ -108,15 +108,15 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
   const loadContacts = async () => {
     const { data } = await supabase
       .from("contacts")
-      .select("id, first_name, last_name, company_name, salutation, address_street, address_zip, address_city")
+      .select("id, first_name, last_name, company_name, salutation, address_street, address_zip, address_city, contact_persons(first_name, last_name, is_primary, sort_order)")
       .order("last_name");
-    
+
     if (!data) { setContacts([]); return; }
 
     const { data: emailData } = await supabase.from("contact_emails").select("contact_id");
     const contactIdsWithEmail = new Set((emailData || []).map(e => e.contact_id));
-    
-    setContacts(data.map(c => ({ ...c, hasEmail: contactIdsWithEmail.has(c.id) })));
+
+    setContacts(data.map((c: any) => ({ ...c, persons: c.contact_persons || [], hasEmail: contactIdsWithEmail.has(c.id) })));
   };
 
   // Load full contact data when moving to details step
