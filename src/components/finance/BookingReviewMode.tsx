@@ -316,8 +316,15 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
                   <VendorHistorySection booking={currentBooking} />
                 </div>
               </div>
+              )}
 
-              <div className="w-1/2 flex flex-col overflow-hidden">
+              {split.showDetail && (
+              <div className={cn("flex flex-col overflow-hidden", split.isMobile ? "w-full" : "w-1/2")}>
+                {split.isMobile && (
+                  <div className="px-3 py-2 border-b">
+                    <MobileBackToListButton onClick={split.openList} label="Zu den Daten" />
+                  </div>
+                )}
                 {currentBooking.invoice_id && currentBooking.invoices ? (
                   <>
                     <div className="px-4 py-2 border-b bg-muted/20 flex items-center gap-2 shrink-0">
