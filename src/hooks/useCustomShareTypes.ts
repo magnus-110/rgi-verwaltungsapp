@@ -13,10 +13,15 @@ import { supabase } from "@/integrations/supabase/client";
 
 const STANDARD_SHARE_TYPES = new Set([
   "mea",
+  "whg.-mea",
+  "gar.-mea",
+  "sonder-mea",
   "einheit",
   "einheiten",
   "personen",
   "qm",
+  "garagen",
+  "stellplaetze",
   "wasser",
   "warmwasser",
   "verbrauch_wasser",
