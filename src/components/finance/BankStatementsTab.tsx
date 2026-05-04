@@ -616,60 +616,82 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                 </div>
               )}
 
-              {/* Importierte Auszüge */}
+              {/* Importierte Auszüge (eingeklappt per Default) */}
               {bankStatements.length > 0 && (
                 <Card className="bg-muted/20">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      Importierte Auszüge ({bankStatements.length})
-                    </CardTitle>
+                    <button
+                      type="button"
+                      onClick={() => setStatementsExpanded(v => !v)}
+                      className="w-full flex items-center justify-between gap-2 text-left"
+                      aria-expanded={statementsExpanded}
+                    >
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        {statementsExpanded ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                        <FileText className="h-4 w-4" />
+                        Importierte Auszüge ({bankStatements.length})
+                      </CardTitle>
+                      <span className="text-xs text-muted-foreground">
+                        {statementsExpanded ? "Einklappen" : "Ausklappen"}
+                      </span>
+                    </button>
                   </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="space-y-1 max-h-64 overflow-y-auto">
-                      {bankStatements.map((s: any) => {
-                        const isPdf = s.source_format === "pdf";
-                        const hasWarn = Array.isArray(s.parse_warnings) && s.parse_warnings.length > 0;
-                        return (
-                          <div key={s.id} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded hover:bg-muted/50">
-                            {isPdf ? <FileText className="h-3.5 w-3.5 text-red-600 shrink-0" /> : <FileCode className="h-3.5 w-3.5 text-blue-600 shrink-0" />}
-                            <Badge variant="outline" className="text-[10px] h-4">{isPdf ? "PDF" : "CAMT"}</Badge>
-                            <span className="text-muted-foreground whitespace-nowrap">
-                              {s.statement_date_from && format(new Date(s.statement_date_from), "dd.MM.yy")}
-                              {s.statement_date_to && ` – ${format(new Date(s.statement_date_to), "dd.MM.yy")}`}
-                            </span>
-                            <span className="flex-1 truncate" title={s.file_name}>{s.file_name}</span>
-                            {s.opening_balance != null && s.closing_balance != null && (
-                              <span className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
-                                {Number(s.opening_balance).toLocaleString("de-DE", { minimumFractionDigits: 2 })} → {Number(s.closing_balance).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
+                  {statementsExpanded && (
+                    <CardContent className="pt-0">
+                      <div className="space-y-1 max-h-64 overflow-y-auto">
+                        {bankStatements.map((s: any) => {
+                          const isPdf = s.source_format === "pdf";
+                          const hasWarn = Array.isArray(s.parse_warnings) && s.parse_warnings.length > 0;
+                          const startDate = s.statement_date_from ? new Date(s.statement_date_from) : null;
+                          const monthLabel = startDate
+                            ? `${format(startDate, "LLLL", { locale: de })} ${format(startDate, "yyyy")}`
+                            : s.file_name;
+                          return (
+                            <div key={s.id} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded hover:bg-muted/50">
+                              {isPdf ? <FileText className="h-3.5 w-3.5 text-red-600 shrink-0" /> : <FileCode className="h-3.5 w-3.5 text-blue-600 shrink-0" />}
+                              <Badge variant="outline" className="text-[10px] h-4">{isPdf ? "PDF" : "CAMT"}</Badge>
+                              <span className="font-medium whitespace-nowrap">{monthLabel}</span>
+                              <span className="text-muted-foreground whitespace-nowrap">
+                                {s.statement_date_from && format(new Date(s.statement_date_from), "dd.MM.yy")}
+                                {s.statement_date_to && ` – ${format(new Date(s.statement_date_to), "dd.MM.yy")}`}
                               </span>
-                            )}
-                            {hasWarn && (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
-                                  </TooltipTrigger>
-                                  <TooltipContent className="max-w-md">
-                                    <ul className="text-xs list-disc pl-4">
-                                      {s.parse_warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
-                                    </ul>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
-                            {s.file_path ? (
-                              <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => openStatementPdf(s.file_path)}>
-                                <ExternalLink className="h-3 w-3 mr-1" />Öffnen
-                              </Button>
-                            ) : (
-                              <span className="text-muted-foreground text-[10px]">— nur Daten</span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
+                              <span className="flex-1 truncate text-muted-foreground" title={s.file_name}>{s.file_name}</span>
+                              {s.opening_balance != null && s.closing_balance != null && (
+                                <span className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
+                                  {Number(s.opening_balance).toLocaleString("de-DE", { minimumFractionDigits: 2 })} → {Number(s.closing_balance).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
+                                </span>
+                              )}
+                              {hasWarn && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-md">
+                                      <ul className="text-xs list-disc pl-4">
+                                        {s.parse_warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
+                                      </ul>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                              {s.file_path ? (
+                                <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => openStatementPdf(s.file_path)}>
+                                  <ExternalLink className="h-3 w-3 mr-1" />Öffnen
+                                </Button>
+                              ) : (
+                                <span className="text-muted-foreground text-[10px]">— nur Daten</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  )}
                 </Card>
               )}
 
