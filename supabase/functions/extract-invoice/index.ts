@@ -8,32 +8,75 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Robuste Liegenschafts-Erkennung
+// Strategie: Score je Building aus drei Signalen (Straßen-Stamm + Hausnr + PLZ).
+// Pflicht: Straßen-Stamm UND Hausnummer (oder Bereich) treffen.
+// Bonus: gleiche PLZ. Bestes Score gewinnt; Schwelle gegen Zufallstreffer.
+// ─────────────────────────────────────────────────────────────────────────────
+
 function normalizeForMatch(s: string): string {
+  if (!s) return "";
   let n = s.toLowerCase();
-  // Normalize street abbreviations: "straße"/"strasse"/"str." -> "str"
-  n = n.replace(/straße|strasse/g, "str");
-  // Replace any non-alphanumeric (incl. \n, dots, commas, backslashes) with space
-  n = n.replace(/[^a-z0-9äöüß]/g, " ");
-  // Collapse whitespace
+  n = n.replace(/ß/g, "ss");
+  // Vereinheitliche Straßen-Suffixe: "straße"/"strasse"/"str." → "str"
+  n = n.replace(/strasse/g, "str");
+  n = n.replace(/str\./g, "str ");
+  // Sonderzeichen → Space (behält Umlaute)
+  n = n.replace(/[^a-z0-9äöü]/g, " ");
+  // "<wort>str" → "<wort> str" (Ahornstr → Ahorn str)
+  n = n.replace(/([a-zäöü]{2,})str\b/g, "$1 str");
   n = n.replace(/\s+/g, " ").trim();
-  // Glue "<word> str <number>" -> "<word>str <number>" so "tiroler str 142" matches "tirolerstr 142"
-  // We keep BOTH variants for matching by also producing a glued version below.
   return n;
 }
 
-// Produce a glued variant where "<letters> str <num>" becomes "<letters>str <num>"
-function glueStreetVariant(n: string): string {
-  return n.replace(/([a-zäöüß]+)\s+str(\s+\d)/g, "$1str$2");
+function extractPostalCodes(n: string): string[] {
+  return Array.from(n.matchAll(/\b(\d{5})\b/g)).map((m) => m[1]);
 }
 
-// Produce a split variant where "<letters>str <num>" becomes "<letters> str <num>"
-function splitStreetVariant(n: string): string {
-  return n.replace(/([a-zäöüß]+)str(\s+\d)/g, "$1 str$2");
+function extractHouseNumbers(n: string): string[] {
+  const out = new Set<string>();
+  for (const m of n.matchAll(/\b(\d{1,4}[a-z]?)\b/g)) {
+    const v = m[1];
+    if (v.length === 5 && /^\d+$/.test(v)) continue; // PLZ raus
+    out.add(v);
+  }
+  return Array.from(out);
 }
 
-function variants(n: string): string[] {
-  const set = new Set<string>([n, glueStreetVariant(n), splitStreetVariant(n)]);
-  return Array.from(set);
+const SUFFIXES = ["str","weg","platz","allee","gasse","ring","damm","markt","feld","bach","tal","wehr","hof","ufer","berg","winkel","steig","pfad","chaussee","brueck","brücke"];
+
+function extractStreetStems(n: string): string[] {
+  const stems = new Set<string>();
+  const tokens = n.split(/\s+/);
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (SUFFIXES.includes(t) && i > 0) {
+      const prev = tokens[i - 1];
+      if (prev.length >= 2 && /^[a-zäöü]+$/.test(prev)) {
+        stems.add(`${prev} ${t}`);
+        stems.add(`${prev}${t}`);
+      }
+      continue;
+    }
+    for (const suf of SUFFIXES) {
+      if (t.length > suf.length + 1 && t.endsWith(suf) && /^[a-zäöü]+$/.test(t)) {
+        stems.add(t);
+        const base = t.slice(0, -suf.length);
+        if (base.length >= 2) stems.add(`${base} ${suf}`);
+        break;
+      }
+    }
+    // Mehrteilige Namen wie "Am Wehr", "Im Argental", "Neuer Weg", "Adolf Haff Weg"
+    if (["am","im","an","auf","neuer","neue","alter","alte","zum","zur"].includes(t) && i + 2 < tokens.length) {
+      const w2 = tokens[i + 1];
+      const w3 = tokens[i + 2];
+      if (/^[a-zäöü]+$/.test(w2) && /^\d/.test(w3)) {
+        stems.add(`${t} ${w2}`);
+      }
+    }
+  }
+  return Array.from(stems);
 }
 
 function findBestBuildingMatch(
@@ -41,40 +84,63 @@ function findBestBuildingMatch(
   buildings: { id: string; name: string; address: string }[]
 ): string | null {
   if (!recipientAddress) return null;
-  const recipientVariants = variants(normalizeForMatch(recipientAddress));
+  const recv = normalizeForMatch(recipientAddress);
+  if (!recv) return null;
 
-  let bestMatch: string | null = null;
-  let bestLength = 0;
+  const recvPostals = new Set(extractPostalCodes(recv));
+  const recvNumbers = new Set(extractHouseNumbers(recv));
 
-  const tryMatch = (needle: string, weight: number, id: string) => {
-    if (needle.length <= 3) return;
-    for (const hay of recipientVariants) {
-      if (hay.includes(needle)) {
-        const len = needle.length + weight;
-        if (len > bestLength) {
-          bestLength = len;
-          bestMatch = id;
-        }
-        return;
-      }
-    }
-  };
+  let bestId: string | null = null;
+  let bestScore = 0;
 
   for (const b of buildings) {
-    const addressNorm = normalizeForMatch(b.address);
-    const nameNorm = normalizeForMatch(b.name);
+    const combined = normalizeForMatch(`${b.address || ""} ${b.name || ""}`);
+    const stems = extractStreetStems(combined);
+    if (stems.length === 0) continue;
+    const buildingPostal = extractPostalCodes(combined)[0] || null;
+    const buildingNumbers = extractHouseNumbers(combined);
 
-    for (const v of variants(addressNorm)) tryMatch(v, 0, b.id);
-    for (const v of variants(nameNorm)) tryMatch(v, 0, b.id);
+    // 1) Straßen-Stamm muss treffen (Pflicht)
+    let bestStemLen = 0;
+    for (const stem of stems) {
+      if (stem.length >= 4 && recv.includes(stem) && stem.length > bestStemLen) {
+        bestStemLen = stem.length;
+      }
+    }
+    if (bestStemLen === 0) continue;
 
-    // Fallback: extract "<street> <number>" from building address and search in recipient
-    const m = addressNorm.match(/([a-zäöüß]+(?:str|weg|platz|allee|gasse|ring|damm)\s*\d+[a-z]?)/);
-    if (m) {
-      for (const v of variants(m[1])) tryMatch(v, 5, b.id);
+    let score = bestStemLen;
+
+    // 2) Hausnummer (exakt oder im Bereich) – Pflicht
+    let hasNumber = false;
+    for (const hn of buildingNumbers) {
+      if (recvNumbers.has(hn)) { score += 25; hasNumber = true; break; }
+    }
+    if (!hasNumber) {
+      const ranges = (b.address || "").match(/(\d{1,4})\s*[-+/]\s*(\d{1,4})/g) || [];
+      for (const r of ranges) {
+        const m = r.match(/(\d{1,4})\s*[-+/]\s*(\d{1,4})/);
+        if (!m) continue;
+        const lo = parseInt(m[1]); const hi = parseInt(m[2]);
+        for (const rn of recvNumbers) {
+          const num = parseInt(rn);
+          if (!isNaN(num) && num >= lo && num <= hi) { score += 18; hasNumber = true; break; }
+        }
+        if (hasNumber) break;
+      }
+    }
+    if (!hasNumber) continue;
+
+    // 3) PLZ als Bonus (gegen Verwechslung gleichnamiger Straßen in anderen Orten)
+    if (buildingPostal && recvPostals.has(buildingPostal)) score += 15;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestId = b.id;
     }
   }
 
-  return bestMatch;
+  return bestScore >= 30 ? bestId : null;
 }
 
 serve(async (req) => {
