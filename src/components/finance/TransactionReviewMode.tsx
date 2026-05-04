@@ -852,12 +852,105 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
     setBookingSingle(rowId);
     try {
+      const totalParts = formRows.length;
+      const isSplitTxn = totalParts > 1;
+
+      // For SPLIT transactions: buffer rows locally and only flush ALL of them
+      // atomically when the user confirms the LAST unbooked row. This guarantees
+      // "all or nothing" — no half-booked split can ever stay in the DB.
+      if (isSplitTxn) {
+        const updatedRows = formRows.map(r => r.id === rowId ? { ...r, booked: true } : r);
+        const allBooked = updatedRows.every(r => r.booked);
+
+        if (!allBooked) {
+          // Just mark this row as confirmed in local state, no DB write yet.
+          setFormRows(updatedRows);
+          toast.success("Teilbuchung vorgemerkt ✓", { duration: 1200 });
+          const nextUnbooked = updatedRows.find(r => !r.booked);
+          if (nextUnbooked) setExpandedRowId(nextUnbooked.id);
+          return;
+        }
+
+        // Last row: validate every row first
+        for (const r of updatedRows) {
+          if (!r.account_id) {
+            toast.error("Eine Teilzeile hat kein Konto");
+            setBookingSingle(null);
+            return;
+          }
+        }
+
+        // Build payloads for the RPC
+        const payloads = updatedRows.map((r) => {
+          const amt = parseAmount(r.amount) || 0;
+          const vatR = parseAmount(r.vat_rate) || 0;
+          const vatA = parseAmount(r.vat_amount) || 0;
+          const a35a = r.is_35a_relevant && r.amount_35a ? parseAmount(r.amount_35a) : null;
+          return {
+            building_id: buildingId,
+            account_id: r.account_id,
+            counter_account_id: r.counter_account_id || null,
+            amount: amt,
+            vat_rate: vatR,
+            vat_amount: vatA > 0 ? vatA : null,
+            description: r.description || null,
+            booking_reference: r.booking_reference || currentTxn?.end_to_end_ref || null,
+            booking_date: r.booking_date,
+            receipt_number: r.receipt_number || null,
+            booking_type: r.booking_type,
+            fiscal_year: r.fiscal_year,
+            invoice_id: r.invoice_id || null,
+            matched_template_id: r.matched_template_id || null,
+            is_35a_relevant: r.is_35a_relevant,
+            amount_35a: a35a,
+            needs_review: r.needs_review,
+            review_note: r.review_note || null,
+            line_items_detail: r.line_items_detail || null,
+          };
+        });
+
+        const { data: rpcData, error: rpcError } = await supabase.rpc(
+          "book_split_transaction",
+          { p_bank_transaction_id: currentTxn.id, p_bookings: payloads as any },
+        );
+        if (rpcError) throw rpcError;
+        const bookingIds: string[] = ((rpcData as any)?.booking_ids ?? []) as string[];
+
+        // Mark all rows as booked in UI
+        setFormRows(updatedRows);
+
+        // Cleanup local refs / undo
+        const priorRowsSnapshot = (editsCacheRef.current[currentTxn.id] || formRows).map(r => ({ ...r, booked: false }));
+        delete pendingBookingIdsRef.current[currentTxn.id];
+        delete editsCacheRef.current[currentTxn.id];
+        delete rowBookingMapRef.current[currentTxn.id];
+        setUndoStack(stack => {
+          const next: UndoEntry[] = [
+            ...stack,
+            { txnId: currentTxn.id, txnIndex: currentIndex, bookingIds, priorRows: priorRowsSnapshot },
+          ];
+          return next.slice(-10);
+        });
+
+        setBookedCount(c => c + 1);
+        toast.success(`${totalParts} Buchungen erstellt ✓`, { duration: 1500 });
+
+        queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+        queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+        queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
+
+        if (currentIndex < transactions.length - 1) {
+          setCurrentIndex(i => i + 1);
+        }
+        return;
+      }
+
+      // ─────────────── SINGLE-ROW (non-split) BOOKING — original logic ───────────────
       const amount = parseAmount(row.amount) || 0;
       const vatRate = parseAmount(row.vat_rate) || 0;
       const vatAmount = parseAmount(row.vat_amount) || 0;
       const amount35a = row.is_35a_relevant && row.amount_35a ? parseAmount(row.amount_35a) : null;
-      const totalParts = formRows.length;
-      const partIndex = formRows.findIndex(r => r.id === rowId) + 1;
+      const partIndex = 1;
 
       const existingBookingId = rowBookingMapRef.current[currentTxn.id]?.[rowId];
       const isUpdate = row.booked && !!existingBookingId;
@@ -910,8 +1003,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           confirmed_by: user.id,
           created_by: user.id,
           bank_transaction_id: currentTxn.id,
-          split_part: totalParts > 1 ? partIndex : null,
-          split_parts_total: totalParts > 1 ? totalParts : null,
+          split_part: null,
+          split_parts_total: null,
         } as any).select("id").single();
         if (error) throw error;
         booking = data;
@@ -963,7 +1056,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
       // Update path: row already booked → only update DB record, keep state green, don't advance
       if (isUpdate) {
-        toast.success("Teilbuchung aktualisiert ✓", { duration: 1500 });
+        toast.success("Buchung aktualisiert ✓", { duration: 1500 });
         queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
         queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
         queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
@@ -1031,48 +1124,35 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       // Mark this row as booked
       setFormRows(rows => rows.map(r => r.id === rowId ? { ...r, booked: true } : r));
 
-      // Check if ALL rows are now booked
-      const updatedRows = formRows.map(r => r.id === rowId ? { ...r, booked: true } : r);
-      const allBooked = updatedRows.every(r => r.booked);
+      // Single-row txn: mark transaction as booked
+      await supabase.from("bank_transactions").update({
+        booked_at: new Date().toISOString(),
+        booking_id: booking.id,
+      }).eq("id", currentTxn.id);
 
-      if (allBooked) {
-        // Mark transaction as booked
-        await supabase.from("bank_transactions").update({
-          booked_at: new Date().toISOString(),
-          booking_id: booking.id,
-        }).eq("id", currentTxn.id);
+      // Push to undo stack (keep priorRows so we can restore on undo)
+      const priorRowsSnapshot = (editsCacheRef.current[currentTxn.id] || formRows).map(r => ({ ...r, booked: false }));
+      const createdIds = pendingBookingIdsRef.current[currentTxn.id] || [];
+      delete pendingBookingIdsRef.current[currentTxn.id];
+      delete editsCacheRef.current[currentTxn.id];
+      delete rowBookingMapRef.current[currentTxn.id];
+      setUndoStack(stack => {
+        const next: UndoEntry[] = [
+          ...stack,
+          { txnId: currentTxn.id, txnIndex: currentIndex, bookingIds: createdIds, priorRows: priorRowsSnapshot },
+        ];
+        return next.slice(-10);
+      });
 
-        // Push to undo stack (keep priorRows so we can restore on undo)
-        const priorRowsSnapshot = (editsCacheRef.current[currentTxn.id] || formRows).map(r => ({ ...r, booked: false }));
-        const createdIds = pendingBookingIdsRef.current[currentTxn.id] || [];
-        delete pendingBookingIdsRef.current[currentTxn.id];
-        delete editsCacheRef.current[currentTxn.id];
-        delete rowBookingMapRef.current[currentTxn.id];
-        setUndoStack(stack => {
-          const next: UndoEntry[] = [
-            ...stack,
-            { txnId: currentTxn.id, txnIndex: currentIndex, bookingIds: createdIds, priorRows: priorRowsSnapshot },
-          ];
-          return next.slice(-10); // keep last 10
-        });
+      setBookedCount(c => c + 1);
+      toast.success("Buchung erstellt ✓", { duration: 1500 });
 
-        setBookedCount(c => c + 1);
-        toast.success(`${totalParts > 1 ? `${totalParts} Buchungen` : "Buchung"} erstellt ✓`, { duration: 1500 });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
 
-        queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
-        queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
-        queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
-        
-
-        // Move to next
-        if (currentIndex < transactions.length - 1) {
-          setCurrentIndex(i => i + 1);
-        }
-      } else {
-        toast.success("Teilbuchung erstellt ✓", { duration: 1500 });
-        // Expand next unbooked row
-        const nextUnbooked = updatedRows.find(r => !r.booked);
-        if (nextUnbooked) setExpandedRowId(nextUnbooked.id);
+      if (currentIndex < transactions.length - 1) {
+        setCurrentIndex(i => i + 1);
       }
     } catch (err: any) {
       toast.error("Fehler: " + (err.message || "Unbekannt"));
