@@ -421,6 +421,16 @@ Deno.serve(async (req) => {
       ? await matchTransactions(supabase, statement.id, buildingId || null)
       : { matched: 0, total: 0 };
 
+    // Saldo-Sync in Kostenabgleich
+    if (buildingId && (openingBalance != null || closingBalance != null)) {
+      try {
+        await syncReconciliation(
+          supabase, buildingId, statement.id, accountIban || null,
+          toDt, openingBalance, closingBalance, "camt_import",
+        );
+      } catch (e) { console.warn("recon sync failed:", e); }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
