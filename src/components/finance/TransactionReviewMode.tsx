@@ -32,6 +32,7 @@ import { useMobileSplitView, MobileViewSwitcher, MobileBackToListButton } from "
 import { parseAmount } from "./lib/parseAmount";
 import { getLineItemGross } from "./lib/lineItemAmount";
 import { InvoiceLineItemsView } from "./InvoiceLineItemsView";
+import { ConfidenceBadge } from "./ConfidenceBadge";
 
 interface TransactionReviewModeProps {
   open: boolean;
@@ -905,6 +906,50 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         } as any).select("id").single();
         if (error) throw error;
         booking = data;
+
+        // Phase 6: Feedback-Loop — capture how the user used (or corrected) the AI suggestion.
+        try {
+          const aiSug = currentTxn.ai_suggestion;
+          const aiSb = aiSug?.booking_hint?.suggested_bookings?.[partIndex - 1]
+            || aiSug?.booking_hint?.suggested_bookings?.[0];
+          if (aiSug && aiSb) {
+            const aiCounterAccId = (() => {
+              if (aiSb.counter_account_id) return aiSb.counter_account_id;
+              const num = aiSb.counter_account_number || aiSb.account_number;
+              if (num) return accounts.find(a => a.account_number === num)?.id ?? null;
+              return null;
+            })();
+            const aiAccountId = aiSb.account_id ?? null;
+            const aiBookingType = aiSb.booking_type ?? null;
+            const accepted =
+              (aiAccountId == null || aiAccountId === row.account_id) &&
+              (aiCounterAccId == null || aiCounterAccId === row.counter_account_id) &&
+              (aiBookingType == null || aiBookingType === row.booking_type);
+
+            const ragRefs: string[] = [
+              ...(Array.isArray(aiSb.rag_references) ? aiSb.rag_references : []),
+              ...((aiSug.matches || []).map((m: any) => m.id).filter(Boolean)),
+            ];
+
+            await supabase.from("ai_booking_feedback").insert({
+              bank_transaction_id: currentTxn.id,
+              building_id: buildingId,
+              management_mode: (currentTxn as any)?.management_mode ?? null,
+              ai_suggested_account_id: aiAccountId,
+              ai_suggested_counter_account_id: aiCounterAccId,
+              ai_suggested_booking_type: aiBookingType,
+              ai_confidence_score: typeof aiSb.confidence === "number" ? aiSb.confidence : null,
+              user_accepted: accepted,
+              user_corrected_account_id: accepted ? null : row.account_id,
+              user_corrected_counter_account_id: accepted ? null : (row.counter_account_id || null),
+              user_corrected_booking_type: accepted ? null : row.booking_type,
+              rag_example_ids: ragRefs.length ? ragRefs : null,
+              created_by: user.id,
+            } as any);
+          }
+        } catch (fbErr) {
+          console.warn("[ai_booking_feedback] insert failed (non-blocking)", fbErr);
+        }
       }
 
       // Update path: row already booked → only update DB record, keep state green, don't advance
@@ -1774,11 +1819,51 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                             ))}
                           </div>
                         )}
-                        {currentTxn.ai_suggestion.booking_hint?.explanation && (
-                          <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 text-sm">
-                            {currentTxn.ai_suggestion.booking_hint.explanation}
-                          </div>
-                        )}
+                        {currentTxn.ai_suggestion.booking_hint?.explanation && (() => {
+                          const sb = currentTxn.ai_suggestion.booking_hint?.suggested_bookings || [];
+                          const confs = sb.map((s: any) => s?.confidence).filter((c: any) => typeof c === "number");
+                          const aggConf = confs.length ? confs.reduce((a: number, b: number) => a + b, 0) / confs.length : null;
+                          return (
+                            <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 text-sm space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="flex-1">{currentTxn.ai_suggestion.booking_hint.explanation}</p>
+                                {aggConf != null && <ConfidenceBadge value={aggConf} />}
+                              </div>
+                              {sb.length > 0 && (
+                                <div className="space-y-1.5 pt-1 border-t border-purple-200/60 dark:border-purple-800/60">
+                                  {sb.map((s: any, idx: number) => {
+                                    const refs: string[] = Array.isArray(s?.rag_references) ? s.rag_references : [];
+                                    return (
+                                      <div key={idx} className="text-xs space-y-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="font-medium">
+                                            {s.counter_account_number ? `${s.counter_account_number}` : "?"} – {s.counter_account_name || s.description || "Vorschlag"}
+                                          </span>
+                                          {typeof s.confidence === "number" && (
+                                            <ConfidenceBadge value={s.confidence} showIcon={false} />
+                                          )}
+                                        </div>
+                                        {refs.length > 0 && (
+                                          <Collapsible>
+                                            <CollapsibleTrigger className="text-[11px] text-purple-700 dark:text-purple-300 hover:underline inline-flex items-center gap-1">
+                                              <ChevronRight className="h-3 w-3" />
+                                              {refs.length} RAG-Referenz{refs.length === 1 ? "" : "en"}
+                                            </CollapsibleTrigger>
+                                            <CollapsibleContent className="mt-1 pl-3 border-l-2 border-purple-300 dark:border-purple-700 space-y-0.5">
+                                              {refs.map((r, i) => (
+                                                <p key={i} className="text-[11px] text-muted-foreground">• {r}</p>
+                                              ))}
+                                            </CollapsibleContent>
+                                          </Collapsible>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {currentTxn.ai_suggestion.missing_invoice_hint && (
                           <div className="p-3 rounded-lg bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 text-sm">
                             <p className="font-medium text-orange-800 dark:text-orange-200">Rechnung fehlt</p>
