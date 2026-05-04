@@ -405,6 +405,21 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   useEffect(() => {
     if (!currentTxn || accounts.length === 0) return;
 
+    // Defensive: clean up orphaned partial split bookings that may still be in
+    // the DB from earlier aborted attempts (txn not booked, but bookings exist).
+    // The server-side function only deletes when booked_at IS NULL, so already
+    // fully booked transactions are never touched here.
+    if (!currentTxn.booked_at) {
+      supabase.rpc("cleanup_orphan_split_bookings", { p_bank_transaction_id: currentTxn.id })
+        .then(({ data }: any) => {
+          if (data?.deleted > 0) {
+            toast.info(`${data.deleted} unvollständige Teilbuchung(en) bereinigt`, { duration: 2000 });
+            queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
+          }
+        })
+        .catch(() => { /* non-blocking */ });
+    }
+
     // Save the previous transaction's edits into the cache
     const prevId = previousTxnIdRef.current;
     if (prevId && prevId !== currentTxn.id) {
