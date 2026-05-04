@@ -50,6 +50,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     onBuildingChange?.(id);
   };
   const [showBooked, setShowBooked] = useState(false);
+  const [statementsExpanded, setStatementsExpanded] = useState(false);
   const [showIgnored, setShowIgnored] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null);
   const [manualAssignTxn, setManualAssignTxn] = useState<any | null>(null);
