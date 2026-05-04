@@ -94,11 +94,13 @@ export function BookingTextTemplateCombobox({
         e.preventDefault();
         apply(suggestions[highlightedIndex].shortcut);
       } else if (/^([1-4]|0[1-9]|1[0-2]|000)$/.test(value.trim())) {
-        // Direkt-Eingabe ohne Pfeil-Auswahl: nur übernehmen, wenn gültiger Shortcut
         e.preventDefault();
         apply(value.trim());
+      } else if (onSkip) {
+        e.preventDefault();
+        setOpen(false);
+        onSkip();
       }
-      // sonst: Standard-Enter (kein Sprung), bewusst NICHT navigieren
     } else if (e.key === "Escape") {
       setOpen(false);
       setHighlightedIndex(-1);
@@ -115,7 +117,7 @@ export function BookingTextTemplateCombobox({
             #
           </span>
           <Input
-            ref={inputRef}
+            ref={setRef}
             value={value}
             onChange={e => {
               setValue(e.target.value);
