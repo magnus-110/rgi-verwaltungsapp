@@ -481,7 +481,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     setReviewModeOpen(true);
   };
 
-  const openStatementPdf = async (filePath: string | null) => {
+  const openStatementPdf = async (filePath: string | null, fileName?: string) => {
     if (!filePath) {
       toast.error("Originaldatei nicht verfügbar");
       return;
@@ -491,7 +491,20 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       toast.error("Datei konnte nicht geöffnet werden");
       return;
     }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    const isPdf = filePath.toLowerCase().endsWith(".pdf");
+    if (isPdf) {
+      setStatementPdf({ url: data.signedUrl, name: fileName || "Kontoauszug" });
+    } else {
+      // Non-PDF (CAMT XML etc.) → download via anchor (avoids popup blocker)
+      const a = document.createElement("a");
+      a.href = data.signedUrl;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.download = fileName || "";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
   };
 
   const renderTransactionRow = (txn: any) => {
