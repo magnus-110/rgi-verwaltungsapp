@@ -23,6 +23,7 @@ import { EmailAttachments } from "@/components/email/EmailAttachments";
 import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
 
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
+import { ScheduledMailsPanel } from "@/components/email/ScheduledMailsPanel";
 import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
