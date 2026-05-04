@@ -90,12 +90,12 @@ export function BookingTextTemplateCombobox({
       e.preventDefault();
       setHighlightedIndex(i => Math.max(-1, i - 1));
     } else if (e.key === "Enter") {
+      // Nur übernehmen, wenn der Nutzer explizit per Pfeiltaste eine Option markiert hat.
+      // Ohne aktive Markierung springt Enter immer weiter – auch wenn das Feld
+      // zufällig ein gültiges Kürzel enthält.
       if (highlightedIndex >= 0 && highlightedIndex < suggestions.length) {
         e.preventDefault();
         apply(suggestions[highlightedIndex].shortcut);
-      } else if (/^([1-4]|0[1-9]|1[0-2]|000)$/.test(value.trim())) {
-        e.preventDefault();
-        apply(value.trim());
       } else if (onSkip) {
         e.preventDefault();
         setOpen(false);
