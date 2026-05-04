@@ -204,8 +204,8 @@ export const Inbox = () => {
     return folder?.name === "Papierkorb";
   }, [selectedFolderId, folders]);
 
-  // Unread counts per folder
-  const { data: folderCounts = {} } = useQuery({
+  // Unread counts per folder (auto-refresh every 30s)
+  const { data: folderCountsRaw = {} } = useQuery({
     queryKey: ["email-folder-counts"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -222,7 +222,68 @@ export const Inbox = () => {
       });
       return counts;
     },
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
+
+  // Scheduled mails (single + bulk campaigns) — populates the virtual "Geplant" folder
+  const { data: scheduledItems = [] } = useQuery({
+    queryKey: ["scheduled-mails-virtual"],
+    queryFn: async () => {
+      const [singleRes, campaignRes] = await Promise.all([
+        supabase
+          .from("scheduled_emails")
+          .select("id, subject, to_addresses, scheduled_at, status, account_id, body_text, body_html, attachments, error_message, created_at")
+          .eq("status", "pending")
+          .order("scheduled_at", { ascending: true }),
+        supabase
+          .from("comm_campaigns")
+          .select("id, name, type, recipient_count, scheduled_at, status, email_account_id, subject_override, error_message, created_at")
+          .eq("status", "scheduled")
+          .order("scheduled_at", { ascending: true }),
+      ]);
+      const single = (singleRes.data || []).map((s: any) => ({
+        id: `single-${s.id}`,
+        kind: "single" as const,
+        ref_id: s.id,
+        subject: s.subject || "(Kein Betreff)",
+        recipients: Array.isArray(s.to_addresses) ? s.to_addresses : [],
+        recipient_count: Array.isArray(s.to_addresses) ? s.to_addresses.length : 0,
+        scheduled_at: s.scheduled_at,
+        account_id: s.account_id,
+        error_message: s.error_message,
+      }));
+      const bulk = (campaignRes.data || []).map((c: any) => ({
+        id: `campaign-${c.id}`,
+        kind: "campaign" as const,
+        ref_id: c.id,
+        subject: c.subject_override || c.name || "(Rundmail)",
+        recipients: [],
+        recipient_count: c.recipient_count || 0,
+        scheduled_at: c.scheduled_at,
+        account_id: c.email_account_id,
+        campaign_type: c.type,
+        error_message: c.error_message,
+      }));
+      return [...single, ...bulk].sort((a, b) => {
+        const ad = a.scheduled_at ? new Date(a.scheduled_at).getTime() : 0;
+        const bd = b.scheduled_at ? new Date(b.scheduled_at).getTime() : 0;
+        return ad - bd;
+      });
+    },
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  });
+
+  // Merge counts: real folders + virtual scheduled folder
+  const folderCounts = useMemo(() => {
+    return {
+      ...(folderCountsRaw as Record<string, number>),
+      [SCHEDULED_FOLDER_ID]: scheduledItems.length,
+    };
+  }, [folderCountsRaw, scheduledItems.length]);
+
+  const isScheduledFolder = selectedFolderId === SCHEDULED_FOLDER_ID;
 
   // Fetch emails for selected folder — slim columns; body wird lazy für Detail geladen
   const { data: emails = [], isLoading: emailsLoading } = useQuery({
@@ -263,6 +324,9 @@ export const Inbox = () => {
       if (error) throw error;
       return data;
     },
+    enabled: !isScheduledFolder,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
 
   // All known categories (always shown). Wartung/Mahnung/Vertrag/Unkategorisiert -> Sonstiges; Newsletter -> Werbung.
