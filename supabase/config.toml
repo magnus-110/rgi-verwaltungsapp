@@ -150,3 +150,6 @@ verify_jwt = true
 
 [functions.confirm-email-change]
 verify_jwt = false
+
+[functions.generate-booking-embeddings]
+verify_jwt = false
