@@ -583,7 +583,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
             <div className="text-center py-12 text-muted-foreground">
               <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>Noch keine Transaktionen importiert</p>
-              <p className="text-sm mt-1">Laden Sie CAMT XML-Dateien hoch</p>
+              <p className="text-sm mt-1">Laden Sie CAMT-XML oder Kontoauszug-PDFs hoch</p>
             </div>
           ) : (
             <div className="space-y-6">
