@@ -105,6 +105,34 @@ export function BookingsTab({
     }
   };
 
+  const handleDeleteBooking = async () => {
+    if (!deleteBooking) return;
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.rpc(
+        "delete_booking_with_cleanup",
+        { p_booking_id: deleteBooking.id },
+      );
+      if (error) throw error;
+      const count = (data as any)?.deleted ?? 1;
+      const hadTxn = !!(data as any)?.bank_transaction_id;
+      toast.success(
+        count > 1
+          ? `${count} Buchungen gelöscht (Splitgruppe)${hadTxn ? " – Transaktion wieder offen" : ""}`
+          : `Buchung gelöscht${hadTxn ? " – Transaktion wieder offen" : ""}`,
+      );
+      setDeleteBooking(null);
+      queryClient.invalidateQueries({ predicate: (q) => {
+        const k = q.queryKey[0] as string;
+        return typeof k === "string" && (k.startsWith("bookings") || k.startsWith("bank-transactions"));
+      }});
+    } catch (err: any) {
+      toast.error("Fehler beim Löschen: " + (err.message || "Unbekannt"));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleViewModeChange = (v: string) => {
     if (v !== "list" && v !== "plan") return;
     setViewMode(v as "list" | "plan");
