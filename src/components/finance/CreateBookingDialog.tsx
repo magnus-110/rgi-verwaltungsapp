@@ -283,6 +283,16 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                 excludeCategory="Bankkonto"
                 placeholder="Konto suchen…"
               />
+              {form.account_id && accountBalanceData != null && (
+                <p className="text-xs mt-1 text-muted-foreground">
+                  Aktueller Saldo {form.fiscal_year}
+                  {selectedAccountObj?.account_number ? ` · Konto ${selectedAccountObj.account_number}` : ""}:{" "}
+                  <span className={cn("font-mono font-semibold", accountBalanceData >= 0 ? "text-green-600" : "text-destructive")}>
+                    {accountBalanceData >= 0 ? "+" : "−"}
+                    {formatCurrency(Math.abs(accountBalanceData))}
+                  </span>
+                </p>
+              )}
             </div>
 
             {/* Amount + type */}
