@@ -328,7 +328,9 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                   if (acc?.account_number?.startsWith("4")) set("vat_rate", "");
                 }}
                 onCommit={() => {
-                  const desc = document.querySelector<HTMLInputElement>('[data-booking-form] input[placeholder^="Beschreibung"]');
+                  const sc = document.querySelector<HTMLInputElement>('[data-booking-shortcut]');
+                  if (sc) { sc.focus(); return; }
+                  const desc = document.querySelector<HTMLInputElement>('[data-booking-desc]');
                   desc?.focus();
                 }}
                 accounts={accounts}
