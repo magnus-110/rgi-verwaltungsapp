@@ -2282,7 +2282,7 @@ function BookingRowCard({
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstext</label>
               <div className="grid grid-cols-[110px_1fr] gap-2">
                 <BookingTextTemplateCombobox
-                  fiscalYear={row.fiscal_year || getFiscalYearForDate(row.booking_date)}
+                  fiscalYear={row.fiscal_year}
                   invoice={invoiceDetail ? { invoice_number: (invoiceDetail as any).invoice_number, vendor_name: (invoiceDetail as any).vendor_name } : null}
                   counterAccountName={accounts.find((a: any) => a.id === row.counter_account_id)?.account_name || null}
                   onApply={(text) => onUpdateField("description", text)}
