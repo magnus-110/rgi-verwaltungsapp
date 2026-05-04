@@ -441,7 +441,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     const isSplit = aiSuggestion?.booking_hint?.type === "split" && suggestedBookings?.length > 1;
 
     if (isSplit) {
-      // Multiple booking rows from AI
+      // Multiple booking rows from AI.
+      // Splitbuchungen IMMER mit "Re. Nr. <invoice_number>, <Kontobezeichnung>" beschriften
+      // (Vorgabe RGI). Fallback: Belegnummer aus AI-Suggestion bzw. Kontobezeichnung allein.
+      const invoiceNumber = (invoiceDetail as any)?.invoice_number || null;
       const rows: BookingRowData[] = suggestedBookings.map((sb: any, idx: number) => {
         let counterAccountId = "";
         if (sb.account_id) counterAccountId = sb.account_id;
@@ -451,6 +454,12 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         }
 
         const rowAmount = sb.amount != null ? Math.abs(sb.amount) : absAmount / suggestedBookings.length;
+        const counterAcc = accounts.find(a => a.id === counterAccountId);
+        const accountLabel = counterAcc?.account_name || "";
+        const receiptNo = sb.receipt_number || invoiceNumber || "";
+        const splitDescription = receiptNo
+          ? `Re. Nr. ${receiptNo}${accountLabel ? `, ${accountLabel}` : ""}`
+          : (accountLabel || sb.description || "");
 
         return {
           id: nextRowId(),
@@ -459,10 +468,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           amount: rowAmount.toFixed(2),
           vat_rate: sb.vat_rate != null ? String(sb.vat_rate) : "19",
           vat_amount: "",
-          description: sb.description || "",
+          description: splitDescription,
           booking_reference: formatMonthYearRef(txnDate),
           booking_date: txnDate || "",
-          receipt_number: sb.receipt_number || "",
+          receipt_number: receiptNo,
           booking_type: sb.booking_type || (isIncome ? "income" : "expense"),
           is_35a_relevant: sb.is_35a_relevant || false,
           amount_35a: sb.is_35a_relevant && sb.amount_35a != null ? String(sb.amount_35a) : "",
