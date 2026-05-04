@@ -1011,6 +1011,18 @@ export const Inbox = () => {
 
       {/* Main content area with tabs spanning full width */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+        {isScheduledFolder ? (
+          <ScheduledMailsPanel
+            items={scheduledItems}
+            accounts={accounts}
+            onChanged={() => {
+              queryClient.invalidateQueries({ queryKey: ["scheduled-mails-virtual"] });
+              queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+            }}
+            onOpenCampaign={(id) => navigate(`/kommunikation?campaign=${id}`)}
+          />
+        ) : (
+        <>
         {/* Category tabs - full width above both panels */}
         <div className="border-b shrink-0 overflow-x-auto overflow-y-hidden">
           <div className="flex min-w-max px-2 py-1 gap-0.5">
