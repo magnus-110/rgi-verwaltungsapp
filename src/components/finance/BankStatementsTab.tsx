@@ -82,7 +82,8 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
         .from("bank_transactions")
         .select("*, bookings!bank_transactions_booking_id_fkey(id, needs_review, review_note)")
         .eq("building_id", selectedBuilding)
-        .order("booking_date", { ascending: false });
+        .order("booking_date", { ascending: true })
+        .order("id", { ascending: true });
       if (error) throw error;
       return data;
     },
