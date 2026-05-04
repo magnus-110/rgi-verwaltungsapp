@@ -1658,8 +1658,14 @@ export const Inbox = () => {
                   >
                     <Icon className="h-5 w-5 shrink-0" />
                     <span className="truncate flex-1 text-left">{folder.name}</span>
-                    {count > 0 && (
-                      <Badge variant={isActive ? "secondary" : "default"} className="text-xs">
+                    {count > 0 && folder.name !== "Papierkorb" && (
+                      <Badge
+                        variant={isActive ? "secondary" : (folder.id === SCHEDULED_FOLDER_ID ? "outline" : "default")}
+                        className={cn(
+                          "text-xs",
+                          folder.id === SCHEDULED_FOLDER_ID && !isActive && "border-amber-400 text-amber-700 dark:text-amber-300"
+                        )}
+                      >
                         {count}
                       </Badge>
                     )}
