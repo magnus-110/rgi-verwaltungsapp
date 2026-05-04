@@ -460,9 +460,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
     if (isSplit) {
       // Multiple booking rows from AI.
-      // Splitbuchungen IMMER mit "Re. Nr. <invoice_number>, <Kontobezeichnung>" beschriften
-      // (Vorgabe RGI). Fallback: Belegnummer aus AI-Suggestion bzw. Kontobezeichnung allein.
+      // Splitbuchungen IMMER nach RGI-Schema:
+      //   "MM/JJ Re. Nr. <invoice_number> <Lieferant> <Gegenkonto>"
       const invoiceNumber = (invoiceDetail as any)?.invoice_number || null;
+      const vendorName = (invoiceDetail as any)?.vendor_name || null;
+      const period = formatMonthYearRef(txnDate);
       const rows: BookingRowData[] = suggestedBookings.map((sb: any, idx: number) => {
         let counterAccountId = "";
         if (sb.account_id) counterAccountId = sb.account_id;
@@ -475,9 +477,12 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const counterAcc = accounts.find(a => a.id === counterAccountId);
         const accountLabel = counterAcc?.account_name || "";
         const receiptNo = sb.receipt_number || invoiceNumber || "";
-        const splitDescription = receiptNo
-          ? `Re. Nr. ${receiptNo}${accountLabel ? `, ${accountLabel}` : ""}`
-          : (accountLabel || sb.description || "");
+        const splitDescription = buildBookingText({
+          period,
+          invoiceNumber: receiptNo,
+          vendorName,
+          counterAccountName: accountLabel,
+        }) || sb.description || "";
 
         return {
           id: nextRowId(),
