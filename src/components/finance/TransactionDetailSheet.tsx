@@ -1,14 +1,10 @@
-import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { FileText, ExternalLink, CheckCircle2, LayoutTemplate, FileQuestion, EyeOff, Calendar, ArrowDownLeft, ArrowUpRight, Pencil, Save, X } from "lucide-react";
+import { FileText, ExternalLink, CheckCircle2, LayoutTemplate, FileQuestion, EyeOff, Calendar, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
@@ -27,11 +23,6 @@ const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: 
 };
 
 export function TransactionDetailSheet({ transactionId, onClose }: TransactionDetailSheetProps) {
-  const queryClient = useQueryClient();
-  const [editMode, setEditMode] = useState(false);
-  const [draft, setDraft] = useState<any>({});
-  const [saving, setSaving] = useState(false);
-
   const { data: txn } = useQuery({
     queryKey: ["bank-transaction-detail", transactionId],
     queryFn: async () => {
@@ -46,20 +37,6 @@ export function TransactionDetailSheet({ transactionId, onClose }: TransactionDe
     },
     enabled: !!transactionId,
   });
-
-  // Reset edit state when sheet closes or txn changes
-  useEffect(() => {
-    setEditMode(false);
-    if (txn) {
-      setDraft({
-        creditor_name: txn.creditor_name ?? "",
-        creditor_iban: txn.creditor_iban ?? "",
-        debtor_name: txn.debtor_name ?? "",
-        debtor_iban: txn.debtor_iban ?? "",
-        purpose: txn.purpose ?? "",
-      });
-    }
-  }, [txn?.id]);
 
   const { data: invoice } = useQuery({
     queryKey: ["matched-invoice", txn?.matched_invoice_id],
@@ -106,41 +83,6 @@ export function TransactionDetailSheet({ transactionId, onClose }: TransactionDe
     window.open(data.signedUrl, "_blank");
   };
 
-  const handleSave = async () => {
-    if (!transactionId) return;
-    setSaving(true);
-    const isDebit = (txn?.amount ?? 0) < 0;
-    // Bei Lastschrift: Empfänger-Felder; bei Eingang: Auftraggeber-Felder
-    const payload: any = {
-      purpose: draft.purpose?.trim() || null,
-    };
-    if (isDebit) {
-      payload.creditor_name = draft.creditor_name?.trim() || null;
-      payload.creditor_iban = draft.creditor_iban?.trim().toUpperCase().replace(/\s+/g, "") || null;
-      payload.debtor_name = null;
-      payload.debtor_iban = null;
-    } else {
-      payload.debtor_name = draft.debtor_name?.trim() || null;
-      payload.debtor_iban = draft.debtor_iban?.trim().toUpperCase().replace(/\s+/g, "") || null;
-      payload.creditor_name = null;
-      payload.creditor_iban = null;
-    }
-    const { error } = await supabase
-      .from("bank_transactions")
-      .update(payload)
-      .eq("id", transactionId);
-    setSaving(false);
-    if (error) {
-      toast.error("Speichern fehlgeschlagen: " + error.message);
-      return;
-    }
-    toast.success("Buchung aktualisiert");
-    setEditMode(false);
-    queryClient.invalidateQueries({ queryKey: ["bank-transaction-detail", transactionId] });
-    queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
-    queryClient.invalidateQueries({ queryKey: ["bank-statement-transactions"] });
-  };
-
   if (!txn) return null;
 
   const config = MATCH_STATUS_CONFIG[txn.match_status] || MATCH_STATUS_CONFIG.unmatched;
@@ -151,25 +93,9 @@ export function TransactionDetailSheet({ transactionId, onClose }: TransactionDe
     <Sheet open={!!transactionId} onOpenChange={() => onClose()}>
       <SheetContent className="sm:max-w-lg overflow-y-auto">
         <SheetHeader>
-          <SheetTitle className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-2">
-              {isDebit ? <ArrowUpRight className="h-5 w-5 text-destructive" /> : <ArrowDownLeft className="h-5 w-5 text-green-600" />}
-              Transaktionsdetails
-            </span>
-            {!editMode ? (
-              <Button size="sm" variant="ghost" onClick={() => setEditMode(true)}>
-                <Pencil className="h-4 w-4 mr-1" /> Bearbeiten
-              </Button>
-            ) : (
-              <div className="flex gap-1">
-                <Button size="sm" variant="ghost" onClick={() => setEditMode(false)} disabled={saving}>
-                  <X className="h-4 w-4" />
-                </Button>
-                <Button size="sm" onClick={handleSave} disabled={saving}>
-                  <Save className="h-4 w-4 mr-1" /> {saving ? "..." : "Speichern"}
-                </Button>
-              </div>
-            )}
+          <SheetTitle className="flex items-center gap-2">
+            {isDebit ? <ArrowUpRight className="h-5 w-5 text-destructive" /> : <ArrowDownLeft className="h-5 w-5 text-green-600" />}
+            Transaktionsdetails
           </SheetTitle>
         </SheetHeader>
 
@@ -200,74 +126,39 @@ export function TransactionDetailSheet({ transactionId, onClose }: TransactionDe
 
           <Separator />
 
-          {editMode ? (
-            <div className="space-y-3">
-              {isDebit ? (
-                <>
-                  <div>
-                    <Label className="text-xs">Empfänger</Label>
-                    <Input value={draft.creditor_name} onChange={(e) => setDraft({ ...draft, creditor_name: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Empfänger-IBAN</Label>
-                    <Input value={draft.creditor_iban} onChange={(e) => setDraft({ ...draft, creditor_iban: e.target.value })} className="font-mono" />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div>
-                    <Label className="text-xs">Auftraggeber</Label>
-                    <Input value={draft.debtor_name} onChange={(e) => setDraft({ ...draft, debtor_name: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Auftraggeber-IBAN</Label>
-                    <Input value={draft.debtor_iban} onChange={(e) => setDraft({ ...draft, debtor_iban: e.target.value })} className="font-mono" />
-                  </div>
-                </>
-              )}
-              <div>
-                <Label className="text-xs">Verwendungszweck</Label>
-                <Textarea rows={4} value={draft.purpose} onChange={(e) => setDraft({ ...draft, purpose: e.target.value })} />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Tipp: Korrektur sinnvoll, wenn der PDF-Import Felder vertauscht hat.
-              </p>
+          <>
+            {/* Debtor */}
+            <div>
+              <h4 className="text-sm font-semibold text-muted-foreground mb-2">Auftraggeber</h4>
+              <p className="text-sm font-medium">{txn.debtor_name || "–"}</p>
+              {txn.debtor_iban && <p className="text-xs font-mono text-muted-foreground">{txn.debtor_iban}</p>}
             </div>
-          ) : (
-            <>
-              {/* Debtor */}
+
+            {/* Creditor */}
+            <div>
+              <h4 className="text-sm font-semibold text-muted-foreground mb-2">Empfänger</h4>
+              <p className="text-sm font-medium">{txn.creditor_name || "–"}</p>
+              {txn.creditor_iban && <p className="text-xs font-mono text-muted-foreground">{txn.creditor_iban}</p>}
+            </div>
+
+            <Separator />
+
+            {/* Purpose */}
+            <div>
+              <h4 className="text-sm font-semibold text-muted-foreground mb-2">Verwendungszweck</h4>
+              <p className="text-sm bg-muted p-3 rounded-md whitespace-pre-wrap">{txn.purpose || "–"}</p>
+            </div>
+
+            {txn.end_to_end_ref && (
               <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Auftraggeber</h4>
-                <p className="text-sm font-medium">{txn.debtor_name || "–"}</p>
-                {txn.debtor_iban && <p className="text-xs font-mono text-muted-foreground">{txn.debtor_iban}</p>}
+                <h4 className="text-sm font-semibold text-muted-foreground mb-1">End-to-End-Referenz</h4>
+                <p className="text-sm font-mono">{txn.end_to_end_ref}</p>
               </div>
-
-              {/* Creditor */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Empfänger</h4>
-                <p className="text-sm font-medium">{txn.creditor_name || "–"}</p>
-                {txn.creditor_iban && <p className="text-xs font-mono text-muted-foreground">{txn.creditor_iban}</p>}
-              </div>
-
-              <Separator />
-
-              {/* Purpose */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Verwendungszweck</h4>
-                <p className="text-sm bg-muted p-3 rounded-md whitespace-pre-wrap">{txn.purpose || "–"}</p>
-              </div>
-
-              {txn.end_to_end_ref && (
-                <div>
-                  <h4 className="text-sm font-semibold text-muted-foreground mb-1">End-to-End-Referenz</h4>
-                  <p className="text-sm font-mono">{txn.end_to_end_ref}</p>
-                </div>
-              )}
-            </>
-          )}
+            )}
+          </>
 
           {/* Matched Invoice */}
-          {invoice && !editMode && (
+          {invoice && (
             <>
               <Separator />
               <div>
@@ -304,7 +195,7 @@ export function TransactionDetailSheet({ transactionId, onClose }: TransactionDe
           )}
 
           {/* Matched Template */}
-          {template && !editMode && (
+          {template && (
             <>
               <Separator />
               <div>
