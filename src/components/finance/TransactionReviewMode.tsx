@@ -950,6 +950,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         } catch (fbErr) {
           console.warn("[ai_booking_feedback] insert failed (non-blocking)", fbErr);
         }
+      }
 
       // Update path: row already booked → only update DB record, keep state green, don't advance
       if (isUpdate) {
