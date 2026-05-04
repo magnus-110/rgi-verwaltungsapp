@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, LayoutTemplate, Flag, Plus, List, LayoutGrid, Eye, EyeOff, RotateCcw } from "lucide-react";
+import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, LayoutTemplate, Flag, Plus, List, LayoutGrid, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { AccountPlanView } from "./AccountPlanView";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
