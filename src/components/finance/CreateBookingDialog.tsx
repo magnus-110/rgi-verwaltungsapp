@@ -345,8 +345,16 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                   invoice={null}
                   counterAccountName={accounts.find((a: any) => a.id === form.counter_account_id)?.account_name || null}
                   onApply={(text) => set("description", text)}
+                  onCommit={() => {
+                    const desc = document.querySelector<HTMLInputElement>('[data-booking-desc]');
+                    desc?.focus();
+                  }}
+                  onSkip={() => {
+                    const desc = document.querySelector<HTMLInputElement>('[data-booking-desc]');
+                    desc?.focus();
+                  }}
                 />
-                <Input className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} onKeyDown={handleEnterToNext} placeholder="Beschreibung der Buchung…" />
+                <Input data-booking-desc className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} onKeyDown={handleEnterToNext} placeholder="Beschreibung der Buchung…" />
               </div>
             </div>
 
