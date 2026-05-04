@@ -309,6 +309,21 @@ Deno.serve(async (req) => {
     const toDt = getTag(getTag(frToDt, "ToDtTm"), "").substring(0, 10) ||
                  getTag(frToDt, "ToDt") || null;
 
+    // CAMT-Salden extrahieren: Bal-Blöcke mit OPBD (opening) / CLBD (closing)
+    const balanceBlocks = getAllTags(stmt, "Bal");
+    let openingBalance: number | null = null;
+    let closingBalance: number | null = null;
+    for (const bal of balanceBlocks) {
+      const code = getTag(getTag(getTag(bal, "Tp"), "CdOrPrtry"), "Cd");
+      const amtMatch = bal.match(/<Amt[^>]*>([\d.,]+)<\/Amt>/i);
+      if (!amtMatch) continue;
+      const raw = parseFloat(amtMatch[1].replace(/\./g, "").replace(",", "."));
+      const sign = getTag(bal, "CdtDbtInd") === "DBIT" ? -1 : 1;
+      const value = sign * (isNaN(raw) ? 0 : raw);
+      if ((code === "OPBD" || code === "PRCD") && openingBalance == null) openingBalance = value;
+      if (code === "CLBD") closingBalance = value;
+    }
+
     // Create bank statement record
     const { data: statement, error: stmtError } = await supabase
       .from("bank_statements")
@@ -319,6 +334,9 @@ Deno.serve(async (req) => {
         account_name: accountName || null,
         statement_date_from: frDt,
         statement_date_to: toDt,
+        opening_balance: openingBalance,
+        closing_balance: closingBalance,
+        source_format: "camt_xml",
         created_by: user.id,
       })
       .select()
