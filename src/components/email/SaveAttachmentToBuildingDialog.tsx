@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, FolderPlus } from "lucide-react";
 import { toast } from "sonner";
 import { VisibilityRole, VISIBILITY_LABELS, DocCategory } from "@/components/buildings/documents/types";
 
@@ -33,6 +34,10 @@ export function SaveAttachmentToBuildingDialog({
   const [buildings, setBuildings] = useState<{ id: string; name: string; management_mode: string }[]>([]);
   const [categories, setCategories] = useState<DocCategory[]>([]);
   const [saving, setSaving] = useState(false);
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [newFolderParentId, setNewFolderParentId] = useState<string>("__root__");
+  const [savingFolder, setSavingFolder] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -67,6 +72,50 @@ export function SaveAttachmentToBuildingDialog({
     walk(null, 0);
     return out;
   })();
+
+  const reloadCategories = async () => {
+    if (!buildingId) return;
+    const { data } = await supabase.from('building_file_categories')
+      .select('*').eq('building_id', buildingId).order('sort_order');
+    setCategories((data || []) as DocCategory[]);
+  };
+
+  const createFolder = async () => {
+    const name = newFolderName.trim();
+    if (!name) { toast.error("Name erforderlich"); return; }
+    if (!buildingId) return;
+    setSavingFolder(true);
+    try {
+      const building = buildings.find(b => b.id === buildingId);
+      const mgmt = building?.management_mode || 'weg';
+      const parent = newFolderParentId === "__root__" ? null : newFolderParentId;
+      const siblings = categories.filter(c => (c.parent_id || null) === parent);
+      const nextSort = (siblings.reduce((m, c) => Math.max(m, c.sort_order || 0), 0) || 0) + 10;
+      const { data: inserted, error } = await (supabase
+        .from('building_file_categories') as any)
+        .insert({
+          name,
+          parent_id: parent,
+          building_id: buildingId,
+          management_mode: mgmt,
+          sort_order: nextSort,
+          is_recommended: false,
+          auto_rag_enabled: false,
+        })
+        .select('id')
+        .single();
+      if (error) throw error;
+      toast.success("Ordner angelegt");
+      await reloadCategories();
+      setCategoryId(inserted.id);
+      setNewFolderName("");
+      setCreatingFolder(false);
+    } catch (e: any) {
+      toast.error("Anlegen fehlgeschlagen: " + e.message);
+    } finally {
+      setSavingFolder(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!buildingId) { toast.error("Gebäude wählen"); return; }
@@ -156,13 +205,58 @@ export function SaveAttachmentToBuildingDialog({
             </Select>
           </div>
           <div>
-            <Label>Ordner</Label>
+            <div className="flex items-center justify-between mb-1">
+              <Label>Ordner</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={!buildingId}
+                onClick={() => {
+                  setNewFolderParentId(categoryId || "__root__");
+                  setCreatingFolder(v => !v);
+                }}
+                className="h-7 px-2 text-xs gap-1"
+              >
+                <FolderPlus className="h-3.5 w-3.5" />
+                {creatingFolder ? "Abbrechen" : "Neuer Ordner"}
+              </Button>
+            </div>
             <Select value={categoryId} onValueChange={setCategoryId} disabled={!buildingId}>
               <SelectTrigger><SelectValue placeholder="Ordner wählen" /></SelectTrigger>
               <SelectContent>
                 {flatCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
+            {creatingFolder && (
+              <div className="mt-2 p-3 border rounded-md bg-muted/30 space-y-2">
+                <div>
+                  <Label className="text-xs">Übergeordneter Ordner</Label>
+                  <Select value={newFolderParentId} onValueChange={setNewFolderParentId}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__root__">— Hauptebene —</SelectItem>
+                      {flatCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Name</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      placeholder="z.B. Rechnungen 2026"
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createFolder(); } }}
+                      autoFocus
+                    />
+                    <Button onClick={createFolder} disabled={savingFolder || !newFolderName.trim()}>
+                      {savingFolder ? <Loader2 className="h-4 w-4 animate-spin" /> : "Anlegen"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           <div>
             <Label>Sichtbarkeit</Label>
