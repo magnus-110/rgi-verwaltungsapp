@@ -1775,11 +1775,51 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                             ))}
                           </div>
                         )}
-                        {currentTxn.ai_suggestion.booking_hint?.explanation && (
-                          <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 text-sm">
-                            {currentTxn.ai_suggestion.booking_hint.explanation}
-                          </div>
-                        )}
+                        {currentTxn.ai_suggestion.booking_hint?.explanation && (() => {
+                          const sb = currentTxn.ai_suggestion.booking_hint?.suggested_bookings || [];
+                          const confs = sb.map((s: any) => s?.confidence).filter((c: any) => typeof c === "number");
+                          const aggConf = confs.length ? confs.reduce((a: number, b: number) => a + b, 0) / confs.length : null;
+                          return (
+                            <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 text-sm space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="flex-1">{currentTxn.ai_suggestion.booking_hint.explanation}</p>
+                                {aggConf != null && <ConfidenceBadge value={aggConf} />}
+                              </div>
+                              {sb.length > 0 && (
+                                <div className="space-y-1.5 pt-1 border-t border-purple-200/60 dark:border-purple-800/60">
+                                  {sb.map((s: any, idx: number) => {
+                                    const refs: string[] = Array.isArray(s?.rag_references) ? s.rag_references : [];
+                                    return (
+                                      <div key={idx} className="text-xs space-y-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="font-medium">
+                                            {s.counter_account_number ? `${s.counter_account_number}` : "?"} – {s.counter_account_name || s.description || "Vorschlag"}
+                                          </span>
+                                          {typeof s.confidence === "number" && (
+                                            <ConfidenceBadge value={s.confidence} showIcon={false} />
+                                          )}
+                                        </div>
+                                        {refs.length > 0 && (
+                                          <Collapsible>
+                                            <CollapsibleTrigger className="text-[11px] text-purple-700 dark:text-purple-300 hover:underline inline-flex items-center gap-1">
+                                              <ChevronRight className="h-3 w-3" />
+                                              {refs.length} RAG-Referenz{refs.length === 1 ? "" : "en"}
+                                            </CollapsibleTrigger>
+                                            <CollapsibleContent className="mt-1 pl-3 border-l-2 border-purple-300 dark:border-purple-700 space-y-0.5">
+                                              {refs.map((r, i) => (
+                                                <p key={i} className="text-[11px] text-muted-foreground">• {r}</p>
+                                              ))}
+                                            </CollapsibleContent>
+                                          </Collapsible>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {currentTxn.ai_suggestion.missing_invoice_hint && (
                           <div className="p-3 rounded-lg bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 text-sm">
                             <p className="font-medium text-orange-800 dark:text-orange-200">Rechnung fehlt</p>
