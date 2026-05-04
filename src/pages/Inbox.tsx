@@ -35,6 +35,7 @@ const folderIcons: Record<string, any> = {
   'archive': Archive,
   'shield-alert': ShieldAlert,
   'trash-2': Trash2,
+  'calendar-clock': CalendarClock,
 };
 
 export const Inbox = () => {
