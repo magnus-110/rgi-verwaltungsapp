@@ -1582,6 +1582,8 @@ export const Inbox = () => {
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
+        </>
+        )}
       </div>
 
 
