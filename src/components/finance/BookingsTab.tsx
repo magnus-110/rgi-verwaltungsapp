@@ -363,6 +363,21 @@ export function BookingsTab({
                 </Tooltip>
               </TooltipProvider>
             )}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-5 w-5 p-0"
+                    onClick={(e) => { e.stopPropagation(); setDeleteBooking(b); }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">Buchung löschen{b.split_parts_total ? " (gesamte Splitgruppe)" : ""}</p></TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </TableCell>
       </TableRow>
