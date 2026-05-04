@@ -230,46 +230,76 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     return xmlContent;
   };
 
+  const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const res = r.result as string;
+      const b64 = res.includes(",") ? res.split(",")[1] : res;
+      resolve(b64);
+    };
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const xmlFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith(".xml"));
-    if (xmlFiles.length === 0) {
-      toast.error("Bitte CAMT XML-Dateien hochladen");
+    const allFiles = Array.from(files).filter(f => /\.(xml|pdf)$/i.test(f.name));
+    if (allFiles.length === 0) {
+      toast.error("Bitte CAMT-XML oder Kontoauszug-PDF hochladen");
+      return;
+    }
+    const hasPdf = allFiles.some(f => /\.pdf$/i.test(f.name));
+    if (hasPdf && (!selectedBuilding || selectedBuilding === "all")) {
+      toast.error("Für PDF-Import bitte zuerst eine Liegenschaft wählen");
       return;
     }
 
     setUploading(true);
-    setUploadProgress(xmlFiles.length > 1 ? { current: 0, total: xmlFiles.length } : null);
+    setUploadProgress(allFiles.length > 1 ? { current: 0, total: allFiles.length } : null);
 
     let totalImported = 0;
     let totalMatched = 0;
     let totalDuplicates = 0;
     let errors = 0;
+    const allWarnings: string[] = [];
 
-    for (let i = 0; i < xmlFiles.length; i++) {
-      const file = xmlFiles[i];
-      if (xmlFiles.length > 1) setUploadProgress({ current: i + 1, total: xmlFiles.length });
+    for (let i = 0; i < allFiles.length; i++) {
+      const file = allFiles[i];
+      if (allFiles.length > 1) setUploadProgress({ current: i + 1, total: allFiles.length });
 
       try {
-        const xmlContent = await readFileContent(file);
-        const { data, error } = await supabase.functions.invoke("parse-bank-statement", {
-          body: { xmlContent, buildingId: selectedBuilding !== "all" ? selectedBuilding : null },
-        });
+        const isPdf = /\.pdf$/i.test(file.name);
+        let data: any, error: any;
+
+        if (isPdf) {
+          const pdfBase64 = await fileToBase64(file);
+          ({ data, error } = await supabase.functions.invoke("parse-bank-statement-pdf", {
+            body: { pdfBase64, fileName: file.name, buildingId: selectedBuilding },
+          }));
+        } else {
+          const xmlContent = await readFileContent(file);
+          ({ data, error } = await supabase.functions.invoke("parse-bank-statement", {
+            body: { xmlContent, buildingId: selectedBuilding !== "all" ? selectedBuilding : null },
+          }));
+        }
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
 
         totalImported += data.totalTransactions || 0;
         totalMatched += data.matchedCount || 0;
         totalDuplicates += data.duplicatesSkipped || 0;
+        if (Array.isArray(data.warnings) && data.warnings.length) {
+          allWarnings.push(`${file.name}: ${data.warnings.join("; ")}`);
+        }
       } catch (err: any) {
         errors++;
         console.error(`Fehler bei ${file.name}:`, err);
       }
     }
 
-    if (xmlFiles.length === 1) {
+    if (allFiles.length === 1) {
       if (errors > 0) {
         toast.error("Fehler beim Import");
       } else if (totalImported === 0 && totalDuplicates > 0) {
@@ -282,7 +312,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
         toast.success(parts.join(", "));
       }
     } else {
-      const parts = [`${xmlFiles.length - errors} von ${xmlFiles.length} Dateien verarbeitet`];
+      const parts = [`${allFiles.length - errors} von ${allFiles.length} Dateien verarbeitet`];
       if (totalImported > 0) parts.push(`${totalImported} Transaktionen importiert`);
       if (totalMatched > 0) parts.push(`${totalMatched} zugeordnet`);
       if (totalDuplicates > 0) parts.push(`${totalDuplicates} Duplikate übersprungen`);
@@ -290,14 +320,22 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       toast.success(parts.join(", "));
     }
 
+    if (allWarnings.length) {
+      toast.warning(allWarnings.join(" • "), { duration: 8000 });
+    }
+
     queryClient.invalidateQueries({ queryKey: ["bank-statements"] });
+    queryClient.invalidateQueries({ queryKey: ["bank-statements-info"] });
+    queryClient.invalidateQueries({ queryKey: ["bank-statements-list"] });
     queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
     queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+    queryClient.invalidateQueries({ queryKey: ["bank-reconciliations"] });
 
     setUploading(false);
     setUploadProgress(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
+
 
   const updateMatchStatus = async (txnId: string, status: string) => {
     const { error } = await supabase.from("bank_transactions").update({ match_status: status }).eq("id", txnId);
