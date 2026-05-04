@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
-import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw, Landmark, FileWarning, Sparkles, Flag, AlertCircle, RotateCw } from "lucide-react";
+import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw, Landmark, FileWarning, Sparkles, Flag, AlertCircle, RotateCw, FileText, ExternalLink, FileCode } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -97,18 +97,17 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   );
   const { reset: resetAiPrefetch } = aiPrefetchState;
 
-  // Fetch bank statements for IBAN display
+  // Fetch bank statements (full list for IBAN display + downloadable list)
   const { data: bankStatements = [] } = useQuery({
-    queryKey: ["bank-statements-info", selectedBuilding],
+    queryKey: ["bank-statements-list", selectedBuilding],
     queryFn: async () => {
       if (!selectedBuilding) return [];
       const { data, error } = await supabase
         .from("bank_statements")
-        .select("account_iban, account_name")
+        .select("id, account_iban, account_name, file_name, file_path, source_format, statement_date_from, statement_date_to, opening_balance, closing_balance, parse_warnings, created_at")
         .eq("building_id", selectedBuilding)
-        .not("account_iban", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(5);
+        .order("statement_date_to", { ascending: false, nullsFirst: false })
+        .limit(50);
       if (error) throw error;
       return data;
     },
@@ -230,46 +229,76 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     return xmlContent;
   };
 
+  const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const res = r.result as string;
+      const b64 = res.includes(",") ? res.split(",")[1] : res;
+      resolve(b64);
+    };
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const xmlFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith(".xml"));
-    if (xmlFiles.length === 0) {
-      toast.error("Bitte CAMT XML-Dateien hochladen");
+    const allFiles = Array.from(files).filter(f => /\.(xml|pdf)$/i.test(f.name));
+    if (allFiles.length === 0) {
+      toast.error("Bitte CAMT-XML oder Kontoauszug-PDF hochladen");
+      return;
+    }
+    const hasPdf = allFiles.some(f => /\.pdf$/i.test(f.name));
+    if (hasPdf && (!selectedBuilding || selectedBuilding === "all")) {
+      toast.error("Für PDF-Import bitte zuerst eine Liegenschaft wählen");
       return;
     }
 
     setUploading(true);
-    setUploadProgress(xmlFiles.length > 1 ? { current: 0, total: xmlFiles.length } : null);
+    setUploadProgress(allFiles.length > 1 ? { current: 0, total: allFiles.length } : null);
 
     let totalImported = 0;
     let totalMatched = 0;
     let totalDuplicates = 0;
     let errors = 0;
+    const allWarnings: string[] = [];
 
-    for (let i = 0; i < xmlFiles.length; i++) {
-      const file = xmlFiles[i];
-      if (xmlFiles.length > 1) setUploadProgress({ current: i + 1, total: xmlFiles.length });
+    for (let i = 0; i < allFiles.length; i++) {
+      const file = allFiles[i];
+      if (allFiles.length > 1) setUploadProgress({ current: i + 1, total: allFiles.length });
 
       try {
-        const xmlContent = await readFileContent(file);
-        const { data, error } = await supabase.functions.invoke("parse-bank-statement", {
-          body: { xmlContent, buildingId: selectedBuilding !== "all" ? selectedBuilding : null },
-        });
+        const isPdf = /\.pdf$/i.test(file.name);
+        let data: any, error: any;
+
+        if (isPdf) {
+          const pdfBase64 = await fileToBase64(file);
+          ({ data, error } = await supabase.functions.invoke("parse-bank-statement-pdf", {
+            body: { pdfBase64, fileName: file.name, buildingId: selectedBuilding },
+          }));
+        } else {
+          const xmlContent = await readFileContent(file);
+          ({ data, error } = await supabase.functions.invoke("parse-bank-statement", {
+            body: { xmlContent, buildingId: selectedBuilding !== "all" ? selectedBuilding : null },
+          }));
+        }
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
 
         totalImported += data.totalTransactions || 0;
         totalMatched += data.matchedCount || 0;
         totalDuplicates += data.duplicatesSkipped || 0;
+        if (Array.isArray(data.warnings) && data.warnings.length) {
+          allWarnings.push(`${file.name}: ${data.warnings.join("; ")}`);
+        }
       } catch (err: any) {
         errors++;
         console.error(`Fehler bei ${file.name}:`, err);
       }
     }
 
-    if (xmlFiles.length === 1) {
+    if (allFiles.length === 1) {
       if (errors > 0) {
         toast.error("Fehler beim Import");
       } else if (totalImported === 0 && totalDuplicates > 0) {
@@ -282,7 +311,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
         toast.success(parts.join(", "));
       }
     } else {
-      const parts = [`${xmlFiles.length - errors} von ${xmlFiles.length} Dateien verarbeitet`];
+      const parts = [`${allFiles.length - errors} von ${allFiles.length} Dateien verarbeitet`];
       if (totalImported > 0) parts.push(`${totalImported} Transaktionen importiert`);
       if (totalMatched > 0) parts.push(`${totalMatched} zugeordnet`);
       if (totalDuplicates > 0) parts.push(`${totalDuplicates} Duplikate übersprungen`);
@@ -290,14 +319,22 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       toast.success(parts.join(", "));
     }
 
+    if (allWarnings.length) {
+      toast.warning(allWarnings.join(" • "), { duration: 8000 });
+    }
+
     queryClient.invalidateQueries({ queryKey: ["bank-statements"] });
+    queryClient.invalidateQueries({ queryKey: ["bank-statements-info"] });
+    queryClient.invalidateQueries({ queryKey: ["bank-statements-list"] });
     queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
     queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+    queryClient.invalidateQueries({ queryKey: ["bank-reconciliations"] });
 
     setUploading(false);
     setUploadProgress(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
+
 
   const updateMatchStatus = async (txnId: string, status: string) => {
     const { error } = await supabase.from("bank_transactions").update({ match_status: status }).eq("id", txnId);
@@ -438,6 +475,19 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     setReviewModeOpen(true);
   };
 
+  const openStatementPdf = async (filePath: string | null) => {
+    if (!filePath) {
+      toast.error("Originaldatei nicht verfügbar");
+      return;
+    }
+    const { data, error } = await supabase.storage.from("building-documents").createSignedUrl(filePath, 600);
+    if (error || !data?.signedUrl) {
+      toast.error("Datei konnte nicht geöffnet werden");
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
+
   const renderTransactionRow = (txn: any) => {
     const config = MATCH_STATUS_CONFIG[txn.match_status] || MATCH_STATUS_CONFIG.unmatched;
     const Icon = config.icon;
@@ -513,7 +563,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                 </Button>
               )}
 
-              <input ref={fileInputRef} type="file" accept=".xml" multiple className="hidden" onChange={handleFileUpload} />
+              <input ref={fileInputRef} type="file" accept=".xml,.pdf" multiple className="hidden" onChange={handleFileUpload} />
               <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
                 {uploading ? (
                   <>
@@ -545,7 +595,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
             <div className="text-center py-12 text-muted-foreground">
               <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>Noch keine Transaktionen importiert</p>
-              <p className="text-sm mt-1">Laden Sie CAMT XML-Dateien hoch</p>
+              <p className="text-sm mt-1">Laden Sie CAMT-XML oder Kontoauszug-PDFs hoch</p>
             </div>
           ) : (
             <div className="space-y-6">
@@ -560,6 +610,63 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                     </div>
                   ))}
                 </div>
+              )}
+
+              {/* Importierte Auszüge */}
+              {bankStatements.length > 0 && (
+                <Card className="bg-muted/20">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Importierte Auszüge ({bankStatements.length})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="space-y-1 max-h-64 overflow-y-auto">
+                      {bankStatements.map((s: any) => {
+                        const isPdf = s.source_format === "pdf";
+                        const hasWarn = Array.isArray(s.parse_warnings) && s.parse_warnings.length > 0;
+                        return (
+                          <div key={s.id} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded hover:bg-muted/50">
+                            {isPdf ? <FileText className="h-3.5 w-3.5 text-red-600 shrink-0" /> : <FileCode className="h-3.5 w-3.5 text-blue-600 shrink-0" />}
+                            <Badge variant="outline" className="text-[10px] h-4">{isPdf ? "PDF" : "CAMT"}</Badge>
+                            <span className="text-muted-foreground whitespace-nowrap">
+                              {s.statement_date_from && format(new Date(s.statement_date_from), "dd.MM.yy")}
+                              {s.statement_date_to && ` – ${format(new Date(s.statement_date_to), "dd.MM.yy")}`}
+                            </span>
+                            <span className="flex-1 truncate" title={s.file_name}>{s.file_name}</span>
+                            {s.opening_balance != null && s.closing_balance != null && (
+                              <span className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
+                                {Number(s.opening_balance).toLocaleString("de-DE", { minimumFractionDigits: 2 })} → {Number(s.closing_balance).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
+                              </span>
+                            )}
+                            {hasWarn && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-md">
+                                    <ul className="text-xs list-disc pl-4">
+                                      {s.parse_warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
+                                    </ul>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                            {s.file_path ? (
+                              <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => openStatementPdf(s.file_path)}>
+                                <ExternalLink className="h-3 w-3 mr-1" />Öffnen
+                              </Button>
+                            ) : (
+                              <span className="text-muted-foreground text-[10px]">— nur Daten</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
               )}
 
               {/* Summary badges + AI prefetch indicator */}

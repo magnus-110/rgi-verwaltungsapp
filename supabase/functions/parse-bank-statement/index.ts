@@ -228,6 +228,44 @@ async function matchTransactions(supabase: any, statementId: string, buildingId:
   return { matched: matchedCount, total: savedTxns.length };
 }
 
+async function syncReconciliation(
+  supabase: any, buildingId: string, statementId: string, iban: string | null,
+  dateTo: string | null, opening: number | null, closing: number | null,
+  source: "pdf_import" | "camt_import",
+): Promise<void> {
+  if (!buildingId || !dateTo || (opening == null && closing == null)) return;
+  let bankAccountId: string | null = null;
+  if (iban) {
+    const { data: coa } = await supabase
+      .from("chart_of_accounts").select("id, iban")
+      .or(`building_id.is.null,building_id.eq.${buildingId}`)
+      .or(`iban.eq.${iban}`).limit(1);
+    if (coa?.length) bankAccountId = coa[0].id;
+  }
+  if (!bankAccountId) {
+    const { data: coa } = await supabase
+      .from("chart_of_accounts").select("id, account_number, account_name")
+      .or("account_number.like.18%,account_number.like.10%")
+      .or(`building_id.is.null,building_id.eq.${buildingId}`);
+    const bank = (coa || []).find((a: any) => /bank|giro|tagesgeld/i.test(a.account_name || ""));
+    if (bank) bankAccountId = bank.id;
+  }
+  if (!bankAccountId) return;
+  const d = new Date(dateTo);
+  const year = d.getFullYear(); const month = d.getMonth() + 1;
+  const { data: existing } = await supabase
+    .from("bank_reconciliations").select("id, closing_balance_bank, bank_source")
+    .eq("building_id", buildingId).eq("bank_account_id", bankAccountId)
+    .eq("period_year", year).eq("period_month", month).maybeSingle();
+  if (existing && existing.closing_balance_bank != null && existing.bank_source !== source && existing.bank_source !== null) return;
+  await supabase.from("bank_reconciliations").upsert({
+    building_id: buildingId, bank_account_id: bankAccountId,
+    period_year: year, period_month: month,
+    opening_balance_bank: opening, closing_balance_bank: closing,
+    bank_source: source, source_statement_id: statementId, status: "open",
+  }, { onConflict: "building_id,bank_account_id,period_year,period_month" });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -309,6 +347,21 @@ Deno.serve(async (req) => {
     const toDt = getTag(getTag(frToDt, "ToDtTm"), "").substring(0, 10) ||
                  getTag(frToDt, "ToDt") || null;
 
+    // CAMT-Salden extrahieren: Bal-Blöcke mit OPBD (opening) / CLBD (closing)
+    const balanceBlocks = getAllTags(stmt, "Bal");
+    let openingBalance: number | null = null;
+    let closingBalance: number | null = null;
+    for (const bal of balanceBlocks) {
+      const code = getTag(getTag(getTag(bal, "Tp"), "CdOrPrtry"), "Cd");
+      const amtMatch = bal.match(/<Amt[^>]*>([\d.,]+)<\/Amt>/i);
+      if (!amtMatch) continue;
+      const raw = parseFloat(amtMatch[1].replace(/\./g, "").replace(",", "."));
+      const sign = getTag(bal, "CdtDbtInd") === "DBIT" ? -1 : 1;
+      const value = sign * (isNaN(raw) ? 0 : raw);
+      if ((code === "OPBD" || code === "PRCD") && openingBalance == null) openingBalance = value;
+      if (code === "CLBD") closingBalance = value;
+    }
+
     // Create bank statement record
     const { data: statement, error: stmtError } = await supabase
       .from("bank_statements")
@@ -319,6 +372,9 @@ Deno.serve(async (req) => {
         account_name: accountName || null,
         statement_date_from: frDt,
         statement_date_to: toDt,
+        opening_balance: openingBalance,
+        closing_balance: closingBalance,
+        source_format: "camt_xml",
         created_by: user.id,
       })
       .select()
@@ -364,6 +420,16 @@ Deno.serve(async (req) => {
     const matchResult = unique.length > 0
       ? await matchTransactions(supabase, statement.id, buildingId || null)
       : { matched: 0, total: 0 };
+
+    // Saldo-Sync in Kostenabgleich
+    if (buildingId && (openingBalance != null || closingBalance != null)) {
+      try {
+        await syncReconciliation(
+          supabase, buildingId, statement.id, accountIban || null,
+          toDt, openingBalance, closingBalance, "camt_import",
+        );
+      } catch (e) { console.warn("recon sync failed:", e); }
+    }
 
     return new Response(
       JSON.stringify({
