@@ -128,6 +128,8 @@ export function buildSuggestMatchPayload(
     billingPeriods: ctx.billingPeriods,
     accounts: ctx.accounts,
     bookingInstructions: ctx.bookingInstructions,
+    buildingId: ctx.buildingId,
+    managementMode: ctx.managementMode,
   };
 }
 
