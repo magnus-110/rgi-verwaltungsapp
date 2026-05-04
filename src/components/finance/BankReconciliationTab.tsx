@@ -404,6 +404,15 @@ function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAc
                 {openingDiff != null && Math.abs(openingDiff) < 0.01 && <CheckCircle2 className="h-3 w-3 text-green-600" />}
               </span>
             </div>
+            {openingDiff != null && Math.abs(openingDiff) >= 0.01 && (
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Differenz Anfangssaldo:</span>
+                <span className="font-mono flex items-center gap-2 text-destructive">
+                  {`${openingDiff >= 0 ? "+" : ""}${openingDiff.toFixed(2)} €`}
+                  <AlertTriangle className="h-3 w-3" />
+                </span>
+              </div>
+            )}
             <div className="flex justify-between text-sm">
               <span>Endsaldo lt. Buchhaltung:</span>
               <span className="font-mono">{fmtEur(closingBook)}</span>
