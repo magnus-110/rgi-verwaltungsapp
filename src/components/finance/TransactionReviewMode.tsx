@@ -1680,7 +1680,15 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                             if (r.id !== targetRowId) return r;
                             const updated = { ...r, invoice_id: inv.id, matched_template_id: "" };
                             if (inv.invoice_number) updated.receipt_number = inv.invoice_number;
-                            if (inv.vendor_name) updated.description = [inv.vendor_name, inv.invoice_number].filter(Boolean).join(" ");
+                            {
+                              const _ca = accounts.find((a: any) => a.id === (r.counter_account_id || inv.suggested_account_id));
+                              updated.description = buildBookingText({
+                                period: formatMonthYearRef(currentTxn?.booking_date),
+                                invoiceNumber: inv.invoice_number,
+                                vendorName: inv.vendor_name,
+                                counterAccountName: _ca?.account_name || null,
+                              });
+                            }
                             return updated;
                           }));
                           await supabase.from("bank_transactions").update({
@@ -1704,7 +1712,12 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                             if (tpl.account_id) updated.counter_account_id = tpl.account_id;
                             if (tpl.vat_rate != null) updated.vat_rate = String(tpl.vat_rate);
                             if (tpl.is_35a_relevant) updated.is_35a_relevant = true;
-                            updated.description = buildTemplateBookingText(tpl, currentTxn?.booking_date);
+                            {
+                              const _ca = accounts.find((a: any) => a.id === (tpl.account_id || r.counter_account_id));
+                              updated.description = buildTemplateBookingText(tpl, currentTxn?.booking_date, {
+                                counterAccountName: _ca?.account_name || tpl.chart_of_accounts?.account_name || null,
+                              });
+                            }
                             return updated;
                           }));
                           await supabase.from("bank_transactions").update({
