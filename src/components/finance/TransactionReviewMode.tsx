@@ -538,7 +538,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       if (templateDetail.account_id) row.counter_account_id = templateDetail.account_id;
       if (templateDetail.vat_rate != null) row.vat_rate = String(templateDetail.vat_rate);
       if (templateDetail.is_35a_relevant) row.is_35a_relevant = true;
-      row.description = buildTemplateBookingText(templateDetail, txnDate);
+      const _tplCounter = accounts.find(a => a.id === templateDetail.account_id);
+      row.description = buildTemplateBookingText(templateDetail, txnDate, {
+        invoiceNumber: (invoiceDetail as any)?.invoice_number || null,
+        counterAccountName: _tplCounter?.account_name || templateDetail.chart_of_accounts?.account_name || null,
+      });
       row.matched_template_id = templateDetail.id;
       const vatRate = templateDetail.vat_rate || 0;
       if (vatRate > 0) {
@@ -552,7 +556,16 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       if (invoiceDetail.suggested_account_id) row.counter_account_id = invoiceDetail.suggested_account_id;
       if (invoiceDetail.vat_amount != null) row.vat_amount = String(Math.abs(invoiceDetail.vat_amount));
       if (invoiceDetail.invoice_number) row.receipt_number = invoiceDetail.invoice_number;
-      row.description = [invoiceDetail.vendor_name, invoiceDetail.invoice_number].filter(Boolean).join(" ");
+      {
+        const _invCounterId = invoiceDetail.suggested_account_id || row.counter_account_id;
+        const _invCounter = accounts.find(a => a.id === _invCounterId);
+        row.description = buildBookingText({
+          period: formatMonthYearRef(txnDate),
+          invoiceNumber: invoiceDetail.invoice_number,
+          vendorName: invoiceDetail.vendor_name,
+          counterAccountName: _invCounter?.account_name || null,
+        });
+      }
       row.invoice_id = invoiceDetail.id;
       if (invoiceDetail.gross_amount && invoiceDetail.net_amount) {
         const vatPct = ((invoiceDetail.gross_amount / invoiceDetail.net_amount) - 1) * 100;
