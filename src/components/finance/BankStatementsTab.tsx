@@ -475,6 +475,19 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     setReviewModeOpen(true);
   };
 
+  const openStatementPdf = async (filePath: string | null) => {
+    if (!filePath) {
+      toast.error("Originaldatei nicht verfügbar");
+      return;
+    }
+    const { data, error } = await supabase.storage.from("building-documents").createSignedUrl(filePath, 600);
+    if (error || !data?.signedUrl) {
+      toast.error("Datei konnte nicht geöffnet werden");
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
+
   const renderTransactionRow = (txn: any) => {
     const config = MATCH_STATUS_CONFIG[txn.match_status] || MATCH_STATUS_CONFIG.unmatched;
     const Icon = config.icon;
