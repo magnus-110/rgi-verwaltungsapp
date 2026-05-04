@@ -33,7 +33,7 @@ export async function loadSuggestMatchContext(buildingId: string): Promise<Sugge
       .select("id, account_number, account_name, category, is_35a_relevant, default_distribution_key, is_billing_relevant, settlement_section")
       .or(`building_id.is.null,building_id.eq.${buildingId}`),
     supabase.from("buildings")
-      .select("booking_instructions")
+      .select("booking_instructions, management_mode")
       .eq("id", buildingId)
       .single(),
   ]);
@@ -59,6 +59,8 @@ export async function loadSuggestMatchContext(buildingId: string): Promise<Sugge
       fiscal_year: bp.fiscal_year, period_from: bp.period_from, period_to: bp.period_to,
     })),
     bookingInstructions: (buildingData as any)?.booking_instructions || null,
+    buildingId,
+    managementMode: (buildingData as any)?.management_mode || null,
   };
 }
 
