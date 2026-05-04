@@ -6,6 +6,8 @@ export interface SuggestMatchContext {
   accounts: any[];
   billingPeriods: any[];
   bookingInstructions: string | null;
+  buildingId: string;
+  managementMode: string | null;
 }
 
 /**
