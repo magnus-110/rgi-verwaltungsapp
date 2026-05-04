@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { CheckCircle, Building2, X, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BookingTextTemplateCombobox } from "./BookingTextTemplateCombobox";
+import { signedTotalForAccount } from "./lib/bookingAggregation";
 
 interface BookingPrefill {
   account_id?: string;
@@ -120,6 +121,26 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     },
     enabled: open,
   });
+
+  // Fetch bookings touching selected account in selected fiscal year to show current balance
+  const { data: accountBalanceData } = useQuery({
+    queryKey: ["account-balance-current", form.building_id, form.account_id, form.fiscal_year],
+    queryFn: async () => {
+      if (!form.building_id || !form.account_id || !form.fiscal_year) return null;
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("account_id, counter_account_id, amount, booking_type")
+        .eq("building_id", form.building_id)
+        .eq("fiscal_year", parseInt(form.fiscal_year))
+        .or(`account_id.eq.${form.account_id},counter_account_id.eq.${form.account_id}`);
+      if (error) throw error;
+      return signedTotalForAccount(form.account_id, (data || []) as any);
+    },
+    enabled: open && !!form.building_id && !!form.account_id && !!form.fiscal_year,
+  });
+
+  const selectedAccountObj = accounts.find((a: any) => a.id === form.account_id);
+
 
   const computedVat = useMemo(() => {
     const amt = parseFloat(form.amount) || 0;
@@ -262,6 +283,16 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                 excludeCategory="Bankkonto"
                 placeholder="Konto suchen…"
               />
+              {form.account_id && accountBalanceData != null && (
+                <p className="text-xs mt-1 text-muted-foreground">
+                  Aktueller Saldo {form.fiscal_year}
+                  {selectedAccountObj?.account_number ? ` · Konto ${selectedAccountObj.account_number}` : ""}:{" "}
+                  <span className={cn("font-mono font-semibold", accountBalanceData >= 0 ? "text-green-600" : "text-destructive")}>
+                    {accountBalanceData >= 0 ? "+" : "−"}
+                    {formatCurrency(Math.abs(accountBalanceData))}
+                  </span>
+                </p>
+              )}
             </div>
 
             {/* Amount + type */}
