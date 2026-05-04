@@ -126,71 +126,36 @@ export function TransactionDetailSheet({ transactionId, onClose }: TransactionDe
 
           <Separator />
 
-          {editMode ? (
-            <div className="space-y-3">
-              {isDebit ? (
-                <>
-                  <div>
-                    <Label className="text-xs">Empfänger</Label>
-                    <Input value={draft.creditor_name} onChange={(e) => setDraft({ ...draft, creditor_name: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Empfänger-IBAN</Label>
-                    <Input value={draft.creditor_iban} onChange={(e) => setDraft({ ...draft, creditor_iban: e.target.value })} className="font-mono" />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div>
-                    <Label className="text-xs">Auftraggeber</Label>
-                    <Input value={draft.debtor_name} onChange={(e) => setDraft({ ...draft, debtor_name: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Auftraggeber-IBAN</Label>
-                    <Input value={draft.debtor_iban} onChange={(e) => setDraft({ ...draft, debtor_iban: e.target.value })} className="font-mono" />
-                  </div>
-                </>
-              )}
-              <div>
-                <Label className="text-xs">Verwendungszweck</Label>
-                <Textarea rows={4} value={draft.purpose} onChange={(e) => setDraft({ ...draft, purpose: e.target.value })} />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Tipp: Korrektur sinnvoll, wenn der PDF-Import Felder vertauscht hat.
-              </p>
+          <>
+            {/* Debtor */}
+            <div>
+              <h4 className="text-sm font-semibold text-muted-foreground mb-2">Auftraggeber</h4>
+              <p className="text-sm font-medium">{txn.debtor_name || "–"}</p>
+              {txn.debtor_iban && <p className="text-xs font-mono text-muted-foreground">{txn.debtor_iban}</p>}
             </div>
-          ) : (
-            <>
-              {/* Debtor */}
+
+            {/* Creditor */}
+            <div>
+              <h4 className="text-sm font-semibold text-muted-foreground mb-2">Empfänger</h4>
+              <p className="text-sm font-medium">{txn.creditor_name || "–"}</p>
+              {txn.creditor_iban && <p className="text-xs font-mono text-muted-foreground">{txn.creditor_iban}</p>}
+            </div>
+
+            <Separator />
+
+            {/* Purpose */}
+            <div>
+              <h4 className="text-sm font-semibold text-muted-foreground mb-2">Verwendungszweck</h4>
+              <p className="text-sm bg-muted p-3 rounded-md whitespace-pre-wrap">{txn.purpose || "–"}</p>
+            </div>
+
+            {txn.end_to_end_ref && (
               <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Auftraggeber</h4>
-                <p className="text-sm font-medium">{txn.debtor_name || "–"}</p>
-                {txn.debtor_iban && <p className="text-xs font-mono text-muted-foreground">{txn.debtor_iban}</p>}
+                <h4 className="text-sm font-semibold text-muted-foreground mb-1">End-to-End-Referenz</h4>
+                <p className="text-sm font-mono">{txn.end_to_end_ref}</p>
               </div>
-
-              {/* Creditor */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Empfänger</h4>
-                <p className="text-sm font-medium">{txn.creditor_name || "–"}</p>
-                {txn.creditor_iban && <p className="text-xs font-mono text-muted-foreground">{txn.creditor_iban}</p>}
-              </div>
-
-              <Separator />
-
-              {/* Purpose */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Verwendungszweck</h4>
-                <p className="text-sm bg-muted p-3 rounded-md whitespace-pre-wrap">{txn.purpose || "–"}</p>
-              </div>
-
-              {txn.end_to_end_ref && (
-                <div>
-                  <h4 className="text-sm font-semibold text-muted-foreground mb-1">End-to-End-Referenz</h4>
-                  <p className="text-sm font-mono">{txn.end_to_end_ref}</p>
-                </div>
-              )}
-            </>
-          )}
+            )}
+          </>
 
           {/* Matched Invoice */}
           {invoice && !editMode && (
