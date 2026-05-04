@@ -375,7 +375,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                 {/* Description */}
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstext</label>
-                  <div className="grid grid-cols-[130px_1fr] gap-2">
+                  <div className="grid grid-cols-[90px_1fr] gap-2">
                     <BookingTextTemplateCombobox
                       fiscalYear={form.fiscal_year}
                       invoice={invoiceDetail ? { invoice_number: (invoiceDetail as any).invoice_number, vendor_name: (invoiceDetail as any).vendor_name } : null}
