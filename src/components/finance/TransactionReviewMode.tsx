@@ -28,6 +28,8 @@ import { AccountSearchSelect } from "./AccountSearchSelect";
 import { Section35aEditor } from "./Section35aEditor";
 import { build35aDetailFromSuggestion } from "./build35aDetail";
 import { buildTemplateBookingText } from "./lib/templateBookingText";
+import { buildBookingText } from "./lib/bookingTextBuilder";
+import { BookingTextTemplateCombobox } from "./BookingTextTemplateCombobox";
 import { useMobileSplitView, MobileViewSwitcher, MobileBackToListButton } from "@/components/shared/MobileSplitView";
 import { parseAmount } from "./lib/parseAmount";
 import { getLineItemGross } from "./lib/lineItemAmount";
@@ -458,9 +460,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
     if (isSplit) {
       // Multiple booking rows from AI.
-      // Splitbuchungen IMMER mit "Re. Nr. <invoice_number>, <Kontobezeichnung>" beschriften
-      // (Vorgabe RGI). Fallback: Belegnummer aus AI-Suggestion bzw. Kontobezeichnung allein.
+      // Splitbuchungen IMMER nach RGI-Schema:
+      //   "MM/JJ Re. Nr. <invoice_number> <Lieferant> <Gegenkonto>"
       const invoiceNumber = (invoiceDetail as any)?.invoice_number || null;
+      const vendorName = (invoiceDetail as any)?.vendor_name || null;
+      const period = formatMonthYearRef(txnDate);
       const rows: BookingRowData[] = suggestedBookings.map((sb: any, idx: number) => {
         let counterAccountId = "";
         if (sb.account_id) counterAccountId = sb.account_id;
@@ -473,9 +477,12 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const counterAcc = accounts.find(a => a.id === counterAccountId);
         const accountLabel = counterAcc?.account_name || "";
         const receiptNo = sb.receipt_number || invoiceNumber || "";
-        const splitDescription = receiptNo
-          ? `Re. Nr. ${receiptNo}${accountLabel ? `, ${accountLabel}` : ""}`
-          : (accountLabel || sb.description || "");
+        const splitDescription = buildBookingText({
+          period,
+          invoiceNumber: receiptNo,
+          vendorName,
+          counterAccountName: accountLabel,
+        }) || sb.description || "";
 
         return {
           id: nextRowId(),
@@ -531,7 +538,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       if (templateDetail.account_id) row.counter_account_id = templateDetail.account_id;
       if (templateDetail.vat_rate != null) row.vat_rate = String(templateDetail.vat_rate);
       if (templateDetail.is_35a_relevant) row.is_35a_relevant = true;
-      row.description = buildTemplateBookingText(templateDetail, txnDate);
+      const _tplCounter = accounts.find(a => a.id === templateDetail.account_id);
+      row.description = buildTemplateBookingText(templateDetail, txnDate, {
+        invoiceNumber: (invoiceDetail as any)?.invoice_number || null,
+        counterAccountName: _tplCounter?.account_name || templateDetail.chart_of_accounts?.account_name || null,
+      });
       row.matched_template_id = templateDetail.id;
       const vatRate = templateDetail.vat_rate || 0;
       if (vatRate > 0) {
@@ -545,7 +556,16 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       if (invoiceDetail.suggested_account_id) row.counter_account_id = invoiceDetail.suggested_account_id;
       if (invoiceDetail.vat_amount != null) row.vat_amount = String(Math.abs(invoiceDetail.vat_amount));
       if (invoiceDetail.invoice_number) row.receipt_number = invoiceDetail.invoice_number;
-      row.description = [invoiceDetail.vendor_name, invoiceDetail.invoice_number].filter(Boolean).join(" ");
+      {
+        const _invCounterId = invoiceDetail.suggested_account_id || row.counter_account_id;
+        const _invCounter = accounts.find(a => a.id === _invCounterId);
+        row.description = buildBookingText({
+          period: formatMonthYearRef(txnDate),
+          invoiceNumber: invoiceDetail.invoice_number,
+          vendorName: invoiceDetail.vendor_name,
+          counterAccountName: _invCounter?.account_name || null,
+        });
+      }
       row.invoice_id = invoiceDetail.id;
       if (invoiceDetail.gross_amount && invoiceDetail.net_amount) {
         const vatPct = ((invoiceDetail.gross_amount / invoiceDetail.net_amount) - 1) * 100;
@@ -1660,7 +1680,15 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                             if (r.id !== targetRowId) return r;
                             const updated = { ...r, invoice_id: inv.id, matched_template_id: "" };
                             if (inv.invoice_number) updated.receipt_number = inv.invoice_number;
-                            if (inv.vendor_name) updated.description = [inv.vendor_name, inv.invoice_number].filter(Boolean).join(" ");
+                            {
+                              const _ca = accounts.find((a: any) => a.id === (r.counter_account_id || inv.suggested_account_id));
+                              updated.description = buildBookingText({
+                                period: formatMonthYearRef(currentTxn?.booking_date),
+                                invoiceNumber: inv.invoice_number,
+                                vendorName: inv.vendor_name,
+                                counterAccountName: _ca?.account_name || null,
+                              });
+                            }
                             return updated;
                           }));
                           await supabase.from("bank_transactions").update({
@@ -1684,7 +1712,12 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                             if (tpl.account_id) updated.counter_account_id = tpl.account_id;
                             if (tpl.vat_rate != null) updated.vat_rate = String(tpl.vat_rate);
                             if (tpl.is_35a_relevant) updated.is_35a_relevant = true;
-                            updated.description = buildTemplateBookingText(tpl, currentTxn?.booking_date);
+                            {
+                              const _ca = accounts.find((a: any) => a.id === (tpl.account_id || r.counter_account_id));
+                              updated.description = buildTemplateBookingText(tpl, currentTxn?.booking_date, {
+                                counterAccountName: _ca?.account_name || tpl.chart_of_accounts?.account_name || null,
+                              });
+                            }
                             return updated;
                           }));
                           await supabase.from("bank_transactions").update({
@@ -2244,12 +2277,21 @@ function BookingRowCard({
               />
             </div>
 
-            {/* Description */}
+            {/* Description with template combobox */}
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstext</label>
-              <Input ref={el => fieldRefs.current["description"] = el} className="h-9 text-sm"
-                value={row.description} onChange={e => onUpdateField("description", e.target.value)}
-                onKeyDown={e => handleEnterNavigation(e, "description")} />
+              <div className="grid grid-cols-[110px_1fr] gap-2">
+                <BookingTextTemplateCombobox
+                  fiscalYear={row.fiscal_year}
+                  invoice={invoiceDetail ? { invoice_number: (invoiceDetail as any).invoice_number, vendor_name: (invoiceDetail as any).vendor_name } : null}
+                  counterAccountName={accounts.find((a: any) => a.id === row.counter_account_id)?.account_name || null}
+                  onApply={(text) => onUpdateField("description", text)}
+                  onCommit={() => focusFieldByName("description")}
+                />
+                <Input ref={el => fieldRefs.current["description"] = el} className="h-9 text-sm"
+                  value={row.description} onChange={e => onUpdateField("description", e.target.value)}
+                  onKeyDown={e => handleEnterNavigation(e, "description")} />
+              </div>
             </div>
 
             {/* Compact row */}

@@ -18,6 +18,7 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { VendorHistorySection } from "./VendorHistorySection";
 import { Section35aEditor } from "./Section35aEditor";
+import { BookingTextTemplateCombobox } from "./BookingTextTemplateCombobox";
 
 interface Booking {
   id: string;
@@ -374,7 +375,15 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                 {/* Description */}
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstext</label>
-                  <Input className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} />
+                  <div className="grid grid-cols-[110px_1fr] gap-2">
+                    <BookingTextTemplateCombobox
+                      fiscalYear={form.fiscal_year}
+                      invoice={invoiceDetail ? { invoice_number: (invoiceDetail as any).invoice_number, vendor_name: (invoiceDetail as any).vendor_name } : null}
+                      counterAccountName={accounts.find((a: any) => a.id === form.counter_account_id)?.account_name || null}
+                      onApply={(text) => set("description", text)}
+                    />
+                    <Input className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} />
+                  </div>
                 </div>
 
                 {/* Compact row */}

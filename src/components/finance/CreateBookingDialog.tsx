@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { CheckCircle, Building2, X, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BookingTextTemplateCombobox } from "./BookingTextTemplateCombobox";
 
 interface BookingPrefill {
   account_id?: string;
@@ -338,7 +339,15 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
             {/* Description */}
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstext</label>
-              <Input className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} onKeyDown={handleEnterToNext} placeholder="Beschreibung der Buchung…" />
+              <div className="grid grid-cols-[110px_1fr] gap-2">
+                <BookingTextTemplateCombobox
+                  fiscalYear={form.fiscal_year}
+                  invoice={null}
+                  counterAccountName={accounts.find((a: any) => a.id === form.counter_account_id)?.account_name || null}
+                  onApply={(text) => set("description", text)}
+                />
+                <Input className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} onKeyDown={handleEnterToNext} placeholder="Beschreibung der Buchung…" />
+              </div>
             </div>
 
             {/* Compact row: Belegnummer, Beleg-Datum, Wirtschaftsjahr, MwSt */}

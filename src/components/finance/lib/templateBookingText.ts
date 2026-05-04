@@ -1,40 +1,58 @@
+import { buildBookingText } from "./bookingTextBuilder";
+
 /**
- * Generates the booking description for a template-based booking.
+ * Generiert den Buchungstext für eine Vorlagen-basierte Buchung.
  *
- * Special rule for Hausgeld (HG) templates:
- *   "MM/JJ HG <Nachname>"   e.g. "01/25 HG Göttinger"
+ * Standard-Schema (RGI):
+ *   "MM/JJ Re. Nr. <invoice_number> <Lieferant> <Gegenkonto>"
+ * Bestandteile, die fehlen, werden weggelassen.
  *
- * Heuristic:
- *   - If the template name contains "Hausgeld" or starts with "HG"
- *   - AND a vendor_name is set, we extract the last word as surname.
- *   - Period MM/JJ is derived from the transaction's booking date.
- *
- * Otherwise we fall back to the template name.
+ * Sonderregel Hausgeld (HG):
+ *   "MM/JJ HG <Nachname>"   z.B. "01/25 HG Göttinger"
  */
 export function buildTemplateBookingText(
-  template: { name?: string | null; vendor_name?: string | null } | null | undefined,
-  bookingDate?: string | Date | null
+  template:
+    | {
+        name?: string | null;
+        vendor_name?: string | null;
+        chart_of_accounts?: { account_name?: string | null } | null;
+      }
+    | null
+    | undefined,
+  bookingDate?: string | Date | null,
+  options?: {
+    invoiceNumber?: string | null;
+    counterAccountName?: string | null;
+  },
 ): string {
   if (!template) return "";
   const name = (template.name || "").trim();
   const vendor = (template.vendor_name || "").trim();
 
+  const d = bookingDate ? new Date(bookingDate) : new Date();
+  const valid = !isNaN(d.getTime());
+  const mm = valid ? String(d.getMonth() + 1).padStart(2, "0") : "";
+  const yy = valid ? String(d.getFullYear()).slice(-2) : "";
+  const period = mm && yy ? `${mm}/${yy}` : "";
+
   const isHausgeld =
     /hausgeld/i.test(name) || /^hg[\s_-]/i.test(name) || /^hg$/i.test(name);
 
   if (isHausgeld && vendor) {
-    // last token = surname (works for "Magnus Göttinger", "Frau Dagmar Wollmann",
-    // "Dres. Christian und Daniela Haberland" -> "Haberland")
     const surname = vendor.split(/\s+/).filter(Boolean).pop() || vendor;
-
-    const d = bookingDate ? new Date(bookingDate) : new Date();
-    const valid = !isNaN(d.getTime());
-    const mm = valid ? String(d.getMonth() + 1).padStart(2, "0") : "";
-    const yy = valid ? String(d.getFullYear()).slice(-2) : "";
-    const period = mm && yy ? `${mm}/${yy} ` : "";
-
-    return `${period}HG ${surname}`.trim();
+    return `${period ? period + " " : ""}HG ${surname}`.trim();
   }
 
-  return name;
+  const counterAccountName =
+    options?.counterAccountName ?? template.chart_of_accounts?.account_name ?? null;
+
+  const text = buildBookingText({
+    period,
+    invoiceNumber: options?.invoiceNumber,
+    vendorName: vendor,
+    counterAccountName,
+  });
+
+  // Fallback: wenn nichts zusammenkommt, alten Template-Namen nutzen
+  return text || name;
 }
