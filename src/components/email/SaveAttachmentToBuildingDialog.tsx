@@ -73,6 +73,50 @@ export function SaveAttachmentToBuildingDialog({
     return out;
   })();
 
+  const reloadCategories = async () => {
+    if (!buildingId) return;
+    const { data } = await supabase.from('building_file_categories')
+      .select('*').eq('building_id', buildingId).order('sort_order');
+    setCategories((data || []) as DocCategory[]);
+  };
+
+  const createFolder = async () => {
+    const name = newFolderName.trim();
+    if (!name) { toast.error("Name erforderlich"); return; }
+    if (!buildingId) return;
+    setSavingFolder(true);
+    try {
+      const building = buildings.find(b => b.id === buildingId);
+      const mgmt = building?.management_mode || 'weg';
+      const parent = newFolderParentId === "__root__" ? null : newFolderParentId;
+      const siblings = categories.filter(c => (c.parent_id || null) === parent);
+      const nextSort = (siblings.reduce((m, c) => Math.max(m, c.sort_order || 0), 0) || 0) + 10;
+      const { data: inserted, error } = await (supabase
+        .from('building_file_categories') as any)
+        .insert({
+          name,
+          parent_id: parent,
+          building_id: buildingId,
+          management_mode: mgmt,
+          sort_order: nextSort,
+          is_recommended: false,
+          auto_rag_enabled: false,
+        })
+        .select('id')
+        .single();
+      if (error) throw error;
+      toast.success("Ordner angelegt");
+      await reloadCategories();
+      setCategoryId(inserted.id);
+      setNewFolderName("");
+      setCreatingFolder(false);
+    } catch (e: any) {
+      toast.error("Anlegen fehlgeschlagen: " + e.message);
+    } finally {
+      setSavingFolder(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!buildingId) { toast.error("Gebäude wählen"); return; }
     setSaving(true);
