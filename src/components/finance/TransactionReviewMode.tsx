@@ -32,6 +32,7 @@ import { useMobileSplitView, MobileViewSwitcher, MobileBackToListButton } from "
 import { parseAmount } from "./lib/parseAmount";
 import { getLineItemGross } from "./lib/lineItemAmount";
 import { InvoiceLineItemsView } from "./InvoiceLineItemsView";
+import { ConfidenceBadge } from "./ConfidenceBadge";
 
 interface TransactionReviewModeProps {
   open: boolean;
