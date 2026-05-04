@@ -2280,7 +2280,7 @@ function BookingRowCard({
             {/* Description with template combobox */}
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstext</label>
-              <div className="grid grid-cols-[110px_1fr] gap-2">
+              <div className="grid grid-cols-[130px_1fr] gap-2">
                 <BookingTextTemplateCombobox
                   fiscalYear={row.fiscal_year}
                   invoice={invoiceDetail ? { invoice_number: (invoiceDetail as any).invoice_number, vendor_name: (invoiceDetail as any).vendor_name } : null}

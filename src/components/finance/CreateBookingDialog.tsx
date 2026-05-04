@@ -339,7 +339,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
             {/* Description */}
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstext</label>
-              <div className="grid grid-cols-[110px_1fr] gap-2">
+              <div className="grid grid-cols-[130px_1fr] gap-2">
                 <BookingTextTemplateCombobox
                   fiscalYear={form.fiscal_year}
                   invoice={null}
