@@ -141,6 +141,7 @@ export type Database = {
       bank_reconciliations: {
         Row: {
           bank_account_id: string
+          bank_source: string | null
           building_id: string
           closing_balance_bank: number | null
           closing_balance_book: number | null
@@ -154,11 +155,13 @@ export type Database = {
           opening_balance_book: number | null
           period_month: number
           period_year: number
+          source_statement_id: string | null
           status: string
           updated_at: string
         }
         Insert: {
           bank_account_id: string
+          bank_source?: string | null
           building_id: string
           closing_balance_bank?: number | null
           closing_balance_book?: number | null
@@ -172,11 +175,13 @@ export type Database = {
           opening_balance_book?: number | null
           period_month: number
           period_year: number
+          source_statement_id?: string | null
           status?: string
           updated_at?: string
         }
         Update: {
           bank_account_id?: string
+          bank_source?: string | null
           building_id?: string
           closing_balance_bank?: number | null
           closing_balance_book?: number | null
@@ -190,6 +195,7 @@ export type Database = {
           opening_balance_book?: number | null
           period_month?: number
           period_year?: number
+          source_statement_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -208,6 +214,13 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bank_reconciliations_source_statement_id_fkey"
+            columns: ["source_statement_id"]
+            isOneToOne: false
+            referencedRelation: "bank_statements"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bank_statements: {
@@ -223,6 +236,8 @@ export type Database = {
           id: string
           import_date: string
           opening_balance: number | null
+          parse_warnings: Json | null
+          source_format: string
           statement_date_from: string | null
           statement_date_to: string | null
         }
@@ -238,6 +253,8 @@ export type Database = {
           id?: string
           import_date?: string
           opening_balance?: number | null
+          parse_warnings?: Json | null
+          source_format?: string
           statement_date_from?: string | null
           statement_date_to?: string | null
         }
@@ -253,6 +270,8 @@ export type Database = {
           id?: string
           import_date?: string
           opening_balance?: number | null
+          parse_warnings?: Json | null
+          source_format?: string
           statement_date_from?: string | null
           statement_date_to?: string | null
         }
