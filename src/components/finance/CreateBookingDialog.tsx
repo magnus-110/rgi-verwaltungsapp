@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { CheckCircle, Building2, X, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BookingTextTemplateCombobox } from "./BookingTextTemplateCombobox";
+import { signedTotalForAccount } from "./lib/bookingAggregation";
 
 interface BookingPrefill {
   account_id?: string;
