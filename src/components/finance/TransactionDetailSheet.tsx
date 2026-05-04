@@ -93,25 +93,9 @@ export function TransactionDetailSheet({ transactionId, onClose }: TransactionDe
     <Sheet open={!!transactionId} onOpenChange={() => onClose()}>
       <SheetContent className="sm:max-w-lg overflow-y-auto">
         <SheetHeader>
-          <SheetTitle className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-2">
-              {isDebit ? <ArrowUpRight className="h-5 w-5 text-destructive" /> : <ArrowDownLeft className="h-5 w-5 text-green-600" />}
-              Transaktionsdetails
-            </span>
-            {!editMode ? (
-              <Button size="sm" variant="ghost" onClick={() => setEditMode(true)}>
-                <Pencil className="h-4 w-4 mr-1" /> Bearbeiten
-              </Button>
-            ) : (
-              <div className="flex gap-1">
-                <Button size="sm" variant="ghost" onClick={() => setEditMode(false)} disabled={saving}>
-                  <X className="h-4 w-4" />
-                </Button>
-                <Button size="sm" onClick={handleSave} disabled={saving}>
-                  <Save className="h-4 w-4 mr-1" /> {saving ? "..." : "Speichern"}
-                </Button>
-              </div>
-            )}
+          <SheetTitle className="flex items-center gap-2">
+            {isDebit ? <ArrowUpRight className="h-5 w-5 text-destructive" /> : <ArrowDownLeft className="h-5 w-5 text-green-600" />}
+            Transaktionsdetails
           </SheetTitle>
         </SheetHeader>
 
