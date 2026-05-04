@@ -856,8 +856,13 @@ export const Inbox = () => {
                 title={folder.name}
               >
                 <Icon className="h-4 w-4" />
-                {count > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 h-3.5 min-w-[14px] rounded-full bg-destructive text-destructive-foreground text-[9px] flex items-center justify-center px-0.5">
+                {count > 0 && folder.name !== "Papierkorb" && (
+                  <span className={cn(
+                    "absolute -top-0.5 -right-0.5 h-3.5 min-w-[14px] rounded-full text-[9px] flex items-center justify-center px-0.5",
+                    folder.id === SCHEDULED_FOLDER_ID
+                      ? "bg-amber-500 text-white"
+                      : "bg-destructive text-destructive-foreground"
+                  )}>
                     {count}
                   </span>
                 )}
