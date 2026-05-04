@@ -328,7 +328,9 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                   if (acc?.account_number?.startsWith("4")) set("vat_rate", "");
                 }}
                 onCommit={() => {
-                  const desc = document.querySelector<HTMLInputElement>('[data-booking-form] input[placeholder^="Beschreibung"]');
+                  const sc = document.querySelector<HTMLInputElement>('[data-booking-shortcut]');
+                  if (sc) { sc.focus(); return; }
+                  const desc = document.querySelector<HTMLInputElement>('[data-booking-desc]');
                   desc?.focus();
                 }}
                 accounts={accounts}
@@ -339,14 +341,23 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
             {/* Description */}
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstext</label>
-              <div className="grid grid-cols-[130px_1fr] gap-2">
+              <div className="grid grid-cols-[90px_1fr] gap-2">
                 <BookingTextTemplateCombobox
+                  inputRef={(el) => { if (el) el.setAttribute("data-booking-shortcut", "true"); }}
                   fiscalYear={form.fiscal_year}
                   invoice={null}
                   counterAccountName={accounts.find((a: any) => a.id === form.counter_account_id)?.account_name || null}
                   onApply={(text) => set("description", text)}
+                  onCommit={() => {
+                    const desc = document.querySelector<HTMLInputElement>('[data-booking-desc]');
+                    desc?.focus();
+                  }}
+                  onSkip={() => {
+                    const desc = document.querySelector<HTMLInputElement>('[data-booking-desc]');
+                    desc?.focus();
+                  }}
                 />
-                <Input className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} onKeyDown={handleEnterToNext} placeholder="Beschreibung der Buchung…" />
+                <Input data-booking-desc className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} onKeyDown={handleEnterToNext} placeholder="Beschreibung der Buchung…" />
               </div>
             </div>
 

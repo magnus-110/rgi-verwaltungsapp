@@ -101,7 +101,7 @@ const formatMonthYearRef = (dateStr: string | null | undefined): string => {
 };
 
 const FIELD_ORDER = [
-  "account_id", "amount", "counter_account_id", "description",
+  "account_id", "amount", "counter_account_id", "description_shortcut", "description",
   "booking_reference", "booking_date", "fiscal_year", "vat_rate", "__book__"
 ];
 
@@ -2273,20 +2273,22 @@ function BookingRowCard({
                 placeholder="Gegenkonto suchen…"
                 showCreateOption
                 onCreateClick={() => { setCreateAccountTarget("counter_account_id"); setCreateAccountOpen(true); }}
-                onCommit={() => focusFieldByName("description")}
+                onCommit={() => focusFieldByName("description_shortcut")}
               />
             </div>
 
             {/* Description with template combobox */}
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstext</label>
-              <div className="grid grid-cols-[130px_1fr] gap-2">
+              <div className="grid grid-cols-[90px_1fr] gap-2">
                 <BookingTextTemplateCombobox
+                  inputRef={(el) => { fieldRefs.current["description_shortcut"] = el; }}
                   fiscalYear={row.fiscal_year}
                   invoice={invoiceDetail ? { invoice_number: (invoiceDetail as any).invoice_number, vendor_name: (invoiceDetail as any).vendor_name } : null}
                   counterAccountName={accounts.find((a: any) => a.id === row.counter_account_id)?.account_name || null}
                   onApply={(text) => onUpdateField("description", text)}
                   onCommit={() => focusFieldByName("description")}
+                  onSkip={() => focusFieldByName("description")}
                 />
                 <Input ref={el => fieldRefs.current["description"] = el} className="h-9 text-sm"
                   value={row.description} onChange={e => onUpdateField("description", e.target.value)}

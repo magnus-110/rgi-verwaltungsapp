@@ -18,6 +18,10 @@ type Props = {
   onApply: (generatedText: string) => void;
   /** Optional: nach Übernahme den Fokus weitersetzen (Enter-Navigation) */
   onCommit?: () => void;
+  /** Optional: Enter ohne Auswahl springt zum nächsten Feld */
+  onSkip?: () => void;
+  /** Externer Ref auf das Input-Element (für Field-Focus-Navigation) */
+  inputRef?: React.MutableRefObject<HTMLInputElement | null> | ((el: HTMLInputElement | null) => void);
   /** Optional: Komponenten-Größe */
   className?: string;
 };
@@ -29,6 +33,7 @@ type Props = {
  *  - Standardmäßig ist KEIN Vorschlag vorausgewählt (highlightedIndex = -1).
  *  - Pfeil-runter markiert die erste Option, weiter Pfeil navigiert.
  *  - Enter übernimmt nur dann, wenn ein Vorschlag markiert ist.
+ *  - Enter ohne Auswahl springt zum nächsten Feld (onSkip).
  *  - Nach Übernahme wird der generierte Buchungstext aus
  *    [Zeitraum] + Re. Nr. + Lieferant + Gegenkonto gebaut und das Feld geleert.
  */
@@ -38,12 +43,19 @@ export function BookingTextTemplateCombobox({
   counterAccountName,
   onApply,
   onCommit,
+  onSkip,
+  inputRef: externalRef,
   className,
 }: Props) {
   const [value, setValue] = useState("");
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const localRef = useRef<HTMLInputElement>(null);
+  const setRef = (el: HTMLInputElement | null) => {
+    localRef.current = el;
+    if (typeof externalRef === "function") externalRef(el);
+    else if (externalRef) externalRef.current = el;
+  };
 
   const suggestions = shortcutSuggestions(value, fiscalYear);
 
@@ -82,11 +94,13 @@ export function BookingTextTemplateCombobox({
         e.preventDefault();
         apply(suggestions[highlightedIndex].shortcut);
       } else if (/^([1-4]|0[1-9]|1[0-2]|000)$/.test(value.trim())) {
-        // Direkt-Eingabe ohne Pfeil-Auswahl: nur übernehmen, wenn gültiger Shortcut
         e.preventDefault();
         apply(value.trim());
+      } else if (onSkip) {
+        e.preventDefault();
+        setOpen(false);
+        onSkip();
       }
-      // sonst: Standard-Enter (kein Sprung), bewusst NICHT navigieren
     } else if (e.key === "Escape") {
       setOpen(false);
       setHighlightedIndex(-1);
@@ -103,7 +117,7 @@ export function BookingTextTemplateCombobox({
             #
           </span>
           <Input
-            ref={inputRef}
+            ref={setRef}
             value={value}
             onChange={e => {
               setValue(e.target.value);
