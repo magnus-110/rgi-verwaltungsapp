@@ -61,14 +61,32 @@ async function mistralOcr(base64Pdf: string, apiKey: string): Promise<string> {
 
 async function extractStructuredStatement(markdown: string, apiKey: string): Promise<any> {
   const systemPrompt = `Du extrahierst Daten aus deutschen Bank-Kontoauszügen (PDF).
-WICHTIG:
+
+ABSOLUTE REGELN:
 - Erfinde NIE Werte. Wenn ein Feld fehlt, gib null zurück.
 - Beträge IMMER als deutsche Zahl mit Komma als Dezimaltrenner.
-- Soll/Lastschrift/DBIT = negativer Betrag. Haben/Gutschrift/CRDT = positiver Betrag.
+- Soll/Lastschrift/DBIT/Belastung = NEGATIVER Betrag (Vorzeichen "-").
+- Haben/Gutschrift/CRDT/Eingang = POSITIVER Betrag.
+- Abschlag, Lastschrift, Dauerauftrag, Überweisung an = IMMER negativ.
+- Eingang, Gutschrift, Erstattung = IMMER positiv.
 - Datum im Format YYYY-MM-DD.
 - IBAN ohne Leerzeichen, GROSSBUCHSTABEN.
 - Anfangssaldo = Startsaldo / Saldo Vortrag / Alter Saldo / Saldo am ...
-- Endsaldo = Endsaldo / Neuer Saldo / Schlusssaldo.`;
+- Endsaldo = Endsaldo / Neuer Saldo / Schlusssaldo.
+
+KRITISCHE BLOCK-REGEL (gegen Verwechslung von Empfängern):
+Jede Transaktion ist EIN ZUSAMMENHÄNGENDER BLOCK. Jeder Block enthält:
+  Zeile 1: Empfängername (oder Auftraggeber bei Eingang)
+  Zeile 2: IBAN des Gegenkontos
+  Zeile 3+: Verwendungszweck (mehrzeilig, mit EREF/MREF/CRED-Refs)
+  Spalte rechts: Betrag und Buchungsdatum
+NIEMALS Felder aus Block A mit Feldern aus Block B kombinieren.
+NIEMALS einen Empfängernamen aus dem darüberliegenden Block für eine andere Buchung übernehmen.
+Wenn ein Block unvollständig erscheint (z. B. nur Empfänger, kein Betrag) → diese Zeile NICHT zu einer Transaktion machen, sondern überspringen.
+
+VOLLSTÄNDIGKEIT:
+- Liste ALLE sichtbaren Buchungen vollständig auf — auch "Abschluss"-Zeilen, Gebühren und kleine Beträge (≤1 €).
+- Prüfe am Ende: Summe(Beträge) MUSS exakt = Endsaldo - Anfangssaldo. Wenn nicht, fehlt eine Buchung oder ein Vorzeichen ist falsch — korrigiere.`;
 
   const userPrompt = `Extrahiere die strukturierten Daten aus diesem Kontoauszug:\n\n${markdown.slice(0, 60000)}`;
 

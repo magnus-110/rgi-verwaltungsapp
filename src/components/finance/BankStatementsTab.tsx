@@ -679,20 +679,35 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                                   {Number(s.opening_balance).toLocaleString("de-DE", { minimumFractionDigits: 2 })} → {Number(s.closing_balance).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
                                 </span>
                               )}
-                              {hasWarn && (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
-                                    </TooltipTrigger>
-                                    <TooltipContent className="max-w-md">
-                                      <ul className="text-xs list-disc pl-4">
-                                        {s.parse_warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
-                                      </ul>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              )}
+                              {hasWarn && (() => {
+                                const isCritical = s.parse_warnings.some((w: string) =>
+                                  /Summenprüfung|Σ Transaktionen/i.test(String(w))
+                                );
+                                return (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        {isCritical ? (
+                                          <Badge variant="destructive" className="text-[10px] h-5 gap-1 cursor-help">
+                                            <AlertCircle className="h-3 w-3" />
+                                            Prüfen!
+                                          </Badge>
+                                        ) : (
+                                          <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
+                                        )}
+                                      </TooltipTrigger>
+                                      <TooltipContent className="max-w-md">
+                                        <p className="text-xs font-semibold mb-1">
+                                          {isCritical ? "Datensätze prüfen — Bank-Summe stimmt nicht!" : "Hinweise zum Import"}
+                                        </p>
+                                        <ul className="text-xs list-disc pl-4">
+                                          {s.parse_warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
+                                        </ul>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                );
+                              })()}
                               {s.file_path ? (
                                 <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => openStatementPdf(s.file_path, s.file_name)}>
                                   <ExternalLink className="h-3 w-3 mr-1" />Öffnen
