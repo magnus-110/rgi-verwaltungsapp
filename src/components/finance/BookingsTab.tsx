@@ -639,6 +639,30 @@ export function BookingsTab({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={!!deleteBooking} onOpenChange={(o) => !o && setDeleteBooking(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Buchung endgültig löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteBooking?.split_parts_total
+                ? `Diese Buchung gehört zu einer Splitgruppe (${deleteBooking.split_parts_total} Teile). Es werden ALLE ${deleteBooking.split_parts_total} Teilbuchungen gelöscht.`
+                : "Die Buchung wird unwiderruflich aus den Büchern entfernt."}
+              {deleteBooking?.bank_transaction_id && " Die zugehörige Bank-Transaktion erscheint wieder im Kontoauszug."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={(e) => { e.preventDefault(); handleDeleteBooking(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Wird gelöscht…" : "Löschen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
