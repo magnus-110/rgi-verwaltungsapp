@@ -28,6 +28,8 @@ import { AccountSearchSelect } from "./AccountSearchSelect";
 import { Section35aEditor } from "./Section35aEditor";
 import { build35aDetailFromSuggestion } from "./build35aDetail";
 import { buildTemplateBookingText } from "./lib/templateBookingText";
+import { buildBookingText } from "./lib/bookingTextBuilder";
+import { BookingTextTemplateCombobox } from "./BookingTextTemplateCombobox";
 import { useMobileSplitView, MobileViewSwitcher, MobileBackToListButton } from "@/components/shared/MobileSplitView";
 import { parseAmount } from "./lib/parseAmount";
 import { getLineItemGross } from "./lib/lineItemAmount";
