@@ -158,7 +158,7 @@ export function TransactionDetailSheet({ transactionId, onClose }: TransactionDe
           </>
 
           {/* Matched Invoice */}
-          {invoice && !editMode && (
+          {invoice && (
             <>
               <Separator />
               <div>
@@ -195,7 +195,7 @@ export function TransactionDetailSheet({ transactionId, onClose }: TransactionDe
           )}
 
           {/* Matched Template */}
-          {template && !editMode && (
+          {template && (
             <>
               <Separator />
               <div>
