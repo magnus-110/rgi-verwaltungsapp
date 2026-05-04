@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Flag, Archive, ArchiveRestore, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2, Link2, Sparkles, Menu, ArrowLeft, Pin, PinOff, Vote } from "lucide-react";
+import { Mail, Search, Flag, Archive, ArchiveRestore, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2, Link2, Sparkles, Menu, ArrowLeft, Pin, PinOff, Vote, CalendarClock, Users } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import { EmailAttachments } from "@/components/email/EmailAttachments";
 import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
 
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
+import { ScheduledMailsPanel } from "@/components/email/ScheduledMailsPanel";
 import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -35,6 +36,7 @@ const folderIcons: Record<string, any> = {
   'archive': Archive,
   'shield-alert': ShieldAlert,
   'trash-2': Trash2,
+  'calendar-clock': CalendarClock,
 };
 
 export const Inbox = () => {
@@ -82,8 +84,11 @@ export const Inbox = () => {
   const isAdmin = profile?.role === 'admin';
   const isMobile = useIsMobile();
 
-  // Fetch folders
-  const { data: folders = [] } = useQuery({
+  // Virtual folder ID for the synthetic "Geplant" entry (scheduled single + bulk mails)
+  const SCHEDULED_FOLDER_ID = "__scheduled__";
+
+  // Fetch folders (auto-refresh every 60s)
+  const { data: dbFolders = [] } = useQuery({
     queryKey: ["email-folders"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -93,7 +98,25 @@ export const Inbox = () => {
       if (error) throw error;
       return data;
     },
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
+
+  // Append a virtual "Geplant" folder for scheduled single mails + scheduled campaigns
+  const folders = useMemo(() => {
+    return [
+      ...dbFolders,
+      {
+        id: SCHEDULED_FOLDER_ID,
+        name: "Geplant",
+        icon: "calendar-clock",
+        sort_order: 999,
+        is_system: true,
+        color: null,
+        created_at: null,
+      } as any,
+    ];
+  }, [dbFolders]);
 
   // Fetch accounts
   const { data: accounts = [] } = useQuery({
@@ -182,8 +205,8 @@ export const Inbox = () => {
     return folder?.name === "Papierkorb";
   }, [selectedFolderId, folders]);
 
-  // Unread counts per folder
-  const { data: folderCounts = {} } = useQuery({
+  // Unread counts per folder (auto-refresh every 30s)
+  const { data: folderCountsRaw = {} } = useQuery({
     queryKey: ["email-folder-counts"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -200,7 +223,68 @@ export const Inbox = () => {
       });
       return counts;
     },
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
+
+  // Scheduled mails (single + bulk campaigns) — populates the virtual "Geplant" folder
+  const { data: scheduledItems = [] } = useQuery({
+    queryKey: ["scheduled-mails-virtual"],
+    queryFn: async () => {
+      const [singleRes, campaignRes] = await Promise.all([
+        supabase
+          .from("scheduled_emails")
+          .select("id, subject, to_addresses, scheduled_at, status, account_id, body_text, body_html, attachments, error_message, created_at")
+          .eq("status", "pending")
+          .order("scheduled_at", { ascending: true }),
+        supabase
+          .from("comm_campaigns")
+          .select("id, name, type, recipient_count, scheduled_at, status, email_account_id, subject_override, error_message, created_at")
+          .eq("status", "scheduled")
+          .order("scheduled_at", { ascending: true }),
+      ]);
+      const single = (singleRes.data || []).map((s: any) => ({
+        id: `single-${s.id}`,
+        kind: "single" as const,
+        ref_id: s.id,
+        subject: s.subject || "(Kein Betreff)",
+        recipients: Array.isArray(s.to_addresses) ? s.to_addresses : [],
+        recipient_count: Array.isArray(s.to_addresses) ? s.to_addresses.length : 0,
+        scheduled_at: s.scheduled_at,
+        account_id: s.account_id,
+        error_message: s.error_message,
+      }));
+      const bulk = (campaignRes.data || []).map((c: any) => ({
+        id: `campaign-${c.id}`,
+        kind: "campaign" as const,
+        ref_id: c.id,
+        subject: c.subject_override || c.name || "(Rundmail)",
+        recipients: [],
+        recipient_count: c.recipient_count || 0,
+        scheduled_at: c.scheduled_at,
+        account_id: c.email_account_id,
+        campaign_type: c.type,
+        error_message: c.error_message,
+      }));
+      return [...single, ...bulk].sort((a, b) => {
+        const ad = a.scheduled_at ? new Date(a.scheduled_at).getTime() : 0;
+        const bd = b.scheduled_at ? new Date(b.scheduled_at).getTime() : 0;
+        return ad - bd;
+      });
+    },
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  });
+
+  // Merge counts: real folders + virtual scheduled folder
+  const folderCounts = useMemo(() => {
+    return {
+      ...(folderCountsRaw as Record<string, number>),
+      [SCHEDULED_FOLDER_ID]: scheduledItems.length,
+    };
+  }, [folderCountsRaw, scheduledItems.length]);
+
+  const isScheduledFolder = selectedFolderId === SCHEDULED_FOLDER_ID;
 
   // Fetch emails for selected folder — slim columns; body wird lazy für Detail geladen
   const { data: emails = [], isLoading: emailsLoading } = useQuery({
@@ -241,6 +325,9 @@ export const Inbox = () => {
       if (error) throw error;
       return data;
     },
+    enabled: !isScheduledFolder,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
 
   // All known categories (always shown). Wartung/Mahnung/Vertrag/Unkategorisiert -> Sonstiges; Newsletter -> Werbung.
@@ -409,6 +496,25 @@ export const Inbox = () => {
       setIsSyncing(false);
     }
   };
+
+  // Periodic silent IMAP sync every 5 minutes (no toast). Triggers right after mount once,
+  // then on a fixed interval — independent of manual refresh button.
+  useEffect(() => {
+    let cancelled = false;
+    const silentSync = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("fetch-emails");
+        if (cancelled || error) return;
+        queryClient.invalidateQueries({ queryKey: ["emails"] });
+        queryClient.invalidateQueries({ queryKey: ["email-accounts"] });
+        queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+      } catch {
+        // silent — periodic background fetch must never spam toasts
+      }
+    };
+    const id = window.setInterval(silentSync, 5 * 60 * 1000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [queryClient]);
 
   const toggleFollowUp = async (emailId: string, currentStarred: boolean) => {
     await supabase.from("emails").update({ is_starred: !currentStarred }).eq("id", emailId);
@@ -751,8 +857,13 @@ export const Inbox = () => {
                 title={folder.name}
               >
                 <Icon className="h-4 w-4" />
-                {count > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 h-3.5 min-w-[14px] rounded-full bg-destructive text-destructive-foreground text-[9px] flex items-center justify-center px-0.5">
+                {count > 0 && folder.name !== "Papierkorb" && (
+                  <span className={cn(
+                    "absolute -top-0.5 -right-0.5 h-3.5 min-w-[14px] rounded-full text-[9px] flex items-center justify-center px-0.5",
+                    folder.id === SCHEDULED_FOLDER_ID
+                      ? "bg-amber-500 text-white"
+                      : "bg-destructive text-destructive-foreground"
+                  )}>
                     {count}
                   </span>
                 )}
@@ -793,8 +904,14 @@ export const Inbox = () => {
                   >
                     <Icon className="h-4 w-4 shrink-0" />
                     <span className="truncate flex-1 text-left">{folder.name}</span>
-                    {count > 0 && (
-                      <Badge variant={isActive ? "secondary" : "default"} className="text-[10px] px-1.5 py-0 h-5 min-w-[20px] justify-center">
+                    {count > 0 && folder.name !== "Papierkorb" && (
+                      <Badge
+                        variant={isActive ? "secondary" : (folder.id === SCHEDULED_FOLDER_ID ? "outline" : "default")}
+                        className={cn(
+                          "text-[10px] px-1.5 py-0 h-5 min-w-[20px] justify-center",
+                          folder.id === SCHEDULED_FOLDER_ID && !isActive && "border-amber-400 text-amber-700 dark:text-amber-300"
+                        )}
+                      >
                         {count}
                       </Badge>
                     )}
@@ -895,6 +1012,18 @@ export const Inbox = () => {
 
       {/* Main content area with tabs spanning full width */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+        {isScheduledFolder ? (
+          <ScheduledMailsPanel
+            items={scheduledItems}
+            accounts={accounts}
+            onChanged={() => {
+              queryClient.invalidateQueries({ queryKey: ["scheduled-mails-virtual"] });
+              queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+            }}
+            onOpenCampaign={(id) => navigate(`/kommunikation?campaign=${id}`)}
+          />
+        ) : (
+        <>
         {/* Category tabs - full width above both panels */}
         <div className="border-b shrink-0 overflow-x-auto overflow-y-hidden">
           <div className="flex min-w-max px-2 py-1 gap-0.5">
@@ -1454,6 +1583,8 @@ export const Inbox = () => {
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
+        </>
+        )}
       </div>
 
 
@@ -1542,8 +1673,14 @@ export const Inbox = () => {
                   >
                     <Icon className="h-5 w-5 shrink-0" />
                     <span className="truncate flex-1 text-left">{folder.name}</span>
-                    {count > 0 && (
-                      <Badge variant={isActive ? "secondary" : "default"} className="text-xs">
+                    {count > 0 && folder.name !== "Papierkorb" && (
+                      <Badge
+                        variant={isActive ? "secondary" : (folder.id === SCHEDULED_FOLDER_ID ? "outline" : "default")}
+                        className={cn(
+                          "text-xs",
+                          folder.id === SCHEDULED_FOLDER_ID && !isActive && "border-amber-400 text-amber-700 dark:text-amber-300"
+                        )}
+                      >
                         {count}
                       </Badge>
                     )}
