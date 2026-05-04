@@ -6801,6 +6801,18 @@ export type Database = {
         Returns: boolean
       }
       user_has_admin_access: { Args: { user_id: string }; Returns: boolean }
+      vendor_memory_upsert: {
+        Args: {
+          p_account_category: string
+          p_account_number: string
+          p_is_35a: boolean
+          p_management_mode: Database["public"]["Enums"]["management_mode"]
+          p_purpose_pattern: string
+          p_vendor_iban: string
+          p_vendor_name_normalized: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "weg_owner" | "tenant" | "employee"
