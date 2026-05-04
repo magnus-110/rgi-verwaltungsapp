@@ -82,8 +82,11 @@ export const Inbox = () => {
   const isAdmin = profile?.role === 'admin';
   const isMobile = useIsMobile();
 
-  // Fetch folders
-  const { data: folders = [] } = useQuery({
+  // Virtual folder ID for the synthetic "Geplant" entry (scheduled single + bulk mails)
+  const SCHEDULED_FOLDER_ID = "__scheduled__";
+
+  // Fetch folders (auto-refresh every 60s)
+  const { data: dbFolders = [] } = useQuery({
     queryKey: ["email-folders"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -93,7 +96,25 @@ export const Inbox = () => {
       if (error) throw error;
       return data;
     },
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
+
+  // Append a virtual "Geplant" folder for scheduled single mails + scheduled campaigns
+  const folders = useMemo(() => {
+    return [
+      ...dbFolders,
+      {
+        id: SCHEDULED_FOLDER_ID,
+        name: "Geplant",
+        icon: "calendar-clock",
+        sort_order: 999,
+        is_system: true,
+        color: null,
+        created_at: null,
+      } as any,
+    ];
+  }, [dbFolders]);
 
   // Fetch accounts
   const { data: accounts = [] } = useQuery({
