@@ -1037,6 +1037,13 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
         buildingId={selectedBuilding}
         initialIndex={reviewInitialIndex}
       />
+
+      <PdfViewerModal
+        isOpen={!!statementPdf}
+        onClose={() => setStatementPdf(null)}
+        documentUrl={statementPdf?.url ?? null}
+        documentName={statementPdf?.name ?? "Kontoauszug"}
+      />
     </div>
   );
 }
