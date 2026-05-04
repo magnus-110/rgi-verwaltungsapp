@@ -97,18 +97,17 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   );
   const { reset: resetAiPrefetch } = aiPrefetchState;
 
-  // Fetch bank statements for IBAN display
+  // Fetch bank statements (full list for IBAN display + downloadable list)
   const { data: bankStatements = [] } = useQuery({
-    queryKey: ["bank-statements-info", selectedBuilding],
+    queryKey: ["bank-statements-list", selectedBuilding],
     queryFn: async () => {
       if (!selectedBuilding) return [];
       const { data, error } = await supabase
         .from("bank_statements")
-        .select("account_iban, account_name")
+        .select("id, account_iban, account_name, file_name, file_path, source_format, statement_date_from, statement_date_to, opening_balance, closing_balance, parse_warnings, created_at")
         .eq("building_id", selectedBuilding)
-        .not("account_iban", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(5);
+        .order("statement_date_to", { ascending: false, nullsFirst: false })
+        .limit(50);
       if (error) throw error;
       return data;
     },
