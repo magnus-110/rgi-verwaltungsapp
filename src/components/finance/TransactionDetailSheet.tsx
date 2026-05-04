@@ -23,11 +23,6 @@ const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: 
 };
 
 export function TransactionDetailSheet({ transactionId, onClose }: TransactionDetailSheetProps) {
-  const queryClient = useQueryClient();
-  const [editMode, setEditMode] = useState(false);
-  const [draft, setDraft] = useState<any>({});
-  const [saving, setSaving] = useState(false);
-
   const { data: txn } = useQuery({
     queryKey: ["bank-transaction-detail", transactionId],
     queryFn: async () => {
@@ -42,20 +37,6 @@ export function TransactionDetailSheet({ transactionId, onClose }: TransactionDe
     },
     enabled: !!transactionId,
   });
-
-  // Reset edit state when sheet closes or txn changes
-  useEffect(() => {
-    setEditMode(false);
-    if (txn) {
-      setDraft({
-        creditor_name: txn.creditor_name ?? "",
-        creditor_iban: txn.creditor_iban ?? "",
-        debtor_name: txn.debtor_name ?? "",
-        debtor_iban: txn.debtor_iban ?? "",
-        purpose: txn.purpose ?? "",
-      });
-    }
-  }, [txn?.id]);
 
   const { data: invoice } = useQuery({
     queryKey: ["matched-invoice", txn?.matched_invoice_id],
@@ -100,41 +81,6 @@ export function TransactionDetailSheet({ transactionId, onClose }: TransactionDe
       return;
     }
     window.open(data.signedUrl, "_blank");
-  };
-
-  const handleSave = async () => {
-    if (!transactionId) return;
-    setSaving(true);
-    const isDebit = (txn?.amount ?? 0) < 0;
-    // Bei Lastschrift: Empfänger-Felder; bei Eingang: Auftraggeber-Felder
-    const payload: any = {
-      purpose: draft.purpose?.trim() || null,
-    };
-    if (isDebit) {
-      payload.creditor_name = draft.creditor_name?.trim() || null;
-      payload.creditor_iban = draft.creditor_iban?.trim().toUpperCase().replace(/\s+/g, "") || null;
-      payload.debtor_name = null;
-      payload.debtor_iban = null;
-    } else {
-      payload.debtor_name = draft.debtor_name?.trim() || null;
-      payload.debtor_iban = draft.debtor_iban?.trim().toUpperCase().replace(/\s+/g, "") || null;
-      payload.creditor_name = null;
-      payload.creditor_iban = null;
-    }
-    const { error } = await supabase
-      .from("bank_transactions")
-      .update(payload)
-      .eq("id", transactionId);
-    setSaving(false);
-    if (error) {
-      toast.error("Speichern fehlgeschlagen: " + error.message);
-      return;
-    }
-    toast.success("Buchung aktualisiert");
-    setEditMode(false);
-    queryClient.invalidateQueries({ queryKey: ["bank-transaction-detail", transactionId] });
-    queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
-    queryClient.invalidateQueries({ queryKey: ["bank-statement-transactions"] });
   };
 
   if (!txn) return null;
