@@ -6,6 +6,8 @@ export interface SuggestMatchContext {
   accounts: any[];
   billingPeriods: any[];
   bookingInstructions: string | null;
+  buildingId: string;
+  managementMode: string | null;
 }
 
 /**
@@ -31,7 +33,7 @@ export async function loadSuggestMatchContext(buildingId: string): Promise<Sugge
       .select("id, account_number, account_name, category, is_35a_relevant, default_distribution_key, is_billing_relevant, settlement_section")
       .or(`building_id.is.null,building_id.eq.${buildingId}`),
     supabase.from("buildings")
-      .select("booking_instructions")
+      .select("booking_instructions, management_mode")
       .eq("id", buildingId)
       .single(),
   ]);
@@ -57,6 +59,8 @@ export async function loadSuggestMatchContext(buildingId: string): Promise<Sugge
       fiscal_year: bp.fiscal_year, period_from: bp.period_from, period_to: bp.period_to,
     })),
     bookingInstructions: (buildingData as any)?.booking_instructions || null,
+    buildingId,
+    managementMode: (buildingData as any)?.management_mode || null,
   };
 }
 
@@ -124,6 +128,8 @@ export function buildSuggestMatchPayload(
     billingPeriods: ctx.billingPeriods,
     accounts: ctx.accounts,
     bookingInstructions: ctx.bookingInstructions,
+    buildingId: ctx.buildingId,
+    managementMode: ctx.managementMode,
   };
 }
 
