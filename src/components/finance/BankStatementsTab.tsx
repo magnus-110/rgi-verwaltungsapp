@@ -22,6 +22,7 @@ import { TransactionDetailSheet } from "./TransactionDetailSheet";
 import { CreateBookingDialog } from "./CreateBookingDialog";
 import { TransactionReviewMode } from "./TransactionReviewMode";
 import { useTransactionAiPrefetch } from "@/hooks/useTransactionAiPrefetch";
+import { PdfViewerModal } from "@/components/documents/PdfViewerModal";
 const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   matched_invoice: { label: "Rechnung", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", icon: CheckCircle2 },
   matched_template: { label: "Vorlage", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", icon: LayoutTemplate },
@@ -51,6 +52,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   };
   const [showBooked, setShowBooked] = useState(false);
   const [statementsExpanded, setStatementsExpanded] = useState(false);
+  const [statementPdf, setStatementPdf] = useState<{ url: string; name: string } | null>(null);
   const [showIgnored, setShowIgnored] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null);
   const [manualAssignTxn, setManualAssignTxn] = useState<any | null>(null);
@@ -479,7 +481,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     setReviewModeOpen(true);
   };
 
-  const openStatementPdf = async (filePath: string | null) => {
+  const openStatementPdf = async (filePath: string | null, fileName?: string) => {
     if (!filePath) {
       toast.error("Originaldatei nicht verfügbar");
       return;
@@ -489,7 +491,20 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       toast.error("Datei konnte nicht geöffnet werden");
       return;
     }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    const isPdf = filePath.toLowerCase().endsWith(".pdf");
+    if (isPdf) {
+      setStatementPdf({ url: data.signedUrl, name: fileName || "Kontoauszug" });
+    } else {
+      // Non-PDF (CAMT XML etc.) → download via anchor (avoids popup blocker)
+      const a = document.createElement("a");
+      a.href = data.signedUrl;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.download = fileName || "";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
   };
 
   const renderTransactionRow = (txn: any) => {
@@ -680,7 +695,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                                 </TooltipProvider>
                               )}
                               {s.file_path ? (
-                                <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => openStatementPdf(s.file_path)}>
+                                <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => openStatementPdf(s.file_path, s.file_name)}>
                                   <ExternalLink className="h-3 w-3 mr-1" />Öffnen
                                 </Button>
                               ) : (
@@ -1021,6 +1036,13 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
         transactions={allUnbookedForReview}
         buildingId={selectedBuilding}
         initialIndex={reviewInitialIndex}
+      />
+
+      <PdfViewerModal
+        isOpen={!!statementPdf}
+        onClose={() => setStatementPdf(null)}
+        documentUrl={statementPdf?.url ?? null}
+        documentName={statementPdf?.name ?? "Kontoauszug"}
       />
     </div>
   );
