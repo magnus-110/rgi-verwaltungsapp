@@ -906,7 +906,50 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         } as any).select("id").single();
         if (error) throw error;
         booking = data;
-      }
+
+        // Phase 6: Feedback-Loop — capture how the user used (or corrected) the AI suggestion.
+        try {
+          const aiSug = currentTxn.ai_suggestion;
+          const aiSb = aiSug?.booking_hint?.suggested_bookings?.[partIndex - 1]
+            || aiSug?.booking_hint?.suggested_bookings?.[0];
+          if (aiSug && aiSb) {
+            const aiCounterAccId = (() => {
+              if (aiSb.counter_account_id) return aiSb.counter_account_id;
+              const num = aiSb.counter_account_number || aiSb.account_number;
+              if (num) return accounts.find(a => a.account_number === num)?.id ?? null;
+              return null;
+            })();
+            const aiAccountId = aiSb.account_id ?? null;
+            const aiBookingType = aiSb.booking_type ?? null;
+            const accepted =
+              (aiAccountId == null || aiAccountId === row.account_id) &&
+              (aiCounterAccId == null || aiCounterAccId === row.counter_account_id) &&
+              (aiBookingType == null || aiBookingType === row.booking_type);
+
+            const ragRefs: string[] = [
+              ...(Array.isArray(aiSb.rag_references) ? aiSb.rag_references : []),
+              ...((aiSug.matches || []).map((m: any) => m.id).filter(Boolean)),
+            ];
+
+            await supabase.from("ai_booking_feedback").insert({
+              bank_transaction_id: currentTxn.id,
+              building_id: buildingId,
+              management_mode: (currentTxn as any)?.management_mode ?? null,
+              ai_suggested_account_id: aiAccountId,
+              ai_suggested_counter_account_id: aiCounterAccId,
+              ai_suggested_booking_type: aiBookingType,
+              ai_confidence_score: typeof aiSb.confidence === "number" ? aiSb.confidence : null,
+              user_accepted: accepted,
+              user_corrected_account_id: accepted ? null : row.account_id,
+              user_corrected_counter_account_id: accepted ? null : (row.counter_account_id || null),
+              user_corrected_booking_type: accepted ? null : row.booking_type,
+              rag_example_ids: ragRefs.length ? ragRefs : null,
+              created_by: user.id,
+            } as any);
+          }
+        } catch (fbErr) {
+          console.warn("[ai_booking_feedback] insert failed (non-blocking)", fbErr);
+        }
 
       // Update path: row already booked → only update DB record, keep state green, don't advance
       if (isUpdate) {
