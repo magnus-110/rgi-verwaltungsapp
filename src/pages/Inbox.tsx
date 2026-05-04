@@ -496,6 +496,25 @@ export const Inbox = () => {
     }
   };
 
+  // Periodic silent IMAP sync every 5 minutes (no toast). Triggers right after mount once,
+  // then on a fixed interval — independent of manual refresh button.
+  useEffect(() => {
+    let cancelled = false;
+    const silentSync = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("fetch-emails");
+        if (cancelled || error) return;
+        queryClient.invalidateQueries({ queryKey: ["emails"] });
+        queryClient.invalidateQueries({ queryKey: ["email-accounts"] });
+        queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+      } catch {
+        // silent — periodic background fetch must never spam toasts
+      }
+    };
+    const id = window.setInterval(silentSync, 5 * 60 * 1000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [queryClient]);
+
   const toggleFollowUp = async (emailId: string, currentStarred: boolean) => {
     await supabase.from("emails").update({ is_starred: !currentStarred }).eq("id", emailId);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
