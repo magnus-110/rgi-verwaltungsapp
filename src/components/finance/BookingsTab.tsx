@@ -73,6 +73,8 @@ export function BookingsTab({
   const [showAllAccounts, setShowAllAccounts] = useState(false);
   const [undoBooking, setUndoBooking] = useState<any>(null);
   const [undoing, setUndoing] = useState(false);
+  const [deleteBooking, setDeleteBooking] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const handleUndoBooking = async () => {
     if (!undoBooking) return;
