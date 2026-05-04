@@ -262,18 +262,53 @@ function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAc
   const firstDay = new Date(year, month - 1, 1);
   const lastDay = new Date(year, month, 0);
   const prevDay = new Date(year, month - 1, 0); // last day of previous month
-  const fmtDate = (d: Date) => d.toISOString().slice(0, 10);
+  // local-date formatter (avoid UTC shift from toISOString())
+  const fmtDate = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
+  // Anfangssaldo = Saldo am Vortag + Eröffnungsbuchungen (gegen Konto 4000)
+  // am 1. Tag des Monats. Damit zählt die Anfangsbestand-Buchung vom 01.01.
+  // korrekt zum Januar-Anfangssaldo.
   const { data: openingBook } = useQuery({
-    queryKey: ["recon-balance", bankAccountId, buildingId, fmtDate(prevDay)],
+    queryKey: ["recon-opening-balance", bankAccountId, buildingId, fmtDate(firstDay)],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("calculate_account_balance_at", {
+      // 1) Saldo zum Vortag
+      const { data: prevBal, error: prevErr } = await supabase.rpc("calculate_account_balance_at", {
         p_account_id: bankAccountId,
         p_building_id: buildingId,
         p_date: fmtDate(prevDay),
       });
-      if (error) throw error;
-      return Number(data ?? 0);
+      if (prevErr) throw prevErr;
+
+      // 2) Eröffnungs-Konto 4000 ermitteln (global)
+      const { data: openingAcc } = await supabase
+        .from("chart_of_accounts")
+        .select("id")
+        .eq("account_number", "4000")
+        .is("building_id", null)
+        .maybeSingle();
+
+      let openingDelta = 0;
+      if (openingAcc?.id) {
+        const { data: openingBookings, error: obErr } = await supabase
+          .from("bookings")
+          .select("amount, account_id, counter_account_id")
+          .eq("building_id", buildingId)
+          .eq("booking_date", fmtDate(firstDay))
+          .neq("status", "cancelled")
+          .or(`account_id.eq.${bankAccountId},counter_account_id.eq.${bankAccountId}`);
+        if (obErr) throw obErr;
+        for (const b of openingBookings ?? []) {
+          const touchesOpening =
+            b.account_id === openingAcc.id || b.counter_account_id === openingAcc.id;
+          if (!touchesOpening) continue;
+          const amt = Number(b.amount) || 0;
+          if (b.account_id === bankAccountId) openingDelta += amt;
+          else if (b.counter_account_id === bankAccountId) openingDelta -= amt;
+        }
+      }
+
+      return Number(prevBal ?? 0) + openingDelta;
     },
   });
 
@@ -369,6 +404,15 @@ function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAc
                 {openingDiff != null && Math.abs(openingDiff) < 0.01 && <CheckCircle2 className="h-3 w-3 text-green-600" />}
               </span>
             </div>
+            {openingDiff != null && Math.abs(openingDiff) >= 0.01 && (
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Differenz Anfangssaldo:</span>
+                <span className="font-mono flex items-center gap-2 text-destructive">
+                  {`${openingDiff >= 0 ? "+" : ""}${openingDiff.toFixed(2)} €`}
+                  <AlertTriangle className="h-3 w-3" />
+                </span>
+              </div>
+            )}
             <div className="flex justify-between text-sm">
               <span>Endsaldo lt. Buchhaltung:</span>
               <span className="font-mono">{fmtEur(closingBook)}</span>
