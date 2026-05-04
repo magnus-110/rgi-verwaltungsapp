@@ -551,7 +551,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                 </Button>
               )}
 
-              <input ref={fileInputRef} type="file" accept=".xml" multiple className="hidden" onChange={handleFileUpload} />
+              <input ref={fileInputRef} type="file" accept=".xml,.pdf" multiple className="hidden" onChange={handleFileUpload} />
               <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
                 {uploading ? (
                   <>
