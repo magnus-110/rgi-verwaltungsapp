@@ -98,22 +98,33 @@ export function BookingTextTemplateCombobox({
   return (
     <Popover open={open && suggestions.length > 0} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Input
-          ref={inputRef}
-          value={value}
-          onChange={e => {
-            setValue(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => {
-            setOpen(true);
-            setHighlightedIndex(-1);
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder="Vorlage…"
-          title="1–4 = Quartal, 01–12 = Monat, 000 = Jahresrechnung"
-          className={className ?? "h-9 text-sm font-mono"}
-        />
+        <div className="relative">
+          <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold uppercase tracking-wider text-primary/70">
+            #
+          </span>
+          <Input
+            ref={inputRef}
+            value={value}
+            onChange={e => {
+              setValue(e.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => {
+              setOpen(true);
+              setHighlightedIndex(-1);
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder="Kürzel"
+            title="1–4 = Quartal, 01–12 = Monat, 000 = Jahresrechnung"
+            className={
+              className ??
+              "h-9 pl-6 pr-6 text-sm font-mono bg-accent/40 border-2 border-primary/30 focus-visible:border-primary focus-visible:ring-primary/30 rounded-md shadow-sm"
+            }
+          />
+          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y:1/2 -translate-y-1/2 text-muted-foreground text-xs">
+            ▾
+          </span>
+        </div>
       </PopoverTrigger>
       <PopoverContent
         className="p-1 w-64"
