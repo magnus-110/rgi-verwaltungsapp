@@ -1,0 +1,169 @@
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { CalendarClock, Mail, Users, Trash2, ExternalLink, AlertTriangle, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+export interface ScheduledItem {
+  id: string;
+  kind: "single" | "campaign";
+  ref_id: string;
+  subject: string;
+  recipients: string[];
+  recipient_count: number;
+  scheduled_at: string | null;
+  account_id: string | null;
+  campaign_type?: string;
+  error_message?: string | null;
+}
+
+interface Props {
+  items: ScheduledItem[];
+  accounts: Array<{ id: string; email_address?: string; display_name?: string | null }>;
+  onChanged: () => void;
+  onOpenCampaign: (id: string) => void;
+}
+
+export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign }: Props) {
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
+
+  const accountLabel = (id: string | null) => {
+    if (!id) return "—";
+    const a = accounts.find((x) => x.id === id);
+    return a?.display_name || a?.email_address || "—";
+  };
+
+  const cancel = async (item: ScheduledItem) => {
+    if (!confirm(`"${item.subject}" wirklich abbrechen?`)) return;
+    setCancelingId(item.id);
+    try {
+      if (item.kind === "single") {
+        const { error } = await supabase
+          .from("scheduled_emails")
+          .update({ status: "cancelled" })
+          .eq("id", item.ref_id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("comm_campaigns")
+          .update({ status: "draft", scheduled_at: null })
+          .eq("id", item.ref_id);
+        if (error) throw error;
+      }
+      toast.success("Geplanter Versand abgebrochen");
+      onChanged();
+    } catch (e: any) {
+      toast.error("Abbrechen fehlgeschlagen: " + (e.message || ""));
+    } finally {
+      setCancelingId(null);
+    }
+  };
+
+  const fmt = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }) : "—";
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0">
+      <div className="border-b px-4 py-3 flex items-center gap-2 shrink-0">
+        <CalendarClock className="h-5 w-5 text-amber-600" />
+        <h2 className="font-semibold">Geplante E-Mails</h2>
+        <Badge variant="outline" className="ml-2 border-amber-400 text-amber-700 dark:text-amber-300">
+          {items.length}
+        </Badge>
+      </div>
+
+      <ScrollArea className="flex-1">
+        {items.length === 0 ? (
+          <div className="p-12 text-center">
+            <CalendarClock className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
+            <p className="text-sm text-muted-foreground">Keine geplanten E-Mails</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Geplante Einzel- und Rundmails erscheinen hier bis zum Versand.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y">
+            {items.map((item) => (
+              <div key={item.id} className="p-4 hover:bg-muted/30 transition-colors">
+                <div className="flex items-start gap-3">
+                  <div className={cn(
+                    "h-9 w-9 rounded-full flex items-center justify-center shrink-0",
+                    item.kind === "campaign"
+                      ? "bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300"
+                      : "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                  )}>
+                    {item.kind === "campaign" ? <Users className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium truncate">{item.subject}</span>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {item.kind === "campaign" ? `Rundmail (${item.campaign_type || "email"})` : "Einzelmail"}
+                      </Badge>
+                    </div>
+
+                    <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <CalendarClock className="h-3 w-3" />
+                        <span>{fmt(item.scheduled_at)}</span>
+                      </div>
+                      <div>
+                        Von: <span className="text-foreground">{accountLabel(item.account_id)}</span>
+                        {" · "}
+                        Empfänger:{" "}
+                        <span className="text-foreground">
+                          {item.kind === "campaign"
+                            ? `${item.recipient_count} Kontakte`
+                            : item.recipients.slice(0, 3).join(", ") +
+                              (item.recipients.length > 3 ? ` +${item.recipients.length - 3}` : "")}
+                        </span>
+                      </div>
+                      {item.error_message && (
+                        <div className="flex items-start gap-1 text-destructive mt-1">
+                          <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                          <span>{item.error_message}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    {item.kind === "campaign" && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => onOpenCampaign(item.ref_id)}
+                        title="In Kommunikation öffnen"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:text-destructive"
+                      disabled={cancelingId === item.id}
+                      onClick={() => cancel(item)}
+                      title="Versand abbrechen"
+                    >
+                      {cancelingId === item.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </ScrollArea>
+    </div>
+  );
+}
