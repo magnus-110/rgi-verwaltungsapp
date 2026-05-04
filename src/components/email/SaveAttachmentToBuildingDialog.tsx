@@ -34,6 +34,10 @@ export function SaveAttachmentToBuildingDialog({
   const [buildings, setBuildings] = useState<{ id: string; name: string; management_mode: string }[]>([]);
   const [categories, setCategories] = useState<DocCategory[]>([]);
   const [saving, setSaving] = useState(false);
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [newFolderParentId, setNewFolderParentId] = useState<string>("__root__");
+  const [savingFolder, setSavingFolder] = useState(false);
 
   useEffect(() => {
     if (open) {
