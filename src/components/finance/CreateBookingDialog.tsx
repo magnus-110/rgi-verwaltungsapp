@@ -343,6 +343,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstext</label>
               <div className="grid grid-cols-[90px_1fr] gap-2">
                 <BookingTextTemplateCombobox
+                  inputRef={(el) => { if (el) el.setAttribute("data-booking-shortcut", "true"); }}
                   fiscalYear={form.fiscal_year}
                   invoice={null}
                   counterAccountName={accounts.find((a: any) => a.id === form.counter_account_id)?.account_name || null}
