@@ -205,13 +205,58 @@ export function SaveAttachmentToBuildingDialog({
             </Select>
           </div>
           <div>
-            <Label>Ordner</Label>
+            <div className="flex items-center justify-between mb-1">
+              <Label>Ordner</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={!buildingId}
+                onClick={() => {
+                  setNewFolderParentId(categoryId || "__root__");
+                  setCreatingFolder(v => !v);
+                }}
+                className="h-7 px-2 text-xs gap-1"
+              >
+                <FolderPlus className="h-3.5 w-3.5" />
+                {creatingFolder ? "Abbrechen" : "Neuer Ordner"}
+              </Button>
+            </div>
             <Select value={categoryId} onValueChange={setCategoryId} disabled={!buildingId}>
               <SelectTrigger><SelectValue placeholder="Ordner wählen" /></SelectTrigger>
               <SelectContent>
                 {flatCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
+            {creatingFolder && (
+              <div className="mt-2 p-3 border rounded-md bg-muted/30 space-y-2">
+                <div>
+                  <Label className="text-xs">Übergeordneter Ordner</Label>
+                  <Select value={newFolderParentId} onValueChange={setNewFolderParentId}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__root__">— Hauptebene —</SelectItem>
+                      {flatCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Name</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      placeholder="z.B. Rechnungen 2026"
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createFolder(); } }}
+                      autoFocus
+                    />
+                    <Button onClick={createFolder} disabled={savingFolder || !newFolderName.trim()}>
+                      {savingFolder ? <Loader2 className="h-4 w-4 animate-spin" /> : "Anlegen"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           <div>
             <Label>Sichtbarkeit</Label>
