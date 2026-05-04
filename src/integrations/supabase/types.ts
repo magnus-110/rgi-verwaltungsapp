@@ -6562,13 +6562,25 @@ export type Database = {
         Args: { building_id_param: string; user_id_param: string }
         Returns: undefined
       }
+      book_split_transaction: {
+        Args: { p_bank_transaction_id: string; p_bookings: Json }
+        Returns: Json
+      }
       calculate_account_balance_at: {
         Args: { p_account_id: string; p_building_id: string; p_date: string }
         Returns: number
       }
+      cleanup_orphan_split_bookings: {
+        Args: { p_bank_transaction_id: string }
+        Returns: Json
+      }
       count_building_managers: {
         Args: { building_id_param: string }
         Returns: number
+      }
+      delete_booking_with_cleanup: {
+        Args: { p_booking_id: string }
+        Returns: Json
       }
       ensure_stammakte_categories: {
         Args: { p_building_id: string }

@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, LayoutTemplate, Flag, Plus, List, LayoutGrid, Eye, EyeOff, RotateCcw } from "lucide-react";
+import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, LayoutTemplate, Flag, Plus, List, LayoutGrid, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { AccountPlanView } from "./AccountPlanView";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -73,6 +73,8 @@ export function BookingsTab({
   const [showAllAccounts, setShowAllAccounts] = useState(false);
   const [undoBooking, setUndoBooking] = useState<any>(null);
   const [undoing, setUndoing] = useState(false);
+  const [deleteBooking, setDeleteBooking] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const handleUndoBooking = async () => {
     if (!undoBooking) return;
@@ -100,6 +102,34 @@ export function BookingsTab({
       toast.error("Fehler: " + (err.message || "Unbekannt"));
     } finally {
       setUndoing(false);
+    }
+  };
+
+  const handleDeleteBooking = async () => {
+    if (!deleteBooking) return;
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.rpc(
+        "delete_booking_with_cleanup",
+        { p_booking_id: deleteBooking.id },
+      );
+      if (error) throw error;
+      const count = (data as any)?.deleted ?? 1;
+      const hadTxn = !!(data as any)?.bank_transaction_id;
+      toast.success(
+        count > 1
+          ? `${count} Buchungen gelöscht (Splitgruppe)${hadTxn ? " – Transaktion wieder offen" : ""}`
+          : `Buchung gelöscht${hadTxn ? " – Transaktion wieder offen" : ""}`,
+      );
+      setDeleteBooking(null);
+      queryClient.invalidateQueries({ predicate: (q) => {
+        const k = q.queryKey[0] as string;
+        return typeof k === "string" && (k.startsWith("bookings") || k.startsWith("bank-transactions"));
+      }});
+    } catch (err: any) {
+      toast.error("Fehler beim Löschen: " + (err.message || "Unbekannt"));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -333,6 +363,21 @@ export function BookingsTab({
                 </Tooltip>
               </TooltipProvider>
             )}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-5 w-5 p-0"
+                    onClick={(e) => { e.stopPropagation(); setDeleteBooking(b); }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">Buchung löschen{b.split_parts_total ? " (gesamte Splitgruppe)" : ""}</p></TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </TableCell>
       </TableRow>
@@ -590,6 +635,30 @@ export function BookingsTab({
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {undoing ? "Wird rückgängig gemacht…" : "Rückgängig machen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteBooking} onOpenChange={(o) => !o && setDeleteBooking(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Buchung endgültig löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteBooking?.split_parts_total
+                ? `Diese Buchung gehört zu einer Splitgruppe (${deleteBooking.split_parts_total} Teile). Es werden ALLE ${deleteBooking.split_parts_total} Teilbuchungen gelöscht.`
+                : "Die Buchung wird unwiderruflich aus den Büchern entfernt."}
+              {deleteBooking?.bank_transaction_id && " Die zugehörige Bank-Transaktion erscheint wieder im Kontoauszug."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={(e) => { e.preventDefault(); handleDeleteBooking(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Wird gelöscht…" : "Löschen"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
