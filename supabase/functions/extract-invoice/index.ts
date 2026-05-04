@@ -9,7 +9,31 @@ const corsHeaders = {
 };
 
 function normalizeForMatch(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9äöüß]/g, " ").replace(/\s+/g, " ").trim();
+  let n = s.toLowerCase();
+  // Normalize street abbreviations: "straße"/"strasse"/"str." -> "str"
+  n = n.replace(/straße|strasse/g, "str");
+  // Replace any non-alphanumeric (incl. \n, dots, commas, backslashes) with space
+  n = n.replace(/[^a-z0-9äöüß]/g, " ");
+  // Collapse whitespace
+  n = n.replace(/\s+/g, " ").trim();
+  // Glue "<word> str <number>" -> "<word>str <number>" so "tiroler str 142" matches "tirolerstr 142"
+  // We keep BOTH variants for matching by also producing a glued version below.
+  return n;
+}
+
+// Produce a glued variant where "<letters> str <num>" becomes "<letters>str <num>"
+function glueStreetVariant(n: string): string {
+  return n.replace(/([a-zäöüß]+)\s+str(\s+\d)/g, "$1str$2");
+}
+
+// Produce a split variant where "<letters>str <num>" becomes "<letters> str <num>"
+function splitStreetVariant(n: string): string {
+  return n.replace(/([a-zäöüß]+)str(\s+\d)/g, "$1 str$2");
+}
+
+function variants(n: string): string[] {
+  const set = new Set<string>([n, glueStreetVariant(n), splitStreetVariant(n)]);
+  return Array.from(set);
 }
 
 function findBestBuildingMatch(
@@ -17,36 +41,36 @@ function findBestBuildingMatch(
   buildings: { id: string; name: string; address: string }[]
 ): string | null {
   if (!recipientAddress) return null;
-  const normalized = normalizeForMatch(recipientAddress);
-  
+  const recipientVariants = variants(normalizeForMatch(recipientAddress));
+
   let bestMatch: string | null = null;
   let bestLength = 0;
+
+  const tryMatch = (needle: string, weight: number, id: string) => {
+    if (needle.length <= 3) return;
+    for (const hay of recipientVariants) {
+      if (hay.includes(needle)) {
+        const len = needle.length + weight;
+        if (len > bestLength) {
+          bestLength = len;
+          bestMatch = id;
+        }
+        return;
+      }
+    }
+  };
 
   for (const b of buildings) {
     const addressNorm = normalizeForMatch(b.address);
     const nameNorm = normalizeForMatch(b.name);
-    
-    if (addressNorm.length > 3 && normalized.includes(addressNorm)) {
-      if (addressNorm.length > bestLength) {
-        bestLength = addressNorm.length;
-        bestMatch = b.id;
-      }
-    }
-    
-    if (nameNorm.length > 3 && normalized.includes(nameNorm)) {
-      if (nameNorm.length > bestLength) {
-        bestLength = nameNorm.length;
-        bestMatch = b.id;
-      }
-    }
-    
-    const streetPattern = normalized.match(/([a-zäöüß]+(?:str|straße|weg|platz|allee|gasse|ring|damm)[a-zäöüß]*\s*\d+)/);
-    if (streetPattern && addressNorm.includes(streetPattern[1])) {
-      const matchLen = streetPattern[1].length + 10;
-      if (matchLen > bestLength) {
-        bestLength = matchLen;
-        bestMatch = b.id;
-      }
+
+    for (const v of variants(addressNorm)) tryMatch(v, 0, b.id);
+    for (const v of variants(nameNorm)) tryMatch(v, 0, b.id);
+
+    // Fallback: extract "<street> <number>" from building address and search in recipient
+    const m = addressNorm.match(/([a-zäöüß]+(?:str|weg|platz|allee|gasse|ring|damm)\s*\d+[a-z]?)/);
+    if (m) {
+      for (const v of variants(m[1])) tryMatch(v, 5, b.id);
     }
   }
 
