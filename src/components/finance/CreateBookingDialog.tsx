@@ -122,6 +122,26 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     enabled: open,
   });
 
+  // Fetch bookings touching selected account in selected fiscal year to show current balance
+  const { data: accountBalanceData } = useQuery({
+    queryKey: ["account-balance-current", form.building_id, form.account_id, form.fiscal_year],
+    queryFn: async () => {
+      if (!form.building_id || !form.account_id || !form.fiscal_year) return null;
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("account_id, counter_account_id, amount, booking_type")
+        .eq("building_id", form.building_id)
+        .eq("fiscal_year", parseInt(form.fiscal_year))
+        .or(`account_id.eq.${form.account_id},counter_account_id.eq.${form.account_id}`);
+      if (error) throw error;
+      return signedTotalForAccount(form.account_id, (data || []) as any);
+    },
+    enabled: open && !!form.building_id && !!form.account_id && !!form.fiscal_year,
+  });
+
+  const selectedAccountObj = accounts.find((a: any) => a.id === form.account_id);
+
+
   const computedVat = useMemo(() => {
     const amt = parseFloat(form.amount) || 0;
     const rate = parseFloat(form.vat_rate) || 0;
