@@ -484,7 +484,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
               )
             : null as any,
           fiscal_year: fiscalYear,
-          invoice_id: null,
+          invoice_id: (invoiceDetail as any)?.id || currentTxn?.matched_invoice_id || null,
           matched_template_id: sb.template_id || null,
           booked: false,
           needs_review: false,
