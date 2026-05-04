@@ -265,6 +265,8 @@ async function syncReconciliation(
     bank_source: source, source_statement_id: statementId, status: "open",
   }, { onConflict: "building_id,bank_account_id,period_year,period_month" });
 }
+
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
