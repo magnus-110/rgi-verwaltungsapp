@@ -101,7 +101,7 @@ const formatMonthYearRef = (dateStr: string | null | undefined): string => {
 };
 
 const FIELD_ORDER = [
-  "account_id", "amount", "counter_account_id", "description",
+  "account_id", "amount", "counter_account_id", "description_shortcut", "description",
   "booking_reference", "booking_date", "fiscal_year", "vat_rate", "__book__"
 ];
 
