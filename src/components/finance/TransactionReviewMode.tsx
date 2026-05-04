@@ -2273,7 +2273,7 @@ function BookingRowCard({
                 placeholder="Gegenkonto suchen…"
                 showCreateOption
                 onCreateClick={() => { setCreateAccountTarget("counter_account_id"); setCreateAccountOpen(true); }}
-                onCommit={() => focusFieldByName("description")}
+                onCommit={() => focusFieldByName("description_shortcut")}
               />
             </div>
 
@@ -2282,11 +2282,13 @@ function BookingRowCard({
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstext</label>
               <div className="grid grid-cols-[90px_1fr] gap-2">
                 <BookingTextTemplateCombobox
+                  inputRef={(el) => { fieldRefs.current["description_shortcut"] = el; }}
                   fiscalYear={row.fiscal_year}
                   invoice={invoiceDetail ? { invoice_number: (invoiceDetail as any).invoice_number, vendor_name: (invoiceDetail as any).vendor_name } : null}
                   counterAccountName={accounts.find((a: any) => a.id === row.counter_account_id)?.account_name || null}
                   onApply={(text) => onUpdateField("description", text)}
                   onCommit={() => focusFieldByName("description")}
+                  onSkip={() => focusFieldByName("description")}
                 />
                 <Input ref={el => fieldRefs.current["description"] = el} className="h-9 text-sm"
                   value={row.description} onChange={e => onUpdateField("description", e.target.value)}
