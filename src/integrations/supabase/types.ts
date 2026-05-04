@@ -65,6 +65,79 @@ export type Database = {
           },
         ]
       }
+      ai_booking_feedback: {
+        Row: {
+          ai_confidence_score: number | null
+          ai_suggested_account_id: string | null
+          ai_suggested_booking_type: string | null
+          ai_suggested_counter_account_id: string | null
+          bank_transaction_id: string | null
+          building_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          management_mode: Database["public"]["Enums"]["management_mode"] | null
+          rag_example_ids: string[] | null
+          user_accepted: boolean | null
+          user_corrected_account_id: string | null
+          user_corrected_booking_type: string | null
+          user_corrected_counter_account_id: string | null
+        }
+        Insert: {
+          ai_confidence_score?: number | null
+          ai_suggested_account_id?: string | null
+          ai_suggested_booking_type?: string | null
+          ai_suggested_counter_account_id?: string | null
+          bank_transaction_id?: string | null
+          building_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          management_mode?:
+            | Database["public"]["Enums"]["management_mode"]
+            | null
+          rag_example_ids?: string[] | null
+          user_accepted?: boolean | null
+          user_corrected_account_id?: string | null
+          user_corrected_booking_type?: string | null
+          user_corrected_counter_account_id?: string | null
+        }
+        Update: {
+          ai_confidence_score?: number | null
+          ai_suggested_account_id?: string | null
+          ai_suggested_booking_type?: string | null
+          ai_suggested_counter_account_id?: string | null
+          bank_transaction_id?: string | null
+          building_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          management_mode?:
+            | Database["public"]["Enums"]["management_mode"]
+            | null
+          rag_example_ids?: string[] | null
+          user_accepted?: boolean | null
+          user_corrected_account_id?: string | null
+          user_corrected_booking_type?: string | null
+          user_corrected_counter_account_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_booking_feedback_bank_transaction_id_fkey"
+            columns: ["bank_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_booking_feedback_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_reconciliations: {
         Row: {
           bank_account_id: string
@@ -406,6 +479,84 @@ export type Database = {
             columns: ["billing_period_id"]
             isOneToOne: false
             referencedRelation: "billing_periods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_embeddings: {
+        Row: {
+          account_name: string | null
+          account_number: string | null
+          amount: number | null
+          booking_description: string | null
+          booking_id: string
+          booking_type: string | null
+          building_id: string | null
+          counter_account_name: string | null
+          counter_account_number: string | null
+          creditor_name: string | null
+          embedded_at: string
+          embedding: string
+          id: string
+          input_text: string
+          is_35a_relevant: boolean | null
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          purpose_text: string | null
+          source: string
+        }
+        Insert: {
+          account_name?: string | null
+          account_number?: string | null
+          amount?: number | null
+          booking_description?: string | null
+          booking_id: string
+          booking_type?: string | null
+          building_id?: string | null
+          counter_account_name?: string | null
+          counter_account_number?: string | null
+          creditor_name?: string | null
+          embedded_at?: string
+          embedding: string
+          id?: string
+          input_text: string
+          is_35a_relevant?: boolean | null
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          purpose_text?: string | null
+          source?: string
+        }
+        Update: {
+          account_name?: string | null
+          account_number?: string | null
+          amount?: number | null
+          booking_description?: string | null
+          booking_id?: string
+          booking_type?: string | null
+          building_id?: string | null
+          counter_account_name?: string | null
+          counter_account_number?: string | null
+          creditor_name?: string | null
+          embedded_at?: string
+          embedding?: string
+          id?: string
+          input_text?: string
+          is_35a_relevant?: boolean | null
+          management_mode?: Database["public"]["Enums"]["management_mode"]
+          purpose_text?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_embeddings_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_embeddings_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
         ]
@@ -6190,6 +6341,48 @@ export type Database = {
           },
         ]
       }
+      vendor_memory: {
+        Row: {
+          account_category: string | null
+          account_number: string
+          created_at: string
+          id: string
+          is_35a_relevant: boolean | null
+          last_used_at: string
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          purpose_pattern: string | null
+          usage_count: number
+          vendor_iban: string | null
+          vendor_name_normalized: string
+        }
+        Insert: {
+          account_category?: string | null
+          account_number: string
+          created_at?: string
+          id?: string
+          is_35a_relevant?: boolean | null
+          last_used_at?: string
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          purpose_pattern?: string | null
+          usage_count?: number
+          vendor_iban?: string | null
+          vendor_name_normalized?: string
+        }
+        Update: {
+          account_category?: string | null
+          account_number?: string
+          created_at?: string
+          id?: string
+          is_35a_relevant?: boolean | null
+          last_used_at?: string
+          management_mode?: Database["public"]["Enums"]["management_mode"]
+          purpose_pattern?: string | null
+          usage_count?: number
+          vendor_iban?: string | null
+          vendor_name_normalized?: string
+        }
+        Relationships: []
+      }
       weg_owner_buildings: {
         Row: {
           building_id: string
@@ -6361,6 +6554,46 @@ export type Database = {
       ensure_stammakte_categories: {
         Args: { p_building_id: string }
         Returns: undefined
+      }
+      find_similar_bookings: {
+        Args: {
+          p_building_id: string
+          p_include_other_buildings?: boolean
+          p_management_mode: Database["public"]["Enums"]["management_mode"]
+          p_match_count?: number
+          p_similarity_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          account_name: string
+          account_number: string
+          amount: number
+          booking_description: string
+          booking_type: string
+          counter_account_name: string
+          counter_account_number: string
+          creditor_name: string
+          id: string
+          is_35a_relevant: boolean
+          purpose_text: string
+          scope: string
+          similarity: number
+          source: string
+        }[]
+      }
+      find_vendor_memory: {
+        Args: {
+          p_management_mode: Database["public"]["Enums"]["management_mode"]
+          p_vendor_iban: string
+          p_vendor_name: string
+        }
+        Returns: {
+          account_category: string
+          account_number: string
+          is_35a_relevant: boolean
+          purpose_pattern: string
+          usage_count: number
+        }[]
       }
       generate_building_code: {
         Args: {
