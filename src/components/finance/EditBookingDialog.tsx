@@ -422,7 +422,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                       fiscalYear={form.fiscal_year}
                       invoice={invoiceDetail ? { invoice_number: (invoiceDetail as any).invoice_number, vendor_name: (invoiceDetail as any).vendor_name } : null}
                       counterAccountName={accounts.find((a: any) => a.id === form.counter_account_id)?.account_name || null}
-                      onApply={(text) => set("description", text)}
+                      onApply={(text) => { set("description", text); setAutoTextSignature(text); }}
                       onCommit={() => {
                         document.querySelector<HTMLInputElement>('[data-edit-booking-desc]')?.focus();
                       }}

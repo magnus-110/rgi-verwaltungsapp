@@ -400,7 +400,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                   fiscalYear={form.fiscal_year}
                   invoice={null}
                   counterAccountName={accounts.find((a: any) => a.id === form.counter_account_id)?.account_name || null}
-                  onApply={(text) => set("description", text)}
+                  onApply={(text) => { set("description", text); setAutoTextSignature(text); }}
                   onCommit={() => {
                     const desc = document.querySelector<HTMLInputElement>('[data-booking-desc]');
                     desc?.focus();
