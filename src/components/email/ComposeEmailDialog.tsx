@@ -13,6 +13,7 @@ import { Send, Loader2, Paperclip, X, Users, Search, ArrowLeft, ChevronDown } fr
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { EmailTemplatePicker } from "./EmailTemplatePicker";
 
 interface ComposeEmailDialogProps {
   open: boolean;
