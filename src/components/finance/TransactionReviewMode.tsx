@@ -738,20 +738,49 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     setLinkedInvoicePdfUrl(null);
   }, [currentTxn?.id, templateDetail, invoiceDetail, accounts, currentTxn?.ai_suggestion, getFiscalYearForDate]);
 
+  /** Helper: build the auto RGI text for a row given its current state. */
+  const buildAutoTextForRow = useCallback((r: BookingRowData, override?: Partial<BookingRowData>): string => {
+    const eff: BookingRowData = { ...r, ...(override || {}) } as BookingRowData;
+    const ca = accounts.find((a: any) => a.id === eff.counter_account_id);
+    return buildBookingText({
+      period: formatMonthYearRef(eff.booking_date),
+      invoiceNumber: eff.receipt_number || (invoiceDetail as any)?.invoice_number || null,
+      vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || null),
+      counterAccountName: ca?.account_name || null,
+    });
+  }, [accounts, invoiceDetail, vendorAliases, buildingId]);
+
   const updateRow = (rowId: string, field: string, value: string | boolean | number) => {
     setFormRows(rows => rows.map(r => {
       if (r.id !== rowId) return r;
+      let next: BookingRowData;
       if (field === "fiscal_year") {
         const parsed = typeof value === "string" ? parseInt(value) : (typeof value === "number" ? value : r.fiscal_year);
-        return { ...r, fiscal_year: parsed || r.fiscal_year } as BookingRowData;
-      }
-      if (field === "line_items_detail") {
+        next = { ...r, fiscal_year: parsed || r.fiscal_year } as BookingRowData;
+      } else if (field === "line_items_detail") {
         try {
           const parsed = typeof value === "string" ? JSON.parse(value) : null;
-          return { ...r, line_items_detail: parsed } as BookingRowData;
+          next = { ...r, line_items_detail: parsed } as BookingRowData;
         } catch { return r; }
+      } else {
+        next = { ...r, [field]: value } as BookingRowData;
       }
-      return { ...r, [field]: value } as BookingRowData;
+
+      // Auto-rebuild Buchungstext bei relevanten Feldern – nur wenn User noch nicht manuell geändert hat
+      if (field === "counter_account_id" || field === "receipt_number" || field === "invoice_id" || field === "booking_date") {
+        const newAuto = buildAutoTextForRow(next);
+        const rebuilt = rebuildBookingTextIfAuto(next.description, next.__autoTextSignature, {
+          period: formatMonthYearRef(next.booking_date),
+          invoiceNumber: next.receipt_number || (invoiceDetail as any)?.invoice_number || null,
+          vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || null),
+          counterAccountName: accounts.find((a: any) => a.id === next.counter_account_id)?.account_name || null,
+        });
+        next = { ...next, description: rebuilt.text, __autoTextSignature: rebuilt.signature || newAuto };
+      } else if (field === "description") {
+        // User editiert manuell – Signatur bleibt, damit isAuto false zurückgibt
+        // (nichts zu tun)
+      }
+      return next;
     }));
   };
 
@@ -773,8 +802,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
   /**
    * Apply a set of selected invoice line-item indices to a booking row:
-   * sets amount = sum of selected items, and updates description if the
-   * user has not customised it (still equal to the auto-fill default).
+   * sets amount = sum of selected items. Buchungstext folgt strikt RGI-Schema
+   * (Periode + Re.Nr. + Lieferant + Gegenkonto), wird aber nur überschrieben,
+   * wenn der User den Text nicht manuell editiert hat.
    */
   const applySelectionToRow = useCallback((rowId: string, indices: number[], items: any[]) => {
     setFormRows(rows => rows.map(r => {
@@ -783,29 +813,21 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const it = items[idx];
         return s + getLineItemGross(it, fallbackVatRate);
       }, 0);
-      const patch: Partial<BookingRowData> = {
+      const ca = accounts.find((a: any) => a.id === r.counter_account_id);
+      const rebuilt = rebuildBookingTextIfAuto(r.description, r.__autoTextSignature, {
+        period: formatMonthYearRef(r.booking_date),
+        invoiceNumber: r.receipt_number || (invoiceDetail as any)?.invoice_number || null,
+        vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || null),
+        counterAccountName: ca?.account_name || null,
+      });
+      return {
+        ...r,
         amount: sum > 0 ? sum.toFixed(2) : r.amount,
-      };
-      // Only auto-update description if it still looks like the default vendor+invoice text
-      if (indices.length > 0) {
-        const defaultDesc = [
-          (invoiceDetail as any)?.vendor_name,
-          (invoiceDetail as any)?.invoice_number,
-        ].filter(Boolean).join(" ").trim();
-        const looksDefault = !r.description.trim() || r.description.trim() === defaultDesc;
-        if (looksDefault) {
-          const labels = indices
-            .map(idx => String(items[idx]?.description ?? "").trim())
-            .filter(Boolean);
-          if (labels.length > 0) {
-            const joined = labels.join(", ");
-            patch.description = joined.length > 80 ? joined.slice(0, 77) + "…" : joined;
-          }
-        }
-      }
-      return { ...r, ...patch } as BookingRowData;
+        description: rebuilt.text,
+        __autoTextSignature: rebuilt.signature,
+      } as BookingRowData;
     }));
-  }, [invoiceDetail, fallbackVatRate]);
+  }, [invoiceDetail, fallbackVatRate, accounts, vendorAliases, buildingId]);
 
   const toggleLineItemForActiveRow = useCallback((index: number, items: any[]) => {
     if (!expandedRowId) {
@@ -833,14 +855,33 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     const usedAnywhere = new Set<number>();
     Object.values(rowLineSelections).forEach(arr => arr.forEach(i => usedAnywhere.add(i)));
     const remaining = items.map((_, i) => i).filter(i => !usedAnywhere.has(i));
-    const newRow = createDefaultRow({ amount: "0.00" });
+
+    // Vorbefüllung aus invoiceDetail, damit jeder Split automatisch
+    // Re.Nr. + Lieferant + Periode im Buchungstext hat (RGI-Schema).
+    const inv: any = invoiceDetail || null;
+    const period = formatMonthYearRef(currentTxn?.booking_date);
+    const receiptNo = inv?.invoice_number || "";
+    const autoText = buildBookingText({
+      period,
+      invoiceNumber: receiptNo,
+      vendorName: resolveVendor(inv?.vendor_name || null),
+      counterAccountName: null,
+    });
+    const newRow = createDefaultRow({
+      amount: "0.00",
+      invoice_id: inv?.id || null,
+      receipt_number: receiptNo,
+      description: autoText,
+      __autoTextSignature: autoText,
+    });
     setFormRows(rows => [...rows, newRow]);
     setExpandedRowId(newRow.id);
     if (remaining.length > 0) {
       setRowLineSelections(prev => ({ ...prev, [newRow.id]: [] }));
       // user picks from remaining — no auto-selection
     }
-  }, [expandedRowId, rowLineSelections]);
+  }, [expandedRowId, rowLineSelections, invoiceDetail, currentTxn, createDefaultRow, vendorAliases, buildingId]);
+
 
 
   const focusFieldByName = useCallback((nextField: string) => {
