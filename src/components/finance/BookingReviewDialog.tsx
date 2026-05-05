@@ -124,43 +124,6 @@ export function BookingReviewDialog({
               </div>
             </div>
 
-            <div>
-              <h3 className="text-base font-semibold mb-3">Nachweis</h3>
-              {booking.invoices ? (
-                <div className="p-3 rounded-lg border bg-muted/30">
-                  <div className="flex items-center gap-2 mb-1">
-                    <FileText className="h-4 w-4 text-primary" />
-                    <span className="font-medium text-sm">Rechnung</span>
-                  </div>
-                  <div className="text-xs space-y-1 text-muted-foreground">
-                    <div>Lieferant: {booking.invoices.vendor_name || "–"}</div>
-                    <div>Rechnungs-Nr: {booking.invoices.invoice_number || "–"}</div>
-                    <div>Bruttobetrag: {fmt(booking.invoices.gross_amount)}</div>
-                  </div>
-                </div>
-              ) : booking.booking_templates ? (
-                <div className="p-3 rounded-lg border bg-muted/30">
-                  <div className="flex items-center gap-2 mb-1">
-                    <LayoutTemplate className="h-4 w-4 text-primary" />
-                    <span className="font-medium text-sm">Buchungsvorlage</span>
-                  </div>
-                  <div className="text-xs space-y-1 text-muted-foreground">
-                    <div>Name: {booking.booking_templates.name}</div>
-                    <div>Lieferant: {booking.booking_templates.vendor_name || "–"}</div>
-                    <div>Erwartet: {fmt(booking.booking_templates.expected_amount)}</div>
-                    <div>Intervall: {booking.booking_templates.interval || "–"}</div>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2 italic">
-                    Wiederkehrende Zahlung — kein Einzelbeleg vorhanden.
-                  </p>
-                </div>
-              ) : (
-                <div className="p-3 rounded-lg border bg-muted/30 text-center text-sm text-muted-foreground">
-                  Kein Beleg oder Vorlage verknüpft.
-                </div>
-              )}
-            </div>
-
             {!readOnly && setFlag && (
               <div className="space-y-3 pt-3 border-t">
                 <div className="flex gap-2">
