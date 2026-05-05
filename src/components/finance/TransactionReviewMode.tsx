@@ -2061,6 +2061,12 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           </>
         ) : null}
       </DialogContent>
+      <VendorAliasDialog
+        open={aliasDialogOpen}
+        onOpenChange={setAliasDialogOpen}
+        rawVendorName={(invoiceDetail as any)?.vendor_name || ""}
+        buildingId={buildingId}
+      />
     </Dialog>
   );
 }
