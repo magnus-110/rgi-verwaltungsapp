@@ -630,6 +630,16 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
         rawVendorName={(invoiceDetail as any)?.vendor_name || ""}
         buildingId={booking?.building_id || null}
       />
+
+      <CreateAccountInlineDialog
+        open={!!createAccountTarget}
+        onOpenChange={(o) => { if (!o) setCreateAccountTarget(null); }}
+        buildingId={booking?.building_id || null}
+        onCreated={(newId) => {
+          if (createAccountTarget) set(createAccountTarget, newId);
+          setCreateAccountTarget(null);
+        }}
+      />
     </>
   );
 }
