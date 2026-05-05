@@ -343,6 +343,7 @@ export function BookingsTab({
     return (
       <TableRow
         key={b.id}
+        data-booking-row="true"
         className={cn(
           "cursor-pointer text-[13px] hover:bg-muted/60 transition-colors",
           b.needs_review && "bg-orange-50 dark:bg-orange-950/20",
