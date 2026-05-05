@@ -75,6 +75,35 @@ export function BookingsTab({
   const [undoing, setUndoing] = useState(false);
   const [deleteBooking, setDeleteBooking] = useState<any>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [aKeyDown, setAKeyDown] = useState(false);
+
+  useEffect(() => {
+    const isTypingTarget = (el: EventTarget | null) => {
+      if (!(el instanceof HTMLElement)) return false;
+      const tag = el.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable;
+    };
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "a" || e.key === "A") {
+        if (isTypingTarget(e.target)) return;
+        setAKeyDown(true);
+      }
+      if (e.key === "Escape") setSelectedIds(new Set());
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.key === "a" || e.key === "A") setAKeyDown(false);
+    };
+    const blur = () => setAKeyDown(false);
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", blur);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
+    };
+  }, []);
 
   const handleUndoBooking = async () => {
     if (!undoBooking) return;
