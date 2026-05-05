@@ -28,7 +28,7 @@ import { AccountSearchSelect } from "./AccountSearchSelect";
 import { Section35aEditor } from "./Section35aEditor";
 import { build35aDetailFromSuggestion } from "./build35aDetail";
 import { buildTemplateBookingText } from "./lib/templateBookingText";
-import { buildBookingText } from "./lib/bookingTextBuilder";
+import { buildBookingText, rebuildBookingTextIfAuto } from "./lib/bookingTextBuilder";
 import { BookingTextTemplateCombobox } from "./BookingTextTemplateCombobox";
 import { useMobileSplitView, MobileViewSwitcher, MobileBackToListButton } from "@/components/shared/MobileSplitView";
 import { parseAmount } from "./lib/parseAmount";
@@ -85,6 +85,8 @@ interface BookingRowData {
     service_period_from?: string;
     service_period_to?: string;
   } | null;
+  /** UI-only: zuletzt automatisch generierter Buchungstext (zur Erkennung von User-Edits). */
+  __autoTextSignature?: string;
 }
 
 const formatCurrency = (amount: number | null) =>
