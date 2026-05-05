@@ -12,6 +12,10 @@ import { useCase, useCaseEvents, useUpdateCase, useSummarizeCase, CASE_STATUS_LA
 import { CaseTimeline } from "./CaseTimeline";
 import { CaseQuickAdd } from "./CaseQuickAdd";
 import { CaseAskAi } from "./CaseAskAi";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useManagementMode } from "@/hooks/useManagementMode";
+import { toast } from "@/hooks/use-toast";
 
 interface Props {
   caseId: string | null;
