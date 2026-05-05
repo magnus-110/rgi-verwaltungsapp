@@ -358,7 +358,7 @@ async function fetchAccountEmails(
         if (insertedEmail && attachments.length > 0) {
           for (const att of attachments) {
             try {
-              const storagePath = `${insertedEmail.id}/${att.filename}`;
+              const storagePath = `${insertedEmail.id}/${sanitizeStorageName(att.filename)}`;
               const { error: uploadError } = await supabase.storage
                 .from("email-attachments")
                 .upload(storagePath, att.content, {
