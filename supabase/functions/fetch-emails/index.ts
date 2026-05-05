@@ -679,6 +679,25 @@ function checkHasAttachments(bodyStructure: any): boolean {
   return false;
 }
 
+// Supabase Storage rejects keys with certain unicode/whitespace characters.
+// Keep the extension, normalize the rest to safe ASCII.
+function sanitizeStorageName(name: string): string {
+  if (!name) return `attachment_${Date.now()}`;
+  const dot = name.lastIndexOf(".");
+  const base = (dot > 0 ? name.substring(0, dot) : name)
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ß/g, "ss")
+    .replace(/[^A-Za-z0-9._-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .substring(0, 120) || "file";
+  const ext = (dot > 0 ? name.substring(dot + 1) : "")
+    .replace(/[^A-Za-z0-9]+/g, "")
+    .substring(0, 10);
+  return ext ? `${base}.${ext}` : base;
+}
+
 // Collect all attachment parts (with their IMAP part path like "2", "1.2") from bodyStructure
 function collectAttachmentParts(
   node: any,
