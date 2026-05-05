@@ -35,6 +35,9 @@ import { parseAmount } from "./lib/parseAmount";
 import { getLineItemGross } from "./lib/lineItemAmount";
 import { InvoiceLineItemsView } from "./InvoiceLineItemsView";
 import { ConfidenceBadge } from "./ConfidenceBadge";
+import { resolveVendorDisplayName, useVendorAliases } from "./lib/vendorAlias";
+import { VendorAliasDialog } from "./VendorAliasDialog";
+import { Pencil } from "lucide-react";
 
 interface TransactionReviewModeProps {
   open: boolean;
@@ -125,6 +128,12 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
   // Multi-row booking state
   const [formRows, setFormRows] = useState<BookingRowData[]>([]);
+
+  // Vendor display-name aliases (Kurzbezeichnungen)
+  const { data: vendorAliases } = useVendorAliases();
+  const [aliasDialogOpen, setAliasDialogOpen] = useState(false);
+  const resolveVendor = (raw: string | null | undefined) =>
+    resolveVendorDisplayName(raw, buildingId, vendorAliases);
 
   // Right-panel tab: original PDF vs. structured OCR view
   const [invoiceViewTab, setInvoiceViewTab] = useState<"pdf" | "items">("pdf");
@@ -463,7 +472,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       // Splitbuchungen IMMER nach RGI-Schema:
       //   "MM/JJ Re. Nr. <invoice_number> <Lieferant> <Gegenkonto>"
       const invoiceNumber = (invoiceDetail as any)?.invoice_number || null;
-      const vendorName = (invoiceDetail as any)?.vendor_name || null;
+      const vendorName = resolveVendor((invoiceDetail as any)?.vendor_name || null);
       const period = formatMonthYearRef(txnDate);
       const rows: BookingRowData[] = suggestedBookings.map((sb: any, idx: number) => {
         let counterAccountId = "";
@@ -562,7 +571,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         row.description = buildBookingText({
           period: formatMonthYearRef(txnDate),
           invoiceNumber: invoiceDetail.invoice_number,
-          vendorName: invoiceDetail.vendor_name,
+          vendorName: resolveVendor(invoiceDetail.vendor_name),
           counterAccountName: _invCounter?.account_name || null,
         });
       }
@@ -1685,7 +1694,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                               updated.description = buildBookingText({
                                 period: formatMonthYearRef(currentTxn?.booking_date),
                                 invoiceNumber: inv.invoice_number,
-                                vendorName: inv.vendor_name,
+                                vendorName: resolveVendor(inv.vendor_name),
                                 counterAccountName: _ca?.account_name || null,
                               });
                             }
@@ -1761,7 +1770,22 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                           <div className="flex items-center gap-2 mb-1">
                             <FileText className="h-4 w-4 text-primary" />
                             <span className="text-sm font-medium">Rechnung</span>
-                            {invoiceDetail.vendor_name && <Badge variant="outline" className="text-xs">{invoiceDetail.vendor_name}</Badge>}
+                            {invoiceDetail.vendor_name && (
+                              <div className="flex items-center gap-1">
+                                <Badge variant="outline" className="text-xs" title={invoiceDetail.vendor_name}>
+                                  {resolveVendor(invoiceDetail.vendor_name)}
+                                </Badge>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-5 w-5 p-0"
+                                  title="Kurzname für diesen Lieferanten festlegen (gilt nur für künftige Buchungen)"
+                                  onClick={() => setAliasDialogOpen(true)}
+                                >
+                                  <Pencil className="h-3 w-3 text-muted-foreground" />
+                                </Button>
+                              </div>
+                            )}
                           </div>
                           <div className="grid grid-cols-3 gap-2 text-sm">
                             <div>
@@ -2037,6 +2061,12 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           </>
         ) : null}
       </DialogContent>
+      <VendorAliasDialog
+        open={aliasDialogOpen}
+        onOpenChange={setAliasDialogOpen}
+        rawVendorName={(invoiceDetail as any)?.vendor_name || ""}
+        buildingId={buildingId}
+      />
     </Dialog>
   );
 }

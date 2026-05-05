@@ -11,7 +11,7 @@ import { AccountSearchSelect } from "./AccountSearchSelect";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  CheckCircle, FileText, LayoutTemplate, Building2, X, AlertTriangle, Flag, Flame, Loader2
+  CheckCircle, FileText, LayoutTemplate, Building2, X, AlertTriangle, Flag, Flame, Loader2, Pencil
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -19,6 +19,8 @@ import { de } from "date-fns/locale";
 import { VendorHistorySection } from "./VendorHistorySection";
 import { Section35aEditor } from "./Section35aEditor";
 import { BookingTextTemplateCombobox } from "./BookingTextTemplateCombobox";
+import { resolveVendorDisplayName, useVendorAliases } from "./lib/vendorAlias";
+import { VendorAliasDialog } from "./VendorAliasDialog";
 
 interface Booking {
   id: string;
@@ -61,6 +63,8 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
   const [saving, setSaving] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [show35aDialog, setShow35aDialog] = useState(false);
+  const [aliasDialogOpen, setAliasDialogOpen] = useState(false);
+  const { data: vendorAliases } = useVendorAliases();
 
   // Form state
   const [form, setForm] = useState({
@@ -490,7 +494,20 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                       <FileText className="h-4 w-4 text-primary" />
                       <span className="text-sm font-medium">Rechnung</span>
                       {invoiceDetail.vendor_name && (
-                        <Badge variant="outline" className="text-xs">{invoiceDetail.vendor_name}</Badge>
+                        <>
+                          <Badge variant="outline" className="text-xs" title={invoiceDetail.vendor_name}>
+                            {resolveVendorDisplayName(invoiceDetail.vendor_name, booking?.building_id, vendorAliases)}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-5 w-5 p-0"
+                            title="Kurzname für diesen Lieferanten festlegen (gilt nur für künftige Buchungen)"
+                            onClick={() => setAliasDialogOpen(true)}
+                          >
+                            <Pencil className="h-3 w-3 text-muted-foreground" />
+                          </Button>
+                        </>
                       )}
                     </div>
                     <div className="px-4 py-2 border-b space-y-1 shrink-0">
@@ -560,6 +577,13 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
           <Button onClick={() => setShow35aDialog(false)} className="w-full max-w-full shrink-0">Übernehmen</Button>
         </DialogContent>
       </Dialog>
+
+      <VendorAliasDialog
+        open={aliasDialogOpen}
+        onOpenChange={setAliasDialogOpen}
+        rawVendorName={(invoiceDetail as any)?.vendor_name || ""}
+        buildingId={booking?.building_id || null}
+      />
     </>
   );
 }
