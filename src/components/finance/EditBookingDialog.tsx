@@ -494,7 +494,20 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                       <FileText className="h-4 w-4 text-primary" />
                       <span className="text-sm font-medium">Rechnung</span>
                       {invoiceDetail.vendor_name && (
-                        <Badge variant="outline" className="text-xs">{invoiceDetail.vendor_name}</Badge>
+                        <>
+                          <Badge variant="outline" className="text-xs" title={invoiceDetail.vendor_name}>
+                            {resolveVendorDisplayName(invoiceDetail.vendor_name, booking?.building_id, vendorAliases)}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-5 w-5 p-0"
+                            title="Kurzname für diesen Lieferanten festlegen (gilt nur für künftige Buchungen)"
+                            onClick={() => setAliasDialogOpen(true)}
+                          >
+                            <Pencil className="h-3 w-3 text-muted-foreground" />
+                          </Button>
+                        </>
                       )}
                     </div>
                     <div className="px-4 py-2 border-b space-y-1 shrink-0">
