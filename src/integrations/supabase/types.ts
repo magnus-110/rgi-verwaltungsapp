@@ -6695,6 +6695,10 @@ export type Database = {
         Args: { p_token: string }
         Returns: Json[]
       }
+      get_audit_templates_by_token: {
+        Args: { p_token: string }
+        Returns: Json[]
+      }
       get_building_dashboard_stats: {
         Args: { p_building_id: string }
         Returns: Json
