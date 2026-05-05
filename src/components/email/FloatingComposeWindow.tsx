@@ -422,6 +422,11 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full" onClick={() => fileInputRef.current?.click()} aria-label="Anhang">
               <Paperclip className="h-5 w-5" />
             </Button>
+            <EmailTemplatePicker
+              context={{ to: compose.to, accountId: compose.accountId }}
+              currentSubject={compose.subject}
+              onInsert={handleInsertTemplate}
+            />
             <ScheduleButton compose={compose} update={update} open={scheduleOpen} setOpen={setScheduleOpen} />
             <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full text-primary"
               onClick={handleSend}
