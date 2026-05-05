@@ -679,3 +679,197 @@ function checkHasAttachments(bodyStructure: any): boolean {
   }
   return false;
 }
+
+// Collect all attachment parts (with their IMAP part path like "2", "1.2") from bodyStructure
+function collectAttachmentParts(
+  node: any,
+  path: string = "",
+  out: Array<{ part: string; node: any }> = []
+): Array<{ part: string; node: any }> {
+  if (!node) return out;
+  const currentPath = node.part || path;
+  const ct = (node.type || "").toLowerCase();
+
+  if (node.childNodes && node.childNodes.length > 0) {
+    for (const child of node.childNodes) {
+      collectAttachmentParts(child, child.part || "", out);
+    }
+    return out;
+  }
+
+  // Leaf
+  const disposition = (node.disposition || "").toLowerCase();
+  const isAttachment =
+    disposition === "attachment" ||
+    disposition === "inline" ||
+    (!ct.startsWith("text/") && !ct.startsWith("multipart/") && currentPath);
+
+  if (isAttachment && currentPath) {
+    out.push({ part: currentPath, node });
+  }
+  return out;
+}
+
+async function downloadAttachmentsFromStructure(
+  client: any,
+  uid: number,
+  bodyStructure: any
+): Promise<ParsedAttachment[]> {
+  const parts = collectAttachmentParts(bodyStructure);
+  const results: ParsedAttachment[] = [];
+
+  for (const { part, node } of parts) {
+    try {
+      const dl = await client.download(`${uid}`, part, { uid: true });
+      if (!dl || !dl.content) continue;
+
+      // dl.content is a Readable stream — collect into Uint8Array
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of dl.content) {
+        chunks.push(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk));
+      }
+      const totalLen = chunks.reduce((s, c) => s + c.length, 0);
+      const merged = new Uint8Array(totalLen);
+      let offset = 0;
+      for (const c of chunks) {
+        merged.set(c, offset);
+        offset += c.length;
+      }
+
+      const dispParams = node.dispositionParameters || {};
+      const ctParams = node.parameters || {};
+      let filename =
+        dispParams.filename ||
+        dispParams["filename*"] ||
+        ctParams.name ||
+        ctParams["name*"] ||
+        `attachment_${part}`;
+      filename = decodeRfc2047(String(filename));
+
+      const mimeType = `${(node.type || "application").toLowerCase()}/${(node.subtype || "octet-stream").toLowerCase()}`;
+      const isInline = (node.disposition || "").toLowerCase() === "inline";
+      const contentId = node.id ? String(node.id).replace(/^</, "").replace(/>$/, "") : null;
+
+      results.push({
+        filename,
+        contentType: mimeType,
+        content: merged,
+        isInline,
+        contentId,
+      });
+    } catch (err: any) {
+      console.error(`Download part ${part} failed:`, err.message);
+    }
+  }
+
+  return results;
+}
+
+// ---- Reparse a single email by ID: re-fetch source from IMAP and re-extract attachments ----
+async function reparseSingleEmail(supabase: any, emailId: string) {
+  const { data: email, error: emailErr } = await supabase
+    .from("emails")
+    .select("id, account_id, message_id, subject")
+    .eq("id", emailId)
+    .single();
+  if (emailErr || !email) throw new Error(`Email ${emailId} not found`);
+
+  const { data: account, error: accErr } = await supabase
+    .from("email_accounts")
+    .select("*")
+    .eq("id", email.account_id)
+    .single();
+  if (accErr || !account) throw new Error(`Account for email not found`);
+
+  const isSecure = account.use_ssl || account.imap_port === 993;
+  const client = new ImapFlow({
+    host: account.imap_host,
+    port: account.imap_port,
+    secure: isSecure,
+    auth: { user: account.imap_user, pass: account.imap_password },
+    logger: false,
+    tls: { rejectUnauthorized: false },
+  });
+  client.on("error", (err: any) => {
+    if (!isIgnorableConnectionError(err)) {
+      console.error(`Reparse IMAP error:`, err.message);
+    }
+  });
+
+  await client.connect();
+  let summary: any = { emailId, message_id: email.message_id };
+  try {
+    await client.mailboxOpen("INBOX");
+    // Find UID by Message-ID header
+    const uids = await client.search({ header: { "message-id": email.message_id } }, { uid: true });
+    if (!uids || uids.length === 0) {
+      throw new Error(`Message-ID ${email.message_id} not found on server`);
+    }
+    const uid = uids[uids.length - 1];
+    summary.uid = uid;
+
+    const msg = await client.fetchOne(`${uid}`, {
+      uid: true,
+      source: true,
+      bodyStructure: true,
+    }, { uid: true });
+    if (!msg) throw new Error(`fetchOne returned null for UID ${uid}`);
+
+    const source = msg.source?.toString() || "";
+    let { attachments } = parseEmailComplete(source);
+    summary.parser_attachments = attachments.length;
+    summary.structure_has_attachments = checkHasAttachments(msg.bodyStructure);
+
+    if (attachments.length === 0 && summary.structure_has_attachments) {
+      const downloaded = await downloadAttachmentsFromStructure(client, uid, msg.bodyStructure);
+      attachments = downloaded;
+      summary.fallback_downloaded = downloaded.length;
+    }
+
+    // Insert any attachments that don't yet exist for this email
+    const { data: existingAtt } = await supabase
+      .from("email_attachments")
+      .select("file_name")
+      .eq("email_id", emailId);
+    const existingNames = new Set((existingAtt || []).map((a: any) => a.file_name));
+
+    let inserted = 0;
+    for (const att of attachments) {
+      if (existingNames.has(att.filename)) continue;
+      const storagePath = `${emailId}/${att.filename}`;
+      const { error: upErr } = await supabase.storage
+        .from("email-attachments")
+        .upload(storagePath, att.content, { contentType: att.contentType, upsert: true });
+      if (upErr) {
+        console.error("upload err", upErr.message);
+        continue;
+      }
+      await supabase.from("email_attachments").insert({
+        email_id: emailId,
+        file_name: att.filename,
+        mime_type: att.contentType,
+        file_size: att.content.byteLength,
+        file_path: storagePath,
+        is_inline: att.isInline,
+        content_id: att.contentId,
+      });
+      inserted++;
+    }
+    summary.inserted = inserted;
+
+    // Update has_attachments flag
+    const { data: allAtt } = await supabase
+      .from("email_attachments")
+      .select("is_inline")
+      .eq("email_id", emailId);
+    const hasReal = (allAtt || []).some((a: any) => a.is_inline === false);
+    await supabase.from("emails").update({ has_attachments: hasReal }).eq("id", emailId);
+    summary.has_attachments = hasReal;
+  } finally {
+    try { if (client.usable) await client.logout(); } catch (_) {}
+    await new Promise((r) => setTimeout(r, 100));
+    try { client.close(); } catch (_) {}
+  }
+
+  return summary;
+}
