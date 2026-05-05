@@ -1732,19 +1732,28 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                           const targetRowId = expandedRowId || formRows[0]?.id;
                           if (!targetRowId) return;
                           setFormRows(rows => rows.map(r => {
-                            if (r.id !== targetRowId) return r;
-                            const updated = { ...r, invoice_id: inv.id, matched_template_id: "" };
-                            if (inv.invoice_number) updated.receipt_number = inv.invoice_number;
-                            {
-                              const _ca = accounts.find((a: any) => a.id === (r.counter_account_id || inv.suggested_account_id));
-                              updated.description = buildBookingText({
-                                period: formatMonthYearRef(currentTxn?.booking_date),
-                                invoiceNumber: inv.invoice_number,
-                                vendorName: resolveVendor(inv.vendor_name),
-                                counterAccountName: _ca?.account_name || null,
-                              });
-                            }
-                            return updated;
+                            // Apply invoice assignment to ALL rows (split-safe). Update auto-text if not user-edited.
+                            const _ca = accounts.find((a: any) => a.id === (r.counter_account_id || inv.suggested_account_id));
+                            const newAutoText = buildBookingText({
+                              period: formatMonthYearRef(currentTxn?.booking_date),
+                              invoiceNumber: inv.invoice_number,
+                              vendorName: resolveVendor(inv.vendor_name),
+                              counterAccountName: _ca?.account_name || null,
+                            });
+                            const rebuilt = rebuildBookingTextIfAuto(r.description, r.__autoTextSignature, {
+                              period: formatMonthYearRef(currentTxn?.booking_date),
+                              invoiceNumber: inv.invoice_number,
+                              vendorName: resolveVendor(inv.vendor_name),
+                              counterAccountName: _ca?.account_name || null,
+                            });
+                            const isTarget = r.id === targetRowId;
+                            return {
+                              ...r,
+                              ...(isTarget ? { invoice_id: inv.id, matched_template_id: "" } : { invoice_id: r.invoice_id || inv.id }),
+                              receipt_number: r.receipt_number || inv.invoice_number || r.receipt_number,
+                              description: rebuilt.text || newAutoText,
+                              __autoTextSignature: rebuilt.signature || newAutoText,
+                            } as BookingRowData;
                           }));
                           await supabase.from("bank_transactions").update({
                             matched_invoice_id: inv.id,
@@ -1763,16 +1772,19 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                           if (!targetRowId) return;
                           setFormRows(rows => rows.map(r => {
                             if (r.id !== targetRowId) return r;
-                            const updated = { ...r, matched_template_id: tpl.id, invoice_id: "" };
+                            const updated: BookingRowData = { ...r, matched_template_id: tpl.id, invoice_id: "" };
                             if (tpl.account_id) updated.counter_account_id = tpl.account_id;
                             if (tpl.vat_rate != null) updated.vat_rate = String(tpl.vat_rate);
                             if (tpl.is_35a_relevant) updated.is_35a_relevant = true;
-                            {
-                              const _ca = accounts.find((a: any) => a.id === (tpl.account_id || r.counter_account_id));
-                              updated.description = buildTemplateBookingText(tpl, currentTxn?.booking_date, {
-                                counterAccountName: _ca?.account_name || tpl.chart_of_accounts?.account_name || null,
-                              });
+                            const _ca = accounts.find((a: any) => a.id === (tpl.account_id || r.counter_account_id));
+                            const newAutoText = buildTemplateBookingText(tpl, currentTxn?.booking_date, {
+                              counterAccountName: _ca?.account_name || tpl.chart_of_accounts?.account_name || null,
+                            });
+                            // Nur überschreiben, wenn User-Text noch automatisch
+                            if (!r.description.trim() || r.description === r.__autoTextSignature) {
+                              updated.description = newAutoText;
                             }
+                            updated.__autoTextSignature = newAutoText;
                             return updated;
                           }));
                           await supabase.from("bank_transactions").update({
