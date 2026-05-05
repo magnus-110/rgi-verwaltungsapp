@@ -291,6 +291,7 @@ export const useUpdateCase = () => {
       qc.invalidateQueries({ queryKey: ["cases", data.building_id] });
       qc.invalidateQueries({ queryKey: ["case", data.id] });
       qc.invalidateQueries({ queryKey: ["cases-all"] });
+      qc.invalidateQueries({ queryKey: ["cases-active-for-building"] });
     },
   });
 };
