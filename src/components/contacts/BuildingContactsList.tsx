@@ -462,7 +462,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
           .from("chart_of_accounts")
           .insert({
             account_number: unitNumber,
-            account_name: `${costType} ${lastName}`,
+            account_name: `${costType === "Hausgeld" ? "HG" : costType} ${lastName}`,
             building_id: buildingId,
             category: "0. Personenkonten",
             sort_order: numericSort,
