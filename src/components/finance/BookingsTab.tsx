@@ -95,15 +95,28 @@ export function BookingsTab({
       if (e.key === "a" || e.key === "A") setAKeyDown(false);
     };
     const blur = () => setAKeyDown(false);
+    // Click anywhere outside a selectable booking row clears the selection
+    const onDocClick = (e: MouseEvent) => {
+      if (aKeyDown) return;
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      // Ignore clicks inside dialogs / popovers / dropdowns
+      if (target.closest('[role="dialog"], [role="menu"], [role="listbox"]')) return;
+      // Ignore clicks on selectable rows or interactive controls inside them
+      if (target.closest('[data-booking-row="true"]')) return;
+      setSelectedIds(prev => (prev.size === 0 ? prev : new Set()));
+    };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     window.addEventListener("blur", blur);
+    document.addEventListener("click", onDocClick);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
+      document.removeEventListener("click", onDocClick);
     };
-  }, []);
+  }, [aKeyDown]);
 
   const handleUndoBooking = async () => {
     if (!undoBooking) return;
@@ -280,8 +293,19 @@ export function BookingsTab({
       setSelectedIds(prev => new Set(prev).add(id));
       return;
     }
+    // If a selection is active and user clicks elsewhere without A → clear selection
+    if (selectedIds.size > 0) {
+      setSelectedIds(new Set());
+      return;
+    }
     // Default: open editor
     setEditBooking(booking);
+  };
+
+  const clearSelectionOnBackground = (e: React.MouseEvent) => {
+    if (selectedIds.size === 0 || aKeyDown) return;
+    // Only clear if click target is the wrapper itself (not propagated from a row/button)
+    if (e.target === e.currentTarget) setSelectedIds(new Set());
   };
 
   const handleInvoiceClick = useCallback(async (booking: any) => {
@@ -319,6 +343,7 @@ export function BookingsTab({
     return (
       <TableRow
         key={b.id}
+        data-booking-row="true"
         className={cn(
           "cursor-pointer text-[13px] hover:bg-muted/60 transition-colors",
           b.needs_review && "bg-orange-50 dark:bg-orange-950/20",
