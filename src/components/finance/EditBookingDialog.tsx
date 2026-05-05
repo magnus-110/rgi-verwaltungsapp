@@ -88,6 +88,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
     fuel_total_price: "",
     fuel_date: "",
   });
+  const [autoTextSignature, setAutoTextSignature] = useState<string>("");
 
   useEffect(() => {
     if (open && booking) {
