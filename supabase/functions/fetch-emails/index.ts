@@ -68,6 +68,31 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
+  // ---- Reparse single email ----
+  const url = new URL(req.url);
+  const reparseId = url.searchParams.get("reparse");
+  if (reparseId) {
+    const auth = req.headers.get("authorization") || "";
+    const expected = `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`;
+    if (auth !== expected) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    try {
+      const result = await reparseSingleEmail(supabaseAdmin, reparseId);
+      return new Response(JSON.stringify(result), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    } catch (e: any) {
+      return new Response(JSON.stringify({ error: e.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
+
   try {
     const { data: accounts, error: accError } = await supabaseAdmin
       .from("email_accounts")
