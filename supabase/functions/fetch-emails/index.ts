@@ -500,7 +500,13 @@ function parseMimePart(headers: string, body: string, result: ParseResult): void
       const filename = extractFilename(disposition, contentType) || `attachment_${Date.now()}`;
       const mimeType = ct.split(";")[0].trim();
       const decoded = decodeContent(body, transferEncoding);
-      const isInline = disposition.toLowerCase().includes("inline");
+      // Only treat as truly inline if it's an image referenced via Content-Id
+      // (typical for HTML signature/CID images). PDFs/Docs with Content-Disposition: inline
+      // (common in Apple Mail) should still be shown as real attachments.
+      const isInline =
+        disposition.toLowerCase().includes("inline") &&
+        mimeType.startsWith("image/") &&
+        !!contentId;
       result.attachments.push({
         filename,
         contentType: mimeType,
