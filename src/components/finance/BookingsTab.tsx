@@ -280,8 +280,19 @@ export function BookingsTab({
       setSelectedIds(prev => new Set(prev).add(id));
       return;
     }
+    // If a selection is active and user clicks elsewhere without A → clear selection
+    if (selectedIds.size > 0) {
+      setSelectedIds(new Set());
+      return;
+    }
     // Default: open editor
     setEditBooking(booking);
+  };
+
+  const clearSelectionOnBackground = (e: React.MouseEvent) => {
+    if (selectedIds.size === 0 || aKeyDown) return;
+    // Only clear if click target is the wrapper itself (not propagated from a row/button)
+    if (e.target === e.currentTarget) setSelectedIds(new Set());
   };
 
   const handleInvoiceClick = useCallback(async (booking: any) => {
