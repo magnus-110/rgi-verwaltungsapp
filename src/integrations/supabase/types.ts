@@ -3660,6 +3660,51 @@ export type Database = {
           },
         ]
       }
+      email_templates: {
+        Row: {
+          body: string
+          category: string | null
+          created_at: string
+          created_by: string
+          id: string
+          is_shared: boolean
+          last_used_at: string | null
+          name: string
+          sort_order: number
+          subject: string | null
+          updated_at: string
+          usage_count: number
+        }
+        Insert: {
+          body?: string
+          category?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_shared?: boolean
+          last_used_at?: string | null
+          name: string
+          sort_order?: number
+          subject?: string | null
+          updated_at?: string
+          usage_count?: number
+        }
+        Update: {
+          body?: string
+          category?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_shared?: boolean
+          last_used_at?: string | null
+          name?: string
+          sort_order?: number
+          subject?: string | null
+          updated_at?: string
+          usage_count?: number
+        }
+        Relationships: []
+      }
       emails: {
         Row: {
           account_id: string
