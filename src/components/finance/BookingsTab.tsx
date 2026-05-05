@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -75,6 +75,35 @@ export function BookingsTab({
   const [undoing, setUndoing] = useState(false);
   const [deleteBooking, setDeleteBooking] = useState<any>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [aKeyDown, setAKeyDown] = useState(false);
+
+  useEffect(() => {
+    const isTypingTarget = (el: EventTarget | null) => {
+      if (!(el instanceof HTMLElement)) return false;
+      const tag = el.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable;
+    };
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "a" || e.key === "A") {
+        if (isTypingTarget(e.target)) return;
+        setAKeyDown(true);
+      }
+      if (e.key === "Escape") setSelectedIds(new Set());
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.key === "a" || e.key === "A") setAKeyDown(false);
+    };
+    const blur = () => setAKeyDown(false);
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", blur);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
+    };
+  }, []);
 
   const handleUndoBooking = async () => {
     if (!undoBooking) return;
@@ -235,7 +264,25 @@ export function BookingsTab({
     return filteredPending.slice(start, start + PAGE_SIZE);
   }, [filteredPending, currentPage]);
 
-  const handleRowClick = (booking: any) => setEditBooking(booking);
+  const handleRowClick = (booking: any, e?: React.MouseEvent) => {
+    const id = booking.id as string;
+    // Toggle off if already selected (no A required)
+    if (selectedIds.has(id)) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      return;
+    }
+    // Add to selection if A held
+    if (aKeyDown) {
+      setSelectedIds(prev => new Set(prev).add(id));
+      return;
+    }
+    // Default: open editor
+    setEditBooking(booking);
+  };
 
   const handleInvoiceClick = useCallback(async (booking: any) => {
     try {
@@ -267,15 +314,17 @@ export function BookingsTab({
 
   const renderRow = (b: any) => {
     const isIncome = b.booking_type === "income";
+    const isSelected = selectedIds.has(b.id);
 
     return (
       <TableRow
         key={b.id}
         className={cn(
           "cursor-pointer text-[13px] hover:bg-muted/60 transition-colors",
-          b.needs_review && "bg-orange-50 dark:bg-orange-950/20"
+          b.needs_review && "bg-orange-50 dark:bg-orange-950/20",
+          isSelected && "bg-primary/15 hover:bg-primary/20 ring-1 ring-inset ring-primary/40"
         )}
-        onClick={() => handleRowClick(b)}
+        onClick={(e) => handleRowClick(b, e)}
       >
         <TableCell className="py-2 px-3 whitespace-nowrap font-medium tabular-nums">
           {format(new Date(b.booking_date), "dd.MM.yyyy")}
@@ -472,7 +521,17 @@ export function BookingsTab({
             </Badge>
           )}
         </Button>
-        <Button size="sm" className="h-9 gap-1.5 ml-auto" onClick={() => setCreateOpen(true)}>
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-2 ml-auto">
+            <Badge variant="secondary" className="text-xs">
+              {selectedIds.size} markiert
+            </Badge>
+            <Button size="sm" variant="ghost" className="h-9" onClick={() => setSelectedIds(new Set())}>
+              Auswahl aufheben
+            </Button>
+          </div>
+        )}
+        <Button size="sm" className={cn("h-9 gap-1.5", selectedIds.size === 0 && "ml-auto")} onClick={() => setCreateOpen(true)}>
           <Plus className="h-3.5 w-3.5" />
           Neue Buchung
         </Button>
