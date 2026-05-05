@@ -129,6 +129,12 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   // Multi-row booking state
   const [formRows, setFormRows] = useState<BookingRowData[]>([]);
 
+  // Vendor display-name aliases (Kurzbezeichnungen)
+  const { data: vendorAliases } = useVendorAliases();
+  const [aliasDialogOpen, setAliasDialogOpen] = useState(false);
+  const resolveVendor = (raw: string | null | undefined) =>
+    resolveVendorDisplayName(raw, buildingId, vendorAliases);
+
   // Right-panel tab: original PDF vs. structured OCR view
   const [invoiceViewTab, setInvoiceViewTab] = useState<"pdf" | "items">("pdf");
   // Per-row line-item selection (rowId -> indices of selected line_items)
