@@ -521,6 +521,15 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
           </div>
         </div>
       </DialogContent>
+      <CreateAccountInlineDialog
+        open={!!createAccountTarget}
+        onOpenChange={(o) => { if (!o) setCreateAccountTarget(null); }}
+        buildingId={form.building_id || null}
+        onCreated={(newId) => {
+          if (createAccountTarget) set(createAccountTarget, newId);
+          setCreateAccountTarget(null);
+        }}
+      />
     </Dialog>
   );
 }
