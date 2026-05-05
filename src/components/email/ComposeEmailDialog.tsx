@@ -682,6 +682,11 @@ export const ComposeEmailDialog = ({
                 <Paperclip className="h-3.5 w-3.5" />
                 Anhang hinzufügen
               </Button>
+              <EmailTemplatePicker
+                context={{ to, accountId }}
+                currentSubject={subject}
+                onInsert={handleInsertTemplate}
+              />
               <input
                 ref={fileInputRef}
                 type="file"
