@@ -1770,7 +1770,22 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                           <div className="flex items-center gap-2 mb-1">
                             <FileText className="h-4 w-4 text-primary" />
                             <span className="text-sm font-medium">Rechnung</span>
-                            {invoiceDetail.vendor_name && <Badge variant="outline" className="text-xs">{invoiceDetail.vendor_name}</Badge>}
+                            {invoiceDetail.vendor_name && (
+                              <div className="flex items-center gap-1">
+                                <Badge variant="outline" className="text-xs" title={invoiceDetail.vendor_name}>
+                                  {resolveVendor(invoiceDetail.vendor_name)}
+                                </Badge>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-5 w-5 p-0"
+                                  title="Kurzname für diesen Lieferanten festlegen (gilt nur für künftige Buchungen)"
+                                  onClick={() => setAliasDialogOpen(true)}
+                                >
+                                  <Pencil className="h-3 w-3 text-muted-foreground" />
+                                </Button>
+                              </div>
+                            )}
                           </div>
                           <div className="grid grid-cols-3 gap-2 text-sm">
                             <div>
