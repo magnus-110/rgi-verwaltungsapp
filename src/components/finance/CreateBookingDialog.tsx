@@ -47,6 +47,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [saveCounter, setSaveCounter] = useState(0);
+  const [createAccountTarget, setCreateAccountTarget] = useState<"account_id" | "counter_account_id" | null>(null);
 
   const [form, setForm] = useState({
     building_id: "",
