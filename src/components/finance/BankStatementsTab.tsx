@@ -254,9 +254,8 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       toast.error("Bitte CAMT-XML oder Kontoauszug-PDF hochladen");
       return;
     }
-    const hasPdf = allFiles.some(f => /\.pdf$/i.test(f.name));
-    if (hasPdf && (!selectedBuilding || selectedBuilding === "all")) {
-      toast.error("Für PDF-Import bitte zuerst eine Liegenschaft wählen");
+    if (!selectedBuilding || selectedBuilding === "all") {
+      toast.error("Bitte zuerst eine Liegenschaft auswählen, bevor ein Kontoauszug importiert wird");
       return;
     }
 
