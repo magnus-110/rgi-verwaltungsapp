@@ -124,43 +124,6 @@ export function BookingReviewDialog({
               </div>
             </div>
 
-            <div>
-              <h3 className="text-base font-semibold mb-3">Nachweis</h3>
-              {booking.invoices ? (
-                <div className="p-3 rounded-lg border bg-muted/30">
-                  <div className="flex items-center gap-2 mb-1">
-                    <FileText className="h-4 w-4 text-primary" />
-                    <span className="font-medium text-sm">Rechnung</span>
-                  </div>
-                  <div className="text-xs space-y-1 text-muted-foreground">
-                    <div>Lieferant: {booking.invoices.vendor_name || "–"}</div>
-                    <div>Rechnungs-Nr: {booking.invoices.invoice_number || "–"}</div>
-                    <div>Bruttobetrag: {fmt(booking.invoices.gross_amount)}</div>
-                  </div>
-                </div>
-              ) : booking.booking_templates ? (
-                <div className="p-3 rounded-lg border bg-muted/30">
-                  <div className="flex items-center gap-2 mb-1">
-                    <LayoutTemplate className="h-4 w-4 text-primary" />
-                    <span className="font-medium text-sm">Buchungsvorlage</span>
-                  </div>
-                  <div className="text-xs space-y-1 text-muted-foreground">
-                    <div>Name: {booking.booking_templates.name}</div>
-                    <div>Lieferant: {booking.booking_templates.vendor_name || "–"}</div>
-                    <div>Erwartet: {fmt(booking.booking_templates.expected_amount)}</div>
-                    <div>Intervall: {booking.booking_templates.interval || "–"}</div>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2 italic">
-                    Wiederkehrende Zahlung — kein Einzelbeleg vorhanden.
-                  </p>
-                </div>
-              ) : (
-                <div className="p-3 rounded-lg border bg-muted/30 text-center text-sm text-muted-foreground">
-                  Kein Beleg oder Vorlage verknüpft.
-                </div>
-              )}
-            </div>
-
             {!readOnly && setFlag && (
               <div className="space-y-3 pt-3 border-t">
                 <div className="flex gap-2">
@@ -210,14 +173,38 @@ export function BookingReviewDialog({
               ) : (
                 <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Beleg konnte nicht geladen werden.</div>
               )
+            ) : booking.invoices ? (
+              <div className="flex-1 overflow-y-auto p-8">
+                <div className="max-w-xl mx-auto space-y-4">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-6 w-6 text-primary" />
+                    <h3 className="text-lg font-semibold">Rechnung</h3>
+                  </div>
+                  <div className="rounded-lg border bg-card divide-y">
+                    <Row label="Lieferant" value={booking.invoices.vendor_name || "–"} />
+                    <Row label="Rechnungs-Nr." value={booking.invoices.invoice_number || "–"} />
+                    <Row label="Bruttobetrag" value={<span className="font-mono">{fmt(booking.invoices.gross_amount)}</span>} />
+                  </div>
+                  <p className="text-xs text-muted-foreground italic">Kein PDF-Beleg hinterlegt.</p>
+                </div>
+              </div>
             ) : booking.booking_templates ? (
-              <div className="flex-1 flex items-center justify-center p-8">
-                <div className="text-center max-w-sm">
-                  <LayoutTemplate className="h-12 w-12 text-muted-foreground/50 mx-auto mb-3" />
-                  <p className="font-medium text-sm mb-1">Wiederkehrende Buchung</p>
-                  <p className="text-sm text-muted-foreground">
+              <div className="flex-1 overflow-y-auto p-8">
+                <div className="max-w-xl mx-auto space-y-4">
+                  <div className="flex items-center gap-2">
+                    <LayoutTemplate className="h-6 w-6 text-primary" />
+                    <h3 className="text-lg font-semibold">Zugeordnete Vorlage</h3>
+                  </div>
+                  <div className="rounded-lg border bg-card divide-y">
+                    <Row label="Name" value={booking.booking_templates.name} />
+                    <Row label="Lieferant" value={booking.booking_templates.vendor_name || "–"} />
+                    <Row label="Erwarteter Betrag" value={<span className="font-mono">{fmt(booking.booking_templates.expected_amount)}</span>} />
+                    <Row label="Intervall" value={booking.booking_templates.interval || "–"} />
+                  </div>
+                  <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
+                    <p className="font-medium text-foreground mb-1">Wiederkehrende Buchung</p>
                     Für diese Buchung existiert kein Einzelbeleg. Der Nachweis ergibt sich aus dem hinterlegten Vertrag oder Bescheid.
-                  </p>
+                  </div>
                 </div>
               </div>
             ) : (
