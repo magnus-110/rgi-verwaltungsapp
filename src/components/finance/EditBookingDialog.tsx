@@ -63,6 +63,8 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
   const [saving, setSaving] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [show35aDialog, setShow35aDialog] = useState(false);
+  const [aliasDialogOpen, setAliasDialogOpen] = useState(false);
+  const { data: vendorAliases } = useVendorAliases();
 
   // Form state
   const [form, setForm] = useState({
