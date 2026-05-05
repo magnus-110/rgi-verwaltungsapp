@@ -180,6 +180,40 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
 
   const set = (key: string, value: string | boolean | number) => setForm(p => ({ ...p, [key]: value }));
 
+  const formatRef = (d: string) => {
+    if (!d) return "";
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return "";
+    return `${String(dt.getMonth() + 1).padStart(2, "0")}/${String(dt.getFullYear()).slice(-2)}`;
+  };
+
+  // Re-build Buchungstext on field change, respecting user-edits
+  const rebuildAutoText = (overrides: { counter_account_id?: string; receipt_number?: string; booking_date?: string }) => {
+    const ca = accounts.find((a: any) => a.id === (overrides.counter_account_id ?? form.counter_account_id));
+    const newAuto = buildBookingText({
+      period: formatRef(overrides.booking_date ?? form.booking_date),
+      invoiceNumber: (overrides.receipt_number ?? form.receipt_number) || (invoiceDetail as any)?.invoice_number || null,
+      vendorName: invoiceDetail ? resolveVendorDisplayName((invoiceDetail as any).vendor_name, buildingId, vendorAliases) : null,
+      counterAccountName: ca?.account_name || null,
+    });
+    const result = rebuildBookingTextIfAuto(form.description, autoTextSignature, {
+      period: formatRef(overrides.booking_date ?? form.booking_date),
+      invoiceNumber: (overrides.receipt_number ?? form.receipt_number) || (invoiceDetail as any)?.invoice_number || null,
+      vendorName: invoiceDetail ? resolveVendorDisplayName((invoiceDetail as any).vendor_name, buildingId, vendorAliases) : null,
+      counterAccountName: ca?.account_name || null,
+    });
+    setAutoTextSignature(result.signature || newAuto);
+    if (result.changed) {
+      setForm(p => ({ ...p, description: result.text }));
+    }
+  };
+
+  // Beim Öffnen: aktuelle Description als auto-Signatur setzen, wenn sie nach RGI-Schema aussieht
+  useEffect(() => {
+    if (!open || !booking) return;
+    setAutoTextSignature(booking.description || "");
+  }, [open, booking?.id]);
+
   const handleSave = async () => {
     if (!booking) return;
     if (!form.account_id || !form.amount || !form.booking_date) {
