@@ -17,6 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useComposeEmail, type ComposeState } from "@/contexts/ComposeEmailContext";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { EmailTemplatePicker } from "./EmailTemplatePicker";
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -380,7 +381,25 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     closeCompose(compose.id);
   };
 
-  // ===== MOBILE: Fullscreen-style compose =====
+  const handleInsertTemplate = ({ subject, body, subjectReplaced }: { subject: string; body: string; subjectReplaced: boolean }) => {
+    const patch: Partial<ComposeState> = {};
+    if (subject) {
+      if (!compose.subject?.trim()) patch.subject = subject;
+      else if (subjectReplaced) {
+        // do not overwrite existing subject silently — leave it
+      }
+    }
+    // Insert body at end of editable head (before quote), preserve signature/quote tail
+    const QUOTE_RE = /\n*---\s*(?:Ursprüngliche|Weitergeleitete)\s+Nachricht\s*---/;
+    const cur = compose.bodyText || "";
+    const m = cur.match(QUOTE_RE);
+    const head = m && m.index !== undefined ? cur.slice(0, m.index) : cur;
+    const tail = m && m.index !== undefined ? cur.slice(m.index) : "";
+    const sep = head && !head.endsWith("\n") ? "\n\n" : "";
+    patch.bodyText = head + sep + body + (tail ? "\n\n" + tail : "");
+    update(patch);
+  };
+
   if (isMobile) {
     const title = compose.replyTo ? "Antworten" : compose.forward ? "Weiterleiten" : "Neue E-Mail";
     return (
@@ -403,6 +422,11 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full" onClick={() => fileInputRef.current?.click()} aria-label="Anhang">
               <Paperclip className="h-5 w-5" />
             </Button>
+            <EmailTemplatePicker
+              context={{ to: compose.to, accountId: compose.accountId }}
+              currentSubject={compose.subject}
+              onInsert={handleInsertTemplate}
+            />
             <ScheduleButton compose={compose} update={update} open={scheduleOpen} setOpen={setScheduleOpen} />
             <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full text-primary"
               onClick={handleSend}
@@ -689,9 +713,16 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           </div>
 
           <div className="space-y-1">
-            <Button type="button" variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => fileInputRef.current?.click()}>
-              <Paperclip className="h-3 w-3" /> Anhang
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button type="button" variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => fileInputRef.current?.click()}>
+                <Paperclip className="h-3 w-3" /> Anhang
+              </Button>
+              <EmailTemplatePicker
+                context={{ to: compose.to, accountId: compose.accountId }}
+                currentSubject={compose.subject}
+                onInsert={handleInsertTemplate}
+              />
+            </div>
             <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
             {compose.attachments.length > 0 && (
               <div className="space-y-0.5">

@@ -13,6 +13,7 @@ import { Send, Loader2, Paperclip, X, Users, Search, ArrowLeft, ChevronDown } fr
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { EmailTemplatePicker } from "./EmailTemplatePicker";
 
 interface ComposeEmailDialogProps {
   open: boolean;
@@ -163,6 +164,16 @@ export const ComposeEmailDialog = ({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const handleInsertTemplate = ({ subject: ts, body: tb }: { subject: string; body: string; subjectReplaced: boolean }) => {
+    if (ts && !subject.trim()) setSubject(ts);
+    const QUOTE_RE = /\n*--- (?:Ursprüngliche|Weitergeleitete) Nachricht ---/;
+    const m = bodyText.match(QUOTE_RE);
+    const head = m && m.index !== undefined ? bodyText.slice(0, m.index) : bodyText;
+    const tail = m && m.index !== undefined ? bodyText.slice(m.index) : "";
+    const sep = head && !head.endsWith("\n") ? "\n\n" : "";
+    setBodyText(head + sep + tb + (tail ? "\n\n" + tail : ""));
+  };
+
   const handleSend = async () => {
     if (!accountId || !to.trim()) {
       toast.error("Bitte Absender und Empfänger angeben");
@@ -251,6 +262,11 @@ export const ComposeEmailDialog = ({
               >
                 <Paperclip className="h-5 w-5" />
               </Button>
+              <EmailTemplatePicker
+                context={{ to, accountId }}
+                currentSubject={subject}
+                onInsert={handleInsertTemplate}
+              />
               <Button
                 variant="ghost"
                 size="icon"
@@ -666,6 +682,11 @@ export const ComposeEmailDialog = ({
                 <Paperclip className="h-3.5 w-3.5" />
                 Anhang hinzufügen
               </Button>
+              <EmailTemplatePicker
+                context={{ to, accountId }}
+                currentSubject={subject}
+                onInsert={handleInsertTemplate}
+              />
               <input
                 ref={fileInputRef}
                 type="file"
