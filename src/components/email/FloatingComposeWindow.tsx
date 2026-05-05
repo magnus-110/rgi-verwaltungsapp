@@ -17,6 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useComposeEmail, type ComposeState } from "@/contexts/ComposeEmailContext";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { EmailTemplatePicker } from "./EmailTemplatePicker";
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
