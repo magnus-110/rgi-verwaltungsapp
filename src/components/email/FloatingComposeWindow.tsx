@@ -379,6 +379,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     });
     window.open(`${window.location.origin}/postfach?${params.toString()}`, "_blank", "noopener,noreferrer");
     closeCompose(compose.id);
+  };
 
   const handleInsertTemplate = ({ subject, body, subjectReplaced }: { subject: string; body: string; subjectReplaced: boolean }) => {
     const patch: Partial<ComposeState> = {};
