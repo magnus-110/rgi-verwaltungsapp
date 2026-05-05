@@ -577,6 +577,13 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
           <Button onClick={() => setShow35aDialog(false)} className="w-full max-w-full shrink-0">Übernehmen</Button>
         </DialogContent>
       </Dialog>
+
+      <VendorAliasDialog
+        open={aliasDialogOpen}
+        onOpenChange={setAliasDialogOpen}
+        rawVendorName={(invoiceDetail as any)?.vendor_name || ""}
+        buildingId={booking?.building_id || null}
+      />
     </>
   );
 }
