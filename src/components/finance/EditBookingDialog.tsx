@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AccountSearchSelect } from "./AccountSearchSelect";
+import { CreateAccountInlineDialog } from "./CreateAccountInlineDialog";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -65,6 +66,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [show35aDialog, setShow35aDialog] = useState(false);
   const [aliasDialogOpen, setAliasDialogOpen] = useState(false);
+  const [createAccountTarget, setCreateAccountTarget] = useState<"account_id" | "counter_account_id" | null>(null);
   const { data: vendorAliases } = useVendorAliases();
 
   // Form state
@@ -339,6 +341,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                   <AccountSearchSelect
                     value={form.account_id}
                     onChange={v => {
+                      if (v === "__create__") { setCreateAccountTarget("account_id"); return; }
                       set("account_id", v);
                       const acc = accounts.find(a => a.id === v);
                       if (acc?.is_35a_relevant) set("is_35a_relevant", true);
@@ -347,6 +350,8 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                     accounts={accounts}
                     excludeCategory="Bankkonto"
                     placeholder="Konto suchen…"
+                    showCreateOption
+                    onCreateClick={() => setCreateAccountTarget("account_id")}
                   />
                 </div>
 
@@ -403,6 +408,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                   <AccountSearchSelect
                     value={form.counter_account_id}
                     onChange={v => {
+                      if (v === "__create__") { setCreateAccountTarget("counter_account_id"); return; }
                       set("counter_account_id", v);
                       const acc = accounts.find((a: any) => a.id === v);
                       if (acc?.account_number?.startsWith("4")) set("vat_rate", "");
@@ -410,6 +416,8 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                     }}
                     accounts={accounts}
                     placeholder="Gegenkonto suchen…"
+                    showCreateOption
+                    onCreateClick={() => setCreateAccountTarget("counter_account_id")}
                   />
                 </div>
 
@@ -621,6 +629,16 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
         onOpenChange={setAliasDialogOpen}
         rawVendorName={(invoiceDetail as any)?.vendor_name || ""}
         buildingId={booking?.building_id || null}
+      />
+
+      <CreateAccountInlineDialog
+        open={!!createAccountTarget}
+        onOpenChange={(o) => { if (!o) setCreateAccountTarget(null); }}
+        buildingId={booking?.building_id || null}
+        onCreated={(newId) => {
+          if (createAccountTarget) set(createAccountTarget, newId);
+          setCreateAccountTarget(null);
+        }}
       />
     </>
   );

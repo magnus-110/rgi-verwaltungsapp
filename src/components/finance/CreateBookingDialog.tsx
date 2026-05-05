@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AccountSearchSelect } from "./AccountSearchSelect";
+import { CreateAccountInlineDialog } from "./CreateAccountInlineDialog";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { CheckCircle, Building2, X, Sparkles, Loader2 } from "lucide-react";
@@ -46,6 +47,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [saveCounter, setSaveCounter] = useState(0);
+  const [createAccountTarget, setCreateAccountTarget] = useState<"account_id" | "counter_account_id" | null>(null);
 
   const [form, setForm] = useState({
     building_id: "",
@@ -289,6 +291,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
               <AccountSearchSelect
                 value={form.account_id}
                 onChange={v => {
+                  if (v === "__create__") { setCreateAccountTarget("account_id"); return; }
                   set("account_id", v);
                   const acc = accounts.find(a => a.id === v);
                   if (acc?.is_35a_relevant) set("is_35a_relevant", true);
@@ -303,6 +306,8 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                 accounts={accounts}
                 excludeCategory="Bankkonto"
                 placeholder="Konto suchen…"
+                showCreateOption
+                onCreateClick={() => setCreateAccountTarget("account_id")}
               />
               {form.account_id && accountBalanceData != null && (
                 <p className="text-xs mt-1 text-muted-foreground">
@@ -375,6 +380,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
               <AccountSearchSelect
                 value={form.counter_account_id}
                 onChange={v => {
+                  if (v === "__create__") { setCreateAccountTarget("counter_account_id"); return; }
                   set("counter_account_id", v);
                   const acc = accounts.find((a: any) => a.id === v);
                   if (acc?.account_number?.startsWith("4")) set("vat_rate", "");
@@ -388,6 +394,8 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                 }}
                 accounts={accounts}
                 placeholder="Gegenkonto suchen…"
+                showCreateOption
+                onCreateClick={() => setCreateAccountTarget("counter_account_id")}
               />
             </div>
 
@@ -513,6 +521,15 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
           </div>
         </div>
       </DialogContent>
+      <CreateAccountInlineDialog
+        open={!!createAccountTarget}
+        onOpenChange={(o) => { if (!o) setCreateAccountTarget(null); }}
+        buildingId={form.building_id || null}
+        onCreated={(newId) => {
+          if (createAccountTarget) set(createAccountTarget, newId);
+          setCreateAccountTarget(null);
+        }}
+      />
     </Dialog>
   );
 }
