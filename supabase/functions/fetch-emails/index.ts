@@ -267,7 +267,8 @@ async function fetchAccountEmails(
 
         // Recursive MIME parsing
         const { bodyText, bodyHtml, attachments } = parseEmailComplete(source);
-        const hasAttachments = attachments.length > 0 || checkHasAttachments(msg.bodyStructure);
+        const realAttachments = attachments.filter((a) => !a.isInline);
+        const hasAttachments = realAttachments.length > 0;
 
         const fromAddr = envelope.from?.[0]?.address || "";
         const fromName = envelope.from?.[0]?.name || "";
