@@ -37,6 +37,29 @@ export const CaseDetailView = ({ caseId, onClose }: Props) => {
   const [editingMeta, setEditingMeta] = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
+  const { managementMode } = useManagementMode();
+  const { data: buildings = [] } = useQuery({
+    queryKey: ["buildings-case-edit", managementMode],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("id, name")
+        .eq("management_mode", managementMode)
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const handleBuildingChange = async (newBuildingId: string) => {
+    if (!caseRow || newBuildingId === caseRow.building_id) return;
+    try {
+      await update.mutateAsync({ id: caseRow.id, building_id: newBuildingId } as any);
+      toast({ title: "Liegenschaft geändert" });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e.message, variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     if (caseRow && !editingMeta) {
