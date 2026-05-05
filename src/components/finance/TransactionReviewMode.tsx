@@ -472,7 +472,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       // Splitbuchungen IMMER nach RGI-Schema:
       //   "MM/JJ Re. Nr. <invoice_number> <Lieferant> <Gegenkonto>"
       const invoiceNumber = (invoiceDetail as any)?.invoice_number || null;
-      const vendorName = (invoiceDetail as any)?.vendor_name || null;
+      const vendorName = resolveVendor((invoiceDetail as any)?.vendor_name || null);
       const period = formatMonthYearRef(txnDate);
       const rows: BookingRowData[] = suggestedBookings.map((sb: any, idx: number) => {
         let counterAccountId = "";
