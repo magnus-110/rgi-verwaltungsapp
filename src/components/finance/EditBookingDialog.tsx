@@ -19,6 +19,8 @@ import { de } from "date-fns/locale";
 import { VendorHistorySection } from "./VendorHistorySection";
 import { Section35aEditor } from "./Section35aEditor";
 import { BookingTextTemplateCombobox } from "./BookingTextTemplateCombobox";
+import { resolveVendorDisplayName, useVendorAliases } from "./lib/vendorAlias";
+import { VendorAliasDialog } from "./VendorAliasDialog";
 
 interface Booking {
   id: string;
