@@ -20,6 +20,7 @@ import { VendorHistorySection } from "./VendorHistorySection";
 import { Section35aEditor } from "./Section35aEditor";
 import { BookingTextTemplateCombobox } from "./BookingTextTemplateCombobox";
 import { resolveVendorDisplayName, useVendorAliases } from "./lib/vendorAlias";
+import { buildBookingText, rebuildBookingTextIfAuto } from "./lib/bookingTextBuilder";
 import { VendorAliasDialog } from "./VendorAliasDialog";
 
 interface Booking {
