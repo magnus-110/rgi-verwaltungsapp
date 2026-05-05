@@ -380,6 +380,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
               <AccountSearchSelect
                 value={form.counter_account_id}
                 onChange={v => {
+                  if (v === "__create__") { setCreateAccountTarget("counter_account_id"); return; }
                   set("counter_account_id", v);
                   const acc = accounts.find((a: any) => a.id === v);
                   if (acc?.account_number?.startsWith("4")) set("vat_rate", "");
@@ -393,6 +394,8 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                 }}
                 accounts={accounts}
                 placeholder="Gegenkonto suchen…"
+                showCreateOption
+                onCreateClick={() => setCreateAccountTarget("counter_account_id")}
               />
             </div>
 
