@@ -378,6 +378,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                   set("counter_account_id", v);
                   const acc = accounts.find((a: any) => a.id === v);
                   if (acc?.account_number?.startsWith("4")) set("vat_rate", "");
+                  rebuildAutoText({ counter_account_id: v });
                 }}
                 onCommit={() => {
                   const sc = document.querySelector<HTMLInputElement>('[data-booking-shortcut]');
