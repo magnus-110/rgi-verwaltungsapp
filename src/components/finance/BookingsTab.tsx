@@ -264,7 +264,25 @@ export function BookingsTab({
     return filteredPending.slice(start, start + PAGE_SIZE);
   }, [filteredPending, currentPage]);
 
-  const handleRowClick = (booking: any) => setEditBooking(booking);
+  const handleRowClick = (booking: any, e?: React.MouseEvent) => {
+    const id = booking.id as string;
+    // Toggle off if already selected (no A required)
+    if (selectedIds.has(id)) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      return;
+    }
+    // Add to selection if A held
+    if (aKeyDown) {
+      setSelectedIds(prev => new Set(prev).add(id));
+      return;
+    }
+    // Default: open editor
+    setEditBooking(booking);
+  };
 
   const handleInvoiceClick = useCallback(async (booking: any) => {
     try {
