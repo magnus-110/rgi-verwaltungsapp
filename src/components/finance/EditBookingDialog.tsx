@@ -11,7 +11,7 @@ import { AccountSearchSelect } from "./AccountSearchSelect";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  CheckCircle, FileText, LayoutTemplate, Building2, X, AlertTriangle, Flag, Flame, Loader2
+  CheckCircle, FileText, LayoutTemplate, Building2, X, AlertTriangle, Flag, Flame, Loader2, Pencil
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
