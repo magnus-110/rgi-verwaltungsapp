@@ -12,6 +12,10 @@ import { useCase, useCaseEvents, useUpdateCase, useSummarizeCase, CASE_STATUS_LA
 import { CaseTimeline } from "./CaseTimeline";
 import { CaseQuickAdd } from "./CaseQuickAdd";
 import { CaseAskAi } from "./CaseAskAi";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useManagementMode } from "@/hooks/useManagementMode";
+import { toast } from "@/hooks/use-toast";
 
 interface Props {
   caseId: string | null;
@@ -33,6 +37,29 @@ export const CaseDetailView = ({ caseId, onClose }: Props) => {
   const [editingMeta, setEditingMeta] = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
+  const { managementMode } = useManagementMode();
+  const { data: buildings = [] } = useQuery({
+    queryKey: ["buildings-case-edit", managementMode],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("id, name")
+        .eq("management_mode", managementMode)
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const handleBuildingChange = async (newBuildingId: string) => {
+    if (!caseRow || newBuildingId === caseRow.building_id) return;
+    try {
+      await update.mutateAsync({ id: caseRow.id, building_id: newBuildingId } as any);
+      toast({ title: "Liegenschaft geändert" });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e.message, variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     if (caseRow && !editingMeta) {
@@ -124,6 +151,16 @@ export const CaseDetailView = ({ caseId, onClose }: Props) => {
                     <Badge variant={PRIORITY_VARIANT[caseRow.priority]}>{CASE_PRIORITY_LABEL[caseRow.priority]}</Badge>
                     <Badge variant="outline">{CASE_CATEGORY_LABEL[caseRow.category]}</Badge>
                     {caseRow.unit_number && <Badge variant="outline">Einheit {caseRow.unit_number}</Badge>}
+                    <Select value={caseRow.building_id} onValueChange={handleBuildingChange}>
+                      <SelectTrigger className="h-7 w-auto text-xs min-w-[160px]">
+                        <SelectValue placeholder="Liegenschaft" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {buildings.map((b: any) => (
+                          <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
