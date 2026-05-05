@@ -38,6 +38,7 @@ import { ConfidenceBadge } from "./ConfidenceBadge";
 import { resolveVendorDisplayName, useVendorAliases } from "./lib/vendorAlias";
 import { VendorAliasDialog } from "./VendorAliasDialog";
 import { Pencil } from "lucide-react";
+import { CreateAccountInlineDialog } from "./CreateAccountInlineDialog";
 
 interface TransactionReviewModeProps {
   open: boolean;
