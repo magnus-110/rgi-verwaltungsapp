@@ -406,6 +406,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                       set("counter_account_id", v);
                       const acc = accounts.find((a: any) => a.id === v);
                       if (acc?.account_number?.startsWith("4")) set("vat_rate", "");
+                      rebuildAutoText({ counter_account_id: v });
                     }}
                     accounts={accounts}
                     placeholder="Gegenkonto suchen…"
@@ -461,6 +462,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                             booking_reference: shouldUpdateRef ? newRef : prev.booking_reference,
                           };
                         });
+                        setTimeout(() => rebuildAutoText({ booking_date: val }), 0);
                       }} />
                   </div>
                   <div>
