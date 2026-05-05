@@ -503,6 +503,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           vat_rate: sb.vat_rate != null ? String(sb.vat_rate) : "19",
           vat_amount: "",
           description: splitDescription,
+          __autoTextSignature: splitDescription,
           booking_reference: formatMonthYearRef(txnDate),
           booking_date: txnDate || "",
           receipt_number: receiptNo,
@@ -554,6 +555,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         invoiceNumber: (invoiceDetail as any)?.invoice_number || null,
         counterAccountName: _tplCounter?.account_name || templateDetail.chart_of_accounts?.account_name || null,
       });
+      row.__autoTextSignature = row.description;
       row.matched_template_id = templateDetail.id;
       const vatRate = templateDetail.vat_rate || 0;
       if (vatRate > 0) {
@@ -576,6 +578,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           vendorName: resolveVendor(invoiceDetail.vendor_name),
           counterAccountName: _invCounter?.account_name || null,
         });
+        row.__autoTextSignature = row.description;
       }
       row.invoice_id = invoiceDetail.id;
       if (invoiceDetail.gross_amount && invoiceDetail.net_amount) {
