@@ -262,6 +262,11 @@ export const ComposeEmailDialog = ({
               >
                 <Paperclip className="h-5 w-5" />
               </Button>
+              <EmailTemplatePicker
+                context={{ to, accountId }}
+                currentSubject={subject}
+                onInsert={handleInsertTemplate}
+              />
               <Button
                 variant="ghost"
                 size="icon"
