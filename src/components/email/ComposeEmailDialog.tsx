@@ -164,6 +164,16 @@ export const ComposeEmailDialog = ({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const handleInsertTemplate = ({ subject: ts, body: tb }: { subject: string; body: string; subjectReplaced: boolean }) => {
+    if (ts && !subject.trim()) setSubject(ts);
+    const QUOTE_RE = /\n*--- (?:Ursprüngliche|Weitergeleitete) Nachricht ---/;
+    const m = bodyText.match(QUOTE_RE);
+    const head = m && m.index !== undefined ? bodyText.slice(0, m.index) : bodyText;
+    const tail = m && m.index !== undefined ? bodyText.slice(m.index) : "";
+    const sep = head && !head.endsWith("\n") ? "\n\n" : "";
+    setBodyText(head + sep + tb + (tail ? "\n\n" + tail : ""));
+  };
+
   const handleSend = async () => {
     if (!accountId || !to.trim()) {
       toast.error("Bitte Absender und Empfänger angeben");
