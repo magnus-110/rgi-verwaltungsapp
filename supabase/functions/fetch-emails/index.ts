@@ -835,7 +835,7 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
     let inserted = 0;
     for (const att of attachments) {
       if (existingNames.has(att.filename)) continue;
-      const storagePath = `${emailId}/${att.filename}`;
+      const storagePath = `${emailId}/${sanitizeStorageName(att.filename)}`;
       const { error: upErr } = await supabase.storage
         .from("email-attachments")
         .upload(storagePath, att.content, { contentType: att.contentType, upsert: true });
