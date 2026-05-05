@@ -62,6 +62,26 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     is_35a_relevant: false,
     matched_template_id: "",
   });
+  const [autoTextSignature, setAutoTextSignature] = useState<string>("");
+
+  const rebuildAutoText = (overrides: { counter_account_id?: string; receipt_number?: string; booking_date?: string }) => {
+    const ca = accounts.find((a: any) => a.id === (overrides.counter_account_id ?? form.counter_account_id));
+    const period = (() => {
+      const d = overrides.booking_date ?? form.booking_date;
+      if (!d) return null;
+      const dt = new Date(d);
+      if (isNaN(dt.getTime())) return null;
+      return `${String(dt.getMonth() + 1).padStart(2, "0")}/${String(dt.getFullYear()).slice(-2)}`;
+    })();
+    const result = rebuildBookingTextIfAuto(form.description, autoTextSignature, {
+      period,
+      invoiceNumber: overrides.receipt_number ?? form.receipt_number,
+      vendorName: null,
+      counterAccountName: ca?.account_name || null,
+    });
+    setAutoTextSignature(result.signature);
+    if (result.changed) setForm(p => ({ ...p, description: result.text }));
+  };
 
   const formatBelegRef = (dateStr: string) => {
     if (!dateStr) return "";
