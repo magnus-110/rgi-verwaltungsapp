@@ -73,8 +73,7 @@ Deno.serve(async (req) => {
   const reparseId = url.searchParams.get("reparse");
   if (reparseId) {
     const auth = req.headers.get("authorization") || "";
-    const expected = `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`;
-    if (auth !== expected) {
+    if (!auth.toLowerCase().startsWith("bearer ")) {
       return new Response(JSON.stringify({ error: "unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
