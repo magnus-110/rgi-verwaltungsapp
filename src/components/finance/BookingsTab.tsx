@@ -521,7 +521,17 @@ export function BookingsTab({
             </Badge>
           )}
         </Button>
-        <Button size="sm" className="h-9 gap-1.5 ml-auto" onClick={() => setCreateOpen(true)}>
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-2 ml-auto">
+            <Badge variant="secondary" className="text-xs">
+              {selectedIds.size} markiert
+            </Badge>
+            <Button size="sm" variant="ghost" className="h-9" onClick={() => setSelectedIds(new Set())}>
+              Auswahl aufheben
+            </Button>
+          </div>
+        )}
+        <Button size="sm" className={cn("h-9 gap-1.5", selectedIds.size === 0 && "ml-auto")} onClick={() => setCreateOpen(true)}>
           <Plus className="h-3.5 w-3.5" />
           Neue Buchung
         </Button>
