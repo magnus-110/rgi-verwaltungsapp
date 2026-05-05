@@ -437,6 +437,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                         booking_reference: shouldUpdateRef ? newRef : prev.booking_reference,
                       };
                     });
+                    setTimeout(() => rebuildAutoText({ booking_date: val }), 0);
                   }} />
               </div>
               <div>
