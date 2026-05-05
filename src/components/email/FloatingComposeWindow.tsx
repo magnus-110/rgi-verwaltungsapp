@@ -379,9 +379,26 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     });
     window.open(`${window.location.origin}/postfach?${params.toString()}`, "_blank", "noopener,noreferrer");
     closeCompose(compose.id);
+
+  const handleInsertTemplate = ({ subject, body, subjectReplaced }: { subject: string; body: string; subjectReplaced: boolean }) => {
+    const patch: Partial<ComposeState> = {};
+    if (subject) {
+      if (!compose.subject?.trim()) patch.subject = subject;
+      else if (subjectReplaced) {
+        // do not overwrite existing subject silently — leave it
+      }
+    }
+    // Insert body at end of editable head (before quote), preserve signature/quote tail
+    const QUOTE_RE = /\n*---\s*(?:Ursprüngliche|Weitergeleitete)\s+Nachricht\s*---/;
+    const cur = compose.bodyText || "";
+    const m = cur.match(QUOTE_RE);
+    const head = m && m.index !== undefined ? cur.slice(0, m.index) : cur;
+    const tail = m && m.index !== undefined ? cur.slice(m.index) : "";
+    const sep = head && !head.endsWith("\n") ? "\n\n" : "";
+    patch.bodyText = head + sep + body + (tail ? "\n\n" + tail : "");
+    update(patch);
   };
 
-  // ===== MOBILE: Fullscreen-style compose =====
   if (isMobile) {
     const title = compose.replyTo ? "Antworten" : compose.forward ? "Weiterleiten" : "Neue E-Mail";
     return (
