@@ -151,6 +151,16 @@ export const CaseDetailView = ({ caseId, onClose }: Props) => {
                     <Badge variant={PRIORITY_VARIANT[caseRow.priority]}>{CASE_PRIORITY_LABEL[caseRow.priority]}</Badge>
                     <Badge variant="outline">{CASE_CATEGORY_LABEL[caseRow.category]}</Badge>
                     {caseRow.unit_number && <Badge variant="outline">Einheit {caseRow.unit_number}</Badge>}
+                    <Select value={caseRow.building_id} onValueChange={handleBuildingChange}>
+                      <SelectTrigger className="h-7 w-auto text-xs min-w-[160px]">
+                        <SelectValue placeholder="Liegenschaft" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {buildings.map((b: any) => (
+                          <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
