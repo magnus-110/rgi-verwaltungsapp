@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AccountSearchSelect } from "./AccountSearchSelect";
+import { CreateAccountInlineDialog } from "./CreateAccountInlineDialog";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { CheckCircle, Building2, X, Sparkles, Loader2 } from "lucide-react";
