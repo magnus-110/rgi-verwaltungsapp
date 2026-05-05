@@ -314,15 +314,17 @@ export function BookingsTab({
 
   const renderRow = (b: any) => {
     const isIncome = b.booking_type === "income";
+    const isSelected = selectedIds.has(b.id);
 
     return (
       <TableRow
         key={b.id}
         className={cn(
           "cursor-pointer text-[13px] hover:bg-muted/60 transition-colors",
-          b.needs_review && "bg-orange-50 dark:bg-orange-950/20"
+          b.needs_review && "bg-orange-50 dark:bg-orange-950/20",
+          isSelected && "bg-primary/15 hover:bg-primary/20 ring-1 ring-inset ring-primary/40"
         )}
-        onClick={() => handleRowClick(b)}
+        onClick={(e) => handleRowClick(b, e)}
       >
         <TableCell className="py-2 px-3 whitespace-nowrap font-medium tabular-nums">
           {format(new Date(b.booking_date), "dd.MM.yyyy")}
