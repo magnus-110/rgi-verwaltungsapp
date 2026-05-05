@@ -4681,6 +4681,7 @@ export type Database = {
           updated_at: string
           utility_contract_id: string | null
           vat_amount: number | null
+          vendor_display_name: string | null
           vendor_iban: string | null
           vendor_name: string | null
         }
@@ -4724,6 +4725,7 @@ export type Database = {
           updated_at?: string
           utility_contract_id?: string | null
           vat_amount?: number | null
+          vendor_display_name?: string | null
           vendor_iban?: string | null
           vendor_name?: string | null
         }
@@ -4767,6 +4769,7 @@ export type Database = {
           updated_at?: string
           utility_contract_id?: string | null
           vat_amount?: number | null
+          vendor_display_name?: string | null
           vendor_iban?: string | null
           vendor_name?: string | null
         }
@@ -6356,6 +6359,44 @@ export type Database = {
             columns: ["prepayment_account_id"]
             isOneToOne: false
             referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_aliases: {
+        Row: {
+          building_id: string | null
+          created_at: string
+          created_by: string | null
+          display_name: string
+          id: string
+          raw_pattern: string
+          updated_at: string
+        }
+        Insert: {
+          building_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          display_name: string
+          id?: string
+          raw_pattern: string
+          updated_at?: string
+        }
+        Update: {
+          building_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          display_name?: string
+          id?: string
+          raw_pattern?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_aliases_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
         ]
