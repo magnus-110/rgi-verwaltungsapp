@@ -21,6 +21,42 @@ export type BookingTextParts = {
   counterAccountName?: string | null;
 };
 
+/**
+ * Prüft, ob `currentText` noch dem zuletzt automatisch generierten Text entspricht.
+ * Akzeptiert leeren Text als "auto" (noch nichts vom User geändert).
+ */
+export function isAutoBookingText(
+  currentText: string | null | undefined,
+  lastAutoSignature: string | null | undefined,
+): boolean {
+  const cur = (currentText || "").trim();
+  if (!cur) return true;
+  const sig = (lastAutoSignature || "").trim();
+  if (!sig) return false;
+  return cur === sig;
+}
+
+/**
+ * Baut einen neuen Buchungstext, wenn der bisherige Text noch automatisch war.
+ * Sonst bleibt der vom User bearbeitete Text erhalten.
+ *
+ * Rückgabe: { text, signature } – signature soll im Row-State als
+ * `__autoTextSignature` gespeichert werden, damit künftige Vergleiche zuverlässig sind.
+ */
+export function rebuildBookingTextIfAuto(
+  currentText: string | null | undefined,
+  lastAutoSignature: string | null | undefined,
+  newParts: BookingTextParts,
+): { text: string; signature: string; changed: boolean } {
+  const newAuto = buildBookingText(newParts);
+  if (isAutoBookingText(currentText, lastAutoSignature)) {
+    return { text: newAuto, signature: newAuto, changed: (currentText || "") !== newAuto };
+  }
+  // User-Text bleibt erhalten – Signatur trotzdem aktualisieren, damit der
+  // letzte bekannte Auto-Text stets dem aktuellen Stand entspricht.
+  return { text: currentText || "", signature: newAuto, changed: false };
+}
+
 export function buildBookingText(parts: BookingTextParts): string {
   const segments: string[] = [];
   const period = (parts.period || "").trim();
