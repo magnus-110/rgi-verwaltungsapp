@@ -13,6 +13,7 @@ import { CheckCircle, Building2, X, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BookingTextTemplateCombobox } from "./BookingTextTemplateCombobox";
 import { signedTotalForAccount } from "./lib/bookingAggregation";
+import { rebuildBookingTextIfAuto } from "./lib/bookingTextBuilder";
 
 interface BookingPrefill {
   account_id?: string;
@@ -61,6 +62,26 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     is_35a_relevant: false,
     matched_template_id: "",
   });
+  const [autoTextSignature, setAutoTextSignature] = useState<string>("");
+
+  const rebuildAutoText = (overrides: { counter_account_id?: string; receipt_number?: string; booking_date?: string }) => {
+    const ca = accounts.find((a: any) => a.id === (overrides.counter_account_id ?? form.counter_account_id));
+    const period = (() => {
+      const d = overrides.booking_date ?? form.booking_date;
+      if (!d) return null;
+      const dt = new Date(d);
+      if (isNaN(dt.getTime())) return null;
+      return `${String(dt.getMonth() + 1).padStart(2, "0")}/${String(dt.getFullYear()).slice(-2)}`;
+    })();
+    const result = rebuildBookingTextIfAuto(form.description, autoTextSignature, {
+      period,
+      invoiceNumber: overrides.receipt_number ?? form.receipt_number,
+      vendorName: null,
+      counterAccountName: ca?.account_name || null,
+    });
+    setAutoTextSignature(result.signature);
+    if (result.changed) setForm(p => ({ ...p, description: result.text }));
+  };
 
   const formatBelegRef = (dateStr: string) => {
     if (!dateStr) return "";
@@ -357,6 +378,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                   set("counter_account_id", v);
                   const acc = accounts.find((a: any) => a.id === v);
                   if (acc?.account_number?.startsWith("4")) set("vat_rate", "");
+                  rebuildAutoText({ counter_account_id: v });
                 }}
                 onCommit={() => {
                   const sc = document.querySelector<HTMLInputElement>('[data-booking-shortcut]');
@@ -378,7 +400,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                   fiscalYear={form.fiscal_year}
                   invoice={null}
                   counterAccountName={accounts.find((a: any) => a.id === form.counter_account_id)?.account_name || null}
-                  onApply={(text) => set("description", text)}
+                  onApply={(text) => { set("description", text); setAutoTextSignature(text); }}
                   onCommit={() => {
                     const desc = document.querySelector<HTMLInputElement>('[data-booking-desc]');
                     desc?.focus();
@@ -415,6 +437,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                         booking_reference: shouldUpdateRef ? newRef : prev.booking_reference,
                       };
                     });
+                    setTimeout(() => rebuildAutoText({ booking_date: val }), 0);
                   }} />
               </div>
               <div>
