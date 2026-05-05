@@ -1,41 +1,41 @@
-## Ziel
+# Kassenprüfung – Verbesserungen
 
-Anhänge bei E-Mails wie der von Gayer-Lesti (04.05., 17:42) zuverlässig erkennen und speichern, statt sie stillschweigend zu verlieren.
+Vier Änderungen, alle in `src/components/finance/`:
 
-## Schritte
+## 1. Neue Komponente: `BookingReviewDialog.tsx`
 
-### 1. MIME-Parser in `supabase/functions/fetch-emails/index.ts` härten
+Vollbild-Splitview-Dialog (linke Spalte: Buchungsdetails-Karte + Nachweis + Geprüft/Auffällig + Notiz, rechte Spalte: PDF-iframe **oder** „Wiederkehrende Buchung"-Hinweis), als wiederverwendbare Komponente extrahiert. Akzeptiert eine Bookings-Liste + selectedId für Vor/Zurück-Navigation. Optional flag/note Callbacks (entfallen bei reinen View-Modus).
 
-- **Header-Folding korrekt auflösen**: vor jedem `getHeader`-Lookup Zeilen, die mit Whitespace beginnen, an die vorhergehende Zeile anhängen (RFC 5322 §2.2.3). Behebt verlorene `boundary="..."`- und `filename="..."`-Werte.
-- **Boundary strikt pro MIME-Ebene** verwenden: `splitByBoundary` mit Regex `^--<boundary>(--)?\s*$` (multiline) statt `String.split` — verhindert Kollisionen mit Boundaries innerer Parts.
-- **`message/rfc822`** als rekursiv zu parsenden Container behandeln (nicht als Anhang verwerfen, sondern Inhalt weiterverarbeiten und das Objekt zusätzlich als `.eml`-Anhang ablegen).
-- **Decoding robuster**: bei `base64` Whitespace/Zeilenumbrüche entfernen, bei `quoted-printable` `=\r\n` und `=\n` als Soft-Breaks behandeln.
-- **Filename**: zusätzlich RFC 2231 (`filename*=UTF-8''…`) und MIME-Encoded-Words (`=?UTF-8?…?=`) dekodieren.
+Buchungsdetails-Karte zeigt klar strukturiert:
+- Datum, Betrag (farbig +/-), Buchungstext, Konto, **Gegenkonto**, Beleg-Nr., Typ (Einnahme/Ausgabe), §35a-Anteil falls vorhanden — in einer rahmen-/divide-getrennten Liste statt loser Zeilen.
 
-### 2. Fallback über `bodyStructure`
+## 2. `CashAuditAccountSheet.tsx` — Personenkonten-Soll, Auffällig, §35a, Click
 
-Wenn nach dem MIME-Parsing `attachments.length === 0`, aber `checkHasAttachments(msg.bodyStructure) === true`:
-- Pro Part-Pfad in `bodyStructure` einen gezielten `client.download(uid, partPath)` ausführen und die Bytes als Anhang speichern.
-- Damit werden Anhänge auch dann gerettet, wenn unser Source-Parser an einer Edge-Case-Konstellation scheitert.
+- Zusätzliche Query für **`booking_templates`** (account_id, expected_amount, interval, valid_from, valid_to) für das Gebäude. Pro Personenkonto (Pattern `^0\d{3}$`, ohne 0000) wird das **Soll Hausgeld** errechnet:
+  - Pro Vorlage Monate im Wirtschaftsjahr × Faktor (monatlich=1, vierteljährlich=1/3, jährlich=1/12), pro-rata über `valid_from`/`valid_to`-Schnitt mit Geschäftsjahr.
+  - Mehrere Vorlagen werden summiert.
+- Neue Header-Badges am Konto-Akkordeon: **Soll: X €** vs **Haben: Y €** — Differenz farbig (grün ≤ 1 €, rot sonst). Nur für Personenkonten (Konten 0001-0999).
+- Query-Erweiterung `bookings` um `amount_35a` und `is_35a_relevant`.
+- Neue Tabellen-Spalte **§35a** (rechts vor Saldo), pro Buchung mit `amount_35a`, **Footer summiert §35a**.
+- Aktion **„Auffällig"** als zweiter Button neben „Geprüft" (gegenseitig exklusiv über `progress.accountFlags[id] = "ok" | "issue" | null`). Geprüft → grüner Rahmen, Auffällig → bernsteinfarbener Rahmen.
+- Klick auf eine Buchungszeile öffnet den neuen `BookingReviewDialog` mit der Bookingsliste **dieses Kontos**, schreibt Flags/Notizen in `progress.bookingFlags`/`progress.bookingNotes` (gleiche Keys wie Journal).
+- Erweiterung der Token-RPC `get_audit_accounts_by_token` und `get_audit_bookings_by_token` um `amount_35a`, `is_35a_relevant` sowie `counter_account` join, plus neue RPC `get_audit_templates_by_token`.
 
-### 3. Logging & Diagnose
+## 3. `CashAuditJournal.tsx` — Shared Dialog & klarere Buchungsdarstellung
 
-- Beim Insert eines Mails zusätzlich loggen, wenn `bodyStructure` Anhänge meldet, der Parser aber 0 fand (Warnung mit UID + Subject).
-- Einmaligen Diagnose-Endpoint (intern, nur in dieser Function) `?reparse=<emailId>` bauen, der für eine bereits importierte Mail die IMAP-Source erneut zieht und den neuen Parser anwirft. So lässt sich die Gayer-Lesti-Mail (und vergleichbare Altfälle) ohne kompletten Reimport nachträglich reparieren.
+- Inline-Vollbild-Modal entfernt; stattdessen `<BookingReviewDialog>` mit gefilterter Bookingsliste verwenden.
+- Listenzeilen aufgeräumt: Datum links als Chip, Buchungstext groß, Konto/Gegenkonto klein darunter, **§35a-Badge** wenn relevant, Betrag rechts mit klarem +/- und Farbe.
+- Query um `amount_35a, is_35a_relevant, counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name)` ergänzen.
 
-### 4. Konkrete Reparatur dieser Mail
+## 4. SQL-Migration
 
-- Nach Deployment: `?reparse=29f3dedf-8731-4a4e-94fe-f192664d5c6d` aufrufen.
-- Prüfen: Anhang („unterschriebenes Protokoll", vermutlich PDF) erscheint, `has_attachments=true`, sichtbar im UI.
+Erweitert `get_audit_accounts_by_token` um Personenkonto-Soll-Berechnung sowie `get_audit_bookings_by_token` um `amount_35a`, `is_35a_relevant`, `counter_account`. Neue Funktion `get_audit_templates_by_token` (für Personenkonto-Soll im Token-Modus).
 
-## Technische Details
+## Files
 
-- Datei: `supabase/functions/fetch-emails/index.ts` (Funktionen `parseMimePart`, `splitByBoundary`, `getHeader`, `extractFilename`, `decodeContent`).
-- Keine DB-Schemaänderungen nötig.
-- Keine UI-Änderungen nötig — `EmailAttachments.tsx` zeigt nicht-inline Anhänge bereits korrekt an, sobald sie in `email_attachments` mit `is_inline=false` liegen.
-- Reparse-Endpoint wird mit Service-Role-Check gesichert (Header `x-admin-key` gegen Supabase-Secret), damit kein öffentlicher Aufruf möglich ist.
+- **NEU** `src/components/finance/BookingReviewDialog.tsx`
+- **EDIT** `src/components/finance/CashAuditAccountSheet.tsx`
+- **EDIT** `src/components/finance/CashAuditJournal.tsx`
+- **NEU** `supabase/migrations/<ts>_audit_token_enrichments.sql`
 
-## Risiken / Hinweise
-
-- IMAP-Verbindung muss für `reparse` denselben UID noch sehen (Strato hält Mails im Posteingang — passt).
-- Bei Boundary-Regex-Umstellung kurz mit 2–3 weiteren importierten Mails gegenchecken, dass keine bestehenden Imports rückwärts brechen (Logging in Schritt 3 hilft).
+Keine UI-/UX-Änderungen außerhalb der Kassenprüfung.
