@@ -713,9 +713,16 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           </div>
 
           <div className="space-y-1">
-            <Button type="button" variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => fileInputRef.current?.click()}>
-              <Paperclip className="h-3 w-3" /> Anhang
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button type="button" variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => fileInputRef.current?.click()}>
+                <Paperclip className="h-3 w-3" /> Anhang
+              </Button>
+              <EmailTemplatePicker
+                context={{ to: compose.to, accountId: compose.accountId }}
+                currentSubject={compose.subject}
+                onInsert={handleInsertTemplate}
+              />
+            </div>
             <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
             {compose.attachments.length > 0 && (
               <div className="space-y-0.5">
