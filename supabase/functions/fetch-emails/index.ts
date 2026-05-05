@@ -291,7 +291,21 @@ async function fetchAccountEmails(
         const source = msg.source?.toString() || "";
 
         // Recursive MIME parsing
-        const { bodyText, bodyHtml, attachments } = parseEmailComplete(source);
+        let { bodyText, bodyHtml, attachments } = parseEmailComplete(source);
+
+        // Fallback: if our parser missed attachments but bodyStructure says there are some,
+        // download each attachment part directly via IMAP.
+        const structureSaysHasAtt = checkHasAttachments(msg.bodyStructure);
+        if (attachments.length === 0 && structureSaysHasAtt) {
+          console.warn(`Parser missed attachments for UID ${uid} (${envelope.subject}); falling back to bodyStructure download.`);
+          try {
+            const downloaded = await downloadAttachmentsFromStructure(client, uid, msg.bodyStructure);
+            attachments = downloaded;
+          } catch (dlErr: any) {
+            console.error(`Fallback download failed for UID ${uid}:`, dlErr.message);
+          }
+        }
+
         const realAttachments = attachments.filter((a) => !a.isInline);
         const hasAttachments = realAttachments.length > 0;
 
