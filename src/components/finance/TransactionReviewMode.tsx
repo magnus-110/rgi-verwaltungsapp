@@ -35,6 +35,9 @@ import { parseAmount } from "./lib/parseAmount";
 import { getLineItemGross } from "./lib/lineItemAmount";
 import { InvoiceLineItemsView } from "./InvoiceLineItemsView";
 import { ConfidenceBadge } from "./ConfidenceBadge";
+import { resolveVendorDisplayName, useVendorAliases } from "./lib/vendorAlias";
+import { VendorAliasDialog } from "./VendorAliasDialog";
+import { Pencil } from "lucide-react";
 
 interface TransactionReviewModeProps {
   open: boolean;
