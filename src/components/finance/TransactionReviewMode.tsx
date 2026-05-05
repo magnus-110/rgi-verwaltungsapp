@@ -1694,7 +1694,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                               updated.description = buildBookingText({
                                 period: formatMonthYearRef(currentTxn?.booking_date),
                                 invoiceNumber: inv.invoice_number,
-                                vendorName: inv.vendor_name,
+                                vendorName: resolveVendor(inv.vendor_name),
                                 counterAccountName: _ca?.account_name || null,
                               });
                             }
