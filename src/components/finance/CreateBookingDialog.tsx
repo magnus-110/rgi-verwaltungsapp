@@ -291,6 +291,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
               <AccountSearchSelect
                 value={form.account_id}
                 onChange={v => {
+                  if (v === "__create__") { setCreateAccountTarget("account_id"); return; }
                   set("account_id", v);
                   const acc = accounts.find(a => a.id === v);
                   if (acc?.is_35a_relevant) set("is_35a_relevant", true);
@@ -305,6 +306,8 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                 accounts={accounts}
                 excludeCategory="Bankkonto"
                 placeholder="Konto suchen…"
+                showCreateOption
+                onCreateClick={() => setCreateAccountTarget("account_id")}
               />
               {form.account_id && accountBalanceData != null && (
                 <p className="text-xs mt-1 text-muted-foreground">
