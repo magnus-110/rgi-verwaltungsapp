@@ -1132,6 +1132,7 @@ export const Inbox = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Alle Liegenschaften</SelectItem>
+                      <SelectItem value="none">Ohne Liegenschaft</SelectItem>
                       {buildings.map(b => (
                         <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                       ))}
@@ -1144,6 +1145,7 @@ export const Inbox = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Alle Kontakte</SelectItem>
+                      <SelectItem value="none">Ohne Kontakt</SelectItem>
                       {contacts.map(c => (
                         <SelectItem key={c.id} value={c.id}>{getContactName(c)}</SelectItem>
                       ))}
