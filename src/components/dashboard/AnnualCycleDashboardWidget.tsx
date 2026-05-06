@@ -3,19 +3,24 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
 import { CalendarClock, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   ANNUAL_CYCLE_TASKS, STATUS_LABEL,
   buildFiscalYears, type AnnualCycleStatus,
 } from "@/lib/annualCycle";
+import { toast } from "sonner";
 
 interface BuildingRow {
   id: string;
@@ -23,10 +28,12 @@ interface BuildingRow {
 }
 
 interface TaskRow {
+  id: string;
   building_id: string;
   task_key: string;
   status: AnnualCycleStatus;
   completed_at: string | null;
+  note: string | null;
 }
 
 const STATUS_DOT: Record<AnnualCycleStatus, string> = {
