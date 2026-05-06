@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EmailTemplatePicker } from "./EmailTemplatePicker";
+import { VoiceDictationButton } from "./VoiceDictationButton";
 
 interface ComposeEmailDialogProps {
   open: boolean;
@@ -174,6 +175,24 @@ export const ComposeEmailDialog = ({
     setBodyText(head + sep + tb + (tail ? "\n\n" + tail : ""));
   };
 
+  const handleVoiceAccept = (vb: string, vSubject?: string) => {
+    if (vSubject && !subject.trim()) setSubject(vSubject);
+    const QUOTE_RE = /\n*--- (?:Ursprüngliche|Weitergeleitete) Nachricht ---/;
+    const m = bodyText.match(QUOTE_RE);
+    const head = m && m.index !== undefined ? bodyText.slice(0, m.index) : bodyText;
+    const tail = m && m.index !== undefined ? bodyText.slice(m.index) : "";
+    const sep = head && !head.endsWith("\n") ? "\n\n" : "";
+    setBodyText(head + sep + vb + (tail ? "\n\n" + tail : ""));
+  };
+
+  const voiceCtx = {
+    recipientEmail: to,
+    subject,
+    existingBody: bodyText,
+    senderName: accounts.find((a) => a.id === accountId)?.display_name,
+    isReply: !!replyTo,
+  };
+
   const handleSend = async () => {
     if (!accountId || !to.trim()) {
       toast.error("Bitte Absender und Empfänger angeben");
@@ -267,6 +286,7 @@ export const ComposeEmailDialog = ({
                 currentSubject={subject}
                 onInsert={handleInsertTemplate}
               />
+              <VoiceDictationButton context={voiceCtx} onAccept={handleVoiceAccept} />
               <Button
                 variant="ghost"
                 size="icon"
@@ -687,6 +707,7 @@ export const ComposeEmailDialog = ({
                 currentSubject={subject}
                 onInsert={handleInsertTemplate}
               />
+              <VoiceDictationButton context={voiceCtx} onAccept={handleVoiceAccept} />
               <input
                 ref={fileInputRef}
                 type="file"
