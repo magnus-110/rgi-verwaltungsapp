@@ -592,7 +592,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
 
       {/* Content */}
       <ScrollArea className="flex-1 p-3">
-        <div className={cn("space-y-2.5 mx-auto", isFullscreen ? "max-w-5xl" : "max-w-3xl")}>
+        <div className={cn("space-y-2.5 mx-auto", isFullscreen ? "max-w-[1400px]" : "max-w-3xl")}>
           <div className="space-y-1">
             <Label className="text-xs">Von</Label>
             <Select value={compose.accountId} onValueChange={(v) => update({ accountId: v })}>
