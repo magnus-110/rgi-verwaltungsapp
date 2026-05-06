@@ -985,6 +985,125 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                 </PopoverContent>
               </Popover>
             </div>
+
+            <Separator />
+
+            {/* === Section 6: Verknüpftes Dokument === */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                Verknüpftes Dokument
+                <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-1">
+                z.B. Wirtschaftsplan mit den Hausgeldern als Nachweis. Aus dem DMS auswählen oder neu hochladen.
+              </p>
+
+              <input
+                ref={docFileInputRef}
+                type="file"
+                className="hidden"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                onChange={handleDocUpload}
+              />
+
+              <div className="flex items-center gap-2">
+                <Popover open={docPickerOpen} onOpenChange={setDocPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={docPickerOpen}
+                      disabled={!form.building_id}
+                      className="flex-1 justify-between font-normal"
+                    >
+                      {linkedDoc ? linkedDoc.display_name : (form.building_id ? "Dokument aus DMS wählen" : "Erst Liegenschaft wählen")}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <div className="flex flex-col">
+                      <div className="border-b px-3 py-2">
+                        <input
+                          type="text"
+                          placeholder="Dokument suchen..."
+                          value={docSearch}
+                          onChange={(e) => setDocSearch(e.target.value)}
+                          className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="max-h-[300px] overflow-y-auto overscroll-contain p-1" onWheel={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => { setForm({ ...form, linked_document_id: "" }); setDocPickerOpen(false); }}
+                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                        >
+                          <Check className={cn("h-4 w-4 shrink-0", !form.linked_document_id ? "opacity-100" : "opacity-0")} />
+                          <span className="text-muted-foreground">Keine Verknüpfung</span>
+                        </button>
+                        {(() => {
+                          const q = docSearch.trim().toLowerCase();
+                          const filtered = q
+                            ? documents.filter((d: any) => (d.display_name || "").toLowerCase().includes(q))
+                            : documents;
+                          if (filtered.length === 0) {
+                            return <div className="py-6 text-center text-sm text-muted-foreground">Keine Dokumente gefunden.</div>;
+                          }
+                          return filtered.map((d: any) => (
+                            <div key={d.id} className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => { setForm({ ...form, linked_document_id: d.id }); setDocPickerOpen(false); }}
+                                className="flex flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-accent min-w-0"
+                              >
+                                <Check className={cn("h-4 w-4 shrink-0", form.linked_document_id === d.id ? "opacity-100" : "opacity-0")} />
+                                <div className="flex flex-col flex-1 min-w-0">
+                                  <span className="text-sm truncate">{d.display_name}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {d.created_at ? new Date(d.created_at).toLocaleDateString("de-DE") : ""}
+                                  </span>
+                                </div>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); openDocPreview(d.id); }}
+                                className="p-1.5 mr-1 rounded hover:bg-accent shrink-0"
+                                title="Öffnen"
+                              >
+                                <Eye className="h-4 w-4 text-muted-foreground" />
+                              </button>
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {form.linked_document_id && (
+                  <>
+                    <Button type="button" variant="outline" size="icon" onClick={() => openDocPreview(form.linked_document_id)} title="Dokument öffnen">
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button type="button" variant="outline" size="icon" onClick={() => setForm({ ...form, linked_document_id: "" })} title="Verknüpfung entfernen">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => docFileInputRef.current?.click()}
+                  disabled={!form.building_id || uploadingDoc}
+                  title="Neues Dokument hochladen"
+                >
+                  {uploadingDoc ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                  {!uploadingDoc && "Hochladen"}
+                </Button>
+              </div>
+            </div>
           </div>
 
           {previewPdfUrl && (
