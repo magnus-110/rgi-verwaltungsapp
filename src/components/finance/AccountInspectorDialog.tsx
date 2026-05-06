@@ -246,16 +246,13 @@ export function AccountInspectorDialog({
   const moveBooking = async (bookingId: string, newAccId: string) => {
     const b = bookings.find((x) => x.id === bookingId);
     if (!b || !newAccId) return;
-    // Keep this account; change the OTHER side (Gegenkonto).
-    const sideToChange: "account_id" | "counter_account_id" =
-      b.account_id === accountId ? "counter_account_id" : "account_id";
-    if (newAccId === accountId) {
-      toast.error("Zielkonto entspricht dem aktuellen Konto");
+    if (newAccId === b.account_id) {
+      toast.error("Zielkonto entspricht dem Soll/Haben-Konto");
       return;
     }
     const { error } = await supabase
       .from("bookings")
-      .update({ [sideToChange]: newAccId } as any)
+      .update({ counter_account_id: newAccId } as any)
       .eq("id", bookingId);
     if (error) {
       toast.error("Umbuchung fehlgeschlagen", { description: error.message });
@@ -273,17 +270,20 @@ export function AccountInspectorDialog({
     for (const bid of bulkSelected) {
       const b = bookings.find((x) => x.id === bid);
       if (!b) { fail++; continue; }
-      const sideToChange: "account_id" | "counter_account_id" =
-        b.account_id === accountId ? "counter_account_id" : "account_id";
-      if (moveTargetId === accountId) { fail++; continue; }
+      if (moveTargetId === b.account_id) { fail++; continue; }
       const { error } = await supabase
         .from("bookings")
-        .update({ [sideToChange]: moveTargetId } as any)
+        .update({ counter_account_id: moveTargetId } as any)
         .eq("id", bid);
       if (error) fail++;
       else { ok++; onBookingChanged?.(bid); }
     }
     toast.success(`${ok} Gegenkonto(s) geändert${fail ? `, ${fail} fehlgeschlagen` : ""}`);
+    setBulkSelected(new Set());
+    setMoveTargetId("");
+    refetchBookings();
+    queryClient.invalidateQueries({ queryKey: ["bookings"] });
+  };
     setBulkSelected(new Set());
     setMoveTargetId("");
     refetchBookings();
