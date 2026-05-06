@@ -18,6 +18,7 @@ import { useComposeEmail, type ComposeState } from "@/contexts/ComposeEmailConte
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EmailTemplatePicker } from "./EmailTemplatePicker";
+import { VoiceDictationButton } from "./VoiceDictationButton";
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
