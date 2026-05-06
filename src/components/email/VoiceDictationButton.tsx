@@ -130,7 +130,7 @@ export function VoiceDictationButton({ context, onAccept, iconClassName, buttonS
       </TooltipProvider>
 
       <Dialog open={open} onOpenChange={(o) => { if (!o) handleCancel(); }}>
-        <DialogContent className="max-w-lg z-[100] sm:max-w-lg w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="z-[100] w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Mic className="h-4 w-4" /> E-Mail diktieren
@@ -186,28 +186,28 @@ export function VoiceDictationButton({ context, onAccept, iconClassName, buttonS
 
           {/* Result */}
           {result && !submitting && (
-            <div className="space-y-3">
+            <div className="space-y-3 min-w-0">
               {result.suggested_subject && !context.subject && (
-                <div className="rounded-md border bg-muted/40 p-2 text-xs">
+                <div className="rounded-md border bg-muted/40 p-2 text-xs break-words">
                   <span className="font-medium">Betreffvorschlag: </span>
                   {result.suggested_subject}
                 </div>
               )}
-              <div className="rounded-md border bg-background p-3 max-h-[40vh] overflow-y-auto whitespace-pre-wrap text-sm">
+              <div className="rounded-md border bg-background p-3 max-h-[40vh] overflow-y-auto whitespace-pre-wrap break-words text-sm">
                 {result.body}
               </div>
               <details className="text-xs text-muted-foreground">
                 <summary className="cursor-pointer hover:text-foreground">Original-Transkript anzeigen</summary>
-                <p className="mt-2 italic whitespace-pre-wrap">{result.transcript}</p>
+                <p className="mt-2 italic whitespace-pre-wrap break-words">{result.transcript}</p>
               </details>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" onClick={handleRetry}>
+              <div className="flex flex-wrap justify-end gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={handleRetry}>
                   <RotateCcw className="h-4 w-4 mr-1" /> Neu aufnehmen
                 </Button>
-                <Button variant="outline" onClick={handleCancel}>
+                <Button variant="outline" size="sm" onClick={handleCancel}>
                   <X className="h-4 w-4 mr-1" /> Verwerfen
                 </Button>
-                <Button onClick={handleAccept}>
+                <Button size="sm" onClick={handleAccept}>
                   <Check className="h-4 w-4 mr-1" /> Übernehmen
                 </Button>
               </div>
