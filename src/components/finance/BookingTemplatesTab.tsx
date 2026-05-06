@@ -376,6 +376,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
       valid_from: form.valid_from || null,
       valid_to: form.valid_to || null,
       linked_invoice_id: form.linked_invoice_id || null,
+      linked_document_id: form.linked_document_id || null,
     };
 
     if (editingId) {
