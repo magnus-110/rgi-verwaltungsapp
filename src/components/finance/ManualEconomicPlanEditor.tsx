@@ -427,7 +427,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
   const shareTotals = useMemo(() => {
     const totals: Record<string, number> = { mea: 0, stellplaetze: 0, einheit: 0, qm: 0, personen: 0 };
     for (const a of (assignmentsRaw as any[])) {
-      const isApartment = (!a.unit_kind || a.unit_kind === "apartment") && a.billing_mode !== "distribution_only";
+      const isApartment = (!a.unit_kind || a.unit_kind === "apartment" || a.unit_kind === "commercial") && a.billing_mode !== "distribution_only";
       const area = Number(a.area_sqm_override || 0);
       if (isApartment) {
         totals.einheit += 1;
