@@ -109,7 +109,7 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
   return (
     <div className="space-y-4 md:space-y-6">
       {/* KPI-Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
+      <div className="grid grid-cols-2 gap-2 md:gap-3">
         <KpiCard
           icon={AlertCircle}
           label="Offene Meldungen"
