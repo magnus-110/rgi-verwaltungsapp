@@ -60,7 +60,7 @@ interface Props {
 const formatCurrency = (amount: number | null) =>
   amount != null ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(amount) : "–";
 
-export function EditBookingDialog({ open, onOpenChange, booking, buildingName }: Props) {
+export function EditBookingDialog({ open, onOpenChange, booking, buildingName, onSaved }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
