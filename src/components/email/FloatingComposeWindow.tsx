@@ -202,11 +202,32 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     },
   });
 
-  // Auto-select first account
+  // Auto-select account: prefer the one matching the logged-in user's email
   useEffect(() => {
-    if (!compose.accountId && accounts.length > 0) {
-      update({ accountId: accounts[0].id });
-    }
+    if (compose.accountId || accounts.length === 0) return;
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      const userEmail = u?.user?.email?.toLowerCase();
+      let matched: typeof accounts[number] | undefined;
+      if (userEmail) {
+        matched = accounts.find((a) => a.email_address?.toLowerCase() === userEmail);
+        if (!matched) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("email, first_name, last_name")
+            .eq("user_id", u!.user!.id)
+            .maybeSingle();
+          const profEmail = (profile as any)?.email?.toLowerCase();
+          if (profEmail) matched = accounts.find((a) => a.email_address?.toLowerCase() === profEmail);
+          if (!matched && profile) {
+            const fullName = [(profile as any).first_name, (profile as any).last_name]
+              .filter(Boolean).join(" ").toLowerCase();
+            if (fullName) matched = accounts.find((a) => a.display_name?.toLowerCase().includes(fullName));
+          }
+        }
+      }
+      update({ accountId: (matched || accounts[0]).id });
+    })();
   }, [accounts, compose.accountId, update]);
 
   // Insert signature on account change (preserving quoted text after signature)
