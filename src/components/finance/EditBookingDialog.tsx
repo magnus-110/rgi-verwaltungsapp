@@ -54,6 +54,7 @@ interface Props {
   booking: Booking | null;
   buildingName: string;
   onInvoiceClick?: (booking: any) => void;
+  onSaved?: (bookingId: string) => void;
 }
 
 const formatCurrency = (amount: number | null) =>
