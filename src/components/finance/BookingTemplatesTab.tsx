@@ -54,6 +54,7 @@ const emptyForm: TemplateForm = {
   valid_from: "",
   valid_to: "",
   linked_invoice_id: "",
+  linked_document_id: "",
 };
 
 interface BookingTemplatesTabProps {
