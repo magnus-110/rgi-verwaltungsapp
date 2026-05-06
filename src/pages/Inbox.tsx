@@ -1113,14 +1113,28 @@ export const Inbox = () => {
 
             {/* Search - filters within selected category */}
             <div className="p-2 border-b space-y-2">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder={filterCategory !== "all" ? `In "${filterCategory}" suchen...` : "E-Mails durchsuchen..."}
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="pl-9 h-9"
-                />
+              <div className="relative flex items-center gap-1">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={filterCategory !== "all" ? `In "${filterCategory}" suchen...` : "E-Mails durchsuchen..."}
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="pl-9 h-9"
+                  />
+                </div>
+                {isArchiveFolder && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    title="KI-Suche im Archiv"
+                    onClick={() => setAiSearchOpen(true)}
+                  >
+                    <Sparkles className="h-4 w-4 text-primary" />
+                  </Button>
+                )}
               </div>
               {/* Archive filters */}
               {isArchiveFolder && (
