@@ -383,6 +383,10 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       });
       if (error) throw error;
       toast.success("E-Mail gesendet!");
+      // Refresh inbox so the green "replied" arrow appears immediately
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      queryClient.invalidateQueries({ queryKey: ["email-replies"] });
+      queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
       closeCompose(compose.id);
     } catch (err: any) {
       toast.error("Senden fehlgeschlagen: " + (err.message || "Unbekannter Fehler"));
