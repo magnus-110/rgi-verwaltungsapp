@@ -1274,7 +1274,7 @@ export const Inbox = () => {
                               title="Bereits beantwortet – zur gesendeten Antwort springen"
                               className="text-green-600 hover:text-green-700"
                             >
-                              <Reply className="h-3 w-3" />
+                              <Reply className="h-4 w-4" strokeWidth={2.5} />
                             </button>
                           );
                         })()}
