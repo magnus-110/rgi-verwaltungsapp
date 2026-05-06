@@ -330,6 +330,31 @@ export const Inbox = () => {
     refetchOnWindowFocus: true,
   });
 
+  // Map: message_id of inbound email -> id of sent reply (latest)
+  const inboundMessageIds = useMemo(
+    () => emails.map(e => (e as any).message_id).filter((m): m is string => !!m),
+    [emails],
+  );
+  const { data: replyMap = {} } = useQuery({
+    queryKey: ["email-replies", inboundMessageIds],
+    queryFn: async () => {
+      if (inboundMessageIds.length === 0) return {} as Record<string, string>;
+      const { data, error } = await supabase
+        .from("emails")
+        .select("id, in_reply_to, date")
+        .in("in_reply_to", inboundMessageIds)
+        .order("date", { ascending: false });
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      for (const row of data || []) {
+        const key = (row as any).in_reply_to as string;
+        if (key && !map[key]) map[key] = (row as any).id;
+      }
+      return map;
+    },
+    enabled: inboundMessageIds.length > 0,
+  });
+
   // All known categories (always shown). Wartung/Mahnung/Vertrag/Unkategorisiert -> Sonstiges; Newsletter -> Werbung.
   const ALL_CATEGORIES = ["Rechnung", "Anfrage", "Versicherung", "Werbung", "Sonstiges"];
 
