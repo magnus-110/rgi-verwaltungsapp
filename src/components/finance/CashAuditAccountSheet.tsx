@@ -278,13 +278,13 @@ export function CashAuditAccountSheet({ buildingId, fiscalYear, progress, onProg
                         {ab.account.account_number} {ab.account.account_name}
                       </span>
                       <span className="text-xs text-muted-foreground">({ab.rows.length} Buchungen)</span>
-                      {ab.isPersonAccount && ab.soll > 0 && (
+                      {ab.isPersonAccount && hasEconomicPlan && ab.soll > 0 && (
                         <>
                           <Badge variant="outline" className="text-[10px] h-5">
                             Soll WP: <span className="font-mono ml-1">{fmt(ab.soll)}</span>
                           </Badge>
                           <Badge variant="outline" className="text-[10px] h-5">
-                            Haben: <span className="font-mono ml-1">{fmt(ab.haben)}</span>
+                            Gezahlt: <span className="font-mono ml-1">{fmt(ab.haben)}</span>
                           </Badge>
                           <Badge className={cn(
                             "text-[10px] h-5",
