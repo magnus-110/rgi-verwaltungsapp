@@ -284,11 +284,6 @@ export function AccountInspectorDialog({
     refetchBookings();
     queryClient.invalidateQueries({ queryKey: ["bookings"] });
   };
-    setBulkSelected(new Set());
-    setMoveTargetId("");
-    refetchBookings();
-    queryClient.invalidateQueries({ queryKey: ["bookings"] });
-  };
 
   const toggleBulk = (id: string) => {
     setBulkSelected((prev) => {
