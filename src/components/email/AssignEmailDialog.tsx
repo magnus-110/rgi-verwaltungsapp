@@ -96,13 +96,14 @@ export const AssignEmailDialog = ({
     },
   });
 
-  const { data: contacts = [] } = useQuery({
+  const { data: contacts = [], refetch: refetchContacts } = useQuery({
     queryKey: ["contacts-for-assign"],
     queryFn: async () => {
       const { data, error } = await supabase.from("contacts").select("id, first_name, last_name, company_name").order("last_name");
       if (error) throw error;
       return data;
     },
+    staleTime: 0,
   });
 
   // Lade aktuelle E-Mail (für Absender-Matching)
@@ -121,7 +122,7 @@ export const AssignEmailDialog = ({
   });
 
   // Lade alle bekannten Kontakt-E-Mails (contact_emails + contact_persons.email)
-  const { data: contactEmailMap = new Map<string, string>() } = useQuery({
+  const { data: contactEmailMap = new Map<string, string>(), refetch: refetchEmailMap } = useQuery({
     queryKey: ["contact-email-lookup"],
     queryFn: async () => {
       const map = new Map<string, string>();
@@ -138,7 +139,38 @@ export const AssignEmailDialog = ({
       });
       return map;
     },
+    staleTime: 0,
   });
+
+  // Beim Öffnen Kontakte/E-Mail-Map neu laden, damit gerade neu angelegte Kontakte sofort erscheinen
+  useEffect(() => {
+    if (open) {
+      refetchContacts();
+      refetchEmailMap();
+    }
+  }, [open, refetchContacts, refetchEmailMap]);
+
+  // Realtime: neuer Kontakt → Liste sofort aktualisieren
+  useEffect(() => {
+    if (!open) return;
+    const channel = supabase
+      .channel("assign-dialog-contacts")
+      .on("postgres_changes", { event: "*", schema: "public", table: "contacts" }, () => {
+        refetchContacts();
+        refetchEmailMap();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "contact_emails" }, () => {
+        refetchEmailMap();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "contact_persons" }, () => {
+        refetchEmailMap();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [open, refetchContacts, refetchEmailMap]);
+
 
   // Auto-Vorschlag Kontakt anhand Absender-E-Mail (wenn KI noch nichts vorgeschlagen hat)
   const senderMatchedContactId = currentEmail?.from_address
