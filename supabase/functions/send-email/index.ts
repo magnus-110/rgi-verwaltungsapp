@@ -166,6 +166,7 @@ Deno.serve(async (req) => {
       is_read: true,
       has_attachments: hasAttachments || false,
       message_id: `sent-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      in_reply_to: in_reply_to || null,
     });
 
     if (insertErr) {

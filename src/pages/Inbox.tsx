@@ -330,6 +330,31 @@ export const Inbox = () => {
     refetchOnWindowFocus: true,
   });
 
+  // Map: message_id of inbound email -> id of sent reply (latest)
+  const inboundMessageIds = useMemo(
+    () => emails.map(e => (e as any).message_id).filter((m): m is string => !!m),
+    [emails],
+  );
+  const { data: replyMap = {} } = useQuery({
+    queryKey: ["email-replies", inboundMessageIds],
+    queryFn: async () => {
+      if (inboundMessageIds.length === 0) return {} as Record<string, string>;
+      const { data, error } = await supabase
+        .from("emails")
+        .select("id, in_reply_to, date")
+        .in("in_reply_to", inboundMessageIds)
+        .order("date", { ascending: false });
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      for (const row of data || []) {
+        const key = (row as any).in_reply_to as string;
+        if (key && !map[key]) map[key] = (row as any).id;
+      }
+      return map;
+    },
+    enabled: inboundMessageIds.length > 0,
+  });
+
   // All known categories (always shown). Wartung/Mahnung/Vertrag/Unkategorisiert -> Sonstiges; Newsletter -> Werbung.
   const ALL_CATEGORIES = ["Rechnung", "Anfrage", "Versicherung", "Werbung", "Sonstiges"];
 
@@ -1232,6 +1257,25 @@ export const Inbox = () => {
                         {email.from_name || email.from_address || "Unbekannt"}
                       </span>
                       <div className="flex items-center gap-1 shrink-0">
+                        {(() => {
+                          const replyId = (email as any).message_id ? (replyMap as any)[(email as any).message_id] : null;
+                          if (!replyId) return null;
+                          return (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const sentFolder = folders.find(f => f.name === "Gesendet");
+                                if (sentFolder) setSelectedFolderId(sentFolder.id);
+                                setSelectedEmailId(replyId);
+                              }}
+                              title="Bereits beantwortet – zur gesendeten Antwort springen"
+                              className="text-green-600 hover:text-green-700"
+                            >
+                              <Reply className="h-3 w-3" />
+                            </button>
+                          );
+                        })()}
                         {email.has_attachments && <Paperclip className="h-3 w-3 text-muted-foreground" />}
                         {email.is_starred && <Flag className="h-3 w-3 text-orange-500 fill-orange-500" />}
                         {email.is_pinned && <Pin className="h-3 w-3 text-primary fill-primary" />}
@@ -1559,7 +1603,7 @@ export const Inbox = () => {
                 </div>
                 <div className="p-3 border-t flex gap-2">
                   <Button size="sm" className="gap-1.5" onClick={() => {
-                    openCompose({ replyTo: { subject: selectedEmail.subject, from_address: selectedEmail.from_address, from_name: selectedEmail.from_name, body_text: selectedEmail.body_text, date: selectedEmail.date, account_id: selectedEmail.account_id } });
+                    openCompose({ replyTo: { id: selectedEmail.id, message_id: (selectedEmail as any).message_id, subject: selectedEmail.subject, from_address: selectedEmail.from_address, from_name: selectedEmail.from_name, body_text: selectedEmail.body_text, date: selectedEmail.date, account_id: selectedEmail.account_id } });
                   }}>
                     <Reply className="h-3.5 w-3.5" />
                     Antworten
