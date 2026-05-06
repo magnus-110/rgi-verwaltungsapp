@@ -39,6 +39,12 @@ const SETTLEMENT_35A_TYPES = [
 
 export function ChartOfAccountsTab() {
   const queryClient = useQueryClient();
+  const invalidateAllCoa = () => {
+    queryClient.invalidateQueries({ predicate: (q) => {
+      const k = q.queryKey[0];
+      return typeof k === "string" && (k.startsWith("chart-of-accounts") || k.startsWith("coa-"));
+    }});
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editDistKey, setEditDistKey] = useState("");
