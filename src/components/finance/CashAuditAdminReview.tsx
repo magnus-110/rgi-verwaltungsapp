@@ -495,6 +495,15 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
         buildingName={building?.name || ""}
         onSaved={handleSavedBooking}
       />
+
+      <AccountInspectorDialog
+        open={!!inspectorAccountId}
+        onOpenChange={(o) => !o && setInspectorAccountId(null)}
+        accountId={inspectorAccountId}
+        buildingId={buildingId || ""}
+        fiscalYear={Number(fiscalYear) || new Date().getFullYear()}
+        onBookingChanged={handleSavedBooking}
+      />
     </div>
   );
 }
