@@ -420,11 +420,11 @@ async function fetchAccountEmails(
 
     console.log(`Fetch loop complete: ${fetched} emails fetched, maxUid: ${maxUid}`);
 
-    if (maxUid > 0) {
-      await supabase
-        .from("email_accounts")
-        .update({ last_uid: maxUid.toString() })
-        .eq("id", account.id);
+    if (maxUid > 0 || (currentUidValidity && currentUidValidity !== account.uid_validity)) {
+      const update: Record<string, unknown> = {};
+      if (maxUid > 0) update.last_uid = maxUid.toString();
+      if (currentUidValidity) update.uid_validity = currentUidValidity;
+      await supabase.from("email_accounts").update(update).eq("id", account.id);
     }
 
     if (account.delete_after_import && uidsToDelete.length > 0) {
