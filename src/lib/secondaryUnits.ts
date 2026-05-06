@@ -13,6 +13,7 @@
 
 export type UnitKind =
   | "apartment"
+  | "commercial"
   | "parking_garage"
   | "parking_outdoor"
   | "cellar"
