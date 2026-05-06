@@ -269,6 +269,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
     }
   };
 
+  const applyPreset = (presetId: string) => {
     const preset = presets.find((p: any) => p.id === presetId);
     if (!preset) return;
 
