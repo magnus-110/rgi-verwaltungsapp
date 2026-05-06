@@ -17,6 +17,7 @@ import {
   CreditCard,
   Workflow,
   FolderKanban,
+  CalendarClock,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -43,6 +44,7 @@ const menuItems = [
   { title: "Meldungen", url: "/tickets", icon: ClipboardList },
   { title: "Vorgänge", url: "/tickets/vorgaenge", icon: FolderKanban },
   { title: "Gebäude", url: "/buildings", icon: Castle },
+  { title: "Jahreszyklus", url: "/jahreszyklus", icon: CalendarClock },
   { title: "Adressen", url: "/contacts", icon: BookUser },
   { title: "Versammlungen", url: "/versammlungen", icon: Users },
   { title: "Buchhaltung", url: "/finanzen", icon: Landmark },

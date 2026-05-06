@@ -21,6 +21,7 @@ import { BuildingResolutionsTab } from "./BuildingResolutionsTab";
 import { BuildingDistributionKeysTab } from "@/components/finance/BuildingDistributionKeysTab";
 import { BuildingServiceProvidersTab } from "./BuildingServiceProvidersTab";
 import { BuildingOverviewTab } from "./BuildingOverviewTab";
+import { AnnualCycleBuildingTab } from "./AnnualCycleBuildingTab";
 import { BuildingOnboardingTab } from "./BuildingOnboardingTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -163,6 +164,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           <TabsList variant="underline" className="h-auto">
             {[
               { value: "overview", label: "Übersicht" },
+              ...(building.management_mode === 'weg' ? [{ value: "jahreszyklus", label: "Jahreszyklus" }] : []),
               { value: "people", label: "Personen" },
               { value: "cases", label: "Vorgänge" },
               { value: "documents", label: "Dokumente" },
@@ -192,6 +194,12 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               onJumpTab={setActiveTab}
             />
           </TabsContent>
+
+          {building.management_mode === 'weg' && (
+            <TabsContent value="jahreszyklus" className="p-3 md:p-6 mt-0">
+              <AnnualCycleBuildingTab buildingId={buildingId} />
+            </TabsContent>
+          )}
 
           {/* People Tab */}
           <TabsContent value="people" className="p-3 md:p-6 mt-0 space-y-6">
