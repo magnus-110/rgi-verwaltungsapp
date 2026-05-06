@@ -1559,7 +1559,7 @@ export const Inbox = () => {
                 </div>
                 <div className="p-3 border-t flex gap-2">
                   <Button size="sm" className="gap-1.5" onClick={() => {
-                    openCompose({ replyTo: { subject: selectedEmail.subject, from_address: selectedEmail.from_address, from_name: selectedEmail.from_name, body_text: selectedEmail.body_text, date: selectedEmail.date, account_id: selectedEmail.account_id } });
+                    openCompose({ replyTo: { id: selectedEmail.id, message_id: (selectedEmail as any).message_id, subject: selectedEmail.subject, from_address: selectedEmail.from_address, from_name: selectedEmail.from_name, body_text: selectedEmail.body_text, date: selectedEmail.date, account_id: selectedEmail.account_id } });
                   }}>
                     <Reply className="h-3.5 w-3.5" />
                     Antworten
