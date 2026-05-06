@@ -470,7 +470,17 @@ export function BookingsTab({
   const tableHeaders = (
     <TableHeader>
       <TableRow className="text-xs">
-        <TableHead className="py-2.5 px-3 font-semibold">Bel. Datum</TableHead>
+        <TableHead className="py-2.5 px-3 font-semibold">
+          <button
+            type="button"
+            onClick={() => setDateSort(s => s === "asc" ? "desc" : "asc")}
+            className="inline-flex items-center gap-1 hover:text-primary"
+            title="Nach Datum sortieren"
+          >
+            Bel. Datum
+            {dateSort === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+          </button>
+        </TableHead>
         <TableHead className="py-2.5 px-3 font-semibold">Kto-Nr.</TableHead>
         <TableHead className="py-2.5 px-3 font-semibold">Konto</TableHead>
         <TableHead className="py-2.5 px-3 text-right font-semibold">Betrag</TableHead>
