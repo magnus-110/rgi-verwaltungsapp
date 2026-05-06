@@ -494,7 +494,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
           <FieldRow label="Von">
             <Select value={compose.accountId} onValueChange={(v) => update({ accountId: v })}>
               <SelectTrigger className="h-12 border-0 px-0 shadow-none focus:ring-0 text-sm flex-1 min-w-0">
