@@ -138,6 +138,56 @@ export type Database = {
           },
         ]
       }
+      annual_cycle_tasks: {
+        Row: {
+          auto_managed: boolean
+          building_id: string
+          completed_at: string | null
+          created_at: string
+          fiscal_year_end: string
+          fiscal_year_start: string
+          id: string
+          note: string | null
+          status: Database["public"]["Enums"]["annual_cycle_status"]
+          task_key: string
+          updated_at: string
+        }
+        Insert: {
+          auto_managed?: boolean
+          building_id: string
+          completed_at?: string | null
+          created_at?: string
+          fiscal_year_end: string
+          fiscal_year_start: string
+          id?: string
+          note?: string | null
+          status?: Database["public"]["Enums"]["annual_cycle_status"]
+          task_key: string
+          updated_at?: string
+        }
+        Update: {
+          auto_managed?: boolean
+          building_id?: string
+          completed_at?: string | null
+          created_at?: string
+          fiscal_year_end?: string
+          fiscal_year_start?: string
+          id?: string
+          note?: string | null
+          status?: Database["public"]["Enums"]["annual_cycle_status"]
+          task_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "annual_cycle_tasks_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_reconciliations: {
         Row: {
           bank_account_id: string
@@ -6642,6 +6692,28 @@ export type Database = {
         }
         Relationships: []
       }
+      v_annual_cycle_overview: {
+        Row: {
+          building_id: string | null
+          building_name: string | null
+          done_count: number | null
+          fiscal_year_end: string | null
+          fiscal_year_start: string | null
+          in_progress_count: number | null
+          management_mode: Database["public"]["Enums"]["management_mode"] | null
+          open_count: number | null
+          tasks: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "annual_cycle_tasks_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       assign_building_manager: {
@@ -6907,6 +6979,14 @@ export type Database = {
           similarity: number
         }[]
       }
+      seed_annual_cycle_tasks: {
+        Args: {
+          p_building_id: string
+          p_fiscal_year_end: string
+          p_fiscal_year_start: string
+        }
+        Returns: undefined
+      }
       update_audit_by_token: {
         Args: {
           p_notes?: string
@@ -6936,6 +7016,7 @@ export type Database = {
       }
     }
     Enums: {
+      annual_cycle_status: "open" | "in_progress" | "done"
       app_role: "admin" | "weg_owner" | "tenant" | "employee"
       billing_mode: "own_billing" | "distribution_only"
       case_category:
@@ -7139,6 +7220,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      annual_cycle_status: ["open", "in_progress", "done"],
       app_role: ["admin", "weg_owner", "tenant", "employee"],
       billing_mode: ["own_billing", "distribution_only"],
       case_category: [

@@ -1,64 +1,68 @@
-## Problemanalyse `classify-email`
+## Modul "Jahreszyklus" (WEG-Jahresaufgaben)
 
-Beim Durchgehen von `supabase/functions/classify-email/index.ts` sind drei konkrete Schwachstellen aufgefallen, die genau die beschriebenen Symptome erklären:
+Neues Modul zur Ablösung der Excel-Liste. Zeigt pro Wirtschaftsjahr und WEG den Status aller Standardaufgaben.
 
-### 1. Empfänger statt Absender als Kontakt
-- Direkter Match passiert nur über `from_address` (Zeile 110–113) — das ist korrekt für eingehende Mails.
-- Aber: Es gibt kein Direction-Flag. Bei **gesendeten Mails** (Sent-Folder, später relevant) und bei **Mails, die wir an einen Kontakt schicken**, kann die KI im Freitext den Empfänger als Kontakt vorschlagen. Aktuell wird `classification.contact_id` ungeprüft übernommen, sobald kein direkter Sender-Match existiert.
-- Außerdem: Der Prompt enthält nur "Von:" — keinerlei Hinweis, dass wir den **Absender** zuordnen wollen. Wenn der Absender unbekannt ist, sucht die KI in Betreff/Body nach einem bekannten Namen (z. B. "Beschwerde Familie Müller") und ordnet diesen Empfänger-Namen zu.
+### Aufgabenkatalog (12 Schritte, fix pro Wirtschaftsjahr)
 
-### 2. Liegenschaft im Betreff wird nicht erkannt
-- Der Prompt gibt der KI nur den **Namen** und die **Adresse** des Gebäudes (`b.name (b.address)`).
-- Es gibt **keinen Pre-Match** auf Betreff/Body. Die KI muss in einem einzigen Mistral-Small-Call sowohl Kategorie, Priorität, Summary als auch Building-/Contact-Match erledigen — und Mistral-Small ist zu schwach für sauberes Fuzzy-Matching ("Hauptstr. 12" vs. "Hauptstraße 12a").
-- Es werden auch keine Aliasse berücksichtigt (z. B. interne Kurznamen, Hausnummern, Stadtteile), und es gibt keine Building-Matches über die Kontakt-Beziehung des Senders hinaus.
+1. Heizkostenabrechnung beantragt
+2. Jahresabrechnung erstellt
+3. Vermögensbericht erstellt
+4. Wirtschaftsplan erstellt
+5. ETV einberufen
+6. ETV-Protokoll fertig *(automatisch erledigt sobald Protokoll generiert wurde)*
+7. Beschlusssammlung aktualisiert
+8. §35a-Bescheinigung versendet
+9. Abrechnungsspitzen gebucht
+10. Hausgeldanpassung umgesetzt
+11. Bankabgleich Jahr abgeschlossen
+12. Jahresabschluss archiviert
 
-### 3. UUID-Halluzinationen
-- Die KI gibt UUIDs als Freitext zurück. Es gibt **keine Validierung**, ob die zurückgegebene `building_id`/`contact_id` tatsächlich in der Liste war. Bei langen Kontaktlisten halluziniert Mistral-Small gerne UUIDs zusammen.
+Pro Schritt nur: **Status** (offen / in Bearbeitung / abgeschlossen) + **Datum** + optional Notiz/Anhang. Keine verantwortliche Person.
 
----
+### UI
 
-## Plan
+**A) WEG-übergreifende Übersicht** (neuer Menüpunkt "Jahreszyklus")
+- Tabelle: Zeile = WEG, Spalten = die 12 Schritte
+- Zellen farblich markiert: grau = offen, orange = in Bearbeitung, grün = abgeschlossen
+- Wirtschaftsjahr-Switcher oben (z. B. „2024/2025" ↔ „2025/2026")
+- Filter: nur offene, nur meine WEGs
+- Klick auf Zelle → Side-Panel mit Status, Datum, Notiz, Anhängen
+- **Keine** Gesamt-Fortschrittsanzeige / Ampel über alle WEGs hinweg
 
-### Schritt 1 — Deterministisches Pre-Matching (vor der KI)
+**B) Building Hub** (Tab oder Karte im bestehenden Gebäude)
+- Vertikale Liste der 12 Schritte für das aktive Wirtschaftsjahr
+- Wirtschaftsjahr-Switcher
+- Inline-Statuswechsel + Datumsfeld
+- Ersetzt die bisherige „Buchungs-Fortschritt"-Karte nicht — wird zusätzlich angezeigt
 
-In `classify-email` vor dem Mistral-Call eine deterministische Match-Schicht einbauen, die zuverlässig liefert, was die KI heute schludrig macht:
+### Automatik (Status wird vom System gesetzt)
 
-**Sender-Match (Kontakt):**
-- Wie bisher: `from_address` → `emailToContactId`.
-- Zusätzlich: Domain-Match (`@hausverwaltung-x.de` → Firmenkontakt mit gleicher Domain, sofern eindeutig).
-- **Wichtig:** Niemals `to_addresses`/`cc_addresses` als Kontakt-Match verwenden — das ist der Hauptgrund für "Empfänger statt Sender".
+- Schritt 2 → wenn Settlement im Status `final`
+- Schritt 3 → wenn Vermögensbericht generiert
+- Schritt 4 → wenn Wirtschaftsplan veröffentlicht
+- Schritt 5 → wenn Meeting `published`
+- Schritt 6 → wenn Protokoll generiert (sofort fertig)
+- Schritt 7 → wenn neue Beschlüsse in Resolution Ledger eingetragen
+- Schritt 9 → wenn Buchungen auf 4900/4910 vorhanden
+- Schritt 11 → wenn Bankabgleich Monat 12 grün
 
-**Building-Match (mehrstufig, in dieser Reihenfolge):**
-1. **Sender → Kontakt → Building-Assignments** (wenn Kontakt 1 Gebäude hat → direkt; wenn mehrere → Kandidatenliste an KI weitergeben).
-2. **Betreff-Scan**: Für jedes Building Tokens bilden aus `name`, `address` (Straße ohne Hausnummer, Hausnummer, PLZ, Stadt) und matchen gegen `subject` (case-insensitive, Umlaute normalisiert, "str." ↔ "straße"). Bei eindeutigem Treffer → setzen, sonst Kandidaten an KI.
-3. **Body-Scan** (erste 2000 Zeichen) als Fallback mit gleichem Token-Set.
+Schritte 1, 8, 10, 12 = manuell (einfacher Klick „erledigt" + Datum).
+Manueller Override ist für jeden Schritt möglich.
 
-Der deterministische Treffer **gewinnt immer** über die KI-Antwort. Die KI bekommt nur noch eine vorgefilterte Kandidatenliste statt aller Gebäude/Kontakte.
+### Technisches Vorgehen
 
-### Schritt 2 — Prompt schärfen + KI-Output validieren
+- Neue Tabelle `annual_cycle_tasks` (building_id, fiscal_year_start, fiscal_year_end, task_key, status, completed_at, note) mit RLS analog Settlements
+- Seeding: bei erstem Öffnen eines Wirtschaftsjahres werden die 12 Datensätze automatisch erzeugt
+- View `v_annual_cycle_overview` für die WEG-übergreifende Tabelle
+- Status-Sync via DB-Trigger oder periodischem Edge-Function-Refresh aus den Quelltabellen (settlements, meetings, resolutions, bookings, bank_reconciliations)
+- Neue Route `/jahreszyklus` + neuer Tab im Building Hub
+- Wiederverwendung bestehender UI-Bausteine (Card, Badge, Table, Sheet)
 
-- Prompt erweitern: explizit "Du ordnest immer den **Absender** zu, niemals Empfänger oder im Text genannte Dritte." + Beispiele.
-- KI bekommt nur noch **vorgefilterte Building-Kandidaten** (max. 5–10) statt der vollen Liste.
-- Modell auf `mistral-medium-latest` für die Klassifizierung anheben (Small ist zu schwach für saubere UUID-Auswahl).
-- Nach KI-Antwort: Validieren, dass zurückgegebene `building_id`/`contact_id` tatsächlich in der übergebenen Kandidatenliste enthalten war — sonst verwerfen.
+### Außerhalb des Scopes (bewusst nicht enthalten)
 
-### Schritt 3 — Direction-Flag respektieren
-
-- Falls die E-Mail aus dem Sent-Folder stammt (über `folder_id` ermittelbar), Logik umdrehen: Kontakt-Match dann über `to_addresses[0]`, Building über Empfänger-Kontakt-Beziehung.
-- Aktuell läuft `classify-email` nur auf Inbox — sicherheitshalber explizit prüfen und Sent-Mails überspringen oder mit umgekehrter Logik behandeln.
-
-### Schritt 4 — Diagnose-Logging
-
-Pro E-Mail einen kompakten Log ausgeben: `directContactMatch`, `subjectBuildingMatch`, `bodyBuildingMatch`, `aiBuildingId`, `final` — damit du in den Edge-Function-Logs sofort siehst, warum eine bestimmte Mail falsch zugeordnet wurde.
-
----
-
-## Betroffene Dateien
-
-- `supabase/functions/classify-email/index.ts` — komplette Refaktorierung der Match-Logik (Pre-Match-Helfer, Validierung, Prompt, Direction).
-
-Keine Datenbank-Migration nötig, keine UI-Änderungen, kein Re-Klassifizieren bestehender Mails erforderlich — neue Logik greift ab dem nächsten Klassifikations-Lauf. Optional: kleiner Button "Erneut klassifizieren" für falsch zugeordnete Mails (kann in Folge-Iteration kommen, sag bitte Bescheid wenn gewünscht).
-
-## Offene Frage
-
-Sollen wir bei mehrdeutigen Treffern (z. B. Sender hat 3 Gebäude, Betreff nennt keines) lieber **leer lassen** (du ordnest manuell zu) oder **das wahrscheinlichste raten** (KI entscheidet aus Kandidaten)? Empfehlung: leer lassen — falsche Zuordnung ist schlimmer als keine.
+- Wartungen / Versicherungen / Compliance (laufen über bestehende Wartungsintervalle)
+- Beirat-Rollen, Eigentümer-Sicht
+- Verantwortliche Person pro Aufgabe
+- Gesamt-Ampel oder Firmen-KPI
+- Kalenderjahr-Sicht (immer Wirtschaftsjahr)
+- Option „versendet" bei Jahresabrechnung
