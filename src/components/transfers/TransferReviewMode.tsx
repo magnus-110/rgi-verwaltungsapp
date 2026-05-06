@@ -388,13 +388,19 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
     await saveNotes();
     await supabase
       .from("invoices")
-      .update({ status: "paid", paid_at: new Date().toISOString() } as any)
+      .update({
+        status: "paid",
+        paid_at: new Date().toISOString(),
+        review_status: "verified",
+      } as any)
       .eq("id", invoice.id);
-    toast.success("Rechnung als bezahlt markiert");
+    toast.success("Bezahlt & geprüft");
     onRefetch();
     setSaving(false);
-    if (index >= invoices.length - 1 && index > 0) {
-      setIndex(i => i - 1);
+    if (index < invoices.length - 1) {
+      setIndex(i => i + 1);
+    } else {
+      onClose();
     }
   };
 
