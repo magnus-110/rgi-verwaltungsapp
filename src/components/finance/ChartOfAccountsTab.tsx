@@ -39,6 +39,12 @@ const SETTLEMENT_35A_TYPES = [
 
 export function ChartOfAccountsTab() {
   const queryClient = useQueryClient();
+  const invalidateAllCoa = () => {
+    queryClient.invalidateQueries({ predicate: (q) => {
+      const k = q.queryKey[0];
+      return typeof k === "string" && (k.startsWith("chart-of-accounts") || k.startsWith("coa-"));
+    }});
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editDistKey, setEditDistKey] = useState("");
@@ -108,20 +114,20 @@ export function ChartOfAccountsTab() {
     if (error) { toast.error("Fehler beim Speichern"); return; }
     toast.success("Konto aktualisiert");
     setEditingId(null);
-    queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
+    invalidateAllCoa();
   };
 
   const updateAccountField = async (id: string, field: string, value: any) => {
     const { error } = await supabase.from("chart_of_accounts").update({ [field]: value }).eq("id", id);
     if (error) { toast.error("Fehler: " + error.message); return; }
-    queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
+    invalidateAllCoa();
   };
 
   const deleteAccount = async (id: string) => {
     const { error } = await supabase.from("chart_of_accounts").delete().eq("id", id);
     if (error) { toast.error("Fehler beim Löschen"); return; }
     toast.success("Konto gelöscht");
-    queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
+    invalidateAllCoa();
   };
 
   const addAccount = async () => {
@@ -158,7 +164,7 @@ export function ChartOfAccountsTab() {
       carry_forward_balance: false, is_wirtschaftsplan_relevant: false,
       is_distributable: false, settlement_section: null, settlement_35a_type: null, default_vat_rate: 19,
     });
-    queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
+    invalidateAllCoa();
   };
 
   // Im globalen Tab building-übergreifend laden, sonst building-spezifisch
