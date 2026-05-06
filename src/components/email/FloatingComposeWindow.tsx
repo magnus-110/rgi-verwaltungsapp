@@ -567,7 +567,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
 
       {/* Content */}
       <ScrollArea className="flex-1 p-3">
-        <div className="space-y-2.5 max-w-3xl mx-auto">
+        <div className={cn("space-y-2.5 mx-auto", isFullscreen ? "max-w-5xl" : "max-w-3xl")}>
           <div className="space-y-1">
             <Label className="text-xs">Von</Label>
             <Select value={compose.accountId} onValueChange={(v) => update({ accountId: v })}>
@@ -676,7 +676,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
               value={compose.bodyText}
               onChange={(e) => update({ bodyText: e.target.value })}
               placeholder="Ihre Nachricht..."
-              className={cn("resize-y text-sm", isFullscreen ? "min-h-[300px]" : "min-h-[140px]")}
+              className={cn("resize-y text-sm", isFullscreen ? "min-h-[60vh]" : "min-h-[140px]")}
             />
             {aiSuggestion !== null && (
               <div ref={aiSuggestionRef} className="border border-primary/30 bg-primary/5 rounded-md p-2 space-y-1.5">
