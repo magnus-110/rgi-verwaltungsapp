@@ -131,10 +131,17 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
     queryClient.invalidateQueries({ queryKey: ["building-account-overrides", buildingId] });
   };
 
+  const invalidateAllCoa = () => {
+    queryClient.invalidateQueries({ predicate: (q) => {
+      const k = q.queryKey[0];
+      return typeof k === "string" && (k.startsWith("chart-of-accounts") || k.startsWith("coa-"));
+    }});
+  };
+
   const updateAccountField = async (accountId: string, field: string, value: any) => {
     const { error } = await supabase.from("chart_of_accounts").update({ [field]: value }).eq("id", accountId);
     if (error) { toast.error("Fehler: " + error.message); return; }
-    queryClient.invalidateQueries({ queryKey: ["chart-of-accounts-building", buildingId] });
+    invalidateAllCoa();
   };
 
   const addBuildingAccount = async () => {
