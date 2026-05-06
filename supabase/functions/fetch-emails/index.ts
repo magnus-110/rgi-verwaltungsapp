@@ -244,24 +244,43 @@ async function fetchAccountEmails(
 
   try {
     const mailbox = await client.mailboxOpen("INBOX");
-    console.log(`Mailbox opened: ${mailbox.exists} messages, uidNext: ${mailbox.uidNext}`);
+    const currentUidValidity = mailbox.uidValidity != null ? String(mailbox.uidValidity) : null;
+    console.log(`Mailbox opened: ${mailbox.exists} messages, uidNext: ${mailbox.uidNext}, uidValidity: ${currentUidValidity}`);
 
     if (mailbox.exists === 0) {
+      // Still persist uidValidity so future resets are detected
+      if (currentUidValidity && currentUidValidity !== account.uid_validity) {
+        await supabase.from("email_accounts")
+          .update({ uid_validity: currentUidValidity, last_uid: "0" })
+          .eq("id", account.id);
+      }
       return { fetched: 0, deleted: 0 };
     }
 
+    // Detect UIDVALIDITY change OR stale last_uid (mailbox was reset/migrated)
+    const storedLastUid = account.last_uid ? parseInt(account.last_uid) : 0;
+    const uidNextMinusOne = mailbox.uidNext ? Number(mailbox.uidNext) - 1 : Infinity;
+    const validityChanged = !!(account.uid_validity && currentUidValidity && account.uid_validity !== currentUidValidity);
+    const staleLastUid = storedLastUid > uidNextMinusOne;
+    let effectiveLastUid = storedLastUid;
+    if (validityChanged || staleLastUid) {
+      console.warn(
+        `[${account.email_address}] UID reset detected (validityChanged=${validityChanged}, staleLastUid=${staleLastUid}, stored=${storedLastUid}, uidNext-1=${uidNextMinusOne}, storedValidity=${account.uid_validity}, currentValidity=${currentUidValidity}). Resetting last_uid to 0.`
+      );
+      effectiveLastUid = 0;
+    }
+
     let uids: number[];
-    if (account.last_uid) {
-      const lastUid = parseInt(account.last_uid);
-      uids = await client.search({ uid: `${lastUid + 1}:*` }, { uid: true });
-      uids = uids.filter((u: number) => u > lastUid);
+    if (effectiveLastUid > 0) {
+      uids = await client.search({ uid: `${effectiveLastUid + 1}:*` }, { uid: true });
+      uids = uids.filter((u: number) => u > effectiveLastUid);
     } else {
       uids = await client.search({ all: true }, { uid: true });
     }
 
     console.log(`Found ${uids.length} UIDs to fetch`);
     const uidsToFetch = uids.slice(0, 50);
-    let maxUid = account.last_uid ? parseInt(account.last_uid) : 0;
+    let maxUid = effectiveLastUid;
 
     for (const uid of uidsToFetch) {
       try {
