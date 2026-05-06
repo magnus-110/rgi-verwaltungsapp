@@ -25,6 +25,7 @@ export type BillingMode = "own_billing" | "distribution_only";
 
 export const UNIT_KIND_LABELS: Record<UnitKind, string> = {
   apartment: "Wohnung",
+  commercial: "Gewerbeeinheit",
   parking_garage: "TG-Stellplatz",
   parking_outdoor: "Stellplatz",
   cellar: "Keller",
@@ -35,6 +36,7 @@ export const UNIT_KIND_LABELS: Record<UnitKind, string> = {
 
 export const UNIT_KIND_ICONS: Record<UnitKind, string> = {
   apartment: "",
+  commercial: "",
   parking_garage: "",
   parking_outdoor: "",
   cellar: "",
