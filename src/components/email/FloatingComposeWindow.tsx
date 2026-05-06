@@ -558,7 +558,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             value={compose.bodyText}
             onChange={(e) => update({ bodyText: e.target.value })}
             placeholder="E-Mail verfassen"
-            className="min-h-[40vh] w-full border-0 rounded-none px-4 py-3 shadow-none focus-visible:ring-0 text-base resize-none"
+            className="flex-1 min-h-[60vh] w-full border-0 rounded-none px-4 py-3 shadow-none focus-visible:ring-0 text-base resize-none"
           />
         </div>
 
