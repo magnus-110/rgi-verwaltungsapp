@@ -46,7 +46,6 @@ const STATUS_DOT: Record<AnnualCycleStatus, string> = {
 export const Jahreszyklus = () => {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { mode } = useManagementMode();
   const fiscalYears = useMemo(() => buildFiscalYears(), []);
   const [selected, setSelected] = useState(fiscalYears[2]);
   const [filter, setFilter] = useState<"all" | "open">("all");
