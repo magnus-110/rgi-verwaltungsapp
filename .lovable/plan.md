@@ -1,94 +1,64 @@
-# E-Mail-Vorlagen im Postfach
+## Problemanalyse `classify-email`
 
-## Ziel
-Schneller Zugriff auf wiederverwendbare E-Mail-Texte (Betreff + Body) direkt im Verfass-Fenster, ohne den Schreibflow zu stören. Vorlagen sind **kontaktübergreifend** (global pro Nutzer/Firma), unterstützen Platzhalter und können inline angelegt/bearbeitet werden.
+Beim Durchgehen von `supabase/functions/classify-email/index.ts` sind drei konkrete Schwachstellen aufgefallen, die genau die beschriebenen Symptome erklären:
 
-## UX – wo & wie
+### 1. Empfänger statt Absender als Kontakt
+- Direkter Match passiert nur über `from_address` (Zeile 110–113) — das ist korrekt für eingehende Mails.
+- Aber: Es gibt kein Direction-Flag. Bei **gesendeten Mails** (Sent-Folder, später relevant) und bei **Mails, die wir an einen Kontakt schicken**, kann die KI im Freitext den Empfänger als Kontakt vorschlagen. Aktuell wird `classification.contact_id` ungeprüft übernommen, sobald kein direkter Sender-Match existiert.
+- Außerdem: Der Prompt enthält nur "Von:" — keinerlei Hinweis, dass wir den **Absender** zuordnen wollen. Wenn der Absender unbekannt ist, sucht die KI in Betreff/Body nach einem bekannten Namen (z. B. "Beschwerde Familie Müller") und ordnet diesen Empfänger-Namen zu.
 
-**Picker-Button** (klein, unauffällig) in der Toolbar von `FloatingComposeWindow.tsx` und `ComposeEmailDialog.tsx`, direkt neben dem Paperclip-Icon (Send-Bereich unten):
+### 2. Liegenschaft im Betreff wird nicht erkannt
+- Der Prompt gibt der KI nur den **Namen** und die **Adresse** des Gebäudes (`b.name (b.address)`).
+- Es gibt **keinen Pre-Match** auf Betreff/Body. Die KI muss in einem einzigen Mistral-Small-Call sowohl Kategorie, Priorität, Summary als auch Building-/Contact-Match erledigen — und Mistral-Small ist zu schwach für sauberes Fuzzy-Matching ("Hauptstr. 12" vs. "Hauptstraße 12a").
+- Es werden auch keine Aliasse berücksichtigt (z. B. interne Kurznamen, Hausnummern, Stadtteile), und es gibt keine Building-Matches über die Kontakt-Beziehung des Senders hinaus.
 
-- Icon: `FileText` oder `LayoutTemplate` (lucide), Ghost-Button, gleiche Größe wie Paperclip
-- Tooltip: „Vorlage einfügen"
-- Klick öffnet **Popover** mit:
-  - Suchfeld oben (filtert nach Name/Kategorie)
-  - Liste der Vorlagen (Name + kleine Vorschau des Betreffs, gruppiert nach Kategorie)
-  - Footer-Zeile: `+ Neue Vorlage` und (bei Hover je Eintrag) Stift-/Mülleimer-Icon
-- Klick auf Eintrag → Betreff + Body werden eingefügt (siehe Verhalten unten)
-- Klick auf `+ Neue Vorlage` oder Stift → öffnet `EmailTemplateEditorDialog`
+### 3. UUID-Halluzinationen
+- Die KI gibt UUIDs als Freitext zurück. Es gibt **keine Validierung**, ob die zurückgegebene `building_id`/`contact_id` tatsächlich in der Liste war. Bei langen Kontaktlisten halluziniert Mistral-Small gerne UUIDs zusammen.
 
-**Verhalten beim Einfügen:**
-- Betreff: nur überschreiben wenn leer, sonst Bestätigungs-Toast „Betreff ersetzt" mit Undo
-- Body: an aktueller Cursor-Position einfügen (nicht überschreiben), bestehender Text & Quote bleiben erhalten
-- Platzhalter werden vorher aufgelöst (siehe unten)
+---
 
-**Editor-Dialog** (`EmailTemplateEditorDialog.tsx`):
-- Felder: Name*, Kategorie (freier Text mit Vorschlägen), Betreff, Body (Textarea), `is_shared` Toggle (privat/team)
-- Hinweis-Box mit verfügbaren Platzhaltern (Klick fügt sie ein)
-- Speichern/Löschen/Abbrechen
+## Plan
 
-## Platzhalter (praxistauglich, klein gehalten)
+### Schritt 1 — Deterministisches Pre-Matching (vor der KI)
 
-Beim Einfügen werden ersetzt aus dem Compose-Kontext:
-- `{{empfaenger_name}}` – aus `to` (Kontakt-Lookup über `contact_persons.email`)
-- `{{empfaenger_anrede}}` – „Sehr geehrter Herr X" / „Sehr geehrte Frau Y" / Fallback „Sehr geehrte Damen und Herren"
-- `{{absender_name}}` – aus aktivem Profil
-- `{{absender_signatur}}` – aus E-Mail-Account
-- `{{liegenschaft}}` – aus `replyTo.building_id` falls Antwort, sonst leer
-- `{{datum_heute}}` – `dd.MM.yyyy`
+In `classify-email` vor dem Mistral-Call eine deterministische Match-Schicht einbauen, die zuverlässig liefert, was die KI heute schludrig macht:
 
-Nicht aufgelöste Platzhalter bleiben stehen und werden gelb hervorgehoben (mit Toast „2 Platzhalter müssen noch gefüllt werden").
+**Sender-Match (Kontakt):**
+- Wie bisher: `from_address` → `emailToContactId`.
+- Zusätzlich: Domain-Match (`@hausverwaltung-x.de` → Firmenkontakt mit gleicher Domain, sofern eindeutig).
+- **Wichtig:** Niemals `to_addresses`/`cc_addresses` als Kontakt-Match verwenden — das ist der Hauptgrund für "Empfänger statt Sender".
 
-## Technisches Design
+**Building-Match (mehrstufig, in dieser Reihenfolge):**
+1. **Sender → Kontakt → Building-Assignments** (wenn Kontakt 1 Gebäude hat → direkt; wenn mehrere → Kandidatenliste an KI weitergeben).
+2. **Betreff-Scan**: Für jedes Building Tokens bilden aus `name`, `address` (Straße ohne Hausnummer, Hausnummer, PLZ, Stadt) und matchen gegen `subject` (case-insensitive, Umlaute normalisiert, "str." ↔ "straße"). Bei eindeutigem Treffer → setzen, sonst Kandidaten an KI.
+3. **Body-Scan** (erste 2000 Zeichen) als Fallback mit gleichem Token-Set.
 
-### Neue Tabelle `email_templates`
+Der deterministische Treffer **gewinnt immer** über die KI-Antwort. Die KI bekommt nur noch eine vorgefilterte Kandidatenliste statt aller Gebäude/Kontakte.
 
-```text
-id              uuid PK
-created_by      uuid (auth.users)
-name            text NOT NULL
-category        text
-subject         text
-body            text NOT NULL
-is_shared       boolean DEFAULT true   -- true = alle Nutzer der Firma sehen sie
-sort_order      int DEFAULT 0
-usage_count     int DEFAULT 0          -- für „häufig genutzt" Sortierung
-last_used_at    timestamptz
-created_at      timestamptz DEFAULT now()
-updated_at      timestamptz DEFAULT now()
-```
+### Schritt 2 — Prompt schärfen + KI-Output validieren
 
-RLS:
-- SELECT: alle authentifizierten Nutzer (`is_shared = true`) ODER `created_by = auth.uid()`
-- INSERT/UPDATE/DELETE: `created_by = auth.uid()` (oder Admin-Rolle via `has_role`)
+- Prompt erweitern: explizit "Du ordnest immer den **Absender** zu, niemals Empfänger oder im Text genannte Dritte." + Beispiele.
+- KI bekommt nur noch **vorgefilterte Building-Kandidaten** (max. 5–10) statt der vollen Liste.
+- Modell auf `mistral-medium-latest` für die Klassifizierung anheben (Small ist zu schwach für saubere UUID-Auswahl).
+- Nach KI-Antwort: Validieren, dass zurückgegebene `building_id`/`contact_id` tatsächlich in der übergebenen Kandidatenliste enthalten war — sonst verwerfen.
 
-Da das Tool eine Verwaltungs-App ist und alle Nutzer Admins/Verwalter sind, ist `is_shared = true` der Default. Kein per-Kontakt-Bezug → erfüllt „kontaktübergreifend".
+### Schritt 3 — Direction-Flag respektieren
 
-### Neue Komponenten
-- `src/components/email/EmailTemplatePicker.tsx` – Popover mit Liste/Suche
-- `src/components/email/EmailTemplateEditorDialog.tsx` – Anlegen/Bearbeiten
-- `src/hooks/useEmailTemplates.ts` – React-Query Fetch/Insert/Update/Delete
-- `src/lib/emailTemplateVars.ts` – Platzhalter-Resolver (rein clientseitig)
+- Falls die E-Mail aus dem Sent-Folder stammt (über `folder_id` ermittelbar), Logik umdrehen: Kontakt-Match dann über `to_addresses[0]`, Building über Empfänger-Kontakt-Beziehung.
+- Aktuell läuft `classify-email` nur auf Inbox — sicherheitshalber explizit prüfen und Sent-Mails überspringen oder mit umgekehrter Logik behandeln.
 
-### Integration
-- `FloatingComposeWindow.tsx`: Picker-Button neben Paperclip; Insert-Handler nutzt `bodyText` State + ggf. `subject`
-- `ComposeEmailDialog.tsx`: gleiche Einbindung an beiden Render-Stellen (Z. 419 + 648)
+### Schritt 4 — Diagnose-Logging
 
-### Variablen-Auflösung
-Resolver bekommt `{ to, subject, body, replyTo, accountId }` und Kontakt-Lookup via vorhandenem `contact_persons` Hook. Greift nur bei tatsächlichem Insert, nicht beim Speichern (Templates bleiben mit `{{...}}`).
+Pro E-Mail einen kompakten Log ausgeben: `directContactMatch`, `subjectBuildingMatch`, `bodyBuildingMatch`, `aiBuildingId`, `final` — damit du in den Edge-Function-Logs sofort siehst, warum eine bestimmte Mail falsch zugeordnet wurde.
 
-### Usage-Tracking
-Beim Einfügen: `update email_templates set usage_count = usage_count+1, last_used_at = now()`. Picker sortiert: zuletzt genutzt → meistgenutzt → alphabetisch.
+---
 
-## Out of Scope (bewusst weggelassen)
-- HTML-Editor / Rich Text (bleiben Plain-Text wie Compose heute)
-- Per-Liegenschaft-spezifische Vorlagen (kann später als optionales `building_id` ergänzt werden)
-- Versionierung
-- AI-generierte Vorlagen aus bestehenden E-Mails (späteres Add-on)
+## Betroffene Dateien
 
-## Akzeptanzkriterien
-1. Im Verfass-Fenster (Float, Dialog, Mobile) erscheint ein dezenter Vorlagen-Button.
-2. Popover zeigt alle Vorlagen mit Suche, ein Klick fügt Betreff (wenn leer) + Body ein.
-3. `+ Neue Vorlage` und Bearbeiten/Löschen funktioniert direkt aus dem Popover.
-4. Platzhalter werden beim Einfügen aufgelöst; ungelöste bleiben sichtbar.
-5. Vorlagen sind für alle Nutzer sichtbar (kontaktübergreifend).
-6. `usage_count`/`last_used_at` werden gepflegt und beeinflussen Sortierung.
+- `supabase/functions/classify-email/index.ts` — komplette Refaktorierung der Match-Logik (Pre-Match-Helfer, Validierung, Prompt, Direction).
+
+Keine Datenbank-Migration nötig, keine UI-Änderungen, kein Re-Klassifizieren bestehender Mails erforderlich — neue Logik greift ab dem nächsten Klassifikations-Lauf. Optional: kleiner Button "Erneut klassifizieren" für falsch zugeordnete Mails (kann in Folge-Iteration kommen, sag bitte Bescheid wenn gewünscht).
+
+## Offene Frage
+
+Sollen wir bei mehrdeutigen Treffern (z. B. Sender hat 3 Gebäude, Betreff nennt keines) lieber **leer lassen** (du ordnest manuell zu) oder **das wahrscheinlichste raten** (KI entscheidet aus Kandidaten)? Empfehlung: leer lassen — falsche Zuordnung ist schlimmer als keine.
