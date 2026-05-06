@@ -345,6 +345,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
       valid_from: t.valid_from || "",
       valid_to: t.valid_to || "",
       linked_invoice_id: t.linked_invoice_id || "",
+      linked_document_id: t.linked_document_id || "",
     });
     setIsDialogOpen(true);
   };
