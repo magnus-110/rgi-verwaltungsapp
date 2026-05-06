@@ -15,6 +15,8 @@ export interface ComposeState {
   attachments: { file: File; name: string; size: number }[];
   scheduledAt?: string | null; // ISO string when set
   replyTo?: {
+    id?: string;
+    message_id?: string | null;
     subject: string;
     from_address: string;
     from_name: string;
