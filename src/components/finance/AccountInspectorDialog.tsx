@@ -498,15 +498,15 @@ export function AccountInspectorDialog({
                         return (
                           <div key={side} className="space-y-1">
                             <Label className="text-xs">{sideLabel}</Label>
-                            <Select
+                            <AccountSearchSelect
                               value={currentId || ""}
-                              onValueChange={async (val) => {
+                              accounts={allAccounts as any}
+                              excludeIds={[
+                                side === "account_id" ? booking.counter_account_id : booking.account_id,
+                              ].filter(Boolean)}
+                              placeholder="Konto suchen…"
+                              onChange={async (val) => {
                                 if (val === currentId) return;
-                                const otherId = side === "account_id" ? booking.counter_account_id : booking.account_id;
-                                if (val === otherId) {
-                                  toast.error("Konto und Gegenkonto dürfen nicht identisch sein");
-                                  return;
-                                }
                                 const { error } = await supabase
                                   .from("bookings")
                                   .update({ [side]: val } as any)
@@ -520,16 +520,7 @@ export function AccountInspectorDialog({
                                 refetchBookings();
                                 queryClient.invalidateQueries({ queryKey: ["bookings"] });
                               }}
-                            >
-                              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {allAccounts.map((a) => (
-                                  <SelectItem key={a.id} value={a.id}>
-                                    {a.account_number} {a.account_name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            />
                           </div>
                         );
                       })}
