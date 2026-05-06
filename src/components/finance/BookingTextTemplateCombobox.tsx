@@ -43,6 +43,7 @@ export function BookingTextTemplateCombobox({
   fiscalYear,
   invoice,
   counterAccountName,
+  existingText,
   onApply,
   onCommit,
   onSkip,
@@ -68,18 +69,31 @@ export function BookingTextTemplateCombobox({
 
   const apply = (shortcut: string) => {
     const period = periodFromShortcut(shortcut, fiscalYear);
-    const text = buildBookingText({
+    const generated = buildBookingText({
       period,
       invoiceNumber: invoice?.invoice_number,
       vendorName: invoice?.vendor_name,
       counterAccountName,
     });
-    onApply(text);
+    // Falls bereits ein (vom User getippter) Buchungstext existiert, der das
+    // Zeitraum-Präfix noch nicht enthält, stellen wir es voran statt den Text
+    // zu überschreiben.
+    const existing = (existingText || "").trim();
+    let finalText = generated;
+    if (existing) {
+      if (period && !existing.toLowerCase().startsWith(period.toLowerCase())) {
+        finalText = `${period} ${existing}`.replace(/\s+/g, " ").trim();
+      } else {
+        finalText = existing;
+      }
+    }
+    onApply(finalText);
     setValue("");
     setOpen(false);
     setHighlightedIndex(-1);
     onCommit?.();
   };
+
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
