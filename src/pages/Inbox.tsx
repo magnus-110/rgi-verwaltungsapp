@@ -298,8 +298,10 @@ export const Inbox = () => {
 
       if (isArchiveFolder) {
         query = query.eq("is_archived", true);
-        if (filterBuildingId !== "all") query = query.eq("building_id", filterBuildingId);
-        if (filterContactId !== "all") query = query.eq("contact_id", filterContactId);
+        if (filterBuildingId === "none") query = query.is("building_id", null);
+        else if (filterBuildingId !== "all") query = query.eq("building_id", filterBuildingId);
+        if (filterContactId === "none") query = query.is("contact_id", null);
+        else if (filterContactId !== "all") query = query.eq("contact_id", filterContactId);
       } else {
         query = query.eq("is_archived", false);
         if (selectedFolderId) query = query.eq("folder_id", selectedFolderId);
