@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { EditBookingDialog } from "./EditBookingDialog";
 import { CashAuditWizard } from "./CashAuditWizard";
+import { AccountInspectorDialog } from "./AccountInspectorDialog";
 
 interface Props {
   auditId: string;
