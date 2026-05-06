@@ -130,7 +130,7 @@ export function VoiceDictationButton({ context, onAccept, iconClassName, buttonS
       </TooltipProvider>
 
       <Dialog open={open} onOpenChange={(o) => { if (!o) handleCancel(); }}>
-        <DialogContent className="max-w-lg z-[100] sm:max-w-lg w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="z-[100] w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Mic className="h-4 w-4" /> E-Mail diktieren
