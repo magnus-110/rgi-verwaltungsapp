@@ -53,12 +53,12 @@ export const Jahreszyklus = () => {
 
   // Buildings for current management mode
   const { data: buildings = [] } = useQuery({
-    queryKey: ["jz-buildings", mode],
+    queryKey: ["jz-buildings"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("buildings")
         .select("id, name, management_mode")
-        .eq("management_mode", mode)
+        .eq("management_mode", "weg")
         .order("name");
       if (error) throw error;
       return (data || []) as BuildingRow[];
@@ -80,7 +80,7 @@ export const Jahreszyklus = () => {
   }, [buildings, selected.start]); // eslint-disable-line
 
   const { data: tasks = [] } = useQuery({
-    queryKey: ["jz-tasks", selected.start, mode],
+    queryKey: ["jz-tasks", selected.start],
     queryFn: async () => {
       const ids = buildings.map(b => b.id);
       if (!ids.length) return [];
