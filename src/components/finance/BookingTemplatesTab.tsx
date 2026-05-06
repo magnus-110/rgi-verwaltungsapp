@@ -89,6 +89,11 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const [editingSuggestionIdx, setEditingSuggestionIdx] = useState<number | null>(null);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [previewPdfName, setPreviewPdfName] = useState<string>("Rechnung");
+  const [docPickerOpen, setDocPickerOpen] = useState(false);
+  const [docSearch, setDocSearch] = useState("");
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const docFileInputRef = (typeof window !== "undefined") ? (window as any) : null;
+  const { managementMode } = useManagementMode();
 
   const openInvoicePreview = async (invoiceId: string) => {
     const { data: inv, error } = await supabase
