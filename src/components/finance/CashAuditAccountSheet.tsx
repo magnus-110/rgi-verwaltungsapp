@@ -117,6 +117,24 @@ export function CashAuditAccountSheet({ buildingId, fiscalYear, progress, onProg
     },
   });
 
+  // Wirtschaftsplan vorhanden? Nur dann Soll WP / Haben / Δ Badges anzeigen.
+  const { data: hasEconomicPlan = false } = useQuery({
+    queryKey: ["audit-has-economic-plan", buildingId, fiscalYear, tokenMode ? token : "auth"],
+    queryFn: async () => {
+      if (tokenMode && token) return false; // Token-Mode: nicht relevant für externe Prüfer
+      const { data, error } = await supabase
+        .from("economic_plans" as any)
+        .select("id")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear)
+        .limit(1)
+        .maybeSingle();
+      if (error) return false;
+      return !!data;
+    },
+    enabled: !!buildingId && !!fiscalYear,
+  });
+
   // Compute Soll Hausgeld per Personenkonto from templates
   const sollByAccount = useMemo(() => {
     const map: Record<string, number> = {};
