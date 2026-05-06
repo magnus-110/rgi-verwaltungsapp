@@ -1,0 +1,1 @@
+UPDATE public.email_accounts SET last_uid = '0', uid_validity = NULL WHERE email_address = 'magnus.goettinger@rgi-immobilien.de';
