@@ -195,11 +195,8 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
             />
           </TabsContent>
 
-          {building.management_mode === 'weg' && (
-            <TabsContent value="jahreszyklus" className="p-3 md:p-6 mt-0">
-              <AnnualCycleBuildingTab buildingId={buildingId} />
-            </TabsContent>
-          )}
+          {/* Jahreszyklus jetzt als Timeline in BuildingOverviewTab eingebettet */}
+
 
           {/* People Tab */}
           <TabsContent value="people" className="p-3 md:p-6 mt-0 space-y-6">
