@@ -99,7 +99,7 @@ export function EmailTemplatePicker({ context, currentSubject, onInsert, size = 
           </Tooltip>
         </TooltipProvider>
 
-        <PopoverContent className="w-[380px] p-0" align="start" side="top">
+        <PopoverContent className="w-[380px] p-0 z-[90]" align="start" side="top">
           <div className="p-2 border-b">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
