@@ -128,10 +128,7 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
 
       {/* Jahreszyklus Timeline (nur WEG) */}
       {managementMode === "weg" && (
-        <AnnualCycleTimeline
-          buildingId={buildingId}
-          onOpenFullView={() => onJumpTab("jahreszyklus")}
-        />
+        <AnnualCycleTimeline buildingId={buildingId} />
       )}
 
       {/* 2 Spalten Grid (Vorgänge + Meldungen) */}
