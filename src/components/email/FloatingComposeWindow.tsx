@@ -202,11 +202,32 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     },
   });
 
-  // Auto-select first account
+  // Auto-select account: prefer the one matching the logged-in user's email
   useEffect(() => {
-    if (!compose.accountId && accounts.length > 0) {
-      update({ accountId: accounts[0].id });
-    }
+    if (compose.accountId || accounts.length === 0) return;
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      const userEmail = u?.user?.email?.toLowerCase();
+      let matched: typeof accounts[number] | undefined;
+      if (userEmail) {
+        matched = accounts.find((a) => a.email_address?.toLowerCase() === userEmail);
+        if (!matched) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("email, first_name, last_name")
+            .eq("user_id", u!.user!.id)
+            .maybeSingle();
+          const profEmail = (profile as any)?.email?.toLowerCase();
+          if (profEmail) matched = accounts.find((a) => a.email_address?.toLowerCase() === profEmail);
+          if (!matched && profile) {
+            const fullName = [(profile as any).first_name, (profile as any).last_name]
+              .filter(Boolean).join(" ").toLowerCase();
+            if (fullName) matched = accounts.find((a) => a.display_name?.toLowerCase().includes(fullName));
+          }
+        }
+      }
+      update({ accountId: (matched || accounts[0]).id });
+    })();
   }, [accounts, compose.accountId, update]);
 
   // Insert signature on account change (preserving quoted text after signature)
@@ -301,6 +322,16 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         })),
       );
 
+      // Build combined HTML for forwards: user's new text on top + original HTML below
+      const escapeHtml = (s: string) =>
+        s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const userTextHtml = compose.bodyText
+        ? `<div style="white-space:pre-wrap;font-family:inherit">${escapeHtml(compose.bodyText)}</div>`
+        : "";
+      const combinedHtml = compose.forwardHtml
+        ? `${userTextHtml}<br><hr><div><b>--- Weitergeleitete Nachricht ---</b></div>${compose.forwardHtml}`
+        : null;
+
       // Scheduled send → store in scheduled_emails
       if (compose.scheduledAt && new Date(compose.scheduledAt).getTime() > Date.now()) {
         const { data: u } = await supabase.auth.getUser();
@@ -314,7 +345,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           bcc_addresses: bccAddresses.length ? bccAddresses : null,
           subject: compose.subject,
           body_text: compose.bodyText,
-          body_html: compose.forwardHtml || null,
+          body_html: combinedHtml,
           attachments: attachmentData,
           scheduled_at: new Date(compose.scheduledAt).toISOString(),
         });
@@ -332,7 +363,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           bcc: bccAddresses.length ? bccAddresses : undefined,
           subject: compose.subject,
           body_text: compose.bodyText,
-          body_html: compose.forwardHtml || undefined,
+          body_html: combinedHtml || undefined,
           attachments: attachmentData.length ? attachmentData : undefined,
         },
       });
