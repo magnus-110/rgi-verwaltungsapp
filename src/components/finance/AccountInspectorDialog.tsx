@@ -380,16 +380,14 @@ export function AccountInspectorDialog({
             <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-200 text-sm">
               <Move className="h-4 w-4 text-amber-700" />
               <span>{bulkSelected.size} ausgewählt – verschieben nach:</span>
-              <Select value={moveTargetId} onValueChange={setMoveTargetId}>
-                <SelectTrigger className="h-8 w-[320px]"><SelectValue placeholder="Zielkonto wählen…" /></SelectTrigger>
-                <SelectContent>
-                  {allAccounts.filter((a) => a.id !== accountId).map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.account_number} {a.account_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <AccountSearchSelect
+                value={moveTargetId}
+                onChange={setMoveTargetId}
+                accounts={allAccounts as any}
+                excludeIds={accountId ? [accountId] : []}
+                placeholder="Zielkonto suchen…"
+                className="w-[360px]"
+              />
               <Button size="sm" disabled={!moveTargetId} onClick={bulkMove} className="gap-1.5">
                 <ArrowRightLeft className="h-3.5 w-3.5" /> Umbuchen
               </Button>
