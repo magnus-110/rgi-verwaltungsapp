@@ -15,6 +15,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Pencil, Trash2, LayoutTemplate, Loader2, Check, ChevronsUpDown, FileText, Building2, CreditCard, Receipt, CalendarDays, Settings2, Zap, Sparkles, Eye } from "lucide-react";
 import { PdfViewerModal } from "@/components/documents/PdfViewerModal";
+import { useManagementMode } from "@/hooks/useManagementMode";
+import { Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
