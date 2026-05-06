@@ -459,39 +459,16 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         className="fixed inset-0 z-[60] bg-background flex flex-col"
         style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <div className="h-14 flex items-center justify-between px-1 border-b bg-background shrink-0">
-          <div className="flex items-center gap-1 min-w-0 flex-1">
-            <Button
-              variant="ghost" size="icon" className="h-10 w-10 rounded-full shrink-0"
-              onClick={() => setMode(compose.id, "minimized")}
-              aria-label="Minimieren"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <span className="text-base font-medium truncate">{title}</span>
-          </div>
-          <div className="flex items-center gap-0.5 shrink-0">
-            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full" onClick={() => fileInputRef.current?.click()} aria-label="Anhang">
-              <Paperclip className="h-5 w-5" />
-            </Button>
-            <EmailTemplatePicker
-              context={{ to: compose.to, accountId: compose.accountId }}
-              currentSubject={compose.subject}
-              onInsert={handleInsertTemplate}
-            />
-            <VoiceDictationButton context={voiceContext} onAccept={handleVoiceAccept} />
-            <ScheduleButton compose={compose} update={update} open={scheduleOpen} setOpen={setScheduleOpen} />
-            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full text-primary"
-              onClick={handleSend}
-              disabled={isSending || !compose.accountId || !compose.to.trim()}
-              aria-label="Senden"
-            >
-              {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-            </Button>
-            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full" onClick={() => closeCompose(compose.id)} aria-label="Verwerfen">
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
+        {/* Slim top bar: only back + title */}
+        <div className="h-12 flex items-center gap-1 px-1 border-b bg-background shrink-0">
+          <Button
+            variant="ghost" size="icon" className="h-10 w-10 rounded-full shrink-0"
+            onClick={() => setMode(compose.id, "minimized")}
+            aria-label="Minimieren"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <span className="text-base font-medium truncate flex-1">{title}</span>
         </div>
 
         <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
@@ -514,22 +491,20 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             <Input
               value={compose.to}
               onChange={(e) => update({ to: e.target.value })}
-              placeholder="Empfänger"
+              placeholder="Empfänger (mehrere mit Komma)"
               type="email"
               className="h-12 border-0 px-0 shadow-none focus-visible:ring-0 text-sm flex-1 min-w-0"
             />
           </FieldRow>
 
-          {compose.subject || true ? (
-            <FieldRow label="">
-              <Input
-                value={compose.subject}
-                onChange={(e) => update({ subject: e.target.value })}
-                placeholder="Betreff"
-                className="h-12 border-0 px-0 shadow-none focus-visible:ring-0 text-base"
-              />
-            </FieldRow>
-          ) : null}
+          <FieldRow label="">
+            <Input
+              value={compose.subject}
+              onChange={(e) => update({ subject: e.target.value })}
+              placeholder="Betreff"
+              className="h-12 border-0 px-0 shadow-none focus-visible:ring-0 text-base"
+            />
+          </FieldRow>
 
           {compose.scheduledAt && (
             <div className="px-4 py-2 border-b bg-amber-50 text-amber-900 text-xs flex items-center gap-2">
@@ -560,6 +535,36 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             placeholder="E-Mail verfassen"
             className="flex-1 min-h-[60vh] w-full border-0 rounded-none px-4 py-3 shadow-none focus-visible:ring-0 text-base resize-none"
           />
+        </div>
+
+        {/* Bottom action bar (moved from top) */}
+        <div className="h-14 flex items-center justify-between gap-0.5 px-1 border-t bg-background shrink-0">
+          <div className="flex items-center gap-0.5">
+            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" onClick={() => fileInputRef.current?.click()} aria-label="Anhang">
+              <Paperclip className="h-5 w-5" />
+            </Button>
+            <EmailTemplatePicker
+              context={{ to: compose.to, accountId: compose.accountId }}
+              currentSubject={compose.subject}
+              onInsert={handleInsertTemplate}
+            />
+            <VoiceDictationButton context={voiceContext} onAccept={handleVoiceAccept} />
+            <ScheduleButton compose={compose} update={update} open={scheduleOpen} setOpen={setScheduleOpen} />
+          </div>
+          <div className="flex items-center gap-0.5">
+            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" onClick={() => closeCompose(compose.id)} aria-label="Verwerfen">
+              <X className="h-5 w-5" />
+            </Button>
+            <Button
+              size="icon"
+              className="h-11 w-11 rounded-full"
+              onClick={handleSend}
+              disabled={isSending || !compose.accountId || !compose.to.trim()}
+              aria-label="Senden"
+            >
+              {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+            </Button>
+          </div>
         </div>
 
         <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
