@@ -1666,6 +1666,29 @@ export const Inbox = () => {
         prefilledEtvMeetingId={archiveEmailId ? ((emails.find(e => e.id === archiveEmailId) as any)?.etv_meeting_id || null) : null}
       />
 
+      <AiEmailSearchDialog
+        open={aiSearchOpen}
+        onOpenChange={setAiSearchOpen}
+        accountIds={selectedAccountIds}
+        onSelectEmail={async (emailId) => {
+          setAiSearchOpen(false);
+          const { data } = await supabase
+            .from("emails")
+            .select("id, folder_id, is_archived")
+            .eq("id", emailId)
+            .maybeSingle();
+          if (data) {
+            if (data.is_archived) {
+              const archive = folders.find((f) => f.name === "Archiv");
+              if (archive) setSelectedFolderId(archive.id);
+            } else if (data.folder_id) {
+              setSelectedFolderId(data.folder_id);
+            }
+            setSelectedEmailId(data.id);
+          }
+        }}
+      />
+
       <Dialog open={newContactDialogOpen} onOpenChange={setNewContactDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
