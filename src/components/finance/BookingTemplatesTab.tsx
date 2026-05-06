@@ -35,6 +35,7 @@ interface TemplateForm {
   valid_from: string;
   valid_to: string;
   linked_invoice_id: string;
+  linked_document_id: string;
 }
 
 const emptyForm: TemplateForm = {
