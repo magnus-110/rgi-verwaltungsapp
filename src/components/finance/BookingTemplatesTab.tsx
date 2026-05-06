@@ -92,7 +92,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const [docPickerOpen, setDocPickerOpen] = useState(false);
   const [docSearch, setDocSearch] = useState("");
   const [uploadingDoc, setUploadingDoc] = useState(false);
-  const docFileInputRef = (typeof window !== "undefined") ? (window as any) : null;
+  const docFileInputRef = useRef<HTMLInputElement>(null);
   const { managementMode } = useManagementMode();
 
   const openInvoicePreview = async (invoiceId: string) => {
