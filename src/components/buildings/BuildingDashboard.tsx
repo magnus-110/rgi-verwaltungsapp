@@ -164,7 +164,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           <TabsList variant="underline" className="h-auto">
             {[
               { value: "overview", label: "Übersicht" },
-              ...(building.management_mode === 'weg' ? [{ value: "jahreszyklus", label: "Jahreszyklus" }] : []),
+              // Jahreszyklus ist als Timeline in der Übersicht eingebunden – kein eigener Tab mehr.
               { value: "people", label: "Personen" },
               { value: "cases", label: "Vorgänge" },
               { value: "documents", label: "Dokumente" },
@@ -195,11 +195,8 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
             />
           </TabsContent>
 
-          {building.management_mode === 'weg' && (
-            <TabsContent value="jahreszyklus" className="p-3 md:p-6 mt-0">
-              <AnnualCycleBuildingTab buildingId={buildingId} />
-            </TabsContent>
-          )}
+          {/* Jahreszyklus jetzt als Timeline in BuildingOverviewTab eingebettet */}
+
 
           {/* People Tab */}
           <TabsContent value="people" className="p-3 md:p-6 mt-0 space-y-6">

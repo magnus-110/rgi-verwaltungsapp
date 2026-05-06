@@ -44,7 +44,7 @@ const menuItems = [
   { title: "Meldungen", url: "/tickets", icon: ClipboardList },
   { title: "Vorgänge", url: "/tickets/vorgaenge", icon: FolderKanban },
   { title: "Gebäude", url: "/buildings", icon: Castle },
-  { title: "Jahreszyklus", url: "/jahreszyklus", icon: CalendarClock },
+  // "Jahreszyklus" als eigener Navigationspunkt entfernt – integriert ins Dashboard und Gebäude-Übersicht.
   { title: "Adressen", url: "/contacts", icon: BookUser },
   { title: "Versammlungen", url: "/versammlungen", icon: Users },
   { title: "Buchhaltung", url: "/finanzen", icon: Landmark },
