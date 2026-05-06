@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { CreateCaseDialog } from "@/components/cases/CreateCaseDialog";
 import { TodoDialog } from "@/components/todos/TodoDialog";
 import { BuildingGeneralInfoCard } from "./BuildingGeneralInfoCard";
+import { AnnualCycleTimeline } from "./AnnualCycleTimeline";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { useNavigate } from "react-router-dom";
 
