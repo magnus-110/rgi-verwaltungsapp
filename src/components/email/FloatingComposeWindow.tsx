@@ -219,9 +219,9 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       prevAccountRef.current = compose.accountId;
       return;
     }
-    const sig = `\n\n--\n${account.signature_html}`;
+    const sig = `\n\n${account.signature_html}`;
     const oldAccount = accounts.find((a) => a.id === prevAccountRef.current);
-    const oldSig = oldAccount?.signature_html ? `\n\n--\n${oldAccount.signature_html}` : null;
+    const oldSig = oldAccount?.signature_html ? `\n\n${oldAccount.signature_html}` : null;
     const QUOTE_RE = /\n*---\s*(?:Ursprüngliche|Weitergeleitete)\s+Nachricht\s*---/;
     const body = compose.bodyText;
     const m = body.match(QUOTE_RE);
