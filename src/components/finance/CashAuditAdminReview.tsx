@@ -180,10 +180,8 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
     queryClient.invalidateQueries({ queryKey: ["cash-audit", auditId] });
   };
 
-  const openAccountInPlan = (accountNumber: string) => {
-    if (!buildingId) return;
-    const url = `/finanzen?tab=accounting&sub=accounts&building=${buildingId}&q=${encodeURIComponent(accountNumber)}`;
-    window.open(url, "_blank");
+  const openAccountInPlan = (accountId: string) => {
+    setInspectorAccountId(accountId);
   };
 
   if (isLoading) {
