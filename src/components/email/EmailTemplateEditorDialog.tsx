@@ -93,7 +93,7 @@ export function EmailTemplateEditorDialog({ open, onOpenChange, template, onSave
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl z-[100]">
         <DialogHeader>
           <DialogTitle>{template ? "Vorlage bearbeiten" : "Neue Vorlage"}</DialogTitle>
         </DialogHeader>
