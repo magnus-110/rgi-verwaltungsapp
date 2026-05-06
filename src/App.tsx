@@ -34,6 +34,7 @@ const Contacts = lazy(() => import("./pages/Contacts").then(m => ({ default: m.C
 const Finance = lazy(() => import("./pages/Finance").then(m => ({ default: m.Finance })));
 const Billing = lazy(() => import("./pages/Billing").then(m => ({ default: m.Billing })));
 const Processes = lazy(() => import("./pages/Processes").then(m => ({ default: m.Processes })));
+const Jahreszyklus = lazy(() => import("./pages/Jahreszyklus"));
 
 const Inbox = lazy(() => import("./pages/Inbox").then(m => ({ default: m.Inbox })));
 const Meetings = lazy(() => import("./pages/Meetings").then(m => ({ default: m.Meetings })));
