@@ -188,7 +188,87 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
     enabled: isDialogOpen && !!form.building_id,
   });
 
-  const applyPreset = (presetId: string) => {
+  // Load building documents for linking
+  const { data: documents = [], refetch: refetchDocs } = useQuery({
+    queryKey: ["building-files-for-template-link", form.building_id],
+    queryFn: async () => {
+      if (!form.building_id) return [];
+      const { data, error } = await supabase
+        .from("building_files")
+        .select("id, display_name, file_path, mime_type, created_at")
+        .eq("building_id", form.building_id)
+        .eq("is_current_version", true)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(300);
+      if (error) throw error;
+      return data;
+    },
+    enabled: isDialogOpen && !!form.building_id,
+  });
+
+  const linkedDoc = documents.find((d: any) => d.id === form.linked_document_id);
+
+  const openDocPreview = async (docId: string) => {
+    const doc = documents.find((d: any) => d.id === docId);
+    if (!doc?.file_path) {
+      toast.error("Keine Datei vorhanden");
+      return;
+    }
+    const { data: signed } = await supabase.storage.from("building-files").createSignedUrl(doc.file_path, 300);
+    if (!signed?.signedUrl) {
+      toast.error("Datei konnte nicht geladen werden");
+      return;
+    }
+    setPreviewPdfName(doc.display_name || "Dokument");
+    setPreviewPdfUrl(signed.signedUrl);
+  };
+
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!form.building_id) {
+      toast.error("Bitte zuerst Liegenschaft wählen");
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("Datei darf max. 50 MB groß sein");
+      return;
+    }
+    setUploadingDoc(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Nicht angemeldet");
+      const ext = file.name.split('.').pop();
+      const storagePath = `${form.building_id}/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("building-files").upload(storagePath, file);
+      if (upErr) throw upErr;
+      const { data: inserted, error: insErr } = await supabase
+        .from("building_files")
+        .insert({
+          display_name: file.name,
+          file_path: storagePath,
+          file_size: file.size,
+          mime_type: file.type,
+          building_id: form.building_id,
+          uploaded_by: user.id,
+          management_mode: managementMode,
+        })
+        .select("id")
+        .single();
+      if (insErr) throw insErr;
+      setForm((prev) => ({ ...prev, linked_document_id: inserted.id }));
+      await refetchDocs();
+      toast.success("Dokument hochgeladen und verknüpft");
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Upload fehlgeschlagen: " + (err.message || ""));
+    } finally {
+      setUploadingDoc(false);
+      if (docFileInputRef.current) docFileInputRef.current.value = "";
+    }
+  };
+
     const preset = presets.find((p: any) => p.id === presetId);
     if (!preset) return;
 
