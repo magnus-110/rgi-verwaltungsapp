@@ -3,25 +3,29 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { CalendarClock, Check, Clock, Circle } from "lucide-react";
+import { CalendarClock, Check, Clock, Circle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   ANNUAL_CYCLE_TASKS, STATUS_LABEL,
   buildFiscalYears, type AnnualCycleStatus,
 } from "@/lib/annualCycle";
+import { toast } from "sonner";
 
 interface Props {
   buildingId: string;
-  onOpenFullView?: () => void;
 }
 
 interface TaskRow {
+  id: string;
   task_key: string;
   status: AnnualCycleStatus;
   completed_at: string | null;
+  note: string | null;
 }
 
 const STATUS_STYLES: Record<AnnualCycleStatus, { dot: string; ring: string; icon: any }> = {
@@ -42,10 +46,11 @@ const STATUS_STYLES: Record<AnnualCycleStatus, { dot: string; ring: string; icon
   },
 };
 
-export const AnnualCycleTimeline = ({ buildingId, onOpenFullView }: Props) => {
+export const AnnualCycleTimeline = ({ buildingId }: Props) => {
   const qc = useQueryClient();
   const fiscalYears = useMemo(() => buildFiscalYears(), []);
   const [selected, setSelected] = useState(fiscalYears[2]);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
 
   const queryKey = ["annual-cycle-timeline", buildingId, selected.start];
 
@@ -58,6 +63,7 @@ export const AnnualCycleTimeline = ({ buildingId, onOpenFullView }: Props) => {
       });
       qc.invalidateQueries({ queryKey });
     })();
+    setEditingKey(null);
   }, [buildingId, selected.start]); // eslint-disable-line
 
   const { data: tasks = [] } = useQuery({
@@ -65,7 +71,7 @@ export const AnnualCycleTimeline = ({ buildingId, onOpenFullView }: Props) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("annual_cycle_tasks")
-        .select("task_key, status, completed_at")
+        .select("id, task_key, status, completed_at, note")
         .eq("building_id", buildingId)
         .eq("fiscal_year_start", selected.start);
       if (error) throw error;
@@ -81,6 +87,18 @@ export const AnnualCycleTimeline = ({ buildingId, onOpenFullView }: Props) => {
 
   const doneCount = ANNUAL_CYCLE_TASKS.filter(t => byKey.get(t.key)?.status === "done").length;
 
+  const updateRow = async (id: string, patch: Partial<TaskRow>) => {
+    const { error } = await supabase.from("annual_cycle_tasks").update(patch).eq("id", id);
+    if (error) {
+      toast.error("Speichern fehlgeschlagen");
+      return;
+    }
+    qc.invalidateQueries({ queryKey });
+  };
+
+  const editingRow = editingKey ? byKey.get(editingKey) : null;
+  const editingDef = editingKey ? ANNUAL_CYCLE_TASKS.find(t => t.key === editingKey) : null;
+
   return (
     <Card>
       <CardHeader className="p-3 md:p-4 pb-2 flex-row items-center justify-between space-y-0 gap-2">
@@ -91,28 +109,21 @@ export const AnnualCycleTimeline = ({ buildingId, onOpenFullView }: Props) => {
             {doneCount}/{ANNUAL_CYCLE_TASKS.length}
           </span>
         </CardTitle>
-        <div className="flex items-center gap-2">
-          <Select
-            value={selected.start}
-            onValueChange={(v) => setSelected(fiscalYears.find(f => f.start === v)!)}
-          >
-            <SelectTrigger className="h-8 w-[130px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {fiscalYears.map(fy => (
-                <SelectItem key={fy.start} value={fy.start}>WJ {fy.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {onOpenFullView && (
-            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={onOpenFullView}>
-              Details
-            </Button>
-          )}
-        </div>
+        <Select
+          value={selected.start}
+          onValueChange={(v) => setSelected(fiscalYears.find(f => f.start === v)!)}
+        >
+          <SelectTrigger className="h-8 w-[140px] text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {fiscalYears.map(fy => (
+              <SelectItem key={fy.start} value={fy.start}>Wirtschaftsjahr {fy.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </CardHeader>
-      <CardContent className="p-3 md:p-4 pt-1">
+      <CardContent className="p-3 md:p-4 pt-1 space-y-3">
         <div className="overflow-x-auto -mx-1 px-1">
           <div className="flex items-start min-w-max gap-0">
             {ANNUAL_CYCLE_TASKS.map((tDef, idx) => {
@@ -121,21 +132,26 @@ export const AnnualCycleTimeline = ({ buildingId, onOpenFullView }: Props) => {
               const style = STATUS_STYLES[status];
               const Icon = style.icon;
               const isLast = idx === ANNUAL_CYCLE_TASKS.length - 1;
+              const isActive = editingKey === tDef.key;
               return (
                 <div key={tDef.key} className="flex items-start" style={{ minWidth: 90 }}>
                   <div className="flex flex-col items-center w-[90px]">
                     <button
                       type="button"
-                      onClick={onOpenFullView}
+                      onClick={() => setEditingKey(isActive ? null : tDef.key)}
                       className={cn(
                         "w-9 h-9 rounded-full border-2 flex items-center justify-center transition-transform hover:scale-110",
-                        style.dot
+                        style.dot,
+                        isActive && "ring-2 ring-primary ring-offset-2 ring-offset-background"
                       )}
                       title={`${tDef.label} – ${STATUS_LABEL[status]}${row?.completed_at ? ` (${row.completed_at})` : ""}`}
                     >
                       <Icon className="h-4 w-4" />
                     </button>
-                    <p className="text-[10px] leading-tight text-center mt-1.5 px-1 line-clamp-2 text-muted-foreground">
+                    <p className={cn(
+                      "text-[10px] leading-tight text-center mt-1.5 px-1 line-clamp-2",
+                      isActive ? "text-foreground font-medium" : "text-muted-foreground"
+                    )}>
                       {tDef.label}
                     </p>
                   </div>
@@ -147,6 +163,62 @@ export const AnnualCycleTimeline = ({ buildingId, onOpenFullView }: Props) => {
             })}
           </div>
         </div>
+
+        {editingRow && editingDef && (
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2 animate-in fade-in slide-in-from-top-1">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">{editingDef.label}</p>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingKey(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <p className="text-[11px] text-muted-foreground mb-1">Status</p>
+                <Select
+                  value={editingRow.status}
+                  onValueChange={(v: AnnualCycleStatus) => {
+                    const patch: Partial<TaskRow> = { status: v };
+                    if (v === "done" && !editingRow.completed_at) {
+                      patch.completed_at = new Date().toISOString().slice(0, 10);
+                    }
+                    updateRow(editingRow.id, patch);
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs bg-background"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(["open", "in_progress", "done"] as AnnualCycleStatus[]).map(s => (
+                      <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground mb-1">Datum</p>
+                <Input
+                  type="date"
+                  value={editingRow.completed_at || ""}
+                  onChange={(e) => updateRow(editingRow.id, { completed_at: e.target.value || null })}
+                  className="h-8 text-xs bg-background"
+                />
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] text-muted-foreground mb-1">Notiz</p>
+              <Textarea
+                defaultValue={editingRow.note || ""}
+                onBlur={(e) => {
+                  if ((editingRow.note || "") !== e.target.value) {
+                    updateRow(editingRow.id, { note: e.target.value || null });
+                  }
+                }}
+                placeholder="Optional..."
+                rows={2}
+                className="text-xs bg-background"
+              />
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
