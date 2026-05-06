@@ -11,15 +11,82 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
   X, Pencil, FileText, Save, ArrowRightLeft, AlertTriangle, Check,
-  ChevronLeft, ChevronRight, Move,
+  ChevronLeft, ChevronRight, Move, ChevronsUpDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { EditBookingDialog } from "./EditBookingDialog";
+
+type AccountOption = { id: string; account_number: string | number; account_name: string };
+
+function AccountSearchSelect({
+  value, onChange, accounts, placeholder = "Konto suchen…", excludeIds = [], className,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  accounts: AccountOption[];
+  placeholder?: string;
+  excludeIds?: string[];
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = accounts.find((a) => a.id === value);
+  const filtered = accounts.filter((a) => !excludeIds.includes(a.id));
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          className={cn("h-9 justify-between font-normal", className)}
+        >
+          <span className="truncate">
+            {selected ? `${selected.account_number} ${selected.account_name}` : placeholder}
+          </span>
+          <ChevronsUpDown className="h-3.5 w-3.5 opacity-50 ml-2 shrink-0" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[420px]" align="start">
+        <Command
+          filter={(value, search) => {
+            // value = `${number} ${name}` lowercased — match if either number or name contains search
+            return value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
+          }}
+        >
+          <CommandInput placeholder="Nach Nummer oder Name suchen…" />
+          <CommandList>
+            <CommandEmpty>Kein Konto gefunden.</CommandEmpty>
+            <CommandGroup>
+              {filtered.map((a) => {
+                const label = `${a.account_number} ${a.account_name}`;
+                return (
+                  <CommandItem
+                    key={a.id}
+                    value={label}
+                    onSelect={() => {
+                      onChange(a.id);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check className={cn("mr-2 h-4 w-4", value === a.id ? "opacity-100" : "opacity-0")} />
+                    <span className="font-mono text-xs mr-2 text-muted-foreground">{a.account_number}</span>
+                    <span className="truncate">{a.account_name}</span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 interface Props {
   open: boolean;
@@ -179,23 +246,22 @@ export function AccountInspectorDialog({
   const moveBooking = async (bookingId: string, newAccId: string) => {
     const b = bookings.find((x) => x.id === bookingId);
     if (!b || !newAccId) return;
-    // Determine which side this account is on
-    const side: "account_id" | "counter_account_id" =
-      b.account_id === accountId ? "account_id" : "counter_account_id";
-    const otherSide = side === "account_id" ? b.counter_account_id : b.account_id;
-    if (newAccId === otherSide) {
-      toast.error("Zielkonto entspricht dem Gegenkonto");
+    // Keep this account; change the OTHER side (Gegenkonto).
+    const sideToChange: "account_id" | "counter_account_id" =
+      b.account_id === accountId ? "counter_account_id" : "account_id";
+    if (newAccId === accountId) {
+      toast.error("Zielkonto entspricht dem aktuellen Konto");
       return;
     }
     const { error } = await supabase
       .from("bookings")
-      .update({ [side]: newAccId } as any)
+      .update({ [sideToChange]: newAccId } as any)
       .eq("id", bookingId);
     if (error) {
       toast.error("Umbuchung fehlgeschlagen", { description: error.message });
       return;
     }
-    toast.success("Buchung umgebucht");
+    toast.success("Gegenkonto geändert");
     onBookingChanged?.(bookingId);
     refetchBookings();
     queryClient.invalidateQueries({ queryKey: ["bookings"] });
@@ -207,18 +273,17 @@ export function AccountInspectorDialog({
     for (const bid of bulkSelected) {
       const b = bookings.find((x) => x.id === bid);
       if (!b) { fail++; continue; }
-      const side: "account_id" | "counter_account_id" =
-        b.account_id === accountId ? "account_id" : "counter_account_id";
-      const otherSide = side === "account_id" ? b.counter_account_id : b.account_id;
-      if (moveTargetId === otherSide) { fail++; continue; }
+      const sideToChange: "account_id" | "counter_account_id" =
+        b.account_id === accountId ? "counter_account_id" : "account_id";
+      if (moveTargetId === accountId) { fail++; continue; }
       const { error } = await supabase
         .from("bookings")
-        .update({ [side]: moveTargetId } as any)
+        .update({ [sideToChange]: moveTargetId } as any)
         .eq("id", bid);
       if (error) fail++;
       else { ok++; onBookingChanged?.(bid); }
     }
-    toast.success(`${ok} Buchung(en) umgebucht${fail ? `, ${fail} fehlgeschlagen` : ""}`);
+    toast.success(`${ok} Gegenkonto(s) geändert${fail ? `, ${fail} fehlgeschlagen` : ""}`);
     setBulkSelected(new Set());
     setMoveTargetId("");
     refetchBookings();
@@ -313,16 +378,14 @@ export function AccountInspectorDialog({
             <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-200 text-sm">
               <Move className="h-4 w-4 text-amber-700" />
               <span>{bulkSelected.size} ausgewählt – verschieben nach:</span>
-              <Select value={moveTargetId} onValueChange={setMoveTargetId}>
-                <SelectTrigger className="h-8 w-[320px]"><SelectValue placeholder="Zielkonto wählen…" /></SelectTrigger>
-                <SelectContent>
-                  {allAccounts.filter((a) => a.id !== accountId).map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.account_number} {a.account_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <AccountSearchSelect
+                value={moveTargetId}
+                onChange={setMoveTargetId}
+                accounts={allAccounts as any}
+                excludeIds={accountId ? [accountId] : []}
+                placeholder="Zielkonto suchen…"
+                className="w-[360px]"
+              />
               <Button size="sm" disabled={!moveTargetId} onClick={bulkMove} className="gap-1.5">
                 <ArrowRightLeft className="h-3.5 w-3.5" /> Umbuchen
               </Button>
@@ -435,15 +498,15 @@ export function AccountInspectorDialog({
                         return (
                           <div key={side} className="space-y-1">
                             <Label className="text-xs">{sideLabel}</Label>
-                            <Select
+                            <AccountSearchSelect
                               value={currentId || ""}
-                              onValueChange={async (val) => {
+                              accounts={allAccounts as any}
+                              excludeIds={[
+                                side === "account_id" ? booking.counter_account_id : booking.account_id,
+                              ].filter(Boolean)}
+                              placeholder="Konto suchen…"
+                              onChange={async (val) => {
                                 if (val === currentId) return;
-                                const otherId = side === "account_id" ? booking.counter_account_id : booking.account_id;
-                                if (val === otherId) {
-                                  toast.error("Konto und Gegenkonto dürfen nicht identisch sein");
-                                  return;
-                                }
                                 const { error } = await supabase
                                   .from("bookings")
                                   .update({ [side]: val } as any)
@@ -457,16 +520,7 @@ export function AccountInspectorDialog({
                                 refetchBookings();
                                 queryClient.invalidateQueries({ queryKey: ["bookings"] });
                               }}
-                            >
-                              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {allAccounts.map((a) => (
-                                  <SelectItem key={a.id} value={a.id}>
-                                    {a.account_number} {a.account_name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            />
                           </div>
                         );
                       })}
