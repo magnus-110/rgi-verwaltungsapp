@@ -117,6 +117,24 @@ export function CashAuditAccountSheet({ buildingId, fiscalYear, progress, onProg
     },
   });
 
+  // Wirtschaftsplan vorhanden? Nur dann Soll WP / Haben / Δ Badges anzeigen.
+  const { data: hasEconomicPlan = false } = useQuery({
+    queryKey: ["audit-has-economic-plan", buildingId, fiscalYear, tokenMode ? token : "auth"],
+    queryFn: async () => {
+      if (tokenMode && token) return false; // Token-Mode: nicht relevant für externe Prüfer
+      const { data, error } = await supabase
+        .from("economic_plans" as any)
+        .select("id")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear)
+        .limit(1)
+        .maybeSingle();
+      if (error) return false;
+      return !!data;
+    },
+    enabled: !!buildingId && !!fiscalYear,
+  });
+
   // Compute Soll Hausgeld per Personenkonto from templates
   const sollByAccount = useMemo(() => {
     const map: Record<string, number> = {};
@@ -171,8 +189,8 @@ export function CashAuditAccountSheet({ buildingId, fiscalYear, progress, onProg
 
       const isPersonAccount = PERSON_PATTERN.test(account.account_number) && account.account_number !== "0000";
       const soll = isPersonAccount ? (sollByAccount[account.id] || 0) : 0;
-      // Haben = Eingänge auf Personenkonto (Hausgeldzahlungen)
-      const haben = totalZugang;
+      // Haben = tatsächlich gezahltes Hausgeld (Abgänge auf dem Personenkonto = Zahlungen via Bank)
+      const haben = totalAbgang;
       const diff = haben - soll;
 
       return { account, rows, totalZugang, totalAbgang, total35a, totalSaldo: totalZugang - totalAbgang, isPersonAccount, soll, haben, diff };
@@ -260,13 +278,13 @@ export function CashAuditAccountSheet({ buildingId, fiscalYear, progress, onProg
                         {ab.account.account_number} {ab.account.account_name}
                       </span>
                       <span className="text-xs text-muted-foreground">({ab.rows.length} Buchungen)</span>
-                      {ab.isPersonAccount && ab.soll > 0 && (
+                      {ab.isPersonAccount && hasEconomicPlan && ab.soll > 0 && (
                         <>
                           <Badge variant="outline" className="text-[10px] h-5">
                             Soll WP: <span className="font-mono ml-1">{fmt(ab.soll)}</span>
                           </Badge>
                           <Badge variant="outline" className="text-[10px] h-5">
-                            Haben: <span className="font-mono ml-1">{fmt(ab.haben)}</span>
+                            Gezahlt: <span className="font-mono ml-1">{fmt(ab.haben)}</span>
                           </Badge>
                           <Badge className={cn(
                             "text-[10px] h-5",
