@@ -8,6 +8,7 @@ import { Plus, ExternalLink, Copy, Trash2, CheckCircle2, Clock, FileEdit } from 
 import { toast } from "sonner";
 import { CreateAuditDialog } from "./CreateAuditDialog";
 import { CashAuditWizard } from "./CashAuditWizard";
+import { CashAuditAdminReview } from "./CashAuditAdminReview";
 import { cn } from "@/lib/utils";
 
 const STATUS_MAP: Record<string, { label: string; icon: any; className: string }> = {
@@ -55,6 +56,16 @@ export function CashAuditTab() {
   };
 
   if (selectedAuditId) {
+    const selected = audits.find((a: any) => a.id === selectedAuditId);
+    // Admin sieht eigene Review-Ansicht für Prüfungen, an denen der Prüfer schon gearbeitet hat
+    if (selected && selected.status !== "draft") {
+      return (
+        <CashAuditAdminReview
+          auditId={selectedAuditId}
+          onBack={() => setSelectedAuditId(null)}
+        />
+      );
+    }
     return (
       <CashAuditWizard
         auditId={selectedAuditId}

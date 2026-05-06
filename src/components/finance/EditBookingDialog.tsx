@@ -54,12 +54,13 @@ interface Props {
   booking: Booking | null;
   buildingName: string;
   onInvoiceClick?: (booking: any) => void;
+  onSaved?: (bookingId: string) => void;
 }
 
 const formatCurrency = (amount: number | null) =>
   amount != null ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(amount) : "–";
 
-export function EditBookingDialog({ open, onOpenChange, booking, buildingName }: Props) {
+export function EditBookingDialog({ open, onOpenChange, booking, buildingName, onSaved }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
@@ -242,6 +243,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
     setSaving(false);
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Buchung gespeichert");
+    onSaved?.(booking.id);
     onOpenChange(false);
     queryClient.invalidateQueries({ predicate: (query) => {
       const key = query.queryKey[0] as string;

@@ -1,39 +1,77 @@
-## Problem
+## Ziel
 
-Im Kassenprüfungs-Kontenblatt (Adolf-Haff-Weg 3) zeigen die Badges am Personenkonto irreführende Werte:
+Wenn der Admin im Tab **Buchhaltung → Kassenprüfung** eine bestehende Prüfung öffnet, soll er nicht mehr die gleiche Bearbeitungs-UI wie der externe Prüfer sehen, sondern eine eigene **Admin-Review-Ansicht**: Übersicht über alle Befunde des Prüfers, mit Fokus auf Auffälligkeiten und direkten Korrektur-Aktionen.
 
-1. **„Soll WP"** wird aus `booking_templates.expected_amount` berechnet — auch wenn für das Jahr **gar kein Wirtschaftsplan** existiert.
-2. **„Haben: 949,58 €"** zeigt nur die positiv gebuchten Zugänge auf dem Personenkonto. Das tatsächlich gezahlte Hausgeld (12 × 370 € = 4.440 €) steckt aber in den Abgängen / im Saldo (-4.440 €). Die Badge bildet damit nicht die geleisteten Hausgeldzahlungen ab.
+Der Token-Modus (externer Prüfer via Link) bleibt unverändert.
 
-## Lösung
+## Layout
 
-### 1. „Soll WP" nur aus echtem Wirtschaftsplan
-- In `CashAuditAccountSheet.tsx` neue Query gegen `economic_plans` (Tabelle prüfen — vermutlich `economic_plans` + `economic_plan_items` o.ä.) für `building_id` + `fiscal_year`.
-- Wenn **kein veröffentlichter Wirtschaftsplan** vorhanden → Badges „Soll WP", „Haben", „Δ" komplett **ausblenden**.
-- Wenn vorhanden → `Soll WP` aus dem Einzelwirtschaftsplan-Eintrag des jeweiligen Personenkontos (Jahres-Vorschuss-Soll) ziehen, nicht mehr aus `booking_templates`.
+Beim Öffnen einer Kassenprüfung sieht der Admin:
 
-### 2. „Haben" = tatsächlich gezahltes Hausgeld
-Aktuell: `haben = totalZugang` (nur positive Beträge auf der Hauptkonto-Seite).
+```text
+┌─────────────────────────────────────────────────────────────┐
+│  ← Zurück   Kassenprüfung: <Gebäude>  [Geschäftsjahr] [Status]│
+│  Prüfer: <Name>  · Letzte Aktivität: …                       │
+├─────────────────────────────────────────────────────────────┤
+│  Zusammenfassung (4 Kennzahl-Kacheln)                        │
+│   • Geprüfte Konten   • Geprüfte Buchungen                   │
+│   • Auffällige Konten • Auffällige Buchungen                 │
+├─────────────────────────────────────────────────────────────┤
+│  [Tab: Auffälligkeiten ⚠]  [Tab: Geprüft ✓]  [Tab: Notizen] │
+├─────────────────────────────────────────────────────────────┤
+│  Auffälligkeiten (Default-Tab):                              │
+│  ─ Konto-Karte (z.B. 4210 Reparaturen) ⚠                     │
+│     Notiz vom Prüfer: "Beleg fehlt"                          │
+│     [Konto öffnen]                                           │
+│     ─ Buchung 12.03. – Müller GmbH – 1.234,56 €              │
+│        Notiz: "Doppelt?"                                     │
+│        [Buchung bearbeiten]  [Konto öffnen]                  │
+│        Badge: "Von der Verwaltung bearbeitet am 06.05."      │
+│  ─ weitere auffällige Konten/Buchungen …                     │
+└─────────────────────────────────────────────────────────────┘
+```
 
-Neu: **`haben` = Summe aller Hausgeldzahlungen** auf dem Personenkonto, unabhängig von der Soll/Haben-Richtung der Buchung.
-- Konvention: Hausgeld-Zahlungen reduzieren den offenen Saldo des Personenkontos. In der bestehenden Logik landen sie als `abgang` (Saldo wird negativer = mehr „bezahlt").
-- Praktischer Ansatz: `haben = totalAbgang` (bzw. präziser: alle Buchungen mit Gegenkonto Bank `1800`, die Zahlungseingänge sind).
-- Fallback / sauber: über Gegenkonto-Filter `counter_account_id = Bank-Konto (1800)` summieren — das sind eindeutig die Hausgeldzahlungen.
+- **Tab "Auffälligkeiten"** (Default) listet alle Konten + Buchungen, die der Prüfer mit `flag = "issue"` markiert hat, gruppiert nach Konto, mit den jeweiligen Prüfer-Notizen.
+- **Tab "Geprüft"** zeigt die als `ok` markierten Konten/Buchungen kompakt (read-only).
+- **Tab "Notizen"** zeigt Abschluss-Notes + Unterschrift falls vorhanden.
 
-### 3. Δ-Berechnung anpassen
-- `diff = haben − soll`
-- Bei Soll 4.230 € und Haben 4.440 € → Δ = +210 € (grün, Überzahlung) statt aktuell −3.280 €.
+## Aktionen pro auffälliger Buchung / Konto
+
+- **Buchung bearbeiten** → öffnet bestehenden `EditBookingDialog`. Nach erfolgreichem Speichern wird in `progress.adminReview[bookingId]` ein Eintrag `{ editedAt, editedBy }` gesetzt → Badge "Von der Verwaltung bearbeitet am …".
+- **Konto öffnen** → Navigation in den Kontenplan / Kontoblatt-Ansicht der jeweiligen Liegenschaft (`/finanzen` mit Filter), in neuem Tab.
+
+Das `progress`-JSON wird so erweitert, dass auch der externe Prüfer beim nächsten Öffnen den Vermerk "Von der Verwaltung bearbeitet" sehen kann.
+
+## Sichtbarkeit / Routing
+
+- `CashAuditTab.tsx`: Wenn der Admin (also `tokenMode !== true`) eine bestehende Prüfung mit Status `in_progress` oder `completed` öffnet, wird statt `CashAuditWizard` die neue Komponente `CashAuditAdminReview` gerendert. Bei Status `draft` (also gerade erstellt, noch nicht vom Prüfer angerührt) bleibt die alte UI (damit Verwaltung selbst Vorschau machen kann), wahlweise mit Umschalter "Prüfer-Sicht öffnen".
+- Token-Modus (`/kassenpruefung/:token`) ruft weiterhin `CashAuditWizard` direkt auf — komplett unverändert.
 
 ## Technische Details
 
-**Datei:** `src/components/finance/CashAuditAccountSheet.tsx`
+**Neue Datei:** `src/components/finance/CashAuditAdminReview.tsx`
+- Lädt dieselben Daten wie der Wizard (`cash_audits` + `bookings` für `building_id`/`fiscal_year`).
+- Liest `progress.accountFlags`, `progress.accountNotes`, `progress.bookingFlags`, `progress.bookingNotes`, `progress.adminReview`.
+- Aggregiert: pro Konto die zugehörigen Buchungen aus dem bestehenden Booking-Hook (Wiederverwendung der Logik aus `CashAuditAccountSheet` — am besten kleine Hook-Extraktion `useAuditAccountBookings(buildingId, fiscalYear)`).
+- 4 Summary-Tiles + Tabs (`Auffälligkeiten` / `Geprüft` / `Notizen`).
+- Wiederverwendet `EditBookingDialog` für die Bearbeitung.
+- Nach Save: ruft eine Helper-Funktion `markAdminEdited(auditId, bookingId)` auf, die `progress.adminReview[bookingId] = { editedAt: ISO, editedBy: profileFullName }` setzt und via `supabase.from("cash_audits").update(...)` speichert.
 
-- Neue Query `useQuery(["audit-economic-plan", buildingId, fiscalYear])` → liefert pro Personenkonto den Soll-Vorschuss; bei `null/empty` Badges nicht rendern.
-- `sollByAccount` aus `templates` **entfernen** (oder als reiner Fallback streichen — User-Wahl: streichen).
-- `haben`-Berechnung umstellen: in der `rows.map`-Schleife eine zusätzliche Summe `paidByBank` führen, die nur Buchungen zählt, deren Gegenkonto die Bank ist.
-- Token-Mode: ggf. neue RPC `get_audit_economic_plan_by_token` analog zu `get_audit_templates_by_token`.
+**Anpassung `CashAuditTab.tsx`:**
+- Statt direkt `<CashAuditWizard>` zu rendern, eine kleine Weiche:
+  - `audit.status === "draft"` → `CashAuditWizard` (Vorschau Verwaltung)
+  - sonst → `CashAuditAdminReview`
+- Optional: Toggle-Button "Prüfer-Sicht ansehen" oben rechts, der temporär den Wizard read-only öffnet.
 
-## Offene Annahmen (vor Umsetzung kurz prüfen)
+**Helper-Hook `useAuditAccountBookings`:**
+- Wird aus `CashAuditAccountSheet.tsx` extrahiert (Logik bleibt 1:1, nur als wiederverwendbarer Hook), damit Admin-Review dieselben Konto-/Buchungs-Aggregate nutzt.
 
-- Tabellenname & Felder des Wirtschaftsplans (vermutlich `economic_plans` + `economic_plan_items` mit `account_id` + `annual_amount`).
-- Bank-Konto-Nummer: ist `1800` projektweit fix oder dynamisch (z. B. `is_bank_account` Flag im COA)?
+**`CashAuditAccountSheet`** (Prüfer-Seite): Ergänzt minimal das Anzeigen eines kleinen Hinweises "Von der Verwaltung bearbeitet" auf Buchungszeilen, wenn `progress.adminReview[bookingId]` existiert (nur Lesehinweis, kein Verhalten).
+
+**Keine Schemaänderung nötig** — alles läuft über das bestehende `progress` JSONB-Feld auf `cash_audits`.
+
+## Out of scope
+
+- Löschen von Buchungen aus der Admin-Review.
+- Ändern des "Geprüft/Auffällig"-Status durch den Admin (das bleibt Hoheit des Prüfers).
+- Backend/RPC-Änderungen.
