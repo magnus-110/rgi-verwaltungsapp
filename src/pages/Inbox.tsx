@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { EmailAttachments } from "@/components/email/EmailAttachments";
 import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
+import { AiEmailSearchDialog } from "@/components/email/AiEmailSearchDialog";
 
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
 import { ScheduledMailsPanel } from "@/components/email/ScheduledMailsPanel";
