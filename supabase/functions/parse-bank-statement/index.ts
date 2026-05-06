@@ -137,15 +137,19 @@ async function matchTransactions(supabase: any, statementId: string, buildingId:
 
   let matchedCount = 0;
 
+  // Helper: normalize purpose for invoice number search (case-insensitive, strip spaces/dashes/slashes)
+  const normalize = (s: string) => (s || "").toLowerCase().replace(/[\s\-\/.]/g, "");
+
   for (const txn of savedTxns) {
     const txnAbs = Math.abs(txn.amount);
     const txnIban = txn.amount < 0 ? txn.creditor_iban : txn.debtor_iban;
+    const purposeNorm = normalize(txn.purpose || "");
 
     if (paidInvoices) {
       let invoiceMatch = null;
 
-      // Tier 1: IBAN + amount + invoice number
-      if (txnIban && txn.purpose) {
+      // Tier 1: IBAN + amount + invoice number contained in purpose (strongest match)
+      if (txnIban && purposeNorm) {
         invoiceMatch = paidInvoices.find(
           (inv: any) =>
             inv.vendor_iban &&
@@ -154,32 +158,44 @@ async function matchTransactions(supabase: any, statementId: string, buildingId:
             inv.gross_amount &&
             Math.abs(inv.gross_amount - txnAbs) <= 0.01 &&
             inv.invoice_number &&
-            txn.purpose.includes(inv.invoice_number)
+            String(inv.invoice_number).length >= 3 &&
+            purposeNorm.includes(normalize(String(inv.invoice_number)))
         );
       }
 
-      // Tier 2: IBAN + amount
+      // Tier 2: IBAN + amount – aber NUR wenn eindeutig (genau ein Kandidat).
+      // Gibt es mehrere Rechnungen desselben Lieferanten mit identischem Betrag,
+      // muss die Rechnungsnummer im Verwendungszweck stehen (Tier 1), sonst
+      // wird nichts zugewiesen, um Fehlzuordnungen zu vermeiden.
       if (!invoiceMatch && txnIban) {
-        invoiceMatch = paidInvoices.find(
+        const candidates = paidInvoices.filter(
           (inv: any) =>
             inv.vendor_iban &&
             inv.vendor_iban.replace(/\s/g, "").toUpperCase() ===
               txnIban.replace(/\s/g, "").toUpperCase() &&
             inv.gross_amount &&
-            Math.abs(inv.gross_amount - txnAbs) <= 0.01
+            Math.abs(inv.gross_amount - txnAbs) <= 0.01,
         );
+        if (candidates.length === 1) {
+          const cand = candidates[0];
+          // Wenn eine Rechnungsnummer existiert UND im Purpose eine andere
+          // erkennbare Nummer steht, lieber NICHT matchen (siehe Tier 1).
+          // Hier (eindeutiger Kandidat) übernehmen wir es trotzdem.
+          invoiceMatch = cand;
+        }
       }
 
-      // Tier 3: Invoice number + amount
-      if (!invoiceMatch && txn.purpose) {
-        invoiceMatch = paidInvoices.find(
+      // Tier 3: Invoice number + amount (kein IBAN-Treffer nötig, aber Nummer muss exakt passen)
+      if (!invoiceMatch && purposeNorm) {
+        const candidates = paidInvoices.filter(
           (inv: any) =>
             inv.invoice_number &&
-            inv.invoice_number.length >= 3 &&
-            txn.purpose.includes(inv.invoice_number) &&
+            String(inv.invoice_number).length >= 3 &&
+            purposeNorm.includes(normalize(String(inv.invoice_number))) &&
             inv.gross_amount &&
-            Math.abs(inv.gross_amount - txnAbs) <= 0.01
+            Math.abs(inv.gross_amount - txnAbs) <= 0.01,
         );
+        if (candidates.length === 1) invoiceMatch = candidates[0];
       }
 
       if (invoiceMatch) {
@@ -191,6 +207,7 @@ async function matchTransactions(supabase: any, statementId: string, buildingId:
         continue;
       }
     }
+
 
     if (templates) {
       const txnDateStr = (txn.booking_date || "").slice(0, 10);
