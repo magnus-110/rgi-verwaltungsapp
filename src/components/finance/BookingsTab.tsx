@@ -77,6 +77,7 @@ export function BookingsTab({
   const [deleting, setDeleting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [aKeyDown, setAKeyDown] = useState(false);
+  const [dateSort, setDateSort] = useState<"desc" | "asc">("desc");
 
   useEffect(() => {
     const isTypingTarget = (el: EventTarget | null) => {
