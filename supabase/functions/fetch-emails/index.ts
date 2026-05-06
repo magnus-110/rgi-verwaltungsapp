@@ -19,6 +19,7 @@ interface EmailAccount {
   delete_after_import: boolean;
   is_active: boolean;
   import_since: string | null;
+  uid_validity: string | null;
 }
 
 interface ParsedAttachment {
