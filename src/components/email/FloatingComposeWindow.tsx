@@ -542,7 +542,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   // ===== DESKTOP: docked block bottom-right OR fullscreen =====
   const containerClass = isFullscreen
     ? "fixed inset-0 z-50 border-0 rounded-none shadow-none"
-    : "fixed bottom-0 right-4 z-50 border border-border rounded-t-lg shadow-2xl w-[560px] h-[600px]";
+    : "fixed bottom-0 right-4 z-50 border border-border rounded-t-lg shadow-2xl w-[560px] h-[760px]";
 
   return (
     <div className={cn("bg-card flex flex-col overflow-hidden", containerClass)}>
@@ -592,7 +592,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
 
       {/* Content */}
       <ScrollArea className="flex-1 p-3">
-        <div className={cn("space-y-2.5 mx-auto", isFullscreen ? "max-w-5xl" : "max-w-3xl")}>
+        <div className={cn("space-y-2.5 mx-auto", isFullscreen ? "max-w-[1400px]" : "max-w-3xl")}>
           <div className="space-y-1">
             <Label className="text-xs">Von</Label>
             <Select value={compose.accountId} onValueChange={(v) => update({ accountId: v })}>
@@ -701,7 +701,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
               value={compose.bodyText}
               onChange={(e) => update({ bodyText: e.target.value })}
               placeholder="Ihre Nachricht..."
-              className={cn("resize-y text-sm", isFullscreen ? "min-h-[60vh]" : "min-h-[140px]")}
+              className={cn("resize-y text-sm", isFullscreen ? "min-h-[65vh]" : "min-h-[340px]")}
             />
             {aiSuggestion !== null && (
               <div ref={aiSuggestionRef} className="border border-primary/30 bg-primary/5 rounded-md p-2 space-y-1.5">
