@@ -701,7 +701,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
               value={compose.bodyText}
               onChange={(e) => update({ bodyText: e.target.value })}
               placeholder="Ihre Nachricht..."
-              className={cn("resize-y text-sm", isFullscreen ? "min-h-[60vh]" : "min-h-[140px]")}
+              className={cn("resize-y text-sm", isFullscreen ? "min-h-[65vh]" : "min-h-[340px]")}
             />
             {aiSuggestion !== null && (
               <div ref={aiSuggestionRef} className="border border-primary/30 bg-primary/5 rounded-md p-2 space-y-1.5">
