@@ -87,7 +87,7 @@ export const AiEmailSearchDialog = ({ open, onOpenChange, accountIds, onSelectEm
 
         <div className="space-y-2">
           <Textarea
-            placeholder="z.B. „Rechnung vom Heizungsmonteur für Liegenschaft Hauptstraße 5, irgendwann letzten Sommer""
+            placeholder='z.B. „Rechnung vom Heizungsmonteur für Liegenschaft Hauptstraße 5, irgendwann letzten Sommer"'
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             rows={3}
