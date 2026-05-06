@@ -3,19 +3,24 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
 import { CalendarClock, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   ANNUAL_CYCLE_TASKS, STATUS_LABEL,
   buildFiscalYears, type AnnualCycleStatus,
 } from "@/lib/annualCycle";
+import { toast } from "sonner";
 
 interface BuildingRow {
   id: string;
@@ -23,10 +28,12 @@ interface BuildingRow {
 }
 
 interface TaskRow {
+  id: string;
   building_id: string;
   task_key: string;
   status: AnnualCycleStatus;
   completed_at: string | null;
+  note: string | null;
 }
 
 const STATUS_DOT: Record<AnnualCycleStatus, string> = {
@@ -77,7 +84,7 @@ export const AnnualCycleDashboardWidget = () => {
       if (!ids.length) return [];
       const { data, error } = await supabase
         .from("annual_cycle_tasks")
-        .select("building_id, task_key, status, completed_at")
+        .select("id, building_id, task_key, status, completed_at, note")
         .eq("fiscal_year_start", selected.start)
         .in("building_id", ids);
       if (error) throw error;
@@ -85,6 +92,15 @@ export const AnnualCycleDashboardWidget = () => {
     },
     enabled: open && buildings.length > 0,
   });
+
+  const updateRow = async (id: string, patch: Partial<TaskRow>) => {
+    const { error } = await supabase.from("annual_cycle_tasks").update(patch).eq("id", id);
+    if (error) {
+      toast.error("Speichern fehlgeschlagen");
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["jz-widget-tasks"] });
+  };
 
   const tasksByBuilding = useMemo(() => {
     const m = new Map<string, Map<string, TaskRow>>();
@@ -116,7 +132,7 @@ export const AnnualCycleDashboardWidget = () => {
                     </SelectTrigger>
                     <SelectContent>
                       {fiscalYears.map(fy => (
-                        <SelectItem key={fy.start} value={fy.start}>Wirtschaftsjahr {fy.label}</SelectItem>
+                        <SelectItem key={fy.start} value={fy.start}>{fy.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -162,13 +178,77 @@ export const AnnualCycleDashboardWidget = () => {
                           const status: AnnualCycleStatus = row?.status ?? "open";
                           return (
                             <td key={t.key} className="p-1 text-center">
-                              <button
-                                className="w-full h-7 rounded flex items-center justify-center hover:bg-accent transition-colors"
-                                onClick={() => navigate(`/buildings/${b.id}`)}
-                                title={`${t.label}: ${STATUS_LABEL[status]}${row?.completed_at ? ` (${row.completed_at})` : ""}`}
-                              >
-                                <span className={cn("w-2.5 h-2.5 rounded-full", STATUS_DOT[status])} />
-                              </button>
+                              {row ? (
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <button
+                                      className="w-full h-7 rounded flex items-center justify-center hover:bg-accent transition-colors"
+                                      title={`${t.label}: ${STATUS_LABEL[status]}${row.completed_at ? ` (${row.completed_at})` : ""}`}
+                                    >
+                                      <span className={cn("w-2.5 h-2.5 rounded-full", STATUS_DOT[status])} />
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-72 p-3 space-y-2" align="center">
+                                    <div className="flex items-center justify-between">
+                                      <p className="text-sm font-medium truncate">{t.label}</p>
+                                      <button
+                                        className="text-[10px] text-muted-foreground hover:text-primary"
+                                        onClick={() => navigate(`/buildings/${b.id}`)}
+                                      >
+                                        Gebäude →
+                                      </button>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground -mt-1 truncate">{b.name}</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <p className="text-[10px] text-muted-foreground mb-1">Status</p>
+                                        <Select
+                                          value={row.status}
+                                          onValueChange={(v: AnnualCycleStatus) => {
+                                            const patch: Partial<TaskRow> = { status: v };
+                                            if (v === "done" && !row.completed_at) {
+                                              patch.completed_at = new Date().toISOString().slice(0, 10);
+                                            }
+                                            updateRow(row.id, patch);
+                                          }}
+                                        >
+                                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                                          <SelectContent>
+                                            {(["open", "in_progress", "done"] as AnnualCycleStatus[]).map(s => (
+                                              <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div>
+                                        <p className="text-[10px] text-muted-foreground mb-1">Datum</p>
+                                        <Input
+                                          type="date"
+                                          value={row.completed_at || ""}
+                                          onChange={(e) => updateRow(row.id, { completed_at: e.target.value || null })}
+                                          className="h-8 text-xs"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] text-muted-foreground mb-1">Notiz</p>
+                                      <Textarea
+                                        defaultValue={row.note || ""}
+                                        onBlur={(e) => {
+                                          if ((row.note || "") !== e.target.value) {
+                                            updateRow(row.id, { note: e.target.value || null });
+                                          }
+                                        }}
+                                        rows={2}
+                                        className="text-xs"
+                                        placeholder="Optional…"
+                                      />
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                              ) : (
+                                <span className={cn("inline-block w-2.5 h-2.5 rounded-full opacity-40", STATUS_DOT[status])} />
+                              )}
                             </td>
                           );
                         })}
