@@ -246,23 +246,22 @@ export function AccountInspectorDialog({
   const moveBooking = async (bookingId: string, newAccId: string) => {
     const b = bookings.find((x) => x.id === bookingId);
     if (!b || !newAccId) return;
-    // Determine which side this account is on
-    const side: "account_id" | "counter_account_id" =
-      b.account_id === accountId ? "account_id" : "counter_account_id";
-    const otherSide = side === "account_id" ? b.counter_account_id : b.account_id;
-    if (newAccId === otherSide) {
-      toast.error("Zielkonto entspricht dem Gegenkonto");
+    // Keep this account; change the OTHER side (Gegenkonto).
+    const sideToChange: "account_id" | "counter_account_id" =
+      b.account_id === accountId ? "counter_account_id" : "account_id";
+    if (newAccId === accountId) {
+      toast.error("Zielkonto entspricht dem aktuellen Konto");
       return;
     }
     const { error } = await supabase
       .from("bookings")
-      .update({ [side]: newAccId } as any)
+      .update({ [sideToChange]: newAccId } as any)
       .eq("id", bookingId);
     if (error) {
       toast.error("Umbuchung fehlgeschlagen", { description: error.message });
       return;
     }
-    toast.success("Buchung umgebucht");
+    toast.success("Gegenkonto geändert");
     onBookingChanged?.(bookingId);
     refetchBookings();
     queryClient.invalidateQueries({ queryKey: ["bookings"] });
@@ -274,18 +273,17 @@ export function AccountInspectorDialog({
     for (const bid of bulkSelected) {
       const b = bookings.find((x) => x.id === bid);
       if (!b) { fail++; continue; }
-      const side: "account_id" | "counter_account_id" =
-        b.account_id === accountId ? "account_id" : "counter_account_id";
-      const otherSide = side === "account_id" ? b.counter_account_id : b.account_id;
-      if (moveTargetId === otherSide) { fail++; continue; }
+      const sideToChange: "account_id" | "counter_account_id" =
+        b.account_id === accountId ? "counter_account_id" : "account_id";
+      if (moveTargetId === accountId) { fail++; continue; }
       const { error } = await supabase
         .from("bookings")
-        .update({ [side]: moveTargetId } as any)
+        .update({ [sideToChange]: moveTargetId } as any)
         .eq("id", bid);
       if (error) fail++;
       else { ok++; onBookingChanged?.(bid); }
     }
-    toast.success(`${ok} Buchung(en) umgebucht${fail ? `, ${fail} fehlgeschlagen` : ""}`);
+    toast.success(`${ok} Gegenkonto(s) geändert${fail ? `, ${fail} fehlgeschlagen` : ""}`);
     setBulkSelected(new Set());
     setMoveTargetId("");
     refetchBookings();
