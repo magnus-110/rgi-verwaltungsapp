@@ -26,6 +26,7 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
   const queryClient = useQueryClient();
   const [editingBooking, setEditingBooking] = useState<any | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
+  const [inspectorAccountId, setInspectorAccountId] = useState<string | null>(null);
 
   const { data: audit, isLoading } = useQuery({
     queryKey: ["cash-audit", auditId],
