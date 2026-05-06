@@ -54,6 +54,24 @@ export const useComposeEmail = () => {
   return ctx;
 };
 
+const stripHtml = (html: string): string => {
+  if (!html) return "";
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<br\s*\/?>(\n)?/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/(div|tr|li|h[1-6])>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+};
+
 const buildInitial = (id: string, opts?: OpenOpts): ComposeState => {
   const replyTo = opts?.replyTo || null;
   const forward = opts?.forward || null;
