@@ -189,8 +189,8 @@ export function CashAuditAccountSheet({ buildingId, fiscalYear, progress, onProg
 
       const isPersonAccount = PERSON_PATTERN.test(account.account_number) && account.account_number !== "0000";
       const soll = isPersonAccount ? (sollByAccount[account.id] || 0) : 0;
-      // Haben = Eingänge auf Personenkonto (Hausgeldzahlungen)
-      const haben = totalZugang;
+      // Haben = tatsächlich gezahltes Hausgeld (Abgänge auf dem Personenkonto = Zahlungen via Bank)
+      const haben = totalAbgang;
       const diff = haben - soll;
 
       return { account, rows, totalZugang, totalAbgang, total35a, totalSaldo: totalZugang - totalAbgang, isPersonAccount, soll, haben, diff };
