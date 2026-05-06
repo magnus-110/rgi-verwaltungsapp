@@ -154,5 +154,8 @@ verify_jwt = true
 [functions.confirm-email-change]
 verify_jwt = false
 
+[functions.ai-search-emails]
+verify_jwt = true
+
 [functions.generate-booking-embeddings]
 verify_jwt = false

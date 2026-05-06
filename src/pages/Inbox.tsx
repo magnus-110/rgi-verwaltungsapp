@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { EmailAttachments } from "@/components/email/EmailAttachments";
 import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
+import { AiEmailSearchDialog } from "@/components/email/AiEmailSearchDialog";
 
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
 import { ScheduledMailsPanel } from "@/components/email/ScheduledMailsPanel";
@@ -63,6 +64,7 @@ export const Inbox = () => {
     return true;
   });
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [aiSearchOpen, setAiSearchOpen] = useState(false);
   const [showEmailDetails, setShowEmailDetails] = useState(false);
   const [archiveEmailId, setArchiveEmailId] = useState<string | null>(null);
   const [filterBuildingId, setFilterBuildingId] = useState<string>("all");
@@ -298,8 +300,10 @@ export const Inbox = () => {
 
       if (isArchiveFolder) {
         query = query.eq("is_archived", true);
-        if (filterBuildingId !== "all") query = query.eq("building_id", filterBuildingId);
-        if (filterContactId !== "all") query = query.eq("contact_id", filterContactId);
+        if (filterBuildingId === "none") query = query.is("building_id", null);
+        else if (filterBuildingId !== "all") query = query.eq("building_id", filterBuildingId);
+        if (filterContactId === "none") query = query.is("contact_id", null);
+        else if (filterContactId !== "all") query = query.eq("contact_id", filterContactId);
       } else {
         query = query.eq("is_archived", false);
         if (selectedFolderId) query = query.eq("folder_id", selectedFolderId);
@@ -1111,14 +1115,28 @@ export const Inbox = () => {
 
             {/* Search - filters within selected category */}
             <div className="p-2 border-b space-y-2">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder={filterCategory !== "all" ? `In "${filterCategory}" suchen...` : "E-Mails durchsuchen..."}
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="pl-9 h-9"
-                />
+              <div className="relative flex items-center gap-1">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={filterCategory !== "all" ? `In "${filterCategory}" suchen...` : "E-Mails durchsuchen..."}
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="pl-9 h-9"
+                  />
+                </div>
+                {isArchiveFolder && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    title="KI-Suche im Archiv"
+                    onClick={() => setAiSearchOpen(true)}
+                  >
+                    <Sparkles className="h-4 w-4 text-primary" />
+                  </Button>
+                )}
               </div>
               {/* Archive filters */}
               {isArchiveFolder && (
@@ -1130,6 +1148,7 @@ export const Inbox = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Alle Liegenschaften</SelectItem>
+                      <SelectItem value="none">Ohne Liegenschaft</SelectItem>
                       {buildings.map(b => (
                         <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                       ))}
@@ -1142,6 +1161,7 @@ export const Inbox = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Alle Kontakte</SelectItem>
+                      <SelectItem value="none">Ohne Kontakt</SelectItem>
                       {contacts.map(c => (
                         <SelectItem key={c.id} value={c.id}>{getContactName(c)}</SelectItem>
                       ))}
@@ -1644,6 +1664,29 @@ export const Inbox = () => {
         prefilledCaseId={archiveEmailId ? ((emails.find(e => e.id === archiveEmailId) as any)?.case_id || (emails.find(e => e.id === archiveEmailId) as any)?.ai_case_suggestion_id || null) : null}
         prefilledIsEtvRelevant={archiveEmailId ? !!(emails.find(e => e.id === archiveEmailId) as any)?.is_etv_relevant : false}
         prefilledEtvMeetingId={archiveEmailId ? ((emails.find(e => e.id === archiveEmailId) as any)?.etv_meeting_id || null) : null}
+      />
+
+      <AiEmailSearchDialog
+        open={aiSearchOpen}
+        onOpenChange={setAiSearchOpen}
+        accountIds={selectedAccountIds}
+        onSelectEmail={async (emailId) => {
+          setAiSearchOpen(false);
+          const { data } = await supabase
+            .from("emails")
+            .select("id, folder_id, is_archived")
+            .eq("id", emailId)
+            .maybeSingle();
+          if (data) {
+            if (data.is_archived) {
+              const archive = folders.find((f) => f.name === "Archiv");
+              if (archive) setSelectedFolderId(archive.id);
+            } else if (data.folder_id) {
+              setSelectedFolderId(data.folder_id);
+            }
+            setSelectedEmailId(data.id);
+          }
+        }}
       />
 
       <Dialog open={newContactDialogOpen} onOpenChange={setNewContactDialogOpen}>
