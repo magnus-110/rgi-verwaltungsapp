@@ -38,8 +38,15 @@ export function resolveVendorDisplayName(
       );
       return re.test(rawLower);
     }
-    return rawLower.includes(pat);
+    // Bidirektionale Substring-Prüfung: der kürzere Name darf im längeren
+    // enthalten sein. So matcht ein Alias für "Gschwend Markus Landwirt..."
+    // auch dann, wenn auf einer anderen Rechnung nur "Gschwend Markus" steht.
+    if (pat.length < 4) return false;
+    if (rawLower.includes(pat)) return true;
+    if (raw.length >= 4 && pat.includes(rawLower)) return true;
+    return false;
   };
+
 
   // Building-specific first
   if (buildingId) {
