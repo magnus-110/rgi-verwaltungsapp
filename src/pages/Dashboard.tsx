@@ -213,7 +213,9 @@ export const Dashboard = () => {
         />
       </div>
 
-      {/* Main grid */}
+      {/* Jahreszyklus aller WEGs (ausklappbar) */}
+      <AnnualCycleDashboardWidget />
+
       <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-3">
         {/* Aufgaben */}
         <Card>
