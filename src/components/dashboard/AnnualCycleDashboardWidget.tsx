@@ -132,7 +132,7 @@ export const AnnualCycleDashboardWidget = () => {
                     </SelectTrigger>
                     <SelectContent>
                       {fiscalYears.map(fy => (
-                        <SelectItem key={fy.start} value={fy.start}>Wirtschaftsjahr {fy.label}</SelectItem>
+                        <SelectItem key={fy.start} value={fy.start}>{fy.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
