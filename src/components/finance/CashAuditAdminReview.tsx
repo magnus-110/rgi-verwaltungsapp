@@ -275,7 +275,7 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
               size="sm"
               variant="ghost"
               className="h-7 text-xs gap-1"
-              onClick={() => openAccountInPlan(acc.account_number)}
+              onClick={() => openAccountInPlan(acc.id)}
             >
               <ExternalLink className="h-3 w-3" /> Konto öffnen
             </Button>
@@ -397,7 +397,7 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs gap-1"
-                        onClick={() => openAccountInPlan(grp.account.account_number)}
+                        onClick={() => openAccountInPlan(grp.account.id)}
                       >
                         <ExternalLink className="h-3 w-3" /> Konto öffnen
                       </Button>
