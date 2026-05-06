@@ -684,6 +684,7 @@ export type Database = {
           id: string
           interval: string | null
           is_35a_relevant: boolean | null
+          linked_document_id: string | null
           linked_invoice_id: string | null
           name: string
           updated_at: string
@@ -704,6 +705,7 @@ export type Database = {
           id?: string
           interval?: string | null
           is_35a_relevant?: boolean | null
+          linked_document_id?: string | null
           linked_invoice_id?: string | null
           name: string
           updated_at?: string
@@ -724,6 +726,7 @@ export type Database = {
           id?: string
           interval?: string | null
           is_35a_relevant?: boolean | null
+          linked_document_id?: string | null
           linked_invoice_id?: string | null
           name?: string
           updated_at?: string
@@ -746,6 +749,13 @@ export type Database = {
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_templates_linked_document_id_fkey"
+            columns: ["linked_document_id"]
+            isOneToOne: false
+            referencedRelation: "building_files"
             referencedColumns: ["id"]
           },
           {

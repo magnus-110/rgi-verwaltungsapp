@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Pencil, Trash2, LayoutTemplate, Loader2, Check, ChevronsUpDown, FileText, Building2, CreditCard, Receipt, CalendarDays, Settings2, Zap, Sparkles, Eye } from "lucide-react";
 import { PdfViewerModal } from "@/components/documents/PdfViewerModal";
+import { useManagementMode } from "@/hooks/useManagementMode";
+import { Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +37,7 @@ interface TemplateForm {
   valid_from: string;
   valid_to: string;
   linked_invoice_id: string;
+  linked_document_id: string;
 }
 
 const emptyForm: TemplateForm = {
@@ -53,6 +56,7 @@ const emptyForm: TemplateForm = {
   valid_from: "",
   valid_to: "",
   linked_invoice_id: "",
+  linked_document_id: "",
 };
 
 interface BookingTemplatesTabProps {
@@ -85,6 +89,11 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const [editingSuggestionIdx, setEditingSuggestionIdx] = useState<number | null>(null);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [previewPdfName, setPreviewPdfName] = useState<string>("Rechnung");
+  const [docPickerOpen, setDocPickerOpen] = useState(false);
+  const [docSearch, setDocSearch] = useState("");
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const docFileInputRef = useRef<HTMLInputElement>(null);
+  const { managementMode } = useManagementMode();
 
   const openInvoicePreview = async (invoiceId: string) => {
     const { data: inv, error } = await supabase
@@ -178,6 +187,87 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
     },
     enabled: isDialogOpen && !!form.building_id,
   });
+
+  // Load building documents for linking
+  const { data: documents = [], refetch: refetchDocs } = useQuery({
+    queryKey: ["building-files-for-template-link", form.building_id],
+    queryFn: async () => {
+      if (!form.building_id) return [];
+      const { data, error } = await supabase
+        .from("building_files")
+        .select("id, display_name, file_path, mime_type, created_at")
+        .eq("building_id", form.building_id)
+        .eq("is_current_version", true)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(300);
+      if (error) throw error;
+      return data;
+    },
+    enabled: isDialogOpen && !!form.building_id,
+  });
+
+  const linkedDoc = documents.find((d: any) => d.id === form.linked_document_id);
+
+  const openDocPreview = async (docId: string) => {
+    const doc = documents.find((d: any) => d.id === docId);
+    if (!doc?.file_path) {
+      toast.error("Keine Datei vorhanden");
+      return;
+    }
+    const { data: signed } = await supabase.storage.from("building-files").createSignedUrl(doc.file_path, 300);
+    if (!signed?.signedUrl) {
+      toast.error("Datei konnte nicht geladen werden");
+      return;
+    }
+    setPreviewPdfName(doc.display_name || "Dokument");
+    setPreviewPdfUrl(signed.signedUrl);
+  };
+
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!form.building_id) {
+      toast.error("Bitte zuerst Liegenschaft wählen");
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("Datei darf max. 50 MB groß sein");
+      return;
+    }
+    setUploadingDoc(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Nicht angemeldet");
+      const ext = file.name.split('.').pop();
+      const storagePath = `${form.building_id}/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("building-files").upload(storagePath, file);
+      if (upErr) throw upErr;
+      const { data: inserted, error: insErr } = await supabase
+        .from("building_files")
+        .insert({
+          display_name: file.name,
+          file_path: storagePath,
+          file_size: file.size,
+          mime_type: file.type,
+          building_id: form.building_id,
+          uploaded_by: user.id,
+          management_mode: managementMode,
+        })
+        .select("id")
+        .single();
+      if (insErr) throw insErr;
+      setForm((prev) => ({ ...prev, linked_document_id: inserted.id }));
+      await refetchDocs();
+      toast.success("Dokument hochgeladen und verknüpft");
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Upload fehlgeschlagen: " + (err.message || ""));
+    } finally {
+      setUploadingDoc(false);
+      if (docFileInputRef.current) docFileInputRef.current.value = "";
+    }
+  };
 
   const applyPreset = (presetId: string) => {
     const preset = presets.find((p: any) => p.id === presetId);
@@ -343,6 +433,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
       valid_from: t.valid_from || "",
       valid_to: t.valid_to || "",
       linked_invoice_id: t.linked_invoice_id || "",
+      linked_document_id: t.linked_document_id || "",
     });
     setIsDialogOpen(true);
   };
@@ -373,6 +464,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
       valid_from: form.valid_from || null,
       valid_to: form.valid_to || null,
       linked_invoice_id: form.linked_invoice_id || null,
+      linked_document_id: form.linked_document_id || null,
     };
 
     if (editingId) {
@@ -892,6 +984,125 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                   </div>
                 </PopoverContent>
               </Popover>
+            </div>
+
+            <Separator />
+
+            {/* === Section 6: Verknüpftes Dokument === */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                Verknüpftes Dokument
+                <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-1">
+                z.B. Wirtschaftsplan mit den Hausgeldern als Nachweis. Aus dem DMS auswählen oder neu hochladen.
+              </p>
+
+              <input
+                ref={docFileInputRef}
+                type="file"
+                className="hidden"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                onChange={handleDocUpload}
+              />
+
+              <div className="flex items-center gap-2">
+                <Popover open={docPickerOpen} onOpenChange={setDocPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={docPickerOpen}
+                      disabled={!form.building_id}
+                      className="flex-1 justify-between font-normal"
+                    >
+                      {linkedDoc ? linkedDoc.display_name : (form.building_id ? "Dokument aus DMS wählen" : "Erst Liegenschaft wählen")}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <div className="flex flex-col">
+                      <div className="border-b px-3 py-2">
+                        <input
+                          type="text"
+                          placeholder="Dokument suchen..."
+                          value={docSearch}
+                          onChange={(e) => setDocSearch(e.target.value)}
+                          className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="max-h-[300px] overflow-y-auto overscroll-contain p-1" onWheel={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => { setForm({ ...form, linked_document_id: "" }); setDocPickerOpen(false); }}
+                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                        >
+                          <Check className={cn("h-4 w-4 shrink-0", !form.linked_document_id ? "opacity-100" : "opacity-0")} />
+                          <span className="text-muted-foreground">Keine Verknüpfung</span>
+                        </button>
+                        {(() => {
+                          const q = docSearch.trim().toLowerCase();
+                          const filtered = q
+                            ? documents.filter((d: any) => (d.display_name || "").toLowerCase().includes(q))
+                            : documents;
+                          if (filtered.length === 0) {
+                            return <div className="py-6 text-center text-sm text-muted-foreground">Keine Dokumente gefunden.</div>;
+                          }
+                          return filtered.map((d: any) => (
+                            <div key={d.id} className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => { setForm({ ...form, linked_document_id: d.id }); setDocPickerOpen(false); }}
+                                className="flex flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-accent min-w-0"
+                              >
+                                <Check className={cn("h-4 w-4 shrink-0", form.linked_document_id === d.id ? "opacity-100" : "opacity-0")} />
+                                <div className="flex flex-col flex-1 min-w-0">
+                                  <span className="text-sm truncate">{d.display_name}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {d.created_at ? new Date(d.created_at).toLocaleDateString("de-DE") : ""}
+                                  </span>
+                                </div>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); openDocPreview(d.id); }}
+                                className="p-1.5 mr-1 rounded hover:bg-accent shrink-0"
+                                title="Öffnen"
+                              >
+                                <Eye className="h-4 w-4 text-muted-foreground" />
+                              </button>
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {form.linked_document_id && (
+                  <>
+                    <Button type="button" variant="outline" size="icon" onClick={() => openDocPreview(form.linked_document_id)} title="Dokument öffnen">
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button type="button" variant="outline" size="icon" onClick={() => setForm({ ...form, linked_document_id: "" })} title="Verknüpfung entfernen">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => docFileInputRef.current?.click()}
+                  disabled={!form.building_id || uploadingDoc}
+                  title="Neues Dokument hochladen"
+                >
+                  {uploadingDoc ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                  {!uploadingDoc && "Hochladen"}
+                </Button>
+              </div>
             </div>
           </div>
 
