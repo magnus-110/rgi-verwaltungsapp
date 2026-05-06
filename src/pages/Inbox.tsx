@@ -64,6 +64,7 @@ export const Inbox = () => {
     return true;
   });
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [aiSearchOpen, setAiSearchOpen] = useState(false);
   const [showEmailDetails, setShowEmailDetails] = useState(false);
   const [archiveEmailId, setArchiveEmailId] = useState<string | null>(null);
   const [filterBuildingId, setFilterBuildingId] = useState<string>("all");
