@@ -322,6 +322,16 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         })),
       );
 
+      // Build combined HTML for forwards: user's new text on top + original HTML below
+      const escapeHtml = (s: string) =>
+        s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const userTextHtml = compose.bodyText
+        ? `<div style="white-space:pre-wrap;font-family:inherit">${escapeHtml(compose.bodyText)}</div>`
+        : "";
+      const combinedHtml = compose.forwardHtml
+        ? `${userTextHtml}<br><hr><div><b>--- Weitergeleitete Nachricht ---</b></div>${compose.forwardHtml}`
+        : null;
+
       // Scheduled send → store in scheduled_emails
       if (compose.scheduledAt && new Date(compose.scheduledAt).getTime() > Date.now()) {
         const { data: u } = await supabase.auth.getUser();
@@ -335,7 +345,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           bcc_addresses: bccAddresses.length ? bccAddresses : null,
           subject: compose.subject,
           body_text: compose.bodyText,
-          body_html: compose.forwardHtml || null,
+          body_html: combinedHtml,
           attachments: attachmentData,
           scheduled_at: new Date(compose.scheduledAt).toISOString(),
         });
@@ -353,7 +363,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           bcc: bccAddresses.length ? bccAddresses : undefined,
           subject: compose.subject,
           body_text: compose.bodyText,
-          body_html: compose.forwardHtml || undefined,
+          body_html: combinedHtml || undefined,
           attachments: attachmentData.length ? attachmentData : undefined,
         },
       });
