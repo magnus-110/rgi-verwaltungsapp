@@ -266,11 +266,11 @@ function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAc
   const fmtDate = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-  // Anfangssaldo = Saldo am Vortag + Eröffnungsbuchungen (gegen Konto 4000)
-  // am 1. Tag des Monats. Damit zählt die Anfangsbestand-Buchung vom 01.01.
-  // korrekt zum Januar-Anfangssaldo.
-  const { data: openingBook } = useQuery({
-    queryKey: ["recon-opening-balance", bankAccountId, buildingId, fmtDate(firstDay)],
+  // Anfangssaldo = Saldo am Vortag + normalisierte Eröffnungsbuchungen (gegen Konto 4000)
+  // im Januar des Wirtschaftsjahres. Eröffnungsbuchungen werden so normalisiert, dass die
+  // Bankseite immer +amt erhält (unabhängig von Soll/Haben in 4000).
+  const { data: openingData } = useQuery({
+    queryKey: ["recon-opening-balance-v2", bankAccountId, buildingId, fmtDate(firstDay)],
     queryFn: async () => {
       // 1) Saldo zum Vortag
       const { data: prevBal, error: prevErr } = await supabase.rpc("calculate_account_balance_at", {
@@ -288,13 +288,16 @@ function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAc
         .is("building_id", null)
         .maybeSingle();
 
-      let openingDelta = 0;
+      let openingDeltaCorrected = 0;
+      let openingDeltaRpc = 0;
       if (openingAcc?.id) {
+        const yearStr = String(firstDay.getFullYear());
         const { data: openingBookings, error: obErr } = await supabase
           .from("bookings")
-          .select("amount, account_id, counter_account_id")
+          .select("amount, account_id, counter_account_id, booking_date")
           .eq("building_id", buildingId)
-          .eq("booking_date", fmtDate(firstDay))
+          .gte("booking_date", `${yearStr}-01-01`)
+          .lte("booking_date", `${yearStr}-01-31`)
           .neq("status", "cancelled")
           .or(`account_id.eq.${bankAccountId},counter_account_id.eq.${bankAccountId}`);
         if (obErr) throw obErr;
@@ -303,16 +306,27 @@ function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAc
             b.account_id === openingAcc.id || b.counter_account_id === openingAcc.id;
           if (!touchesOpening) continue;
           const amt = Number(b.amount) || 0;
-          if (b.account_id === bankAccountId) openingDelta += amt;
-          else if (b.counter_account_id === bankAccountId) openingDelta -= amt;
+          // Normalisiert: Bankseite erhält immer +amt
+          openingDeltaCorrected += amt;
+          // Wie die RPC das gleiche Konto rechnet (account_id=Bank → +amt, sonst −amt)
+          if (b.account_id === bankAccountId) openingDeltaRpc += amt;
+          else openingDeltaRpc -= amt;
         }
       }
 
-      return Number(prevBal ?? 0) + openingDelta;
+      // Differenz = Korrektur, die wir auf RPC-Werte aufschlagen müssen
+      const correction = openingDeltaCorrected - openingDeltaRpc;
+      return {
+        opening: Number(prevBal ?? 0) + openingDeltaCorrected,
+        correction,
+      };
     },
   });
 
-  const { data: closingBook } = useQuery({
+  const openingBook = openingData?.opening ?? null;
+  const balanceCorrection = openingData?.correction ?? 0;
+
+  const { data: closingBookRaw } = useQuery({
     queryKey: ["recon-balance", bankAccountId, buildingId, fmtDate(lastDay)],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("calculate_account_balance_at", {
@@ -324,6 +338,8 @@ function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAc
       return Number(data ?? 0);
     },
   });
+
+  const closingBook = closingBookRaw != null ? closingBookRaw + balanceCorrection : null;
 
   const closingBankNum = parseNum(closingBank);
   const openingBankNum = parseNum(openingBank);
