@@ -84,7 +84,7 @@ export const VotingPopup = () => {
 
     // Summe der MEA aus distribution_only / Nebeneinheiten desselben Eigentümers,
     // die wir auf die Hauptwohnung aufschlagen.
-    const isApartmentRow = (a: any) => !a?.unit_kind || a.unit_kind === "apartment";
+    const isApartmentRow = (a: any) => !a?.unit_kind || a.unit_kind === "apartment" || a.unit_kind === "commercial";
     const isDistributionOnly = (a: any) => a?.billing_mode === "distribution_only" || !isApartmentRow(a);
     const meaOf = (a: any) =>
       (a?.contact_building_shares?.find((s: any) => s.share_type === "mea")?.share_value) || 0;
