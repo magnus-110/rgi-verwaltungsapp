@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, LayoutTemplate, Flag, Plus, List, LayoutGrid, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
+import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, LayoutTemplate, Flag, Plus, List, LayoutGrid, Eye, EyeOff, RotateCcw, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { AccountPlanView } from "./AccountPlanView";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -77,6 +77,7 @@ export function BookingsTab({
   const [deleting, setDeleting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [aKeyDown, setAKeyDown] = useState(false);
+  const [dateSort, setDateSort] = useState<"desc" | "asc">("desc");
 
   useEffect(() => {
     const isTypingTarget = (el: EventTarget | null) => {
@@ -267,9 +268,17 @@ export function BookingsTab({
     });
   }, [searchQuery, filterReview]);
 
-  const filteredPending = useMemo(() => universalFilter(pendingBookings), [pendingBookings, universalFilter]);
-  const filteredConfirmed = useMemo(() => universalFilter(confirmedBookings), [confirmedBookings, universalFilter]);
-  const filteredManual = useMemo(() => universalFilter(manualBookings), [manualBookings, universalFilter]);
+  const sortByDate = useCallback((arr: any[]) => {
+    return [...arr].sort((a, b) => {
+      const da = a.booking_date ? new Date(a.booking_date).getTime() : 0;
+      const db = b.booking_date ? new Date(b.booking_date).getTime() : 0;
+      return dateSort === "asc" ? da - db : db - da;
+    });
+  }, [dateSort]);
+
+  const filteredPending = useMemo(() => sortByDate(universalFilter(pendingBookings)), [pendingBookings, universalFilter, sortByDate]);
+  const filteredConfirmed = useMemo(() => sortByDate(universalFilter(confirmedBookings)), [confirmedBookings, universalFilter, sortByDate]);
+  const filteredManual = useMemo(() => sortByDate(universalFilter(manualBookings)), [manualBookings, universalFilter, sortByDate]);
 
   const totalPages = Math.max(1, Math.ceil(filteredPending.length / PAGE_SIZE));
   const paginatedPending = useMemo(() => {
@@ -461,7 +470,17 @@ export function BookingsTab({
   const tableHeaders = (
     <TableHeader>
       <TableRow className="text-xs">
-        <TableHead className="py-2.5 px-3 font-semibold">Bel. Datum</TableHead>
+        <TableHead className="py-2.5 px-3 font-semibold">
+          <button
+            type="button"
+            onClick={() => setDateSort(s => s === "asc" ? "desc" : "asc")}
+            className="inline-flex items-center gap-1 hover:text-primary"
+            title="Nach Datum sortieren"
+          >
+            Bel. Datum
+            {dateSort === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+          </button>
+        </TableHead>
         <TableHead className="py-2.5 px-3 font-semibold">Kto-Nr.</TableHead>
         <TableHead className="py-2.5 px-3 font-semibold">Konto</TableHead>
         <TableHead className="py-2.5 px-3 text-right font-semibold">Betrag</TableHead>
