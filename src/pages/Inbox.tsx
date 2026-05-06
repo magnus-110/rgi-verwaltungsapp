@@ -1257,6 +1257,25 @@ export const Inbox = () => {
                         {email.from_name || email.from_address || "Unbekannt"}
                       </span>
                       <div className="flex items-center gap-1 shrink-0">
+                        {(() => {
+                          const replyId = (email as any).message_id ? (replyMap as any)[(email as any).message_id] : null;
+                          if (!replyId) return null;
+                          return (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const sentFolder = folders.find(f => f.name === "Gesendet");
+                                if (sentFolder) setSelectedFolderId(sentFolder.id);
+                                setSelectedEmailId(replyId);
+                              }}
+                              title="Bereits beantwortet – zur gesendeten Antwort springen"
+                              className="text-green-600 hover:text-green-700"
+                            >
+                              <Reply className="h-3 w-3" />
+                            </button>
+                          );
+                        })()}
                         {email.has_attachments && <Paperclip className="h-3 w-3 text-muted-foreground" />}
                         {email.is_starred && <Flag className="h-3 w-3 text-orange-500 fill-orange-500" />}
                         {email.is_pinned && <Pin className="h-3 w-3 text-primary fill-primary" />}
