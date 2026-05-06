@@ -165,7 +165,31 @@ export function BookingReviewDialog({
 
           {/* Right: PDF / template card */}
           <div className="bg-muted/20 min-h-0 flex flex-col">
-            {booking.invoices?.file_path ? (
+            {(acc?.account_number === "4020" || counter?.account_number === "4020") ? (
+              <div className="flex-1 overflow-y-auto p-8">
+                <div className="max-w-xl mx-auto space-y-4">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-6 w-6 text-primary" />
+                    <h3 className="text-lg font-semibold">Sollstellung Abrechnungsergebnis (Konto 4020)</h3>
+                  </div>
+                  <div className="rounded-lg border bg-card p-4 text-sm space-y-3">
+                    <p>
+                      Dies ist <strong>keine Zahlung</strong>, sondern eine reine <strong>Sollstellung</strong> aus der Jahresabrechnung.
+                      Konto 4020 erfasst die <strong>Guthaben bzw. Nachzahlungen</strong> einzelner Eigentümer/Mieter, die sich aus der
+                      Abrechnung ergeben.
+                    </p>
+                    <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                      <li><strong>Nachzahlung</strong>: Belastung des Personenkontos – der Eigentümer schuldet noch Geld.</li>
+                      <li><strong>Guthaben</strong>: Gutschrift auf dem Personenkonto – der Eigentümer bekommt Geld zurück.</li>
+                    </ul>
+                    <p className="text-muted-foreground">
+                      Es gibt deshalb <strong>keinen Beleg und keine Buchungsvorlage</strong>. Der Nachweis ist die genehmigte Jahresabrechnung
+                      des betreffenden Wirtschaftsjahres.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : booking.invoices?.file_path ? (
               pdfLoading ? (
                 <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Beleg wird geladen…</div>
               ) : pdfUrl ? (
