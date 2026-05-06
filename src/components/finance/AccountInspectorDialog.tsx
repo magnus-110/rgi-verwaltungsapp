@@ -17,11 +17,76 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
   X, Pencil, FileText, Save, ArrowRightLeft, AlertTriangle, Check,
-  ChevronLeft, ChevronRight, Move,
+  ChevronLeft, ChevronRight, Move, ChevronsUpDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { EditBookingDialog } from "./EditBookingDialog";
+
+type AccountOption = { id: string; account_number: string | number; account_name: string };
+
+function AccountSearchSelect({
+  value, onChange, accounts, placeholder = "Konto suchen…", excludeIds = [], className,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  accounts: AccountOption[];
+  placeholder?: string;
+  excludeIds?: string[];
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = accounts.find((a) => a.id === value);
+  const filtered = accounts.filter((a) => !excludeIds.includes(a.id));
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          className={cn("h-9 justify-between font-normal", className)}
+        >
+          <span className="truncate">
+            {selected ? `${selected.account_number} ${selected.account_name}` : placeholder}
+          </span>
+          <ChevronsUpDown className="h-3.5 w-3.5 opacity-50 ml-2 shrink-0" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[420px]" align="start">
+        <Command
+          filter={(value, search) => {
+            // value = `${number} ${name}` lowercased — match if either number or name contains search
+            return value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
+          }}
+        >
+          <CommandInput placeholder="Nach Nummer oder Name suchen…" />
+          <CommandList>
+            <CommandEmpty>Kein Konto gefunden.</CommandEmpty>
+            <CommandGroup>
+              {filtered.map((a) => {
+                const label = `${a.account_number} ${a.account_name}`;
+                return (
+                  <CommandItem
+                    key={a.id}
+                    value={label}
+                    onSelect={() => {
+                      onChange(a.id);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check className={cn("mr-2 h-4 w-4", value === a.id ? "opacity-100" : "opacity-0")} />
+                    <span className="font-mono text-xs mr-2 text-muted-foreground">{a.account_number}</span>
+                    <span className="truncate">{a.account_name}</span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 interface Props {
   open: boolean;
