@@ -1,68 +1,39 @@
-## Modul "Jahreszyklus" (WEG-Jahresaufgaben)
+## Problem
 
-Neues Modul zur Ablösung der Excel-Liste. Zeigt pro Wirtschaftsjahr und WEG den Status aller Standardaufgaben.
+Im Kassenprüfungs-Kontenblatt (Adolf-Haff-Weg 3) zeigen die Badges am Personenkonto irreführende Werte:
 
-### Aufgabenkatalog (12 Schritte, fix pro Wirtschaftsjahr)
+1. **„Soll WP"** wird aus `booking_templates.expected_amount` berechnet — auch wenn für das Jahr **gar kein Wirtschaftsplan** existiert.
+2. **„Haben: 949,58 €"** zeigt nur die positiv gebuchten Zugänge auf dem Personenkonto. Das tatsächlich gezahlte Hausgeld (12 × 370 € = 4.440 €) steckt aber in den Abgängen / im Saldo (-4.440 €). Die Badge bildet damit nicht die geleisteten Hausgeldzahlungen ab.
 
-1. Heizkostenabrechnung beantragt
-2. Jahresabrechnung erstellt
-3. Vermögensbericht erstellt
-4. Wirtschaftsplan erstellt
-5. ETV einberufen
-6. ETV-Protokoll fertig *(automatisch erledigt sobald Protokoll generiert wurde)*
-7. Beschlusssammlung aktualisiert
-8. §35a-Bescheinigung versendet
-9. Abrechnungsspitzen gebucht
-10. Hausgeldanpassung umgesetzt
-11. Bankabgleich Jahr abgeschlossen
-12. Jahresabschluss archiviert
+## Lösung
 
-Pro Schritt nur: **Status** (offen / in Bearbeitung / abgeschlossen) + **Datum** + optional Notiz/Anhang. Keine verantwortliche Person.
+### 1. „Soll WP" nur aus echtem Wirtschaftsplan
+- In `CashAuditAccountSheet.tsx` neue Query gegen `economic_plans` (Tabelle prüfen — vermutlich `economic_plans` + `economic_plan_items` o.ä.) für `building_id` + `fiscal_year`.
+- Wenn **kein veröffentlichter Wirtschaftsplan** vorhanden → Badges „Soll WP", „Haben", „Δ" komplett **ausblenden**.
+- Wenn vorhanden → `Soll WP` aus dem Einzelwirtschaftsplan-Eintrag des jeweiligen Personenkontos (Jahres-Vorschuss-Soll) ziehen, nicht mehr aus `booking_templates`.
 
-### UI
+### 2. „Haben" = tatsächlich gezahltes Hausgeld
+Aktuell: `haben = totalZugang` (nur positive Beträge auf der Hauptkonto-Seite).
 
-**A) WEG-übergreifende Übersicht** (neuer Menüpunkt "Jahreszyklus")
-- Tabelle: Zeile = WEG, Spalten = die 12 Schritte
-- Zellen farblich markiert: grau = offen, orange = in Bearbeitung, grün = abgeschlossen
-- Wirtschaftsjahr-Switcher oben (z. B. „2024/2025" ↔ „2025/2026")
-- Filter: nur offene, nur meine WEGs
-- Klick auf Zelle → Side-Panel mit Status, Datum, Notiz, Anhängen
-- **Keine** Gesamt-Fortschrittsanzeige / Ampel über alle WEGs hinweg
+Neu: **`haben` = Summe aller Hausgeldzahlungen** auf dem Personenkonto, unabhängig von der Soll/Haben-Richtung der Buchung.
+- Konvention: Hausgeld-Zahlungen reduzieren den offenen Saldo des Personenkontos. In der bestehenden Logik landen sie als `abgang` (Saldo wird negativer = mehr „bezahlt").
+- Praktischer Ansatz: `haben = totalAbgang` (bzw. präziser: alle Buchungen mit Gegenkonto Bank `1800`, die Zahlungseingänge sind).
+- Fallback / sauber: über Gegenkonto-Filter `counter_account_id = Bank-Konto (1800)` summieren — das sind eindeutig die Hausgeldzahlungen.
 
-**B) Building Hub** (Tab oder Karte im bestehenden Gebäude)
-- Vertikale Liste der 12 Schritte für das aktive Wirtschaftsjahr
-- Wirtschaftsjahr-Switcher
-- Inline-Statuswechsel + Datumsfeld
-- Ersetzt die bisherige „Buchungs-Fortschritt"-Karte nicht — wird zusätzlich angezeigt
+### 3. Δ-Berechnung anpassen
+- `diff = haben − soll`
+- Bei Soll 4.230 € und Haben 4.440 € → Δ = +210 € (grün, Überzahlung) statt aktuell −3.280 €.
 
-### Automatik (Status wird vom System gesetzt)
+## Technische Details
 
-- Schritt 2 → wenn Settlement im Status `final`
-- Schritt 3 → wenn Vermögensbericht generiert
-- Schritt 4 → wenn Wirtschaftsplan veröffentlicht
-- Schritt 5 → wenn Meeting `published`
-- Schritt 6 → wenn Protokoll generiert (sofort fertig)
-- Schritt 7 → wenn neue Beschlüsse in Resolution Ledger eingetragen
-- Schritt 9 → wenn Buchungen auf 4900/4910 vorhanden
-- Schritt 11 → wenn Bankabgleich Monat 12 grün
+**Datei:** `src/components/finance/CashAuditAccountSheet.tsx`
 
-Schritte 1, 8, 10, 12 = manuell (einfacher Klick „erledigt" + Datum).
-Manueller Override ist für jeden Schritt möglich.
+- Neue Query `useQuery(["audit-economic-plan", buildingId, fiscalYear])` → liefert pro Personenkonto den Soll-Vorschuss; bei `null/empty` Badges nicht rendern.
+- `sollByAccount` aus `templates` **entfernen** (oder als reiner Fallback streichen — User-Wahl: streichen).
+- `haben`-Berechnung umstellen: in der `rows.map`-Schleife eine zusätzliche Summe `paidByBank` führen, die nur Buchungen zählt, deren Gegenkonto die Bank ist.
+- Token-Mode: ggf. neue RPC `get_audit_economic_plan_by_token` analog zu `get_audit_templates_by_token`.
 
-### Technisches Vorgehen
+## Offene Annahmen (vor Umsetzung kurz prüfen)
 
-- Neue Tabelle `annual_cycle_tasks` (building_id, fiscal_year_start, fiscal_year_end, task_key, status, completed_at, note) mit RLS analog Settlements
-- Seeding: bei erstem Öffnen eines Wirtschaftsjahres werden die 12 Datensätze automatisch erzeugt
-- View `v_annual_cycle_overview` für die WEG-übergreifende Tabelle
-- Status-Sync via DB-Trigger oder periodischem Edge-Function-Refresh aus den Quelltabellen (settlements, meetings, resolutions, bookings, bank_reconciliations)
-- Neue Route `/jahreszyklus` + neuer Tab im Building Hub
-- Wiederverwendung bestehender UI-Bausteine (Card, Badge, Table, Sheet)
-
-### Außerhalb des Scopes (bewusst nicht enthalten)
-
-- Wartungen / Versicherungen / Compliance (laufen über bestehende Wartungsintervalle)
-- Beirat-Rollen, Eigentümer-Sicht
-- Verantwortliche Person pro Aufgabe
-- Gesamt-Ampel oder Firmen-KPI
-- Kalenderjahr-Sicht (immer Wirtschaftsjahr)
-- Option „versendet" bei Jahresabrechnung
+- Tabellenname & Felder des Wirtschaftsplans (vermutlich `economic_plans` + `economic_plan_items` mit `account_id` + `annual_amount`).
+- Bank-Konto-Nummer: ist `1800` projektweit fix oder dynamisch (z. B. `is_bank_account` Flag im COA)?
