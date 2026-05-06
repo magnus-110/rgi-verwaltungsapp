@@ -268,9 +268,17 @@ export function BookingsTab({
     });
   }, [searchQuery, filterReview]);
 
-  const filteredPending = useMemo(() => universalFilter(pendingBookings), [pendingBookings, universalFilter]);
-  const filteredConfirmed = useMemo(() => universalFilter(confirmedBookings), [confirmedBookings, universalFilter]);
-  const filteredManual = useMemo(() => universalFilter(manualBookings), [manualBookings, universalFilter]);
+  const sortByDate = useCallback((arr: any[]) => {
+    return [...arr].sort((a, b) => {
+      const da = a.booking_date ? new Date(a.booking_date).getTime() : 0;
+      const db = b.booking_date ? new Date(b.booking_date).getTime() : 0;
+      return dateSort === "asc" ? da - db : db - da;
+    });
+  }, [dateSort]);
+
+  const filteredPending = useMemo(() => sortByDate(universalFilter(pendingBookings)), [pendingBookings, universalFilter, sortByDate]);
+  const filteredConfirmed = useMemo(() => sortByDate(universalFilter(confirmedBookings)), [confirmedBookings, universalFilter, sortByDate]);
+  const filteredManual = useMemo(() => sortByDate(universalFilter(manualBookings)), [manualBookings, universalFilter, sortByDate]);
 
   const totalPages = Math.max(1, Math.ceil(filteredPending.length / PAGE_SIZE));
   const paginatedPending = useMemo(() => {
