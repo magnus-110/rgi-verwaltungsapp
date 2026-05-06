@@ -79,7 +79,7 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
     return <div className="text-sm text-muted-foreground p-4">Lade Übersicht…</div>;
   }
 
-  const bp = data.booking_progress;
+  // bp removed: Buchungsfortschritt durch Jahreszyklus ersetzt
   const ownersToShow = showAllOwners ? data.owners : data.owners.slice(0, 5);
   const providersToShow = showAllProviders ? data.providers : data.providers.slice(0, 5);
 
