@@ -311,8 +311,15 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   };
 
   const getHausgeld = (a: ContactAssignment) => {
-    const hg = a.costs.find(c => c.cost_type.toLowerCase().includes('hausgeld'));
-    return hg ? hg.amount : null;
+    const hgList = a.costs.filter(c => c.cost_type.toLowerCase().includes('hausgeld'));
+    if (hgList.length === 0) return null;
+    // Neuestes nach valid_from zuerst (null = älter)
+    const latest = [...hgList].sort((x, y) => {
+      const xd = x.valid_from ? new Date(x.valid_from).getTime() : 0;
+      const yd = y.valid_from ? new Date(y.valid_from).getTime() : 0;
+      return yd - xd;
+    })[0];
+    return latest.amount;
   };
 
   const isBeirat = (a: ContactAssignment) => a.role_in_building === 'beirat';
