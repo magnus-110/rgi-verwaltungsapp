@@ -55,10 +55,10 @@ export const BILLING_MODE_LABELS: Record<BillingMode, string> = {
 };
 
 export const isApartment = (kind?: string | null) =>
-  !kind || kind === "apartment";
+  !kind || kind === "apartment" || kind === "commercial";
 
 export const isSecondaryUnit = (kind?: string | null) =>
-  !!kind && kind !== "apartment";
+  !!kind && kind !== "apartment" && kind !== "commercial";
 
 /**
  * Liefert für ein Assignment den MEA-Anteil als Zahl (0 falls keiner gepflegt).
