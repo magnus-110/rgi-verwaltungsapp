@@ -70,9 +70,9 @@ const buildInitial = (id: string, opts?: OpenOpts): ComposeState => {
     bodyText:
       prefill?.bodyText ??
       (replyTo
-        ? `\n\n--- Ursprüngliche Nachricht ---\nVon: ${replyTo.from_name} <${replyTo.from_address}>\nDatum: ${replyTo.date ? new Date(replyTo.date).toLocaleString("de-DE") : ""}\n\n${replyTo.body_text || ""}`
+        ? `\n\n--- Ursprüngliche Nachricht ---\nVon: ${replyTo.from_name} <${replyTo.from_address}>\nDatum: ${replyTo.date ? new Date(replyTo.date).toLocaleString("de-DE") : ""}\n\n${replyTo.body_text || stripHtml((replyTo as any).body_html || "")}`
         : forward
-          ? `\n\n--- Weitergeleitete Nachricht ---\n${forward.body_text || ""}`
+          ? `\n\n--- Weitergeleitete Nachricht ---\n${forward.body_text || stripHtml(forward.body_html || "")}`
           : ""),
     forwardHtml: forward?.body_html || undefined,
     attachments: [],
