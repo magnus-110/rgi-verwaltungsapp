@@ -95,7 +95,7 @@ export function periodFromShortcut(
   const yy = String(yearNum).slice(-2);
 
   if (s === "000") return "Jahresrechnung";
-  if (/^[1-4]$/.test(s)) return `Q${s}/${yy}`;
+  if (/^[1-4]$/.test(s)) return `${s}. Q/${yy}`;
   if (/^(0[1-9]|1[0-2])$/.test(s)) return `${s}/${yy}`;
   return null;
 }
