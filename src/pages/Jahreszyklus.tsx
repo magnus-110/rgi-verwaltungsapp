@@ -20,7 +20,7 @@ import {
 } from "@/lib/annualCycle";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { useManagementMode } from "@/hooks/useManagementMode";
+
 
 interface BuildingRow {
   id: string;
