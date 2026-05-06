@@ -707,6 +707,7 @@ export const ComposeEmailDialog = ({
                 currentSubject={subject}
                 onInsert={handleInsertTemplate}
               />
+              <VoiceDictationButton context={voiceCtx} onAccept={handleVoiceAccept} />
               <input
                 ref={fileInputRef}
                 type="file"
