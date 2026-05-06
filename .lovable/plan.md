@@ -1,50 +1,54 @@
-# Problem
+# Konto-Inspektor-Dialog in der Kassenprüfung
 
-Die Test-Mail an `magnus.goettinger@rgi-immobilien.de` (und vermutlich weitere Mails) kommen nicht in der App an, obwohl die IMAP-Verbindung erfolgreich ist.
+## Problem
 
-## Ursachenanalyse aus den Logs + DB
+In der Verwaltungsansicht der Kassenprüfung (`CashAuditAdminReview`) öffnet der Button **„Konto öffnen"** aktuell einen neuen Tab mit `/finanzen?tab=accounting&sub=accounts&building=…&q=…`. Der landet auf derselben Seite und wirkt wie eine Wiederholung. Stattdessen soll inline ein Dialog aufgehen, in dem das Konto inkl. aller Buchungen geprüft, bearbeitet und vor allem **auf ein anderes Konto umgebucht** werden kann.
 
-Edge-Function-Logs (`fetch-emails`):
-```
-magnus.goettinger@rgi-immobilien.de
-Mailbox opened: 18 messages, uidNext: 19
-Found 0 UIDs to fetch
-```
-DB `email_accounts.last_uid` für magnus = **31**.
+## Ziel
 
-Das Postfach hat aber nur noch UIDs **1–18** (uidNext = 19). Unsere gespeicherte „letzte UID" (31) liegt **höher** als alles, was im Postfach existiert → die Suche `uid: "32:*"` liefert immer 0 Treffer. Wir holen nie wieder eine neue Mail.
+Ein neuer Dialog `AccountInspectorDialog`, der aus der Kassenprüfung heraus geöffnet wird und:
 
-Ursache: Das IMAP-Postfach wurde bei Strato neu aufgebaut / geleert / migriert. Dadurch hat sich der **UIDVALIDITY-Wert** geändert und die UID-Sequenz beginnt wieder bei 1. Unser Code in `supabase/functions/fetch-emails/index.ts` speichert UIDVALIDITY nicht und erkennt diesen Reset nicht.
+1. **Konto-Header** zeigt Konto­nummer, Name, Saldo und einen „Konto bearbeiten"-Button (öffnet bestehenden Konten-Edit-Pfad bzw. ein kleines Inline-Editierfeld für Name/Typ/Flags).
+2. **Alle Buchungen des Kontos** im Wirtschaftsjahr der Prüfung listet, im Layout des bekannten **Prüfmodus** (Split-View aus `BookingReviewDialog`: links Liste, rechts Detail mit Pfeiltasten/Enter-Navigation, Belege, Notiz).
+3. Pro Buchung erlaubt:
+   - Buchung bearbeiten (bestehender `EditBookingDialog`)
+   - **Gegenkonto / Konto umbuchen** über einen `AccountSelector` (gefiltert auf dasselbe `building_id` und `management_mode`)
+   - **Massen-Aktion**: mehrere Buchungen auswählen → „Auf anderes Konto verschieben" (Bulk-Update von `account_id` oder `counter_account_id`, je nachdem auf welcher Seite das Konto steht).
+4. Nach jeder Änderung Cache invalidieren (`cash-audit`, `bookings`, `accounts`) und Admin-Review-Marker setzen (vorhandenes `handleSavedBooking`-Muster).
 
-Solange `last_uid` höher bleibt als alles Neue, wird **nie** eine Mail abgeholt – exakt das Symptom „Test kommt nicht an, viele weitere fehlen".
+## Umsetzung
 
-# Lösung
+### Neue Datei: `src/components/finance/AccountInspectorDialog.tsx`
 
-In `fetch-emails` UIDVALIDITY tracken und bei Reset / Inkonsistenz `last_uid` zurücksetzen.
+- Props: `open`, `onOpenChange`, `accountId`, `buildingId`, `fiscalYear`, `auditId?`, `onBookingSaved?`.
+- Lädt:
+  - `accounts` Zeile (für Header + Edit)
+  - `bookings` wo `account_id = X` **ODER** `counter_account_id = X` für `fiscal_year = fiscalYear`, mit Joins auf Gegenkonto.
+- Layout:
+  - `Dialog` (max-w-6xl, h-[85vh])
+  - Header: Kontodaten + „Bearbeiten"-Toggle (inline Felder: Name, Typ, `is_billing_relevant`, `is_wirtschaftsplan_relevant`).
+  - Body: zwei Spalten wie `BookingReviewDialog` — Buchungsliste links (mit Checkbox für Bulk), Detail rechts.
+  - Detail-Bereich enthält neuen Block **„Konto ändern"** mit `AccountSelector`-Dropdown (vorhandener Selector aus `CreateBookingDialog` oder einfache `Combobox` über `chart_of_accounts`); Auswahl + Speichern → Update auf `bookings.account_id` bzw. `counter_account_id`.
+  - Footer: Bulk-Move-Button, wenn ≥1 Checkbox aktiv.
 
-## Schritte
+### Änderungen in `CashAuditAdminReview.tsx`
 
-1. **Migration**: Spalte `uid_validity TEXT` zu `email_accounts` hinzufügen.
+- Neuer State `inspectorAccountId: string | null`.
+- `openAccountInPlan` ersetzen durch `setInspectorAccountId(account.id)` (alte `window.open`-Variante entfernen).
+- `<AccountInspectorDialog>` am Ende einbinden, `onBookingSaved` ruft `handleSavedBooking(bookingId)` auf, damit der „Von der Verwaltung bearbeitet"-Badge erscheint.
 
-2. **`fetch-emails/index.ts` anpassen** (Mailbox-Open-Block, ca. Zeile 245–260):
-   - Aus `mailboxOpen("INBOX")` zusätzlich `mailbox.uidValidity` lesen.
-   - Wenn `account.uid_validity` gesetzt ist und **nicht** zum aktuellen Wert passt → Reset: `last_uid = 0`, alle Mails neu durchgehen (gefiltert via vorhandenem `import_since`-Cutoff, damit nicht 8000 alte Mails reinkommen).
-   - Wenn `account.last_uid > mailbox.uidNext - 1` (Sicherheits-Fallback, falls UIDVALIDITY in einer alten Reihe nie gespeichert wurde) → ebenfalls `last_uid = 0` und Re-Sync mit Cutoff.
-   - Beim erfolgreichen Fetch am Ende `uid_validity` zusammen mit `last_uid` in die DB schreiben.
-   - Loggen, wenn ein UIDVALIDITY-Reset erkannt wurde, damit das in den Edge-Logs sichtbar ist.
+### Änderungen in `CashAuditAccountSheet.tsx` (optional Konsistenz)
 
-3. **Sofort-Reparatur (einmalig per Migration oder manuelles Update)**: Für `magnus.goettinger@rgi-immobilien.de` `last_uid` auf `0` setzen und ein passendes `import_since` (z.B. heutiges Datum minus 14 Tage) eintragen, damit beim nächsten Cron-Lauf die fehlenden Mails inkl. Test-Mail nachgeladen werden, aber keine alten 18 Mails doppelt zugeordnet werden, falls schon vorhanden.
-   - Optional: Für alle anderen Accounts ebenfalls einmalig prüfen, ob `last_uid > uidNext-1`. Die Logs zeigen aktuell nur Magnus als betroffen, aber wenn der User „viele weitere" sagt, lohnt es sich, einmalig auch die anderen Postfächer manuell zurückzusetzen, sobald die Erkennungslogik live ist (sie übernimmt das dann automatisch).
+- Falls dort ebenfalls ein „Konto öffnen"-Pfad existiert, gleiche Dialog-Komponente wiederverwenden.
 
-4. **Duplikat-Schutz prüfen**: Vor dem Insert in `emails` wird bereits per `message_id` deduped (sollte vorhanden sein) – sicherstellen, dass das beim Re-Sync greift, damit ein Reset keine Doppel-Mails erzeugt.
+## Geschäftslogik / Sicherheit
 
-## Technische Details
+- Beim Umbuchen Trigger `trg_check_booking_account_building` beachten: neues Konto muss zum gleichen `building_id` gehören. Selector entsprechend filtern, sonst 400-Fehler abfangen und Toast anzeigen.
+- Soll/Haben-Logik unverändert: nur `account_id` oder `counter_account_id` tauschen, Betrag/Datum/Beleg bleiben.
+- Bookings die als Eröffnungsbuchung (`account_number = 4000`) markiert sind warnen vor Umbuchung.
 
-- IMAPFlow gibt `mailbox.uidValidity` als BigInt/Number zurück → als String speichern.
-- Reset-Logik vor dem `client.search(...)` Aufruf einsetzen, sodass `uids` korrekt mit dem neuen Startwert berechnet wird.
-- `import_since`-Filter im bestehenden Loop bleibt unverändert und schützt vor Reimport sehr alter Mails nach dem Reset.
+## Out of Scope
 
-## Out of scope
-
-- Keine Änderungen an UI / Inbox-Liste.
-- Keine Änderungen am SMTP-Versand oder an der KI-Klassifizierung.
+- Keine Änderungen an Make.com-Webhook-Pfaden.
+- Keine neuen DB-Migrationen — nutzt bestehende Spalten.
+- Kein Redesign der Kontenplan-Seite.

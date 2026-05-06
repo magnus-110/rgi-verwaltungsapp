@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { EditBookingDialog } from "./EditBookingDialog";
 import { CashAuditWizard } from "./CashAuditWizard";
+import { AccountInspectorDialog } from "./AccountInspectorDialog";
 
 interface Props {
   auditId: string;
@@ -25,6 +26,7 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
   const queryClient = useQueryClient();
   const [editingBooking, setEditingBooking] = useState<any | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
+  const [inspectorAccountId, setInspectorAccountId] = useState<string | null>(null);
 
   const { data: audit, isLoading } = useQuery({
     queryKey: ["cash-audit", auditId],
@@ -178,10 +180,8 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
     queryClient.invalidateQueries({ queryKey: ["cash-audit", auditId] });
   };
 
-  const openAccountInPlan = (accountNumber: string) => {
-    if (!buildingId) return;
-    const url = `/finanzen?tab=accounting&sub=accounts&building=${buildingId}&q=${encodeURIComponent(accountNumber)}`;
-    window.open(url, "_blank");
+  const openAccountInPlan = (accountId: string) => {
+    setInspectorAccountId(accountId);
   };
 
   if (isLoading) {
@@ -275,7 +275,7 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
               size="sm"
               variant="ghost"
               className="h-7 text-xs gap-1"
-              onClick={() => openAccountInPlan(acc.account_number)}
+              onClick={() => openAccountInPlan(acc.id)}
             >
               <ExternalLink className="h-3 w-3" /> Konto öffnen
             </Button>
@@ -397,7 +397,7 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs gap-1"
-                        onClick={() => openAccountInPlan(grp.account.account_number)}
+                        onClick={() => openAccountInPlan(grp.account.id)}
                       >
                         <ExternalLink className="h-3 w-3" /> Konto öffnen
                       </Button>
@@ -494,6 +494,15 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
         booking={editingBooking}
         buildingName={building?.name || ""}
         onSaved={handleSavedBooking}
+      />
+
+      <AccountInspectorDialog
+        open={!!inspectorAccountId}
+        onOpenChange={(o) => !o && setInspectorAccountId(null)}
+        accountId={inspectorAccountId}
+        buildingId={buildingId || ""}
+        fiscalYear={Number(fiscalYear) || new Date().getFullYear()}
+        onBookingChanged={handleSavedBooking}
       />
     </div>
   );
