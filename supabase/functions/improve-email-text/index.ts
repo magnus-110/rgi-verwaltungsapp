@@ -35,27 +35,48 @@ Antworte NUR mit dem verbesserten Text, ohne Erklärungen, Kommentare oder Anfü
       ? `Betreff: ${subject}\n\nText:\n${bodyText}`
       : bodyText;
 
-    const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "mistral-small-latest",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.7,
-        max_tokens: 2000,
-      }),
-    });
+    // Retry on transient Mistral errors (429/5xx) with exponential backoff
+    let response: Response | null = null;
+    let lastErrText = "";
+    let lastStatus = 0;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "mistral-small-latest",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: 0.7,
+          max_tokens: 2000,
+        }),
+      });
+      if (response.ok) break;
+      lastStatus = response.status;
+      lastErrText = await response.text();
+      console.error(`Mistral API error (attempt ${attempt + 1}):`, lastStatus, lastErrText);
+      // Only retry on transient errors
+      if (lastStatus !== 429 && lastStatus < 500) break;
+      // Backoff: 600ms, 1500ms
+      await new Promise((r) => setTimeout(r, attempt === 0 ? 600 : 1500));
+    }
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("Mistral API error:", response.status, errText);
-      throw new Error(`Mistral API error: ${response.status}`);
+    if (!response || !response.ok) {
+      const friendly =
+        lastStatus === 503 || lastStatus === 502
+          ? "Die KI ist momentan überlastet. Bitte in ein paar Sekunden erneut versuchen."
+          : lastStatus === 429
+            ? "Zu viele Anfragen an die KI. Bitte kurz warten und erneut versuchen."
+            : `KI-Fehler (${lastStatus}). Bitte später erneut versuchen.`;
+      return new Response(
+        JSON.stringify({ error: friendly, status: lastStatus, details: lastErrText }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const data = await response.json();
