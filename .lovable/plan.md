@@ -1,77 +1,50 @@
-## Ziel
+# Problem
 
-Wenn der Admin im Tab **Buchhaltung → Kassenprüfung** eine bestehende Prüfung öffnet, soll er nicht mehr die gleiche Bearbeitungs-UI wie der externe Prüfer sehen, sondern eine eigene **Admin-Review-Ansicht**: Übersicht über alle Befunde des Prüfers, mit Fokus auf Auffälligkeiten und direkten Korrektur-Aktionen.
+Die Test-Mail an `magnus.goettinger@rgi-immobilien.de` (und vermutlich weitere Mails) kommen nicht in der App an, obwohl die IMAP-Verbindung erfolgreich ist.
 
-Der Token-Modus (externer Prüfer via Link) bleibt unverändert.
+## Ursachenanalyse aus den Logs + DB
 
-## Layout
-
-Beim Öffnen einer Kassenprüfung sieht der Admin:
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  ← Zurück   Kassenprüfung: <Gebäude>  [Geschäftsjahr] [Status]│
-│  Prüfer: <Name>  · Letzte Aktivität: …                       │
-├─────────────────────────────────────────────────────────────┤
-│  Zusammenfassung (4 Kennzahl-Kacheln)                        │
-│   • Geprüfte Konten   • Geprüfte Buchungen                   │
-│   • Auffällige Konten • Auffällige Buchungen                 │
-├─────────────────────────────────────────────────────────────┤
-│  [Tab: Auffälligkeiten ⚠]  [Tab: Geprüft ✓]  [Tab: Notizen] │
-├─────────────────────────────────────────────────────────────┤
-│  Auffälligkeiten (Default-Tab):                              │
-│  ─ Konto-Karte (z.B. 4210 Reparaturen) ⚠                     │
-│     Notiz vom Prüfer: "Beleg fehlt"                          │
-│     [Konto öffnen]                                           │
-│     ─ Buchung 12.03. – Müller GmbH – 1.234,56 €              │
-│        Notiz: "Doppelt?"                                     │
-│        [Buchung bearbeiten]  [Konto öffnen]                  │
-│        Badge: "Von der Verwaltung bearbeitet am 06.05."      │
-│  ─ weitere auffällige Konten/Buchungen …                     │
-└─────────────────────────────────────────────────────────────┘
+Edge-Function-Logs (`fetch-emails`):
 ```
+magnus.goettinger@rgi-immobilien.de
+Mailbox opened: 18 messages, uidNext: 19
+Found 0 UIDs to fetch
+```
+DB `email_accounts.last_uid` für magnus = **31**.
 
-- **Tab "Auffälligkeiten"** (Default) listet alle Konten + Buchungen, die der Prüfer mit `flag = "issue"` markiert hat, gruppiert nach Konto, mit den jeweiligen Prüfer-Notizen.
-- **Tab "Geprüft"** zeigt die als `ok` markierten Konten/Buchungen kompakt (read-only).
-- **Tab "Notizen"** zeigt Abschluss-Notes + Unterschrift falls vorhanden.
+Das Postfach hat aber nur noch UIDs **1–18** (uidNext = 19). Unsere gespeicherte „letzte UID" (31) liegt **höher** als alles, was im Postfach existiert → die Suche `uid: "32:*"` liefert immer 0 Treffer. Wir holen nie wieder eine neue Mail.
 
-## Aktionen pro auffälliger Buchung / Konto
+Ursache: Das IMAP-Postfach wurde bei Strato neu aufgebaut / geleert / migriert. Dadurch hat sich der **UIDVALIDITY-Wert** geändert und die UID-Sequenz beginnt wieder bei 1. Unser Code in `supabase/functions/fetch-emails/index.ts` speichert UIDVALIDITY nicht und erkennt diesen Reset nicht.
 
-- **Buchung bearbeiten** → öffnet bestehenden `EditBookingDialog`. Nach erfolgreichem Speichern wird in `progress.adminReview[bookingId]` ein Eintrag `{ editedAt, editedBy }` gesetzt → Badge "Von der Verwaltung bearbeitet am …".
-- **Konto öffnen** → Navigation in den Kontenplan / Kontoblatt-Ansicht der jeweiligen Liegenschaft (`/finanzen` mit Filter), in neuem Tab.
+Solange `last_uid` höher bleibt als alles Neue, wird **nie** eine Mail abgeholt – exakt das Symptom „Test kommt nicht an, viele weitere fehlen".
 
-Das `progress`-JSON wird so erweitert, dass auch der externe Prüfer beim nächsten Öffnen den Vermerk "Von der Verwaltung bearbeitet" sehen kann.
+# Lösung
 
-## Sichtbarkeit / Routing
+In `fetch-emails` UIDVALIDITY tracken und bei Reset / Inkonsistenz `last_uid` zurücksetzen.
 
-- `CashAuditTab.tsx`: Wenn der Admin (also `tokenMode !== true`) eine bestehende Prüfung mit Status `in_progress` oder `completed` öffnet, wird statt `CashAuditWizard` die neue Komponente `CashAuditAdminReview` gerendert. Bei Status `draft` (also gerade erstellt, noch nicht vom Prüfer angerührt) bleibt die alte UI (damit Verwaltung selbst Vorschau machen kann), wahlweise mit Umschalter "Prüfer-Sicht öffnen".
-- Token-Modus (`/kassenpruefung/:token`) ruft weiterhin `CashAuditWizard` direkt auf — komplett unverändert.
+## Schritte
+
+1. **Migration**: Spalte `uid_validity TEXT` zu `email_accounts` hinzufügen.
+
+2. **`fetch-emails/index.ts` anpassen** (Mailbox-Open-Block, ca. Zeile 245–260):
+   - Aus `mailboxOpen("INBOX")` zusätzlich `mailbox.uidValidity` lesen.
+   - Wenn `account.uid_validity` gesetzt ist und **nicht** zum aktuellen Wert passt → Reset: `last_uid = 0`, alle Mails neu durchgehen (gefiltert via vorhandenem `import_since`-Cutoff, damit nicht 8000 alte Mails reinkommen).
+   - Wenn `account.last_uid > mailbox.uidNext - 1` (Sicherheits-Fallback, falls UIDVALIDITY in einer alten Reihe nie gespeichert wurde) → ebenfalls `last_uid = 0` und Re-Sync mit Cutoff.
+   - Beim erfolgreichen Fetch am Ende `uid_validity` zusammen mit `last_uid` in die DB schreiben.
+   - Loggen, wenn ein UIDVALIDITY-Reset erkannt wurde, damit das in den Edge-Logs sichtbar ist.
+
+3. **Sofort-Reparatur (einmalig per Migration oder manuelles Update)**: Für `magnus.goettinger@rgi-immobilien.de` `last_uid` auf `0` setzen und ein passendes `import_since` (z.B. heutiges Datum minus 14 Tage) eintragen, damit beim nächsten Cron-Lauf die fehlenden Mails inkl. Test-Mail nachgeladen werden, aber keine alten 18 Mails doppelt zugeordnet werden, falls schon vorhanden.
+   - Optional: Für alle anderen Accounts ebenfalls einmalig prüfen, ob `last_uid > uidNext-1`. Die Logs zeigen aktuell nur Magnus als betroffen, aber wenn der User „viele weitere" sagt, lohnt es sich, einmalig auch die anderen Postfächer manuell zurückzusetzen, sobald die Erkennungslogik live ist (sie übernimmt das dann automatisch).
+
+4. **Duplikat-Schutz prüfen**: Vor dem Insert in `emails` wird bereits per `message_id` deduped (sollte vorhanden sein) – sicherstellen, dass das beim Re-Sync greift, damit ein Reset keine Doppel-Mails erzeugt.
 
 ## Technische Details
 
-**Neue Datei:** `src/components/finance/CashAuditAdminReview.tsx`
-- Lädt dieselben Daten wie der Wizard (`cash_audits` + `bookings` für `building_id`/`fiscal_year`).
-- Liest `progress.accountFlags`, `progress.accountNotes`, `progress.bookingFlags`, `progress.bookingNotes`, `progress.adminReview`.
-- Aggregiert: pro Konto die zugehörigen Buchungen aus dem bestehenden Booking-Hook (Wiederverwendung der Logik aus `CashAuditAccountSheet` — am besten kleine Hook-Extraktion `useAuditAccountBookings(buildingId, fiscalYear)`).
-- 4 Summary-Tiles + Tabs (`Auffälligkeiten` / `Geprüft` / `Notizen`).
-- Wiederverwendet `EditBookingDialog` für die Bearbeitung.
-- Nach Save: ruft eine Helper-Funktion `markAdminEdited(auditId, bookingId)` auf, die `progress.adminReview[bookingId] = { editedAt: ISO, editedBy: profileFullName }` setzt und via `supabase.from("cash_audits").update(...)` speichert.
-
-**Anpassung `CashAuditTab.tsx`:**
-- Statt direkt `<CashAuditWizard>` zu rendern, eine kleine Weiche:
-  - `audit.status === "draft"` → `CashAuditWizard` (Vorschau Verwaltung)
-  - sonst → `CashAuditAdminReview`
-- Optional: Toggle-Button "Prüfer-Sicht ansehen" oben rechts, der temporär den Wizard read-only öffnet.
-
-**Helper-Hook `useAuditAccountBookings`:**
-- Wird aus `CashAuditAccountSheet.tsx` extrahiert (Logik bleibt 1:1, nur als wiederverwendbarer Hook), damit Admin-Review dieselben Konto-/Buchungs-Aggregate nutzt.
-
-**`CashAuditAccountSheet`** (Prüfer-Seite): Ergänzt minimal das Anzeigen eines kleinen Hinweises "Von der Verwaltung bearbeitet" auf Buchungszeilen, wenn `progress.adminReview[bookingId]` existiert (nur Lesehinweis, kein Verhalten).
-
-**Keine Schemaänderung nötig** — alles läuft über das bestehende `progress` JSONB-Feld auf `cash_audits`.
+- IMAPFlow gibt `mailbox.uidValidity` als BigInt/Number zurück → als String speichern.
+- Reset-Logik vor dem `client.search(...)` Aufruf einsetzen, sodass `uids` korrekt mit dem neuen Startwert berechnet wird.
+- `import_since`-Filter im bestehenden Loop bleibt unverändert und schützt vor Reimport sehr alter Mails nach dem Reset.
 
 ## Out of scope
 
-- Löschen von Buchungen aus der Admin-Review.
-- Ändern des "Geprüft/Auffällig"-Status durch den Admin (das bleibt Hoheit des Prüfers).
-- Backend/RPC-Änderungen.
+- Keine Änderungen an UI / Inbox-Liste.
+- Keine Änderungen am SMTP-Versand oder an der KI-Klassifizierung.

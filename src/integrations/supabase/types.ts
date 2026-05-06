@@ -3485,6 +3485,7 @@ export type Database = {
           smtp_port: number
           smtp_user: string
           sync_interval_minutes: number
+          uid_validity: string | null
           updated_at: string
           use_ssl: boolean
         }
@@ -3510,6 +3511,7 @@ export type Database = {
           smtp_port?: number
           smtp_user: string
           sync_interval_minutes?: number
+          uid_validity?: string | null
           updated_at?: string
           use_ssl?: boolean
         }
@@ -3535,6 +3537,7 @@ export type Database = {
           smtp_port?: number
           smtp_user?: string
           sync_interval_minutes?: number
+          uid_validity?: string | null
           updated_at?: string
           use_ssl?: boolean
         }

@@ -1,0 +1,1 @@
+ALTER TABLE public.email_accounts ADD COLUMN IF NOT EXISTS uid_validity TEXT;
