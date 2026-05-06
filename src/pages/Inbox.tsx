@@ -799,7 +799,7 @@ export const Inbox = () => {
   };
 
   return (
-    <div className="h-[calc(100dvh-8rem)] md:h-[calc(100vh-8rem)] min-h-0 flex flex-col md:flex-row rounded-lg border bg-background overflow-hidden touch-pan-y">
+    <div className="h-[calc(100dvh-8rem)] min-h-0 flex flex-col md:flex-row rounded-lg border bg-background overflow-hidden touch-pan-y">
       {/* Mobile-only header bar — shows hamburger + back button + sync */}
       <div className="md:hidden flex items-center justify-between px-2 py-2 border-b shrink-0 gap-2">
         {selectedEmailId ? (
