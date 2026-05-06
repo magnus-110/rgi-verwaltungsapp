@@ -401,6 +401,29 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     update(patch);
   };
 
+  const handleVoiceAccept = (body: string, suggestedSubject?: string) => {
+    const QUOTE_RE = /\n*---\s*(?:Ursprüngliche|Weitergeleitete)\s+Nachricht\s*---/;
+    const cur = compose.bodyText || "";
+    const m = cur.match(QUOTE_RE);
+    const head = m && m.index !== undefined ? cur.slice(0, m.index) : cur;
+    const tail = m && m.index !== undefined ? cur.slice(m.index) : "";
+    const sep = head && !head.endsWith("\n") ? "\n\n" : "";
+    const patch: Partial<ComposeState> = {
+      bodyText: head + sep + body + (tail ? "\n\n" + tail : ""),
+    };
+    if (suggestedSubject && !compose.subject?.trim()) patch.subject = suggestedSubject;
+    update(patch);
+  };
+
+  const senderAccount = accounts.find((a) => a.id === compose.accountId);
+  const voiceContext = {
+    recipientEmail: compose.to,
+    subject: compose.subject,
+    existingBody: compose.bodyText,
+    senderName: senderAccount?.display_name,
+    isReply: !!compose.replyTo,
+  };
+
   if (isMobile) {
     const title = compose.replyTo ? "Antworten" : compose.forward ? "Weiterleiten" : "Neue E-Mail";
     return (
