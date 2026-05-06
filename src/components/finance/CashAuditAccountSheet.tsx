@@ -321,6 +321,7 @@ export function CashAuditAccountSheet({ buildingId, fiscalYear, progress, onProg
                       <tbody>
                         {ab.rows.map((row: any) => {
                           const bFlag = bookingFlags[row.id];
+                          const adminEdit = (progress?.adminReview || {})[row.id];
                           return (
                             <tr
                               key={row.id}
@@ -332,7 +333,14 @@ export function CashAuditAccountSheet({ buildingId, fiscalYear, progress, onProg
                               )}
                             >
                               <td className="py-1.5 pr-2 whitespace-nowrap">{new Date(row.date).toLocaleDateString("de-DE")}</td>
-                              <td className="py-1.5 pr-2 max-w-[220px] truncate">{row.description}</td>
+                              <td className="py-1.5 pr-2 max-w-[220px] truncate">
+                                {row.description}
+                                {adminEdit && (
+                                  <Badge className="ml-1.5 bg-blue-100 text-blue-800 text-[9px] h-4 px-1">
+                                    Verwaltung bearb.
+                                  </Badge>
+                                )}
+                              </td>
                               <td className="py-1.5 pr-2 max-w-[150px] truncate text-muted-foreground">{row.counterAccount}</td>
                               <td className="py-1.5 pr-2">{row.receiptNumber}</td>
                               <td className="py-1.5 pr-2 text-right text-green-700 font-mono">{row.zugang > 0 ? fmt(row.zugang) : ""}</td>
