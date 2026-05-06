@@ -959,7 +959,15 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                         </Button>
                       </div>
                       {a.costs.length === 0 && <p className="text-xs text-muted-foreground">Keine Kosten definiert</p>}
-                      {a.costs.map(c => (
+                      {[...a.costs].sort((x, y) => {
+                        // Hausgeld immer zuerst, dann nach valid_from absteigend (neuestes oben)
+                        const xHg = x.cost_type.toLowerCase().includes("hausgeld") ? 1 : 0;
+                        const yHg = y.cost_type.toLowerCase().includes("hausgeld") ? 1 : 0;
+                        if (xHg !== yHg) return yHg - xHg;
+                        const xd = x.valid_from ? new Date(x.valid_from).getTime() : 0;
+                        const yd = y.valid_from ? new Date(y.valid_from).getTime() : 0;
+                        return yd - xd;
+                      }).map(c => (
                         <div key={c.id} className="flex items-center gap-2 mt-2">
                           {editingType?.id === c.id && editingType.field === "cost_type" ? (
                             <div className="flex items-center gap-1">
