@@ -542,7 +542,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   // ===== DESKTOP: docked block bottom-right OR fullscreen =====
   const containerClass = isFullscreen
     ? "fixed inset-0 z-50 border-0 rounded-none shadow-none"
-    : "fixed bottom-0 right-4 z-50 border border-border rounded-t-lg shadow-2xl w-[560px] h-[600px]";
+    : "fixed bottom-0 right-4 z-50 border border-border rounded-t-lg shadow-2xl w-[560px] h-[760px]";
 
   return (
     <div className={cn("bg-card flex flex-col overflow-hidden", containerClass)}>
