@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -146,6 +146,7 @@ const MinimizedStack = ({ composes }: { composes: ComposeState[] }) => {
 const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   const { closeCompose, setMode, updateCompose } = useComposeEmail();
   const isMobile = useIsMobile();
+  const queryClient = useQueryClient();
 
   const [isSending, setIsSending] = useState(false);
   const [isImproving, setIsImproving] = useState(false);
@@ -382,6 +383,10 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       });
       if (error) throw error;
       toast.success("E-Mail gesendet!");
+      // Refresh inbox so the green "replied" arrow appears immediately
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      queryClient.invalidateQueries({ queryKey: ["email-replies"] });
+      queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
       closeCompose(compose.id);
     } catch (err: any) {
       toast.error("Senden fehlgeschlagen: " + (err.message || "Unbekannter Fehler"));

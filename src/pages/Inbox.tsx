@@ -537,8 +537,10 @@ export const Inbox = () => {
         // silent — periodic background fetch must never spam toasts
       }
     };
-    const id = window.setInterval(silentSync, 5 * 60 * 1000);
-    return () => { cancelled = true; window.clearInterval(id); };
+    // Trigger initial sync shortly after mount, then poll every 60 seconds
+    const initialId = window.setTimeout(silentSync, 2_000);
+    const id = window.setInterval(silentSync, 60 * 1000);
+    return () => { cancelled = true; window.clearTimeout(initialId); window.clearInterval(id); };
   }, [queryClient]);
 
   const toggleFollowUp = async (emailId: string, currentStarred: boolean) => {
@@ -1272,7 +1274,7 @@ export const Inbox = () => {
                               title="Bereits beantwortet – zur gesendeten Antwort springen"
                               className="text-green-600 hover:text-green-700"
                             >
-                              <Reply className="h-3 w-3" />
+                              <Reply className="h-4 w-4" strokeWidth={2.5} />
                             </button>
                           );
                         })()}
