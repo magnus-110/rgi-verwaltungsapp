@@ -90,13 +90,28 @@ export function BookingTextTemplateCombobox({
       e.preventDefault();
       setHighlightedIndex(i => Math.max(-1, i - 1));
     } else if (e.key === "Enter") {
-      // Nur übernehmen, wenn der Nutzer explizit per Pfeiltaste eine Option markiert hat.
-      // Ohne aktive Markierung springt Enter immer weiter – auch wenn das Feld
-      // zufällig ein gültiges Kürzel enthält.
+      // 1) Pfeil-markierter Vorschlag hat Vorrang
       if (highlightedIndex >= 0 && highlightedIndex < suggestions.length) {
         e.preventDefault();
         apply(suggestions[highlightedIndex].shortcut);
-      } else if (onSkip) {
+        return;
+      }
+      // 2) Falls der Nutzer ein gültiges Kürzel direkt eingetippt hat (z.B. "04"),
+      //    übernehmen wir es, sobald er Enter drückt.
+      const typed = value.trim();
+      if (typed && periodFromShortcut(typed, fiscalYear)) {
+        e.preventDefault();
+        apply(typed);
+        return;
+      }
+      // 3) Eindeutiger Treffer in den Vorschlägen → ebenfalls übernehmen
+      if (typed && suggestions.length === 1) {
+        e.preventDefault();
+        apply(suggestions[0].shortcut);
+        return;
+      }
+      // 4) Sonst: zum nächsten Feld springen
+      if (onSkip) {
         e.preventDefault();
         setOpen(false);
         onSkip();
