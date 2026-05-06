@@ -405,11 +405,39 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     const QUOTE_RE = /\n*---\s*(?:Ursprüngliche|Weitergeleitete)\s+Nachricht\s*---/;
     const cur = compose.bodyText || "";
     const m = cur.match(QUOTE_RE);
-    const head = m && m.index !== undefined ? cur.slice(0, m.index) : cur;
+    const headFull = m && m.index !== undefined ? cur.slice(0, m.index) : cur;
     const tail = m && m.index !== undefined ? cur.slice(m.index) : "";
-    const sep = head && !head.endsWith("\n") ? "\n\n" : "";
+
+    // Split head into editable area + existing signature, so voice body lands ABOVE the signature.
+    const account = accounts.find((a) => a.id === compose.accountId);
+    const sig = account?.signature_html || "";
+    let beforeSig = headFull;
+    let signaturePart = "";
+    if (sig) {
+      const idx = headFull.lastIndexOf(sig);
+      if (idx !== -1) {
+        beforeSig = headFull.slice(0, idx).replace(/\s+$/, "");
+        signaturePart = headFull.slice(idx);
+      }
+    }
+
+    // Strip trailing closing/name lines from voice body so signature isn't duplicated.
+    let cleanedBody = body.trimEnd();
+    if (signaturePart) {
+      // Remove "Mit freundlichen Grüßen ... <Name>" tail if AI included it despite instructions.
+      const greetRe = /\n+\s*(Mit freundlichen Grüßen|Freundliche Grüße|Beste Grüße|Viele Grüße|Herzliche Grüße|Mit besten Grüßen|Hochachtungsvoll)[\s\S]*$/i;
+      const beforeStrip = cleanedBody;
+      cleanedBody = cleanedBody.replace(greetRe, "").trimEnd();
+      // Safety: if we stripped everything, restore.
+      if (!cleanedBody.trim()) cleanedBody = beforeStrip;
+    }
+
+    const sep = beforeSig && !beforeSig.endsWith("\n") ? "\n\n" : "";
+    const sigJoin = signaturePart ? "\n\n" + signaturePart.replace(/^\s+/, "") : "";
+    const newHead = beforeSig + sep + cleanedBody + sigJoin;
+
     const patch: Partial<ComposeState> = {
-      bodyText: head + sep + body + (tail ? "\n\n" + tail : ""),
+      bodyText: newHead + (tail ? "\n\n" + tail : ""),
     };
     if (suggestedSubject && !compose.subject?.trim()) patch.subject = suggestedSubject;
     update(patch);
