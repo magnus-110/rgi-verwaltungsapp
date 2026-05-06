@@ -146,6 +146,7 @@ const MinimizedStack = ({ composes }: { composes: ComposeState[] }) => {
 const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   const { closeCompose, setMode, updateCompose } = useComposeEmail();
   const isMobile = useIsMobile();
+  const queryClient = useQueryClient();
 
   const [isSending, setIsSending] = useState(false);
   const [isImproving, setIsImproving] = useState(false);
