@@ -40,7 +40,18 @@ function BufferedInput({ value: externalValue, onSave, className, ...props }: Om
 function BufferedNumberInput({ value: externalValue, onSave, className, ...props }: Omit<React.ComponentProps<typeof Input>, 'onChange' | 'onBlur' | 'value'> & { value: number; onSave: (val: number) => void }) {
   const [local, setLocal] = useState(externalValue === 0 ? "" : String(externalValue));
   const savedRef = useRef(externalValue);
+  const localRef = useRef(local);
+  const onSaveRef = useRef(onSave);
+  useEffect(() => { localRef.current = local; }, [local]);
+  useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
   useEffect(() => { if (externalValue !== savedRef.current) { setLocal(externalValue === 0 ? "" : String(externalValue)); savedRef.current = externalValue; } }, [externalValue]);
+  const flush = () => {
+    const num = localRef.current === "" ? 0 : parseFloat(localRef.current.replace(",", "."));
+    const val = isNaN(num) ? 0 : num;
+    if (val !== savedRef.current) { savedRef.current = val; onSaveRef.current(val); }
+  };
+  // Flush pending edits on unmount (e.g. when switching tabs while typing)
+  useEffect(() => () => { flush(); }, []);
   return (
     <Input
       {...props}
@@ -49,11 +60,7 @@ function BufferedNumberInput({ value: externalValue, onSave, className, ...props
       className={className}
       value={local}
       onChange={(e) => setLocal(e.target.value)}
-      onBlur={() => {
-        const num = local === "" ? 0 : parseFloat(local.replace(",", "."));
-        const val = isNaN(num) ? 0 : num;
-        if (val !== savedRef.current) { savedRef.current = val; onSave(val); }
-      }}
+      onBlur={flush}
     />
   );
 }
@@ -62,14 +69,20 @@ function BufferedNumberInput({ value: externalValue, onSave, className, ...props
 function BufferedTextarea({ value: externalValue, onSave, className, ...props }: Omit<React.ComponentProps<typeof Textarea>, 'onChange' | 'onBlur' | 'value'> & { value: string; onSave: (val: string) => void }) {
   const [local, setLocal] = useState(externalValue);
   const savedRef = useRef(externalValue);
+  const localRef = useRef(local);
+  const onSaveRef = useRef(onSave);
+  useEffect(() => { localRef.current = local; }, [local]);
+  useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
   useEffect(() => { if (externalValue !== savedRef.current) { setLocal(externalValue); savedRef.current = externalValue; } }, [externalValue]);
+  const flush = () => { if (localRef.current !== savedRef.current) { savedRef.current = localRef.current; onSaveRef.current(localRef.current); } };
+  useEffect(() => () => { flush(); }, []);
   return (
     <Textarea
       {...props}
       className={className}
       value={local}
       onChange={(e) => setLocal(e.target.value)}
-      onBlur={() => { if (local !== savedRef.current) { savedRef.current = local; onSave(local); } }}
+      onBlur={flush}
     />
   );
 }
