@@ -84,7 +84,7 @@ export const AnnualCycleDashboardWidget = () => {
       if (!ids.length) return [];
       const { data, error } = await supabase
         .from("annual_cycle_tasks")
-        .select("building_id, task_key, status, completed_at")
+        .select("id, building_id, task_key, status, completed_at, note")
         .eq("fiscal_year_start", selected.start)
         .in("building_id", ids);
       if (error) throw error;
@@ -92,6 +92,15 @@ export const AnnualCycleDashboardWidget = () => {
     },
     enabled: open && buildings.length > 0,
   });
+
+  const updateRow = async (id: string, patch: Partial<TaskRow>) => {
+    const { error } = await supabase.from("annual_cycle_tasks").update(patch).eq("id", id);
+    if (error) {
+      toast.error("Speichern fehlgeschlagen");
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["jz-widget-tasks"] });
+  };
 
   const tasksByBuilding = useMemo(() => {
     const m = new Map<string, Map<string, TaskRow>>();
