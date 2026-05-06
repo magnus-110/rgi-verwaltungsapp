@@ -269,16 +269,40 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
       setGeneratingPurpose(false);
     }
 
+    let cancelled = false;
+    let createdBlobUrl: string | null = null;
     if (invoice.file_path) {
       setLoadingPdf(true);
-      supabase.storage
-        .from("invoices")
-        .createSignedUrl(invoice.file_path, 300)
-        .then(({ data }) => {
-          setPdfUrl(data?.signedUrl || null);
-          setLoadingPdf(false);
-        });
+      (async () => {
+        try {
+          const { data: signed } = await supabase.storage
+            .from("invoices")
+            .createSignedUrl(invoice.file_path as string, 300);
+          if (!signed?.signedUrl) {
+            if (!cancelled) { setPdfUrl(null); setLoadingPdf(false); }
+            return;
+          }
+          // Fetch as blob and force inline application/pdf to prevent
+          // browser-triggered downloads (Content-Disposition: attachment).
+          const res = await fetch(signed.signedUrl);
+          const buf = await res.arrayBuffer();
+          const blob = new Blob([buf], { type: "application/pdf" });
+          createdBlobUrl = URL.createObjectURL(blob);
+          if (!cancelled) {
+            setPdfUrl(createdBlobUrl);
+            setLoadingPdf(false);
+          } else {
+            URL.revokeObjectURL(createdBlobUrl);
+          }
+        } catch {
+          if (!cancelled) { setPdfUrl(null); setLoadingPdf(false); }
+        }
+      })();
     }
+    return () => {
+      cancelled = true;
+      if (createdBlobUrl) URL.revokeObjectURL(createdBlobUrl);
+    };
   }, [invoice?.id]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
