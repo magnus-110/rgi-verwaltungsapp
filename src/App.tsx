@@ -123,6 +123,7 @@ const App = () => (
               <Route path="/zahlungen" element={<AdminLayout><Transfers /></AdminLayout>} />
               <Route path="/ueberweisungen" element={<Navigate to="/zahlungen" replace />} />
               <Route path="/prozesse" element={<AdminLayout><Processes /></AdminLayout>} />
+              <Route path="/jahreszyklus" element={<AdminLayout><Jahreszyklus /></AdminLayout>} />
               
               {/* Legacy admin routes for compatibility */}
               <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
