@@ -538,8 +538,13 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         </div>
 
         {/* Bottom action bar (moved from top) */}
-        <div className="h-14 flex items-center justify-between gap-0.5 px-1 border-t bg-background shrink-0">
-          <div className="flex items-center gap-0.5">
+        <div className="h-14 grid grid-cols-3 items-center gap-0.5 px-1 border-t bg-background shrink-0">
+          <div className="flex items-center justify-start">
+            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" onClick={() => closeCompose(compose.id)} aria-label="Verwerfen">
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+          <div className="flex items-center justify-center gap-0.5">
             <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" onClick={() => fileInputRef.current?.click()} aria-label="Anhang">
               <Paperclip className="h-5 w-5" />
             </Button>
@@ -548,13 +553,10 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
               currentSubject={compose.subject}
               onInsert={handleInsertTemplate}
             />
-            <VoiceDictationButton context={voiceContext} onAccept={handleVoiceAccept} />
             <ScheduleButton compose={compose} update={update} open={scheduleOpen} setOpen={setScheduleOpen} />
+            <VoiceDictationButton context={voiceContext} onAccept={handleVoiceAccept} />
           </div>
-          <div className="flex items-center gap-0.5">
-            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" onClick={() => closeCompose(compose.id)} aria-label="Verwerfen">
-              <X className="h-5 w-5" />
-            </Button>
+          <div className="flex items-center justify-end">
             <Button
               size="icon"
               className="h-11 w-11 rounded-full"
