@@ -328,8 +328,19 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       const userTextHtml = compose.bodyText
         ? `<div style="white-space:pre-wrap;font-family:inherit">${escapeHtml(compose.bodyText)}</div>`
         : "";
+      // Strip wrapper tags (<!DOCTYPE>, <html>, <head>...</head>, <body>) from forwarded HTML.
+      // Otherwise mail clients render only the embedded <html> document and drop the user's prepended text.
+      const sanitizeForwardHtml = (html: string): string => {
+        let out = html;
+        out = out.replace(/<!DOCTYPE[^>]*>/gi, "");
+        out = out.replace(/<\/?html[^>]*>/gi, "");
+        out = out.replace(/<head[\s\S]*?<\/head>/gi, "");
+        out = out.replace(/<body[^>]*>/gi, "");
+        out = out.replace(/<\/body>/gi, "");
+        return out.trim();
+      };
       const combinedHtml = compose.forwardHtml
-        ? `${userTextHtml}<br><hr><div><b>--- Weitergeleitete Nachricht ---</b></div>${compose.forwardHtml}`
+        ? `<div>${userTextHtml}<br><hr><div><b>--- Weitergeleitete Nachricht ---</b></div>${sanitizeForwardHtml(compose.forwardHtml)}</div>`
         : null;
 
       // Scheduled send → store in scheduled_emails
