@@ -540,7 +540,7 @@ export const Inbox = () => {
     // Trigger initial sync shortly after mount, then poll every 60 seconds
     const initialId = window.setTimeout(silentSync, 2_000);
     const id = window.setInterval(silentSync, 60 * 1000);
-    return () => { cancelled = true; window.clearInterval(id); };
+    return () => { cancelled = true; window.clearTimeout(initialId); window.clearInterval(id); };
   }, [queryClient]);
 
   const toggleFollowUp = async (emailId: string, currentStarred: boolean) => {
