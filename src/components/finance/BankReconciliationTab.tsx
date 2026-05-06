@@ -290,11 +290,14 @@ function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAc
 
       let openingDelta = 0;
       if (openingAcc?.id) {
+        // Akzeptiere Eröffnungsbuchungen im gesamten Januar des WJ (analog zur Buchhaltungs-Logik)
+        const yearStr = String(firstDay.getFullYear());
         const { data: openingBookings, error: obErr } = await supabase
           .from("bookings")
-          .select("amount, account_id, counter_account_id")
+          .select("amount, account_id, counter_account_id, booking_date")
           .eq("building_id", buildingId)
-          .eq("booking_date", fmtDate(firstDay))
+          .gte("booking_date", `${yearStr}-01-01`)
+          .lte("booking_date", `${yearStr}-01-31`)
           .neq("status", "cancelled")
           .or(`account_id.eq.${bankAccountId},counter_account_id.eq.${bankAccountId}`);
         if (obErr) throw obErr;
@@ -303,8 +306,13 @@ function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAc
             b.account_id === openingAcc.id || b.counter_account_id === openingAcc.id;
           if (!touchesOpening) continue;
           const amt = Number(b.amount) || 0;
-          if (b.account_id === bankAccountId) openingDelta += amt;
-          else if (b.counter_account_id === bankAccountId) openingDelta -= amt;
+          // Normalisierung: Die Seite gegenüber Konto 4000 erhält immer +amt als Anfangsbestand,
+          // unabhängig davon, ob 4000 in Soll oder Haben gebucht wurde.
+          if (b.account_id === openingAcc.id && b.counter_account_id === bankAccountId) {
+            openingDelta += amt;
+          } else if (b.counter_account_id === openingAcc.id && b.account_id === bankAccountId) {
+            openingDelta += amt;
+          }
         }
       }
 
