@@ -243,6 +243,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     setSaving(false);
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Buchung gespeichert");
+    onSaved?.(booking.id);
     onOpenChange(false);
     queryClient.invalidateQueries({ predicate: (query) => {
       const key = query.queryKey[0] as string;
