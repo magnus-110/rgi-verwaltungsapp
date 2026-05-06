@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { CreateCaseDialog } from "@/components/cases/CreateCaseDialog";
 import { TodoDialog } from "@/components/todos/TodoDialog";
 import { BuildingGeneralInfoCard } from "./BuildingGeneralInfoCard";
+import { AnnualCycleTimeline } from "./AnnualCycleTimeline";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { useNavigate } from "react-router-dom";
 
@@ -78,7 +79,7 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
     return <div className="text-sm text-muted-foreground p-4">Lade Übersicht…</div>;
   }
 
-  const bp = data.booking_progress;
+  // bp removed: Buchungsfortschritt durch Jahreszyklus ersetzt
   const ownersToShow = showAllOwners ? data.owners : data.owners.slice(0, 5);
   const providersToShow = showAllProviders ? data.providers : data.providers.slice(0, 5);
 
@@ -108,7 +109,7 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
   return (
     <div className="space-y-4 md:space-y-6">
       {/* KPI-Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
+      <div className="grid grid-cols-2 gap-2 md:gap-3">
         <KpiCard
           icon={AlertCircle}
           label="Offene Meldungen"
@@ -123,43 +124,15 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
           tone={data.open_cases_count > 0 ? "warning" : "neutral"}
           onClick={() => onJumpTab("cases")}
         />
-        <KpiCard
-          icon={TrendingUp}
-          label={`Buchungen ${bp.period_label}`}
-          value={`${bp.percent}%`}
-          tone={bp.percent >= 90 ? "success" : bp.percent >= 50 ? "warning" : "danger"}
-          onClick={() => navigate("/finance")}
-          className="col-span-2 md:col-span-1"
-        />
       </div>
 
-      {/* Buchungs-Fortschritt */}
-      <Card className="cursor-pointer hover:bg-accent/30 transition-colors" onClick={() => navigate("/finance")}>
-        <CardHeader className="p-3 md:p-4 pb-2">
-          <CardTitle className="text-sm md:text-base flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              Buchungs-Fortschritt: {bp.period_label}
-            </span>
-            <span className="text-xs font-normal text-muted-foreground">
-              {bp.done} / {bp.total} Bewegungen
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-3 md:p-4 pt-1">
-          {bp.total === 0 ? (
-            <p className="text-xs text-muted-foreground">Keine Bankbewegungen im letzten Monat.</p>
-          ) : (
-            <div className="space-y-1">
-              <Progress value={bp.percent} className="h-2" />
-              <p className="text-xs text-muted-foreground">
-                {bp.percent}% bereits zugeordnet · {bp.total - bp.done} offen
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
+      {/* Jahreszyklus Timeline (nur WEG) */}
+      {managementMode === "weg" && (
+        <AnnualCycleTimeline
+          buildingId={buildingId}
+          onOpenFullView={() => onJumpTab("jahreszyklus")}
+        />
+      )}
 
       {/* 2 Spalten Grid (Vorgänge + Meldungen) */}
       <div className="grid md:grid-cols-2 gap-3 md:gap-4">
