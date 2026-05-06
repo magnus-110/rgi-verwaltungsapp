@@ -56,6 +56,16 @@ export function CashAuditTab() {
   };
 
   if (selectedAuditId) {
+    const selected = audits.find((a: any) => a.id === selectedAuditId);
+    // Admin sieht eigene Review-Ansicht für Prüfungen, an denen der Prüfer schon gearbeitet hat
+    if (selected && selected.status !== "draft") {
+      return (
+        <CashAuditAdminReview
+          auditId={selectedAuditId}
+          onBack={() => setSelectedAuditId(null)}
+        />
+      );
+    }
     return (
       <CashAuditWizard
         auditId={selectedAuditId}
