@@ -451,6 +451,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
               currentSubject={compose.subject}
               onInsert={handleInsertTemplate}
             />
+            <VoiceDictationButton context={voiceContext} onAccept={handleVoiceAccept} />
             <ScheduleButton compose={compose} update={update} open={scheduleOpen} setOpen={setScheduleOpen} />
             <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full text-primary"
               onClick={handleSend}
@@ -746,6 +747,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
                 currentSubject={compose.subject}
                 onInsert={handleInsertTemplate}
               />
+              <VoiceDictationButton context={voiceContext} onAccept={handleVoiceAccept} buttonSize="sm" iconClassName="h-7 px-2 text-xs gap-1.5" />
             </div>
             <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
             {compose.attachments.length > 0 && (
