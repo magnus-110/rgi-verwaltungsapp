@@ -529,8 +529,19 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                           <label className={cn("text-xs font-medium mb-1 block", vatMissing ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground")}>
                             MwSt % {isAccrual && <span className="text-orange-500">*</span>}
                           </label>
-                          <Select value={form.vat_rate} onValueChange={v => set("vat_rate", v)}>
-                            <SelectTrigger className={cn("h-8 text-xs", vatMissing && "border-orange-400 ring-1 ring-orange-300")}>
+                          <Select value={form.vat_rate} onValueChange={v => {
+                            set("vat_rate", v);
+                            setTimeout(() => {
+                              document.querySelector<HTMLButtonElement>('[data-edit-booking-save]')?.focus();
+                            }, 50);
+                          }}>
+                            <SelectTrigger className={cn("h-8 text-xs", vatMissing && "border-orange-400 ring-1 ring-orange-300")}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && form.vat_rate) {
+                                  e.preventDefault();
+                                  document.querySelector<HTMLButtonElement>('[data-edit-booking-save]')?.focus();
+                                }
+                              }}>
                               <SelectValue placeholder="Wählen…" />
                             </SelectTrigger>
                             <SelectContent>
