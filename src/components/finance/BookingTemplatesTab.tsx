@@ -225,9 +225,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
     setPreviewPdfUrl(signed.signedUrl);
   };
 
-  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const uploadDocFile = async (file: File) => {
     if (!form.building_id) {
       toast.error("Bitte zuerst Liegenschaft wählen");
       return;
@@ -266,8 +264,23 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
       toast.error("Upload fehlgeschlagen: " + (err.message || ""));
     } finally {
       setUploadingDoc(false);
-      if (docFileInputRef.current) docFileInputRef.current.value = "";
     }
+  };
+
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadDocFile(file);
+    if (docFileInputRef.current) docFileInputRef.current.value = "";
+  };
+
+  const handleDocDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDocDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    await uploadDocFile(file);
   };
 
   const applyPreset = (presetId: string) => {
