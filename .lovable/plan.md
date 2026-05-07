@@ -1,76 +1,60 @@
-## Ziel
+## Ursache der Differenz (Tirolerstr. 142 · 1800 Giro · Januar 2025)
 
-1. Kassenprüfer (Token-Link) kann Rechnungen und Kontoauszüge tatsächlich öffnen.
-2. Admin lädt beim Erstellen einer Kassenprüfung PDF-Kontoauszüge hoch; diese ersetzen die CAMT-Liste beim Prüfer.
-3. Admin kann strukturierte Hilfe-Notizen (Titel + Text) hinterlegen, die dem Prüfer prominent angezeigt werden.
+**Soll:** 13.210,32 € · **Buchhaltung zeigt:** 15.352,38 € · **Differenz: +2.142,06 €**
 
-## Datenbank (Migration)
+### Was passiert?
 
-Neue Tabelle `cash_audit_notes`:
-- `cash_audit_id` (FK → cash_audits, ON DELETE CASCADE)
-- `title` (text, not null), `body` (text, not null)
-- `sort_order` (int, default 0)
-- RLS: Admin alles; Auditor SELECT über eigenen contact → cash_audits.
+Die Saldoberechnung im Kontenabgleich nutzt die Postgres-Funktion `calculate_account_balance_at`. Diese rechnet **rein seitenbasiert**:
+- Buchung hat `account_id = Bank` → **+Betrag**
+- Buchung hat `counter_account_id = Bank` → **−Betrag**
 
-Neue Tabelle `cash_audit_statements`:
-- `cash_audit_id`, `file_path` (text, Bucket `building-documents`), `file_name`, `uploaded_at`, `sort_order`.
-- RLS analog.
+`booking_type` (`income`/`expense`) wird **ignoriert**.
 
-Erweiterung Storage: weiterhin `building-documents` Bucket (privat) – Pfad `cash-audits/{auditId}/...`.
+### Warum das hier knallt
 
-Neue/erweiterte SECURITY DEFINER RPCs (alle GRANT EXECUTE TO anon, authenticated):
-- `get_audit_notes_by_token(p_token)` → SETOF json (id, title, body, sort_order).
-- `get_audit_pdf_statements_by_token(p_token)` → SETOF json (id, file_name, file_path, uploaded_at).
-- `get_audit_signed_url_by_token(p_token, p_kind, p_id)` →
-  - `p_kind = 'invoice'`: prüft, dass Invoice im Audit-Building/Year liegt, signiert `invoices`-Pfad.
-  - `p_kind = 'statement_pdf'`: prüft cash_audit_statements-Eintrag, signiert `building-documents`-Pfad.
-  - `p_kind = 'bank_statement'` (Fallback): bestehende CAMT-Datei.
-  - Nutzt `storage.create_signed_url(...)` (oder Wrapper über Storage-Schema mit `extensions.uri_encode`); falls direkt nicht verfügbar, Wrapper über `storage.objects` + signed URL via `vault`-frei: stattdessen Edge Function `audit-signed-url` (siehe unten) als saubere Variante.
+Make.com bucht **bank-zentrisch**: Die Bank steht meist als `account_id` mit positivem `amount` und `booking_type=expense` für Ausgaben. Beispiel Januar 2025 (Tirolerstr. 142):
 
-→ Entscheidung: **Edge Function `audit-signed-url`** statt RPC, weil `createSignedUrl` aus Storage am einfachsten serverseitig per Service-Role-Client erstellt wird. Function validiert Token gegen `cash_audits`, prüft Ressource (invoice/statement_pdf), und liefert signierte URL (300s).
+| Datum | Beschreibung | Typ | Bank-Seite | Betrag | Soll-Wirkung Bank |
+|---|---|---|---|---|---|
+| 02.01. | Verwaltervergütung | expense | account_id | 214,20 | −214,20 |
+| 07.01. | Allgemeinstrom | expense | account_id | 43,00 | −43,00 |
+| 09.01. | Winterdienst HGS | expense | account_id | 116,62 | −116,62 |
+| 10.01. | Gerätemiete Techem | expense | account_id | 228,48 | −228,48 |
+| 13.01. | Hausreinigung Gschwend | expense | account_id | 110,67 | −110,67 |
+| 13.01. | (ohne Text) | expense | account_id | 55,34 | −55,34 |
+| 20.01. | Hausmeister HGS | expense | account_id | 114,24 | −114,24 |
+| 21.01. | Winterdienst (Bereitstellung) | expense | account_id | 178,14 | −178,14 |
+| 31.01. | Kontogebühren | expense | account_id | 10,34 | −10,34 |
+| **Summe Ausgaben** | | | | | **−1.071,03** |
 
-## Backend
+Die RPC zählt diese Beträge aber **+1.071,03** (Bank ist `account_id` → +). Der Fehler ist also **2 × 1.071,03 = 2.142,06 €** — exakt die angezeigte Differenz.
 
-Neue Edge Function `supabase/functions/audit-signed-url/index.ts`:
-- Public (verify_jwt=false), CORS, Zod-Validierung.
-- Input: `{ token, kind: 'invoice'|'statement_pdf'|'bank_statement', id }`.
-- Service-Role-Client → cash_audits via token laden → Berechtigung prüfen → `createSignedUrl` → URL zurück.
+Die korrekte Rechnung wäre:
+```
+Anfangssaldo  12.649,76
++ Einnahmen    1.631,59
+− Ausgaben     1.071,03
+= Endsaldo    13.210,32 ✓ (passt zum Kontoauszug)
+```
 
-## Frontend
+### Lösung
 
-### CreateAuditDialog (Admin-Erstellung)
-- Neue Felder:
-  - **PDF-Kontoauszüge hochladen** (Mehrfach-Upload, drag&drop, nur PDF). Lokale Liste mit Entfernen.
-  - **Hinweise für Prüfer** (Liste): „+ Notiz hinzufügen" → Inline-Karten mit `Titel` + `Text`-Textarea, sort/delete.
-- Beim „Erstellen":
-  1. Insert in `cash_audits` (wie bisher) → erhalte `id`.
-  2. Upload jedes PDF nach `building-documents/cash-audits/{auditId}/{uuid}-{name}` und Insert in `cash_audit_statements`.
-  3. Bulk-Insert der Notizen in `cash_audit_notes`.
+In `src/components/finance/lib/bookingAggregation.ts` existiert bereits `signedTotalForAccount`, das `booking_type` korrekt berücksichtigt (siehe Memory „Bank-Centric Booking Logic"). Diese Helper-Logik wird im Kontenabgleich nicht verwendet.
 
-### CashAuditWizard (Prüfer-Ansicht, Token + Auth)
-- Neuer Bereich oben (zwischen Header und Tabs): **Hinweise vom Verwalter** als Akkordeon/Karten-Liste – nur sichtbar wenn Notizen vorhanden. Lädt via:
-  - tokenMode → `get_audit_notes_by_token`
-  - sonst → direkter Select auf `cash_audit_notes`.
+**Plan:**
 
-### CashAuditDocuments (Sektion Kontoauszüge)
-- Datenquelle Kontoauszüge umgestellt:
-  - tokenMode → `get_audit_pdf_statements_by_token` (statt CAMT-RPC)
-  - Auth-Modus → Select aus `cash_audit_statements` per `cash_audit_id`.
-- Wenn keine PDFs hochgeladen wurden: leerer State („Keine Kontoauszüge hochgeladen").
-- CAMT-Anzeige beim Prüfer entfällt komplett (Wunsch: Ersetzen).
+1. **`BankReconciliationTab.tsx` umstellen** auf clientseitige Berechnung mit `signedTotalForAccount`:
+   - `openingBook` = `signedTotalForAccount(bankAccountId, bookings ≤ Vortag)`
+   - `closingBook` = `signedTotalForAccount(bankAccountId, bookings ≤ Monatsende)`
+   - Den bisherigen „Korrektur"-Workaround (`openingDeltaCorrected`/`balanceCorrection`) komplett entfernen — der war nur ein Pflaster für die Eröffnungsbuchung 4000 und ist mit der neuen Logik überflüssig.
+   - Buchungen werden einmal gemeinsam mit `account_id`, `counter_account_id`, `amount`, `booking_type`, `booking_date` geladen (gefiltert auf `building_id`, `fiscal_year`, Bank-Konto, `status ≠ cancelled`).
 
-### PDF Öffnen (Token-Modus)
-- `openPdf` ruft im tokenMode neue Edge Function `audit-signed-url` auf statt `supabase.storage.from(...).createSignedUrl` (das mit anon-Key an privaten Buckets scheitert → Ursache des „Rechnung nicht klickbar"-Problems).
-- Übergibt `kind` + `id`, erhält signedUrl, öffnet `PdfViewerModal`.
-- Im Auth-Modus: bestehender Client-Pfad (Storage createSignedUrl) bleibt.
+2. **Verifizieren** durch erneutes Öffnen Januar 2025: Endsaldo lt. Buchhaltung muss 13.210,32 € zeigen, Differenz 0,00 €.
 
-### Props
-- `CashAuditDocuments` bekommt zusätzlich `auditId` (für statement-PDF-Query).
+3. **Memory-Update** in `mem://features/finance/bank-reconciliation-monthly`: Hinweis ergänzen, dass der Kontenabgleich `signedTotalForAccount` nutzen muss (nicht die alte RPC), weil Make.com bank-zentrisch mit `booking_type` bucht.
 
-## Aufgabenreihenfolge
-1. Migration: Tabellen + RLS + RPCs (Notes, PDF-Statements).
-2. Edge Function `audit-signed-url`.
-3. CreateAuditDialog: Upload + Notizen-Editor.
-4. CashAuditWizard: Notizen-Bereich.
-5. CashAuditDocuments: PDF-Statements + Edge-Function-Aufruf für Token-Öffnen.
-6. Memory-Update („Cash Audit System" → erweitern um PDF-Statements, Notes, audit-signed-url).
+### Technische Details
+
+- **Keine** DB-Migration nötig — die RPC bleibt unverändert (sie wird an anderen Stellen für reine Kassen-/Saldoberichte ggf. noch benutzt, das wird in einem separaten Schritt geprüft).
+- **Keine** Änderung an Buchungsdaten — die vorhandenen Buchungen sind bank-zentrisch korrekt erfasst, nur die Auswertung war falsch.
+- Datei betroffen: nur `src/components/finance/BankReconciliationTab.tsx`.

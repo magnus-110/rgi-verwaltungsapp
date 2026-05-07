@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { CheckCircle2, AlertTriangle, Circle, MinusCircle, Loader2, Landmark } from "lucide-react";
 import { toast } from "sonner";
+import { signedTotalForAccount } from "./lib/bookingAggregation";
 
 interface Props {
   sharedBuildingId?: string | null;
@@ -261,85 +262,38 @@ function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAc
   // Compute period dates
   const firstDay = new Date(year, month - 1, 1);
   const lastDay = new Date(year, month, 0);
-  const prevDay = new Date(year, month - 1, 0); // last day of previous month
   // local-date formatter (avoid UTC shift from toISOString())
   const fmtDate = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-  // Anfangssaldo = Saldo am Vortag + normalisierte Eröffnungsbuchungen (gegen Konto 4000)
-  // im Januar des Wirtschaftsjahres. Eröffnungsbuchungen werden so normalisiert, dass die
-  // Bankseite immer +amt erhält (unabhängig von Soll/Haben in 4000).
-  const { data: openingData } = useQuery({
-    queryKey: ["recon-opening-balance-v2", bankAccountId, buildingId, fmtDate(firstDay)],
+  // Saldo lt. Buchhaltung — bank-zentrisch berechnet via signedTotalForAccount.
+  // Make.com bucht Bank meist als account_id mit booking_type="expense" für Ausgaben;
+  // die alte RPC `calculate_account_balance_at` ignoriert booking_type und liefert
+  // dadurch falsche Vorzeichen für Ausgaben.
+  const { data: balances } = useQuery({
+    queryKey: ["recon-balances-v3", bankAccountId, buildingId, year, month],
     queryFn: async () => {
-      // 1) Saldo zum Vortag
-      const { data: prevBal, error: prevErr } = await supabase.rpc("calculate_account_balance_at", {
-        p_account_id: bankAccountId,
-        p_building_id: buildingId,
-        p_date: fmtDate(prevDay),
-      });
-      if (prevErr) throw prevErr;
-
-      // 2) Eröffnungs-Konto 4000 ermitteln (global)
-      const { data: openingAcc } = await supabase
-        .from("chart_of_accounts")
-        .select("id")
-        .eq("account_number", "4000")
-        .is("building_id", null)
-        .maybeSingle();
-
-      let openingDeltaCorrected = 0;
-      let openingDeltaRpc = 0;
-      if (openingAcc?.id) {
-        const yearStr = String(firstDay.getFullYear());
-        const { data: openingBookings, error: obErr } = await supabase
-          .from("bookings")
-          .select("amount, account_id, counter_account_id, booking_date")
-          .eq("building_id", buildingId)
-          .gte("booking_date", `${yearStr}-01-01`)
-          .lte("booking_date", `${yearStr}-01-31`)
-          .neq("status", "cancelled")
-          .or(`account_id.eq.${bankAccountId},counter_account_id.eq.${bankAccountId}`);
-        if (obErr) throw obErr;
-        for (const b of openingBookings ?? []) {
-          const touchesOpening =
-            b.account_id === openingAcc.id || b.counter_account_id === openingAcc.id;
-          if (!touchesOpening) continue;
-          const amt = Number(b.amount) || 0;
-          // Normalisiert: Bankseite erhält immer +amt
-          openingDeltaCorrected += amt;
-          // Wie die RPC das gleiche Konto rechnet (account_id=Bank → +amt, sonst −amt)
-          if (b.account_id === bankAccountId) openingDeltaRpc += amt;
-          else openingDeltaRpc -= amt;
-        }
-      }
-
-      // Differenz = Korrektur, die wir auf RPC-Werte aufschlagen müssen
-      const correction = openingDeltaCorrected - openingDeltaRpc;
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("amount, account_id, counter_account_id, booking_date, booking_type")
+        .eq("building_id", buildingId)
+        .lte("booking_date", fmtDate(lastDay))
+        .neq("status", "cancelled")
+        .or(`account_id.eq.${bankAccountId},counter_account_id.eq.${bankAccountId}`);
+      if (error) throw error;
+      const firstStr = fmtDate(firstDay);
+      const lastStr = fmtDate(lastDay);
+      const before = (data ?? []).filter((b: any) => b.booking_date < firstStr);
+      const upToEnd = (data ?? []).filter((b: any) => b.booking_date <= lastStr);
       return {
-        opening: Number(prevBal ?? 0) + openingDeltaCorrected,
-        correction,
+        opening: signedTotalForAccount(bankAccountId, before as any),
+        closing: signedTotalForAccount(bankAccountId, upToEnd as any),
       };
     },
   });
 
-  const openingBook = openingData?.opening ?? null;
-  const balanceCorrection = openingData?.correction ?? 0;
-
-  const { data: closingBookRaw } = useQuery({
-    queryKey: ["recon-balance", bankAccountId, buildingId, fmtDate(lastDay)],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("calculate_account_balance_at", {
-        p_account_id: bankAccountId,
-        p_building_id: buildingId,
-        p_date: fmtDate(lastDay),
-      });
-      if (error) throw error;
-      return Number(data ?? 0);
-    },
-  });
-
-  const closingBook = closingBookRaw != null ? closingBookRaw + balanceCorrection : null;
+  const openingBook = balances?.opening ?? null;
+  const closingBook = balances?.closing ?? null;
 
   const closingBankNum = parseNum(closingBank);
   const openingBankNum = parseNum(openingBank);
