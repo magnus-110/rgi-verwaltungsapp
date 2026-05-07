@@ -92,6 +92,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const [docPickerOpen, setDocPickerOpen] = useState(false);
   const [docSearch, setDocSearch] = useState("");
   const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [isDocDragging, setIsDocDragging] = useState(false);
   const docFileInputRef = useRef<HTMLInputElement>(null);
   const { managementMode } = useManagementMode();
 
