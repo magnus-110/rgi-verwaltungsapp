@@ -334,7 +334,7 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
     }
     const { error } = await supabase
       .from("invoices")
-      .update({ [field]: parsed })
+      .update({ [field]: parsed } as any)
       .eq("id", invoice.id);
     if (error) {
       toast.error("Fehler beim Speichern");

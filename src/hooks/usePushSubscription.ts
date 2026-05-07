@@ -112,7 +112,8 @@ export function usePushSubscription() {
         return { error: lastErrorRef.current };
       }
 
-      const reg = await navigator.serviceWorker.register("/sw.js");
+      // Service Worker frisch registrieren (cache-busted), damit Chrome eine alte SW-Instanz nicht weiter benutzt
+      const reg = await navigator.serviceWorker.register(`/sw.js?v=${Date.now()}`);
       await navigator.serviceWorker.ready;
       setDiagnostics((d) => ({ ...d, swRegistered: true, swActive: !!reg.active }));
 
@@ -125,14 +126,19 @@ export function usePushSubscription() {
       const vapidFp = keyData.fingerprint || (await sha256Fingerprint(keyData.publicKey));
       setDiagnostics((d) => ({ ...d, vapidFingerprint: vapidFp }));
 
-      // Always recreate to ensure subscription matches the current VAPID key
-      let sub = await reg.pushManager.getSubscription();
-      if (sub) {
-        const oldEp = sub.endpoint;
-        try { await sub.unsubscribe(); } catch (_) {}
-        try { await supabase.from("push_subscriptions").delete().eq("endpoint", oldEp); } catch (_) {}
+      // 1) ALLE Server-Subscriptions dieses Users löschen (verhindert Karteileichen mit altem VAPID-Key)
+      try { await supabase.from("push_subscriptions").delete().eq("user_id", user.id); } catch (_) {}
+
+      // 2) Browser-Subscription robust entfernen — bis getSubscription() wirklich null liefert
+      for (let i = 0; i < 3; i++) {
+        const existing = await reg.pushManager.getSubscription();
+        if (!existing) break;
+        try { await existing.unsubscribe(); } catch (_) {}
+        await new Promise((r) => setTimeout(r, 150));
       }
-      sub = await reg.pushManager.subscribe({
+
+      // 3) Frische Subscription mit aktuellem VAPID-Key
+      const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(keyData.publicKey).buffer as ArrayBuffer,
       });
@@ -141,6 +147,7 @@ export function usePushSubscription() {
       const endpoint = json.endpoint ?? sub.endpoint;
       const p256dh = json.keys?.p256dh ?? arrayBufferToBase64(sub.getKey("p256dh"));
       const auth = json.keys?.auth ?? arrayBufferToBase64(sub.getKey("auth"));
+      console.info("[push] new subscription", { endpoint: endpoint.slice(0, 60), vapidFp });
 
       const { error } = await supabase
         .from("push_subscriptions")
