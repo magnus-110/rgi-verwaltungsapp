@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw, Landmark, FileWarning, Sparkles, Flag, AlertCircle, RotateCw, FileText, ExternalLink, FileCode } from "lucide-react";
@@ -68,6 +69,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   const [reviewModeOpen, setReviewModeOpen] = useState(false);
   const [reviewInitialIndex, setReviewInitialIndex] = useState(0);
   const [reviewFlaggedFirst, setReviewFlaggedFirst] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -188,22 +190,46 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     enabled: !!selectedBuilding,
   });
 
+  // Search filter (date, amount, purpose, name)
+  const filteredBuildingTxns = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return allBuildingTxns;
+    // Normalize amount: accept "1.234,56", "1234.56", "-50"
+    const normNum = (s: string) => s.replace(/\./g, "").replace(",", ".");
+    const qNum = parseFloat(normNum(q));
+    const hasNum = !isNaN(qNum);
+    return allBuildingTxns.filter((t: any) => {
+      const dateStr = t.booking_date ? format(new Date(t.booking_date), "dd.MM.yyyy") : "";
+      const dateIso = t.booking_date || "";
+      const amt = Number(t.amount);
+      const amtStr = String(amt);
+      const amtDe = amt.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const fields = [
+        dateStr, dateIso, amtStr, amtDe,
+        t.purpose, t.creditor_name, t.debtor_name, t.counterparty_iban,
+      ].filter(Boolean).map((v: any) => String(v).toLowerCase());
+      if (fields.some((f: string) => f.includes(q))) return true;
+      if (hasNum && Math.abs(Math.abs(amt) - Math.abs(qNum)) < 0.005) return true;
+      return false;
+    });
+  }, [allBuildingTxns, searchQuery]);
+
   // Categorize transactions
   const matchedTransactions = useMemo(() =>
-    allBuildingTxns.filter((t: any) => ["matched_invoice", "matched_template", "manually_matched"].includes(t.match_status) && !t.booked_at),
-    [allBuildingTxns]
+    filteredBuildingTxns.filter((t: any) => ["matched_invoice", "matched_template", "manually_matched"].includes(t.match_status) && !t.booked_at),
+    [filteredBuildingTxns]
   );
   const unmatchedTransactions = useMemo(() =>
-    allBuildingTxns.filter((t: any) => (t.match_status === "unmatched" || t.match_status === "invoice_pending") && !t.booked_at),
-    [allBuildingTxns]
+    filteredBuildingTxns.filter((t: any) => (t.match_status === "unmatched" || t.match_status === "invoice_pending") && !t.booked_at),
+    [filteredBuildingTxns]
   );
   const ignoredTransactions = useMemo(() =>
-    allBuildingTxns.filter((t: any) => t.match_status === "ignored" && !t.booked_at),
-    [allBuildingTxns]
+    filteredBuildingTxns.filter((t: any) => t.match_status === "ignored" && !t.booked_at),
+    [filteredBuildingTxns]
   );
   const bookedTransactions = useMemo(() =>
-    allBuildingTxns.filter((t: any) => t.booked_at),
-    [allBuildingTxns]
+    filteredBuildingTxns.filter((t: any) => t.booked_at),
+    [filteredBuildingTxns]
   );
 
   // All unbooked transactions for review mode — chronologically (as on the bank statement)
@@ -720,6 +746,24 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                     </CardContent>
                   )}
                 </Card>
+              )}
+
+              {/* Search */}
+              {selectedBuilding && allBuildingTxns.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Suche nach Datum, Betrag, Verwendungszweck oder Name…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="max-w-md"
+                  />
+                  {searchQuery && (
+                    <Button variant="ghost" size="sm" onClick={() => setSearchQuery("")}>Zurücksetzen</Button>
+                  )}
+                  {searchQuery && (
+                    <span className="text-xs text-muted-foreground">{filteredBuildingTxns.length} von {allBuildingTxns.length} Treffern</span>
+                  )}
+                </div>
               )}
 
               {/* Summary badges + AI prefetch indicator */}
