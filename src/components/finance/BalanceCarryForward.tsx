@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { ArrowRight, Check, RefreshCw, AlertTriangle, Info } from "lucide-react";
 import { toast } from "sonner";
 import { getEffectiveOpeningBalance } from "./lib/bookingAggregation";
+import { parseAmount } from "./lib/parseAmount";
 
 interface BalanceCarryForwardProps {
   buildingId: string;
@@ -281,14 +282,16 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
                         </div>
                       ) : (
                         <Input
-                          type="number"
-                          step="0.01"
+                          type="text"
+                          inputMode="decimal"
                           className="h-7 text-xs text-right w-full"
-                          defaultValue={displayedOpening ?? ""}
+                          defaultValue={displayedOpening != null ? String(displayedOpening).replace(".", ",") : ""}
                           placeholder="0,00"
                           onBlur={(e) => {
-                            const val = parseFloat(e.target.value);
-                            if (!isNaN(val) && val !== displayedOpening) updateOpeningBalance(acc.id, val);
+                            const raw = e.target.value.trim();
+                            if (!raw) return;
+                            const val = parseAmount(raw);
+                            if (val !== displayedOpening) updateOpeningBalance(acc.id, val);
                           }}
                         />
                       )}
@@ -325,14 +328,15 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
                     </TableCell>
                     <TableCell>
                       <Input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         className="h-7 text-xs text-right w-full"
-                        defaultValue={currentBal?.closing_balance ?? ""}
+                        defaultValue={currentBal?.closing_balance != null ? String(currentBal.closing_balance).replace(".", ",") : ""}
                         placeholder="0,00"
                         onBlur={(e) => {
-                          const val = parseFloat(e.target.value);
-                          if (!isNaN(val)) updateClosingBalance(acc.id, val);
+                          const raw = e.target.value.trim();
+                          if (!raw) return;
+                          updateClosingBalance(acc.id, parseAmount(raw));
                         }}
                       />
                     </TableCell>
