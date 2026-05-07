@@ -328,14 +328,15 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
                     </TableCell>
                     <TableCell>
                       <Input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         className="h-7 text-xs text-right w-full"
-                        defaultValue={currentBal?.closing_balance ?? ""}
+                        defaultValue={currentBal?.closing_balance != null ? String(currentBal.closing_balance).replace(".", ",") : ""}
                         placeholder="0,00"
                         onBlur={(e) => {
-                          const val = parseFloat(e.target.value);
-                          if (!isNaN(val)) updateClosingBalance(acc.id, val);
+                          const raw = e.target.value.trim();
+                          if (!raw) return;
+                          updateClosingBalance(acc.id, parseAmount(raw));
                         }}
                       />
                     </TableCell>
