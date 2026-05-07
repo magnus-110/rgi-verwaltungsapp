@@ -1,8 +1,8 @@
 // Send Web-Push notifications to users (with deduplication + per-device diagnostics)
-// Uses jsr:@negrel/webpush which is Deno-native (Web Crypto) — npm:web-push has a known
-// AES-GCM bug in Deno (denoland/deno#23693) that causes silent decryption failures in browsers.
+// Uses PushForge's Web-Crypto request builder directly. This avoids both npm:web-push's
+// Deno AES-GCM shim bug and any library wrapper ambiguity around the exact Web-Push HTTP request.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import * as webpush from "jsr:@negrel/webpush@^0.5.0";
+import { buildPushHTTPRequest } from "npm:@pushforge/builder";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -47,11 +47,11 @@ function bytesToB64url(bytes: Uint8Array): string {
 
 /**
  * Convert raw base64url VAPID keys (the format produced by `web-push generate-vapid-keys`)
- * into the JWK format expected by @negrel/webpush.
+ * into the private JWK format expected by PushForge.
  *  - publicKey: 65 bytes uncompressed point (0x04 || X[32] || Y[32])
  *  - privateKey: 32-byte scalar
  */
-function buildVapidJwks(publicB64url: string, privateB64url: string) {
+function buildVapidPrivateJwk(publicB64url: string, privateB64url: string): JsonWebKey {
   const pub = b64urlToBytes(publicB64url);
   if (pub.length !== 65 || pub[0] !== 0x04) {
     throw new Error(`VAPID_PUBLIC_KEY must be 65-byte uncompressed P-256 (got ${pub.length} bytes)`);
@@ -59,10 +59,7 @@ function buildVapidJwks(publicB64url: string, privateB64url: string) {
   const x = bytesToB64url(pub.slice(1, 33));
   const y = bytesToB64url(pub.slice(33, 65));
   const d = bytesToB64url(b64urlToBytes(privateB64url));
-  return {
-    publicKey: { kty: "EC", crv: "P-256", x, y, ext: true } as JsonWebKey,
-    privateKey: { kty: "EC", crv: "P-256", x, y, d, ext: true } as JsonWebKey,
-  };
+  return { kty: "EC", crv: "P-256", x, y, d, ext: true };
 }
 
 async function sha256Hex(input: string): Promise<string> {
@@ -73,20 +70,11 @@ function fingerprint(hex: string): string {
   return hex.slice(0, 12);
 }
 
-// --- Lazy app-server initialization (so a key error returns a clean response, not a boot crash) ---
-let appServerPromise: Promise<webpush.ApplicationServer> | null = null;
-function getAppServer(): Promise<webpush.ApplicationServer> {
-  if (!appServerPromise) {
-    appServerPromise = (async () => {
-      const jwks = buildVapidJwks(VAPID_PUBLIC, VAPID_PRIVATE);
-      const vapidKeys = await webpush.importVapidKeys(jwks, { extractable: false });
-      return await webpush.ApplicationServer.new({
-        contactInformation: VAPID_SUBJECT,
-        vapidKeys,
-      });
-    })();
-  }
-  return appServerPromise;
+// --- Lazy key conversion (so a key error returns a clean response, not a boot crash) ---
+let vapidPrivateJwk: JsonWebKey | null = null;
+function getVapidPrivateJwk(): JsonWebKey {
+  if (!vapidPrivateJwk) vapidPrivateJwk = buildVapidPrivateJwk(VAPID_PUBLIC, VAPID_PRIVATE);
+  return vapidPrivateJwk;
 }
 
 function inQuietHours(start?: string | null, end?: string | null): boolean {
@@ -116,7 +104,7 @@ Deno.serve(async (req) => {
     }
 
     const serverVapidFp = fingerprint(await sha256Hex(VAPID_PUBLIC));
-    const appServer = await getAppServer();
+    const privateJWK = getVapidPrivateJwk();
 
     let totalSent = 0;
     const results: Record<string, any> = {};
@@ -191,33 +179,54 @@ Deno.serve(async (req) => {
         }
 
         try {
-          const subscriber = appServer.subscribe({
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.p256dh, auth: sub.auth },
-            // expirationTime is optional/null
+          const request = await buildPushHTTPRequest({
+            privateJWK,
+            subscription: {
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh, auth: sub.auth },
+            },
+            message: {
+              payload: JSON.parse(notif),
+              adminContact: VAPID_SUBJECT,
+              options: {
+                ttl: type === "test" ? 60 : 3600,
+                urgency: type === "test" ? "high" : "normal",
+                topic: (tag ?? dedup_key).replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 32),
+              },
+            },
           } as any);
-          await subscriber.pushTextMessage(notif, {});
+          const response = await fetch(request.endpoint, {
+            method: "POST",
+            headers: request.headers,
+            body: request.body,
+          });
+          const responseText = response.ok ? "" : await response.text().catch(() => "");
+          if (!response.ok) {
+            const pushError = new Error(responseText || `Push service returned HTTP ${response.status}`) as any;
+            pushError.response = response;
+            pushError.responseText = responseText;
+            throw pushError;
+          }
           userSent++;
           await supabase.from("push_subscriptions").update({
             last_used_at: new Date().toISOString(),
             last_delivery_status: "sent",
             last_delivery_at: new Date().toISOString(),
-            last_delivery_code: 201,
+            last_delivery_code: response.status,
           }).eq("id", sub.id);
           devices.push({
             id: sub.id, endpoint_hash: epHash, device_label: sub.device_label,
             user_agent: sub.user_agent, last_used_at: sub.last_used_at,
             sub_vapid_fp: subVapidFp, server_vapid_fp: serverVapidFp,
-            status: "sent",
+            status: "sent", code: response.status,
           });
         } catch (err: any) {
-          // @negrel/webpush throws PushMessageError with .response (Response object) on HTTP errors
           let code: number | null = null;
-          let bodyText = "";
+          let bodyText = err?.responseText ?? "";
           try {
             if (err?.response && typeof err.response.status === "number") {
               code = err.response.status;
-              try { bodyText = await err.response.text(); } catch (_) {}
+              if (!bodyText) { try { bodyText = await err.response.text(); } catch (_) {} }
             }
           } catch (_) {}
           if (code == null && typeof err?.statusCode === "number") code = err.statusCode;
