@@ -480,7 +480,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                         document.querySelector<HTMLInputElement>('[data-edit-booking-desc]')?.focus();
                       }}
                     />
-                    <Input data-edit-booking-desc className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} />
+                    <Input data-edit-booking-desc className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} onKeyDown={handleEnterToNext} />
                   </div>
                 </div>
 
