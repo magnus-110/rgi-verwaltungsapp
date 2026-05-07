@@ -632,7 +632,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6">
+          <div className="space-y-4 [&_input:not([type=checkbox]):not([type=radio]):not([type=file])]:bg-background [&_input:not([type=checkbox]):not([type=radio]):not([type=file])]:border-2 [&_input:not([type=checkbox]):not([type=radio]):not([type=file])]:border-input [&_input:not([type=checkbox]):not([type=radio]):not([type=file])]:focus-visible:border-primary [&_button[role=combobox]]:bg-background [&_button[role=combobox]]:border-2 [&_[data-radix-select-trigger]]:bg-background [&_[data-radix-select-trigger]]:border-2">
             {/* === Preset Selector (only for new templates) === */}
             {!editingId && presets.length > 0 && (
               <div className="space-y-2">
