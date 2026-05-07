@@ -29,6 +29,16 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
   const [aiChecking, setAiChecking] = useState(false);
   const [aiResults, setAiResults] = useState<any[] | null>(null);
+  const [editBooking, setEditBooking] = useState<any | null>(null);
+  const queryClient = useQueryClient();
+
+  const { data: building } = useQuery({
+    queryKey: ["building-name-review", buildingId],
+    queryFn: async () => {
+      const { data } = await supabase.from("buildings").select("name").eq("id", buildingId).maybeSingle();
+      return data;
+    },
+  });
 
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ["booking-review", buildingId, fiscalYear],
