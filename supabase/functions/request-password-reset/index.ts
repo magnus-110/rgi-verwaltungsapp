@@ -78,29 +78,45 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Find user via profiles table (listUsers() is paginated to 50 — unreliable for >50 users)
+    const normalizedEmail = email.trim().toLowerCase()
+
+    // 1) Try profiles table first (fast path)
     const { data: profileMatch, error: profileLookupErr } = await supabaseAdmin
       .from('profiles')
       .select('user_id, email')
-      .ilike('email', email.trim())
+      .ilike('email', normalizedEmail)
       .maybeSingle()
 
     if (profileLookupErr) {
       console.error('Profile lookup error:', profileLookupErr)
-      return new Response(
-        JSON.stringify({ error: 'Fehler beim Abrufen der Benutzerdaten' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
     }
 
-    if (!profileMatch?.user_id) {
+    let userId: string | null = profileMatch?.user_id ?? null
+
+    // 2) Fallback: search auth.users via paginated listUsers (in case profile email diverges)
+    if (!userId) {
+      try {
+        for (let page = 1; page <= 20; page++) {
+          const { data: list, error: listErr } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 200 })
+          if (listErr) { console.error('listUsers error:', listErr); break }
+          const found = list?.users?.find((u: any) => (u.email ?? '').toLowerCase() === normalizedEmail)
+          if (found) { userId = found.id; break }
+          if (!list?.users || list.users.length < 200) break
+        }
+      } catch (e) {
+        console.error('Auth fallback error:', e)
+      }
+    }
+
+    if (!userId) {
+      console.log('No user found for email:', normalizedEmail)
       return new Response(
-        JSON.stringify({ error: 'Benutzer mit dieser E-Mail-Adresse nicht gefunden' }),
+        JSON.stringify({ error: 'Es wurde kein Account mit dieser E-Mail-Adresse gefunden. Bitte prüfen Sie die Schreibweise.' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const existingUser = { id: profileMatch.user_id }
+    const existingUser = { id: userId }
 
     // Get user profile to determine management mode
     const { data: profile, error: profileError } = await supabaseAdmin
