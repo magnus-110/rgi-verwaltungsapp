@@ -229,6 +229,34 @@ export function NotificationSettingsSection() {
           {lastTestResult && (
             <p className="text-xs text-muted-foreground">{lastTestResult}</p>
           )}
+          {serverVapidFp && push.diagnostics.vapidFingerprint && serverVapidFp !== push.diagnostics.vapidFingerprint && (
+            <p className="text-xs text-red-600">
+              VAPID-Schlüssel-Mismatch erkannt (Server {serverVapidFp} vs. Browser {push.diagnostics.vapidFingerprint}).
+              Bitte „Service Worker neu registrieren“ klicken.
+            </p>
+          )}
+          {lastTestDevices && lastTestDevices.length > 0 && (
+            <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+              <div className="text-xs font-medium">Server-Test pro Gerät</div>
+              {lastTestDevices.map((d: any) => (
+                <div key={d.id} className="text-xs flex flex-wrap gap-x-3 gap-y-0.5">
+                  <span className={
+                    d.status === "sent" ? "text-green-600 font-medium"
+                    : d.status?.startsWith("removed") ? "text-amber-600"
+                    : d.status === "vapid_mismatch" ? "text-red-600 font-medium"
+                    : "text-red-600"
+                  }>{d.status}</span>
+                  <span>{d.device_label || "Gerät"}</span>
+                  <span className="text-muted-foreground truncate max-w-[200px]">{d.user_agent}</span>
+                  <span className="text-muted-foreground">VAPID: {d.sub_vapid_fp ?? "—"} / {d.server_vapid_fp}</span>
+                  {d.error && <span className="text-red-600">{d.error}</span>}
+                </div>
+              ))}
+              <p className="text-[11px] text-muted-foreground">
+                „sent“ heißt: Push-Dienst hat angenommen. Steht hier „vapid_mismatch“, wurde dieses Gerät mit einem anderen Schlüssel angemeldet — bitte neu registrieren.
+              </p>
+            </div>
+          )}
           {push.lastError && (
             <p className="text-xs text-red-600">Letzter Fehler: {push.lastError}</p>
           )}
