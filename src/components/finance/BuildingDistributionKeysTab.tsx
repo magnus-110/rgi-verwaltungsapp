@@ -189,6 +189,21 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
 
   const [customKeyInput, setCustomKeyInput] = useState<string | null>(null);
   const [customKeyAccountId, setCustomKeyAccountId] = useState<string | null>(null);
+  const [editingNameId, setEditingNameId] = useState<string | null>(null);
+  const [editingNameValue, setEditingNameValue] = useState("");
+
+  const startEditName = (account: any) => {
+    setEditingNameId(account.id);
+    setEditingNameValue(account.account_name);
+  };
+  const saveEditName = async (id: string) => {
+    if (!editingNameValue.trim()) { toast.error("Bezeichnung darf nicht leer sein"); return; }
+    const { error } = await supabase.from("chart_of_accounts").update({ account_name: editingNameValue.trim() } as any).eq("id", id);
+    if (error) { toast.error("Fehler: " + error.message); return; }
+    toast.success("Bezeichnung aktualisiert");
+    setEditingNameId(null);
+    invalidateAllCoa();
+  };
 
   const getKeyLabel = (key: string | null) => allDistKeys.find(k => k.value === key)?.label || key || "–";
 
