@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -21,38 +21,83 @@ function arrayBufferToBase64(buffer: ArrayBuffer | null): string {
 
 export type PushPermissionState = NotificationPermission | "unsupported";
 
+export interface PushDiagnostics {
+  swRegistered: boolean;
+  swActive: boolean;
+  lastPushReceivedAt: number | null;
+}
+
 export function usePushSubscription() {
   const { user } = useAuth();
   const [supported, setSupported] = useState(false);
   const [permission, setPermission] = useState<PushPermissionState>("default");
   const [subscribed, setSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<PushDiagnostics>({
+    swRegistered: false,
+    swActive: false,
+    lastPushReceivedAt: null,
+  });
+  const lastErrorRef = useRef<string | null>(null);
 
+  // Init: detect support, check existing subscription, listen for SW messages
   useEffect(() => {
     const ok = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
     setSupported(ok);
-    if (ok) setPermission(Notification.permission);
-    if (ok && navigator.serviceWorker) {
-      navigator.serviceWorker.ready.then(async (reg) => {
+    if (!ok) return;
+    setPermission(Notification.permission);
+
+    (async () => {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration("/sw.js")
+          ?? await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
         setSubscribed(!!sub);
-      }).catch(() => {});
-    }
+        setDiagnostics((d) => ({ ...d, swRegistered: !!reg, swActive: !!reg.active }));
+      } catch (_) {}
+    })();
+
+    const onMsg = (ev: MessageEvent) => {
+      if (ev.data?.type === "push-received") {
+        setDiagnostics((d) => ({ ...d, lastPushReceivedAt: ev.data.ts || Date.now() }));
+      }
+      if (ev.data?.type === "notification-click" && ev.data.url) {
+        try { window.location.assign(ev.data.url); } catch (_) {}
+      }
+    };
+    navigator.serviceWorker?.addEventListener("message", onMsg);
+    return () => navigator.serviceWorker?.removeEventListener("message", onMsg);
   }, []);
 
   const subscribe = useCallback(async () => {
-    if (!user || !supported) return { error: "not supported" };
+    lastErrorRef.current = null;
+    if (!user) return { error: "not signed in" };
+    if (!supported) return { error: "Browser unterstützt keine Web-Push." };
     setLoading(true);
     try {
       const perm = await Notification.requestPermission();
       setPermission(perm);
-      if (perm !== "granted") return { error: "permission denied" };
+      if (perm !== "granted") {
+        lastErrorRef.current = "Berechtigung im Browser nicht erteilt.";
+        return { error: lastErrorRef.current };
+      }
+
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.ready;
+      setDiagnostics((d) => ({ ...d, swRegistered: true, swActive: !!reg.active }));
 
       const { data: keyData, error: keyErr } = await supabase.functions.invoke("get-vapid-public-key");
-      if (keyErr || !keyData?.publicKey) return { error: "vapid key missing" };
+      if (keyErr || !keyData?.publicKey) {
+        lastErrorRef.current = "VAPID-Public-Key konnte nicht geladen werden.";
+        return { error: lastErrorRef.current };
+      }
 
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
+      // Reuse existing if it matches the public key, else recreate
+      let sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        try { await sub.unsubscribe(); } catch (_) {}
+      }
+      sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(keyData.publicKey).buffer as ArrayBuffer,
       });
@@ -75,9 +120,15 @@ export function usePushSubscription() {
           },
           { onConflict: "endpoint" },
         );
-      if (error) return { error: error.message };
+      if (error) {
+        lastErrorRef.current = error.message;
+        return { error: error.message };
+      }
       setSubscribed(true);
       return {};
+    } catch (e: any) {
+      lastErrorRef.current = e?.message || String(e);
+      return { error: lastErrorRef.current };
     } finally {
       setLoading(false);
     }
@@ -100,5 +151,33 @@ export function usePushSubscription() {
     }
   }, [supported]);
 
-  return { supported, permission, subscribed, loading, subscribe, unsubscribe };
+  /** Triggers a local SW notification (no server). Proves OS/browser can display. */
+  const showLocalTest = useCallback(async () => {
+    if (!supported) return { error: "not supported" };
+    if (Notification.permission !== "granted") return { error: "permission not granted" };
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification("🔔 Lokaler Test", {
+        body: "Diese Benachrichtigung wurde direkt vom Browser angezeigt.",
+        icon: "/lovable-uploads/6a67de24-d14d-44a0-8b78-b3cf0608cc46.png",
+        badge: "/lovable-uploads/6a67de24-d14d-44a0-8b78-b3cf0608cc46.png",
+        tag: "local-test",
+      });
+      return {};
+    } catch (e: any) {
+      return { error: e?.message || String(e) };
+    }
+  }, [supported]);
+
+  return {
+    supported,
+    permission,
+    subscribed,
+    loading,
+    diagnostics,
+    lastError: lastErrorRef.current,
+    subscribe,
+    unsubscribe,
+    showLocalTest,
+  };
 }
