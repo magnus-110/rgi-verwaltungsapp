@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -8,27 +8,37 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { Plus, Trash2, FileText, Upload } from "lucide-react";
+import { Plus, Trash2, FileText, Upload, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { format, addDays } from "date-fns";
 import { useManagementMode } from "@/hooks/useManagementMode";
+import { cn } from "@/lib/utils";
 
 interface CreateAuditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** If set, dialog edits an existing audit instead of creating a new one. */
+  auditId?: string | null;
 }
 
-interface NoteDraft { title: string; body: string; }
+interface NoteDraft { id?: string; title: string; body: string; }
+interface ExistingStatement { id: string; file_name: string; file_path: string; }
 
-export function CreateAuditDialog({ open, onOpenChange }: CreateAuditDialogProps) {
+export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDialogProps) {
   const queryClient = useQueryClient();
   const { managementMode } = useManagementMode();
+  const isEdit = !!auditId;
+
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>("");
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>("");
   const [selectedContactId, setSelectedContactId] = useState<string>("");
   const [portalUntil, setPortalUntil] = useState(format(addDays(new Date(), 30), "yyyy-MM-dd"));
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
+  const [existingStatements, setExistingStatements] = useState<ExistingStatement[]>([]);
   const [notes, setNotes] = useState<NoteDraft[]>([]);
+  const [removedNoteIds, setRemovedNoteIds] = useState<string[]>([]);
+  const [removedStatementIds, setRemovedStatementIds] = useState<string[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const { data: buildings = [] } = useQuery({
@@ -78,7 +88,41 @@ export function CreateAuditDialog({ open, onOpenChange }: CreateAuditDialogProps
 
   const selectedPeriod = periods.find((p) => p.id === selectedPeriodId);
 
+  // Pre-fill in edit mode
   useEffect(() => {
+    if (!open) return;
+    if (!isEdit) {
+      reset();
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data: audit } = await supabase
+        .from("cash_audits")
+        .select("*")
+        .eq("id", auditId!)
+        .maybeSingle();
+      if (cancelled || !audit) return;
+      setSelectedBuildingId(audit.building_id);
+      setSelectedPeriodId(audit.billing_period_id || "");
+      setSelectedContactId(audit.auditor_contact_id || "");
+      setPortalUntil(audit.visible_in_portal_until ? format(new Date(audit.visible_in_portal_until), "yyyy-MM-dd") : "");
+
+      const [{ data: stmts }, { data: nts }] = await Promise.all([
+        supabase.from("cash_audit_statements").select("id, file_name, file_path").eq("cash_audit_id", auditId!).order("sort_order"),
+        supabase.from("cash_audit_notes").select("id, title, body").eq("cash_audit_id", auditId!).order("sort_order"),
+      ]);
+      if (cancelled) return;
+      setExistingStatements(stmts || []);
+      setNotes((nts || []).map((n: any) => ({ id: n.id, title: n.title, body: n.body })));
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, auditId]);
+
+  // Auto-select previous fiscal year only for create mode
+  useEffect(() => {
+    if (isEdit) return;
     if (!periods.length || selectedPeriodId) return;
     const previousYear = new Date().getFullYear() - 1;
     const match =
@@ -86,68 +130,127 @@ export function CreateAuditDialog({ open, onOpenChange }: CreateAuditDialogProps
       periods.find((p: any) => p.fiscal_year < new Date().getFullYear()) ??
       periods[0];
     if (match) setSelectedPeriodId(match.id);
-  }, [periods, selectedPeriodId]);
+  }, [periods, selectedPeriodId, isEdit]);
+
+  const addFiles = useCallback((files: File[]) => {
+    const pdfs = files.filter((f) => f.type === "application/pdf");
+    if (pdfs.length !== files.length) {
+      toast.warning("Nur PDF-Dateien werden akzeptiert");
+    }
+    if (pdfs.length) setPdfFiles((prev) => [...prev, ...pdfs]);
+  }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []).filter((f) => f.type === "application/pdf");
-    setPdfFiles((prev) => [...prev, ...files]);
+    addFiles(Array.from(e.target.files || []));
     e.target.value = "";
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    addFiles(Array.from(e.dataTransfer.files || []));
   };
 
   const reset = () => {
     setSelectedBuildingId("");
     setSelectedPeriodId("");
     setSelectedContactId("");
+    setPortalUntil(format(addDays(new Date(), 30), "yyyy-MM-dd"));
     setPdfFiles([]);
+    setExistingStatements([]);
     setNotes([]);
+    setRemovedNoteIds([]);
+    setRemovedStatementIds([]);
   };
 
-  const handleCreate = async () => {
+  const openExistingStatement = async (path: string) => {
+    const clean = path.replace(/^\/+/, "").replace(/^building-documents\//, "");
+    const { data } = await supabase.storage.from("building-documents").createSignedUrl(clean, 300);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+    else toast.error("Datei konnte nicht geladen werden");
+  };
+
+  const handleSave = async () => {
     if (!selectedBuildingId || !selectedPeriodId || !selectedContactId) {
       toast.error("Bitte alle Pflichtfelder ausfüllen");
       return;
     }
     setSaving(true);
     try {
-      const { data: audit, error } = await supabase.from("cash_audits").insert({
-        building_id: selectedBuildingId,
-        billing_period_id: selectedPeriodId,
-        fiscal_year: selectedPeriod?.fiscal_year || new Date().getFullYear(),
-        auditor_contact_id: selectedContactId,
-        visible_in_portal_until: portalUntil ? new Date(portalUntil).toISOString() : null,
-      }).select("id").single();
-      if (error) throw error;
+      let targetAuditId = auditId || "";
+      if (isEdit) {
+        const { error } = await supabase.from("cash_audits").update({
+          building_id: selectedBuildingId,
+          billing_period_id: selectedPeriodId,
+          fiscal_year: selectedPeriod?.fiscal_year || new Date().getFullYear(),
+          auditor_contact_id: selectedContactId,
+          visible_in_portal_until: portalUntil ? new Date(portalUntil).toISOString() : null,
+        }).eq("id", auditId!);
+        if (error) throw error;
+      } else {
+        const { data: audit, error } = await supabase.from("cash_audits").insert({
+          building_id: selectedBuildingId,
+          billing_period_id: selectedPeriodId,
+          fiscal_year: selectedPeriod?.fiscal_year || new Date().getFullYear(),
+          auditor_contact_id: selectedContactId,
+          visible_in_portal_until: portalUntil ? new Date(portalUntil).toISOString() : null,
+        }).select("id").single();
+        if (error) throw error;
+        targetAuditId = audit.id;
+      }
 
-      // Upload PDFs
+      // Remove statements marked for deletion (storage + row)
+      if (removedStatementIds.length) {
+        const toDelete = existingStatements.filter(s => removedStatementIds.includes(s.id));
+        const paths = toDelete.map(s => s.file_path.replace(/^\/+/, "").replace(/^building-documents\//, ""));
+        if (paths.length) await supabase.storage.from("building-documents").remove(paths);
+        await supabase.from("cash_audit_statements").delete().in("id", removedStatementIds);
+      }
+
+      // Upload new PDFs
+      const baseSort = existingStatements.filter(s => !removedStatementIds.includes(s.id)).length;
       for (let i = 0; i < pdfFiles.length; i++) {
         const file = pdfFiles[i];
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const path = `cash-audits/${audit.id}/${crypto.randomUUID()}-${safeName}`;
+        const path = `cash-audits/${targetAuditId}/${crypto.randomUUID()}-${safeName}`;
         const { error: upErr } = await supabase.storage.from("building-documents").upload(path, file, { contentType: "application/pdf" });
         if (upErr) throw upErr;
         await supabase.from("cash_audit_statements").insert({
-          cash_audit_id: audit.id,
+          cash_audit_id: targetAuditId,
           file_name: file.name,
           file_path: path,
-          sort_order: i,
+          sort_order: baseSort + i,
         });
       }
 
-      // Insert notes
+      // Remove deleted notes
+      if (removedNoteIds.length) {
+        await supabase.from("cash_audit_notes").delete().in("id", removedNoteIds);
+      }
+
+      // Upsert notes
       const validNotes = notes.filter((n) => n.title.trim() && n.body.trim());
-      if (validNotes.length) {
-        await supabase.from("cash_audit_notes").insert(
-          validNotes.map((n, i) => ({
-            cash_audit_id: audit.id,
+      for (let i = 0; i < validNotes.length; i++) {
+        const n = validNotes[i];
+        if (n.id) {
+          await supabase.from("cash_audit_notes").update({
             title: n.title.trim(),
             body: n.body.trim(),
             sort_order: i,
-          }))
-        );
+          }).eq("id", n.id);
+        } else {
+          await supabase.from("cash_audit_notes").insert({
+            cash_audit_id: targetAuditId,
+            title: n.title.trim(),
+            body: n.body.trim(),
+            sort_order: i,
+          });
+        }
       }
 
-      toast.success("Kassenprüfung erstellt");
+      toast.success(isEdit ? "Kassenprüfung aktualisiert" : "Kassenprüfung erstellt");
       queryClient.invalidateQueries({ queryKey: ["cash-audits"] });
+      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("cash-audit") });
       onOpenChange(false);
       reset();
     } catch (err: any) {
@@ -158,17 +261,21 @@ export function CreateAuditDialog({ open, onOpenChange }: CreateAuditDialogProps
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Kassenprüfung erstellen</DialogTitle>
+          <DialogTitle>{isEdit ? "Kassenprüfung bearbeiten" : "Kassenprüfung erstellen"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Liegenschaft</Label>
-              <Select value={selectedBuildingId} onValueChange={(v) => { setSelectedBuildingId(v); setSelectedPeriodId(""); setSelectedContactId(""); }}>
+              <Select
+                value={selectedBuildingId}
+                onValueChange={(v) => { setSelectedBuildingId(v); if (!isEdit) { setSelectedPeriodId(""); setSelectedContactId(""); } }}
+                disabled={isEdit}
+              >
                 <SelectTrigger><SelectValue placeholder="Wählen..." /></SelectTrigger>
                 <SelectContent>
                   {buildings.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
@@ -177,7 +284,7 @@ export function CreateAuditDialog({ open, onOpenChange }: CreateAuditDialogProps
             </div>
             <div>
               <Label>Abrechnungsjahr</Label>
-              <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId} disabled={!selectedBuildingId}>
+              <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId} disabled={!selectedBuildingId || isEdit}>
                 <SelectTrigger><SelectValue placeholder="Wählen..." /></SelectTrigger>
                 <SelectContent>
                   {periods.map((p) => <SelectItem key={p.id} value={p.id}>{p.fiscal_year}</SelectItem>)}
@@ -207,12 +314,50 @@ export function CreateAuditDialog({ open, onOpenChange }: CreateAuditDialogProps
               <Upload className="h-4 w-4" /> Kontoauszüge (PDF)
             </Label>
             <p className="text-xs text-muted-foreground">Diese PDFs werden dem Prüfer anstelle der CAMT-Dateien angezeigt.</p>
-            <Input type="file" multiple accept="application/pdf" onChange={handleFileSelect} />
+
+            {/* Drag & Drop zone */}
+            <label
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
+              className={cn(
+                "flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors",
+                isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30"
+              )}
+            >
+              <Upload className="h-6 w-6 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                PDFs hierher ziehen oder <span className="text-primary font-medium">durchsuchen</span>
+              </p>
+              <input type="file" multiple accept="application/pdf" onChange={handleFileSelect} className="hidden" />
+            </label>
+
+            {/* Existing statements (edit mode) */}
+            {existingStatements.filter(s => !removedStatementIds.includes(s.id)).length > 0 && (
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Bereits hochgeladen</p>
+                {existingStatements.filter(s => !removedStatementIds.includes(s.id)).map((s) => (
+                  <div key={s.id} className="flex items-center gap-2 text-sm bg-muted/40 p-2 rounded">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <span className="flex-1 truncate">{s.file_name}</span>
+                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => openExistingStatement(s.file_path)} title="Öffnen">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => setRemovedStatementIds((prev) => [...prev, s.id])} title="Entfernen">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* New file queue */}
             {pdfFiles.length > 0 && (
               <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Neu hinzugefügt</p>
                 {pdfFiles.map((f, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm bg-muted/40 p-2 rounded">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
+                  <div key={i} className="flex items-center gap-2 text-sm bg-primary/5 p-2 rounded">
+                    <FileText className="h-4 w-4 text-primary" />
                     <span className="flex-1 truncate">{f.name}</span>
                     <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setPdfFiles((prev) => prev.filter((_, idx) => idx !== i))}>
                       <Trash2 className="h-3.5 w-3.5" />
@@ -233,14 +378,22 @@ export function CreateAuditDialog({ open, onOpenChange }: CreateAuditDialogProps
             </div>
             <p className="text-xs text-muted-foreground">z.B. „Rechnung XYZ wurde auf Konto 1XXX gebucht, weil…"</p>
             {notes.map((n, i) => (
-              <Card key={i} className="p-3 space-y-2">
+              <Card key={n.id ?? `new-${i}`} className="p-3 space-y-2">
                 <div className="flex gap-2">
                   <Input
                     placeholder="Titel (z.B. Berechnungsmethode Heizkosten)"
                     value={n.title}
                     onChange={(e) => setNotes((prev) => prev.map((x, idx) => idx === i ? { ...x, title: e.target.value } : x))}
                   />
-                  <Button size="icon" variant="ghost" onClick={() => setNotes((prev) => prev.filter((_, idx) => idx !== i))}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      const removed = notes[i];
+                      if (removed?.id) setRemovedNoteIds((prev) => [...prev, removed.id!]);
+                      setNotes((prev) => prev.filter((_, idx) => idx !== i));
+                    }}
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -257,8 +410,8 @@ export function CreateAuditDialog({ open, onOpenChange }: CreateAuditDialogProps
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>
-          <Button onClick={handleCreate} disabled={saving}>
-            {saving ? "Erstelle..." : "Erstellen"}
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? (isEdit ? "Speichere..." : "Erstelle...") : (isEdit ? "Speichern" : "Erstellen")}
           </Button>
         </DialogFooter>
       </DialogContent>
