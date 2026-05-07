@@ -65,15 +65,19 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
     });
   };
 
-  const openViaToken = async (kind: "invoice" | "statement_pdf", id: string, name: string) => {
+  const openInNewTab = (url: string) => {
+    const win = window.open(url, "_blank", "noopener,noreferrer");
+    if (!win) toast.error("Bitte Pop-ups erlauben, um die Datei zu öffnen");
+  };
+
+  const openViaToken = async (kind: "invoice" | "statement_pdf", id: string, _name: string) => {
     try {
       const { data, error } = await supabase.functions.invoke("audit-signed-url", {
         body: { token, kind, id },
       });
       if (error) throw error;
       if ((data as any)?.signedUrl) {
-        setPdfName(name);
-        setPdfUrl((data as any).signedUrl);
+        openInNewTab((data as any).signedUrl);
       } else {
         throw new Error((data as any)?.error || "Konnte Datei nicht öffnen");
       }
@@ -82,14 +86,13 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
     }
   };
 
-  const openViaStorage = async (bucket: string, path: string, name: string) => {
+  const openViaStorage = async (bucket: string, path: string, _name: string) => {
     const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 300);
     if (error || !data?.signedUrl) {
       toast.error("Datei konnte nicht geöffnet werden");
       return;
     }
-    setPdfName(name);
-    setPdfUrl(data.signedUrl);
+    openInNewTab(data.signedUrl);
   };
 
   const openInvoice = (inv: any) => {
