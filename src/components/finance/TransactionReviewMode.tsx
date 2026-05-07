@@ -1146,18 +1146,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         }
       }
 
-      // Update path: row already booked → only update DB record, keep state green, don't advance
-      if (isUpdate) {
-        toast.success("Buchung aktualisiert ✓", { duration: 1500 });
-        queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
-        queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
-        queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
-        setBookingSingle(null);
-        return;
-      }
-
-
-      // Save fuel purchase to fuel_inventory
+      // Save fuel purchase to fuel_inventory (runs on both insert AND update)
       if (row.is_fuel_purchase && row.fuel_type && row.fuel_quantity) {
         const fuelUnit = row.fuel_type === "oil" ? "l"
           : row.fuel_type === "pellets" ? "kg"
@@ -1166,7 +1155,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const totalPrice = parseAmount(row.fuel_total_price) || 0;
         const unitPrice = quantity > 0 ? totalPrice / quantity : 0;
 
-        // Find matching billing period
         const matchingPeriod = billingPeriods.find(bp => {
           const from = new Date(bp.period_from);
           const to = new Date(bp.period_to);
@@ -1182,6 +1170,15 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const co2Emissions = parseAmount(row.fuel_co2_emissions_kg);
         const co2Tax = parseAmount(row.fuel_co2_tax_amount);
         const energyKwh = parseAmount(row.fuel_energy_content_kwh);
+
+        // Avoid duplicates on update: remove prior entries for this invoice
+        if (row.invoice_id) {
+          await supabase.from("fuel_inventory")
+            .delete()
+            .eq("building_id", buildingId)
+            .eq("invoice_id", row.invoice_id)
+            .eq("entry_type", "purchase");
+        }
 
         await supabase.from("fuel_inventory").insert({
           building_id: buildingId,
@@ -1202,7 +1199,21 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           consumption_period_to: row.fuel_consumption_to || row.fuel_date || row.booking_date,
           notes: `Brennstoffkauf ${fuelLabel}: ${quantity} ${fuelUnit}`,
         } as any);
+
+        queryClient.invalidateQueries({ queryKey: ["fuel-inventory"] });
+        queryClient.invalidateQueries({ queryKey: ["fuel-bookings"] });
       }
+
+      // Update path: row already booked → only update DB record, keep state green, don't advance
+      if (isUpdate) {
+        toast.success("Buchung aktualisiert ✓", { duration: 1500 });
+        queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
+        queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+        queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+        setBookingSingle(null);
+        return;
+      }
+
 
       // Track created booking ids for this txn (for undo)
       pendingBookingIdsRef.current[currentTxn.id] = [
