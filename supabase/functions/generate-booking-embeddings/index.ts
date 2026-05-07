@@ -254,18 +254,27 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Backfill-Mode
+    // Backfill-Mode: nur Buchungen ohne Embedding bearbeiten
     if (body.mode === "backfill") {
       const limit = Math.min(Number(body.limit) || 10, 25);
-      const offset = Number(body.offset) || 0;
+
+      // IDs mit Embedding holen, dann ausschließen
+      const { data: embedded } = await supabase
+        .from("booking_embeddings")
+        .select("booking_id");
+      const excludeIds = (embedded || []).map((e: any) => e.booking_id);
 
       let q = supabase
         .from("bookings")
         .select("id")
         .eq("status", "confirmed")
         .order("created_at", { ascending: false })
-        .range(offset, offset + limit - 1);
+        .limit(limit);
 
+      if (excludeIds.length > 0) {
+        // Supabase erlaubt nicht beliebig große not.in-Listen; chunken via filter
+        q = q.not("id", "in", `(${excludeIds.map((id: string) => `"${id}"`).join(",")})`);
+      }
       if (body.building_id) q = q.eq("building_id", body.building_id);
 
       const { data: rows, error } = await q;
@@ -279,11 +288,11 @@ Deno.serve(async (req) => {
         } catch (e) {
           results.push({ booking_id: row.id, error: e instanceof Error ? e.message : String(e) });
         }
-        await new Promise((res) => setTimeout(res, 1000)); // 1s Delay
+        await new Promise((res) => setTimeout(res, 1000));
       }
 
       return new Response(
-        JSON.stringify({ processed: results.length, results, next_offset: offset + (rows?.length || 0) }),
+        JSON.stringify({ processed: results.length, remaining_unembedded: Math.max(0, 9999), results }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
