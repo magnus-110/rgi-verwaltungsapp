@@ -210,14 +210,15 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const allShareTypes = [...SHARE_TYPES, ...customShareTypes.map(t => ({ value: t, label: t }))];
 
   const { data: assignments = [], refetch } = useQuery({
-    queryKey: ['building-contact-assignments', buildingId],
+    queryKey: ['building-contact-assignments', buildingId, managementMode],
     queryFn: async () => {
+      const roleFilter: ("eigentuemer" | "beirat" | "mieter")[] = managementMode === 'rent' ? ["mieter"] : ["eigentuemer", "beirat"];
       const { data: assignData, error } = await supabase
         .from("contact_building_assignments")
         .select("*, contact:contacts(id, salutation, first_name, last_name, company_name, address_street, address_zip, address_city)")
         .eq("building_id", buildingId)
         .eq("is_active", true)
-        .in("role_in_building", ["eigentuemer", "beirat"])
+        .in("role_in_building", roleFilter)
         .order("unit_number", { ascending: true, nullsFirst: false });
       
       if (error || !assignData) return [];
