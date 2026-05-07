@@ -543,31 +543,6 @@ export function Transfers() {
                           <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/10">RGI</Badge>
                         ) : ((inv as any).buildings?.name || "–")}
                       </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        {(inv as any).ocr_status === "processing" && (
-                          <Badge variant="outline" className="text-xs gap-1 text-primary border-primary/30">
-                            <Loader2 className="h-3 w-3 animate-spin" /> Läuft
-                          </Badge>
-                        )}
-                        {(inv as any).ocr_status === "done" && (
-                          <Badge variant="outline" className="text-xs gap-1 text-success border-success/30">
-                            <Sparkles className="h-3 w-3" /> Fertig
-                          </Badge>
-                        )}
-                        {(!(inv as any).ocr_status || (inv as any).ocr_status === "pending" || (inv as any).ocr_status === "error") && (
-                          <Button
-                            variant="outline" size="sm"
-                            className="h-7 px-2 text-xs text-warning border-warning/30"
-                            disabled={retryingOcr === inv.id || retryingOcr === "all"}
-                            onClick={() => retryOcr(inv.id, (inv as any).is_company_invoice)}
-                          >
-                            {retryingOcr === inv.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
-                            Starten
-                          </Button>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {isPaid ? (
                           <div className="flex flex-col gap-0.5">
                             <Badge className="text-xs w-fit bg-success/15 text-success border-success/30 hover:bg-success/20" variant="outline">
                               ✓ Bezahlt
