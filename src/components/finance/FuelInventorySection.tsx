@@ -79,6 +79,40 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
     },
   });
 
+  // Buchungen auf Brennstoffkonten (1410), die noch keinen Inventar-Eintrag haben
+  const { data: fuelBookings = [] } = useQuery({
+    queryKey: ["fuel-bookings", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data: accounts } = await supabase
+        .from("chart_of_accounts")
+        .select("id, account_number, account_name")
+        .eq("building_id", buildingId)
+        .like("account_number", "1410");
+      const ids = (accounts || []).map((a: any) => a.id);
+      if (ids.length === 0) return [];
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("id, booking_date, amount, description, invoice_id, account_id, counter_account_id")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear)
+        .neq("status", "cancelled")
+        .or(`account_id.in.(${ids.join(",")}),counter_account_id.in.(${ids.join(",")})`)
+        .order("booking_date");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Buchungen ohne korrespondierenden Inventar-Eintrag (Match: Datum + Betrag oder invoice_id)
+  const unmatchedFuelBookings = fuelBookings.filter((b: any) => {
+    return !allEntries.some((e: any) => {
+      if (e.invoice_id && b.invoice_id && e.invoice_id === b.invoice_id) return true;
+      const sameDate = e.entry_date === b.booking_date;
+      const sameAmount = Math.abs(Number(e.total_price) - Math.abs(Number(b.amount))) < 0.01;
+      return sameDate && sameAmount && e.entry_type === "purchase";
+    });
+  });
+
   const hasMultipleUnits = heatingUnits.length >= 2;
   const entries = hasMultipleUnits && activeUnitId !== "__all__"
     ? allEntries.filter((e: any) => e.heating_unit_id === activeUnitId || (activeUnitId === "__none__" && !e.heating_unit_id))
@@ -190,6 +224,40 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
     return heatingUnits.find((u: any) => u.id === id)?.name ?? "?";
   };
 
+  const createFromBooking = async (b: any) => {
+    let preselectedUnit: string | null = null;
+    let preselectedFuelType = "oil";
+    if (heatingUnits.length === 1) {
+      preselectedUnit = heatingUnits[0].id;
+      preselectedFuelType = heatingUnits[0].fuel_type;
+    } else if (hasMultipleUnits && activeUnitId !== "__all__" && activeUnitId !== "__none__") {
+      preselectedUnit = activeUnitId;
+      const u = heatingUnits.find((h: any) => h.id === activeUnitId);
+      if (u) preselectedFuelType = u.fuel_type;
+    }
+    if (hasMultipleUnits && !preselectedUnit) {
+      toast.error("Bitte zuerst Heizkreis-Tab wählen");
+      return;
+    }
+    const fuelUnit = FUEL_TYPES.find((f) => f.value === preselectedFuelType)?.unit ?? "l";
+    const { error } = await supabase.from("fuel_inventory").insert({
+      building_id: buildingId,
+      billing_period_id: periodId,
+      heating_unit_id: preselectedUnit,
+      fuel_type: preselectedFuelType,
+      entry_type: "purchase",
+      entry_date: b.booking_date,
+      quantity: 0,
+      unit: fuelUnit,
+      total_price: Math.abs(Number(b.amount)),
+      invoice_id: b.invoice_id || null,
+      notes: `Aus Buchung: ${b.description || ""}`.slice(0, 250),
+    });
+    if (error) { toast.error("Fehler: " + error.message); return; }
+    toast.success("Eintrag aus Buchung erstellt – bitte Menge & ggf. CO₂-Daten ergänzen");
+    queryClient.invalidateQueries({ queryKey: ["fuel-inventory"] });
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -220,6 +288,33 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
               )}
             </TabsList>
           </Tabs>
+        )}
+
+        {/* Hinweis: Buchungen auf 1410 ohne Inventar-Eintrag */}
+        {unmatchedFuelBookings.length > 0 && (
+          <div className="rounded-md border border-amber-300 bg-amber-50/60 p-3 space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium text-amber-900">
+              <AlertTriangle className="h-4 w-4" />
+              {unmatchedFuelBookings.length} Brennstoff-Buchung{unmatchedFuelBookings.length > 1 ? "en" : ""} ohne Bestandseintrag
+            </div>
+            <p className="text-xs text-amber-800">
+              Diese Buchungen auf Konto 1410 (Brennstoffkauf) sind noch nicht im Brennstoffbestand erfasst. Bitte ergänze nach dem Anlegen die Menge und ggf. die CO₂-Daten aus der Rechnung.
+            </p>
+            <div className="space-y-1">
+              {unmatchedFuelBookings.map((b: any) => (
+                <div key={b.id} className="flex items-center justify-between gap-2 text-xs bg-white/60 rounded px-2 py-1.5">
+                  <div className="min-w-0 flex-1">
+                    <span className="font-mono">{new Date(b.booking_date).toLocaleDateString("de-DE")}</span>
+                    <span className="ml-2 font-mono font-semibold">{formatCurrency(Math.abs(Number(b.amount)))}</span>
+                    <span className="ml-2 text-muted-foreground truncate">{b.description}</span>
+                  </div>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => createFromBooking(b)}>
+                    <Plus className="h-3 w-3 mr-1" />Als Einkauf erfassen
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
         {/* Plausibilitäts-Badges */}
