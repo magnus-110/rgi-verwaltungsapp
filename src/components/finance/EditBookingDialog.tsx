@@ -330,6 +330,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       return;
     }
     setSaving(true);
+    try {
     const newInvoiceId = form.invoice_id || null;
     const oldInvoiceId = booking.invoice_id || null;
     const { error } = await supabase.from("bookings").update({
@@ -349,7 +350,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       line_items_detail: form.line_items_detail,
       invoice_id: newInvoiceId,
     }).eq("id", booking.id);
-    if (error) { setSaving(false); toast.error("Fehler: " + error.message); return; }
+    if (error) throw error;
 
     // Sync linked bank transaction (Kontoauszug) so re-assignment is consistent
     const txnId = (booking as any).bank_transaction_id;
@@ -426,6 +427,11 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       const key = query.queryKey[0] as string;
       return key.startsWith("bookings") || key.startsWith("bank-transactions") || key.startsWith("invoices");
     }});
+    } catch (err: any) {
+      toast.error("Fehler: " + (err?.message || "Buchung konnte nicht gespeichert werden"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Enter-Navigation: focus next focusable input/combobox
