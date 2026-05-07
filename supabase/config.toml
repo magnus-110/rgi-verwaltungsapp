@@ -159,3 +159,13 @@ verify_jwt = true
 
 [functions.generate-booking-embeddings]
 verify_jwt = false
+
+[functions.send-push]
+verify_jwt = false
+
+[functions.notify-pending]
+verify_jwt = false
+
+
+[functions.get-vapid-public-key]
+verify_jwt = false
