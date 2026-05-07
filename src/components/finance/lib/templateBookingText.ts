@@ -4,7 +4,7 @@ import { buildBookingText } from "./bookingTextBuilder";
  * Generiert den Buchungstext für eine Vorlagen-basierte Buchung.
  *
  * Standard-Schema (RGI):
- *   "MM/JJ Re. Nr. <invoice_number> <Lieferant> <Gegenkonto>"
+ *   "MM/JJ <Gegenkonto> <Lieferant>, Re. Nr. <invoice_number>"
  * Bestandteile, die fehlen, werden weggelassen.
  *
  * Sonderregel Hausgeld (HG):
