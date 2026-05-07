@@ -92,6 +92,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const [docPickerOpen, setDocPickerOpen] = useState(false);
   const [docSearch, setDocSearch] = useState("");
   const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [isDocDragging, setIsDocDragging] = useState(false);
   const docFileInputRef = useRef<HTMLInputElement>(null);
   const { managementMode } = useManagementMode();
 
@@ -224,9 +225,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
     setPreviewPdfUrl(signed.signedUrl);
   };
 
-  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const uploadDocFile = async (file: File) => {
     if (!form.building_id) {
       toast.error("Bitte zuerst Liegenschaft wählen");
       return;
@@ -265,8 +264,23 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
       toast.error("Upload fehlgeschlagen: " + (err.message || ""));
     } finally {
       setUploadingDoc(false);
-      if (docFileInputRef.current) docFileInputRef.current.value = "";
     }
+  };
+
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadDocFile(file);
+    if (docFileInputRef.current) docFileInputRef.current.value = "";
+  };
+
+  const handleDocDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDocDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    await uploadDocFile(file);
   };
 
   const applyPreset = (presetId: string) => {
@@ -618,7 +632,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6">
+          <div className="space-y-4 [&_input:not([type=checkbox]):not([type=radio]):not([type=file])]:bg-background [&_input:not([type=checkbox]):not([type=radio]):not([type=file])]:border-2 [&_input:not([type=checkbox]):not([type=radio]):not([type=file])]:border-input [&_input:not([type=checkbox]):not([type=radio]):not([type=file])]:focus-visible:border-primary [&_button[role=combobox]]:bg-background [&_button[role=combobox]]:border-2 [&_[data-radix-select-trigger]]:bg-background [&_[data-radix-select-trigger]]:border-2">
             {/* === Preset Selector (only for new templates) === */}
             {!editingId && presets.length > 0 && (
               <div className="space-y-2">
@@ -715,9 +729,9 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
             )}
 
             {/* === Section 1: Grunddaten === */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <Settings2 className="h-4 w-4 text-muted-foreground" />
+            <div className="space-y-3 rounded-lg border border-l-4 border-l-blue-500 bg-blue-50/40 dark:bg-blue-950/20 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-blue-700 dark:text-blue-300">
+                <Settings2 className="h-4 w-4" />
                 Grunddaten
               </div>
               <div>
@@ -753,12 +767,10 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
               </div>
             </div>
 
-            <Separator />
-
             {/* === Section 2: Kreditor === */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <CreditCard className="h-4 w-4 text-muted-foreground" />
+            <div className="space-y-3 rounded-lg border border-l-4 border-l-purple-500 bg-purple-50/40 dark:bg-purple-950/20 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-purple-700 dark:text-purple-300">
+                <CreditCard className="h-4 w-4" />
                 Kreditor / Zahlungsempfänger
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -773,12 +785,10 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
               </div>
             </div>
 
-            <Separator />
-
             {/* === Section 3: Betrag & Buchung === */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <Receipt className="h-4 w-4 text-muted-foreground" />
+            <div className="space-y-3 rounded-lg border border-l-4 border-l-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                <Receipt className="h-4 w-4" />
                 Betrag & Buchung
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -847,12 +857,10 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
               </div>
             </div>
 
-            <Separator />
-
             {/* === Section 4: Zeitraum & Intervall === */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+            <div className="space-y-3 rounded-lg border border-l-4 border-l-amber-500 bg-amber-50/40 dark:bg-amber-950/20 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300">
+                <CalendarDays className="h-4 w-4" />
                 Zeitraum & Intervall
               </div>
               <div className="grid grid-cols-3 gap-4">
@@ -879,12 +887,10 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
               </div>
             </div>
 
-            <Separator />
-
             {/* === Section 5: Verknüpfte Rechnung === */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <FileText className="h-4 w-4 text-muted-foreground" />
+            <div className="space-y-3 rounded-lg border border-l-4 border-l-rose-500 bg-rose-50/40 dark:bg-rose-950/20 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-rose-700 dark:text-rose-300">
+                <FileText className="h-4 w-4" />
                 Verknüpfte Rechnung
                 <span className="text-xs font-normal text-muted-foreground">(optional)</span>
               </div>
@@ -986,17 +992,15 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
               </Popover>
             </div>
 
-            <Separator />
-
             {/* === Section 6: Verknüpftes Dokument === */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <FileText className="h-4 w-4 text-muted-foreground" />
+            <div className="space-y-3 rounded-lg border border-l-4 border-l-cyan-500 bg-cyan-50/40 dark:bg-cyan-950/20 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-cyan-700 dark:text-cyan-300">
+                <FileText className="h-4 w-4" />
                 Verknüpftes Dokument
                 <span className="text-xs font-normal text-muted-foreground">(optional)</span>
               </div>
               <p className="text-xs text-muted-foreground -mt-1">
-                z.B. Wirtschaftsplan mit den Hausgeldern als Nachweis. Aus dem DMS auswählen oder neu hochladen.
+                z.B. Wirtschaftsplan mit den Hausgeldern als Nachweis. Aus dem DMS auswählen, neu hochladen oder direkt hierher ziehen.
               </p>
 
               <input
@@ -1091,19 +1095,42 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                     </Button>
                   </>
                 )}
+              </div>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => docFileInputRef.current?.click()}
-                  disabled={!form.building_id || uploadingDoc}
-                  title="Neues Dokument hochladen"
-                >
-                  {uploadingDoc ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                  {!uploadingDoc && "Hochladen"}
-                </Button>
+              {/* Drag & Drop Zone */}
+              <div
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); if (form.building_id && !uploadingDoc) setIsDocDragging(true); }}
+                onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); if (form.building_id && !uploadingDoc) setIsDocDragging(true); }}
+                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDocDragging(false); }}
+                onDrop={handleDocDrop}
+                onClick={() => { if (form.building_id && !uploadingDoc) docFileInputRef.current?.click(); }}
+                className={cn(
+                  "rounded-md border-2 border-dashed px-4 py-6 flex flex-col items-center justify-center gap-1 text-center transition-colors cursor-pointer",
+                  isDocDragging
+                    ? "border-cyan-500 bg-cyan-100/60 dark:bg-cyan-900/30"
+                    : "border-cyan-300/70 dark:border-cyan-800 bg-background/60 hover:bg-cyan-50/60 dark:hover:bg-cyan-950/30",
+                  (!form.building_id || uploadingDoc) && "opacity-60 cursor-not-allowed"
+                )}
+              >
+                {uploadingDoc ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin text-cyan-600" />
+                    <span className="text-xs text-muted-foreground">Wird hochgeladen…</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+                    <span className="text-sm font-medium">
+                      {isDocDragging ? "Datei hier ablegen" : "Datei hierher ziehen oder klicken"}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      PDF, Word, Excel oder Bild · max. 50 MB
+                    </span>
+                  </>
+                )}
               </div>
             </div>
+
           </div>
 
           {previewPdfUrl && (
