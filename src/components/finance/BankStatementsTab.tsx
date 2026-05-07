@@ -382,6 +382,20 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     }
   };
 
+  // Sync any booking already linked to this transaction so its invoice_id stays consistent
+  const syncBookingInvoice = async (txnId: string, invoiceId: string | null) => {
+    const { data: linkedBookings } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("bank_transaction_id", txnId);
+    if (linkedBookings && linkedBookings.length > 0) {
+      await supabase
+        .from("bookings")
+        .update({ invoice_id: invoiceId })
+        .eq("bank_transaction_id", txnId);
+    }
+  };
+
   const removeAssignment = async (txnId: string) => {
     const { error } = await supabase.from("bank_transactions").update({
       match_status: "unmatched",
@@ -390,9 +404,11 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     }).eq("id", txnId);
     if (error) { toast.error("Fehler beim Entfernen der Zuordnung"); }
     else {
+      await syncBookingInvoice(txnId, null);
       toast.success("Zuordnung entfernt");
       queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
       queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("bookings") });
     }
   };
 
