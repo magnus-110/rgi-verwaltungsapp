@@ -20,6 +20,7 @@ const STATUS_MAP: Record<string, { label: string; icon: any; className: string }
 export function CashAuditTab() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
+  const [editAuditId, setEditAuditId] = useState<string | null>(null);
   const [selectedAuditId, setSelectedAuditId] = useState<string | null>(null);
 
   const { data: audits = [], isLoading } = useQuery({
