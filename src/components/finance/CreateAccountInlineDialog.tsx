@@ -22,7 +22,7 @@ export function CreateAccountInlineDialog({ open, onOpenChange, buildingId, onCr
   const [form, setForm] = useState({
     account_number: "",
     account_name: "",
-    category: "Ausgabe",
+    category: "1. Umlagefähige Betriebskosten",
     scope: "building" as "building" | "global",
     default_vat_rate: "19",
     is_billing_relevant: true,
@@ -40,7 +40,7 @@ export function CreateAccountInlineDialog({ open, onOpenChange, buildingId, onCr
   useEffect(() => {
     if (open) {
       setForm({
-        account_number: "", account_name: "", category: "Ausgabe",
+        account_number: "", account_name: "", category: "1. Umlagefähige Betriebskosten",
         scope: buildingId ? "building" : "global",
         default_vat_rate: "19", is_billing_relevant: true, is_distributable: false,
         is_heating_relevant: false, is_wirtschaftsplan_relevant: false, is_35a_relevant: false,
@@ -125,11 +125,12 @@ export function CreateAccountInlineDialog({ open, onOpenChange, buildingId, onCr
               <Select value={form.category} onValueChange={v => update("category", v)}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Ausgabe">Ausgabe</SelectItem>
-                  <SelectItem value="Einnahme">Einnahme</SelectItem>
-                  <SelectItem value="Bankkonto">Bankkonto</SelectItem>
-                  <SelectItem value="Rücklage">Rücklage</SelectItem>
-                  <SelectItem value="Sonstiges">Sonstiges</SelectItem>
+                  <SelectItem value="1. Umlagefähige Betriebskosten">1. Umlagefähige Betriebskosten</SelectItem>
+                  <SelectItem value="2. Heizung & Warme BK">2. Heizung & Warme BK</SelectItem>
+                  <SelectItem value="3. Verwaltung & Instandhaltung">3. Verwaltung & Instandhaltung</SelectItem>
+                  <SelectItem value="4. WEG-Systemkonten & Rücklagen">4. WEG-Systemkonten & Rücklagen</SelectItem>
+                  <SelectItem value="5. Eröffnungen & Abgrenzung">5. Eröffnungen & Abgrenzung</SelectItem>
+                  <SelectItem value="0. Personenkonten">0. Personenkonten</SelectItem>
                 </SelectContent>
               </Select>
             </div>

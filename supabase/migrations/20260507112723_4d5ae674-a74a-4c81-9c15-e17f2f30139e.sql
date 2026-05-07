@@ -1,0 +1,1 @@
+UPDATE chart_of_accounts SET category='1. Umlagefähige Betriebskosten' WHERE account_number='1071' AND category='Ausgabe';
