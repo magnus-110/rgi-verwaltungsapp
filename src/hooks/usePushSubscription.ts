@@ -24,6 +24,7 @@ export type PushPermissionState = NotificationPermission | "unsupported";
 export interface PushDiagnostics {
   swRegistered: boolean;
   swActive: boolean;
+  swVersion: string | null;
   lastPushReceivedAt: number | null;
 }
 
