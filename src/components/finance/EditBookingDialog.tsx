@@ -251,6 +251,30 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     }});
   };
 
+  // Enter-Navigation: focus next focusable input/combobox
+  const focusNext = (currentEl: HTMLElement | null) => {
+    if (!currentEl) return;
+    const container = currentEl.closest("[data-edit-booking-form]") as HTMLElement | null;
+    if (!container) return;
+    const focusables = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [role="combobox"]:not([disabled]), button[data-edit-booking-save]'
+      )
+    ).filter(el => el.offsetParent !== null);
+    const idx = focusables.indexOf(currentEl);
+    const next = focusables[idx + 1];
+    if (next) {
+      next.focus();
+      if (next.getAttribute("role") === "combobox") next.click();
+    }
+  };
+  const handleEnterToNext = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      focusNext(e.target as HTMLElement);
+    }
+  };
+
   const invoiceLineItems = useMemo(() => {
     if (!invoiceDetail?.line_items) return [];
     const items = (invoiceDetail as any).line_items;
