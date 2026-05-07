@@ -249,6 +249,7 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
                             <TableHead className="py-1.5 px-3 h-8">Buchungstext</TableHead>
                             <TableHead className="py-1.5 px-3 h-8">Gegenkonto</TableHead>
                             <TableHead className="py-1.5 px-3 h-8 text-right">Betrag</TableHead>
+                            <TableHead className="py-1.5 px-3 h-8 w-10"></TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
