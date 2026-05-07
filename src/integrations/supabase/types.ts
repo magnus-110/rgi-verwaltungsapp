@@ -7338,6 +7338,7 @@ export type Database = {
         | "hobby_room"
         | "garden"
         | "other"
+        | "commercial"
       utility_type: "gas" | "strom" | "wasser" | "fernwaerme"
     }
     CompositeTypes: {
@@ -7550,6 +7551,7 @@ export const Constants = {
         "hobby_room",
         "garden",
         "other",
+        "commercial",
       ],
       utility_type: ["gas", "strom", "wasser", "fernwaerme"],
     },

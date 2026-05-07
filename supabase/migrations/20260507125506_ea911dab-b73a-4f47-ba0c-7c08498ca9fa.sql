@@ -1,0 +1,1 @@
+ALTER TYPE public.unit_kind ADD VALUE IF NOT EXISTS 'commercial';
