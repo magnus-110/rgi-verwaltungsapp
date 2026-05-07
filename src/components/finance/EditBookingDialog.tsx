@@ -119,6 +119,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
         fuel_quantity: "",
         fuel_total_price: "",
         fuel_date: "",
+        invoice_id: booking.invoice_id || "",
       });
     }
   }, [open, booking]);
