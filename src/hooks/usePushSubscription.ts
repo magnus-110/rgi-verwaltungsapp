@@ -53,9 +53,22 @@ export function usePushSubscription() {
       try {
         const reg = await navigator.serviceWorker.getRegistration("/sw.js")
           ?? await navigator.serviceWorker.ready;
+        // Force update check so a new sw.js is fetched
+        try { await reg.update(); } catch (_) {}
         const sub = await reg.pushManager.getSubscription();
         setSubscribed(!!sub);
         setDiagnostics((d) => ({ ...d, swRegistered: !!reg, swActive: !!reg.active }));
+        // Ping active worker for version
+        const target = reg.active || navigator.serviceWorker.controller;
+        if (target) {
+          const mc = new MessageChannel();
+          mc.port1.onmessage = (ev) => {
+            if (ev.data?.type === "pong") {
+              setDiagnostics((d) => ({ ...d, swVersion: ev.data.version || "unknown" }));
+            }
+          };
+          target.postMessage({ type: "ping" }, [mc.port2]);
+        }
       } catch (_) {}
     })();
 
