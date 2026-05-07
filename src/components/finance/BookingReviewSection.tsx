@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAccountAggregation, CATEGORY_LABELS } from "./lib/useAccountAggregation";
 import { EditBookingDialog } from "./EditBookingDialog";
-import { useQueryClient } from "@tanstack/react-query";
+
 
 interface BookingReviewSectionProps {
   buildingId: string;
