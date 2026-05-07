@@ -79,6 +79,40 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
     },
   });
 
+  // Buchungen auf Brennstoffkonten (1410), die noch keinen Inventar-Eintrag haben
+  const { data: fuelBookings = [] } = useQuery({
+    queryKey: ["fuel-bookings", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data: accounts } = await supabase
+        .from("chart_of_accounts")
+        .select("id, account_number, account_name")
+        .eq("building_id", buildingId)
+        .like("account_number", "1410");
+      const ids = (accounts || []).map((a: any) => a.id);
+      if (ids.length === 0) return [];
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("id, booking_date, amount, description, invoice_id, account_id, counter_account_id")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear)
+        .neq("status", "cancelled")
+        .or(`account_id.in.(${ids.join(",")}),counter_account_id.in.(${ids.join(",")})`)
+        .order("booking_date");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Buchungen ohne korrespondierenden Inventar-Eintrag (Match: Datum + Betrag oder invoice_id)
+  const unmatchedFuelBookings = fuelBookings.filter((b: any) => {
+    return !allEntries.some((e: any) => {
+      if (e.invoice_id && b.invoice_id && e.invoice_id === b.invoice_id) return true;
+      const sameDate = e.entry_date === b.booking_date;
+      const sameAmount = Math.abs(Number(e.total_price) - Math.abs(Number(b.amount))) < 0.01;
+      return sameDate && sameAmount && e.entry_type === "purchase";
+    });
+  });
+
   const hasMultipleUnits = heatingUnits.length >= 2;
   const entries = hasMultipleUnits && activeUnitId !== "__all__"
     ? allEntries.filter((e: any) => e.heating_unit_id === activeUnitId || (activeUnitId === "__none__" && !e.heating_unit_id))
