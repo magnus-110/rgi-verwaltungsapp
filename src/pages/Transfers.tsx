@@ -129,7 +129,7 @@ export function Transfers() {
 
   // ───────── INCOMING (Belege für Zahlungseingänge) ─────────
   const { data: incomingInvoices = [], refetch: refetchIncoming } = useQuery({
-    queryKey: ["transfer-invoices-incoming", buildingFilter],
+    queryKey: ["transfer-invoices-incoming", buildingFilter, periodFrom, periodTo],
     enabled: direction === "incoming",
     queryFn: async () => {
       let query = supabase
@@ -141,6 +141,8 @@ export function Transfers() {
       if (buildingFilter !== "all" && buildingFilter !== "company") {
         query = query.eq("building_id", buildingFilter);
       }
+      if (periodFrom) query = query.gte("invoice_date", periodFrom);
+      if (periodTo) query = query.lte("invoice_date", periodTo);
       const { data, error } = await query;
       if (error) throw error;
       const invs = data || [];
