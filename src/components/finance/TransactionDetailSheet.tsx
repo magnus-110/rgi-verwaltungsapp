@@ -25,6 +25,8 @@ const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: 
 };
 
 export function TransactionDetailSheet({ transactionId, onClose }: TransactionDetailSheetProps) {
+  const queryClient = useQueryClient();
+  const [editBooking, setEditBooking] = useState<any | null>(null);
   const { data: txn } = useQuery({
     queryKey: ["bank-transaction-detail", transactionId],
     queryFn: async () => {
