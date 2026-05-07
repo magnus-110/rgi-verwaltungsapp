@@ -72,6 +72,27 @@ export function TransactionDetailSheet({ transactionId, onClose }: TransactionDe
     enabled: !!txn?.matched_template_id,
   });
 
+  const { data: booking } = useQuery({
+    queryKey: ["txn-booking", (txn as any)?.booking_id],
+    queryFn: async () => {
+      const bid = (txn as any)?.booking_id;
+      if (!bid) return null;
+      const { data, error } = await supabase
+        .from("bookings")
+        .select(`
+          *,
+          chart_of_accounts!bookings_account_id_fkey(id, account_number, account_name, category),
+          counter_account:chart_of_accounts!bookings_counter_account_id_fkey(id, account_number, account_name, category),
+          buildings!bookings_building_id_fkey(id, name)
+        `)
+        .eq("id", bid)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!(txn as any)?.booking_id,
+  });
+
   const openInvoicePdf = async () => {
     if (!invoice?.file_path) {
       toast.error("Keine PDF-Datei vorhanden");
