@@ -201,7 +201,6 @@ export function usePushSubscription() {
       const reg = await navigator.serviceWorker.ready;
       await reg.showNotification("Lokaler Test", {
         body: "Diese Benachrichtigung wurde direkt vom Browser angezeigt.",
-        icon: "/lovable-uploads/6a67de24-d14d-44a0-8b78-b3cf0608cc46.png",
         badge: "/lovable-uploads/6a67de24-d14d-44a0-8b78-b3cf0608cc46.png",
         tag: "local-test",
       });

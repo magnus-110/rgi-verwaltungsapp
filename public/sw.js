@@ -1,6 +1,5 @@
 // Service Worker for handling push notifications
-const SW_VERSION = 'rgi-sw-v5-2026-05-07';
-const ICON = '/lovable-uploads/6a67de24-d14d-44a0-8b78-b3cf0608cc46.png';
+const SW_VERSION = 'rgi-sw-v6-2026-05-07';
 const BADGE = '/lovable-uploads/6a67de24-d14d-44a0-8b78-b3cf0608cc46.png';
 
 self.addEventListener('install', (event) => {
@@ -38,7 +37,6 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'RGI Immobilien';
   const options = {
     body: data.body || '',
-    icon: data.icon || ICON,
     badge: data.badge || BADGE,
     tag: data.tag || data.dedup_key || 'rgi-default',
     renotify: true,
