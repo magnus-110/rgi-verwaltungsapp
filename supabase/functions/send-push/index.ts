@@ -1,6 +1,8 @@
 // Send Web-Push notifications to users (with deduplication + per-device diagnostics)
+// Uses jsr:@negrel/webpush which is Deno-native (Web Crypto) — npm:web-push has a known
+// AES-GCM bug in Deno (denoland/deno#23693) that causes silent decryption failures in browsers.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import webpush from "npm:web-push@3.6.7";
+import * as webpush from "jsr:@negrel/webpush@^0.5.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,20 +26,67 @@ const VAPID_PUBLIC = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE_KEY")!;
 const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") ?? "mailto:info@rgi-immobilien.de";
 
-webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
-
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
+function b64urlToBytes(b64url: string): Uint8Array {
+  const b64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
+  const bin = atob(b64 + pad);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function bytesToB64url(bytes: Uint8Array): string {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * Convert raw base64url VAPID keys (the format produced by `web-push generate-vapid-keys`)
+ * into the JWK format expected by @negrel/webpush.
+ *  - publicKey: 65 bytes uncompressed point (0x04 || X[32] || Y[32])
+ *  - privateKey: 32-byte scalar
+ */
+function buildVapidJwks(publicB64url: string, privateB64url: string) {
+  const pub = b64urlToBytes(publicB64url);
+  if (pub.length !== 65 || pub[0] !== 0x04) {
+    throw new Error(`VAPID_PUBLIC_KEY must be 65-byte uncompressed P-256 (got ${pub.length} bytes)`);
+  }
+  const x = bytesToB64url(pub.slice(1, 33));
+  const y = bytesToB64url(pub.slice(33, 65));
+  const d = bytesToB64url(b64urlToBytes(privateB64url));
+  return {
+    publicKey: { kty: "EC", crv: "P-256", x, y, ext: true } as JsonWebKey,
+    privateKey: { kty: "EC", crv: "P-256", x, y, d, ext: true } as JsonWebKey,
+  };
+}
+
 async function sha256Hex(input: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
-
 function fingerprint(hex: string): string {
   return hex.slice(0, 12);
+}
+
+// --- Lazy app-server initialization (so a key error returns a clean response, not a boot crash) ---
+let appServerPromise: Promise<webpush.ApplicationServer> | null = null;
+function getAppServer(): Promise<webpush.ApplicationServer> {
+  if (!appServerPromise) {
+    appServerPromise = (async () => {
+      const jwks = buildVapidJwks(VAPID_PUBLIC, VAPID_PRIVATE);
+      const vapidKeys = await webpush.importVapidKeys(jwks, { extractable: false });
+      return await webpush.ApplicationServer.new({
+        contactInformation: VAPID_SUBJECT,
+        vapidKeys,
+      });
+    })();
+  }
+  return appServerPromise;
 }
 
 function inQuietHours(start?: string | null, end?: string | null): boolean {
@@ -67,12 +116,13 @@ Deno.serve(async (req) => {
     }
 
     const serverVapidFp = fingerprint(await sha256Hex(VAPID_PUBLIC));
+    const appServer = await getAppServer();
 
     let totalSent = 0;
     const results: Record<string, any> = {};
 
     for (const userId of user_ids) {
-      // Dedup (skipped for "test" so wiederholte Tests immer durchgehen)
+      // Dedup (skipped for "test")
       if (type !== "test") {
         const { data: existing } = await supabase
           .from("notification_log")
@@ -141,10 +191,12 @@ Deno.serve(async (req) => {
         }
 
         try {
-          await webpush.sendNotification(
-            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            notif,
-          );
+          const subscriber = appServer.subscribe({
+            endpoint: sub.endpoint,
+            keys: { p256dh: sub.p256dh, auth: sub.auth },
+            // expirationTime is optional/null
+          } as any);
+          await subscriber.pushTextMessage(notif, {});
           userSent++;
           await supabase.from("push_subscriptions").update({
             last_used_at: new Date().toISOString(),
@@ -159,8 +211,17 @@ Deno.serve(async (req) => {
             status: "sent",
           });
         } catch (err: any) {
-          const code = err?.statusCode;
-          console.error("push error", code, err?.body);
+          // @negrel/webpush throws PushMessageError with .response (Response object) on HTTP errors
+          let code: number | null = null;
+          let bodyText = "";
+          try {
+            if (err?.response && typeof err.response.status === "number") {
+              code = err.response.status;
+              try { bodyText = await err.response.text(); } catch (_) {}
+            }
+          } catch (_) {}
+          if (code == null && typeof err?.statusCode === "number") code = err.statusCode;
+          console.error("push error", code, err?.message, bodyText);
           let status = `failed:${code ?? "unknown"}`;
           if (code === 404 || code === 410) {
             status = `removed:${code}`;
@@ -176,7 +237,8 @@ Deno.serve(async (req) => {
             id: sub.id, endpoint_hash: epHash, device_label: sub.device_label,
             user_agent: sub.user_agent, last_used_at: sub.last_used_at,
             sub_vapid_fp: subVapidFp, server_vapid_fp: serverVapidFp,
-            status, code, error: String(err?.body ?? err?.message ?? err).slice(0, 240),
+            status, code,
+            error: String(bodyText || err?.message || err).slice(0, 240),
           });
         }
       }
@@ -205,7 +267,7 @@ Deno.serve(async (req) => {
     });
   } catch (err: any) {
     console.error("send-push fatal", err);
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: err?.message || String(err) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
