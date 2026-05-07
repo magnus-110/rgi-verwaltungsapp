@@ -25,6 +25,7 @@ import { BookingTextTemplateCombobox } from "./BookingTextTemplateCombobox";
 import { resolveVendorDisplayName, useVendorAliases } from "./lib/vendorAlias";
 import { buildBookingText, rebuildBookingTextIfAuto } from "./lib/bookingTextBuilder";
 import { VendorAliasDialog } from "./VendorAliasDialog";
+import { parseAmount } from "./lib/parseAmount";
 
 interface Booking {
   id: string;
