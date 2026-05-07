@@ -122,7 +122,7 @@ export function NotificationSettingsSection() {
         user_ids: [user.id],
         dedup_key: `test:${user.id}:${Date.now()}:${Math.random().toString(36).slice(2)}`,
         type: "test",
-        title: "🔔 Test-Benachrichtigung",
+        title: "Test-Benachrichtigung",
         body: "Wenn du das siehst, funktioniert Push einwandfrei.",
         url: "/",
         requireInteraction: true,
