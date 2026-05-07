@@ -26,6 +26,8 @@ export interface PushDiagnostics {
   swActive: boolean;
   swVersion: string | null;
   lastPushReceivedAt: number | null;
+  lastPushShownAt: number | null;
+  lastPushShowError: string | null;
 }
 
 export function usePushSubscription() {
@@ -39,6 +41,8 @@ export function usePushSubscription() {
     swActive: false,
     swVersion: null,
     lastPushReceivedAt: null,
+    lastPushShownAt: null,
+    lastPushShowError: null,
   });
   const lastErrorRef = useRef<string | null>(null);
 
@@ -74,7 +78,13 @@ export function usePushSubscription() {
 
     const onMsg = (ev: MessageEvent) => {
       if (ev.data?.type === "push-received") {
-        setDiagnostics((d) => ({ ...d, lastPushReceivedAt: ev.data.ts || Date.now() }));
+        setDiagnostics((d) => ({ ...d, lastPushReceivedAt: ev.data.ts || Date.now(), swVersion: ev.data.version || d.swVersion }));
+      }
+      if (ev.data?.type === "push-shown") {
+        setDiagnostics((d) => ({ ...d, lastPushShownAt: ev.data.ts || Date.now(), lastPushShowError: null, swVersion: ev.data.version || d.swVersion }));
+      }
+      if (ev.data?.type === "push-show-error") {
+        setDiagnostics((d) => ({ ...d, lastPushShowError: ev.data.error || "Notification konnte nicht angezeigt werden", swVersion: ev.data.version || d.swVersion }));
       }
       if (ev.data?.type === "notification-click" && ev.data.url) {
         try { window.location.assign(ev.data.url); } catch (_) {}
@@ -202,7 +212,7 @@ export function usePushSubscription() {
         }
       } catch (_) {}
       setSubscribed(false);
-      setDiagnostics({ swRegistered: false, swActive: false, swVersion: null, lastPushReceivedAt: null });
+      setDiagnostics({ swRegistered: false, swActive: false, swVersion: null, lastPushReceivedAt: null, lastPushShownAt: null, lastPushShowError: null });
     } finally {
       setLoading(false);
     }
