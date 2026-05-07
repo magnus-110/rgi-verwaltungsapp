@@ -543,6 +543,8 @@ export function Transfers() {
                           <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/10">RGI</Badge>
                         ) : ((inv as any).buildings?.name || "–")}
                       </TableCell>
+                      <TableCell>
+                        {isPaid ? (
                           <div className="flex flex-col gap-0.5">
                             <Badge className="text-xs w-fit bg-success/15 text-success border-success/30 hover:bg-success/20" variant="outline">
                               ✓ Bezahlt
