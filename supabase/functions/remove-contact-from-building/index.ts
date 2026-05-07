@@ -65,6 +65,16 @@ Deno.serve(async (req) => {
       .eq("parent_assignment_id", assignment_id);
     if (subDelErr) return json({ error: subDelErr.message }, 500);
 
+    // 2b. Delete onboarding_submissions tied to this assignment.
+    //     The FK is ON DELETE SET NULL, but a unique index
+    //     (building_id, user_id, category, COALESCE(assignment_id, zero-uuid)) WHERE status='pending'
+    //     would collide as soon as a second pending submission gets its assignment_id nulled.
+    const { error: subOnbErr } = await admin
+      .from("onboarding_submissions")
+      .delete()
+      .eq("assignment_id", assignment_id);
+    if (subOnbErr) return json({ error: subOnbErr.message }, 500);
+
     // 3. Delete the assignment itself (cascades shares, costs, etv_attendees, etv_votes)
     const { error: delErr } = await admin
       .from("contact_building_assignments")
