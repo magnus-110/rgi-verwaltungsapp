@@ -754,13 +754,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   const buildAutoTextForRow = useCallback((r: BookingRowData, override?: Partial<BookingRowData>): string => {
     const eff: BookingRowData = { ...r, ...(override || {}) } as BookingRowData;
     const ca = accounts.find((a: any) => a.id === eff.counter_account_id);
+    const vendorFromTxn = currentTxn ? (currentTxn.amount < 0 ? currentTxn.creditor_name : currentTxn.debtor_name) : null;
     return buildBookingText({
       period: formatMonthYearRef(eff.booking_date),
       invoiceNumber: eff.receipt_number || (invoiceDetail as any)?.invoice_number || null,
-      vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || null),
+      vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || vendorFromTxn || null),
       counterAccountName: ca?.account_name || null,
     });
-  }, [accounts, invoiceDetail, vendorAliases, buildingId]);
+  }, [accounts, invoiceDetail, vendorAliases, buildingId, currentTxn]);
 
   const updateRow = (rowId: string, field: string, value: string | boolean | number) => {
     setFormRows(rows => rows.map(r => {
