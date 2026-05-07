@@ -117,11 +117,12 @@ export function NotificationSettingsSection() {
     const { data, error } = await supabase.functions.invoke("send-push", {
       body: {
         user_ids: [user.id],
-        dedup_key: `test:${Date.now()}`,
+        dedup_key: `test:${user.id}:${Date.now()}:${Math.random().toString(36).slice(2)}`,
         type: "test",
         title: "🔔 Test-Benachrichtigung",
         body: "Wenn du das siehst, funktioniert Push einwandfrei.",
         url: "/",
+        requireInteraction: true,
       },
     });
     if (error) {
@@ -140,6 +141,9 @@ export function NotificationSettingsSection() {
 
   const lastReceived = push.diagnostics.lastPushReceivedAt
     ? new Date(push.diagnostics.lastPushReceivedAt).toLocaleTimeString("de-DE")
+    : null;
+  const lastShown = push.diagnostics.lastPushShownAt
+    ? new Date(push.diagnostics.lastPushShownAt).toLocaleTimeString("de-DE")
     : null;
 
   return (
@@ -199,9 +203,9 @@ export function NotificationSettingsSection() {
             <StatusRow ok={push.diagnostics.swActive} label="Service Worker aktiv" />
             <StatusRow ok={push.subscribed} label="Gerät als Push-Empfänger registriert" />
             <StatusRow
-              ok={push.diagnostics.swVersion ? (push.diagnostics.swVersion.includes("v3") ? true : null) : null}
+              ok={push.diagnostics.swVersion ? (push.diagnostics.swVersion.includes("v4") ? true : null) : null}
               label={push.diagnostics.swVersion ? `SW-Version: ${push.diagnostics.swVersion}` : "SW-Version unbekannt"}
-              hint={push.diagnostics.swVersion && !push.diagnostics.swVersion.includes("v3")
+              hint={push.diagnostics.swVersion && !push.diagnostics.swVersion.includes("v4")
                 ? "Veraltete SW-Version aktiv – bitte 'Service Worker neu registrieren' klicken."
                 : undefined}
             />
@@ -209,6 +213,11 @@ export function NotificationSettingsSection() {
               ok={lastReceived ? true : null}
               label={lastReceived ? `Letzter Push empfangen: ${lastReceived}` : "Noch kein Push in dieser Session empfangen"}
               hint="Wird gesetzt, sobald der Service Worker einen Push aus dem Netz erhält."
+            />
+            <StatusRow
+              ok={lastShown ? true : push.diagnostics.lastPushShowError ? false : null}
+              label={lastShown ? `Letzte Server-Notification angezeigt: ${lastShown}` : "Noch keine Server-Notification angezeigt"}
+              hint={push.diagnostics.lastPushShowError ?? "Wenn empfangen grün ist, aber dies rot bleibt, blockiert Chrome/Windows die Anzeige."}
             />
           </div>
           {lastTestResult && (
