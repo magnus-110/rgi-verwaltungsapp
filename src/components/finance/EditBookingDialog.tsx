@@ -450,6 +450,11 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                       if (acc?.account_number?.startsWith("4")) set("vat_rate", "");
                       rebuildAutoText({ counter_account_id: v });
                     }}
+                    onCommit={() => {
+                      const sc = document.querySelector<HTMLInputElement>('[data-edit-booking-shortcut]');
+                      if (sc) { sc.focus(); return; }
+                      document.querySelector<HTMLInputElement>('[data-edit-booking-desc]')?.focus();
+                    }}
                     accounts={accounts}
                     placeholder="Gegenkonto suchen…"
                     showCreateOption
