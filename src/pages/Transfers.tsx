@@ -33,6 +33,36 @@ export function Transfers() {
   const [direction, setDirection] = useState<Direction>(initialDirection);
 
   const [buildingFilter, setBuildingFilter] = useState<string>("all");
+  const [periodPreset, setPeriodPreset] = useState<string>("all");
+  const [periodFrom, setPeriodFrom] = useState<string>("");
+  const [periodTo, setPeriodTo] = useState<string>("");
+
+  // Apply preset → from/to
+  useEffect(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const fmt = (d: Date) => d.toISOString().split("T")[0];
+    if (periodPreset === "all") { setPeriodFrom(""); setPeriodTo(""); return; }
+    if (periodPreset === "current_month") {
+      setPeriodFrom(fmt(new Date(yyyy, today.getMonth(), 1)));
+      setPeriodTo(fmt(new Date(yyyy, today.getMonth() + 1, 0)));
+    } else if (periodPreset === "last_month") {
+      setPeriodFrom(fmt(new Date(yyyy, today.getMonth() - 1, 1)));
+      setPeriodTo(fmt(new Date(yyyy, today.getMonth(), 0)));
+    } else if (periodPreset === "current_year") {
+      setPeriodFrom(`${yyyy}-01-01`);
+      setPeriodTo(`${yyyy}-12-31`);
+    } else if (periodPreset === "last_year") {
+      setPeriodFrom(`${yyyy - 1}-01-01`);
+      setPeriodTo(`${yyyy - 1}-12-31`);
+    } else if (periodPreset === "last_30") {
+      const from = new Date(); from.setDate(today.getDate() - 30);
+      setPeriodFrom(fmt(from)); setPeriodTo(fmt(today));
+    } else if (periodPreset === "last_90") {
+      const from = new Date(); from.setDate(today.getDate() - 90);
+      setPeriodFrom(fmt(from)); setPeriodTo(fmt(today));
+    }
+  }, [periodPreset]);
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewIndex, setReviewIndex] = useState(0);
   const [reviewInvoices, setReviewInvoices] = useState<any[]>([]);
