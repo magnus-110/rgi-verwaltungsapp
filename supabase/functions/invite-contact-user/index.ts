@@ -139,10 +139,29 @@ Deno.serve(async (req) => {
         role,
       }).eq('user_id', authUserId)
     } else {
-      // Check if auth user with this email exists
-      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
-      const existingUser = (existingUsers?.users as any[] | undefined)?.find((u: any) => u.email === email)
-
+      // Check if auth user with this email exists.
+      // listUsers() is paginated to 50 — unreliable. Look up via profiles first.
+      let existingUser: { id: string } | null = null
+      const { data: profileMatch } = await supabaseAdmin
+        .from('profiles')
+        .select('user_id')
+        .ilike('email', email)
+        .maybeSingle()
+      if (profileMatch?.user_id) {
+        existingUser = { id: profileMatch.user_id }
+      } else {
+        // Fallback: paginate through auth.users
+        let page = 1
+        while (!existingUser) {
+          const { data: pageData, error: pageErr } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 200 })
+          if (pageErr || !pageData?.users?.length) break
+          const found = (pageData.users as any[]).find((u: any) => (u.email ?? '').toLowerCase() === email.toLowerCase())
+          if (found) { existingUser = { id: found.id }; break }
+          if (pageData.users.length < 200) break
+          page += 1
+          if (page > 20) break
+        }
+      }
       if (existingUser) {
         authUserId = existingUser.id
         await supabaseAdmin.auth.admin.updateUserById(authUserId, { password })

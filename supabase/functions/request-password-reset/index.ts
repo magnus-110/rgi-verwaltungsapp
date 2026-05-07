@@ -78,25 +78,29 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Check if user exists by listing all users and filtering
-    const { data: allUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers()
-    
-    if (listError) {
-      console.error('Error listing users:', listError)
+    // Find user via profiles table (listUsers() is paginated to 50 — unreliable for >50 users)
+    const { data: profileMatch, error: profileLookupErr } = await supabaseAdmin
+      .from('profiles')
+      .select('user_id, email')
+      .ilike('email', email.trim())
+      .maybeSingle()
+
+    if (profileLookupErr) {
+      console.error('Profile lookup error:', profileLookupErr)
       return new Response(
         JSON.stringify({ error: 'Fehler beim Abrufen der Benutzerdaten' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-    
-    const existingUser = (allUsers.users as any[]).find((user: any) => user.email === email)
-    
-    if (!existingUser) {
+
+    if (!profileMatch?.user_id) {
       return new Response(
         JSON.stringify({ error: 'Benutzer mit dieser E-Mail-Adresse nicht gefunden' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    const existingUser = { id: profileMatch.user_id }
 
     // Get user profile to determine management mode
     const { data: profile, error: profileError } = await supabaseAdmin
