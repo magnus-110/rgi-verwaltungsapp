@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ExternalLink, Copy, Trash2, CheckCircle2, Clock, FileEdit } from "lucide-react";
+import { Plus, ExternalLink, Copy, Trash2, CheckCircle2, Clock, FileEdit, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { CreateAuditDialog } from "./CreateAuditDialog";
 import { CashAuditWizard } from "./CashAuditWizard";
@@ -20,6 +20,7 @@ const STATUS_MAP: Record<string, { label: string; icon: any; className: string }
 export function CashAuditTab() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
+  const [editAuditId, setEditAuditId] = useState<string | null>(null);
   const [selectedAuditId, setSelectedAuditId] = useState<string | null>(null);
 
   const { data: audits = [], isLoading } = useQuery({
@@ -124,6 +125,9 @@ export function CashAuditTab() {
                     </p>
                   </div>
                   <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditAuditId(audit.id)} title="Bearbeiten">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyLink(audit.access_token)} title="Link kopieren">
                       <Copy className="h-3.5 w-3.5" />
                     </Button>
@@ -144,6 +148,11 @@ export function CashAuditTab() {
       </div>
 
       <CreateAuditDialog open={showCreate} onOpenChange={setShowCreate} />
+      <CreateAuditDialog
+        open={!!editAuditId}
+        onOpenChange={(o) => { if (!o) setEditAuditId(null); }}
+        auditId={editAuditId}
+      />
     </div>
   );
 }
