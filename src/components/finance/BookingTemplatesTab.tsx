@@ -729,9 +729,9 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
             )}
 
             {/* === Section 1: Grunddaten === */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <Settings2 className="h-4 w-4 text-muted-foreground" />
+            <div className="space-y-3 rounded-lg border border-l-4 border-l-blue-500 bg-blue-50/40 dark:bg-blue-950/20 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-blue-700 dark:text-blue-300">
+                <Settings2 className="h-4 w-4" />
                 Grunddaten
               </div>
               <div>
