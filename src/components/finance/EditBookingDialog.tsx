@@ -139,19 +139,41 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     enabled: open && !!buildingId,
   });
 
-  // Load invoice details
+  // Load invoice details (reactive to form.invoice_id so picker updates preview)
   const { data: invoiceDetail } = useQuery({
-    queryKey: ["edit-booking-invoice", booking?.invoice_id],
+    queryKey: ["edit-booking-invoice", form.invoice_id || booking?.invoice_id],
     queryFn: async () => {
-      if (!booking?.invoice_id) return null;
+      const id = form.invoice_id || booking?.invoice_id;
+      if (!id) return null;
       const { data } = await supabase
         .from("invoices")
         .select("id, file_path, file_name, vendor_name, gross_amount, net_amount, vat_amount, invoice_number, invoice_date, description, line_items")
-        .eq("id", booking.invoice_id)
+        .eq("id", id)
         .maybeSingle();
       return data;
     },
-    enabled: open && !!booking?.invoice_id,
+    enabled: open && !!(form.invoice_id || booking?.invoice_id),
+  });
+
+  // Searchable list of invoices for the same building
+  const { data: pickableInvoices = [] } = useQuery({
+    queryKey: ["edit-booking-pickable-invoices", buildingId, invoiceSearch],
+    queryFn: async () => {
+      if (!buildingId) return [];
+      let q = supabase
+        .from("invoices")
+        .select("id, vendor_name, invoice_number, invoice_date, gross_amount")
+        .eq("building_id", buildingId)
+        .order("invoice_date", { ascending: false })
+        .limit(50);
+      if (invoiceSearch.trim()) {
+        const s = `%${invoiceSearch.trim()}%`;
+        q = q.or(`vendor_name.ilike.${s},invoice_number.ilike.${s}`);
+      }
+      const { data } = await q;
+      return data || [];
+    },
+    enabled: open && invoicePickerOpen && !!buildingId,
   });
 
   // Load template details
