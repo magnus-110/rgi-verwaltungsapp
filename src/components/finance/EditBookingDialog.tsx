@@ -74,6 +74,9 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
   const [createAccountTarget, setCreateAccountTarget] = useState<"account_id" | "counter_account_id" | null>(null);
   const [invoicePickerOpen, setInvoicePickerOpen] = useState(false);
   const [invoiceSearch, setInvoiceSearch] = useState("");
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [matchedTemplateId, setMatchedTemplateId] = useState<string | null>(null);
   const { data: vendorAliases } = useVendorAliases();
 
   // Form state
@@ -136,6 +139,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
         fuel_consumption_to: "",
         invoice_id: booking.invoice_id || "",
       });
+      setMatchedTemplateId((booking as any).matched_template_id || null);
     }
   }, [open, booking]);
 
@@ -256,17 +260,37 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
 
   // Load template details
   const { data: templateDetail } = useQuery({
-    queryKey: ["edit-booking-template", (booking as any)?.matched_template_id],
+    queryKey: ["edit-booking-template", matchedTemplateId],
     queryFn: async () => {
-      if (!(booking as any)?.matched_template_id) return null;
+      if (!matchedTemplateId) return null;
       const { data } = await supabase
         .from("booking_templates")
         .select("id, name, vendor_name, expected_amount, amount_tolerance, vat_rate, interval, category, description")
-        .eq("id", (booking as any).matched_template_id)
+        .eq("id", matchedTemplateId)
         .maybeSingle();
       return data;
     },
-    enabled: open && !!(booking as any)?.matched_template_id,
+    enabled: open && !!matchedTemplateId,
+  });
+
+  // Searchable list of booking templates for the same building
+  const { data: pickableTemplates = [] } = useQuery({
+    queryKey: ["edit-booking-pickable-templates", buildingId, templateSearch],
+    queryFn: async () => {
+      let q = supabase
+        .from("booking_templates")
+        .select("id, name, vendor_name, expected_amount, interval, category")
+        .eq("building_id", buildingId!)
+        .order("name");
+      if (templateSearch.trim()) {
+        const s = `%${templateSearch.trim()}%`;
+        q = q.or(`name.ilike.${s},vendor_name.ilike.${s},category.ilike.${s}`);
+      }
+      const { data, error } = await q.limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open && templatePickerOpen && !!buildingId,
   });
 
   // Load PDF URL
@@ -333,6 +357,8 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     try {
     const newInvoiceId = form.invoice_id || null;
     const oldInvoiceId = booking.invoice_id || null;
+    const newTemplateId = matchedTemplateId || null;
+    const oldTemplateId = (booking as any).matched_template_id || null;
     const { error } = await supabase.from("bookings").update({
       account_id: form.account_id,
       counter_account_id: form.counter_account_id || null,
@@ -349,15 +375,23 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       amount_35a: form.amount_35a ? parseAmount(form.amount_35a) : null,
       line_items_detail: form.line_items_detail,
       invoice_id: newInvoiceId,
+      matched_template_id: newTemplateId,
     }).eq("id", booking.id);
     if (error) throw error;
 
     // Sync linked bank transaction (Kontoauszug) so re-assignment is consistent
     const txnId = (booking as any).bank_transaction_id;
-    if (txnId && newInvoiceId !== oldInvoiceId) {
-      const txnUpdate: any = newInvoiceId
-        ? { matched_invoice_id: newInvoiceId, match_status: "manually_matched" }
-        : { matched_invoice_id: null };
+    if (txnId && (newInvoiceId !== oldInvoiceId || newTemplateId !== oldTemplateId)) {
+      const txnUpdate: any = {};
+      if (newInvoiceId !== oldInvoiceId) {
+        txnUpdate.matched_invoice_id = newInvoiceId;
+        if (newInvoiceId) txnUpdate.match_status = "manually_matched";
+        else if (!newTemplateId) txnUpdate.match_status = null;
+      }
+      if (newTemplateId !== oldTemplateId) {
+        txnUpdate.matched_template_id = newTemplateId;
+        if (newTemplateId) txnUpdate.match_status = "manually_matched";
+      }
       const { error: txnErr } = await supabase
         .from("bank_transactions")
         .update(txnUpdate)
@@ -852,6 +886,79 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                         size="sm"
                         className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive"
                         onClick={() => set("invoice_id", "")}
+                        title="Zuordnung entfernen"
+                      >
+                        <Link2Off className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Vorlagen-Zuordnung */}
+                <div className="px-4 py-2 border-b bg-muted/20 shrink-0 space-y-1">
+                  <label className="text-[11px] font-medium text-muted-foreground block">Vorlagen-Zuordnung</label>
+                  <div className="flex items-center gap-2">
+                    <Popover open={templatePickerOpen} onOpenChange={setTemplatePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button type="button" variant="outline" size="sm" className="h-8 text-xs flex-1 justify-start font-normal">
+                          <LayoutTemplate className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                          {templateDetail ? (
+                            <span className="truncate">
+                              {templateDetail.name}
+                              {templateDetail.vendor_name ? ` · ${templateDetail.vendor_name}` : ""}
+                              {templateDetail.expected_amount != null ? ` · ${formatCurrency(templateDetail.expected_amount)}` : ""}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">Vorlage zuordnen…</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[420px] p-0" align="end">
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Name, Lieferant oder Kategorie suchen…"
+                            value={templateSearch}
+                            onValueChange={setTemplateSearch}
+                            className="h-9 text-xs"
+                          />
+                          <CommandList>
+                            <CommandEmpty>Keine Vorlagen gefunden</CommandEmpty>
+                            <CommandGroup>
+                              {pickableTemplates.map((tpl: any) => (
+                                <CommandItem
+                                  key={tpl.id}
+                                  value={tpl.id}
+                                  onSelect={() => {
+                                    setMatchedTemplateId(tpl.id);
+                                    setTemplatePickerOpen(false);
+                                  }}
+                                  className="text-xs flex flex-col items-start gap-0.5"
+                                >
+                                  <div className="flex items-center justify-between w-full gap-2">
+                                    <span className="font-medium truncate">{tpl.name}</span>
+                                    {tpl.expected_amount != null && (
+                                      <span className="font-mono tabular-nums shrink-0">{formatCurrency(tpl.expected_amount)}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-muted-foreground">
+                                    {tpl.vendor_name && <span className="truncate">{tpl.vendor_name}</span>}
+                                    {tpl.interval && <span>· {tpl.interval}</span>}
+                                    {tpl.category && <span>· {tpl.category}</span>}
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    {matchedTemplateId && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive"
+                        onClick={() => setMatchedTemplateId(null)}
                         title="Zuordnung entfernen"
                       >
                         <Link2Off className="h-3.5 w-3.5" />
