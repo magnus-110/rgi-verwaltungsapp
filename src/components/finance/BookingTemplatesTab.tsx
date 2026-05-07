@@ -785,12 +785,10 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
               </div>
             </div>
 
-            <Separator />
-
             {/* === Section 3: Betrag & Buchung === */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <Receipt className="h-4 w-4 text-muted-foreground" />
+            <div className="space-y-3 rounded-lg border border-l-4 border-l-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                <Receipt className="h-4 w-4" />
                 Betrag & Buchung
               </div>
               <div className="grid grid-cols-2 gap-4">
