@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ChevronDown, ChevronRight, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Search, Trash2, Pencil, Check, X } from "lucide-react";
 import { AccountSettingsPopover } from "./AccountSettingsPopover";
 import { useCustomShareTypes } from "@/hooks/useCustomShareTypes";
 import { SHARE_TYPES } from "@/lib/shareTypes";
