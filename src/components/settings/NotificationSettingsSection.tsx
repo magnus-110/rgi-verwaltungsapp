@@ -209,9 +209,9 @@ export function NotificationSettingsSection() {
             <StatusRow ok={push.diagnostics.swActive} label="Service Worker aktiv" />
             <StatusRow ok={push.subscribed} label="Gerät als Push-Empfänger registriert" />
             <StatusRow
-              ok={push.diagnostics.swVersion ? (push.diagnostics.swVersion.includes("v4") ? true : null) : null}
+              ok={push.diagnostics.swVersion ? (/rgi-sw-v[5-9]/.test(push.diagnostics.swVersion) ? true : null) : null}
               label={push.diagnostics.swVersion ? `SW-Version: ${push.diagnostics.swVersion}` : "SW-Version unbekannt"}
-              hint={push.diagnostics.swVersion && !push.diagnostics.swVersion.includes("v4")
+              hint={push.diagnostics.swVersion && !/rgi-sw-v[5-9]/.test(push.diagnostics.swVersion)
                 ? "Veraltete SW-Version aktiv – bitte 'Service Worker neu registrieren' klicken."
                 : undefined}
             />
