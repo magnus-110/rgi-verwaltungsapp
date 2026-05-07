@@ -392,7 +392,7 @@ export function useUpdateTodo() {
         .update({
           ...updates,
           completed_at: updates.status === 'done' ? new Date().toISOString() : null,
-        })
+        } as any)
         .eq('id', id)
         .select()
         .single();
