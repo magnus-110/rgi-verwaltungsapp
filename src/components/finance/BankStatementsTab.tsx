@@ -748,6 +748,24 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                 </Card>
               )}
 
+              {/* Search */}
+              {selectedBuilding && allBuildingTxns.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Suche nach Datum, Betrag, Verwendungszweck oder Name…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="max-w-md"
+                  />
+                  {searchQuery && (
+                    <Button variant="ghost" size="sm" onClick={() => setSearchQuery("")}>Zurücksetzen</Button>
+                  )}
+                  {searchQuery && (
+                    <span className="text-xs text-muted-foreground">{filteredBuildingTxns.length} von {allBuildingTxns.length} Treffern</span>
+                  )}
+                </div>
+              )}
+
               {/* Summary badges + AI prefetch indicator */}
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className="text-xs">{allBuildingTxns.length} Transaktionen gesamt</Badge>
