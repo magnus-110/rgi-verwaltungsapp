@@ -37,6 +37,7 @@ export function usePushSubscription() {
   const [diagnostics, setDiagnostics] = useState<PushDiagnostics>({
     swRegistered: false,
     swActive: false,
+    swVersion: null,
     lastPushReceivedAt: null,
   });
   const lastErrorRef = useRef<string | null>(null);
