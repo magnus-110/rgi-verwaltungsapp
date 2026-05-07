@@ -118,6 +118,9 @@ export function Transfers() {
         query = query.eq("building_id", buildingFilter);
       }
 
+      if (periodFrom) query = query.gte("invoice_date", periodFrom);
+      if (periodTo) query = query.lte("invoice_date", periodTo);
+
       const { data, error } = await query;
       if (error) throw error;
       return data || [];
