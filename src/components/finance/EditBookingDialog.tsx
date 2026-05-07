@@ -322,7 +322,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
           <div className={cn("flex-1 flex overflow-hidden", !hasRightPanel && "flex-col")}>
             {/* Left: Booking form */}
             <div className={cn("overflow-y-auto", hasRightPanel ? "w-1/2 border-r" : "flex-1")}>
-              <div className="p-4 space-y-3">
+              <div className="p-4 space-y-3" data-edit-booking-form>
                 {/* AI Warning */}
                 {booking.ai_warning && (
                   <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
