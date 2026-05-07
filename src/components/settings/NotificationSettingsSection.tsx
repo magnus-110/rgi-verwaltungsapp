@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Bell, BellOff, Mail, CheckSquare, Calendar, Smartphone, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Bell, BellOff, Mail, CheckSquare, Calendar, Smartphone, CheckCircle2, XCircle, AlertCircle, BellRing, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
@@ -122,7 +122,7 @@ export function NotificationSettingsSection() {
         user_ids: [user.id],
         dedup_key: `test:${user.id}:${Date.now()}:${Math.random().toString(36).slice(2)}`,
         type: "test",
-        title: "🔔 Test-Benachrichtigung",
+        title: "Test-Benachrichtigung",
         body: "Wenn du das siehst, funktioniert Push einwandfrei.",
         url: "/",
         requireInteraction: true,
@@ -174,8 +174,14 @@ export function NotificationSettingsSection() {
                 <span className="text-sm text-muted-foreground">Dieses Gerät erhält Benachrichtigungen.</span>
               </div>
               <div className="flex gap-2 flex-wrap">
-                <Button size="sm" variant="outline" onClick={localTest}>Lokaler Test</Button>
-                <Button size="sm" variant="outline" onClick={serverTest}>Server-Test</Button>
+                <Button size="sm" variant="outline" onClick={localTest}>
+                  <BellRing className="w-4 h-4 mr-1.5" />
+                  Lokaler Test
+                </Button>
+                <Button size="sm" variant="outline" onClick={serverTest}>
+                  <Send className="w-4 h-4 mr-1.5" />
+                  Server-Test
+                </Button>
                 <Button size="sm" variant="outline" onClick={() => push.hardReset()} disabled={push.loading}>
                   Service Worker neu registrieren
                 </Button>
