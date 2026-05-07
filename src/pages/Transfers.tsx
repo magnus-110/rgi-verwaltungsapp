@@ -674,7 +674,7 @@ function IncomingList({
             <TableHead>Verwendungszweck</TableHead>
             <TableHead className="text-right">Betrag</TableHead>
             <TableHead>Liegenschaft</TableHead>
-            <TableHead>OCR</TableHead>
+            
             <TableHead>Status</TableHead>
             <TableHead className="w-32 text-right">Aktion</TableHead>
           </TableRow>
