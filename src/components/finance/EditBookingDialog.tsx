@@ -74,6 +74,9 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
   const [createAccountTarget, setCreateAccountTarget] = useState<"account_id" | "counter_account_id" | null>(null);
   const [invoicePickerOpen, setInvoicePickerOpen] = useState(false);
   const [invoiceSearch, setInvoiceSearch] = useState("");
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [matchedTemplateId, setMatchedTemplateId] = useState<string | null>(null);
   const { data: vendorAliases } = useVendorAliases();
 
   // Form state
