@@ -190,22 +190,46 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     enabled: !!selectedBuilding,
   });
 
+  // Search filter (date, amount, purpose, name)
+  const filteredBuildingTxns = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return allBuildingTxns;
+    // Normalize amount: accept "1.234,56", "1234.56", "-50"
+    const normNum = (s: string) => s.replace(/\./g, "").replace(",", ".");
+    const qNum = parseFloat(normNum(q));
+    const hasNum = !isNaN(qNum);
+    return allBuildingTxns.filter((t: any) => {
+      const dateStr = t.booking_date ? format(new Date(t.booking_date), "dd.MM.yyyy") : "";
+      const dateIso = t.booking_date || "";
+      const amt = Number(t.amount);
+      const amtStr = String(amt);
+      const amtDe = amt.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const fields = [
+        dateStr, dateIso, amtStr, amtDe,
+        t.purpose, t.creditor_name, t.debtor_name, t.counterparty_iban,
+      ].filter(Boolean).map((v: any) => String(v).toLowerCase());
+      if (fields.some((f: string) => f.includes(q))) return true;
+      if (hasNum && Math.abs(Math.abs(amt) - Math.abs(qNum)) < 0.005) return true;
+      return false;
+    });
+  }, [allBuildingTxns, searchQuery]);
+
   // Categorize transactions
   const matchedTransactions = useMemo(() =>
-    allBuildingTxns.filter((t: any) => ["matched_invoice", "matched_template", "manually_matched"].includes(t.match_status) && !t.booked_at),
-    [allBuildingTxns]
+    filteredBuildingTxns.filter((t: any) => ["matched_invoice", "matched_template", "manually_matched"].includes(t.match_status) && !t.booked_at),
+    [filteredBuildingTxns]
   );
   const unmatchedTransactions = useMemo(() =>
-    allBuildingTxns.filter((t: any) => (t.match_status === "unmatched" || t.match_status === "invoice_pending") && !t.booked_at),
-    [allBuildingTxns]
+    filteredBuildingTxns.filter((t: any) => (t.match_status === "unmatched" || t.match_status === "invoice_pending") && !t.booked_at),
+    [filteredBuildingTxns]
   );
   const ignoredTransactions = useMemo(() =>
-    allBuildingTxns.filter((t: any) => t.match_status === "ignored" && !t.booked_at),
-    [allBuildingTxns]
+    filteredBuildingTxns.filter((t: any) => t.match_status === "ignored" && !t.booked_at),
+    [filteredBuildingTxns]
   );
   const bookedTransactions = useMemo(() =>
-    allBuildingTxns.filter((t: any) => t.booked_at),
-    [allBuildingTxns]
+    filteredBuildingTxns.filter((t: any) => t.booked_at),
+    [filteredBuildingTxns]
   );
 
   // All unbooked transactions for review mode — chronologically (as on the bank statement)
