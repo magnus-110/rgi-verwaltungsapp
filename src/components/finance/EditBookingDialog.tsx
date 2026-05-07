@@ -493,6 +493,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Beleg-Datum</label>
                     <Input type="date" className="h-8 text-xs" value={form.booking_date}
+                      onKeyDown={handleEnterToNext}
                       onChange={e => {
                         const val = e.target.value;
                         setForm(prev => {
