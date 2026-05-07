@@ -1014,12 +1014,15 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
           if (error) { toast.error("Fehler beim Zuordnen"); }
           else {
             const txnId = manualAssignTxn.id;
+            if (type === "invoice") await syncBookingInvoice(txnId, id);
+            else await syncBookingInvoice(txnId, null);
             toast.success("Transaktion manuell zugeordnet");
             setManualAssignTxn(null);
             setManualAssignId("");
             resetAiPrefetch();
             queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
             queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+            queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("bookings") });
             openReviewForTxn(txnId);
           }
         }}
