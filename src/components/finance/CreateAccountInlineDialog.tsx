@@ -40,7 +40,7 @@ export function CreateAccountInlineDialog({ open, onOpenChange, buildingId, onCr
   useEffect(() => {
     if (open) {
       setForm({
-        account_number: "", account_name: "", category: "Ausgabe",
+        account_number: "", account_name: "", category: "1. Umlagefähige Betriebskosten",
         scope: buildingId ? "building" : "global",
         default_vat_rate: "19", is_billing_relevant: true, is_distributable: false,
         is_heating_relevant: false, is_wirtschaftsplan_relevant: false, is_35a_relevant: false,
