@@ -1,0 +1,239 @@
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { Bell, BellOff, Mail, CheckSquare, Calendar, Smartphone } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { usePushSubscription } from "@/hooks/usePushSubscription";
+import { toast } from "sonner";
+
+interface Prefs {
+  email_enabled: boolean;
+  todo_enabled: boolean;
+  calendar_enabled: boolean;
+  todo_lead_minutes: number;
+  calendar_lead_minutes: number;
+  quiet_hours_start: string | null;
+  quiet_hours_end: string | null;
+}
+
+interface MailAccount { id: string; display_name: string | null; email_address: string }
+
+const DEFAULT_PREFS: Prefs = {
+  email_enabled: true,
+  todo_enabled: true,
+  calendar_enabled: true,
+  todo_lead_minutes: 60,
+  calendar_lead_minutes: 30,
+  quiet_hours_start: null,
+  quiet_hours_end: null,
+};
+
+export function NotificationSettingsSection() {
+  const { user } = useAuth();
+  const push = usePushSubscription();
+  const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
+  const [accounts, setAccounts] = useState<MailAccount[]>([]);
+  const [subscribedAccountIds, setSubscribedAccountIds] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const [{ data: p }, { data: accs }, { data: subs }] = await Promise.all([
+        supabase.from("notification_preferences").select("*").eq("user_id", user.id).maybeSingle(),
+        supabase.from("email_accounts").select("id, display_name, email_address").eq("is_active", true).order("display_name"),
+        supabase.from("email_account_subscriptions").select("account_id").eq("user_id", user.id),
+      ]);
+      if (p) setPrefs({
+        email_enabled: p.email_enabled,
+        todo_enabled: p.todo_enabled,
+        calendar_enabled: p.calendar_enabled,
+        todo_lead_minutes: p.todo_lead_minutes,
+        calendar_lead_minutes: p.calendar_lead_minutes,
+        quiet_hours_start: p.quiet_hours_start,
+        quiet_hours_end: p.quiet_hours_end,
+      });
+      setAccounts(accs ?? []);
+      setSubscribedAccountIds(new Set((subs ?? []).map((s) => s.account_id)));
+    })();
+  }, [user]);
+
+  async function savePrefs(next: Prefs) {
+    if (!user) return;
+    setPrefs(next);
+    setSaving(true);
+    const { error } = await supabase.from("notification_preferences").upsert({
+      user_id: user.id,
+      ...next,
+    });
+    setSaving(false);
+    if (error) toast.error("Speichern fehlgeschlagen: " + error.message);
+  }
+
+  async function toggleAccount(accountId: string, on: boolean) {
+    if (!user) return;
+    const next = new Set(subscribedAccountIds);
+    if (on) {
+      next.add(accountId);
+      const { error } = await supabase.from("email_account_subscriptions").insert({ user_id: user.id, account_id: accountId });
+      if (error) { toast.error(error.message); return; }
+    } else {
+      next.delete(accountId);
+      await supabase.from("email_account_subscriptions").delete().eq("user_id", user.id).eq("account_id", accountId);
+    }
+    setSubscribedAccountIds(next);
+  }
+
+  async function sendTest() {
+    if (!user) return;
+    const { error } = await supabase.functions.invoke("send-push", {
+      body: {
+        user_ids: [user.id],
+        dedup_key: `test:${Date.now()}`,
+        type: "test",
+        title: "🔔 Test-Benachrichtigung",
+        body: "Wenn du das siehst, funktioniert Push einwandfrei.",
+        url: "/",
+      },
+    });
+    if (error) toast.error("Fehlgeschlagen: " + error.message);
+    else toast.success("Test gesendet — schau in dein Benachrichtigungsfeld.");
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Smartphone className="w-5 h-5" />
+            Push-Benachrichtigungen auf diesem Gerät
+          </CardTitle>
+          <CardDescription>
+            Aktiviere Push, um neue E-Mails, fällige Aufgaben und anstehende Termine direkt auf Windows oder Android zu erhalten.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!push.supported ? (
+            <p className="text-sm text-muted-foreground">Dein Browser unterstützt keine Web-Push-Benachrichtigungen.</p>
+          ) : push.subscribed ? (
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Badge variant="default" className="bg-green-600 hover:bg-green-600"><Bell className="w-3 h-3 mr-1" />Aktiv</Badge>
+                <span className="text-sm text-muted-foreground">Dieses Gerät erhält Benachrichtigungen.</span>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={sendTest}>Test senden</Button>
+                <Button size="sm" variant="outline" onClick={push.unsubscribe} disabled={push.loading}>
+                  <BellOff className="w-4 h-4 mr-1" /> Deaktivieren
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <span className="text-sm text-muted-foreground">
+                {push.permission === "denied"
+                  ? "Benachrichtigungen wurden im Browser blockiert. Bitte in den Browser-Einstellungen freischalten."
+                  : "Dieses Gerät ist noch nicht angemeldet."}
+              </span>
+              <Button onClick={push.subscribe} disabled={push.loading || push.permission === "denied"}>
+                <Bell className="w-4 h-4 mr-1" /> Aktivieren
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Benachrichtigungsarten</CardTitle>
+          <CardDescription>Lege fest, wofür du Push erhalten möchtest.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label className="flex items-center gap-2"><Mail className="w-4 h-4" /> Neue E-Mails</Label>
+              <p className="text-xs text-muted-foreground">Nur für die unten ausgewählten Postfächer.</p>
+            </div>
+            <Switch checked={prefs.email_enabled} onCheckedChange={(v) => savePrefs({ ...prefs, email_enabled: v })} />
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label className="flex items-center gap-2"><CheckSquare className="w-4 h-4" /> Fällige Aufgaben</Label>
+              <p className="text-xs text-muted-foreground">Vorlauf in Minuten vor Fälligkeit.</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Input
+                type="number" min={0} max={1440} className="w-20"
+                value={prefs.todo_lead_minutes}
+                onChange={(e) => savePrefs({ ...prefs, todo_lead_minutes: Number(e.target.value) || 0 })}
+                disabled={!prefs.todo_enabled}
+              />
+              <Switch checked={prefs.todo_enabled} onCheckedChange={(v) => savePrefs({ ...prefs, todo_enabled: v })} />
+            </div>
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label className="flex items-center gap-2"><Calendar className="w-4 h-4" /> Anstehende Termine</Label>
+              <p className="text-xs text-muted-foreground">Vorlauf in Minuten. Mit Aufgabe verknüpfte Termine senden nur einmal.</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Input
+                type="number" min={0} max={1440} className="w-20"
+                value={prefs.calendar_lead_minutes}
+                onChange={(e) => savePrefs({ ...prefs, calendar_lead_minutes: Number(e.target.value) || 0 })}
+                disabled={!prefs.calendar_enabled}
+              />
+              <Switch checked={prefs.calendar_enabled} onCheckedChange={(v) => savePrefs({ ...prefs, calendar_enabled: v })} />
+            </div>
+          </div>
+          <Separator />
+          <div>
+            <Label className="text-sm font-medium">Ruhezeiten (optional)</Label>
+            <p className="text-xs text-muted-foreground mb-2">In diesem Zeitraum werden keine Push-Benachrichtigungen gesendet.</p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <Input type="time" value={prefs.quiet_hours_start ?? ""} onChange={(e) => savePrefs({ ...prefs, quiet_hours_start: e.target.value || null })} className="w-32" />
+              <span className="text-muted-foreground">bis</span>
+              <Input type="time" value={prefs.quiet_hours_end ?? ""} onChange={(e) => savePrefs({ ...prefs, quiet_hours_end: e.target.value || null })} className="w-32" />
+              {(prefs.quiet_hours_start || prefs.quiet_hours_end) && (
+                <Button size="sm" variant="ghost" onClick={() => savePrefs({ ...prefs, quiet_hours_start: null, quiet_hours_end: null })}>Zurücksetzen</Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Mail className="w-5 h-5" /> E-Mail-Postfächer abonnieren</CardTitle>
+          <CardDescription>Wähle gezielt aus, für welche Postfächer du Push-Benachrichtigungen bei eingehenden Mails erhalten möchtest.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {accounts.length === 0 && <p className="text-sm text-muted-foreground">Keine aktiven E-Mail-Konten gefunden.</p>}
+          {accounts.map((a) => (
+            <div key={a.id} className="flex items-center justify-between gap-4 p-3 rounded-md border bg-card">
+              <div className="min-w-0">
+                <p className="font-medium truncate">{a.display_name || a.email_address}</p>
+                <p className="text-xs text-muted-foreground truncate">{a.email_address}</p>
+              </div>
+              <Switch
+                checked={subscribedAccountIds.has(a.id)}
+                onCheckedChange={(v) => toggleAccount(a.id, v)}
+                disabled={!prefs.email_enabled}
+              />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {saving && <p className="text-xs text-muted-foreground text-right">Speichern…</p>}
+    </div>
+  );
+}
