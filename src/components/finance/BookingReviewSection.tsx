@@ -300,6 +300,16 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
           </Card>
         </div>
       ))}
+
+      <EditBookingDialog
+        open={!!editBooking}
+        onOpenChange={(o) => { if (!o) setEditBooking(null); }}
+        booking={editBooking}
+        buildingName={building?.name || ""}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["booking-review", buildingId, fiscalYear] });
+        }}
+      />
     </div>
   );
 }
