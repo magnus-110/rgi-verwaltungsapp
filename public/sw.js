@@ -37,7 +37,6 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'RGI Immobilien';
   const options = {
     body: data.body || '',
-    icon: data.icon || ICON,
     badge: data.badge || BADGE,
     tag: data.tag || data.dedup_key || 'rgi-default',
     renotify: true,
