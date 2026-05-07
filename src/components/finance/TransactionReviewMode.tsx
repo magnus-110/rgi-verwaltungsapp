@@ -782,10 +782,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       // Auto-rebuild Buchungstext bei relevanten Feldern – nur wenn User noch nicht manuell geändert hat
       if (field === "counter_account_id" || field === "receipt_number" || field === "invoice_id" || field === "booking_date") {
         const newAuto = buildAutoTextForRow(next);
+        const vendorFromTxn = currentTxn ? (currentTxn.amount < 0 ? currentTxn.creditor_name : currentTxn.debtor_name) : null;
         const rebuilt = rebuildBookingTextIfAuto(next.description, next.__autoTextSignature, {
           period: formatMonthYearRef(next.booking_date),
           invoiceNumber: next.receipt_number || (invoiceDetail as any)?.invoice_number || null,
-          vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || null),
+          vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || vendorFromTxn || null),
           counterAccountName: accounts.find((a: any) => a.id === next.counter_account_id)?.account_name || null,
         });
         next = { ...next, description: rebuilt.text, __autoTextSignature: rebuilt.signature || newAuto };
