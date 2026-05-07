@@ -857,12 +857,10 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
               </div>
             </div>
 
-            <Separator />
-
             {/* === Section 4: Zeitraum & Intervall === */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+            <div className="space-y-3 rounded-lg border border-l-4 border-l-amber-500 bg-amber-50/40 dark:bg-amber-950/20 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300">
+                <CalendarDays className="h-4 w-4" />
                 Zeitraum & Intervall
               </div>
               <div className="grid grid-cols-3 gap-4">
