@@ -24,6 +24,7 @@ export type PushPermissionState = NotificationPermission | "unsupported";
 export interface PushDiagnostics {
   swRegistered: boolean;
   swActive: boolean;
+  swVersion: string | null;
   lastPushReceivedAt: number | null;
 }
 
@@ -36,6 +37,7 @@ export function usePushSubscription() {
   const [diagnostics, setDiagnostics] = useState<PushDiagnostics>({
     swRegistered: false,
     swActive: false,
+    swVersion: null,
     lastPushReceivedAt: null,
   });
   const lastErrorRef = useRef<string | null>(null);
@@ -51,9 +53,22 @@ export function usePushSubscription() {
       try {
         const reg = await navigator.serviceWorker.getRegistration("/sw.js")
           ?? await navigator.serviceWorker.ready;
+        // Force update check so a new sw.js is fetched
+        try { await reg.update(); } catch (_) {}
         const sub = await reg.pushManager.getSubscription();
         setSubscribed(!!sub);
         setDiagnostics((d) => ({ ...d, swRegistered: !!reg, swActive: !!reg.active }));
+        // Ping active worker for version
+        const target = reg.active || navigator.serviceWorker.controller;
+        if (target) {
+          const mc = new MessageChannel();
+          mc.port1.onmessage = (ev) => {
+            if (ev.data?.type === "pong") {
+              setDiagnostics((d) => ({ ...d, swVersion: ev.data.version || "unknown" }));
+            }
+          };
+          target.postMessage({ type: "ping" }, [mc.port2]);
+        }
       } catch (_) {}
     })();
 
@@ -169,6 +184,32 @@ export function usePushSubscription() {
     }
   }, [supported]);
 
+  /** Hard-reset: unregister all service workers + clear local subs, then re-subscribe. */
+  const hardReset = useCallback(async () => {
+    setLoading(true);
+    try {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const r of regs) {
+          try {
+            const s = await r.pushManager.getSubscription();
+            if (s) {
+              await supabase.from("push_subscriptions").delete().eq("endpoint", s.endpoint);
+              await s.unsubscribe();
+            }
+          } catch (_) {}
+          await r.unregister();
+        }
+      } catch (_) {}
+      setSubscribed(false);
+      setDiagnostics({ swRegistered: false, swActive: false, swVersion: null, lastPushReceivedAt: null });
+    } finally {
+      setLoading(false);
+    }
+    // Re-subscribe with the freshly fetched sw.js
+    return subscribe();
+  }, [subscribe]);
+
   return {
     supported,
     permission,
@@ -179,5 +220,6 @@ export function usePushSubscription() {
     subscribe,
     unsubscribe,
     showLocalTest,
+    hardReset,
   };
 }

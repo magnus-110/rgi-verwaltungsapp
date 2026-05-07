@@ -166,6 +166,9 @@ export function NotificationSettingsSection() {
               <div className="flex gap-2 flex-wrap">
                 <Button size="sm" variant="outline" onClick={localTest}>Lokaler Test</Button>
                 <Button size="sm" variant="outline" onClick={serverTest}>Server-Test</Button>
+                <Button size="sm" variant="outline" onClick={() => push.hardReset()} disabled={push.loading}>
+                  Service Worker neu registrieren
+                </Button>
                 <Button size="sm" variant="outline" onClick={push.unsubscribe} disabled={push.loading}>
                   <BellOff className="w-4 h-4 mr-1" /> Deaktivieren
                 </Button>
@@ -195,6 +198,13 @@ export function NotificationSettingsSection() {
             <StatusRow ok={push.diagnostics.swRegistered} label="Service Worker registriert" />
             <StatusRow ok={push.diagnostics.swActive} label="Service Worker aktiv" />
             <StatusRow ok={push.subscribed} label="Gerät als Push-Empfänger registriert" />
+            <StatusRow
+              ok={push.diagnostics.swVersion ? (push.diagnostics.swVersion.includes("v3") ? true : null) : null}
+              label={push.diagnostics.swVersion ? `SW-Version: ${push.diagnostics.swVersion}` : "SW-Version unbekannt"}
+              hint={push.diagnostics.swVersion && !push.diagnostics.swVersion.includes("v3")
+                ? "Veraltete SW-Version aktiv – bitte 'Service Worker neu registrieren' klicken."
+                : undefined}
+            />
             <StatusRow
               ok={lastReceived ? true : null}
               label={lastReceived ? `Letzter Push empfangen: ${lastReceived}` : "Noch kein Push in dieser Session empfangen"}
