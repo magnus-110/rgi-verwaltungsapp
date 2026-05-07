@@ -46,7 +46,11 @@ export const TermsAcceptanceDialog = ({ open, userId, onAccepted }: TermsAccepta
 
   return (
     <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden" onPointerDownOutside={(e) => e.preventDefault()}>
+      <DialogContent
+        className="max-w-3xl max-h-[90vh] overflow-y-auto [&>button]:hidden"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
             <DialogHeader>
               <DialogTitle>Nutzungsbedingungen akzeptieren</DialogTitle>
               <DialogDescription>
@@ -61,7 +65,7 @@ export const TermsAcceptanceDialog = ({ open, userId, onAccepted }: TermsAccepta
               </TabsList>
               
               <TabsContent value="agb">
-                <ScrollArea className="h-[400px] w-full rounded-md border p-4">
+                <div className="w-full rounded-md border p-4">
                   <div className="prose prose-sm max-w-none">
                     <h2 className="text-lg font-bold mb-4">Allgemeine Geschäftsbedingungen (AGB)</h2>
                     <p className="text-sm text-muted-foreground mb-4">für die Nutzung der RGI-Immobilien App</p>
@@ -116,11 +120,11 @@ export const TermsAcceptanceDialog = ({ open, userId, onAccepted }: TermsAccepta
                     <p className="text-sm mb-2">(2) Sollten einzelne Bestimmungen dieser AGB unwirksam sein, bleibt die Wirksamkeit der übrigen Bestimmungen unberührt.</p>
                     <p className="text-sm mb-2">(3) Die RGI behält sich vor, diese AGB mit einer angemessenen Ankündigungsfrist zu ändern. Die Änderung gilt als angenommen, wenn der Nutzer nicht innerhalb von sechs Wochen widerspricht.</p>
                   </div>
-                </ScrollArea>
+                </div>
               </TabsContent>
 
               <TabsContent value="datenschutz">
-                <ScrollArea className="h-[400px] w-full rounded-md border p-4">
+                <div className="w-full rounded-md border p-4">
                   <div className="prose prose-sm max-w-none">
                     <h2 className="text-lg font-bold mb-4">Datenschutzerklärung</h2>
                     <p className="text-sm mb-4">Wir freuen uns über Ihren Besuch auf unserer Webseite und in unserer App. Wir nehmen den Schutz Ihrer Daten sehr ernst. Nachfolgend informieren wir Sie über die Verarbeitung Ihrer Daten gemäß der Datenschutz-Grundverordnung (DSGVO).</p>
@@ -171,7 +175,7 @@ export const TermsAcceptanceDialog = ({ open, userId, onAccepted }: TermsAccepta
                     <h3 className="font-semibold mt-4 mb-2">10. Datensicherheit</h3>
                     <p className="text-sm mb-2">Wir setzen TLS-Verschlüsselung (SSL) ein und treffen technische sowie organisatorische Maßnahmen (TOM), um Ihre Daten vor unbefugtem Zugriff zu schützen.</p>
                   </div>
-                </ScrollArea>
+                </div>
               </TabsContent>
             </Tabs>
 
