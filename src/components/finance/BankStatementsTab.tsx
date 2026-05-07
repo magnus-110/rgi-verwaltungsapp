@@ -69,6 +69,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   const [reviewModeOpen, setReviewModeOpen] = useState(false);
   const [reviewInitialIndex, setReviewInitialIndex] = useState(0);
   const [reviewFlaggedFirst, setReviewFlaggedFirst] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
