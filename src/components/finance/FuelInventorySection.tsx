@@ -85,8 +85,8 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
     queryFn: async () => {
       const { data: accounts } = await supabase
         .from("chart_of_accounts")
-        .select("id, account_number, account_name")
-        .eq("building_id", buildingId)
+        .select("id, account_number, account_name, building_id")
+        .or(`building_id.is.null,building_id.eq.${buildingId}`)
         .like("account_number", "1410");
       const ids = (accounts || []).map((a: any) => a.id);
       if (ids.length === 0) return [];

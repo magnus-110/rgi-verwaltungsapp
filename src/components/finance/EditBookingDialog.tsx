@@ -68,6 +68,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
   const [saving, setSaving] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [show35aDialog, setShow35aDialog] = useState(false);
+  const [showFuelDialog, setShowFuelDialog] = useState(false);
   const [aliasDialogOpen, setAliasDialogOpen] = useState(false);
   const [createAccountTarget, setCreateAccountTarget] = useState<"account_id" | "counter_account_id" | null>(null);
   const [invoicePickerOpen, setInvoicePickerOpen] = useState(false);
@@ -94,6 +95,12 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     fuel_quantity: "",
     fuel_total_price: "",
     fuel_date: "",
+    fuel_co2_emissions_kg: "",
+    fuel_co2_tax_amount: "",
+    fuel_energy_content_kwh: "",
+    fuel_heating_unit_id: "",
+    fuel_consumption_from: "",
+    fuel_consumption_to: "",
     invoice_id: "" as string,
   });
   const [autoTextSignature, setAutoTextSignature] = useState<string>("");
@@ -119,6 +126,12 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
         fuel_quantity: "",
         fuel_total_price: "",
         fuel_date: "",
+        fuel_co2_emissions_kg: "",
+        fuel_co2_tax_amount: "",
+        fuel_energy_content_kwh: "",
+        fuel_heating_unit_id: "",
+        fuel_consumption_from: "",
+        fuel_consumption_to: "",
         invoice_id: booking.invoice_id || "",
       });
     }
@@ -139,7 +152,70 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     enabled: open && !!buildingId,
   });
 
-  // Load invoice details (reactive to form.invoice_id so picker updates preview)
+  // Heating units (for fuel purchase assignment)
+  const { data: heatingUnits = [] } = useQuery<any[]>({
+    queryKey: ["heating-units-edit", buildingId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("heating_units")
+        .select("id, name")
+        .eq("building_id", buildingId!)
+        .order("created_at");
+      return data || [];
+    },
+    enabled: open && !!buildingId,
+  });
+
+  // Existing fuel_inventory entry for this invoice
+  const { data: existingFuelEntry } = useQuery<any>({
+    queryKey: ["fuel-entry-for-invoice", booking?.invoice_id, buildingId],
+    queryFn: async () => {
+      if (!booking?.invoice_id || !buildingId) return null;
+      const { data } = await supabase
+        .from("fuel_inventory")
+        .select("*")
+        .eq("building_id", buildingId)
+        .eq("invoice_id", booking.invoice_id)
+        .eq("entry_type", "purchase")
+        .maybeSingle();
+      return data;
+    },
+    enabled: open && !!booking?.invoice_id && !!buildingId,
+  });
+
+  // Billing periods (for fuel matching)
+  const { data: billingPeriods = [] } = useQuery<any[]>({
+    queryKey: ["billing-periods-edit", buildingId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("billing_periods")
+        .select("id, fiscal_year, period_from, period_to")
+        .eq("building_id", buildingId!)
+        .order("fiscal_year", { ascending: false });
+      return data || [];
+    },
+    enabled: open && !!buildingId,
+  });
+
+  // When fuel_inventory entry loads, hydrate fuel fields
+  useEffect(() => {
+    if (!open || !existingFuelEntry) return;
+    setForm(p => ({
+      ...p,
+      is_fuel_purchase: true,
+      fuel_type: existingFuelEntry.fuel_type || "",
+      fuel_quantity: existingFuelEntry.quantity != null ? String(existingFuelEntry.quantity) : "",
+      fuel_total_price: existingFuelEntry.total_price != null ? String(existingFuelEntry.total_price) : "",
+      fuel_date: existingFuelEntry.entry_date || "",
+      fuel_co2_emissions_kg: existingFuelEntry.co2_emissions_kg != null ? String(existingFuelEntry.co2_emissions_kg) : "",
+      fuel_co2_tax_amount: existingFuelEntry.co2_tax_amount != null ? String(existingFuelEntry.co2_tax_amount) : "",
+      fuel_energy_content_kwh: existingFuelEntry.energy_content_kwh != null ? String(existingFuelEntry.energy_content_kwh) : "",
+      fuel_heating_unit_id: existingFuelEntry.heating_unit_id || "",
+      fuel_consumption_from: existingFuelEntry.consumption_period_from || "",
+      fuel_consumption_to: existingFuelEntry.consumption_period_to || "",
+    }));
+  }, [open, existingFuelEntry]);
+
   const { data: invoiceDetail } = useQuery({
     queryKey: ["edit-booking-invoice", form.invoice_id || booking?.invoice_id],
     queryFn: async () => {
@@ -297,7 +373,49 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       }).eq("id", newInvoiceId).is("paid_at", null);
     }
 
-    setSaving(false);
+    // Save / update fuel inventory entry
+    if (form.is_fuel_purchase && form.fuel_type && form.fuel_quantity && newInvoiceId) {
+      const fuelUnit = form.fuel_type === "oil" ? "l" : form.fuel_type === "pellets" ? "kg" : "kWh";
+      const qty = parseFloat(form.fuel_quantity) || 0;
+      const total = parseFloat(form.fuel_total_price) || 0;
+      const matchingPeriod = billingPeriods.find((bp: any) => {
+        const f = new Date(bp.period_from), t = new Date(bp.period_to);
+        const d = new Date(form.fuel_date || form.booking_date);
+        return d >= f && d <= t;
+      });
+      const fuelLabel = form.fuel_type === "oil" ? "Heizöl" : form.fuel_type === "pellets" ? "Pellets" : form.fuel_type === "gas" ? "Gas" : "Fernwärme";
+
+      await supabase.from("fuel_inventory")
+        .delete()
+        .eq("building_id", booking.building_id)
+        .eq("invoice_id", newInvoiceId)
+        .eq("entry_type", "purchase");
+
+      await supabase.from("fuel_inventory").insert({
+        building_id: booking.building_id,
+        fuel_type: form.fuel_type,
+        entry_type: "purchase",
+        entry_date: form.fuel_date || form.booking_date,
+        quantity: qty,
+        unit: fuelUnit,
+        total_price: total,
+        unit_price: qty > 0 ? total / qty : null,
+        invoice_id: newInvoiceId,
+        billing_period_id: matchingPeriod?.id || null,
+        heating_unit_id: form.fuel_heating_unit_id || null,
+        co2_emissions_kg: form.fuel_co2_emissions_kg ? parseFloat(form.fuel_co2_emissions_kg) : null,
+        co2_tax_amount: form.fuel_co2_tax_amount ? parseFloat(form.fuel_co2_tax_amount) : null,
+        energy_content_kwh: form.fuel_energy_content_kwh ? parseFloat(form.fuel_energy_content_kwh) : null,
+        consumption_period_from: form.fuel_consumption_from || form.fuel_date || form.booking_date,
+        consumption_period_to: form.fuel_consumption_to || form.fuel_date || form.booking_date,
+        notes: `Brennstoffkauf ${fuelLabel}: ${qty} ${fuelUnit}`,
+      } as any);
+
+      queryClient.invalidateQueries({ queryKey: ["fuel-inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["fuel-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["fuel-entry-for-invoice"] });
+    }
+
     toast.success("Buchung gespeichert");
     onSaved?.(booking.id);
     onOpenChange(false);
@@ -698,6 +816,24 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-1">{form.amount_35a}€</Badge>
                     )}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowFuelDialog(true)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors",
+                      form.is_fuel_purchase
+                        ? "bg-orange-50 dark:bg-orange-950/30 border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-400"
+                        : "border-border text-muted-foreground hover:bg-muted"
+                    )}
+                  >
+                    <Flame className="h-3.5 w-3.5" />
+                    Brennstoff
+                    {form.is_fuel_purchase && form.fuel_type && (
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-1">
+                        {form.fuel_type === "oil" ? "Öl" : form.fuel_type === "pellets" ? "Pellets" : form.fuel_type === "gas" ? "Gas" : "Fernwärme"}
+                      </Badge>
+                    )}
+                  </button>
                 </div>
 
                 {/* Save button */}
@@ -801,6 +937,91 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
             />
           </div>
           <Button onClick={() => setShow35aDialog(false)} className="w-full max-w-full shrink-0">Übernehmen</Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* Brennstoff Dialog */}
+      <Dialog open={showFuelDialog} onOpenChange={setShowFuelDialog}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Flame className="h-5 w-5 text-orange-500" />
+              <h3 className="font-semibold text-base">Brennstoffkauf</h3>
+            </div>
+            <div className="flex items-center gap-3">
+              <Checkbox id="fuel-edit-dlg" checked={form.is_fuel_purchase} onCheckedChange={v => set("is_fuel_purchase", !!v)} />
+              <label htmlFor="fuel-edit-dlg" className="text-sm font-medium">Brennstoffkauf erfassen</label>
+            </div>
+            {(() => {
+              const fuelUnit = form.fuel_type === "oil" ? "l" : form.fuel_type === "pellets" ? "kg" : (form.fuel_type === "gas" || form.fuel_type === "district_heating") ? "kWh" : "l";
+              const showCo2 = ["oil", "gas", "district_heating"].includes(form.fuel_type);
+              return (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Art</label>
+                      <Select value={form.fuel_type} onValueChange={v => set("fuel_type", v)}>
+                        <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Wählen…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="oil">Heizöl</SelectItem>
+                          <SelectItem value="pellets">Pellets</SelectItem>
+                          <SelectItem value="gas">Gas</SelectItem>
+                          <SelectItem value="district_heating">Fernwärme</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Menge ({fuelUnit})</label>
+                      <Input className="h-9 text-sm" type="number" placeholder="0" value={form.fuel_quantity} onChange={e => set("fuel_quantity", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Gesamtpreis (€)</label>
+                      <Input className="h-9 text-sm" type="number" step="0.01" placeholder="0,00" value={form.fuel_total_price} onChange={e => set("fuel_total_price", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Lieferdatum</label>
+                      <Input className="h-9 text-sm" type="date" value={form.fuel_date} onChange={e => set("fuel_date", e.target.value)} />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Energieinhalt (kWh)</label>
+                      <Input className="h-9 text-sm" type="number" step="0.01" placeholder="0" value={form.fuel_energy_content_kwh} onChange={e => set("fuel_energy_content_kwh", e.target.value)} />
+                    </div>
+                  </div>
+                  {showCo2 && (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 space-y-2">
+                      <p className="text-xs font-medium text-amber-900">CO₂-Daten (BEHG)</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">CO₂-Emissionen (kg)</label>
+                          <Input className="h-9 text-sm" type="number" step="0.01" value={form.fuel_co2_emissions_kg} onChange={e => set("fuel_co2_emissions_kg", e.target.value)} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">CO₂-Steueranteil (€)</label>
+                          <Input className="h-9 text-sm" type="number" step="0.01" value={form.fuel_co2_tax_amount} onChange={e => set("fuel_co2_tax_amount", e.target.value)} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {heatingUnits.length > 0 && (
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Heizkreis</label>
+                      <Select value={form.fuel_heating_unit_id || "__none__"} onValueChange={v => set("fuel_heating_unit_id", v === "__none__" ? "" : v)}>
+                        <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Kein Heizkreis" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Kein Heizkreis</SelectItem>
+                          {heatingUnits.map((hu: any) => (<SelectItem key={hu.id} value={hu.id}>{hu.name}</SelectItem>))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+            <Button onClick={() => {
+              if (form.fuel_type && form.fuel_quantity) set("is_fuel_purchase", true);
+              setShowFuelDialog(false);
+            }} className="w-full">Übernehmen</Button>
+          </div>
         </DialogContent>
       </Dialog>
 
