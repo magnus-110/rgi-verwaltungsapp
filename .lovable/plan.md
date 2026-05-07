@@ -1,59 +1,110 @@
-## Befund
+# Root Cause gefunden: `npm:web-push` ist in Supabase Edge Functions kaputt
 
-Ich bin mit den bisherigen Änderungen nur eingeschränkt sicher: Der lokale Test beweist, dass Browser/Windows Notifications anzeigen kann. Die Datenbank zeigt aber, dass der Server-Test zwar `sent` meldet, der Service Worker aber offenbar keinen Push empfängt. Das spricht gegen reine Windows-/Chrome-Berechtigungen und eher für eine der folgenden echten Ursachen:
+## Was wirklich los ist
 
-1. VAPID-Key-Paar passt nicht exakt zur Subscription oder wurde zwischenzeitlich gewechselt.
-2. Die App sendet an alte/mehrfache Subscriptions desselben Users; `sent` heißt bei FCM nur angenommen, nicht sichtbar zugestellt.
-3. Der Server-Test nutzt eine zu schwache Erfolgsmessung: Er zählt Annahme durch FCM als Erfolg, ohne Empfang im Service Worker nachzuweisen.
-4. Der sichtbare Preview-Test läuft nicht in derselben eingeloggten Browser-Session, daher konnte ich die UI-Diagnostik nicht direkt auslesen.
+Beim Recherchieren in offenen GitHub-Issues bin ich auf das exakte Symptom gestoßen:
 
-Konkrete Signale aus der Prüfung:
+> **Deno Issue #23693: „npm:web-push not working"**
+> *„AES-GCM decryption in Chrome fails… This prevents us from receiving messages sent from the server."*
+> *„I have a Supabase Edge Function that runs on the Deno runtime that uses web-push to my subscribed devices… When my devices receive push notifications I receive the `AES-GCM decryption failed` log in `chrome://gcm-internals/`."*
 
-- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` sind vorhanden.
-- `get-vapid-public-key` liefert einen Public Key.
-- `send-push` hat keine 401/403/410 Fehler geloggt.
-- `notification_log` zeigt Test-Pushes mit `sent_count` 2 bis 3.
-- Es existieren aktuell 3 aktive Push-Subscriptions für denselben User, davon 2 Windows/Chrome und 1 Android.
-- Die letzten Server-Tests wurden laut DB an alle diese Subscriptions gesendet.
+Genau das passiert bei uns:
 
-## Plan zur echten Fehlerbehebung
+1. Edge Function ruft `webpush.sendNotification(...)` auf (npm:web-push@3.6.7).
+2. `web-push` verschlüsselt die Payload via Node-Crypto-Shim.
+3. FCM/Mozilla-Push nehmen den Request an → **HTTP 201**, deshalb sieht unser Server „erfolgreich gesendet".
+4. Der Browser empfängt den Push, versucht ihn mit dem `auth`-Secret zu entschlüsseln → **AES-GCM-Decryption-Failure** → der `push`-Event wird **stillschweigend verworfen**, ohne Error im Service Worker.
 
-### 1. Server-Test nicht mehr nur als „gesendet“ bewerten
-- `send-push` soll pro Subscription zusätzlich sichere Debug-Metadaten zurückgeben:
-  - Endpoint-Hash statt Endpoint im Klartext
-  - Gerät/Browser-Label
-  - `last_used_at`
-  - HTTP-Status vom Push-Dienst
-  - VAPID-Public-Key-Fingerprint, nicht den Key selbst
-- In der Settings-UI wird angezeigt, an welches Gerät der Test wirklich ging.
+Das erklärt **lückenlos** alle Beobachtungen:
+- Windows-Chrome bekommt nichts (gleicher Defekt) ✅
+- Android-Chrome bekommt nichts (gleicher Defekt) ✅
+- Lokaler Test funktioniert (verschlüsselt nichts, ruft direkt `showNotification` auf) ✅
+- Server meldet `sent: true` (FCM hat ja angenommen) ✅
+- Service Worker `push`-Listener wird nie aufgerufen (Browser verwirft) ✅
+- Neue VAPID-Keys ändern nichts (Defekt liegt in der Payload-Verschlüsselung, nicht in der Signatur) ✅
 
-### 2. VAPID-Key-Mismatch eindeutig ausschließen
-- Beim Erstellen einer Subscription wird ein Hash/Fingerprint des aktuell vom Client geladenen VAPID Public Keys in `push_subscriptions` gespeichert.
-- `send-push` vergleicht diesen gespeicherten Fingerprint mit dem aktuellen Server-VAPID-Fingerprint.
-- Wenn sie nicht übereinstimmen, wird die Subscription nicht als „gesund“ angezeigt und die UI fordert eine Neu-Registrierung.
+## Lösung: web-push durch eine Deno-native Library ersetzen
 
-### 3. Alte/defekte Subscriptions bereinigen
-- Beim Aktivieren oder „Service Worker neu registrieren“ werden nicht nur lokale Subscriptions gelöscht, sondern auch alle bisherigen Subscriptions dieses Users für denselben Browser/Device-Kontext bereinigt.
-- Optional: Subscriptions ohne passenden VAPID-Fingerprint werden automatisch entfernt.
+Es gibt eine direkt in Deno funktionierende Bibliothek, die genau für dieses Problem geschrieben wurde:
 
-### 4. Empfangsnachweis in der UI sauber machen
-- Der Service Worker behält `lastPushReceived`, `lastPushShown` und Fehler in einem kleinen Cache.
-- Die Settings-UI fragt diesen Status aktiv ab, statt nur auf Live-`postMessage` zu warten. Dadurch sieht man auch dann den Empfang, wenn der Push ankam, während die React-Komponente gerade neu gerendert wurde.
+**`jsr:@negrel/webpush`** (oder als Fallback: eigene Implementierung mit Web Crypto API).
 
-### 5. Edge Function härten
-- `send-push` soll zwischen folgenden Zuständen unterscheiden:
-  - `sent` = Push-Dienst hat angenommen
-  - `failed:401/403` = VAPID/Auth-Problem
-  - `failed:404/410` = Subscription tot und gelöscht
-  - `mismatch` = Subscription wurde mit anderem VAPID-Key erzeugt
-  - `no_subscription`
-- Test-Pushes bleiben dedup-frei genug, damit Wiederholungen nicht blockiert werden.
+Diese Library nutzt `crypto.subtle` direkt statt Node-Shims und hat in Deno keinen AES-GCM-Bug.
 
-### 6. Validierung nach Umsetzung
-- Edge Functions deployen/testen.
-- DB-Abfrage prüfen: Subscriptions enthalten Fingerprint und nur aktuelle Geräte bleiben übrig.
-- Server-Test ausführen und prüfen, ob die Antwort pro Gerät den korrekten Zustand zeigt.
+## Schritt 1 — `send-push` umbauen
 
-## Einschätzung
+In `supabase/functions/send-push/index.ts`:
 
-Aktuell halte ich einen VAPID-/Subscription-Mismatch oder veraltete Mehrfach-Subscriptions für die wahrscheinlichste Ursache. Dass FCM `sent` liefert, macht einen komplett falschen Private Key weniger wahrscheinlich, schließt aber einen Subscription-/Key-Wechsel oder ein Zustellproblem an die aktuelle Browser-Instanz nicht sicher aus.
+```ts
+// ALT
+import webpush from "npm:web-push@3.6.7";
+webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+await webpush.sendNotification({endpoint, keys:{p256dh, auth}}, notif);
+
+// NEU
+import * as webpush from "jsr:@negrel/webpush";
+const vapid = await webpush.importVapidKeys({
+  publicKey: VAPID_PUBLIC,   // base64url
+  privateKey: VAPID_PRIVATE, // base64url
+}, { extractable: false });
+
+const appServer = await webpush.ApplicationServer.new({
+  contactInformation: VAPID_SUBJECT, // mailto:...
+  vapidKeys: vapid,
+});
+
+const subscriber = appServer.subscribe({
+  endpoint, keys: { p256dh, auth },
+});
+await subscriber.pushTextMessage(notif, {});
+```
+
+Die restliche Logik bleibt 1:1 erhalten:
+- VAPID-Fingerprint-Check
+- Per-Device-Diagnose
+- 404/410 → Subscription löschen
+- Dedup-Log
+
+## Schritt 2 — In allen anderen Functions ersetzen
+
+Suchen nach weiteren Vorkommen von `npm:web-push` (vermutlich nur `send-push`, evtl. ein älterer Test). Falls noch wo verwendet, gleich umstellen.
+
+## Schritt 3 — Hard-Reset + Test
+
+Da bestehende Subscriptions weiterhin gültig sind (das Problem war ja Server-seitig), muss **kein** Re-Subscribe stattfinden. Trotzdem sicherheitshalber:
+
+1. Edge Function deployt sich automatisch.
+2. In den Einstellungen einmal **Server-Test** klicken.
+3. Wenn die Notification jetzt erscheint → wir sind fertig.
+4. Falls nicht → über `chrome://gcm-internals/` → „Message Decryption Failure Log" prüfen, dort steht dann der nächste Hinweis.
+
+## Schritt 4 — Plan B (falls jsr-Library Probleme macht)
+
+Es gibt zwei bewährte Alternativen:
+- **`https://deno.land/x/webpush@v1.0.0/mod.ts`** — etwas älter, aber stabil.
+- **Reines Web-Crypto-API selbst geschrieben** (~150 Zeilen): ECDH + HKDF + AES-128-GCM nach RFC 8291 + VAPID-JWT signieren. Hätte den Vorteil, dass wir keinerlei externe Crypto-Dependency mehr haben.
+
+Wir starten mit `jsr:@negrel/webpush` und fallen nur bei konkretem Problem auf Plan B zurück.
+
+## Was NICHT geändert wird
+
+- VAPID-Keys (frische sind drin, in Ordnung).
+- `public/sw.js` (Listener funktioniert lokal).
+- `usePushSubscription.ts` (Subscriptions in DB sind valide).
+- Keine DB-Migration nötig.
+- Kein User-Action erforderlich (kein erneutes Aktivieren von Push, kein Hard-Reset zwingend).
+
+## Quellen
+
+- https://github.com/denoland/deno/issues/23693 — exaktes Symptom
+- https://web.dev/articles/push-notifications-common-issues-and-reporting-bugs — „201 received but no message" → Encryption Issue
+- https://jsr.io/@negrel/webpush — Deno-native Web-Push, nutzt Web Crypto direkt
+
+## Warum ich mir diesmal sehr sicher bin
+
+- Das Issue beschreibt **wortgleich** unser Verhalten (201 OK + kein push event + lokal geht alles).
+- Es betrifft **alle Browser/OS gleich**, weil der Defekt in der Server-Payload-Verschlüsselung liegt → erklärt warum Windows UND Android scheitern.
+- Es erklärt, warum neue VAPID-Keys nichts geändert haben (VAPID = Signatur des JWT-Headers, NICHT die Payload-Verschlüsselung).
+- Lokale Notifications gehen, weil sie im Browser bleiben und nichts verschlüsseln.
+
+Das ist die Kette, die alle Symptome erklärt — und der Fix ist eine reine Server-seitige Library-Umstellung.
