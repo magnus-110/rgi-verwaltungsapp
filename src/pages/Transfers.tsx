@@ -521,10 +521,14 @@ export function Transfers() {
                       onClick={() => openReviewForInvoice(inv)}
                     >
                       <TableCell className={overdue ? "text-destructive font-medium" : ""}>
-                        <div className="flex items-center gap-1.5">
-                          {overdue && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
-                          {inv.due_date ? format(new Date(inv.due_date), "dd.MM.yyyy") : "–"}
-                        </div>
+                        {isPaid ? (
+                          <span className="text-muted-foreground text-xs">–</span>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            {overdue && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
+                            {inv.due_date ? format(new Date(inv.due_date), "dd.MM.yyyy") : "–"}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-1.5">
