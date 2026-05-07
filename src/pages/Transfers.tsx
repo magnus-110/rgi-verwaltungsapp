@@ -380,6 +380,38 @@ export function Transfers() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={periodPreset} onValueChange={setPeriodPreset}>
+          <SelectTrigger className="w-full sm:w-[180px] h-11 md:h-10">
+            <SelectValue placeholder="Zeitraum" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alle Zeiträume</SelectItem>
+            <SelectItem value="current_month">Aktueller Monat</SelectItem>
+            <SelectItem value="last_month">Letzter Monat</SelectItem>
+            <SelectItem value="last_30">Letzte 30 Tage</SelectItem>
+            <SelectItem value="last_90">Letzte 90 Tage</SelectItem>
+            <SelectItem value="current_year">Aktuelles Jahr</SelectItem>
+            <SelectItem value="last_year">Letztes Jahr</SelectItem>
+            <SelectItem value="custom">Benutzerdefiniert…</SelectItem>
+          </SelectContent>
+        </Select>
+        {periodPreset === "custom" && (
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              value={periodFrom}
+              onChange={(e) => setPeriodFrom(e.target.value)}
+              className="h-11 md:h-10 px-2 rounded-md border bg-background text-sm"
+            />
+            <span className="text-muted-foreground text-xs">–</span>
+            <input
+              type="date"
+              value={periodTo}
+              onChange={(e) => setPeriodTo(e.target.value)}
+              className="h-11 md:h-10 px-2 rounded-md border bg-background text-sm"
+            />
+          </div>
+        )}
         {direction === "outgoing" && unreviewedInvoices.length > 0 && (
           <Button onClick={() => { setReviewInvoices(unreviewedInvoices); setReviewIndex(0); setReviewMode(true); }} className="h-11 md:h-10">
             <Play className="h-4 w-4 mr-2" />
