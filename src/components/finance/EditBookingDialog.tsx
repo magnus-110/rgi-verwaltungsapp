@@ -25,6 +25,7 @@ import { BookingTextTemplateCombobox } from "./BookingTextTemplateCombobox";
 import { resolveVendorDisplayName, useVendorAliases } from "./lib/vendorAlias";
 import { buildBookingText, rebuildBookingTextIfAuto } from "./lib/bookingTextBuilder";
 import { VendorAliasDialog } from "./VendorAliasDialog";
+import { parseAmount } from "./lib/parseAmount";
 
 interface Booking {
   id: string;
@@ -280,8 +281,8 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
   }, [invoiceDetail?.file_path]);
 
   const computedVat = useMemo(() => {
-    const amt = parseFloat(form.amount) || 0;
-    const rate = parseFloat(form.vat_rate) || 0;
+    const amt = parseAmount(form.amount);
+    const rate = parseAmount(form.vat_rate);
     return rate > 0 ? (amt - amt / (1 + rate / 100)).toFixed(2) : "0.00";
   }, [form.amount, form.vat_rate]);
 
@@ -334,16 +335,16 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       account_id: form.account_id,
       counter_account_id: form.counter_account_id || null,
       booking_date: form.booking_date,
-      amount: parseFloat(form.amount),
+      amount: parseAmount(form.amount),
       description: form.description || null,
       booking_type: form.booking_type,
       receipt_number: form.receipt_number || null,
       booking_reference: form.booking_reference || null,
-      vat_rate: parseFloat(form.vat_rate),
-      vat_amount: parseFloat(computedVat),
+      vat_rate: parseAmount(form.vat_rate),
+      vat_amount: parseAmount(computedVat),
       is_35a_relevant: form.is_35a_relevant,
       fiscal_year: parseInt(form.fiscal_year),
-      amount_35a: form.amount_35a ? parseFloat(form.amount_35a) : null,
+      amount_35a: form.amount_35a ? parseAmount(form.amount_35a) : null,
       line_items_detail: form.line_items_detail,
       invoice_id: newInvoiceId,
     }).eq("id", booking.id);
