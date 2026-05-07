@@ -118,7 +118,7 @@ export function ChartOfAccountsTab() {
   };
 
   const updateAccountField = async (id: string, field: string, value: any) => {
-    const { error } = await supabase.from("chart_of_accounts").update({ [field]: value }).eq("id", id);
+    const { error } = await supabase.from("chart_of_accounts").update({ [field]: value } as any).eq("id", id);
     if (error) { toast.error("Fehler: " + error.message); return; }
     invalidateAllCoa();
   };

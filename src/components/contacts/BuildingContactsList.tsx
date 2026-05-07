@@ -326,7 +326,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const isCashAuditor = (a: ContactAssignment) => (a as any).is_cash_auditor === true;
 
   const updateAssignment = async (id: string, field: string, value: any) => {
-    await supabase.from("contact_building_assignments").update({ [field]: value || null }).eq("id", id);
+    await supabase.from("contact_building_assignments").update({ [field]: value || null } as any).eq("id", id);
     refetch();
   };
 
@@ -581,7 +581,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     await refetch();
   };
   const updateCost = async (id: string, field: string, value: any) => {
-    await supabase.from("contact_building_costs").update({ [field]: value }).eq("id", id);
+    await supabase.from("contact_building_costs").update({ [field]: value } as any).eq("id", id);
     await refetch();
     if (field === "cost_type") queryClient.invalidateQueries({ queryKey: ["custom-cost-types"] });
   };
@@ -596,7 +596,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     refetch();
   };
   const updatePhone = async (id: string, field: string, value: string) => {
-    await supabase.from("contact_phones").update({ [field]: value }).eq("id", id);
+    await supabase.from("contact_phones").update({ [field]: value } as any).eq("id", id);
     refetch();
   };
   const deletePhone = async (id: string) => {
@@ -610,7 +610,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     refetch();
   };
   const updateEmail = async (id: string, field: string, value: string) => {
-    await supabase.from("contact_emails").update({ [field]: value }).eq("id", id);
+    await supabase.from("contact_emails").update({ [field]: value } as any).eq("id", id);
     refetch();
   };
   const deleteEmail = async (id: string) => {

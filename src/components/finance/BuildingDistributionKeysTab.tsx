@@ -139,7 +139,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
   };
 
   const updateAccountField = async (accountId: string, field: string, value: any) => {
-    const { error } = await supabase.from("chart_of_accounts").update({ [field]: value }).eq("id", accountId);
+    const { error } = await supabase.from("chart_of_accounts").update({ [field]: value } as any).eq("id", accountId);
     if (error) { toast.error("Fehler: " + error.message); return; }
     invalidateAllCoa();
   };
