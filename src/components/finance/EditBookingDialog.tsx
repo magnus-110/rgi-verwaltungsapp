@@ -405,6 +405,11 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                         set("booking_type", e.key === "+" ? "income" : "expense");
                         return;
                       }
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        focusNext(e.target as HTMLElement);
+                        return;
+                      }
                       const input = e.target as HTMLInputElement;
                       if (e.key === "Backspace" && input.selectionStart !== null && input.selectionStart <= 1 && input.selectionEnd !== null && input.selectionEnd <= 1) {
                         e.preventDefault();
