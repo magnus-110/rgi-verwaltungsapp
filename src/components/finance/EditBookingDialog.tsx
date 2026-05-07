@@ -12,8 +12,10 @@ import { CreateAccountInlineDialog } from "./CreateAccountInlineDialog";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  CheckCircle, FileText, LayoutTemplate, Building2, X, AlertTriangle, Flag, Flame, Loader2, Pencil
+  CheckCircle, FileText, LayoutTemplate, Building2, X, AlertTriangle, Flag, Flame, Loader2, Pencil, Link2, Link2Off, Search
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -68,6 +70,8 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
   const [show35aDialog, setShow35aDialog] = useState(false);
   const [aliasDialogOpen, setAliasDialogOpen] = useState(false);
   const [createAccountTarget, setCreateAccountTarget] = useState<"account_id" | "counter_account_id" | null>(null);
+  const [invoicePickerOpen, setInvoicePickerOpen] = useState(false);
+  const [invoiceSearch, setInvoiceSearch] = useState("");
   const { data: vendorAliases } = useVendorAliases();
 
   // Form state
@@ -90,6 +94,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     fuel_quantity: "",
     fuel_total_price: "",
     fuel_date: "",
+    invoice_id: "" as string,
   });
   const [autoTextSignature, setAutoTextSignature] = useState<string>("");
 
@@ -114,6 +119,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
         fuel_quantity: "",
         fuel_total_price: "",
         fuel_date: "",
+        invoice_id: booking.invoice_id || "",
       });
     }
   }, [open, booking]);
@@ -133,19 +139,41 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     enabled: open && !!buildingId,
   });
 
-  // Load invoice details
+  // Load invoice details (reactive to form.invoice_id so picker updates preview)
   const { data: invoiceDetail } = useQuery({
-    queryKey: ["edit-booking-invoice", booking?.invoice_id],
+    queryKey: ["edit-booking-invoice", form.invoice_id || booking?.invoice_id],
     queryFn: async () => {
-      if (!booking?.invoice_id) return null;
+      const id = form.invoice_id || booking?.invoice_id;
+      if (!id) return null;
       const { data } = await supabase
         .from("invoices")
         .select("id, file_path, file_name, vendor_name, gross_amount, net_amount, vat_amount, invoice_number, invoice_date, description, line_items")
-        .eq("id", booking.invoice_id)
+        .eq("id", id)
         .maybeSingle();
       return data;
     },
-    enabled: open && !!booking?.invoice_id,
+    enabled: open && !!(form.invoice_id || booking?.invoice_id),
+  });
+
+  // Searchable list of invoices for the same building
+  const { data: pickableInvoices = [] } = useQuery({
+    queryKey: ["edit-booking-pickable-invoices", buildingId, invoiceSearch],
+    queryFn: async () => {
+      if (!buildingId) return [];
+      let q = supabase
+        .from("invoices")
+        .select("id, vendor_name, invoice_number, invoice_date, gross_amount")
+        .eq("building_id", buildingId)
+        .order("invoice_date", { ascending: false })
+        .limit(50);
+      if (invoiceSearch.trim()) {
+        const s = `%${invoiceSearch.trim()}%`;
+        q = q.or(`vendor_name.ilike.${s},invoice_number.ilike.${s}`);
+      }
+      const { data } = await q;
+      return data || [];
+    },
+    enabled: open && invoicePickerOpen && !!buildingId,
   });
 
   // Load template details
@@ -224,6 +252,8 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       return;
     }
     setSaving(true);
+    const newInvoiceId = form.invoice_id || null;
+    const oldInvoiceId = booking.invoice_id || null;
     const { error } = await supabase.from("bookings").update({
       account_id: form.account_id,
       counter_account_id: form.counter_account_id || null,
@@ -239,15 +269,41 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       fiscal_year: parseInt(form.fiscal_year),
       amount_35a: form.amount_35a ? parseFloat(form.amount_35a) : null,
       line_items_detail: form.line_items_detail,
+      invoice_id: newInvoiceId,
     }).eq("id", booking.id);
+    if (error) { setSaving(false); toast.error("Fehler: " + error.message); return; }
+
+    // Sync linked bank transaction (Kontoauszug) so re-assignment is consistent
+    const txnId = (booking as any).bank_transaction_id;
+    if (txnId && newInvoiceId !== oldInvoiceId) {
+      const txnUpdate: any = newInvoiceId
+        ? { matched_invoice_id: newInvoiceId, match_status: "manually_matched" }
+        : { matched_invoice_id: null };
+      const { error: txnErr } = await supabase
+        .from("bank_transactions")
+        .update(txnUpdate)
+        .eq("id", txnId);
+      if (txnErr) {
+        console.error("Failed to sync bank_transaction match:", txnErr);
+        toast.warning("Buchung gespeichert, aber Kontoauszug-Zuordnung konnte nicht synchronisiert werden");
+      }
+    }
+
+    // Mark previously-linked invoice as paid stays consistent: if invoice changed, re-set paid_at on new
+    if (newInvoiceId && newInvoiceId !== oldInvoiceId) {
+      await supabase.from("invoices").update({
+        status: "paid",
+        paid_at: new Date(form.booking_date).toISOString(),
+      }).eq("id", newInvoiceId).is("paid_at", null);
+    }
+
     setSaving(false);
-    if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Buchung gespeichert");
     onSaved?.(booking.id);
     onOpenChange(false);
     queryClient.invalidateQueries({ predicate: (query) => {
       const key = query.queryKey[0] as string;
-      return key.startsWith("bookings");
+      return key.startsWith("bookings") || key.startsWith("bank-transactions") || key.startsWith("invoices");
     }});
   };
 
@@ -555,6 +611,76 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                     })()}
                   </div>
                 </div>
+                {/* Rechnungs-Zuordnung */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Rechnungs-Zuordnung</label>
+                  <div className="flex items-center gap-2">
+                    <Popover open={invoicePickerOpen} onOpenChange={setInvoicePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button type="button" variant="outline" size="sm" className="h-8 text-xs flex-1 justify-start font-normal">
+                          <Search className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                          {invoiceDetail ? (
+                            <span className="truncate">
+                              {invoiceDetail.vendor_name || "Rechnung"}
+                              {invoiceDetail.invoice_number ? ` · ${invoiceDetail.invoice_number}` : ""}
+                              {invoiceDetail.gross_amount != null ? ` · ${formatCurrency(invoiceDetail.gross_amount)}` : ""}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">Rechnung zuordnen…</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[420px] p-0" align="start">
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Lieferant oder Re-Nr suchen…"
+                            value={invoiceSearch}
+                            onValueChange={setInvoiceSearch}
+                            className="h-9 text-xs"
+                          />
+                          <CommandList>
+                            <CommandEmpty>Keine Rechnungen gefunden</CommandEmpty>
+                            <CommandGroup>
+                              {pickableInvoices.map((inv: any) => (
+                                <CommandItem
+                                  key={inv.id}
+                                  value={inv.id}
+                                  onSelect={() => {
+                                    set("invoice_id", inv.id);
+                                    setInvoicePickerOpen(false);
+                                  }}
+                                  className="text-xs flex flex-col items-start gap-0.5"
+                                >
+                                  <div className="flex items-center justify-between w-full gap-2">
+                                    <span className="font-medium truncate">{inv.vendor_name || "–"}</span>
+                                    <span className="font-mono tabular-nums shrink-0">{formatCurrency(inv.gross_amount)}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-muted-foreground">
+                                    {inv.invoice_number && <span className="font-mono">{inv.invoice_number}</span>}
+                                    {inv.invoice_date && <span>{format(new Date(inv.invoice_date), "dd.MM.yyyy", { locale: de })}</span>}
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    {form.invoice_id && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive"
+                        onClick={() => set("invoice_id", "")}
+                        title="Zuordnung entfernen"
+                      >
+                        <Link2Off className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
                 {/* §35a & Brennstoff buttons */}
                 <div className="flex items-center gap-2">
                   <button
