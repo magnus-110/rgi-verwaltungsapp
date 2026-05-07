@@ -174,8 +174,14 @@ export function NotificationSettingsSection() {
                 <span className="text-sm text-muted-foreground">Dieses Gerät erhält Benachrichtigungen.</span>
               </div>
               <div className="flex gap-2 flex-wrap">
-                <Button size="sm" variant="outline" onClick={localTest}>Lokaler Test</Button>
-                <Button size="sm" variant="outline" onClick={serverTest}>Server-Test</Button>
+                <Button size="sm" variant="outline" onClick={localTest}>
+                  <BellRing className="w-4 h-4 mr-1.5" />
+                  Lokaler Test
+                </Button>
+                <Button size="sm" variant="outline" onClick={serverTest}>
+                  <Send className="w-4 h-4 mr-1.5" />
+                  Server-Test
+                </Button>
                 <Button size="sm" variant="outline" onClick={() => push.hardReset()} disabled={push.loading}>
                   Service Worker neu registrieren
                 </Button>
