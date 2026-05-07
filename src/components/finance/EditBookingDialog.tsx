@@ -139,6 +139,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
         fuel_consumption_to: "",
         invoice_id: booking.invoice_id || "",
       });
+      setMatchedTemplateId((booking as any).matched_template_id || null);
     }
   }, [open, booking]);
 
