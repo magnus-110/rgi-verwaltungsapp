@@ -491,7 +491,7 @@ export function Transfers() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Fällig am</TableHead>
+                  {!showPaid && <TableHead>Fällig am</TableHead>}
                   <TableHead>Lieferant</TableHead>
                   <TableHead>Verwendungszweck</TableHead>
                   <TableHead>IBAN</TableHead>
@@ -519,16 +519,14 @@ export function Transfers() {
                       className={`cursor-pointer hover:bg-muted/50 ${overdue ? "bg-destructive/5" : ""} ${isPaid ? "opacity-60" : ""}`}
                       onClick={() => openReviewForInvoice(inv)}
                     >
-                      <TableCell className={overdue ? "text-destructive font-medium" : ""}>
-                        {isPaid ? (
-                          <span className="text-muted-foreground text-xs">–</span>
-                        ) : (
+                      {!showPaid && (
+                        <TableCell className={overdue ? "text-destructive font-medium" : ""}>
                           <div className="flex items-center gap-1.5">
                             {overdue && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
                             {inv.due_date ? format(new Date(inv.due_date), "dd.MM.yyyy") : "–"}
                           </div>
-                        )}
-                      </TableCell>
+                        </TableCell>
+                      )}
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-1.5">
                           {(inv as any).einvoice_format && <FileCode className="h-3.5 w-3.5 text-success shrink-0" />}
@@ -546,12 +544,12 @@ export function Transfers() {
                       <TableCell>
                         {isPaid ? (
                           <div className="flex flex-col gap-0.5">
-                            <Badge className="text-xs w-fit bg-success/15 text-success border-success/30 hover:bg-success/20" variant="outline">
+                            <Badge className="text-sm w-fit bg-success/15 text-success border-success/30 hover:bg-success/20" variant="outline">
                               ✓ Bezahlt
                             </Badge>
                             {(inv as any).paid_at && (
-                              <span className="text-[10px] text-muted-foreground">
-                                am {format(new Date((inv as any).paid_at), "dd.MM.yy")}
+                              <span className="text-sm font-medium text-foreground">
+                                am {format(new Date((inv as any).paid_at), "dd.MM.yyyy")}
                               </span>
                             )}
                           </div>
