@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { ArrowRight, Check, RefreshCw, AlertTriangle, Info } from "lucide-react";
 import { toast } from "sonner";
 import { getEffectiveOpeningBalance } from "./lib/bookingAggregation";
+import { parseAmount } from "./lib/parseAmount";
 
 interface BalanceCarryForwardProps {
   buildingId: string;
