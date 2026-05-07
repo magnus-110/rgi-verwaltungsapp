@@ -52,13 +52,27 @@ export const Login = () => {
       });
 
       if (error) {
-        
-        toast.error('Fehler beim Zurücksetzen des Passworts. Bitte versuchen Sie es später erneut.');
+        // Try to extract specific error message from the function response body
+        let specificMessage: string | null = null;
+        try {
+          const ctx: any = (error as any).context;
+          if (ctx && typeof ctx.json === 'function') {
+            const body = await ctx.json();
+            if (body?.error) specificMessage = body.error;
+          } else if (ctx && typeof ctx.text === 'function') {
+            const txt = await ctx.text();
+            try {
+              const parsed = JSON.parse(txt);
+              if (parsed?.error) specificMessage = parsed.error;
+            } catch { /* ignore */ }
+          }
+        } catch { /* ignore */ }
+
+        toast.error(specificMessage ?? 'Fehler beim Zurücksetzen des Passworts. Bitte versuchen Sie es später erneut.');
         return;
       }
 
       if (data?.error) {
-        // Handle specific error messages from the function
         toast.error(data.error);
         return;
       }
