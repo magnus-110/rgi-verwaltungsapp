@@ -10,9 +10,10 @@ import { CashAuditAccountSheet } from "./CashAuditAccountSheet";
 import { CashAuditJournal } from "./CashAuditJournal";
 import { CashAuditDocuments } from "./CashAuditDocuments";
 import { CashAuditSignature } from "./CashAuditSignature";
-import { Download, PenLine, ArrowLeft, CheckCircle2, Copy, ExternalLink } from "lucide-react";
+import { Download, PenLine, ArrowLeft, CheckCircle2, Copy, ExternalLink, Info } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 
 interface CashAuditWizardProps {
@@ -50,6 +51,22 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
         .single();
       if (error) throw error;
       return data;
+    },
+  });
+
+  const { data: adminNotes = [] } = useQuery({
+    queryKey: ["cash-audit-notes", auditId, tokenMode ? token : "auth"],
+    queryFn: async () => {
+      if (tokenMode && token) {
+        const { data } = await supabase.rpc("get_audit_notes_by_token", { p_token: token });
+        return (data as any[]) || [];
+      }
+      const { data } = await supabase
+        .from("cash_audit_notes")
+        .select("id, title, body, sort_order")
+        .eq("cash_audit_id", auditId)
+        .order("sort_order");
+      return data || [];
     },
   });
 
@@ -171,6 +188,24 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
         </div>
       </div>
 
+      {/* Hinweise vom Verwalter */}
+      {adminNotes.length > 0 && (
+        <Alert className="border-amber-200 bg-amber-50/60">
+          <Info className="h-4 w-4 text-amber-700" />
+          <AlertTitle className="text-amber-900">Hinweise vom Verwalter</AlertTitle>
+          <AlertDescription>
+            <div className="space-y-3 mt-2">
+              {adminNotes.map((n: any) => (
+                <div key={n.id} className="bg-white/70 rounded p-3 border border-amber-200">
+                  <p className="font-medium text-sm text-amber-900">{n.title}</p>
+                  <p className="text-sm text-foreground/80 whitespace-pre-wrap mt-1">{n.body}</p>
+                </div>
+              ))}
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList variant="underline" className="w-full justify-start">
@@ -208,6 +243,7 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
             buildingId={audit.building_id}
             fiscalYear={fiscalYear}
             billingPeriodId={audit.billing_period_id}
+            auditId={audit.id}
             tokenMode={tokenMode}
             token={token}
           />

@@ -1935,6 +1935,76 @@ export type Database = {
           },
         ]
       }
+      cash_audit_notes: {
+        Row: {
+          body: string
+          cash_audit_id: string
+          created_at: string
+          id: string
+          sort_order: number
+          title: string
+        }
+        Insert: {
+          body: string
+          cash_audit_id: string
+          created_at?: string
+          id?: string
+          sort_order?: number
+          title: string
+        }
+        Update: {
+          body?: string
+          cash_audit_id?: string
+          created_at?: string
+          id?: string
+          sort_order?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_audit_notes_cash_audit_id_fkey"
+            columns: ["cash_audit_id"]
+            isOneToOne: false
+            referencedRelation: "cash_audits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cash_audit_statements: {
+        Row: {
+          cash_audit_id: string
+          file_name: string
+          file_path: string
+          id: string
+          sort_order: number
+          uploaded_at: string
+        }
+        Insert: {
+          cash_audit_id: string
+          file_name: string
+          file_path: string
+          id?: string
+          sort_order?: number
+          uploaded_at?: string
+        }
+        Update: {
+          cash_audit_id?: string
+          file_name?: string
+          file_path?: string
+          id?: string
+          sort_order?: number
+          uploaded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_audit_statements_cash_audit_id_fkey"
+            columns: ["cash_audit_id"]
+            isOneToOne: false
+            referencedRelation: "cash_audits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cash_audits: {
         Row: {
           access_token: string | null
@@ -6976,6 +7046,11 @@ export type Database = {
       }
       get_audit_by_token: { Args: { p_token: string }; Returns: Json }
       get_audit_invoices_by_token: {
+        Args: { p_token: string }
+        Returns: Json[]
+      }
+      get_audit_notes_by_token: { Args: { p_token: string }; Returns: Json[] }
+      get_audit_pdf_statements_by_token: {
         Args: { p_token: string }
         Returns: Json[]
       }

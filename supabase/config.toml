@@ -169,3 +169,6 @@ verify_jwt = false
 
 [functions.get-vapid-public-key]
 verify_jwt = false
+
+[functions.audit-signed-url]
+verify_jwt = false
