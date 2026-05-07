@@ -166,6 +166,9 @@ export function NotificationSettingsSection() {
               <div className="flex gap-2 flex-wrap">
                 <Button size="sm" variant="outline" onClick={localTest}>Lokaler Test</Button>
                 <Button size="sm" variant="outline" onClick={serverTest}>Server-Test</Button>
+                <Button size="sm" variant="outline" onClick={() => push.hardReset()} disabled={push.loading}>
+                  Service Worker neu registrieren
+                </Button>
                 <Button size="sm" variant="outline" onClick={push.unsubscribe} disabled={push.loading}>
                   <BellOff className="w-4 h-4 mr-1" /> Deaktivieren
                 </Button>
