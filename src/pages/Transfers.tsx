@@ -459,12 +459,16 @@ export function Transfers() {
                     <p className="text-base font-bold tabular-nums whitespace-nowrap">{formatCurrency(inv.gross_amount)}</p>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap text-xs">
-                    <span className={`flex items-center gap-1 ${overdue ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                      {overdue && <AlertTriangle className="h-3 w-3" />}
-                      {inv.due_date ? format(new Date(inv.due_date), "dd.MM.yy") : "–"}
-                    </span>
+                    {!isPaid && (
+                      <span className={`flex items-center gap-1 ${overdue ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                        {overdue && <AlertTriangle className="h-3 w-3" />}
+                        {inv.due_date ? format(new Date(inv.due_date), "dd.MM.yy") : "–"}
+                      </span>
+                    )}
                     {isPaid ? (
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Bezahlt</Badge>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-success/15 text-success border-success/30">
+                        ✓ Bezahlt{(inv as any).paid_at ? ` ${format(new Date((inv as any).paid_at), "dd.MM.yy")}` : ""}
+                      </Badge>
                     ) : inv.review_status === "verified" ? (
                       <Badge variant="default" className="text-[10px] px-1.5 py-0">Geprüft</Badge>
                     ) : (
@@ -517,10 +521,14 @@ export function Transfers() {
                       onClick={() => openReviewForInvoice(inv)}
                     >
                       <TableCell className={overdue ? "text-destructive font-medium" : ""}>
-                        <div className="flex items-center gap-1.5">
-                          {overdue && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
-                          {inv.due_date ? format(new Date(inv.due_date), "dd.MM.yyyy") : "–"}
-                        </div>
+                        {isPaid ? (
+                          <span className="text-muted-foreground text-xs">–</span>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            {overdue && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
+                            {inv.due_date ? format(new Date(inv.due_date), "dd.MM.yyyy") : "–"}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-1.5">
@@ -562,10 +570,12 @@ export function Transfers() {
                       <TableCell>
                         {isPaid ? (
                           <div className="flex flex-col gap-0.5">
-                            <Badge variant="secondary" className="text-xs w-fit">Bezahlt</Badge>
+                            <Badge className="text-xs w-fit bg-success/15 text-success border-success/30 hover:bg-success/20" variant="outline">
+                              ✓ Bezahlt
+                            </Badge>
                             {(inv as any).paid_at && (
                               <span className="text-[10px] text-muted-foreground">
-                                {format(new Date((inv as any).paid_at), "dd.MM.yy")}
+                                am {format(new Date((inv as any).paid_at), "dd.MM.yy")}
                               </span>
                             )}
                           </div>
