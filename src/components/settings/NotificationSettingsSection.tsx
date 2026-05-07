@@ -243,6 +243,7 @@ export function NotificationSettingsSection() {
                   <span className={
                     d.status === "sent" ? "text-green-600 font-medium"
                     : d.status?.startsWith("removed") ? "text-amber-600"
+                    : d.status?.startsWith("invalid_fresh") ? "text-red-600 font-medium"
                     : d.status === "vapid_mismatch" ? "text-red-600 font-medium"
                     : "text-red-600"
                   }>{d.status}</span>
