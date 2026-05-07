@@ -260,17 +260,37 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
 
   // Load template details
   const { data: templateDetail } = useQuery({
-    queryKey: ["edit-booking-template", (booking as any)?.matched_template_id],
+    queryKey: ["edit-booking-template", matchedTemplateId],
     queryFn: async () => {
-      if (!(booking as any)?.matched_template_id) return null;
+      if (!matchedTemplateId) return null;
       const { data } = await supabase
         .from("booking_templates")
         .select("id, name, vendor_name, expected_amount, amount_tolerance, vat_rate, interval, category, description")
-        .eq("id", (booking as any).matched_template_id)
+        .eq("id", matchedTemplateId)
         .maybeSingle();
       return data;
     },
-    enabled: open && !!(booking as any)?.matched_template_id,
+    enabled: open && !!matchedTemplateId,
+  });
+
+  // Searchable list of booking templates for the same building
+  const { data: pickableTemplates = [] } = useQuery({
+    queryKey: ["edit-booking-pickable-templates", buildingId, templateSearch],
+    queryFn: async () => {
+      let q = supabase
+        .from("booking_templates")
+        .select("id, name, vendor_name, expected_amount, interval, category")
+        .eq("building_id", buildingId!)
+        .order("name");
+      if (templateSearch.trim()) {
+        const s = `%${templateSearch.trim()}%`;
+        q = q.or(`name.ilike.${s},vendor_name.ilike.${s},category.ilike.${s}`);
+      }
+      const { data, error } = await q.limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open && templatePickerOpen && !!buildingId,
   });
 
   // Load PDF URL
