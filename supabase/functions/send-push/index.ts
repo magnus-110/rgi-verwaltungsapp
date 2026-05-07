@@ -47,7 +47,7 @@ function bytesToB64url(bytes: Uint8Array): string {
 
 /**
  * Convert raw base64url VAPID keys (the format produced by `web-push generate-vapid-keys`)
- * into the JWK format expected by @negrel/webpush.
+ * into the private JWK format expected by PushForge.
  *  - publicKey: 65 bytes uncompressed point (0x04 || X[32] || Y[32])
  *  - privateKey: 32-byte scalar
  */
