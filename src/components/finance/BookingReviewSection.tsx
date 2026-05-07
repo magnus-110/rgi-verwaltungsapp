@@ -1,17 +1,19 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, Check, AlertTriangle, CircleDot, Sparkles, Loader2, BookOpen } from "lucide-react";
+import { ChevronDown, ChevronRight, Check, AlertTriangle, CircleDot, Sparkles, Loader2, BookOpen, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAccountAggregation, CATEGORY_LABELS } from "./lib/useAccountAggregation";
+import { EditBookingDialog } from "./EditBookingDialog";
+
 
 interface BookingReviewSectionProps {
   buildingId: string;
@@ -27,6 +29,16 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
   const [aiChecking, setAiChecking] = useState(false);
   const [aiResults, setAiResults] = useState<any[] | null>(null);
+  const [editBooking, setEditBooking] = useState<any | null>(null);
+  const queryClient = useQueryClient();
+
+  const { data: building } = useQuery({
+    queryKey: ["building-name-review", buildingId],
+    queryFn: async () => {
+      const { data } = await supabase.from("buildings").select("name").eq("id", buildingId).maybeSingle();
+      return data;
+    },
+  });
 
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ["booking-review", buildingId, fiscalYear],
@@ -237,6 +249,7 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
                             <TableHead className="py-1.5 px-3 h-8">Buchungstext</TableHead>
                             <TableHead className="py-1.5 px-3 h-8">Gegenkonto</TableHead>
                             <TableHead className="py-1.5 px-3 h-8 text-right">Betrag</TableHead>
+                            <TableHead className="py-1.5 px-3 h-8 w-10"></TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -263,6 +276,17 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
                                 )}>
                                   {isIncome ? "+" : ""}{formatCurrency(Number(b.amount))}
                                 </TableCell>
+                                <TableCell className="py-1.5 px-2 text-right">
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7"
+                                    title="Buchung bearbeiten"
+                                    onClick={(e) => { e.stopPropagation(); setEditBooking(b); }}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TableCell>
                               </TableRow>
                             );
                           })}
@@ -276,6 +300,16 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
           </Card>
         </div>
       ))}
+
+      <EditBookingDialog
+        open={!!editBooking}
+        onOpenChange={(o) => { if (!o) setEditBooking(null); }}
+        booking={editBooking}
+        buildingName={building?.name || ""}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["booking-review", buildingId, fiscalYear] });
+        }}
+      />
     </div>
   );
 }
