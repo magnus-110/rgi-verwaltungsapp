@@ -108,6 +108,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
 
   useEffect(() => {
     if (open && booking) {
+      setSaving(false);
       setForm({
         account_id: booking.account_id || "",
         counter_account_id: booking.counter_account_id || "",
@@ -419,6 +420,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
 
     toast.success("Buchung gespeichert");
     onSaved?.(booking.id);
+    setSaving(false);
     onOpenChange(false);
     queryClient.invalidateQueries({ predicate: (query) => {
       const key = query.queryKey[0] as string;
