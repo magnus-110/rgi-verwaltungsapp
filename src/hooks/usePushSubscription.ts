@@ -19,6 +19,12 @@ function arrayBufferToBase64(buffer: ArrayBuffer | null): string {
   return btoa(bin);
 }
 
+async function sha256Fingerprint(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  const hex = Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return hex.slice(0, 12);
+}
+
 export type PushPermissionState = NotificationPermission | "unsupported";
 
 export interface PushDiagnostics {
@@ -28,6 +34,7 @@ export interface PushDiagnostics {
   lastPushReceivedAt: number | null;
   lastPushShownAt: number | null;
   lastPushShowError: string | null;
+  vapidFingerprint: string | null;
 }
 
 export function usePushSubscription() {
@@ -43,10 +50,10 @@ export function usePushSubscription() {
     lastPushReceivedAt: null,
     lastPushShownAt: null,
     lastPushShowError: null,
+    vapidFingerprint: null,
   });
   const lastErrorRef = useRef<string | null>(null);
 
-  // Init: detect support, check existing subscription, listen for SW messages
   useEffect(() => {
     const ok = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
     setSupported(ok);
@@ -57,12 +64,10 @@ export function usePushSubscription() {
       try {
         const reg = await navigator.serviceWorker.getRegistration("/sw.js")
           ?? await navigator.serviceWorker.ready;
-        // Force update check so a new sw.js is fetched
         try { await reg.update(); } catch (_) {}
         const sub = await reg.pushManager.getSubscription();
         setSubscribed(!!sub);
         setDiagnostics((d) => ({ ...d, swRegistered: !!reg, swActive: !!reg.active }));
-        // Ping active worker for version
         const target = reg.active || navigator.serviceWorker.controller;
         if (target) {
           const mc = new MessageChannel();
@@ -117,10 +122,15 @@ export function usePushSubscription() {
         return { error: lastErrorRef.current };
       }
 
-      // Reuse existing if it matches the public key, else recreate
+      const vapidFp = keyData.fingerprint || (await sha256Fingerprint(keyData.publicKey));
+      setDiagnostics((d) => ({ ...d, vapidFingerprint: vapidFp }));
+
+      // Always recreate to ensure subscription matches the current VAPID key
       let sub = await reg.pushManager.getSubscription();
       if (sub) {
+        const oldEp = sub.endpoint;
         try { await sub.unsubscribe(); } catch (_) {}
+        try { await supabase.from("push_subscriptions").delete().eq("endpoint", oldEp); } catch (_) {}
       }
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
@@ -142,6 +152,7 @@ export function usePushSubscription() {
             auth,
             user_agent: navigator.userAgent,
             device_label: navigator.platform,
+            vapid_fingerprint: vapidFp,
           },
           { onConflict: "endpoint" },
         );
@@ -176,7 +187,6 @@ export function usePushSubscription() {
     }
   }, [supported]);
 
-  /** Triggers a local SW notification (no server). Proves OS/browser can display. */
   const showLocalTest = useCallback(async () => {
     if (!supported) return { error: "not supported" };
     if (Notification.permission !== "granted") return { error: "permission not granted" };
@@ -194,31 +204,32 @@ export function usePushSubscription() {
     }
   }, [supported]);
 
-  /** Hard-reset: unregister all service workers + clear local subs, then re-subscribe. */
+  /** Removes ALL prior subscriptions for this user (any device), then re-subscribes the current one. */
   const hardReset = useCallback(async () => {
     setLoading(true);
     try {
+      // 1) Delete server-side subs for this user (cleans stale Windows/Android entries with old VAPID key)
+      if (user) {
+        try { await supabase.from("push_subscriptions").delete().eq("user_id", user.id); } catch (_) {}
+      }
+      // 2) Unregister all SWs locally
       try {
         const regs = await navigator.serviceWorker.getRegistrations();
         for (const r of regs) {
           try {
             const s = await r.pushManager.getSubscription();
-            if (s) {
-              await supabase.from("push_subscriptions").delete().eq("endpoint", s.endpoint);
-              await s.unsubscribe();
-            }
+            if (s) { try { await s.unsubscribe(); } catch (_) {} }
           } catch (_) {}
           await r.unregister();
         }
       } catch (_) {}
       setSubscribed(false);
-      setDiagnostics({ swRegistered: false, swActive: false, swVersion: null, lastPushReceivedAt: null, lastPushShownAt: null, lastPushShowError: null });
+      setDiagnostics({ swRegistered: false, swActive: false, swVersion: null, lastPushReceivedAt: null, lastPushShownAt: null, lastPushShowError: null, vapidFingerprint: null });
     } finally {
       setLoading(false);
     }
-    // Re-subscribe with the freshly fetched sw.js
     return subscribe();
-  }, [subscribe]);
+  }, [subscribe, user]);
 
   return {
     supported,

@@ -5918,10 +5918,14 @@ export type Database = {
           device_label: string | null
           endpoint: string
           id: string
+          last_delivery_at: string | null
+          last_delivery_code: number | null
+          last_delivery_status: string | null
           last_used_at: string | null
           p256dh: string
           user_agent: string | null
           user_id: string
+          vapid_fingerprint: string | null
         }
         Insert: {
           auth: string
@@ -5929,10 +5933,14 @@ export type Database = {
           device_label?: string | null
           endpoint: string
           id?: string
+          last_delivery_at?: string | null
+          last_delivery_code?: number | null
+          last_delivery_status?: string | null
           last_used_at?: string | null
           p256dh: string
           user_agent?: string | null
           user_id: string
+          vapid_fingerprint?: string | null
         }
         Update: {
           auth?: string
@@ -5940,10 +5948,14 @@ export type Database = {
           device_label?: string | null
           endpoint?: string
           id?: string
+          last_delivery_at?: string | null
+          last_delivery_code?: number | null
+          last_delivery_status?: string | null
           last_used_at?: string | null
           p256dh?: string
           user_agent?: string | null
           user_id?: string
+          vapid_fingerprint?: string | null
         }
         Relationships: []
       }

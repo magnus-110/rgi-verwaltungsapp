@@ -1,5 +1,4 @@
-// Send Web-Push notifications to users (with deduplication)
-// Triggers: invoked manually from other edge fns / cron / app code
+// Send Web-Push notifications to users (with deduplication + per-device diagnostics)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import webpush from "npm:web-push@3.6.7";
 
@@ -32,14 +31,21 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
+async function sha256Hex(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function fingerprint(hex: string): string {
+  return hex.slice(0, 12);
+}
+
 function inQuietHours(start?: string | null, end?: string | null): boolean {
   if (!start || !end) return false;
   const now = new Date();
-  // German timezone approximation - server is UTC, add CET offset.
-  // Better: store TZ in profile, but for now compare HH:MM strings in local time.
   const [sh, sm] = start.split(":").map(Number);
   const [eh, em] = end.split(":").map(Number);
-  const mins = now.getUTCHours() * 60 + now.getUTCMinutes() + 60; // +1h CET fallback
+  const mins = now.getUTCHours() * 60 + now.getUTCMinutes() + 60; // CET fallback
   const startMin = sh * 60 + sm;
   const endMin = eh * 60 + em;
   if (startMin <= endMin) return mins >= startMin && mins < endMin;
@@ -60,56 +66,46 @@ Deno.serve(async (req) => {
       });
     }
 
+    const serverVapidFp = fingerprint(await sha256Hex(VAPID_PUBLIC));
+
     let totalSent = 0;
-    const results: Record<string, string> = {};
+    const results: Record<string, any> = {};
 
     for (const userId of user_ids) {
-      // dedup
-      const { data: existing } = await supabase
-        .from("notification_log")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("dedup_key", dedup_key)
-        .maybeSingle();
-      if (existing) {
-        results[userId] = "duplicate";
-        continue;
+      // Dedup (skipped for "test" so wiederholte Tests immer durchgehen)
+      if (type !== "test") {
+        const { data: existing } = await supabase
+          .from("notification_log")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("dedup_key", dedup_key)
+          .maybeSingle();
+        if (existing) {
+          results[userId] = { status: "duplicate" };
+          continue;
+        }
       }
 
-      // preferences
       const { data: prefs } = await supabase
         .from("notification_preferences")
         .select("*")
         .eq("user_id", userId)
         .maybeSingle();
 
-      if (prefs) {
-        if (type === "email" && !prefs.email_enabled) {
-          results[userId] = "disabled";
-          continue;
-        }
-        if (type === "todo" && !prefs.todo_enabled) {
-          results[userId] = "disabled";
-          continue;
-        }
-        if (type === "calendar" && !prefs.calendar_enabled) {
-          results[userId] = "disabled";
-          continue;
-        }
-        if (inQuietHours(prefs.quiet_hours_start, prefs.quiet_hours_end)) {
-          results[userId] = "quiet_hours";
-          continue;
-        }
+      if (prefs && type !== "test") {
+        if (type === "email" && !prefs.email_enabled) { results[userId] = { status: "disabled" }; continue; }
+        if (type === "todo" && !prefs.todo_enabled) { results[userId] = { status: "disabled" }; continue; }
+        if (type === "calendar" && !prefs.calendar_enabled) { results[userId] = { status: "disabled" }; continue; }
+        if (inQuietHours(prefs.quiet_hours_start, prefs.quiet_hours_end)) { results[userId] = { status: "quiet_hours" }; continue; }
       }
 
-      // subscriptions
       const { data: subs } = await supabase
         .from("push_subscriptions")
         .select("*")
         .eq("user_id", userId);
 
       if (!subs?.length) {
-        results[userId] = "no_subscription";
+        results[userId] = { status: "no_subscription", server_vapid_fp: serverVapidFp };
         continue;
       }
 
@@ -125,30 +121,66 @@ Deno.serve(async (req) => {
       });
 
       let userSent = 0;
-      const delivery: Array<{ id: string; status: "sent" | "failed"; code?: number; body?: string }> = [];
+      const devices: any[] = [];
       for (const sub of subs) {
+        const epHash = (await sha256Hex(sub.endpoint)).slice(0, 16);
+        const subVapidFp = sub.vapid_fingerprint ?? null;
+        const vapidMismatch = subVapidFp && subVapidFp !== serverVapidFp;
+
+        if (vapidMismatch) {
+          devices.push({
+            id: sub.id, endpoint_hash: epHash, device_label: sub.device_label,
+            user_agent: sub.user_agent, last_used_at: sub.last_used_at,
+            sub_vapid_fp: subVapidFp, server_vapid_fp: serverVapidFp,
+            status: "vapid_mismatch",
+          });
+          await supabase.from("push_subscriptions")
+            .update({ last_delivery_status: "vapid_mismatch", last_delivery_at: new Date().toISOString() })
+            .eq("id", sub.id);
+          continue;
+        }
+
         try {
           await webpush.sendNotification(
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
             notif,
           );
           userSent++;
-          await supabase
-            .from("push_subscriptions")
-            .update({ last_used_at: new Date().toISOString() })
-            .eq("id", sub.id);
-          delivery.push({ id: sub.id, status: "sent" });
+          await supabase.from("push_subscriptions").update({
+            last_used_at: new Date().toISOString(),
+            last_delivery_status: "sent",
+            last_delivery_at: new Date().toISOString(),
+            last_delivery_code: 201,
+          }).eq("id", sub.id);
+          devices.push({
+            id: sub.id, endpoint_hash: epHash, device_label: sub.device_label,
+            user_agent: sub.user_agent, last_used_at: sub.last_used_at,
+            sub_vapid_fp: subVapidFp, server_vapid_fp: serverVapidFp,
+            status: "sent",
+          });
         } catch (err: any) {
-          console.error("push error", err?.statusCode, err?.body);
-          delivery.push({ id: sub.id, status: "failed", code: err?.statusCode, body: err?.body });
-          // 404/410 -> remove dead subscription
-          if (err?.statusCode === 404 || err?.statusCode === 410) {
+          const code = err?.statusCode;
+          console.error("push error", code, err?.body);
+          let status = `failed:${code ?? "unknown"}`;
+          if (code === 404 || code === 410) {
+            status = `removed:${code}`;
             await supabase.from("push_subscriptions").delete().eq("id", sub.id);
+          } else {
+            await supabase.from("push_subscriptions").update({
+              last_delivery_status: status,
+              last_delivery_at: new Date().toISOString(),
+              last_delivery_code: code ?? null,
+            }).eq("id", sub.id);
           }
+          devices.push({
+            id: sub.id, endpoint_hash: epHash, device_label: sub.device_label,
+            user_agent: sub.user_agent, last_used_at: sub.last_used_at,
+            sub_vapid_fp: subVapidFp, server_vapid_fp: serverVapidFp,
+            status, code, error: String(err?.body ?? err?.message ?? err).slice(0, 240),
+          });
         }
       }
 
-      // log even when zero sent so dedup is enforced
       await supabase.from("notification_log").insert({
         user_id: userId,
         dedup_key,
@@ -156,12 +188,16 @@ Deno.serve(async (req) => {
         title,
         body,
         url,
-        payload: { ...payload, server_delivery: delivery } as any,
+        payload: { ...payload, server_vapid_fp: serverVapidFp, devices } as any,
         sent_count: userSent,
       });
 
       totalSent += userSent;
-      results[userId] = `sent:${userSent}`;
+      results[userId] = {
+        status: userSent > 0 ? `sent:${userSent}` : "no_delivery",
+        server_vapid_fp: serverVapidFp,
+        devices,
+      };
     }
 
     return new Response(JSON.stringify({ ok: true, totalSent, results }), {
