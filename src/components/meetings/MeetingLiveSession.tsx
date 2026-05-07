@@ -389,7 +389,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
 
   const updateItemMutation = useMutation({
     mutationFn: async ({ itemId, patch }: { itemId: string; patch: Record<string, any> }) => {
-      const { error } = await supabase.from("etv_agenda_items").update(patch).eq("id", itemId);
+      const { error } = await supabase.from("etv_agenda_items").update(patch as any).eq("id", itemId);
       if (error) throw error;
     },
     onSuccess: () => {
