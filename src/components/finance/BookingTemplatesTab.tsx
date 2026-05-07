@@ -767,12 +767,10 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
               </div>
             </div>
 
-            <Separator />
-
             {/* === Section 2: Kreditor === */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <CreditCard className="h-4 w-4 text-muted-foreground" />
+            <div className="space-y-3 rounded-lg border border-l-4 border-l-purple-500 bg-purple-50/40 dark:bg-purple-950/20 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-purple-700 dark:text-purple-300">
+                <CreditCard className="h-4 w-4" />
                 Kreditor / Zahlungsempfänger
               </div>
               <div className="grid grid-cols-2 gap-4">
