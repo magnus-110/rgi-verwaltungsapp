@@ -706,30 +706,6 @@ function IncomingList({
               <TableCell className="text-muted-foreground text-sm">
                 {inv.buildings?.name || "–"}
               </TableCell>
-              <TableCell onClick={(e) => e.stopPropagation()}>
-                {inv.ocr_status === "processing" && (
-                  <Badge variant="outline" className="text-xs gap-1 text-primary border-primary/30">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Läuft
-                  </Badge>
-                )}
-                {inv.ocr_status === "done" && (
-                  <Badge variant="outline" className="text-xs gap-1 text-success border-success/30">
-                    <Sparkles className="h-3 w-3" /> Fertig
-                  </Badge>
-                )}
-                {(!inv.ocr_status || inv.ocr_status === "pending" || inv.ocr_status === "error") && (
-                  <Button
-                    variant="outline" size="sm"
-                    className="h-7 px-2 text-xs text-warning border-warning/30"
-                    disabled={retryingOcr === inv.id || retryingOcr === "all"}
-                    onClick={() => retryOcr(inv.id)}
-                  >
-                    {retryingOcr === inv.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
-                    Starten
-                  </Button>
-                )}
-              </TableCell>
-              <TableCell>{renderStatus(inv)}</TableCell>
               <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                 {!(inv._linked_tx && inv._linked_tx.match_status === "matched") && (
                   <Button
