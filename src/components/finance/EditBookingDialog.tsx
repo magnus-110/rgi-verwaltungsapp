@@ -252,6 +252,8 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       return;
     }
     setSaving(true);
+    const newInvoiceId = form.invoice_id || null;
+    const oldInvoiceId = booking.invoice_id || null;
     const { error } = await supabase.from("bookings").update({
       account_id: form.account_id,
       counter_account_id: form.counter_account_id || null,
@@ -267,15 +269,41 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       fiscal_year: parseInt(form.fiscal_year),
       amount_35a: form.amount_35a ? parseFloat(form.amount_35a) : null,
       line_items_detail: form.line_items_detail,
+      invoice_id: newInvoiceId,
     }).eq("id", booking.id);
+    if (error) { setSaving(false); toast.error("Fehler: " + error.message); return; }
+
+    // Sync linked bank transaction (Kontoauszug) so re-assignment is consistent
+    const txnId = (booking as any).bank_transaction_id;
+    if (txnId && newInvoiceId !== oldInvoiceId) {
+      const txnUpdate: any = newInvoiceId
+        ? { matched_invoice_id: newInvoiceId, match_status: "manually_matched" }
+        : { matched_invoice_id: null };
+      const { error: txnErr } = await supabase
+        .from("bank_transactions")
+        .update(txnUpdate)
+        .eq("id", txnId);
+      if (txnErr) {
+        console.error("Failed to sync bank_transaction match:", txnErr);
+        toast.warning("Buchung gespeichert, aber Kontoauszug-Zuordnung konnte nicht synchronisiert werden");
+      }
+    }
+
+    // Mark previously-linked invoice as paid stays consistent: if invoice changed, re-set paid_at on new
+    if (newInvoiceId && newInvoiceId !== oldInvoiceId) {
+      await supabase.from("invoices").update({
+        status: "paid",
+        paid_at: new Date(form.booking_date).toISOString(),
+      }).eq("id", newInvoiceId).is("paid_at", null);
+    }
+
     setSaving(false);
-    if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Buchung gespeichert");
     onSaved?.(booking.id);
     onOpenChange(false);
     queryClient.invalidateQueries({ predicate: (query) => {
       const key = query.queryKey[0] as string;
-      return key.startsWith("bookings");
+      return key.startsWith("bookings") || key.startsWith("bank-transactions") || key.startsWith("invoices");
     }});
   };
 
