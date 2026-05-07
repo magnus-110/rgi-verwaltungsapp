@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Bell, BellOff, Mail, CheckSquare, Calendar, Smartphone, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Bell, BellOff, Mail, CheckSquare, Calendar, Smartphone, CheckCircle2, XCircle, AlertCircle, BellRing, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
