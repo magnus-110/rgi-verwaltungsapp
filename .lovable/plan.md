@@ -1,54 +1,59 @@
 ## Befund
 
-Die Server-Seite funktioniert bereits: Es gibt aktive Windows- und Android-Push-Subscriptions, `send-push` loggt erfolgreiche Zustellungen (`sent_count > 0`) und die Browser-Push-Endpunkte werden aktualisiert. Das Problem liegt sehr wahrscheinlich im Client-Empfang bzw. in der Sichtbarkeit der Notification.
+Ich bin mit den bisherigen Änderungen nur eingeschränkt sicher: Der lokale Test beweist, dass Browser/Windows Notifications anzeigen kann. Die Datenbank zeigt aber, dass der Server-Test zwar `sent` meldet, der Service Worker aber offenbar keinen Push empfängt. Das spricht gegen reine Windows-/Chrome-Berechtigungen und eher für eine der folgenden echten Ursachen:
 
-Auffällig ist: Der Service Worker zeigt aktuell nur eine Notification an, gibt aber keine belastbare Rückmeldung an die App. Wenn Windows/Chrome/Android die Notification nicht anzeigen, sieht die UI trotzdem nur „Test gesendet“. Außerdem nutzt die App `/favicon.ico` als Icon/Badge; besonders Badge-Icons sind bei Web Push auf Chromium/Android empfindlich und können zu nicht sichtbaren/ignorierten Notifications führen.
+1. VAPID-Key-Paar passt nicht exakt zur Subscription oder wurde zwischenzeitlich gewechselt.
+2. Die App sendet an alte/mehrfache Subscriptions desselben Users; `sent` heißt bei FCM nur angenommen, nicht sichtbar zugestellt.
+3. Der Server-Test nutzt eine zu schwache Erfolgsmessung: Er zählt Annahme durch FCM als Erfolg, ohne Empfang im Service Worker nachzuweisen.
+4. Der sichtbare Preview-Test läuft nicht in derselben eingeloggten Browser-Session, daher konnte ich die UI-Diagnostik nicht direkt auslesen.
 
-## Ziel
+Konkrete Signale aus der Prüfung:
 
-Push soll für Windows Chrome und Android Chrome zuverlässig sichtbar werden. Wenn es dennoch vom Browser/OS blockiert wird, soll die Einstellungsseite klar zeigen, wo es scheitert: Registrierung, Permission, Subscription, Serverversand oder Service-Worker-Empfang.
+- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` sind vorhanden.
+- `get-vapid-public-key` liefert einen Public Key.
+- `send-push` hat keine 401/403/410 Fehler geloggt.
+- `notification_log` zeigt Test-Pushes mit `sent_count` 2 bis 3.
+- Es existieren aktuell 3 aktive Push-Subscriptions für denselben User, davon 2 Windows/Chrome und 1 Android.
+- Die letzten Server-Tests wurden laut DB an alle diese Subscriptions gesendet.
 
-## Umsetzung
+## Plan zur echten Fehlerbehebung
 
-1. **Service Worker robuster machen**
-   - Push-Payload defensiver parsen.
-   - Notification-Optionen Chromium-kompatibel setzen.
-   - Kein `.ico` mehr als Badge verwenden, sondern PNG-App-Icons aus `manifest.json`.
-   - `renotify`, `timestamp`, `vibrate` und stabile `tag`-Logik ergänzen.
-   - Beim Push-Empfang eine Message an offene App-Tabs senden, damit die UI bestätigen kann: „Push wurde vom Service Worker empfangen“.
-   - Kaputten `/api/update-push-subscription`-Fetch entfernen/ersetzen, weil es diese API in der clientseitigen App nicht gibt.
+### 1. Server-Test nicht mehr nur als „gesendet“ bewerten
+- `send-push` soll pro Subscription zusätzlich sichere Debug-Metadaten zurückgeben:
+  - Endpoint-Hash statt Endpoint im Klartext
+  - Gerät/Browser-Label
+  - `last_used_at`
+  - HTTP-Status vom Push-Dienst
+  - VAPID-Public-Key-Fingerprint, nicht den Key selbst
+- In der Settings-UI wird angezeigt, an welches Gerät der Test wirklich ging.
 
-2. **Frontend-Subscription stabilisieren**
-   - `usePushSubscription` soll explizit prüfen, ob `/sw.js` wirklich registriert und aktiv ist.
-   - Bei erneutem Aktivieren vorhandene Subscription sauber wiederverwenden oder erneuern, statt blind neu zu abonnieren.
-   - Statusfelder ergänzen: Service Worker bereit, Browser-Permission, Subscription vorhanden, letzter Service-Worker-Push empfangen.
-   - Fehler im Aktivierungsprozess verständlich zurückgeben und nicht verschlucken.
+### 2. VAPID-Key-Mismatch eindeutig ausschließen
+- Beim Erstellen einer Subscription wird ein Hash/Fingerprint des aktuell vom Client geladenen VAPID Public Keys in `push_subscriptions` gespeichert.
+- `send-push` vergleicht diesen gespeicherten Fingerprint mit dem aktuellen Server-VAPID-Fingerprint.
+- Wenn sie nicht übereinstimmen, wird die Subscription nicht als „gesund“ angezeigt und die UI fordert eine Neu-Registrierung.
 
-3. **Test-Push aussagekräftig machen**
-   - Vor dem Server-Test optional eine lokale Browser-Notification über `registration.showNotification()` auslösen. Damit trennt man eindeutig:
-     - lokale Notification funktioniert nicht → Browser/OS blockiert Anzeige
-     - lokale Notification funktioniert, Server-Test nicht → Push-Kanal/Subscription/VAPID
-   - Nach `send-push` nicht nur „Test gesendet“ anzeigen, sondern das Ergebnis (`sent_count`, `no_subscription`, `duplicate`, `quiet_hours`) auswerten.
+### 3. Alte/defekte Subscriptions bereinigen
+- Beim Aktivieren oder „Service Worker neu registrieren“ werden nicht nur lokale Subscriptions gelöscht, sondern auch alle bisherigen Subscriptions dieses Users für denselben Browser/Device-Kontext bereinigt.
+- Optional: Subscriptions ohne passenden VAPID-Fingerprint werden automatisch entfernt.
 
-4. **Einstellungs-UI verbessern**
-   - In „Benachrichtigungen“ einen kompakten Diagnoseblock anzeigen:
-     - Browser unterstützt Push
-     - Berechtigung erteilt
-     - Service Worker aktiv
-     - Gerät registriert
-     - letzter Server-Test
-     - letzter Empfang im Service Worker
-   - Konkrete Fehlermeldungen statt allgemeinem Erfolgstoast.
+### 4. Empfangsnachweis in der UI sauber machen
+- Der Service Worker behält `lastPushReceived`, `lastPushShown` und Fehler in einem kleinen Cache.
+- Die Settings-UI fragt diesen Status aktiv ab, statt nur auf Live-`postMessage` zu warten. Dadurch sieht man auch dann den Empfang, wenn der Push ankam, während die React-Komponente gerade neu gerendert wurde.
 
-5. **Server-Payload leicht anpassen**
-   - `send-push` soll standardmäßig PNG-Icon/Badge aus dem Manifest verwenden.
-   - Response soll pro User detailliert genug sein, damit die UI anzeigen kann, ob wirklich an ein Gerät zugestellt wurde.
+### 5. Edge Function härten
+- `send-push` soll zwischen folgenden Zuständen unterscheiden:
+  - `sent` = Push-Dienst hat angenommen
+  - `failed:401/403` = VAPID/Auth-Problem
+  - `failed:404/410` = Subscription tot und gelöscht
+  - `mismatch` = Subscription wurde mit anderem VAPID-Key erzeugt
+  - `no_subscription`
+- Test-Pushes bleiben dedup-frei genug, damit Wiederholungen nicht blockiert werden.
 
-## Validierung
+### 6. Validierung nach Umsetzung
+- Edge Functions deployen/testen.
+- DB-Abfrage prüfen: Subscriptions enthalten Fingerprint und nur aktuelle Geräte bleiben übrig.
+- Server-Test ausführen und prüfen, ob die Antwort pro Gerät den korrekten Zustand zeigt.
 
-- Ich prüfe anschließend per Datenbank/Logs, dass der Test-Push weiterhin serverseitig `sent_count > 0` erzeugt.
-- Zusätzlich prüfe ich im Browser, dass die Service-Worker-Datei erreichbar ist und die neue Diagnose-UI die Empfangskette sichtbar macht.
+## Einschätzung
 
-## Erwartetes Ergebnis
-
-Wenn Windows oder Android Notifications noch blockiert, sieht man danach klar, ob die Blockade im Betriebssystem/Browser liegt. Wenn die Ursache im aktuellen Service-Worker/Icon-/Payload-Verhalten liegt, werden Test- und E-Mail-Pushes sichtbar angezeigt.
+Aktuell halte ich einen VAPID-/Subscription-Mismatch oder veraltete Mehrfach-Subscriptions für die wahrscheinlichste Ursache. Dass FCM `sent` liefert, macht einen komplett falschen Private Key weniger wahrscheinlich, schließt aber einen Subscription-/Key-Wechsel oder ein Zustellproblem an die aktuelle Browser-Instanz nicht sicher aus.
