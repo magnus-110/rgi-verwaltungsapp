@@ -281,8 +281,8 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
   }, [invoiceDetail?.file_path]);
 
   const computedVat = useMemo(() => {
-    const amt = parseFloat(form.amount) || 0;
-    const rate = parseFloat(form.vat_rate) || 0;
+    const amt = parseAmount(form.amount);
+    const rate = parseAmount(form.vat_rate);
     return rate > 0 ? (amt - amt / (1 + rate / 100)).toFixed(2) : "0.00";
   }, [form.amount, form.vat_rate]);
 
