@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { CheckCircle2, AlertTriangle, Circle, MinusCircle, Loader2, Landmark } from "lucide-react";
 import { toast } from "sonner";
+import { signedTotalForAccount } from "./lib/bookingAggregation";
 
 interface Props {
   sharedBuildingId?: string | null;
