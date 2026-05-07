@@ -488,7 +488,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                 <div className="grid grid-cols-4 gap-2">
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Belegnummer</label>
-                    <Input className="h-8 text-xs font-mono" value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} placeholder="MM/JJ" />
+                    <Input className="h-8 text-xs font-mono" value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} onKeyDown={handleEnterToNext} placeholder="MM/JJ" />
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Beleg-Datum</label>
