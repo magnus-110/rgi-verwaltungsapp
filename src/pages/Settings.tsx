@@ -364,11 +364,17 @@ export const Settings = () => {
         <Tabs defaultValue={defaultTab} onValueChange={(v) => setSearchParams({ tab: v })} className="w-full">
           <TabsList variant="segment" className="w-full flex flex-nowrap md:flex-wrap h-auto gap-1 overflow-x-auto scrollbar-hide justify-start md:justify-stretch">
             <TabsTrigger variant="segment" value="profile" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Profil</TabsTrigger>
+            <TabsTrigger variant="segment" value="notifications" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Benachrichtigungen</TabsTrigger>
             {isAdmin && <TabsTrigger variant="segment" value="users" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Benutzer</TabsTrigger>}
             {isAdmin && <TabsTrigger variant="segment" value="chatbot" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Chatbot</TabsTrigger>}
             {isAdmin && <TabsTrigger variant="segment" value="email" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">E-Mail</TabsTrigger>}
             {isAdmin && <TabsTrigger variant="segment" value="templates" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Vorlagen</TabsTrigger>}
           </TabsList>
+
+          <TabsContent value="notifications" className="space-y-6 mt-6">
+            <NotificationSettingsSection />
+          </TabsContent>
+
 
           {/* Tab: Profil & Sicherheit */}
           <TabsContent value="profile" className="space-y-6 mt-6">
