@@ -18,6 +18,7 @@ interface SendPushBody {
   url?: string;
   tag?: string;
   icon?: string;
+  requireInteraction?: boolean;
 }
 
 const VAPID_PUBLIC = Deno.env.get("VAPID_PUBLIC_KEY")!;
@@ -50,7 +51,7 @@ Deno.serve(async (req) => {
 
   try {
     const payload = (await req.json()) as SendPushBody;
-    const { user_ids, dedup_key, type, title, body, url, tag, icon } = payload;
+    const { user_ids, dedup_key, type, title, body, url, tag, icon, requireInteraction } = payload;
 
     if (!user_ids?.length || !dedup_key || !type || !title) {
       return new Response(JSON.stringify({ error: "missing fields" }), {
@@ -119,10 +120,12 @@ Deno.serve(async (req) => {
         icon: icon ?? defaultIcon,
         badge: defaultIcon,
         tag: tag ?? dedup_key,
+        requireInteraction: requireInteraction ?? type === "test",
         data: { url: url ?? "/", type, dedup_key },
       });
 
       let userSent = 0;
+      const delivery: Array<{ id: string; status: "sent" | "failed"; code?: number; body?: string }> = [];
       for (const sub of subs) {
         try {
           await webpush.sendNotification(
@@ -134,8 +137,10 @@ Deno.serve(async (req) => {
             .from("push_subscriptions")
             .update({ last_used_at: new Date().toISOString() })
             .eq("id", sub.id);
+          delivery.push({ id: sub.id, status: "sent" });
         } catch (err: any) {
           console.error("push error", err?.statusCode, err?.body);
+          delivery.push({ id: sub.id, status: "failed", code: err?.statusCode, body: err?.body });
           // 404/410 -> remove dead subscription
           if (err?.statusCode === 404 || err?.statusCode === 410) {
             await supabase.from("push_subscriptions").delete().eq("id", sub.id);
@@ -151,7 +156,7 @@ Deno.serve(async (req) => {
         title,
         body,
         url,
-        payload: payload as any,
+        payload: { ...payload, server_delivery: delivery } as any,
         sent_count: userSent,
       });
 
