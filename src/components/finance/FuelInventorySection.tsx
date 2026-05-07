@@ -224,6 +224,40 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
     return heatingUnits.find((u: any) => u.id === id)?.name ?? "?";
   };
 
+  const createFromBooking = async (b: any) => {
+    let preselectedUnit: string | null = null;
+    let preselectedFuelType = "oil";
+    if (heatingUnits.length === 1) {
+      preselectedUnit = heatingUnits[0].id;
+      preselectedFuelType = heatingUnits[0].fuel_type;
+    } else if (hasMultipleUnits && activeUnitId !== "__all__" && activeUnitId !== "__none__") {
+      preselectedUnit = activeUnitId;
+      const u = heatingUnits.find((h: any) => h.id === activeUnitId);
+      if (u) preselectedFuelType = u.fuel_type;
+    }
+    if (hasMultipleUnits && !preselectedUnit) {
+      toast.error("Bitte zuerst Heizkreis-Tab wählen");
+      return;
+    }
+    const fuelUnit = FUEL_TYPES.find((f) => f.value === preselectedFuelType)?.unit ?? "l";
+    const { error } = await supabase.from("fuel_inventory").insert({
+      building_id: buildingId,
+      billing_period_id: periodId,
+      heating_unit_id: preselectedUnit,
+      fuel_type: preselectedFuelType,
+      entry_type: "purchase",
+      entry_date: b.booking_date,
+      quantity: 0,
+      unit: fuelUnit,
+      total_price: Math.abs(Number(b.amount)),
+      invoice_id: b.invoice_id || null,
+      notes: `Aus Buchung: ${b.description || ""}`.slice(0, 250),
+    });
+    if (error) { toast.error("Fehler: " + error.message); return; }
+    toast.success("Eintrag aus Buchung erstellt – bitte Menge & ggf. CO₂-Daten ergänzen");
+    queryClient.invalidateQueries({ queryKey: ["fuel-inventory"] });
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
