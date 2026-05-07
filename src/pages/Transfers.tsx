@@ -706,6 +706,7 @@ function IncomingList({
               <TableCell className="text-muted-foreground text-sm">
                 {inv.buildings?.name || "–"}
               </TableCell>
+              <TableCell>{renderStatus(inv)}</TableCell>
               <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                 {!(inv._linked_tx && inv._linked_tx.match_status === "matched") && (
                   <Button
