@@ -995,15 +995,17 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                   </div>
                 </PopoverContent>
               </Popover>
+              </div>
             </div>
 
             {/* === Section 6: Verknüpftes Dokument === */}
-            <div className="space-y-3 rounded-lg border border-l-4 border-l-cyan-500 bg-cyan-50/40 dark:bg-cyan-950/20 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-cyan-700 dark:text-cyan-300">
-                <FileText className="h-4 w-4" />
+            <div className="bg-card rounded-[14px] border border-border/60 overflow-hidden">
+              <div className="px-4 pt-3 pb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.6px] text-primary/90">
+                <FileText className="h-3.5 w-3.5" />
                 Verknüpftes Dokument
-                <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+                <span className="text-[10px] font-normal normal-case tracking-normal text-muted-foreground/80">(optional)</span>
               </div>
+              <div className="px-4 pb-4 space-y-3">
               <p className="text-xs text-muted-foreground -mt-1">
                 z.B. Wirtschaftsplan mit den Hausgeldern als Nachweis. Aus dem DMS auswählen, neu hochladen oder direkt hierher ziehen.
               </p>
