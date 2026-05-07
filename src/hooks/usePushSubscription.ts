@@ -184,6 +184,32 @@ export function usePushSubscription() {
     }
   }, [supported]);
 
+  /** Hard-reset: unregister all service workers + clear local subs, then re-subscribe. */
+  const hardReset = useCallback(async () => {
+    setLoading(true);
+    try {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const r of regs) {
+          try {
+            const s = await r.pushManager.getSubscription();
+            if (s) {
+              await supabase.from("push_subscriptions").delete().eq("endpoint", s.endpoint);
+              await s.unsubscribe();
+            }
+          } catch (_) {}
+          await r.unregister();
+        }
+      } catch (_) {}
+      setSubscribed(false);
+      setDiagnostics({ swRegistered: false, swActive: false, swVersion: null, lastPushReceivedAt: null });
+    } finally {
+      setLoading(false);
+    }
+    // Re-subscribe with the freshly fetched sw.js
+    return subscribe();
+  }, [subscribe]);
+
   return {
     supported,
     permission,
@@ -194,5 +220,6 @@ export function usePushSubscription() {
     subscribe,
     unsubscribe,
     showLocalTest,
+    hardReset,
   };
 }
