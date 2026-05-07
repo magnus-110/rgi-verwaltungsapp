@@ -1,8 +1,8 @@
 // Send Web-Push notifications to users (with deduplication + per-device diagnostics)
-// Uses jsr:@negrel/webpush which is Deno-native (Web Crypto) — npm:web-push has a known
-// AES-GCM bug in Deno (denoland/deno#23693) that causes silent decryption failures in browsers.
+// Uses PushForge's Web-Crypto request builder directly. This avoids both npm:web-push's
+// Deno AES-GCM shim bug and any library wrapper ambiguity around the exact Web-Push HTTP request.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import * as webpush from "jsr:@negrel/webpush@^0.5.0";
+import { buildPushHTTPRequest } from "npm:@pushforge/builder";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,7 +51,7 @@ function bytesToB64url(bytes: Uint8Array): string {
  *  - publicKey: 65 bytes uncompressed point (0x04 || X[32] || Y[32])
  *  - privateKey: 32-byte scalar
  */
-function buildVapidJwks(publicB64url: string, privateB64url: string) {
+function buildVapidPrivateJwk(publicB64url: string, privateB64url: string): JsonWebKey {
   const pub = b64urlToBytes(publicB64url);
   if (pub.length !== 65 || pub[0] !== 0x04) {
     throw new Error(`VAPID_PUBLIC_KEY must be 65-byte uncompressed P-256 (got ${pub.length} bytes)`);
@@ -59,10 +59,7 @@ function buildVapidJwks(publicB64url: string, privateB64url: string) {
   const x = bytesToB64url(pub.slice(1, 33));
   const y = bytesToB64url(pub.slice(33, 65));
   const d = bytesToB64url(b64urlToBytes(privateB64url));
-  return {
-    publicKey: { kty: "EC", crv: "P-256", x, y, ext: true } as JsonWebKey,
-    privateKey: { kty: "EC", crv: "P-256", x, y, d, ext: true } as JsonWebKey,
-  };
+  return { kty: "EC", crv: "P-256", x, y, d, ext: true };
 }
 
 async function sha256Hex(input: string): Promise<string> {
@@ -73,20 +70,11 @@ function fingerprint(hex: string): string {
   return hex.slice(0, 12);
 }
 
-// --- Lazy app-server initialization (so a key error returns a clean response, not a boot crash) ---
-let appServerPromise: Promise<webpush.ApplicationServer> | null = null;
-function getAppServer(): Promise<webpush.ApplicationServer> {
-  if (!appServerPromise) {
-    appServerPromise = (async () => {
-      const jwks = buildVapidJwks(VAPID_PUBLIC, VAPID_PRIVATE);
-      const vapidKeys = await webpush.importVapidKeys(jwks, { extractable: false });
-      return await webpush.ApplicationServer.new({
-        contactInformation: VAPID_SUBJECT,
-        vapidKeys,
-      });
-    })();
-  }
-  return appServerPromise;
+// --- Lazy key conversion (so a key error returns a clean response, not a boot crash) ---
+let vapidPrivateJwk: JsonWebKey | null = null;
+function getVapidPrivateJwk(): JsonWebKey {
+  if (!vapidPrivateJwk) vapidPrivateJwk = buildVapidPrivateJwk(VAPID_PUBLIC, VAPID_PRIVATE);
+  return vapidPrivateJwk;
 }
 
 function inQuietHours(start?: string | null, end?: string | null): boolean {
