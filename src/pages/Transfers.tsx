@@ -543,16 +543,9 @@ export function Transfers() {
                       </TableCell>
                       <TableCell>
                         {isPaid ? (
-                          <div className="flex flex-col gap-0.5">
-                            <Badge className="text-sm w-fit bg-success/15 text-success border-success/30 hover:bg-success/20" variant="outline">
-                              ✓ Bezahlt
-                            </Badge>
-                            {(inv as any).paid_at && (
-                              <span className="text-sm font-medium text-foreground">
-                                am {format(new Date((inv as any).paid_at), "dd.MM.yyyy")}
-                              </span>
-                            )}
-                          </div>
+                          <Badge className="text-sm w-fit bg-success/15 text-success border-success/30 hover:bg-success/20 whitespace-nowrap" variant="outline">
+                            ✓ Bezahlt{(inv as any).paid_at ? ` am ${format(new Date((inv as any).paid_at), "dd.MM.yyyy")}` : ""}
+                          </Badge>
                         ) : inv.review_status === "verified" ? (
                           <Badge variant="default" className="text-xs">Geprüft</Badge>
                         ) : (
@@ -562,11 +555,15 @@ export function Transfers() {
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
                           <Button
-                            variant={isPaid ? "secondary" : "ghost"} size="sm" className="h-8 w-8 p-0"
+                            variant="ghost" size="sm" className="h-8 w-8 p-0"
                             title={isPaid ? "Als unbezahlt markieren" : "Als bezahlt markieren"}
                             onClick={() => handleMarkAsPaid(inv.id, inv.status)}
                           >
-                            <Check className={`h-3.5 w-3.5 ${isPaid ? "text-success" : "text-muted-foreground"}`} />
+                            {isPaid ? (
+                              <X className="h-3.5 w-3.5 text-destructive" />
+                            ) : (
+                              <Check className="h-3.5 w-3.5 text-muted-foreground" />
+                            )}
                           </Button>
                           <Popover
                             open={editingNote === inv.id}
