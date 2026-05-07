@@ -1,13 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { FileText, ExternalLink, CheckCircle2, LayoutTemplate, FileQuestion, EyeOff, Calendar, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { FileText, ExternalLink, CheckCircle2, LayoutTemplate, FileQuestion, EyeOff, Calendar, ArrowDownLeft, ArrowUpRight, BookOpen, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
+import { useState } from "react";
+import { EditBookingDialog } from "./EditBookingDialog";
 
 interface TransactionDetailSheetProps {
   transactionId: string | null;
