@@ -570,10 +570,12 @@ export function Transfers() {
                       <TableCell>
                         {isPaid ? (
                           <div className="flex flex-col gap-0.5">
-                            <Badge variant="secondary" className="text-xs w-fit">Bezahlt</Badge>
+                            <Badge className="text-xs w-fit bg-success/15 text-success border-success/30 hover:bg-success/20" variant="outline">
+                              ✓ Bezahlt
+                            </Badge>
                             {(inv as any).paid_at && (
                               <span className="text-[10px] text-muted-foreground">
-                                {format(new Date((inv as any).paid_at), "dd.MM.yy")}
+                                am {format(new Date((inv as any).paid_at), "dd.MM.yy")}
                               </span>
                             )}
                           </div>
