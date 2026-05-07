@@ -24,6 +24,7 @@ import { DateRangePicker } from "@/components/DateRangePicker";
 import { KnowledgeDocumentsManager } from "@/components/chatbot/KnowledgeDocumentsManager";
 import { ChartOfAccountsTab } from "@/components/finance/ChartOfAccountsTab";
 import { ReportTemplateSettings } from "@/components/finance/ReportTemplateSettings";
+import { NotificationSettingsSection } from "@/components/settings/NotificationSettingsSection";
 
 interface AdminUser {
   user_id: string;
