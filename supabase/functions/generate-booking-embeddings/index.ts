@@ -254,36 +254,42 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Backfill-Mode
+    // Backfill-Mode: nur Buchungen ohne Embedding bearbeiten
     if (body.mode === "backfill") {
       const limit = Math.min(Number(body.limit) || 10, 25);
-      const offset = Number(body.offset) || 0;
 
+      // Alle bereits eingebetteten IDs holen
+      const { data: embedded } = await supabase
+        .from("booking_embeddings")
+        .select("booking_id");
+      const embeddedSet = new Set((embedded || []).map((e: any) => e.booking_id));
+
+      // Bestätigte Buchungen holen und in JS filtern
       let q = supabase
         .from("bookings")
         .select("id")
         .eq("status", "confirmed")
         .order("created_at", { ascending: false })
-        .range(offset, offset + limit - 1);
-
+        .limit(2000);
       if (body.building_id) q = q.eq("building_id", body.building_id);
 
       const { data: rows, error } = await q;
       if (error) throw error;
+      const candidates = (rows || []).filter((r: any) => !embeddedSet.has(r.id)).slice(0, limit);
 
       const results: any[] = [];
-      for (const row of rows || []) {
+      for (const row of candidates) {
         try {
           const r = await processBooking(row.id);
           results.push(r);
         } catch (e) {
           results.push({ booking_id: row.id, error: e instanceof Error ? e.message : String(e) });
         }
-        await new Promise((res) => setTimeout(res, 1000)); // 1s Delay
+        await new Promise((res) => setTimeout(res, 1000));
       }
 
       return new Response(
-        JSON.stringify({ processed: results.length, results, next_offset: offset + (rows?.length || 0) }),
+        JSON.stringify({ processed: results.length, results }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }

@@ -670,7 +670,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           const acc = accounts.find(a => a.account_number === sb.counter_account_number);
           if (acc) row.counter_account_id = acc.id;
         }
-        if (sb.description) row.description = sb.description;
         if (sb.booking_type) row.booking_type = sb.booking_type;
         if (sb.is_35a_relevant) {
           row.is_35a_relevant = true;
@@ -694,7 +693,19 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           const acc = accounts.find(a => a.account_number === ts.account_number);
           if (acc) row.counter_account_id = acc.id;
         }
-        if (!row.description && ts.name) row.description = ts.name;
+      }
+      // Buchungstext IMMER nach RGI-Schema bauen (auch bei reinem AI-Vorschlag ohne Rechnung)
+      const _aiCounter = accounts.find((a: any) => a.id === row.counter_account_id);
+      const _vendorFromTxn = currentTxn.amount < 0 ? currentTxn.creditor_name : currentTxn.debtor_name;
+      const _aiText = buildBookingText({
+        period: formatMonthYearRef(txnDate),
+        invoiceNumber: row.receipt_number || null,
+        vendorName: resolveVendor(_vendorFromTxn || null),
+        counterAccountName: _aiCounter?.account_name || null,
+      });
+      if (_aiText) {
+        row.description = _aiText;
+        row.__autoTextSignature = _aiText;
       }
     }
 
@@ -743,13 +754,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   const buildAutoTextForRow = useCallback((r: BookingRowData, override?: Partial<BookingRowData>): string => {
     const eff: BookingRowData = { ...r, ...(override || {}) } as BookingRowData;
     const ca = accounts.find((a: any) => a.id === eff.counter_account_id);
+    const vendorFromTxn = currentTxn ? (currentTxn.amount < 0 ? currentTxn.creditor_name : currentTxn.debtor_name) : null;
     return buildBookingText({
       period: formatMonthYearRef(eff.booking_date),
       invoiceNumber: eff.receipt_number || (invoiceDetail as any)?.invoice_number || null,
-      vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || null),
+      vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || vendorFromTxn || null),
       counterAccountName: ca?.account_name || null,
     });
-  }, [accounts, invoiceDetail, vendorAliases, buildingId]);
+  }, [accounts, invoiceDetail, vendorAliases, buildingId, currentTxn]);
 
   const updateRow = (rowId: string, field: string, value: string | boolean | number) => {
     setFormRows(rows => rows.map(r => {
@@ -770,10 +782,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       // Auto-rebuild Buchungstext bei relevanten Feldern – nur wenn User noch nicht manuell geändert hat
       if (field === "counter_account_id" || field === "receipt_number" || field === "invoice_id" || field === "booking_date") {
         const newAuto = buildAutoTextForRow(next);
+        const vendorFromTxn = currentTxn ? (currentTxn.amount < 0 ? currentTxn.creditor_name : currentTxn.debtor_name) : null;
         const rebuilt = rebuildBookingTextIfAuto(next.description, next.__autoTextSignature, {
           period: formatMonthYearRef(next.booking_date),
           invoiceNumber: next.receipt_number || (invoiceDetail as any)?.invoice_number || null,
-          vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || null),
+          vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || vendorFromTxn || null),
           counterAccountName: accounts.find((a: any) => a.id === next.counter_account_id)?.account_name || null,
         });
         next = { ...next, description: rebuilt.text, __autoTextSignature: rebuilt.signature || newAuto };
