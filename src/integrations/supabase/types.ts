@@ -5920,6 +5920,7 @@ export type Database = {
           id: string
           last_delivery_at: string | null
           last_delivery_code: number | null
+          last_delivery_detail: string | null
           last_delivery_status: string | null
           last_used_at: string | null
           p256dh: string
@@ -5935,6 +5936,7 @@ export type Database = {
           id?: string
           last_delivery_at?: string | null
           last_delivery_code?: number | null
+          last_delivery_detail?: string | null
           last_delivery_status?: string | null
           last_used_at?: string | null
           p256dh: string
@@ -5950,6 +5952,7 @@ export type Database = {
           id?: string
           last_delivery_at?: string | null
           last_delivery_code?: number | null
+          last_delivery_detail?: string | null
           last_delivery_status?: string | null
           last_used_at?: string | null
           p256dh?: string
