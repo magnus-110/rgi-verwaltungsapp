@@ -212,7 +212,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const { data: assignments = [], refetch } = useQuery({
     queryKey: ['building-contact-assignments', buildingId, managementMode],
     queryFn: async () => {
-      const roleFilter = managementMode === 'rent' ? ["mieter"] : ["eigentuemer", "beirat"];
+      const roleFilter: ("eigentuemer" | "beirat" | "mieter")[] = managementMode === 'rent' ? ["mieter"] : ["eigentuemer", "beirat"];
       const { data: assignData, error } = await supabase
         .from("contact_building_assignments")
         .select("*, contact:contacts(id, salutation, first_name, last_name, company_name, address_street, address_zip, address_city)")
