@@ -58,18 +58,22 @@ export function rebuildBookingTextIfAuto(
 }
 
 export function buildBookingText(parts: BookingTextParts): string {
-  const segments: string[] = [];
   const period = (parts.period || "").trim();
   const invoiceNumber = (parts.invoiceNumber || "").trim();
   const vendor = (parts.vendorName || "").trim();
   const account = (parts.counterAccountName || "").trim();
 
-  if (period) segments.push(period);
-  if (invoiceNumber) segments.push(`Re. Nr. ${invoiceNumber}`);
-  if (vendor) segments.push(vendor);
-  if (account) segments.push(account);
+  // Schema: [Zeitraum] [Gegenkonto] [Lieferant], Re. Nr. <Nr.>
+  const head: string[] = [];
+  if (period) head.push(period);
+  if (account) head.push(account);
+  if (vendor) head.push(vendor);
 
-  return segments.join(" ").replace(/\s+/g, " ").trim();
+  let text = head.join(" ").replace(/\s+/g, " ").trim();
+  if (invoiceNumber) {
+    text = text ? `${text}, Re. Nr. ${invoiceNumber}` : `Re. Nr. ${invoiceNumber}`;
+  }
+  return text;
 }
 
 /**
