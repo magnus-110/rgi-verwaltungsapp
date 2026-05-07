@@ -54,6 +54,22 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
     },
   });
 
+  const { data: adminNotes = [] } = useQuery({
+    queryKey: ["cash-audit-notes", auditId, tokenMode ? token : "auth"],
+    queryFn: async () => {
+      if (tokenMode && token) {
+        const { data } = await supabase.rpc("get_audit_notes_by_token", { p_token: token });
+        return (data as any[]) || [];
+      }
+      const { data } = await supabase
+        .from("cash_audit_notes")
+        .select("id, title, body, sort_order")
+        .eq("cash_audit_id", auditId)
+        .order("sort_order");
+      return data || [];
+    },
+  });
+
   const [localProgress, setLocalProgress] = useState<Record<string, any> | null>(null);
   const progress = localProgress ?? (audit?.progress as Record<string, any>) ?? {};
 
