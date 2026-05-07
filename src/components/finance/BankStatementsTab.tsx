@@ -432,6 +432,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     const { error } = await supabase.from("bank_transactions").update(updateData).eq("id", txnId);
     if (error) { toast.error("Fehler beim Zuordnen"); }
     else {
+      if (manualAssignType === "invoice") await syncBookingInvoice(txnId, manualAssignId);
       toast.success("Transaktion manuell zugeordnet");
       setManualAssignTxn(null);
       setManualAssignId("");
@@ -439,6 +440,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       resetAiPrefetch();
       queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
       queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("bookings") });
       openReviewForTxn(txnId);
     }
   };
