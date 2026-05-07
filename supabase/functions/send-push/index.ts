@@ -112,11 +112,12 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      const defaultIcon = "/lovable-uploads/6a67de24-d14d-44a0-8b78-b3cf0608cc46.png";
       const notif = JSON.stringify({
         title,
         body: body ?? "",
-        icon: icon ?? "/favicon.ico",
-        badge: "/favicon.ico",
+        icon: icon ?? defaultIcon,
+        badge: defaultIcon,
         tag: tag ?? dedup_key,
         data: { url: url ?? "/", type, dedup_key },
       });

@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Bell, BellOff, Mail, CheckSquare, Calendar, Smartphone } from "lucide-react";
+import { Bell, BellOff, Mail, CheckSquare, Calendar, Smartphone, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
@@ -34,6 +34,20 @@ const DEFAULT_PREFS: Prefs = {
   quiet_hours_end: null,
 };
 
+function StatusRow({ ok, label, hint }: { ok: boolean | null; label: string; hint?: string }) {
+  const Icon = ok === true ? CheckCircle2 : ok === false ? XCircle : AlertCircle;
+  const color = ok === true ? "text-green-600" : ok === false ? "text-red-600" : "text-amber-600";
+  return (
+    <div className="flex items-start gap-2 text-sm">
+      <Icon className={`w-4 h-4 mt-0.5 ${color}`} />
+      <div>
+        <div>{label}</div>
+        {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
+      </div>
+    </div>
+  );
+}
+
 export function NotificationSettingsSection() {
   const { user } = useAuth();
   const push = usePushSubscription();
@@ -41,6 +55,7 @@ export function NotificationSettingsSection() {
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
   const [subscribedAccountIds, setSubscribedAccountIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
+  const [lastTestResult, setLastTestResult] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -90,9 +105,16 @@ export function NotificationSettingsSection() {
     setSubscribedAccountIds(next);
   }
 
-  async function sendTest() {
+  async function localTest() {
+    const res = await push.showLocalTest();
+    if (res.error) toast.error("Lokaler Test fehlgeschlagen: " + res.error);
+    else toast.success("Lokale Notification ausgelöst – siehst du sie?");
+  }
+
+  async function serverTest() {
     if (!user) return;
-    const { error } = await supabase.functions.invoke("send-push", {
+    setLastTestResult(null);
+    const { data, error } = await supabase.functions.invoke("send-push", {
       body: {
         user_ids: [user.id],
         dedup_key: `test:${Date.now()}`,
@@ -102,9 +124,23 @@ export function NotificationSettingsSection() {
         url: "/",
       },
     });
-    if (error) toast.error("Fehlgeschlagen: " + error.message);
-    else toast.success("Test gesendet — schau in dein Benachrichtigungsfeld.");
+    if (error) {
+      toast.error("Server-Test fehlgeschlagen: " + error.message);
+      setLastTestResult("Fehler: " + error.message);
+      return;
+    }
+    const my = (data as any)?.results?.[user.id] ?? "unbekannt";
+    setLastTestResult(`Server-Antwort: ${my} (gesamt ausgeliefert: ${(data as any)?.totalSent ?? 0})`);
+    if (typeof my === "string" && my.startsWith("sent:") && my !== "sent:0") {
+      toast.success("Server-Push gesendet. Warte 1–2 Sek. auf Anzeige.");
+    } else {
+      toast.warning(`Server hat nicht zugestellt: ${my}`);
+    }
   }
+
+  const lastReceived = push.diagnostics.lastPushReceivedAt
+    ? new Date(push.diagnostics.lastPushReceivedAt).toLocaleTimeString("de-DE")
+    : null;
 
   return (
     <div className="space-y-6">
@@ -127,8 +163,9 @@ export function NotificationSettingsSection() {
                 <Badge variant="default" className="bg-green-600 hover:bg-green-600"><Bell className="w-3 h-3 mr-1" />Aktiv</Badge>
                 <span className="text-sm text-muted-foreground">Dieses Gerät erhält Benachrichtigungen.</span>
               </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={sendTest}>Test senden</Button>
+              <div className="flex gap-2 flex-wrap">
+                <Button size="sm" variant="outline" onClick={localTest}>Lokaler Test</Button>
+                <Button size="sm" variant="outline" onClick={serverTest}>Server-Test</Button>
                 <Button size="sm" variant="outline" onClick={push.unsubscribe} disabled={push.loading}>
                   <BellOff className="w-4 h-4 mr-1" /> Deaktivieren
                 </Button>
@@ -145,6 +182,30 @@ export function NotificationSettingsSection() {
                 <Bell className="w-4 h-4 mr-1" /> Aktivieren
               </Button>
             </div>
+          )}
+
+          <Separator />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <StatusRow ok={push.supported} label="Browser unterstützt Push" />
+            <StatusRow
+              ok={push.permission === "granted" ? true : push.permission === "denied" ? false : null}
+              label={`Berechtigung: ${push.permission}`}
+              hint={push.permission === "denied" ? "Im Chrome bei Schloss-Symbol → Benachrichtigungen erlauben." : undefined}
+            />
+            <StatusRow ok={push.diagnostics.swRegistered} label="Service Worker registriert" />
+            <StatusRow ok={push.diagnostics.swActive} label="Service Worker aktiv" />
+            <StatusRow ok={push.subscribed} label="Gerät als Push-Empfänger registriert" />
+            <StatusRow
+              ok={lastReceived ? true : null}
+              label={lastReceived ? `Letzter Push empfangen: ${lastReceived}` : "Noch kein Push in dieser Session empfangen"}
+              hint="Wird gesetzt, sobald der Service Worker einen Push aus dem Netz erhält."
+            />
+          </div>
+          {lastTestResult && (
+            <p className="text-xs text-muted-foreground">{lastTestResult}</p>
+          )}
+          {push.lastError && (
+            <p className="text-xs text-red-600">Letzter Fehler: {push.lastError}</p>
           )}
         </CardContent>
       </Card>
