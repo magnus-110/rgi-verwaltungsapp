@@ -75,16 +75,20 @@ export function BookingTextTemplateCombobox({
       vendorName: invoice?.vendor_name,
       counterAccountName,
     });
-    // Falls bereits ein (vom User getippter) Buchungstext existiert, der das
-    // Zeitraum-Präfix noch nicht enthält, stellen wir es voran statt den Text
-    // zu überschreiben.
+    // Wenn der Nutzer ein Kürzel wählt, wollen wir den RGI-Standard-Text:
+    // [Zeitraum] [Re. Nr.] [Lieferant] [Gegenkonto].
+    // Nur falls der bisherige Text vom Generator abweicht UND zusätzliche
+    // Information enthält, hängen wir ihn als Zusatz an.
     const existing = (existingText || "").trim();
     let finalText = generated;
-    if (existing) {
-      if (period && !existing.toLowerCase().startsWith(period.toLowerCase())) {
-        finalText = `${period} ${existing}`.replace(/\s+/g, " ").trim();
-      } else {
-        finalText = existing;
+    if (existing && !generated.toLowerCase().includes(existing.toLowerCase())) {
+      // Wenn der existierende Text mit dem Period-Präfix beginnt, schneide es ab
+      const stripped = period && existing.toLowerCase().startsWith(period.toLowerCase())
+        ? existing.slice(period.length).trim()
+        : existing;
+      // Hänge nur an, wenn er nicht bereits Bestandteil des generierten Texts ist
+      if (stripped && !generated.toLowerCase().includes(stripped.toLowerCase())) {
+        finalText = `${generated} ${stripped}`.replace(/\s+/g, " ").trim();
       }
     }
     onApply(finalText);
