@@ -357,6 +357,8 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     try {
     const newInvoiceId = form.invoice_id || null;
     const oldInvoiceId = booking.invoice_id || null;
+    const newTemplateId = matchedTemplateId || null;
+    const oldTemplateId = (booking as any).matched_template_id || null;
     const { error } = await supabase.from("bookings").update({
       account_id: form.account_id,
       counter_account_id: form.counter_account_id || null,
@@ -373,15 +375,23 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       amount_35a: form.amount_35a ? parseAmount(form.amount_35a) : null,
       line_items_detail: form.line_items_detail,
       invoice_id: newInvoiceId,
+      matched_template_id: newTemplateId,
     }).eq("id", booking.id);
     if (error) throw error;
 
     // Sync linked bank transaction (Kontoauszug) so re-assignment is consistent
     const txnId = (booking as any).bank_transaction_id;
-    if (txnId && newInvoiceId !== oldInvoiceId) {
-      const txnUpdate: any = newInvoiceId
-        ? { matched_invoice_id: newInvoiceId, match_status: "manually_matched" }
-        : { matched_invoice_id: null };
+    if (txnId && (newInvoiceId !== oldInvoiceId || newTemplateId !== oldTemplateId)) {
+      const txnUpdate: any = {};
+      if (newInvoiceId !== oldInvoiceId) {
+        txnUpdate.matched_invoice_id = newInvoiceId;
+        if (newInvoiceId) txnUpdate.match_status = "manually_matched";
+        else if (!newTemplateId) txnUpdate.match_status = null;
+      }
+      if (newTemplateId !== oldTemplateId) {
+        txnUpdate.matched_template_id = newTemplateId;
+        if (newTemplateId) txnUpdate.match_status = "manually_matched";
+      }
       const { error: txnErr } = await supabase
         .from("bank_transactions")
         .update(txnUpdate)
