@@ -473,7 +473,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     if (isSplit) {
       // Multiple booking rows from AI.
       // Splitbuchungen IMMER nach RGI-Schema:
-      //   "MM/JJ Re. Nr. <invoice_number> <Lieferant> <Gegenkonto>"
+      //   "MM/JJ <Gegenkonto> <Lieferant>, Re. Nr. <invoice_number>"
       const invoiceNumber = (invoiceDetail as any)?.invoice_number || null;
       const vendorName = resolveVendor((invoiceDetail as any)?.vendor_name || null);
       const period = formatMonthYearRef(txnDate);
