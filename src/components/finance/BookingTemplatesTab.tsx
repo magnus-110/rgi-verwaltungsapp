@@ -1114,19 +1114,19 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                 className={cn(
                   "rounded-md border-2 border-dashed px-4 py-6 flex flex-col items-center justify-center gap-1 text-center transition-colors cursor-pointer",
                   isDocDragging
-                    ? "border-cyan-500 bg-cyan-100/60 dark:bg-cyan-900/30"
-                    : "border-cyan-300/70 dark:border-cyan-800 bg-background/60 hover:bg-cyan-50/60 dark:hover:bg-cyan-950/30",
+                    ? "border-primary bg-primary/10"
+                    : "border-border bg-muted/30 hover:bg-muted/50",
                   (!form.building_id || uploadingDoc) && "opacity-60 cursor-not-allowed"
                 )}
               >
                 {uploadingDoc ? (
                   <>
-                    <Loader2 className="h-5 w-5 animate-spin text-cyan-600" />
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
                     <span className="text-xs text-muted-foreground">Wird hochgeladen…</span>
                   </>
                 ) : (
                   <>
-                    <Upload className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+                    <Upload className="h-5 w-5 text-primary" />
                     <span className="text-sm font-medium">
                       {isDocDragging ? "Datei hier ablegen" : "Datei hierher ziehen oder klicken"}
                     </span>
@@ -1135,6 +1135,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                     </span>
                   </>
                 )}
+              </div>
               </div>
             </div>
 
