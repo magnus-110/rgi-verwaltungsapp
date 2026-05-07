@@ -1,13 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { FileText, ExternalLink, CheckCircle2, LayoutTemplate, FileQuestion, EyeOff, Calendar, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { FileText, ExternalLink, CheckCircle2, LayoutTemplate, FileQuestion, EyeOff, Calendar, ArrowDownLeft, ArrowUpRight, BookOpen, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
+import { useState } from "react";
+import { EditBookingDialog } from "./EditBookingDialog";
 
 interface TransactionDetailSheetProps {
   transactionId: string | null;
@@ -23,6 +25,8 @@ const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: 
 };
 
 export function TransactionDetailSheet({ transactionId, onClose }: TransactionDetailSheetProps) {
+  const queryClient = useQueryClient();
+  const [editBooking, setEditBooking] = useState<any | null>(null);
   const { data: txn } = useQuery({
     queryKey: ["bank-transaction-detail", transactionId],
     queryFn: async () => {
@@ -66,6 +70,27 @@ export function TransactionDetailSheet({ transactionId, onClose }: TransactionDe
       return data;
     },
     enabled: !!txn?.matched_template_id,
+  });
+
+  const { data: booking } = useQuery({
+    queryKey: ["txn-booking", (txn as any)?.booking_id],
+    queryFn: async () => {
+      const bid = (txn as any)?.booking_id;
+      if (!bid) return null;
+      const { data, error } = await supabase
+        .from("bookings")
+        .select(`
+          *,
+          chart_of_accounts!bookings_account_id_fkey(id, account_number, account_name, category),
+          counter_account:chart_of_accounts!bookings_counter_account_id_fkey(id, account_number, account_name, category),
+          buildings!bookings_building_id_fkey(id, name)
+        `)
+        .eq("id", bid)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!(txn as any)?.booking_id,
   });
 
   const openInvoicePdf = async () => {
@@ -221,8 +246,67 @@ export function TransactionDetailSheet({ transactionId, onClose }: TransactionDe
               </div>
             </>
           )}
+
+          {/* Linked Booking */}
+          {booking && (
+            <>
+              <Separator />
+              <div>
+                <h4 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
+                  <BookOpen className="h-4 w-4" />
+                  Gebuchte Buchung
+                </h4>
+                <div className="bg-muted/50 rounded-lg p-3 space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span>Datum</span>
+                    <span className="font-medium">{format(new Date(booking.booking_date), "dd.MM.yyyy", { locale: de })}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Beleg</span>
+                    <span className="font-mono text-xs">{booking.receipt_number || booking.booking_reference || "–"}</span>
+                  </div>
+                  {booking.chart_of_accounts && (
+                    <div className="flex justify-between text-sm">
+                      <span>Konto</span>
+                      <span className="font-medium">{booking.chart_of_accounts.account_number} {booking.chart_of_accounts.account_name}</span>
+                    </div>
+                  )}
+                  {booking.counter_account && (
+                    <div className="flex justify-between text-sm">
+                      <span>Gegenkonto</span>
+                      <span className="font-medium">{booking.counter_account.account_number} {booking.counter_account.account_name}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm">
+                    <span>Betrag</span>
+                    <span className="font-mono">{Number(booking.amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €</span>
+                  </div>
+                  {booking.description && (
+                    <div className="text-sm pt-1">
+                      <span className="text-muted-foreground">Text: </span>
+                      <span>{booking.description}</span>
+                    </div>
+                  )}
+                  <Button size="sm" variant="outline" className="w-full mt-2" onClick={() => setEditBooking(booking)}>
+                    <Pencil className="h-3.5 w-3.5 mr-2" />
+                    Buchung bearbeiten
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </SheetContent>
+      <EditBookingDialog
+        open={!!editBooking}
+        onOpenChange={(o) => { if (!o) setEditBooking(null); }}
+        booking={editBooking}
+        buildingName={booking?.buildings?.name || ""}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["txn-booking"] });
+          queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+        }}
+      />
     </Sheet>
   );
 }
