@@ -497,7 +497,6 @@ export function Transfers() {
                   <TableHead>IBAN</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
                   <TableHead>Liegenschaft</TableHead>
-                  <TableHead>OCR</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
@@ -543,29 +542,6 @@ export function Transfers() {
                         {(inv as any).is_company_invoice ? (
                           <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/10">RGI</Badge>
                         ) : ((inv as any).buildings?.name || "–")}
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        {(inv as any).ocr_status === "processing" && (
-                          <Badge variant="outline" className="text-xs gap-1 text-primary border-primary/30">
-                            <Loader2 className="h-3 w-3 animate-spin" /> Läuft
-                          </Badge>
-                        )}
-                        {(inv as any).ocr_status === "done" && (
-                          <Badge variant="outline" className="text-xs gap-1 text-success border-success/30">
-                            <Sparkles className="h-3 w-3" /> Fertig
-                          </Badge>
-                        )}
-                        {(!(inv as any).ocr_status || (inv as any).ocr_status === "pending" || (inv as any).ocr_status === "error") && (
-                          <Button
-                            variant="outline" size="sm"
-                            className="h-7 px-2 text-xs text-warning border-warning/30"
-                            disabled={retryingOcr === inv.id || retryingOcr === "all"}
-                            onClick={() => retryOcr(inv.id, (inv as any).is_company_invoice)}
-                          >
-                            {retryingOcr === inv.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
-                            Starten
-                          </Button>
-                        )}
                       </TableCell>
                       <TableCell>
                         {isPaid ? (
@@ -698,7 +674,7 @@ function IncomingList({
             <TableHead>Verwendungszweck</TableHead>
             <TableHead className="text-right">Betrag</TableHead>
             <TableHead>Liegenschaft</TableHead>
-            <TableHead>OCR</TableHead>
+            
             <TableHead>Status</TableHead>
             <TableHead className="w-32 text-right">Aktion</TableHead>
           </TableRow>
@@ -729,29 +705,6 @@ function IncomingList({
               </TableCell>
               <TableCell className="text-muted-foreground text-sm">
                 {inv.buildings?.name || "–"}
-              </TableCell>
-              <TableCell onClick={(e) => e.stopPropagation()}>
-                {inv.ocr_status === "processing" && (
-                  <Badge variant="outline" className="text-xs gap-1 text-primary border-primary/30">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Läuft
-                  </Badge>
-                )}
-                {inv.ocr_status === "done" && (
-                  <Badge variant="outline" className="text-xs gap-1 text-success border-success/30">
-                    <Sparkles className="h-3 w-3" /> Fertig
-                  </Badge>
-                )}
-                {(!inv.ocr_status || inv.ocr_status === "pending" || inv.ocr_status === "error") && (
-                  <Button
-                    variant="outline" size="sm"
-                    className="h-7 px-2 text-xs text-warning border-warning/30"
-                    disabled={retryingOcr === inv.id || retryingOcr === "all"}
-                    onClick={() => retryOcr(inv.id)}
-                  >
-                    {retryingOcr === inv.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
-                    Starten
-                  </Button>
-                )}
               </TableCell>
               <TableCell>{renderStatus(inv)}</TableCell>
               <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
