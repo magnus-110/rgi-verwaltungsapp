@@ -94,7 +94,7 @@ export function Transfers() {
 
   // ───────── OUTGOING (Eingangsrechnungen — bleibt wie bisher) ─────────
   const { data: outgoingInvoices = [], refetch: refetchOutgoing } = useQuery({
-    queryKey: ["transfer-invoices-outgoing", buildingFilter, showPaid],
+    queryKey: ["transfer-invoices-outgoing", buildingFilter, showPaid, periodFrom, periodTo],
     enabled: direction === "outgoing",
     queryFn: async () => {
       let query = supabase
