@@ -22,7 +22,7 @@ export function CreateAccountInlineDialog({ open, onOpenChange, buildingId, onCr
   const [form, setForm] = useState({
     account_number: "",
     account_name: "",
-    category: "Ausgabe",
+    category: "1. Umlagefähige Betriebskosten",
     scope: "building" as "building" | "global",
     default_vat_rate: "19",
     is_billing_relevant: true,
