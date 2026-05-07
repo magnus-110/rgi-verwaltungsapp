@@ -56,6 +56,8 @@ export function NotificationSettingsSection() {
   const [subscribedAccountIds, setSubscribedAccountIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [lastTestResult, setLastTestResult] = useState<string | null>(null);
+  const [lastTestDevices, setLastTestDevices] = useState<any[] | null>(null);
+  const [serverVapidFp, setServerVapidFp] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -114,6 +116,7 @@ export function NotificationSettingsSection() {
   async function serverTest() {
     if (!user) return;
     setLastTestResult(null);
+    setLastTestDevices(null);
     const { data, error } = await supabase.functions.invoke("send-push", {
       body: {
         user_ids: [user.id],
@@ -130,12 +133,15 @@ export function NotificationSettingsSection() {
       setLastTestResult("Fehler: " + error.message);
       return;
     }
-    const my = (data as any)?.results?.[user.id] ?? "unbekannt";
-    setLastTestResult(`Server-Antwort: ${my} (gesamt ausgeliefert: ${(data as any)?.totalSent ?? 0})`);
-    if (typeof my === "string" && my.startsWith("sent:") && my !== "sent:0") {
+    const me = (data as any)?.results?.[user.id];
+    const status = me?.status ?? "unbekannt";
+    setServerVapidFp(me?.server_vapid_fp ?? null);
+    setLastTestDevices(Array.isArray(me?.devices) ? me.devices : null);
+    setLastTestResult(`Server-Antwort: ${status} (gesamt ausgeliefert: ${(data as any)?.totalSent ?? 0})`);
+    if (typeof status === "string" && status.startsWith("sent:")) {
       toast.success("Server-Push gesendet. Warte 1–2 Sek. auf Anzeige.");
     } else {
-      toast.warning(`Server hat nicht zugestellt: ${my}`);
+      toast.warning(`Server hat nicht zugestellt: ${status}`);
     }
   }
 
