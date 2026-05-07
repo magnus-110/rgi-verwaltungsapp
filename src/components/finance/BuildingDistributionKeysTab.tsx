@@ -291,7 +291,38 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                                     <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0">Eigenes</Badge>
                                   )}
                                 </TableCell>
-                                <TableCell className="text-sm">{account.account_name}</TableCell>
+                                <TableCell className="text-sm">
+                                  {editingNameId === account.id ? (
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        autoFocus
+                                        value={editingNameValue}
+                                        onChange={e => setEditingNameValue(e.target.value)}
+                                        onKeyDown={e => {
+                                          if (e.key === "Enter") saveEditName(account.id);
+                                          if (e.key === "Escape") setEditingNameId(null);
+                                        }}
+                                        className="h-7 text-sm"
+                                      />
+                                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveEditName(account.id)}>
+                                        <Check className="h-3 w-3" />
+                                      </Button>
+                                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingNameId(null)}>
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => startEditName(account)}
+                                      className="group inline-flex items-center gap-1.5 text-left hover:text-primary"
+                                      title="Bezeichnung bearbeiten"
+                                    >
+                                      <span>{account.account_name}</span>
+                                      <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60" />
+                                    </button>
+                                  )}
+                                </TableCell>
                                 <TableCell>
                                   <span className="text-xs text-muted-foreground">{getKeyLabel(account.default_distribution_key)}</span>
                                 </TableCell>
