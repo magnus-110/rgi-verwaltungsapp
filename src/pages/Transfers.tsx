@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, isToday } from "date-fns";
 import {
-  CreditCard, AlertTriangle, Play, StickyNote, Check, FileCode, Loader2,
+  CreditCard, AlertTriangle, Play, StickyNote, Check, X, FileCode, Loader2,
   RefreshCw, Sparkles, ArrowDownToLine, ArrowUpFromLine, Link2, Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
