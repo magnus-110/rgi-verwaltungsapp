@@ -266,13 +266,21 @@ function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAc
   const fmtDate = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-  // Saldo lt. Buchhaltung — bank-zentrisch berechnet via signedTotalForAccount.
-  // Make.com bucht Bank meist als account_id mit booking_type="expense" für Ausgaben;
-  // die alte RPC `calculate_account_balance_at` ignoriert booking_type und liefert
-  // dadurch falsche Vorzeichen für Ausgaben.
+  // Saldo lt. Buchhaltung — bank-zentrisch via signedTotalForAccount.
+  // Eröffnungsbuchungen gegen Konto 4000 (SKR-Standard, oft am 01.01. datiert)
+  // werden IMMER dem Anfangsbestand zugerechnet, auch wenn ihr Datum innerhalb
+  // des betrachteten Monats liegt — sonst fehlt der Anfangssaldo im Januar.
   const { data: balances } = useQuery({
-    queryKey: ["recon-balances-v3", bankAccountId, buildingId, year, month],
+    queryKey: ["recon-balances-v4", bankAccountId, buildingId, year, month],
     queryFn: async () => {
+      const { data: openingAcc } = await supabase
+        .from("chart_of_accounts")
+        .select("id")
+        .eq("account_number", "4000")
+        .is("building_id", null)
+        .maybeSingle();
+      const openingAccountId = openingAcc?.id ?? null;
+
       const { data, error } = await supabase
         .from("bookings")
         .select("amount, account_id, counter_account_id, booking_date, booking_type")
@@ -283,7 +291,11 @@ function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAc
       if (error) throw error;
       const firstStr = fmtDate(firstDay);
       const lastStr = fmtDate(lastDay);
-      const before = (data ?? []).filter((b: any) => b.booking_date < firstStr);
+      const isOpening = (b: any) =>
+        openingAccountId &&
+        (b.account_id === openingAccountId || b.counter_account_id === openingAccountId) &&
+        b.booking_date && b.booking_date.startsWith(`${year}-01-`);
+      const before = (data ?? []).filter((b: any) => b.booking_date < firstStr || isOpening(b));
       const upToEnd = (data ?? []).filter((b: any) => b.booking_date <= lastStr);
       return {
         opening: signedTotalForAccount(bankAccountId, before as any),
