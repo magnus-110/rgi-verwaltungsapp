@@ -575,7 +575,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                 </div>
 
                 {/* Save button */}
-                <Button onClick={handleSave} disabled={saving || !form.account_id} className="w-full h-9 text-sm">
+                <Button data-edit-booking-save onClick={handleSave} disabled={saving || !form.account_id} className="w-full h-9 text-sm">
                   {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
                   Speichern
                 </Button>
