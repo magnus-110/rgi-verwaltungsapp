@@ -276,6 +276,17 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
                                 )}>
                                   {isIncome ? "+" : ""}{formatCurrency(Number(b.amount))}
                                 </TableCell>
+                                <TableCell className="py-1.5 px-2 text-right">
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7"
+                                    title="Buchung bearbeiten"
+                                    onClick={(e) => { e.stopPropagation(); setEditBooking(b); }}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TableCell>
                               </TableRow>
                             );
                           })}
