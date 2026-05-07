@@ -251,6 +251,30 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     }});
   };
 
+  // Enter-Navigation: focus next focusable input/combobox
+  const focusNext = (currentEl: HTMLElement | null) => {
+    if (!currentEl) return;
+    const container = currentEl.closest("[data-edit-booking-form]") as HTMLElement | null;
+    if (!container) return;
+    const focusables = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [role="combobox"]:not([disabled]), button[data-edit-booking-save]'
+      )
+    ).filter(el => el.offsetParent !== null);
+    const idx = focusables.indexOf(currentEl);
+    const next = focusables[idx + 1];
+    if (next) {
+      next.focus();
+      if (next.getAttribute("role") === "combobox") next.click();
+    }
+  };
+  const handleEnterToNext = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      focusNext(e.target as HTMLElement);
+    }
+  };
+
   const invoiceLineItems = useMemo(() => {
     if (!invoiceDetail?.line_items) return [];
     const items = (invoiceDetail as any).line_items;
@@ -298,7 +322,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
           <div className={cn("flex-1 flex overflow-hidden", !hasRightPanel && "flex-col")}>
             {/* Left: Booking form */}
             <div className={cn("overflow-y-auto", hasRightPanel ? "w-1/2 border-r" : "flex-1")}>
-              <div className="p-4 space-y-3">
+              <div className="p-4 space-y-3" data-edit-booking-form>
                 {/* AI Warning */}
                 {booking.ai_warning && (
                   <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
@@ -349,6 +373,11 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                       if (acc?.is_35a_relevant) set("is_35a_relevant", true);
                       if (acc && (acc as any).default_vat_rate != null) set("vat_rate", String((acc as any).default_vat_rate));
                     }}
+                    onCommit={() => {
+                      const amt = document.querySelector<HTMLInputElement>('[data-edit-booking-form] input[inputmode="decimal"]');
+                      amt?.focus();
+                      amt?.setSelectionRange(amt.value.length, amt.value.length);
+                    }}
                     accounts={accounts}
                     excludeCategory="Bankkonto"
                     placeholder="Konto suchen…"
@@ -374,6 +403,11 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                       if (e.key === "+" || e.key === "-") {
                         e.preventDefault();
                         set("booking_type", e.key === "+" ? "income" : "expense");
+                        return;
+                      }
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        focusNext(e.target as HTMLElement);
                         return;
                       }
                       const input = e.target as HTMLInputElement;
@@ -416,6 +450,11 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                       if (acc?.account_number?.startsWith("4")) set("vat_rate", "");
                       rebuildAutoText({ counter_account_id: v });
                     }}
+                    onCommit={() => {
+                      const sc = document.querySelector<HTMLInputElement>('[data-edit-booking-shortcut]');
+                      if (sc) { sc.focus(); return; }
+                      document.querySelector<HTMLInputElement>('[data-edit-booking-desc]')?.focus();
+                    }}
                     accounts={accounts}
                     placeholder="Gegenkonto suchen…"
                     showCreateOption
@@ -441,7 +480,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                         document.querySelector<HTMLInputElement>('[data-edit-booking-desc]')?.focus();
                       }}
                     />
-                    <Input data-edit-booking-desc className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} />
+                    <Input data-edit-booking-desc className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} onKeyDown={handleEnterToNext} />
                   </div>
                 </div>
 
@@ -449,11 +488,12 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                 <div className="grid grid-cols-4 gap-2">
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Belegnummer</label>
-                    <Input className="h-8 text-xs font-mono" value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} placeholder="MM/JJ" />
+                    <Input className="h-8 text-xs font-mono" value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} onKeyDown={handleEnterToNext} placeholder="MM/JJ" />
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Beleg-Datum</label>
                     <Input type="date" className="h-8 text-xs" value={form.booking_date}
+                      onKeyDown={handleEnterToNext}
                       onChange={e => {
                         const val = e.target.value;
                         setForm(prev => {
@@ -478,7 +518,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Wirtschaftsjahr</label>
-                    <Input className="h-8 text-xs font-mono" type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} />
+                    <Input className="h-8 text-xs font-mono" type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} onKeyDown={handleEnterToNext} />
                   </div>
                   <div>
                     {(() => {
@@ -489,8 +529,19 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                           <label className={cn("text-xs font-medium mb-1 block", vatMissing ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground")}>
                             MwSt % {isAccrual && <span className="text-orange-500">*</span>}
                           </label>
-                          <Select value={form.vat_rate} onValueChange={v => set("vat_rate", v)}>
-                            <SelectTrigger className={cn("h-8 text-xs", vatMissing && "border-orange-400 ring-1 ring-orange-300")}>
+                          <Select value={form.vat_rate} onValueChange={v => {
+                            set("vat_rate", v);
+                            setTimeout(() => {
+                              document.querySelector<HTMLButtonElement>('[data-edit-booking-save]')?.focus();
+                            }, 50);
+                          }}>
+                            <SelectTrigger className={cn("h-8 text-xs", vatMissing && "border-orange-400 ring-1 ring-orange-300")}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && form.vat_rate) {
+                                  e.preventDefault();
+                                  document.querySelector<HTMLButtonElement>('[data-edit-booking-save]')?.focus();
+                                }
+                              }}>
                               <SelectValue placeholder="Wählen…" />
                             </SelectTrigger>
                             <SelectContent>
@@ -524,7 +575,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                 </div>
 
                 {/* Save button */}
-                <Button onClick={handleSave} disabled={saving || !form.account_id} className="w-full h-9 text-sm">
+                <Button data-edit-booking-save onClick={handleSave} disabled={saving || !form.account_id} className="w-full h-9 text-sm">
                   {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
                   Speichern
                 </Button>
