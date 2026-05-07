@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ChevronDown, ChevronRight, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Search, Trash2, Pencil, Check, X } from "lucide-react";
 import { AccountSettingsPopover } from "./AccountSettingsPopover";
 import { useCustomShareTypes } from "@/hooks/useCustomShareTypes";
 import { SHARE_TYPES } from "@/lib/shareTypes";
@@ -189,6 +189,21 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
 
   const [customKeyInput, setCustomKeyInput] = useState<string | null>(null);
   const [customKeyAccountId, setCustomKeyAccountId] = useState<string | null>(null);
+  const [editingNameId, setEditingNameId] = useState<string | null>(null);
+  const [editingNameValue, setEditingNameValue] = useState("");
+
+  const startEditName = (account: any) => {
+    setEditingNameId(account.id);
+    setEditingNameValue(account.account_name);
+  };
+  const saveEditName = async (id: string) => {
+    if (!editingNameValue.trim()) { toast.error("Bezeichnung darf nicht leer sein"); return; }
+    const { error } = await supabase.from("chart_of_accounts").update({ account_name: editingNameValue.trim() } as any).eq("id", id);
+    if (error) { toast.error("Fehler: " + error.message); return; }
+    toast.success("Bezeichnung aktualisiert");
+    setEditingNameId(null);
+    invalidateAllCoa();
+  };
 
   const getKeyLabel = (key: string | null) => allDistKeys.find(k => k.value === key)?.label || key || "–";
 
@@ -276,7 +291,38 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                                     <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0">Eigenes</Badge>
                                   )}
                                 </TableCell>
-                                <TableCell className="text-sm">{account.account_name}</TableCell>
+                                <TableCell className="text-sm">
+                                  {editingNameId === account.id ? (
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        autoFocus
+                                        value={editingNameValue}
+                                        onChange={e => setEditingNameValue(e.target.value)}
+                                        onKeyDown={e => {
+                                          if (e.key === "Enter") saveEditName(account.id);
+                                          if (e.key === "Escape") setEditingNameId(null);
+                                        }}
+                                        className="h-7 text-sm"
+                                      />
+                                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveEditName(account.id)}>
+                                        <Check className="h-3 w-3" />
+                                      </Button>
+                                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingNameId(null)}>
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => startEditName(account)}
+                                      className="group inline-flex items-center gap-1.5 text-left hover:text-primary"
+                                      title="Bezeichnung bearbeiten"
+                                    >
+                                      <span>{account.account_name}</span>
+                                      <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60" />
+                                    </button>
+                                  )}
+                                </TableCell>
                                 <TableCell>
                                   <span className="text-xs text-muted-foreground">{getKeyLabel(account.default_distribution_key)}</span>
                                 </TableCell>
