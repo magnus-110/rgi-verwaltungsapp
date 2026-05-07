@@ -670,7 +670,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           const acc = accounts.find(a => a.account_number === sb.counter_account_number);
           if (acc) row.counter_account_id = acc.id;
         }
-        if (sb.description) row.description = sb.description;
         if (sb.booking_type) row.booking_type = sb.booking_type;
         if (sb.is_35a_relevant) {
           row.is_35a_relevant = true;
@@ -694,7 +693,19 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           const acc = accounts.find(a => a.account_number === ts.account_number);
           if (acc) row.counter_account_id = acc.id;
         }
-        if (!row.description && ts.name) row.description = ts.name;
+      }
+      // Buchungstext IMMER nach RGI-Schema bauen (auch bei reinem AI-Vorschlag ohne Rechnung)
+      const _aiCounter = accounts.find((a: any) => a.id === row.counter_account_id);
+      const _vendorFromTxn = currentTxn.amount < 0 ? currentTxn.creditor_name : currentTxn.debtor_name;
+      const _aiText = buildBookingText({
+        period: formatMonthYearRef(txnDate),
+        invoiceNumber: row.receipt_number || null,
+        vendorName: resolveVendor(_vendorFromTxn || null),
+        counterAccountName: _aiCounter?.account_name || null,
+      });
+      if (_aiText) {
+        row.description = _aiText;
+        row.__autoTextSignature = _aiText;
       }
     }
 
