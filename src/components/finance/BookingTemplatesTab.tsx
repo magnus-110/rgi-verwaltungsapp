@@ -887,12 +887,10 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
               </div>
             </div>
 
-            <Separator />
-
             {/* === Section 5: Verknüpfte Rechnung === */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <FileText className="h-4 w-4 text-muted-foreground" />
+            <div className="space-y-3 rounded-lg border border-l-4 border-l-rose-500 bg-rose-50/40 dark:bg-rose-950/20 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-rose-700 dark:text-rose-300">
+                <FileText className="h-4 w-4" />
                 Verknüpfte Rechnung
                 <span className="text-xs font-normal text-muted-foreground">(optional)</span>
               </div>
