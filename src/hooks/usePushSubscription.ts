@@ -54,7 +54,7 @@ export function usePushSubscription() {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(keyData.publicKey),
+        applicationServerKey: urlBase64ToUint8Array(keyData.publicKey).buffer as ArrayBuffer,
       });
 
       const json = sub.toJSON() as any;
