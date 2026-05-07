@@ -246,8 +246,67 @@ export function TransactionDetailSheet({ transactionId, onClose }: TransactionDe
               </div>
             </>
           )}
+
+          {/* Linked Booking */}
+          {booking && (
+            <>
+              <Separator />
+              <div>
+                <h4 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
+                  <BookOpen className="h-4 w-4" />
+                  Gebuchte Buchung
+                </h4>
+                <div className="bg-muted/50 rounded-lg p-3 space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span>Datum</span>
+                    <span className="font-medium">{format(new Date(booking.booking_date), "dd.MM.yyyy", { locale: de })}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Beleg</span>
+                    <span className="font-mono text-xs">{booking.receipt_number || booking.booking_reference || "–"}</span>
+                  </div>
+                  {booking.chart_of_accounts && (
+                    <div className="flex justify-between text-sm">
+                      <span>Konto</span>
+                      <span className="font-medium">{booking.chart_of_accounts.account_number} {booking.chart_of_accounts.account_name}</span>
+                    </div>
+                  )}
+                  {booking.counter_account && (
+                    <div className="flex justify-between text-sm">
+                      <span>Gegenkonto</span>
+                      <span className="font-medium">{booking.counter_account.account_number} {booking.counter_account.account_name}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm">
+                    <span>Betrag</span>
+                    <span className="font-mono">{Number(booking.amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €</span>
+                  </div>
+                  {booking.description && (
+                    <div className="text-sm pt-1">
+                      <span className="text-muted-foreground">Text: </span>
+                      <span>{booking.description}</span>
+                    </div>
+                  )}
+                  <Button size="sm" variant="outline" className="w-full mt-2" onClick={() => setEditBooking(booking)}>
+                    <Pencil className="h-3.5 w-3.5 mr-2" />
+                    Buchung bearbeiten
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </SheetContent>
+      <EditBookingDialog
+        open={!!editBooking}
+        onOpenChange={(o) => { if (!o) setEditBooking(null); }}
+        booking={editBooking}
+        buildingName={booking?.buildings?.name || ""}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["txn-booking"] });
+          queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+        }}
+      />
     </Sheet>
   );
 }
