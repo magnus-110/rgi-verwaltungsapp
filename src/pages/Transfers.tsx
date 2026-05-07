@@ -491,7 +491,7 @@ export function Transfers() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Fällig am</TableHead>
+                  {!showPaid && <TableHead>Fällig am</TableHead>}
                   <TableHead>Lieferant</TableHead>
                   <TableHead>Verwendungszweck</TableHead>
                   <TableHead>IBAN</TableHead>
