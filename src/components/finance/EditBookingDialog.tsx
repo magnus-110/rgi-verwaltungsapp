@@ -461,7 +461,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
 
   const hasInvoice = !!invoiceDetail;
   const hasTemplate = !!templateDetail;
-  const hasRightPanel = hasInvoice || hasTemplate;
+  const hasRightPanel = true;
   const counterAccount = accounts.find((a: any) => a.id === form.counter_account_id);
 
   return (
