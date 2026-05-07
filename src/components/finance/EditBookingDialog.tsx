@@ -12,8 +12,10 @@ import { CreateAccountInlineDialog } from "./CreateAccountInlineDialog";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  CheckCircle, FileText, LayoutTemplate, Building2, X, AlertTriangle, Flag, Flame, Loader2, Pencil
+  CheckCircle, FileText, LayoutTemplate, Building2, X, AlertTriangle, Flag, Flame, Loader2, Pencil, Link2, Link2Off, Search
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
