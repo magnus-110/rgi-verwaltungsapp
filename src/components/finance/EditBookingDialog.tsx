@@ -518,7 +518,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Wirtschaftsjahr</label>
-                    <Input className="h-8 text-xs font-mono" type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} />
+                    <Input className="h-8 text-xs font-mono" type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} onKeyDown={handleEnterToNext} />
                   </div>
                   <div>
                     {(() => {
