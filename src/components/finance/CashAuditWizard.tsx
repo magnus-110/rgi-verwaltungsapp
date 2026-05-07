@@ -10,9 +10,10 @@ import { CashAuditAccountSheet } from "./CashAuditAccountSheet";
 import { CashAuditJournal } from "./CashAuditJournal";
 import { CashAuditDocuments } from "./CashAuditDocuments";
 import { CashAuditSignature } from "./CashAuditSignature";
-import { Download, PenLine, ArrowLeft, CheckCircle2, Copy, ExternalLink } from "lucide-react";
+import { Download, PenLine, ArrowLeft, CheckCircle2, Copy, ExternalLink, Info } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 
 interface CashAuditWizardProps {
