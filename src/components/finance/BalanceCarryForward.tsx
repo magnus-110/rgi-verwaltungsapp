@@ -282,14 +282,16 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
                         </div>
                       ) : (
                         <Input
-                          type="number"
-                          step="0.01"
+                          type="text"
+                          inputMode="decimal"
                           className="h-7 text-xs text-right w-full"
-                          defaultValue={displayedOpening ?? ""}
+                          defaultValue={displayedOpening != null ? String(displayedOpening).replace(".", ",") : ""}
                           placeholder="0,00"
                           onBlur={(e) => {
-                            const val = parseFloat(e.target.value);
-                            if (!isNaN(val) && val !== displayedOpening) updateOpeningBalance(acc.id, val);
+                            const raw = e.target.value.trim();
+                            if (!raw) return;
+                            const val = parseAmount(raw);
+                            if (val !== displayedOpening) updateOpeningBalance(acc.id, val);
                           }}
                         />
                       )}
