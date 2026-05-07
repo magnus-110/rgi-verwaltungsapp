@@ -232,14 +232,29 @@ Deno.serve(async (req) => {
           if (code == null && typeof err?.statusCode === "number") code = err.statusCode;
           console.error("push error", code, err?.message, bodyText);
           let status = `failed:${code ?? "unknown"}`;
+          const detail = String(bodyText || err?.message || "").slice(0, 500);
           if (code === 404 || code === 410) {
-            status = `removed:${code}`;
-            await supabase.from("push_subscriptions").delete().eq("id", sub.id);
+            // Schutz: frische Subscriptions (< 60s) NICHT sofort löschen — erst markieren,
+            // damit man im UI sehen kann, dass der Endpoint sofort als invalid zurückkam.
+            const ageMs = sub.created_at ? (Date.now() - new Date(sub.created_at).getTime()) : Number.MAX_SAFE_INTEGER;
+            if (ageMs > 60_000) {
+              status = `removed:${code}`;
+              await supabase.from("push_subscriptions").delete().eq("id", sub.id);
+            } else {
+              status = `invalid_fresh:${code}`;
+              await supabase.from("push_subscriptions").update({
+                last_delivery_status: status,
+                last_delivery_at: new Date().toISOString(),
+                last_delivery_code: code,
+                last_delivery_detail: detail,
+              }).eq("id", sub.id);
+            }
           } else {
             await supabase.from("push_subscriptions").update({
               last_delivery_status: status,
               last_delivery_at: new Date().toISOString(),
               last_delivery_code: code ?? null,
+              last_delivery_detail: detail,
             }).eq("id", sub.id);
           }
           devices.push({
