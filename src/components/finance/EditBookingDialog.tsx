@@ -373,6 +373,11 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                       if (acc?.is_35a_relevant) set("is_35a_relevant", true);
                       if (acc && (acc as any).default_vat_rate != null) set("vat_rate", String((acc as any).default_vat_rate));
                     }}
+                    onCommit={() => {
+                      const amt = document.querySelector<HTMLInputElement>('[data-edit-booking-form] input[inputmode="decimal"]');
+                      amt?.focus();
+                      amt?.setSelectionRange(amt.value.length, amt.value.length);
+                    }}
                     accounts={accounts}
                     excludeCategory="Bankkonto"
                     placeholder="Konto suchen…"
