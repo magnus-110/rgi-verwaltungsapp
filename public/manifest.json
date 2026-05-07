@@ -1,24 +1,40 @@
 {
   "name": "RGI Immobilien",
-  "short_name": "RGI Immobilien",
+  "short_name": "RGI",
   "description": "RGI Immobilien Verwaltungsportal",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
+  "lang": "de",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#faf8f5",
   "theme_color": "#f97316",
   "orientation": "portrait-primary",
+  "categories": ["business", "productivity"],
   "icons": [
     {
       "src": "/lovable-uploads/6a67de24-d14d-44a0-8b78-b3cf0608cc46.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
+    },
+    {
+      "src": "/lovable-uploads/6a67de24-d14d-44a0-8b78-b3cf0608cc46.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/lovable-uploads/e1cec671-692b-4824-b517-20d9af1d7628.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
+    },
+    {
+      "src": "/lovable-uploads/e1cec671-692b-4824-b517-20d9af1d7628.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
