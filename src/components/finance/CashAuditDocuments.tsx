@@ -201,7 +201,7 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
         );
       })}
 
-      {pdfUrl && <PdfViewerModal isOpen={!!pdfUrl} onClose={() => setPdfUrl(null)} documentUrl={pdfUrl} documentName={pdfName} />}
+      
     </div>
   );
 }
