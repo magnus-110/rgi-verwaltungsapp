@@ -497,7 +497,6 @@ export function Transfers() {
                   <TableHead>IBAN</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
                   <TableHead>Liegenschaft</TableHead>
-                  <TableHead>OCR</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
