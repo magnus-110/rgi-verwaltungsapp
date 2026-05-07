@@ -94,6 +94,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     fuel_quantity: "",
     fuel_total_price: "",
     fuel_date: "",
+    invoice_id: "" as string,
   });
   const [autoTextSignature, setAutoTextSignature] = useState<string>("");
 
