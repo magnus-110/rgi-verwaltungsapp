@@ -33,6 +33,36 @@ export function Transfers() {
   const [direction, setDirection] = useState<Direction>(initialDirection);
 
   const [buildingFilter, setBuildingFilter] = useState<string>("all");
+  const [periodPreset, setPeriodPreset] = useState<string>("all");
+  const [periodFrom, setPeriodFrom] = useState<string>("");
+  const [periodTo, setPeriodTo] = useState<string>("");
+
+  // Apply preset → from/to
+  useEffect(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const fmt = (d: Date) => d.toISOString().split("T")[0];
+    if (periodPreset === "all") { setPeriodFrom(""); setPeriodTo(""); return; }
+    if (periodPreset === "current_month") {
+      setPeriodFrom(fmt(new Date(yyyy, today.getMonth(), 1)));
+      setPeriodTo(fmt(new Date(yyyy, today.getMonth() + 1, 0)));
+    } else if (periodPreset === "last_month") {
+      setPeriodFrom(fmt(new Date(yyyy, today.getMonth() - 1, 1)));
+      setPeriodTo(fmt(new Date(yyyy, today.getMonth(), 0)));
+    } else if (periodPreset === "current_year") {
+      setPeriodFrom(`${yyyy}-01-01`);
+      setPeriodTo(`${yyyy}-12-31`);
+    } else if (periodPreset === "last_year") {
+      setPeriodFrom(`${yyyy - 1}-01-01`);
+      setPeriodTo(`${yyyy - 1}-12-31`);
+    } else if (periodPreset === "last_30") {
+      const from = new Date(); from.setDate(today.getDate() - 30);
+      setPeriodFrom(fmt(from)); setPeriodTo(fmt(today));
+    } else if (periodPreset === "last_90") {
+      const from = new Date(); from.setDate(today.getDate() - 90);
+      setPeriodFrom(fmt(from)); setPeriodTo(fmt(today));
+    }
+  }, [periodPreset]);
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewIndex, setReviewIndex] = useState(0);
   const [reviewInvoices, setReviewInvoices] = useState<any[]>([]);
@@ -64,7 +94,7 @@ export function Transfers() {
 
   // ───────── OUTGOING (Eingangsrechnungen — bleibt wie bisher) ─────────
   const { data: outgoingInvoices = [], refetch: refetchOutgoing } = useQuery({
-    queryKey: ["transfer-invoices-outgoing", buildingFilter, showPaid],
+    queryKey: ["transfer-invoices-outgoing", buildingFilter, showPaid, periodFrom, periodTo],
     enabled: direction === "outgoing",
     queryFn: async () => {
       let query = supabase
@@ -88,6 +118,9 @@ export function Transfers() {
         query = query.eq("building_id", buildingFilter);
       }
 
+      if (periodFrom) query = query.gte("invoice_date", periodFrom);
+      if (periodTo) query = query.lte("invoice_date", periodTo);
+
       const { data, error } = await query;
       if (error) throw error;
       return data || [];
@@ -96,7 +129,7 @@ export function Transfers() {
 
   // ───────── INCOMING (Belege für Zahlungseingänge) ─────────
   const { data: incomingInvoices = [], refetch: refetchIncoming } = useQuery({
-    queryKey: ["transfer-invoices-incoming", buildingFilter],
+    queryKey: ["transfer-invoices-incoming", buildingFilter, periodFrom, periodTo],
     enabled: direction === "incoming",
     queryFn: async () => {
       let query = supabase
@@ -108,6 +141,8 @@ export function Transfers() {
       if (buildingFilter !== "all" && buildingFilter !== "company") {
         query = query.eq("building_id", buildingFilter);
       }
+      if (periodFrom) query = query.gte("invoice_date", periodFrom);
+      if (periodTo) query = query.lte("invoice_date", periodTo);
       const { data, error } = await query;
       if (error) throw error;
       const invs = data || [];
@@ -345,6 +380,38 @@ export function Transfers() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={periodPreset} onValueChange={setPeriodPreset}>
+          <SelectTrigger className="w-full sm:w-[180px] h-11 md:h-10">
+            <SelectValue placeholder="Zeitraum" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alle Zeiträume</SelectItem>
+            <SelectItem value="current_month">Aktueller Monat</SelectItem>
+            <SelectItem value="last_month">Letzter Monat</SelectItem>
+            <SelectItem value="last_30">Letzte 30 Tage</SelectItem>
+            <SelectItem value="last_90">Letzte 90 Tage</SelectItem>
+            <SelectItem value="current_year">Aktuelles Jahr</SelectItem>
+            <SelectItem value="last_year">Letztes Jahr</SelectItem>
+            <SelectItem value="custom">Benutzerdefiniert…</SelectItem>
+          </SelectContent>
+        </Select>
+        {periodPreset === "custom" && (
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              value={periodFrom}
+              onChange={(e) => setPeriodFrom(e.target.value)}
+              className="h-11 md:h-10 px-2 rounded-md border bg-background text-sm"
+            />
+            <span className="text-muted-foreground text-xs">–</span>
+            <input
+              type="date"
+              value={periodTo}
+              onChange={(e) => setPeriodTo(e.target.value)}
+              className="h-11 md:h-10 px-2 rounded-md border bg-background text-sm"
+            />
+          </div>
+        )}
         {direction === "outgoing" && unreviewedInvoices.length > 0 && (
           <Button onClick={() => { setReviewInvoices(unreviewedInvoices); setReviewIndex(0); setReviewMode(true); }} className="h-11 md:h-10">
             <Play className="h-4 w-4 mr-2" />
