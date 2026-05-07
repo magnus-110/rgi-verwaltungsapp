@@ -1,5 +1,5 @@
 // Service Worker for handling push notifications
-const SW_VERSION = 'rgi-sw-v4-2026-05-07';
+const SW_VERSION = 'rgi-sw-v5-2026-05-07';
 const ICON = '/lovable-uploads/6a67de24-d14d-44a0-8b78-b3cf0608cc46.png';
 const BADGE = '/lovable-uploads/6a67de24-d14d-44a0-8b78-b3cf0608cc46.png';
 
