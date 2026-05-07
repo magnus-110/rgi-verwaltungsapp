@@ -894,6 +894,79 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                   </div>
                 </div>
 
+                {/* Vorlagen-Zuordnung */}
+                <div className="px-4 py-2 border-b bg-muted/20 shrink-0 space-y-1">
+                  <label className="text-[11px] font-medium text-muted-foreground block">Vorlagen-Zuordnung</label>
+                  <div className="flex items-center gap-2">
+                    <Popover open={templatePickerOpen} onOpenChange={setTemplatePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button type="button" variant="outline" size="sm" className="h-8 text-xs flex-1 justify-start font-normal">
+                          <LayoutTemplate className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                          {templateDetail ? (
+                            <span className="truncate">
+                              {templateDetail.name}
+                              {templateDetail.vendor_name ? ` · ${templateDetail.vendor_name}` : ""}
+                              {templateDetail.expected_amount != null ? ` · ${formatCurrency(templateDetail.expected_amount)}` : ""}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">Vorlage zuordnen…</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[420px] p-0" align="end">
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Name, Lieferant oder Kategorie suchen…"
+                            value={templateSearch}
+                            onValueChange={setTemplateSearch}
+                            className="h-9 text-xs"
+                          />
+                          <CommandList>
+                            <CommandEmpty>Keine Vorlagen gefunden</CommandEmpty>
+                            <CommandGroup>
+                              {pickableTemplates.map((tpl: any) => (
+                                <CommandItem
+                                  key={tpl.id}
+                                  value={tpl.id}
+                                  onSelect={() => {
+                                    setMatchedTemplateId(tpl.id);
+                                    setTemplatePickerOpen(false);
+                                  }}
+                                  className="text-xs flex flex-col items-start gap-0.5"
+                                >
+                                  <div className="flex items-center justify-between w-full gap-2">
+                                    <span className="font-medium truncate">{tpl.name}</span>
+                                    {tpl.expected_amount != null && (
+                                      <span className="font-mono tabular-nums shrink-0">{formatCurrency(tpl.expected_amount)}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-muted-foreground">
+                                    {tpl.vendor_name && <span className="truncate">{tpl.vendor_name}</span>}
+                                    {tpl.interval && <span>· {tpl.interval}</span>}
+                                    {tpl.category && <span>· {tpl.category}</span>}
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    {matchedTemplateId && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive"
+                        onClick={() => setMatchedTemplateId(null)}
+                        title="Zuordnung entfernen"
+                      >
+                        <Link2Off className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
                 {hasInvoice ? (
                   <>
                     <div className="px-4 py-2 border-b bg-muted/20 flex items-center gap-2 shrink-0">
