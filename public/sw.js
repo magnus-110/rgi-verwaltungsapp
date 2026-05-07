@@ -1,13 +1,22 @@
 // Service Worker for handling push notifications
+const SW_VERSION = 'rgi-sw-v3-2026-05-07';
 const ICON = '/lovable-uploads/6a67de24-d14d-44a0-8b78-b3cf0608cc46.png';
 const BADGE = '/lovable-uploads/6a67de24-d14d-44a0-8b78-b3cf0608cc46.png';
 
 self.addEventListener('install', (event) => {
+  console.log('[SW] install', SW_VERSION);
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
+  console.log('[SW] activate', SW_VERSION);
   event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'ping') {
+    event.source?.postMessage({ type: 'pong', version: SW_VERSION });
+  }
 });
 
 async function broadcast(msg) {
