@@ -3426,6 +3426,35 @@ export type Database = {
           },
         ]
       }
+      email_account_subscriptions: {
+        Row: {
+          account_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_account_subscriptions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "email_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_account_users: {
         Row: {
           account_id: string
@@ -5027,6 +5056,84 @@ export type Database = {
           },
         ]
       }
+      notification_log: {
+        Row: {
+          body: string | null
+          created_at: string
+          dedup_key: string
+          id: string
+          payload: Json | null
+          sent_count: number
+          title: string
+          type: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          dedup_key: string
+          id?: string
+          payload?: Json | null
+          sent_count?: number
+          title: string
+          type: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          dedup_key?: string
+          id?: string
+          payload?: Json | null
+          sent_count?: number
+          title?: string
+          type?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notification_preferences: {
+        Row: {
+          calendar_enabled: boolean
+          calendar_lead_minutes: number
+          created_at: string
+          email_enabled: boolean
+          quiet_hours_end: string | null
+          quiet_hours_start: string | null
+          todo_enabled: boolean
+          todo_lead_minutes: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          calendar_enabled?: boolean
+          calendar_lead_minutes?: number
+          created_at?: string
+          email_enabled?: boolean
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          todo_enabled?: boolean
+          todo_lead_minutes?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          calendar_enabled?: boolean
+          calendar_lead_minutes?: number
+          created_at?: string
+          email_enabled?: boolean
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          todo_enabled?: boolean
+          todo_lead_minutes?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       onboarding_activations: {
         Row: {
           activated_at: string | null
@@ -5803,6 +5910,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          device_label: string | null
+          endpoint: string
+          id: string
+          last_used_at: string | null
+          p256dh: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          device_label?: string | null
+          endpoint: string
+          id?: string
+          last_used_at?: string | null
+          p256dh: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          device_label?: string | null
+          endpoint?: string
+          id?: string
+          last_used_at?: string | null
+          p256dh?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       report_templates: {
         Row: {
