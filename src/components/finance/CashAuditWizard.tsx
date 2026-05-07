@@ -208,6 +208,7 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
             buildingId={audit.building_id}
             fiscalYear={fiscalYear}
             billingPeriodId={audit.billing_period_id}
+            auditId={audit.id}
             tokenMode={tokenMode}
             token={token}
           />
