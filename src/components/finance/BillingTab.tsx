@@ -118,13 +118,7 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
                 {isExpanded && (
                   <div className="px-4 pb-4 border-t">
                     <div className="pt-4">
-                      {step.id === "basics" && (
-                        <SettlementBasicsStep
-                          buildingId={selectedBuildingId}
-                          periodId={selectedPeriodId}
-                          fiscalYear={period.fiscal_year}
-                        />
-                      )}
+                      {step.id === "review" && null}
                       {step.id === "review" && (
                         <BookingReviewSection
                           buildingId={selectedBuildingId}
