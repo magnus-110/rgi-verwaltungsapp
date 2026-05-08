@@ -79,6 +79,7 @@ export const Inbox = () => {
   const [contactSearchTerm, setContactSearchTerm] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedEmailIds, setSelectedEmailIds] = useState<Set<string>>(new Set());
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
