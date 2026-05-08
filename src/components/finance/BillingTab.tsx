@@ -61,38 +61,12 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
     });
   };
 
-  // Live-Status pro Schritt (für Sticky-StatusBar)
-  const stepStatuses = useMemo<SettlementStep[]>(() => {
-    return STEPS.map((s) => {
-      let status: "ok" | "warning" | "todo" = "todo";
-      let hint: string | undefined;
-      if (!selectedBuildingId || !selectedPeriodId || !period) {
-        return { id: s.id, label: s.label, status: "todo", hint: s.description };
-      }
-      if (s.id === "basics") {
-        status = "todo";
-        hint = s.description;
-      } else if (s.id === "review") {
-        status = "todo";
-        hint = "Buchungen prüfen";
-      } else if (s.id === "heating") {
-        status = "todo";
-        hint = "Brunata-Werte eintragen";
-      } else if (s.id === "settlement") {
-        status = "todo";
-        hint = "PDF erzeugen";
-      }
-      return { id: s.id, label: s.label, status, hint };
-    });
-  }, [selectedBuildingId, selectedPeriodId, period]);
-
   const handleStepJump = (stepId: string) => {
     setExpandedSteps((prev) => {
       const next = new Set(prev);
       next.add(stepId);
       return next;
     });
-    // Smooth-scroll to anchor
     requestAnimationFrame(() => {
       const el = document.getElementById(`billing-step-${stepId}`);
       el?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -102,11 +76,6 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
   return (
     <div className="space-y-4">
       {/* BillingPeriodSelector is now rendered globally in Finance.tsx */}
-
-      {/* Sticky Status-Ampel über alle 5 Schritte */}
-      {selectedBuildingId && selectedPeriodId && period && (
-        <SettlementStatusBar steps={stepStatuses} onStepClick={handleStepJump} />
-      )}
 
       {!selectedBuildingId && (
         <Card>
