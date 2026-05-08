@@ -220,23 +220,21 @@ export function CashAuditAccountSheet({ buildingId, fiscalYear, progress, onProg
 
   const setAccountFlag = (id: string, f: "ok" | "issue" | null) => {
     if (readOnly) return;
-    const updated = { ...accountFlags, [id]: f };
-    onProgressChange({ ...progress, accountFlags: updated });
+    onProgressChange((prev: any) => ({ ...prev, accountFlags: { ...(prev?.accountFlags || {}), [id]: f } }));
   };
 
   const setAccountNote = (accountId: string, note: string) => {
     if (readOnly) return;
-    const updated = { ...accountNotes, [accountId]: note };
-    onProgressChange({ ...progress, accountNotes: updated });
+    onProgressChange((prev: any) => ({ ...prev, accountNotes: { ...(prev?.accountNotes || {}), [accountId]: note } }));
   };
 
   const setBookingFlag = (id: string, f: "ok" | "issue" | null) => {
     if (readOnly) return;
-    onProgressChange({ ...progress, bookingFlags: { ...bookingFlags, [id]: f } });
+    onProgressChange((prev: any) => ({ ...prev, bookingFlags: { ...(prev?.bookingFlags || {}), [id]: f } }));
   };
   const setBookingNote = (id: string, note: string) => {
     if (readOnly) return;
-    onProgressChange({ ...progress, bookingNotes: { ...bookingNotes, [id]: note } });
+    onProgressChange((prev: any) => ({ ...prev, bookingNotes: { ...(prev?.bookingNotes || {}), [id]: note } }));
   };
 
   const checkedCount = accountBookings.filter((ab: any) => getAccountFlag(ab.account.id) === "ok").length;
