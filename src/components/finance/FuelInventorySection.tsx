@@ -103,8 +103,22 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
     },
   });
 
+  // Verworfene Warnungen (per Buchungs-ID, persistiert pro Gebäude/Jahr)
+  const dismissKey = `fuel-warn-dismissed-${buildingId}-${fiscalYear}`;
+  const [dismissedIds, setDismissedIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(dismissKey) || "[]"); } catch { return []; }
+  });
+  const dismissBooking = (id: string) => {
+    setDismissedIds((prev) => {
+      const next = Array.from(new Set([...prev, id]));
+      try { localStorage.setItem(dismissKey, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
   // Buchungen ohne korrespondierenden Inventar-Eintrag (Match: Datum + Betrag oder invoice_id)
   const unmatchedFuelBookings = fuelBookings.filter((b: any) => {
+    if (dismissedIds.includes(b.id)) return false;
     return !allEntries.some((e: any) => {
       if (e.invoice_id && b.invoice_id && e.invoice_id === b.invoice_id) return true;
       const sameDate = e.entry_date === b.booking_date;
