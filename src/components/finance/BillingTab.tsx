@@ -39,7 +39,7 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
     setInternalPeriodId(id);
     onPeriodChange?.(id);
   };
-  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set(["review"]));
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
 
   const { data: period } = useQuery({
     queryKey: ["billing-period-detail", selectedPeriodId],
