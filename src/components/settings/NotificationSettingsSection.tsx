@@ -81,6 +81,9 @@ export function NotificationSettingsSection() {
         calendar_lead_minutes: p.calendar_lead_minutes,
         quiet_hours_start: p.quiet_hours_start,
         quiet_hours_end: p.quiet_hours_end,
+        in_app_email_enabled: (p as any).in_app_email_enabled ?? true,
+        in_app_report_enabled: (p as any).in_app_report_enabled ?? true,
+        in_app_todo_enabled: (p as any).in_app_todo_enabled ?? true,
       });
       setAccounts(accs ?? []);
       setSubscribedAccountIds(new Set((subs ?? []).map((s) => s.account_id)));
