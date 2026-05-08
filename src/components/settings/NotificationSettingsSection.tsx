@@ -115,7 +115,35 @@ export function NotificationSettingsSection() {
     } else {
       next.delete(accountId);
       await supabase.from("email_account_subscriptions").delete().eq("user_id", user.id).eq("account_id", accountId);
+  }
+
+  async function toggleInAppAccount(accountId: string, on: boolean) {
+    if (!user) return;
+    const next = new Set(inAppAccountIds);
+    if (on) {
+      next.add(accountId);
+      const { error } = await (supabase as any)
+        .from("in_app_email_subscriptions")
+        .insert({ user_id: user.id, account_id: accountId });
+      if (error) { toast.error(error.message); return; }
+    } else {
+      next.delete(accountId);
+      await (supabase as any)
+        .from("in_app_email_subscriptions")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("account_id", accountId);
     }
+    setInAppAccountIds(next);
+  }
+
+  function inAppTest() {
+    toast.success("In-App Test-Benachrichtigung", {
+      description: "Wenn du das siehst, funktioniert das System.",
+      duration: 4000,
+      position: "bottom-right",
+    });
+  }
     setSubscribedAccountIds(next);
   }
 
