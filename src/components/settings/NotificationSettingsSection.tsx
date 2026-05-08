@@ -20,6 +20,9 @@ interface Prefs {
   calendar_lead_minutes: number;
   quiet_hours_start: string | null;
   quiet_hours_end: string | null;
+  in_app_email_enabled: boolean;
+  in_app_report_enabled: boolean;
+  in_app_todo_enabled: boolean;
 }
 
 interface MailAccount { id: string; display_name: string | null; email_address: string }
@@ -32,6 +35,9 @@ const DEFAULT_PREFS: Prefs = {
   calendar_lead_minutes: 30,
   quiet_hours_start: null,
   quiet_hours_end: null,
+  in_app_email_enabled: true,
+  in_app_report_enabled: true,
+  in_app_todo_enabled: true,
 };
 
 function StatusRow({ ok, label, hint }: { ok: boolean | null; label: string; hint?: string }) {
