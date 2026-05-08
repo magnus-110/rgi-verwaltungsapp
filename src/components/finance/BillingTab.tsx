@@ -81,9 +81,6 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
       } else if (s.id === "heating") {
         status = "todo";
         hint = "Brunata-Werte eintragen";
-      } else if (s.id === "accruals") {
-        status = "todo";
-        hint = "Abgrenzungen bestätigen";
       } else if (s.id === "settlement") {
         status = "todo";
         hint = "PDF erzeugen";
