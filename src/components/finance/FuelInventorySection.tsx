@@ -348,6 +348,9 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
                   <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => createFromBooking(b)}>
                     <Plus className="h-3 w-3 mr-1" />Als Einkauf erfassen
                   </Button>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Warnung verbergen" onClick={() => dismissBooking(b.id)}>
+                    <X className="h-3 w-3" />
+                  </Button>
                 </div>
               ))}
             </div>
