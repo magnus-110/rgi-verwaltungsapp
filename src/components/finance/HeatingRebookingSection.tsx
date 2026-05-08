@@ -287,28 +287,79 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
         if (delError) throw delError;
       }
 
-      const rebookings = heatingAccounts
-        .map((acc) => {
-          // Zielkonto darf sich nicht selbst umbuchen (sonst doppelte Zählung in der Abrechnung)
-          if (acc.id === targetAccountId) return null;
+      // IDs der Brennstoffkauf- und Vorratskonten (1410↔1450, 1411↔1451, …)
+      const purchaseAccountIds = new Set(fuelPairs.map((p) => p.purchase.id));
+      const stockAccountIds = new Set(fuelPairs.map((p) => p.stock.id));
+      const stockByPurchaseId = new Map(fuelPairs.map((p) => [p.purchase.id, p.stock]));
+
+      const rebookings: any[] = [];
+
+      heatingAccounts.forEach((acc) => {
+        // Zielkonto (1400) darf sich nicht selbst umbuchen
+        if (acc.id === targetAccountId) return;
+
+        // Stufe 1: 1410/1411 Brennstoffkauf → 1450/1451 Vorrat (voller Saldo)
+        if (purchaseAccountIds.has(acc.id)) {
           const total = getAccountTotal(acc.id);
-          if (total <= 0) return null;
-          return {
+          if (total <= 0) return;
+          const stock = stockByPurchaseId.get(acc.id)!;
+          rebookings.push({
             building_id: buildingId,
             account_id: acc.id,
-            counter_account_id: targetAccountId,
+            counter_account_id: stock.id,
             booking_date: `${fiscalYear}-12-31`,
             amount: total,
-            description: `HK-Umbuchung: ${acc.account_name} → Heizkostenkonto`,
+            description: `Brennstoffkauf ${acc.account_number} → Vorrat ${stock.account_number}`,
             fiscal_year: fiscalYear,
             booking_type: "expense",
             booking_category: "heating_repost",
             source: "manual",
             status: "pending",
             created_by: user?.id,
-          };
-        })
-        .filter(Boolean);
+          });
+          return;
+        }
+
+        // Stufe 2: 1450/1451 Vorrat → 1400 (nur FIFO-Verbrauch)
+        if (stockAccountIds.has(acc.id)) {
+          if (fifo.missingClosing) return; // ohne Endbestand kein Verbrauch
+          const consumed = fifo.consumedValueEur;
+          if (consumed <= 0) return;
+          rebookings.push({
+            building_id: buildingId,
+            account_id: acc.id,
+            counter_account_id: targetAccountId,
+            booking_date: `${fiscalYear}-12-31`,
+            amount: consumed,
+            description: `Brennstoff-Verbrauch (FIFO) ${acc.account_number} → Heizkosten`,
+            fiscal_year: fiscalYear,
+            booking_type: "expense",
+            booking_category: "heating_repost",
+            source: "manual",
+            status: "pending",
+            created_by: user?.id,
+          });
+          return;
+        }
+
+        // Alle übrigen HK-Konten: direkt → 1400 (wie bisher)
+        const total = getAccountTotal(acc.id);
+        if (total <= 0) return;
+        rebookings.push({
+          building_id: buildingId,
+          account_id: acc.id,
+          counter_account_id: targetAccountId,
+          booking_date: `${fiscalYear}-12-31`,
+          amount: total,
+          description: `HK-Umbuchung: ${acc.account_name} → Heizkostenkonto`,
+          fiscal_year: fiscalYear,
+          booking_type: "expense",
+          booking_category: "heating_repost",
+          source: "manual",
+          status: "pending",
+          created_by: user?.id,
+        });
+      });
 
       if (rebookings.length === 0) {
         toast.error("Keine Beträge zum Umbuchen vorhanden");
