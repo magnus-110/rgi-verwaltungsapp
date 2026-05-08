@@ -5,6 +5,7 @@ import { Upload, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
 
 interface Props {
   buildings: { id: string; name: string; building_code: string }[];
