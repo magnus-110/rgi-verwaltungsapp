@@ -1,11 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { FuelInventorySection } from "./FuelInventorySection";
 import { HeatingAccountsSection } from "./HeatingAccountsSection";
 import { HeatingRebookingSection } from "./HeatingRebookingSection";
 import { BillingSettlement } from "./BillingSettlement";
 import { BookingReviewSection } from "./BookingReviewSection";
-import { SettlementBasicsStep } from "./SettlementBasicsStep";
-import { SettlementStatusBar, type SettlementStep } from "./SettlementStatusBar";
 import { BrunataAllocationManager } from "./BrunataAllocationManager";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +11,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 const STEPS = [
-  { id: "basics", label: "Grundlagen", description: "Anfangsbestände, Hausgelder & IHR-Plan" },
   { id: "review", label: "Buchungen prüfen", description: "Vollständigkeit und Kategorisierung" },
   { id: "heating", label: "Heizkosten", description: "Brennstoff, Brunata-Werte, Umbuchung" },
   { id: "settlement", label: "Abrechnung erzeugen", description: "Gesamt & Einzel + PDF" },
@@ -64,38 +61,12 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
     });
   };
 
-  // Live-Status pro Schritt (für Sticky-StatusBar)
-  const stepStatuses = useMemo<SettlementStep[]>(() => {
-    return STEPS.map((s) => {
-      let status: "ok" | "warning" | "todo" = "todo";
-      let hint: string | undefined;
-      if (!selectedBuildingId || !selectedPeriodId || !period) {
-        return { id: s.id, label: s.label, status: "todo", hint: s.description };
-      }
-      if (s.id === "basics") {
-        status = "todo";
-        hint = s.description;
-      } else if (s.id === "review") {
-        status = "todo";
-        hint = "Buchungen prüfen";
-      } else if (s.id === "heating") {
-        status = "todo";
-        hint = "Brunata-Werte eintragen";
-      } else if (s.id === "settlement") {
-        status = "todo";
-        hint = "PDF erzeugen";
-      }
-      return { id: s.id, label: s.label, status, hint };
-    });
-  }, [selectedBuildingId, selectedPeriodId, period]);
-
   const handleStepJump = (stepId: string) => {
     setExpandedSteps((prev) => {
       const next = new Set(prev);
       next.add(stepId);
       return next;
     });
-    // Smooth-scroll to anchor
     requestAnimationFrame(() => {
       const el = document.getElementById(`billing-step-${stepId}`);
       el?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -105,11 +76,6 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
   return (
     <div className="space-y-4">
       {/* BillingPeriodSelector is now rendered globally in Finance.tsx */}
-
-      {/* Sticky Status-Ampel über alle 5 Schritte */}
-      {selectedBuildingId && selectedPeriodId && period && (
-        <SettlementStatusBar steps={stepStatuses} onStepClick={handleStepJump} />
-      )}
 
       {!selectedBuildingId && (
         <Card>
@@ -152,13 +118,7 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
                 {isExpanded && (
                   <div className="px-4 pb-4 border-t">
                     <div className="pt-4">
-                      {step.id === "basics" && (
-                        <SettlementBasicsStep
-                          buildingId={selectedBuildingId}
-                          periodId={selectedPeriodId}
-                          fiscalYear={period.fiscal_year}
-                        />
-                      )}
+                      
                       {step.id === "review" && (
                         <BookingReviewSection
                           buildingId={selectedBuildingId}
