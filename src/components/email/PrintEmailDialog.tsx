@@ -224,18 +224,18 @@ export const PrintEmailDialog = ({ open, onOpenChange, email }: Props) => {
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
       const marginX = 18;
-      const marginY = 20;
       const marginTop = 32;
+      const marginBottom = 20;
       const imgW = pageW - marginX * 2;
       const imgH = (canvas.height * imgW) / canvas.width;
-      const usableH = pageH - marginY * 2;
+      const usableH = pageH - marginTop - marginBottom;
       let heightLeft = imgH;
-      let position = marginY;
+      let position = marginTop;
       const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
       pdf.addImage(dataUrl, "JPEG", marginX, position, imgW, imgH);
       heightLeft -= usableH;
       while (heightLeft > 0) {
-        position = marginY - (imgH - heightLeft);
+        position = marginTop - (imgH - heightLeft);
         pdf.addPage();
         pdf.addImage(dataUrl, "JPEG", marginX, position, imgW, imgH);
         heightLeft -= usableH;
