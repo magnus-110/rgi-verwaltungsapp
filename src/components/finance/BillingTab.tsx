@@ -1,11 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { FuelInventorySection } from "./FuelInventorySection";
 import { HeatingAccountsSection } from "./HeatingAccountsSection";
 import { HeatingRebookingSection } from "./HeatingRebookingSection";
 import { BillingSettlement } from "./BillingSettlement";
 import { BookingReviewSection } from "./BookingReviewSection";
-import { SettlementBasicsStep } from "./SettlementBasicsStep";
-import { SettlementStatusBar, type SettlementStep } from "./SettlementStatusBar";
 import { BrunataAllocationManager } from "./BrunataAllocationManager";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +11,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 const STEPS = [
-  { id: "basics", label: "Grundlagen", description: "Anfangsbestände, Hausgelder & IHR-Plan" },
   { id: "review", label: "Buchungen prüfen", description: "Vollständigkeit und Kategorisierung" },
   { id: "heating", label: "Heizkosten", description: "Brennstoff, Brunata-Werte, Umbuchung" },
   { id: "settlement", label: "Abrechnung erzeugen", description: "Gesamt & Einzel + PDF" },
