@@ -165,9 +165,11 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
   const selectedAccountObj = accounts.find((a: any) => a.id === form.account_id);
 
 
+  const parseDe = (v: string) => parseFloat(String(v ?? "").replace(/\./g, "").replace(",", "."));
+
   const computedVat = useMemo(() => {
-    const amt = parseFloat(form.amount) || 0;
-    const rate = parseFloat(form.vat_rate) || 0;
+    const amt = parseDe(form.amount) || 0;
+    const rate = parseDe(form.vat_rate) || 0;
     return rate > 0 ? (amt - amt / (1 + rate / 100)).toFixed(2) : "0.00";
   }, [form.amount, form.vat_rate]);
 
