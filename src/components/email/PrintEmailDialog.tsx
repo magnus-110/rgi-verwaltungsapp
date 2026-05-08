@@ -224,21 +224,24 @@ export const PrintEmailDialog = ({ open, onOpenChange, email }: Props) => {
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
       const marginX = 18;
-      const marginTop = 32;
-      const marginBottom = 20;
+      const marginFirstTop = 20;
+      const marginRest = 32; // gilt für: unten Seite 1 + oben & unten ab Seite 2
       const imgW = pageW - marginX * 2;
       const imgH = (canvas.height * imgW) / canvas.width;
-      const usableH = pageH - marginTop - marginBottom;
-      let heightLeft = imgH;
-      let position = marginTop;
       const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-      pdf.addImage(dataUrl, "JPEG", marginX, position, imgW, imgH);
-      heightLeft -= usableH;
-      while (heightLeft > 0) {
-        position = marginTop - (imgH - heightLeft);
+
+      // Seite 1
+      const usableFirst = pageH - marginFirstTop - marginRest;
+      pdf.addImage(dataUrl, "JPEG", marginX, marginFirstTop, imgW, imgH);
+      let consumed = usableFirst;
+      // Folgeseiten
+      const usableRest = pageH - marginRest - marginRest;
+      while (consumed < imgH) {
         pdf.addPage();
+        // Bild so verschieben, dass der bereits gezeigte Teil oberhalb der Seite liegt
+        const position = marginRest - consumed;
         pdf.addImage(dataUrl, "JPEG", marginX, position, imgW, imgH);
-        heightLeft -= usableH;
+        consumed += usableRest;
       }
       const filename = `${(email.subject || "Email").replace(/[^a-z0-9-_ äöüÄÖÜß]/gi, "_").slice(0, 60)}.pdf`;
       pdf.save(filename);
