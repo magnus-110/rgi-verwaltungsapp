@@ -214,7 +214,7 @@ export function BrunataAllocationManager({ buildingId, periodId, fiscalYear }: B
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Flame className="h-5 w-5 text-orange-500" />
-          Brunata-Heizkostenwerte {fiscalYear}
+          Heizkosten-Verteilung {fiscalYear}
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           Trage die individuellen Heizkostenwerte aus der externen Brunata-Abrechnung ein. Diese Werte werden
