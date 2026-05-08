@@ -2,9 +2,7 @@ import { useState, useMemo } from "react";
 import { FuelInventorySection } from "./FuelInventorySection";
 import { HeatingAccountsSection } from "./HeatingAccountsSection";
 import { HeatingRebookingSection } from "./HeatingRebookingSection";
-import { AccrualSection } from "./AccrualSection";
 import { BillingSettlement } from "./BillingSettlement";
-import { BillingAiAnalysis } from "./BillingAiAnalysis";
 import { BookingReviewSection } from "./BookingReviewSection";
 import { SettlementBasicsStep } from "./SettlementBasicsStep";
 import { SettlementStatusBar, type SettlementStep } from "./SettlementStatusBar";
@@ -18,7 +16,6 @@ const STEPS = [
   { id: "basics", label: "Grundlagen", description: "Anfangsbestände, Hausgelder & IHR-Plan" },
   { id: "review", label: "Buchungen prüfen", description: "Vollständigkeit und Kategorisierung" },
   { id: "heating", label: "Heizkosten", description: "Brennstoff, Brunata-Werte, Umbuchung" },
-  { id: "accruals", label: "Abgrenzungen", description: "Jahresübergreifende Leistungszeiträume" },
   { id: "settlement", label: "Abrechnung erzeugen", description: "Gesamt & Einzel + PDF" },
 ];
 
@@ -42,7 +39,7 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
     setInternalPeriodId(id);
     onPeriodChange?.(id);
   };
-  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set(["review"]));
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
 
   const { data: period } = useQuery({
     queryKey: ["billing-period-detail", selectedPeriodId],
@@ -84,9 +81,6 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
       } else if (s.id === "heating") {
         status = "todo";
         hint = "Brunata-Werte eintragen";
-      } else if (s.id === "accruals") {
-        status = "todo";
-        hint = "Abgrenzungen bestätigen";
       } else if (s.id === "settlement") {
         status = "todo";
         hint = "PDF erzeugen";
@@ -181,9 +175,6 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
                           <BrunataAllocationManager buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
                         </div>
                       )}
-                      {step.id === "accruals" && (
-                        <AccrualSection buildingId={selectedBuildingId} fiscalYear={period.fiscal_year} periodFrom={period.period_from} periodTo={period.period_to} />
-                      )}
                       {step.id === "settlement" && (
                         <BillingSettlement buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
                       )}
@@ -193,12 +184,6 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
               </Card>
             );
           })}
-
-          <BillingAiAnalysis
-            buildingId={selectedBuildingId}
-            periodId={selectedPeriodId}
-            fiscalYear={period.fiscal_year}
-          />
         </div>
       )}
     </div>
