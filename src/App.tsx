@@ -162,6 +162,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
             </Suspense>
+              </InAppNotificationsProvider>
             </UploadProvider>
           </ComposeEmailProvider>
         </AuthProvider>
