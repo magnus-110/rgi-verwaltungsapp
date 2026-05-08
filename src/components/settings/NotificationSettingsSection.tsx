@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
 import { toast } from "sonner";
+import { showInAppToast } from "@/lib/inAppToast";
 
 interface Prefs {
   email_enabled: boolean;
