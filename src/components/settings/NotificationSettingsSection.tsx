@@ -60,6 +60,7 @@ export function NotificationSettingsSection() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
   const [subscribedAccountIds, setSubscribedAccountIds] = useState<Set<string>>(new Set());
+  const [inAppAccountIds, setInAppAccountIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [lastTestResult, setLastTestResult] = useState<string | null>(null);
   const [lastTestDevices, setLastTestDevices] = useState<any[] | null>(null);
