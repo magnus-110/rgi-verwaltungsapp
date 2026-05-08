@@ -1638,9 +1638,8 @@ export const Inbox = () => {
                     <Forward className="h-3.5 w-3.5" />
                     Weiterleiten
                   </Button>
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setPrintDialogOpen(true)}>
-                    <Printer className="h-3.5 w-3.5" />
-                    Drucken
+                  <Button variant="ghost" size="icon" className="h-8 w-8 ml-auto" title="Drucken / als PDF" onClick={() => setPrintDialogOpen(true)}>
+                    <Printer className="h-4 w-4" />
                   </Button>
                 </div>
               </>

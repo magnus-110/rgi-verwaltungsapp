@@ -165,9 +165,11 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
   const selectedAccountObj = accounts.find((a: any) => a.id === form.account_id);
 
 
+  const parseDe = (v: string) => parseFloat(String(v ?? "").replace(/\./g, "").replace(",", "."));
+
   const computedVat = useMemo(() => {
-    const amt = parseFloat(form.amount) || 0;
-    const rate = parseFloat(form.vat_rate) || 0;
+    const amt = parseDe(form.amount) || 0;
+    const rate = parseDe(form.vat_rate) || 0;
     return rate > 0 ? (amt - amt / (1 + rate / 100)).toFixed(2) : "0.00";
   }, [form.amount, form.vat_rate]);
 
@@ -184,7 +186,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       account_id: form.account_id,
       counter_account_id: form.counter_account_id || null,
       booking_date: form.booking_date,
-      amount: parseFloat(form.amount),
+      amount: parseDe(form.amount),
       description: form.description || null,
       fiscal_year: parseInt(form.fiscal_year),
       source: "manual",
@@ -193,7 +195,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       booking_type: form.booking_type,
       receipt_number: form.receipt_number || null,
       booking_reference: form.booking_reference || null,
-      vat_rate: parseFloat(form.vat_rate),
+      vat_rate: parseDe(form.vat_rate),
       vat_amount: parseFloat(computedVat),
       is_35a_relevant: form.is_35a_relevant,
       matched_template_id: form.matched_template_id || null,
