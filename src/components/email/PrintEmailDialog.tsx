@@ -267,7 +267,7 @@ export const PrintEmailDialog = ({ open, onOpenChange, email }: Props) => {
         return;
       }
       w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(email.subject || "E-Mail")}</title>
-        <style>@page{size:A4;margin:32mm 18mm 20mm 18mm;}body{margin:0;}</style></head><body>${html}</body></html>`);
+        <style>@page{size:A4;margin:32mm 18mm;}@page :first{margin-top:20mm;}body{margin:0;}</style></head><body>${html}</body></html>`);
       w.document.close();
       // Wait for images
       const imgs = Array.from(w.document.images);
