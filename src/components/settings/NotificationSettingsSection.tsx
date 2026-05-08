@@ -363,6 +363,31 @@ export function NotificationSettingsSection() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><BellRing className="w-5 h-5" /> In-App-Benachrichtigungen</CardTitle>
+          <CardDescription>
+            Kleine Pop-ups unten rechts während du in der App arbeitest. Erscheinen 4 Sekunden lang und sind manuell schließbar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="flex items-center justify-between">
+            <Label className="flex items-center gap-2"><Mail className="w-4 h-4" /> Neue E-Mails</Label>
+            <Switch checked={prefs.in_app_email_enabled} onCheckedChange={(v) => savePrefs({ ...prefs, in_app_email_enabled: v })} />
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <Label className="flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Neue Meldungen</Label>
+            <Switch checked={prefs.in_app_report_enabled} onCheckedChange={(v) => savePrefs({ ...prefs, in_app_report_enabled: v })} />
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <Label className="flex items-center gap-2"><CheckSquare className="w-4 h-4" /> Neue Aufgaben</Label>
+            <Switch checked={prefs.in_app_todo_enabled} onCheckedChange={(v) => savePrefs({ ...prefs, in_app_todo_enabled: v })} />
+          </div>
+        </CardContent>
+      </Card>
+
       {saving && <p className="text-xs text-muted-foreground text-right">Speichern…</p>}
     </div>
   );
