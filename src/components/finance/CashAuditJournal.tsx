@@ -56,11 +56,11 @@ export function CashAuditJournal({ buildingId, fiscalYear, progress, onProgressC
 
   const setFlag = (bookingId: string, flag: "ok" | "issue" | null) => {
     if (readOnly) return;
-    onProgressChange({ ...progress, bookingFlags: { ...bookingFlags, [bookingId]: flag } });
+    onProgressChange((prev: any) => ({ ...prev, bookingFlags: { ...(prev?.bookingFlags || {}), [bookingId]: flag } }));
   };
   const setNote = (bookingId: string, note: string) => {
     if (readOnly) return;
-    onProgressChange({ ...progress, bookingNotes: { ...bookingNotes, [bookingId]: note } });
+    onProgressChange((prev: any) => ({ ...prev, bookingNotes: { ...(prev?.bookingNotes || {}), [bookingId]: note } }));
   };
 
   const filtered = (bookings as any[]).filter((b: any) => {
