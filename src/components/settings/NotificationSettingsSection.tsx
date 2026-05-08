@@ -115,6 +115,8 @@ export function NotificationSettingsSection() {
     } else {
       next.delete(accountId);
       await supabase.from("email_account_subscriptions").delete().eq("user_id", user.id).eq("account_id", accountId);
+    }
+    setSubscribedAccountIds(next);
   }
 
   async function toggleInAppAccount(accountId: string, on: boolean) {
@@ -143,8 +145,6 @@ export function NotificationSettingsSection() {
       duration: 4000,
       position: "bottom-right",
     });
-  }
-    setSubscribedAccountIds(next);
   }
 
   async function localTest() {
