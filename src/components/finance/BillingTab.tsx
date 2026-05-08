@@ -178,9 +178,6 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
                           <BrunataAllocationManager buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
                         </div>
                       )}
-                      {step.id === "accruals" && (
-                        <AccrualSection buildingId={selectedBuildingId} fiscalYear={period.fiscal_year} periodFrom={period.period_from} periodTo={period.period_to} />
-                      )}
                       {step.id === "settlement" && (
                         <BillingSettlement buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
                       )}
@@ -190,12 +187,6 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
               </Card>
             );
           })}
-
-          <BillingAiAnalysis
-            buildingId={selectedBuildingId}
-            periodId={selectedPeriodId}
-            fiscalYear={period.fiscal_year}
-          />
         </div>
       )}
     </div>
