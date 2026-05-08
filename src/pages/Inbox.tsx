@@ -24,6 +24,7 @@ import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
 import { AiEmailSearchDialog } from "@/components/email/AiEmailSearchDialog";
 
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
+import { PrintEmailDialog } from "@/components/email/PrintEmailDialog";
 import { ScheduledMailsPanel } from "@/components/email/ScheduledMailsPanel";
 import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { useAuth } from "@/hooks/useAuth";
