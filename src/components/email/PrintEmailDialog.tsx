@@ -225,6 +225,7 @@ export const PrintEmailDialog = ({ open, onOpenChange, email }: Props) => {
       const pageH = pdf.internal.pageSize.getHeight();
       const marginX = 18;
       const marginY = 20;
+      const marginTop = 32;
       const imgW = pageW - marginX * 2;
       const imgH = (canvas.height * imgW) / canvas.width;
       const usableH = pageH - marginY * 2;
