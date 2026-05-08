@@ -137,6 +137,29 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
     },
   });
 
+  // Brennstoff-Inventar (für FIFO-Verbrauchsbewertung 1450 → 1400)
+  const { data: fuelEntries = [] } = useQuery({
+    queryKey: ["fuel-inventory-rebook", buildingId, periodId, fiscalYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("fuel_inventory")
+        .select("entry_type, entry_date, quantity, total_price, fuel_type, heating_unit_id")
+        .eq("building_id", buildingId)
+        .or(`billing_period_id.eq.${periodId},consumption_year.eq.${fiscalYear}`);
+      if (error) throw error;
+      return data as FuelInventoryEntry[];
+    },
+  });
+
+  // Brennstoff-Konto-Paare (1410↔1450, 1411↔1451, …)
+  const fuelPairs = findFuelAccountPairs(allAccounts as any);
+
+  // FIFO-Verbrauch (für Anzeige + Stufe-2 Umbuchung).
+  // Vereinfachte Zuordnung: alle Inventar-Einträge des Gebäudes werden gemeinsam
+  // ausgewertet (1 Tank = Standard). Falls es mehrere Tanks gibt, kann hier
+  // später nach heating_unit_id pro Paar gefiltert werden.
+  const fifo = computeFifoConsumption(fuelEntries);
+
   // Bank-zentrisch: Heizkonten können auf account_id ODER counter_account_id liegen.
   // sumForAccount summiert beide Seiten korrekt; Reposts UND Splitt-Buchungen ausschließen,
   // damit beim erneuten Generieren keine Doppelzählung entsteht.
