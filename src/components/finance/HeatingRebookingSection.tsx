@@ -493,26 +493,7 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Workflow-Hinweis */}
-        {!isBalanced && totalHeating > 0 && (
-          <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 text-sm">
-            <div className="flex gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="font-medium text-amber-900 dark:text-amber-100">
-                  Heizkostenabrechnung der Ablesefirma fehlt noch
-                </p>
-                <p className="text-amber-800 dark:text-amber-200 text-xs leading-relaxed">
-                  Die Heiz-Vorauszahlungen ({formatCurrency(totalHeating)}) werden in der Jahresabrechnung
-                  <strong> nur informativ</strong> angezeigt und <strong>nicht umgelegt</strong>, bis du sie
-                  hier auf das Heizkostenkonto (z.&nbsp;B. 1400) umbuchst. Erst nach Vorliegen der
-                  Heizkostenabrechnung von Brunata/ista/Techem den Repost erstellen — dann erfolgt die
-                  Verteilung über die unten eingetragenen Verteilungswerte.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Workflow-Hinweis entfernt */}
 
         {/* Status */}
         <div className="flex items-center gap-2">

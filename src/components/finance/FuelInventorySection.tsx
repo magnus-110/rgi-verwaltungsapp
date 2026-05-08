@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, AlertTriangle, Check, Fuel } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, Check, Fuel, X } from "lucide-react";
 import { toast } from "sonner";
 
 const FUEL_TYPES = [
@@ -103,8 +103,22 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
     },
   });
 
+  // Verworfene Warnungen (per Buchungs-ID, persistiert pro Gebäude/Jahr)
+  const dismissKey = `fuel-warn-dismissed-${buildingId}-${fiscalYear}`;
+  const [dismissedIds, setDismissedIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(dismissKey) || "[]"); } catch { return []; }
+  });
+  const dismissBooking = (id: string) => {
+    setDismissedIds((prev) => {
+      const next = Array.from(new Set([...prev, id]));
+      try { localStorage.setItem(dismissKey, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
   // Buchungen ohne korrespondierenden Inventar-Eintrag (Match: Datum + Betrag oder invoice_id)
   const unmatchedFuelBookings = fuelBookings.filter((b: any) => {
+    if (dismissedIds.includes(b.id)) return false;
     return !allEntries.some((e: any) => {
       if (e.invoice_id && b.invoice_id && e.invoice_id === b.invoice_id) return true;
       const sameDate = e.entry_date === b.booking_date;
@@ -333,6 +347,9 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
                   </div>
                   <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => createFromBooking(b)}>
                     <Plus className="h-3 w-3 mr-1" />Als Einkauf erfassen
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Warnung verbergen" onClick={() => dismissBooking(b.id)}>
+                    <X className="h-3 w-3" />
                   </Button>
                 </div>
               ))}
