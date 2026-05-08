@@ -98,8 +98,8 @@ export function InAppNotificationsProvider({ children }: { children: React.React
       }
     };
     const loadAccounts = async () => {
-      const { data } = await supabase
-        .from("email_account_subscriptions")
+      const { data } = await (supabase as any)
+        .from("in_app_email_subscriptions")
         .select("account_id")
         .eq("user_id", user.id);
       if (!cancelled) accountIdsRef.current = new Set((data ?? []).map((s: any) => s.account_id));
@@ -200,7 +200,7 @@ export function InAppNotificationsProvider({ children }: { children: React.React
           in_app_todo_enabled: row.in_app_todo_enabled ?? true,
         };
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "email_account_subscriptions", filter: `user_id=eq.${user.id}` }, () => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "in_app_email_subscriptions", filter: `user_id=eq.${user.id}` }, () => {
         loadAccounts();
       })
       .subscribe();

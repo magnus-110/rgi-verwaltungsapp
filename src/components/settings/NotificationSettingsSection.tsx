@@ -60,6 +60,7 @@ export function NotificationSettingsSection() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
   const [subscribedAccountIds, setSubscribedAccountIds] = useState<Set<string>>(new Set());
+  const [inAppAccountIds, setInAppAccountIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [lastTestResult, setLastTestResult] = useState<string | null>(null);
   const [lastTestDevices, setLastTestDevices] = useState<any[] | null>(null);
@@ -68,10 +69,11 @@ export function NotificationSettingsSection() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [{ data: p }, { data: accs }, { data: subs }] = await Promise.all([
+      const [{ data: p }, { data: accs }, { data: subs }, { data: inAppSubs }] = await Promise.all([
         supabase.from("notification_preferences").select("*").eq("user_id", user.id).maybeSingle(),
         supabase.from("email_accounts").select("id, display_name, email_address").eq("is_active", true).order("display_name"),
         supabase.from("email_account_subscriptions").select("account_id").eq("user_id", user.id),
+        (supabase as any).from("in_app_email_subscriptions").select("account_id").eq("user_id", user.id),
       ]);
       if (p) setPrefs({
         email_enabled: p.email_enabled,
@@ -87,6 +89,7 @@ export function NotificationSettingsSection() {
       });
       setAccounts(accs ?? []);
       setSubscribedAccountIds(new Set((subs ?? []).map((s) => s.account_id)));
+      setInAppAccountIds(new Set(((inAppSubs as any[]) ?? []).map((s: any) => s.account_id)));
     })();
   }, [user]);
 
@@ -114,6 +117,34 @@ export function NotificationSettingsSection() {
       await supabase.from("email_account_subscriptions").delete().eq("user_id", user.id).eq("account_id", accountId);
     }
     setSubscribedAccountIds(next);
+  }
+
+  async function toggleInAppAccount(accountId: string, on: boolean) {
+    if (!user) return;
+    const next = new Set(inAppAccountIds);
+    if (on) {
+      next.add(accountId);
+      const { error } = await (supabase as any)
+        .from("in_app_email_subscriptions")
+        .insert({ user_id: user.id, account_id: accountId });
+      if (error) { toast.error(error.message); return; }
+    } else {
+      next.delete(accountId);
+      await (supabase as any)
+        .from("in_app_email_subscriptions")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("account_id", accountId);
+    }
+    setInAppAccountIds(next);
+  }
+
+  function inAppTest() {
+    toast.success("In-App Test-Benachrichtigung", {
+      description: "Wenn du das siehst, funktioniert das System.",
+      duration: 4000,
+      position: "bottom-right",
+    });
   }
 
   async function localTest() {
@@ -384,6 +415,38 @@ export function NotificationSettingsSection() {
           <div className="flex items-center justify-between">
             <Label className="flex items-center gap-2"><CheckSquare className="w-4 h-4" /> Neue Aufgaben</Label>
             <Switch checked={prefs.in_app_todo_enabled} onCheckedChange={(v) => savePrefs({ ...prefs, in_app_todo_enabled: v })} />
+          </div>
+
+          <Separator />
+          <div>
+            <Label className="text-sm font-medium flex items-center gap-2"><Mail className="w-4 h-4" /> Postfächer für In-App-Pop-ups</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Wähle aus, welche Postfächer ein In-App-Pop-up auslösen sollen. Wird nichts ausgewählt, sind alle Postfächer aktiv.
+            </p>
+            <div className="space-y-2">
+              {accounts.length === 0 && <p className="text-sm text-muted-foreground">Keine aktiven E-Mail-Konten gefunden.</p>}
+              {accounts.map((a) => (
+                <div key={a.id} className="flex items-center justify-between gap-4 p-2 rounded-md border bg-card">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{a.display_name || a.email_address}</p>
+                    <p className="text-xs text-muted-foreground truncate">{a.email_address}</p>
+                  </div>
+                  <Switch
+                    checked={inAppAccountIds.has(a.id)}
+                    onCheckedChange={(v) => toggleInAppAccount(a.id, v)}
+                    disabled={!prefs.in_app_email_enabled}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">Teste, ob In-App-Pop-ups bei dir erscheinen.</p>
+            <Button size="sm" variant="outline" onClick={inAppTest}>
+              <BellRing className="w-4 h-4 mr-1.5" /> Test-Pop-up
+            </Button>
           </div>
         </CardContent>
       </Card>
