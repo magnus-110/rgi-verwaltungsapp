@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { ArrowRightLeft, AlertTriangle, Check, RefreshCw, Trash2, Upload, Users, Split, Plus, X } from "lucide-react";
 import { sumForAccount } from "./lib/bookingAggregation";
+import { computeFifoConsumption, findFuelAccountPairs, type FuelInventoryEntry } from "./lib/fuelFifo";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 
