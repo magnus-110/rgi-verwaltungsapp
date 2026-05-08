@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Flag, Archive, ArchiveRestore, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2, Link2, Sparkles, Menu, ArrowLeft, Pin, PinOff, Vote, CalendarClock, Users } from "lucide-react";
+import { Mail, Search, Flag, Archive, ArchiveRestore, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2, Link2, Sparkles, Menu, ArrowLeft, Pin, PinOff, Vote, CalendarClock, Users, Printer } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
 import { AiEmailSearchDialog } from "@/components/email/AiEmailSearchDialog";
 
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
+import { PrintEmailDialog } from "@/components/email/PrintEmailDialog";
 import { ScheduledMailsPanel } from "@/components/email/ScheduledMailsPanel";
 import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { useAuth } from "@/hooks/useAuth";
@@ -78,6 +79,7 @@ export const Inbox = () => {
   const [contactSearchTerm, setContactSearchTerm] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedEmailIds, setSelectedEmailIds] = useState<Set<string>>(new Set());
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -1636,6 +1638,10 @@ export const Inbox = () => {
                     <Forward className="h-3.5 w-3.5" />
                     Weiterleiten
                   </Button>
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setPrintDialogOpen(true)}>
+                    <Printer className="h-3.5 w-3.5" />
+                    Drucken
+                  </Button>
                 </div>
               </>
             ) : (
@@ -1664,6 +1670,12 @@ export const Inbox = () => {
         prefilledCaseId={archiveEmailId ? ((emails.find(e => e.id === archiveEmailId) as any)?.case_id || (emails.find(e => e.id === archiveEmailId) as any)?.ai_case_suggestion_id || null) : null}
         prefilledIsEtvRelevant={archiveEmailId ? !!(emails.find(e => e.id === archiveEmailId) as any)?.is_etv_relevant : false}
         prefilledEtvMeetingId={archiveEmailId ? ((emails.find(e => e.id === archiveEmailId) as any)?.etv_meeting_id || null) : null}
+      />
+
+      <PrintEmailDialog
+        open={printDialogOpen}
+        onOpenChange={setPrintDialogOpen}
+        email={selectedEmail as any}
       />
 
       <AiEmailSearchDialog
