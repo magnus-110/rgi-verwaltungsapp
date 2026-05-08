@@ -69,10 +69,11 @@ export function NotificationSettingsSection() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [{ data: p }, { data: accs }, { data: subs }] = await Promise.all([
+      const [{ data: p }, { data: accs }, { data: subs }, { data: inAppSubs }] = await Promise.all([
         supabase.from("notification_preferences").select("*").eq("user_id", user.id).maybeSingle(),
         supabase.from("email_accounts").select("id, display_name, email_address").eq("is_active", true).order("display_name"),
         supabase.from("email_account_subscriptions").select("account_id").eq("user_id", user.id),
+        (supabase as any).from("in_app_email_subscriptions").select("account_id").eq("user_id", user.id),
       ]);
       if (p) setPrefs({
         email_enabled: p.email_enabled,
@@ -88,6 +89,7 @@ export function NotificationSettingsSection() {
       });
       setAccounts(accs ?? []);
       setSubscribedAccountIds(new Set((subs ?? []).map((s) => s.account_id)));
+      setInAppAccountIds(new Set(((inAppSubs as any[]) ?? []).map((s: any) => s.account_id)));
     })();
   }, [user]);
 
