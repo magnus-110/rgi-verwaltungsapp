@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { ArrowRightLeft, AlertTriangle, Check, RefreshCw, Trash2, Upload, Users, Split, Plus, X } from "lucide-react";
 import { sumForAccount } from "./lib/bookingAggregation";
+import { computeFifoConsumption, findFuelAccountPairs, type FuelInventoryEntry } from "./lib/fuelFifo";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -135,6 +136,29 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
       return data;
     },
   });
+
+  // Brennstoff-Inventar (für FIFO-Verbrauchsbewertung 1450 → 1400)
+  const { data: fuelEntries = [] } = useQuery({
+    queryKey: ["fuel-inventory-rebook", buildingId, periodId, fiscalYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("fuel_inventory")
+        .select("entry_type, entry_date, quantity, total_price, fuel_type, heating_unit_id")
+        .eq("building_id", buildingId)
+        .or(`billing_period_id.eq.${periodId},consumption_year.eq.${fiscalYear}`);
+      if (error) throw error;
+      return data as FuelInventoryEntry[];
+    },
+  });
+
+  // Brennstoff-Konto-Paare (1410↔1450, 1411↔1451, …)
+  const fuelPairs = findFuelAccountPairs(allAccounts as any);
+
+  // FIFO-Verbrauch (für Anzeige + Stufe-2 Umbuchung).
+  // Vereinfachte Zuordnung: alle Inventar-Einträge des Gebäudes werden gemeinsam
+  // ausgewertet (1 Tank = Standard). Falls es mehrere Tanks gibt, kann hier
+  // später nach heating_unit_id pro Paar gefiltert werden.
+  const fifo = computeFifoConsumption(fuelEntries);
 
   // Bank-zentrisch: Heizkonten können auf account_id ODER counter_account_id liegen.
   // sumForAccount summiert beide Seiten korrekt; Reposts UND Splitt-Buchungen ausschließen,
@@ -263,28 +287,79 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
         if (delError) throw delError;
       }
 
-      const rebookings = heatingAccounts
-        .map((acc) => {
-          // Zielkonto darf sich nicht selbst umbuchen (sonst doppelte Zählung in der Abrechnung)
-          if (acc.id === targetAccountId) return null;
+      // IDs der Brennstoffkauf- und Vorratskonten (1410↔1450, 1411↔1451, …)
+      const purchaseAccountIds = new Set(fuelPairs.map((p) => p.purchase.id));
+      const stockAccountIds = new Set(fuelPairs.map((p) => p.stock.id));
+      const stockByPurchaseId = new Map(fuelPairs.map((p) => [p.purchase.id, p.stock]));
+
+      const rebookings: any[] = [];
+
+      heatingAccounts.forEach((acc) => {
+        // Zielkonto (1400) darf sich nicht selbst umbuchen
+        if (acc.id === targetAccountId) return;
+
+        // Stufe 1: 1410/1411 Brennstoffkauf → 1450/1451 Vorrat (voller Saldo)
+        if (purchaseAccountIds.has(acc.id)) {
           const total = getAccountTotal(acc.id);
-          if (total <= 0) return null;
-          return {
+          if (total <= 0) return;
+          const stock = stockByPurchaseId.get(acc.id)!;
+          rebookings.push({
             building_id: buildingId,
             account_id: acc.id,
-            counter_account_id: targetAccountId,
+            counter_account_id: stock.id,
             booking_date: `${fiscalYear}-12-31`,
             amount: total,
-            description: `HK-Umbuchung: ${acc.account_name} → Heizkostenkonto`,
+            description: `Brennstoffkauf ${acc.account_number} → Vorrat ${stock.account_number}`,
             fiscal_year: fiscalYear,
             booking_type: "expense",
             booking_category: "heating_repost",
             source: "manual",
             status: "pending",
             created_by: user?.id,
-          };
-        })
-        .filter(Boolean);
+          });
+          return;
+        }
+
+        // Stufe 2: 1450/1451 Vorrat → 1400 (nur FIFO-Verbrauch)
+        if (stockAccountIds.has(acc.id)) {
+          if (fifo.missingClosing) return; // ohne Endbestand kein Verbrauch
+          const consumed = fifo.consumedValueEur;
+          if (consumed <= 0) return;
+          rebookings.push({
+            building_id: buildingId,
+            account_id: acc.id,
+            counter_account_id: targetAccountId,
+            booking_date: `${fiscalYear}-12-31`,
+            amount: consumed,
+            description: `Brennstoff-Verbrauch (FIFO) ${acc.account_number} → Heizkosten`,
+            fiscal_year: fiscalYear,
+            booking_type: "expense",
+            booking_category: "heating_repost",
+            source: "manual",
+            status: "pending",
+            created_by: user?.id,
+          });
+          return;
+        }
+
+        // Alle übrigen HK-Konten: direkt → 1400 (wie bisher)
+        const total = getAccountTotal(acc.id);
+        if (total <= 0) return;
+        rebookings.push({
+          building_id: buildingId,
+          account_id: acc.id,
+          counter_account_id: targetAccountId,
+          booking_date: `${fiscalYear}-12-31`,
+          amount: total,
+          description: `HK-Umbuchung: ${acc.account_name} → Heizkostenkonto`,
+          fiscal_year: fiscalYear,
+          booking_type: "expense",
+          booking_category: "heating_repost",
+          source: "manual",
+          status: "pending",
+          created_by: user?.id,
+        });
+      });
 
       if (rebookings.length === 0) {
         toast.error("Keine Beträge zum Umbuchen vorhanden");
@@ -481,6 +556,44 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
             </Button>
           )}
         </div>
+
+        {/* FIFO-Brennstoff-Info */}
+        {fuelPairs.length > 0 && (fifo.hasOpening || fifo.purchaseQuantity > 0 || fifo.hasClosing) && (
+          <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-2">
+            <div className="font-medium text-foreground flex items-center gap-2">
+              <ArrowRightLeft className="h-3.5 w-3.5" />
+              Zweistufige Brennstoff-Umbuchung (FIFO)
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 font-mono">
+              <div>
+                <div className="text-muted-foreground">Anfangsbestand</div>
+                <div>{formatCurrency(fifo.openingValueEur)}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">+ Zukäufe</div>
+                <div>{formatCurrency(fifo.purchaseValueEur)}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">− Endbestand</div>
+                <div>{formatCurrency(fifo.closingValueEur)}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">= Verbrauch (FIFO) → 1400</div>
+                <div className="font-semibold text-foreground">{formatCurrency(fifo.consumedValueEur)}</div>
+              </div>
+            </div>
+            {fifo.missingClosing && (
+              <div className="text-amber-700 dark:text-amber-300 flex items-start gap-1">
+                <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                Endbestand fehlt im Brennstoffbestand — Stufe 2 (Vorrat → Heizkosten) wird übersprungen.
+              </div>
+            )}
+            <div className="text-muted-foreground leading-relaxed">
+              Stufe 1: Brennstoffkauf (1410/1411) → Vorrat (1450/1451) — voller Saldo.
+              Stufe 2: Vorrat → Heizkosten (1400) — nur Jahresverbrauch nach FIFO.
+            </div>
+          </div>
+        )}
 
         {/* Vorschau / bestehende Umbuchungen */}
         {existingRebookings.length > 0 ? (
