@@ -87,6 +87,7 @@ const App = () => (
         <AuthProvider>
           <ComposeEmailProvider>
             <UploadProvider>
+              <InAppNotificationsProvider>
               <Toaster />
               <Sonner />
               <FloatingComposeWindow />
