@@ -21,8 +21,9 @@ export function InvoiceDropZone({ buildings }: Props) {
     const lowerName = file.name.toLowerCase();
     const isPdf = file.type.includes("pdf") || lowerName.endsWith(".pdf");
     const isXml = file.type.includes("xml") || lowerName.endsWith(".xml");
-    if (!isPdf && !isXml) {
-      toast.error(`"${file.name}" ist keine PDF- oder XML-Datei`);
+    const isImage = file.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif)$/i.test(lowerName);
+    if (!isPdf && !isXml && !isImage) {
+      toast.error(`"${file.name}" ist keine PDF-, XML- oder Bilddatei`);
       return;
     }
 
