@@ -200,7 +200,7 @@ export function InAppNotificationsProvider({ children }: { children: React.React
           in_app_todo_enabled: row.in_app_todo_enabled ?? true,
         };
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "email_account_subscriptions", filter: `user_id=eq.${user.id}` }, () => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "in_app_email_subscriptions", filter: `user_id=eq.${user.id}` }, () => {
         loadAccounts();
       })
       .subscribe();
