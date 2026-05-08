@@ -5,6 +5,7 @@ import { Upload, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
 
 interface Props {
   buildings: { id: string; name: string; building_code: string }[];
@@ -50,7 +51,7 @@ export function InvoiceDropZone({ buildings }: Props) {
       // Use building folder, "company" for RGI invoices, or "unassigned"
       const isCompany = selectedBuilding === "company";
       const folderPrefix = isCompany ? "company" : (selectedBuilding || "unassigned");
-      const filePath = `${folderPrefix}/${Date.now()}_${fileName}`;
+      const filePath = `${folderPrefix}/${Date.now()}_${sanitizeStorageKey(fileName)}`;
       const { error: uploadError } = await supabase.storage
         .from("invoices")
         .upload(filePath, file);

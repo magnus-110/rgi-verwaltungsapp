@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { SaveAttachmentToBuildingDialog } from "./SaveAttachmentToBuildingDialog";
+import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
 
 interface EmailAttachmentsProps {
   emailId: string;
@@ -110,7 +111,8 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
       // 3. Upload to invoices bucket (preserve extension for XML detection)
       const timestamp = Date.now();
       const folder = asCreditNote ? "credit_notes" : "unassigned";
-      const invoicePath = `${folder}/${timestamp}_${att.file_name}`;
+      const safeName = sanitizeStorageKey(att.file_name);
+      const invoicePath = `${folder}/${timestamp}_${safeName}`;
       const isXmlFile = att.file_name.toLowerCase().endsWith(".xml");
       const { error: uploadErr } = await supabase.storage
         .from("invoices")
