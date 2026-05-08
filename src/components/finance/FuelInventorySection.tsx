@@ -224,22 +224,41 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
     return heatingUnits.find((u: any) => u.id === id)?.name ?? "?";
   };
 
+  const updateEntry = async (id: string, patch: Record<string, any>) => {
+    const { error } = await supabase.from("fuel_inventory").update(patch).eq("id", id);
+    if (error) { toast.error("Speichern fehlgeschlagen: " + error.message); return; }
+    queryClient.invalidateQueries({ queryKey: ["fuel-inventory"] });
+  };
+
   const createFromBooking = async (b: any) => {
+    // OCR-Daten aus verknüpfter Rechnung laden
+    let ocr: any = null;
+    if (b.invoice_id) {
+      const { data: inv } = await supabase
+        .from("invoices")
+        .select("ocr_extracted_data")
+        .eq("id", b.invoice_id)
+        .maybeSingle();
+      ocr = inv?.ocr_extracted_data ?? null;
+    }
+
     let preselectedUnit: string | null = null;
-    let preselectedFuelType = "oil";
+    let preselectedFuelType: string = ocr?.fuel_type || "oil";
     if (heatingUnits.length === 1) {
       preselectedUnit = heatingUnits[0].id;
-      preselectedFuelType = heatingUnits[0].fuel_type;
+      if (!ocr?.fuel_type) preselectedFuelType = heatingUnits[0].fuel_type;
     } else if (hasMultipleUnits && activeUnitId !== "__all__" && activeUnitId !== "__none__") {
       preselectedUnit = activeUnitId;
       const u = heatingUnits.find((h: any) => h.id === activeUnitId);
-      if (u) preselectedFuelType = u.fuel_type;
+      if (u && !ocr?.fuel_type) preselectedFuelType = u.fuel_type;
     }
     if (hasMultipleUnits && !preselectedUnit) {
       toast.error("Bitte zuerst Heizkreis-Tab wählen");
       return;
     }
-    const fuelUnit = FUEL_TYPES.find((f) => f.value === preselectedFuelType)?.unit ?? "l";
+    const fuelUnit = ocr?.fuel_unit || FUEL_TYPES.find((f) => f.value === preselectedFuelType)?.unit || "l";
+    const showCo2 = ["oil", "gas", "district_heating"].includes(preselectedFuelType);
+
     const { error } = await supabase.from("fuel_inventory").insert({
       building_id: buildingId,
       billing_period_id: periodId,
@@ -247,14 +266,18 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
       fuel_type: preselectedFuelType,
       entry_type: "purchase",
       entry_date: b.booking_date,
-      quantity: 0,
+      quantity: ocr?.fuel_quantity ? Number(ocr.fuel_quantity) : 0,
       unit: fuelUnit,
       total_price: Math.abs(Number(b.amount)),
+      co2_emissions_kg: showCo2 && ocr?.co2_emissions_kg != null ? Number(ocr.co2_emissions_kg) : null,
+      co2_tax_amount: showCo2 && ocr?.co2_tax_amount_eur != null ? Number(ocr.co2_tax_amount_eur) : null,
+      energy_content_kwh: ocr?.energy_content_kwh != null ? Number(ocr.energy_content_kwh) : null,
       invoice_id: b.invoice_id || null,
       notes: `Aus Buchung: ${b.description || ""}`.slice(0, 250),
     });
     if (error) { toast.error("Fehler: " + error.message); return; }
-    toast.success("Eintrag aus Buchung erstellt – bitte Menge & ggf. CO₂-Daten ergänzen");
+    const filled = ocr?.fuel_quantity ? "Menge & CO₂-Daten aus Rechnung übernommen" : "Bitte Menge & ggf. CO₂-Daten ergänzen";
+    toast.success(`Eintrag aus Buchung erstellt – ${filled}`);
     queryClient.invalidateQueries({ queryKey: ["fuel-inventory"] });
   };
 
