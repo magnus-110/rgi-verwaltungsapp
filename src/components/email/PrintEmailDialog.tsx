@@ -227,21 +227,41 @@ export const PrintEmailDialog = ({ open, onOpenChange, email }: Props) => {
       const marginFirstTop = 20;
       const marginRest = 32; // gilt für: unten Seite 1 + oben & unten ab Seite 2
       const imgW = pageW - marginX * 2;
-      const imgH = (canvas.height * imgW) / canvas.width;
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      const pxPerMm = canvas.width / imgW;
 
-      // Seite 1
-      const usableFirst = pageH - marginFirstTop - marginRest;
-      pdf.addImage(dataUrl, "JPEG", marginX, marginFirstTop, imgW, imgH);
-      let consumed = usableFirst;
-      // Folgeseiten
-      const usableRest = pageH - marginRest - marginRest;
-      while (consumed < imgH) {
-        pdf.addPage();
-        // Bild so verschieben, dass der bereits gezeigte Teil oberhalb der Seite liegt
-        const position = marginRest - consumed;
-        pdf.addImage(dataUrl, "JPEG", marginX, position, imgW, imgH);
-        consumed += usableRest;
+      // Hilfs-Canvas zum Schneiden der Seitenstücke
+      const sliceCanvas = document.createElement("canvas");
+      const sliceCtx = sliceCanvas.getContext("2d")!;
+      sliceCanvas.width = canvas.width;
+
+      const totalPx = canvas.height;
+      let sourceY = 0;
+      let isFirst = true;
+
+      while (sourceY < totalPx) {
+        const usableMm = isFirst
+          ? pageH - marginFirstTop - marginRest
+          : pageH - marginRest - marginRest;
+        const topMm = isFirst ? marginFirstTop : marginRest;
+        const wantedPx = Math.floor(usableMm * pxPerMm);
+        const slicePx = Math.min(wantedPx, totalPx - sourceY);
+
+        sliceCanvas.height = slicePx;
+        sliceCtx.fillStyle = "#ffffff";
+        sliceCtx.fillRect(0, 0, sliceCanvas.width, slicePx);
+        sliceCtx.drawImage(
+          canvas,
+          0, sourceY, canvas.width, slicePx,
+          0, 0, canvas.width, slicePx
+        );
+        const sliceData = sliceCanvas.toDataURL("image/jpeg", 0.92);
+        const sliceMm = slicePx / pxPerMm;
+
+        if (!isFirst) pdf.addPage();
+        pdf.addImage(sliceData, "JPEG", marginX, topMm, imgW, sliceMm);
+
+        sourceY += slicePx;
+        isFirst = false;
       }
       const filename = `${(email.subject || "Email").replace(/[^a-z0-9-_ äöüÄÖÜß]/gi, "_").slice(0, 60)}.pdf`;
       pdf.save(filename);
