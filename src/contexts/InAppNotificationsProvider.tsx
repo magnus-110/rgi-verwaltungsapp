@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
+import { BellRing } from "lucide-react";
 import { Mail, ClipboardList, CheckSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
