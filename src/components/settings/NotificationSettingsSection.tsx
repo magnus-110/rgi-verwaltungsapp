@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
 import { toast } from "sonner";
+import { showInAppToast } from "@/lib/inAppToast";
 
 interface Prefs {
   email_enabled: boolean;
@@ -140,10 +141,11 @@ export function NotificationSettingsSection() {
   }
 
   function inAppTest() {
-    toast.success("In-App Test-Benachrichtigung", {
-      description: "Wenn du das siehst, funktioniert das System.",
-      duration: 4000,
-      position: "bottom-right",
+    showInAppToast({
+      icon: <Mail className="w-4 h-4" />,
+      title: "Neue E-Mail",
+      subtitle: "Max Mustermann",
+      detail: "Test-Benachrichtigung – das System funktioniert.",
     });
   }
 
