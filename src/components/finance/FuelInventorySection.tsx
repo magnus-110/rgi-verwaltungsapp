@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, AlertTriangle, Check, Fuel } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, Check, Fuel, X } from "lucide-react";
 import { toast } from "sonner";
 
 const FUEL_TYPES = [
