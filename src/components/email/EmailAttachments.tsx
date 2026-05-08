@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { SaveAttachmentToBuildingDialog } from "./SaveAttachmentToBuildingDialog";
+import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
 
 interface EmailAttachmentsProps {
   emailId: string;
