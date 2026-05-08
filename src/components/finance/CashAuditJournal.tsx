@@ -13,7 +13,7 @@ interface CashAuditJournalProps {
   buildingId: string;
   fiscalYear: number;
   progress: Record<string, any>;
-  onProgressChange: (progress: Record<string, any>) => void;
+  onProgressChange: (progress: Record<string, any> | ((prev: Record<string, any>) => Record<string, any>)) => void;
   readOnly?: boolean;
   tokenMode?: boolean;
   token?: string;
