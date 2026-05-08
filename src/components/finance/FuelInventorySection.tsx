@@ -372,31 +372,96 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
               </TableRow>
             </TableHeader>
             <TableBody>
-              {entries.map((entry: any) => (
-                <TableRow key={entry.id}>
-                  <TableCell>
-                    <Badge variant="outline" className="text-xs">
-                      {ENTRY_TYPES.find((t) => t.value === entry.entry_type)?.label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm">{FUEL_TYPES.find((f) => f.value === entry.fuel_type)?.label}</TableCell>
-                  {hasMultipleUnits && (
-                    <TableCell className="text-xs text-muted-foreground">{unitName(entry.heating_unit_id)}</TableCell>
-                  )}
-                  <TableCell className="text-sm">{new Date(entry.entry_date).toLocaleDateString("de-DE")}</TableCell>
-                  <TableCell className="text-right font-mono text-sm">{formatNum(Number(entry.quantity))} {entry.unit}</TableCell>
-                  <TableCell className="text-right font-mono text-sm">{formatCurrency(Number(entry.total_price))}</TableCell>
-                  <TableCell className="text-right font-mono text-xs text-muted-foreground">{entry.co2_emissions_kg != null ? formatNum(Number(entry.co2_emissions_kg)) : "–"}</TableCell>
-                  <TableCell className="text-right font-mono text-xs text-muted-foreground">{entry.co2_tax_amount != null ? formatCurrency(Number(entry.co2_tax_amount)) : "–"}</TableCell>
-                  <TableCell className="text-right font-mono text-xs text-muted-foreground">{entry.energy_content_kwh != null ? formatNum(Number(entry.energy_content_kwh)) : "–"}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">{entry.notes || "–"}</TableCell>
-                  <TableCell>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteEntry(entry.id)}>
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {entries.map((entry: any) => {
+                const parseNum = (s: string) => {
+                  const v = s.trim().replace(/\./g, "").replace(",", ".");
+                  if (v === "") return null;
+                  const n = parseFloat(v);
+                  return isNaN(n) ? null : n;
+                };
+                const numInput = (field: string, value: any, opts?: { allowNull?: boolean }) => (
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    defaultValue={value != null ? String(value).replace(".", ",") : ""}
+                    onBlur={(e) => {
+                      const parsed = parseNum(e.target.value);
+                      const current = value == null ? null : Number(value);
+                      const next = parsed;
+                      if (next === current) return;
+                      if (next == null && !opts?.allowNull) return;
+                      updateEntry(entry.id, { [field]: next });
+                    }}
+                    className="h-7 text-right font-mono text-xs px-1 w-24 ml-auto"
+                  />
+                );
+                return (
+                  <TableRow key={entry.id}>
+                    <TableCell>
+                      <Select value={entry.entry_type} onValueChange={(v) => updateEntry(entry.id, { entry_type: v })}>
+                        <SelectTrigger className="h-7 text-xs w-[140px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {ENTRY_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <Select
+                        value={entry.fuel_type}
+                        onValueChange={(v) => updateEntry(entry.id, { fuel_type: v, unit: FUEL_TYPES.find(f => f.value === v)?.unit ?? entry.unit })}
+                      >
+                        <SelectTrigger className="h-7 text-xs w-[120px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {FUEL_TYPES.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    {hasMultipleUnits && (
+                      <TableCell className="text-xs text-muted-foreground">
+                        <Select value={entry.heating_unit_id ?? "__none__"} onValueChange={(v) => updateEntry(entry.id, { heating_unit_id: v === "__none__" ? null : v })}>
+                          <SelectTrigger className="h-7 text-xs w-[140px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">— ohne —</SelectItem>
+                            {heatingUnits.map((u: any) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    )}
+                    <TableCell>
+                      <Input
+                        type="date"
+                        defaultValue={entry.entry_date}
+                        onBlur={(e) => {
+                          if (e.target.value && e.target.value !== entry.entry_date) {
+                            updateEntry(entry.id, { entry_date: e.target.value });
+                          }
+                        }}
+                        className="h-7 text-xs w-[140px]"
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">{numInput("quantity", entry.quantity)}</TableCell>
+                    <TableCell className="text-right">{numInput("total_price", entry.total_price)}</TableCell>
+                    <TableCell className="text-right">{numInput("co2_emissions_kg", entry.co2_emissions_kg, { allowNull: true })}</TableCell>
+                    <TableCell className="text-right">{numInput("co2_tax_amount", entry.co2_tax_amount, { allowNull: true })}</TableCell>
+                    <TableCell className="text-right">{numInput("energy_content_kwh", entry.energy_content_kwh, { allowNull: true })}</TableCell>
+                    <TableCell>
+                      <Input
+                        defaultValue={entry.notes ?? ""}
+                        onBlur={(e) => {
+                          const v = e.target.value.trim();
+                          if (v !== (entry.notes ?? "")) updateEntry(entry.id, { notes: v || null });
+                        }}
+                        className="h-7 text-xs w-[180px]"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteEntry(entry.id)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}
