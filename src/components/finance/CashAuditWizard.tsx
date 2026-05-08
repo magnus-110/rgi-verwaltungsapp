@@ -260,7 +260,7 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
       {/* Header */}
       <div className="flex items-start gap-3">
         {onBack && (
-          <Button variant="ghost" size="icon" onClick={onBack} className="mt-0.5">
+          <Button variant="ghost" size="icon" onClick={handleBack} className="mt-0.5">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         )}
@@ -273,6 +273,20 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
             {isCompleted && (
               <Badge className="bg-green-100 text-green-800 gap-1">
                 <CheckCircle2 className="h-3 w-3" /> Abgeschlossen
+              </Badge>
+            )}
+            {!isCompleted && saveState === "saving" && (
+              <Badge variant="secondary" className="text-xs">Speichere…</Badge>
+            )}
+            {!isCompleted && saveState === "dirty" && (
+              <Badge variant="secondary" className="text-xs">Ungespeicherte Änderungen</Badge>
+            )}
+            {!isCompleted && saveState === "saved" && (
+              <Badge className="bg-green-100 text-green-800 text-xs">Gespeichert</Badge>
+            )}
+            {!isCompleted && saveState === "error" && (
+              <Badge variant="destructive" className="text-xs cursor-pointer" onClick={() => pendingProgressRef.current && doSave(pendingProgressRef.current)}>
+                Fehler — erneut versuchen
               </Badge>
             )}
           </div>
