@@ -224,17 +224,18 @@ export const PrintEmailDialog = ({ open, onOpenChange, email }: Props) => {
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
       const marginX = 18;
-      const marginY = 20;
+      const marginTop = 32;
+      const marginBottom = 20;
       const imgW = pageW - marginX * 2;
       const imgH = (canvas.height * imgW) / canvas.width;
-      const usableH = pageH - marginY * 2;
+      const usableH = pageH - marginTop - marginBottom;
       let heightLeft = imgH;
-      let position = marginY;
+      let position = marginTop;
       const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
       pdf.addImage(dataUrl, "JPEG", marginX, position, imgW, imgH);
       heightLeft -= usableH;
       while (heightLeft > 0) {
-        position = marginY - (imgH - heightLeft);
+        position = marginTop - (imgH - heightLeft);
         pdf.addPage();
         pdf.addImage(dataUrl, "JPEG", marginX, position, imgW, imgH);
         heightLeft -= usableH;
@@ -263,7 +264,7 @@ export const PrintEmailDialog = ({ open, onOpenChange, email }: Props) => {
         return;
       }
       w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(email.subject || "E-Mail")}</title>
-        <style>@page{size:A4;margin:20mm 18mm;}body{margin:0;}</style></head><body>${html}</body></html>`);
+        <style>@page{size:A4;margin:32mm 18mm 20mm 18mm;}body{margin:0;}</style></head><body>${html}</body></html>`);
       w.document.close();
       // Wait for images
       const imgs = Array.from(w.document.images);
