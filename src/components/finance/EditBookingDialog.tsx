@@ -118,7 +118,9 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
         booking_date: booking.booking_date,
         amount: String(Math.abs(booking.amount)),
         description: booking.description || "",
-        booking_type: booking.booking_type || "expense",
+        booking_type: booking.booking_type
+          ? booking.booking_type
+          : (Number(booking.amount) < 0 ? "income" : "expense"),
         receipt_number: booking.receipt_number || "",
         booking_reference: booking.booking_reference || "",
         vat_rate: String(booking.vat_rate ?? 19),
