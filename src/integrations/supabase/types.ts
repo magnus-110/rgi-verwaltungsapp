@@ -5171,6 +5171,9 @@ export type Database = {
           calendar_lead_minutes: number
           created_at: string
           email_enabled: boolean
+          in_app_email_enabled: boolean
+          in_app_report_enabled: boolean
+          in_app_todo_enabled: boolean
           quiet_hours_end: string | null
           quiet_hours_start: string | null
           todo_enabled: boolean
@@ -5183,6 +5186,9 @@ export type Database = {
           calendar_lead_minutes?: number
           created_at?: string
           email_enabled?: boolean
+          in_app_email_enabled?: boolean
+          in_app_report_enabled?: boolean
+          in_app_todo_enabled?: boolean
           quiet_hours_end?: string | null
           quiet_hours_start?: string | null
           todo_enabled?: boolean
@@ -5195,6 +5201,9 @@ export type Database = {
           calendar_lead_minutes?: number
           created_at?: string
           email_enabled?: boolean
+          in_app_email_enabled?: boolean
+          in_app_report_enabled?: boolean
+          in_app_todo_enabled?: boolean
           quiet_hours_end?: string | null
           quiet_hours_start?: string | null
           todo_enabled?: boolean

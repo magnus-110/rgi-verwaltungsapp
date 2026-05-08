@@ -20,6 +20,9 @@ interface Prefs {
   calendar_lead_minutes: number;
   quiet_hours_start: string | null;
   quiet_hours_end: string | null;
+  in_app_email_enabled: boolean;
+  in_app_report_enabled: boolean;
+  in_app_todo_enabled: boolean;
 }
 
 interface MailAccount { id: string; display_name: string | null; email_address: string }
@@ -32,6 +35,9 @@ const DEFAULT_PREFS: Prefs = {
   calendar_lead_minutes: 30,
   quiet_hours_start: null,
   quiet_hours_end: null,
+  in_app_email_enabled: true,
+  in_app_report_enabled: true,
+  in_app_todo_enabled: true,
 };
 
 function StatusRow({ ok, label, hint }: { ok: boolean | null; label: string; hint?: string }) {
@@ -75,6 +81,9 @@ export function NotificationSettingsSection() {
         calendar_lead_minutes: p.calendar_lead_minutes,
         quiet_hours_start: p.quiet_hours_start,
         quiet_hours_end: p.quiet_hours_end,
+        in_app_email_enabled: (p as any).in_app_email_enabled ?? true,
+        in_app_report_enabled: (p as any).in_app_report_enabled ?? true,
+        in_app_todo_enabled: (p as any).in_app_todo_enabled ?? true,
       });
       setAccounts(accs ?? []);
       setSubscribedAccountIds(new Set((subs ?? []).map((s) => s.account_id)));
@@ -351,6 +360,31 @@ export function NotificationSettingsSection() {
               />
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><BellRing className="w-5 h-5" /> In-App-Benachrichtigungen</CardTitle>
+          <CardDescription>
+            Kleine Pop-ups unten rechts während du in der App arbeitest. Erscheinen 4 Sekunden lang und sind manuell schließbar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="flex items-center justify-between">
+            <Label className="flex items-center gap-2"><Mail className="w-4 h-4" /> Neue E-Mails</Label>
+            <Switch checked={prefs.in_app_email_enabled} onCheckedChange={(v) => savePrefs({ ...prefs, in_app_email_enabled: v })} />
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <Label className="flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Neue Meldungen</Label>
+            <Switch checked={prefs.in_app_report_enabled} onCheckedChange={(v) => savePrefs({ ...prefs, in_app_report_enabled: v })} />
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <Label className="flex items-center gap-2"><CheckSquare className="w-4 h-4" /> Neue Aufgaben</Label>
+            <Switch checked={prefs.in_app_todo_enabled} onCheckedChange={(v) => savePrefs({ ...prefs, in_app_todo_enabled: v })} />
+          </div>
         </CardContent>
       </Card>
 
