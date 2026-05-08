@@ -128,7 +128,7 @@ async function renderEmailHtml(email: EmailLite): Promise<string> {
 async function buildPrintHtml(emails: EmailLite[]): Promise<string> {
   const parts = await Promise.all(emails.map(renderEmailHtml));
   return `
-    <div style="font-family:'Work Sans','Helvetica Neue',Arial,sans-serif;color:#1c1917;padding:24px;background:#fff;width:794px;box-sizing:border-box;">
+    <div style="font-family:'Work Sans','Helvetica Neue',Arial,sans-serif;color:#1c1917;padding:8px;background:#fff;width:794px;box-sizing:border-box;">
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px;border-bottom:1px solid #e7e5e4;padding-bottom:8px;">
         <div style="font-family:'Century Gothic','Work Sans',sans-serif;font-weight:700;font-size:14px;color:#ea580c;letter-spacing:0.5px;">RGI Immobilien</div>
         <div style="font-size:10px;color:#78716c;">Gedruckt am ${formatDate(new Date(), "dd.MM.yyyy HH:mm", { locale: de })}</div>
@@ -223,18 +223,21 @@ export const PrintEmailDialog = ({ open, onOpenChange, email }: Props) => {
       const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
-      const imgW = pageW;
+      const marginX = 18;
+      const marginY = 20;
+      const imgW = pageW - marginX * 2;
       const imgH = (canvas.height * imgW) / canvas.width;
+      const usableH = pageH - marginY * 2;
       let heightLeft = imgH;
-      let position = 0;
+      let position = marginY;
       const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-      pdf.addImage(dataUrl, "JPEG", 0, position, imgW, imgH);
-      heightLeft -= pageH;
+      pdf.addImage(dataUrl, "JPEG", marginX, position, imgW, imgH);
+      heightLeft -= usableH;
       while (heightLeft > 0) {
-        position = heightLeft - imgH;
+        position = marginY - (imgH - heightLeft);
         pdf.addPage();
-        pdf.addImage(dataUrl, "JPEG", 0, position, imgW, imgH);
-        heightLeft -= pageH;
+        pdf.addImage(dataUrl, "JPEG", marginX, position, imgW, imgH);
+        heightLeft -= usableH;
       }
       const filename = `${(email.subject || "Email").replace(/[^a-z0-9-_ äöüÄÖÜß]/gi, "_").slice(0, 60)}.pdf`;
       pdf.save(filename);
@@ -260,7 +263,7 @@ export const PrintEmailDialog = ({ open, onOpenChange, email }: Props) => {
         return;
       }
       w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(email.subject || "E-Mail")}</title>
-        <style>@page{size:A4;margin:15mm;}body{margin:0;}</style></head><body>${html}</body></html>`);
+        <style>@page{size:A4;margin:20mm 18mm;}body{margin:0;}</style></head><body>${html}</body></html>`);
       w.document.close();
       // Wait for images
       const imgs = Array.from(w.document.images);
