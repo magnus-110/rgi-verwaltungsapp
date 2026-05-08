@@ -73,31 +73,126 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
   const [localProgress, setLocalProgress] = useState<Record<string, any> | null>(null);
   const progress = localProgress ?? (audit?.progress as Record<string, any>) ?? {};
 
-  const saveProgress = useCallback(async (newProgress: Record<string, any>) => {
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingProgressRef = useRef<Record<string, any> | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "dirty" | "saving" | "error" | "saved">("idle");
+  const lsKey = `cash-audit-${auditId}`;
+
+  // Restore from localStorage if newer than DB
+  useEffect(() => {
+    if (!audit) return;
+    try {
+      const raw = localStorage.getItem(lsKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      const dbUpdated = audit.updated_at ? new Date(audit.updated_at).getTime() : 0;
+      if (parsed?.savedAt && parsed.savedAt > dbUpdated && parsed?.progress) {
+        const dbCount = Object.keys((audit.progress as any)?.bookingFlags || {}).length
+          + Object.keys((audit.progress as any)?.accountFlags || {}).length;
+        const lsCount = Object.keys(parsed.progress.bookingFlags || {}).length
+          + Object.keys(parsed.progress.accountFlags || {}).length;
+        if (lsCount > dbCount) {
+          setLocalProgress(parsed.progress);
+          toast.info(`Lokale Sicherung wiederhergestellt (${lsCount} Markierungen). Wird gespeichert…`);
+          // trigger save
+          pendingProgressRef.current = parsed.progress;
+          void doSave(parsed.progress);
+        }
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audit?.id]);
+
+  const doSave = useCallback(async (newProgress: Record<string, any>, attempt = 0): Promise<boolean> => {
+    setSaveState("saving");
     try {
       if (tokenMode && token) {
-        await supabase.rpc("update_audit_by_token", {
+        const { error } = await supabase.rpc("update_audit_by_token", {
           p_token: token,
           p_progress: newProgress as any,
           p_status: "in_progress",
         });
+        if (error) throw error;
       } else {
-        await supabase
+        const { error } = await supabase
           .from("cash_audits")
           .update({ progress: newProgress as any, status: "in_progress", updated_at: new Date().toISOString() })
           .eq("id", auditId);
+        if (error) throw error;
       }
-    } catch (err) {
+      pendingProgressRef.current = null;
+      setSaveState("saved");
+      try { localStorage.removeItem(lsKey); } catch {}
+      return true;
+    } catch (err: any) {
       console.error("Failed to save progress", err);
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
+        return doSave(newProgress, attempt + 1);
+      }
+      setSaveState("error");
+      toast.error("Speichern fehlgeschlagen — bitte erneut versuchen.");
+      return false;
     }
-  }, [auditId, tokenMode, token]);
+  }, [auditId, tokenMode, token, lsKey]);
 
-  const handleProgressChange = (newProgress: Record<string, any>) => {
-    setLocalProgress(newProgress);
-    // Debounce save
-    clearTimeout((window as any).__auditSaveTimer);
-    (window as any).__auditSaveTimer = setTimeout(() => saveProgress(newProgress), 1500);
+  const flushPendingSave = useCallback(async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const pending = pendingProgressRef.current;
+    if (pending) {
+      await doSave(pending);
+    }
+  }, [doSave]);
+
+  const handleProgressChange = (updater: Record<string, any> | ((prev: Record<string, any>) => Record<string, any>)) => {
+    setLocalProgress((prev) => {
+      const base = prev ?? (audit?.progress as Record<string, any>) ?? {};
+      const next = typeof updater === "function" ? (updater as any)(base) : updater;
+      pendingProgressRef.current = next;
+      // localStorage backup immediately
+      try { localStorage.setItem(lsKey, JSON.stringify({ savedAt: Date.now(), progress: next })); } catch {}
+      setSaveState("dirty");
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        const p = pendingProgressRef.current;
+        if (p) void doSave(p);
+      }, 800);
+      return next;
+    });
   };
+
+  // Flush on unmount / page unload / tab hide
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (pendingProgressRef.current) {
+        // best-effort sync save attempt; also warn user
+        void doSave(pendingProgressRef.current);
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden" && pendingProgressRef.current) {
+        void doSave(pendingProgressRef.current);
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      document.removeEventListener("visibilitychange", onVisibility);
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (pendingProgressRef.current) void doSave(pendingProgressRef.current);
+    };
+  }, [doSave]);
+
+  const handleBack = useCallback(async () => {
+    await flushPendingSave();
+    onBack?.();
+  }, [flushPendingSave, onBack]);
 
   const handleComplete = async (signatureData: string, notes: string) => {
     setSaving(true);
