@@ -557,6 +557,44 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
           )}
         </div>
 
+        {/* FIFO-Brennstoff-Info */}
+        {fuelPairs.length > 0 && (fifo.hasOpening || fifo.purchaseQuantity > 0 || fifo.hasClosing) && (
+          <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-2">
+            <div className="font-medium text-foreground flex items-center gap-2">
+              <ArrowRightLeft className="h-3.5 w-3.5" />
+              Zweistufige Brennstoff-Umbuchung (FIFO)
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 font-mono">
+              <div>
+                <div className="text-muted-foreground">Anfangsbestand</div>
+                <div>{formatCurrency(fifo.openingValueEur)}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">+ Zukäufe</div>
+                <div>{formatCurrency(fifo.purchaseValueEur)}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">− Endbestand</div>
+                <div>{formatCurrency(fifo.closingValueEur)}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">= Verbrauch (FIFO) → 1400</div>
+                <div className="font-semibold text-foreground">{formatCurrency(fifo.consumedValueEur)}</div>
+              </div>
+            </div>
+            {fifo.missingClosing && (
+              <div className="text-amber-700 dark:text-amber-300 flex items-start gap-1">
+                <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                Endbestand fehlt im Brennstoffbestand — Stufe 2 (Vorrat → Heizkosten) wird übersprungen.
+              </div>
+            )}
+            <div className="text-muted-foreground leading-relaxed">
+              Stufe 1: Brennstoffkauf (1410/1411) → Vorrat (1450/1451) — voller Saldo.
+              Stufe 2: Vorrat → Heizkosten (1400) — nur Jahresverbrauch nach FIFO.
+            </div>
+          </div>
+        )}
+
         {/* Vorschau / bestehende Umbuchungen */}
         {existingRebookings.length > 0 ? (
           <Table>
