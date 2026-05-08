@@ -4847,6 +4847,24 @@ export type Database = {
           },
         ]
       }
+      in_app_email_subscriptions: {
+        Row: {
+          account_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           billing_period_from: string | null
