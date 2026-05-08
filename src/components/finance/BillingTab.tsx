@@ -2,9 +2,7 @@ import { useState, useMemo } from "react";
 import { FuelInventorySection } from "./FuelInventorySection";
 import { HeatingAccountsSection } from "./HeatingAccountsSection";
 import { HeatingRebookingSection } from "./HeatingRebookingSection";
-import { AccrualSection } from "./AccrualSection";
 import { BillingSettlement } from "./BillingSettlement";
-import { BillingAiAnalysis } from "./BillingAiAnalysis";
 import { BookingReviewSection } from "./BookingReviewSection";
 import { SettlementBasicsStep } from "./SettlementBasicsStep";
 import { SettlementStatusBar, type SettlementStep } from "./SettlementStatusBar";
@@ -18,7 +16,6 @@ const STEPS = [
   { id: "basics", label: "Grundlagen", description: "Anfangsbestände, Hausgelder & IHR-Plan" },
   { id: "review", label: "Buchungen prüfen", description: "Vollständigkeit und Kategorisierung" },
   { id: "heating", label: "Heizkosten", description: "Brennstoff, Brunata-Werte, Umbuchung" },
-  { id: "accruals", label: "Abgrenzungen", description: "Jahresübergreifende Leistungszeiträume" },
   { id: "settlement", label: "Abrechnung erzeugen", description: "Gesamt & Einzel + PDF" },
 ];
 
