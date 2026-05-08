@@ -1672,6 +1672,12 @@ export const Inbox = () => {
         prefilledEtvMeetingId={archiveEmailId ? ((emails.find(e => e.id === archiveEmailId) as any)?.etv_meeting_id || null) : null}
       />
 
+      <PrintEmailDialog
+        open={printDialogOpen}
+        onOpenChange={setPrintDialogOpen}
+        email={selectedEmail as any}
+      />
+
       <AiEmailSearchDialog
         open={aiSearchOpen}
         onOpenChange={setAiSearchOpen}
