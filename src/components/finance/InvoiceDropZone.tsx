@@ -21,8 +21,9 @@ export function InvoiceDropZone({ buildings }: Props) {
     const lowerName = file.name.toLowerCase();
     const isPdf = file.type.includes("pdf") || lowerName.endsWith(".pdf");
     const isXml = file.type.includes("xml") || lowerName.endsWith(".xml");
-    if (!isPdf && !isXml) {
-      toast.error(`"${file.name}" ist keine PDF- oder XML-Datei`);
+    const isImage = file.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif)$/i.test(lowerName);
+    if (!isPdf && !isXml && !isImage) {
+      toast.error(`"${file.name}" ist keine PDF-, XML- oder Bilddatei`);
       return;
     }
 
@@ -153,7 +154,7 @@ export function InvoiceDropZone({ buildings }: Props) {
       >
         <input
           type="file"
-          accept=".pdf,.xml,application/pdf,application/xml,text/xml"
+          accept=".pdf,.xml,.jpg,.jpeg,.png,.webp,.heic,.heif,application/pdf,application/xml,text/xml,image/*"
           multiple
           className="hidden"
           onChange={handleFileInput}
@@ -170,7 +171,7 @@ export function InvoiceDropZone({ buildings }: Props) {
             </p>
             <p className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
               <Sparkles className="h-3 w-3" />
-              PDF oder XML (XRechnung/ZUGFeRD) • Liegenschaft wird automatisch erkannt
+              PDF, XML (XRechnung/ZUGFeRD) oder Foto/Scan (JPG, PNG) • Liegenschaft wird automatisch erkannt
             </p>
           </div>
         </div>

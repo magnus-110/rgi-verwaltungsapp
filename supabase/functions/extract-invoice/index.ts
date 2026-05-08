@@ -232,88 +232,98 @@ serve(async (req) => {
       });
     }
 
-    // ─── E-Rechnung Detection (XRechnung / ZUGFeRD) ───
-    // Try structured XML first - 100% precise, no OCR cost
-    try {
-      const fileResp = await fetch(signedUrlData.signedUrl);
-      const fileBytes = new Uint8Array(await fileResp.arrayBuffer());
-      const eInvoice = await detectAndParseEInvoice(fileBytes, invoice.file_name);
+    // Detect file type by extension (PDF/XML go through E-Rechnung + document_url OCR; images go through image_url OCR)
+    const lowerName = (invoice.file_name || "").toLowerCase();
+    const isImageFile = /\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?)$/i.test(lowerName);
 
-      if (eInvoice) {
-        console.log(`E-Rechnung detected (${eInvoice.format}) for invoice ${invoiceId}`);
+    // ─── E-Rechnung Detection (XRechnung / ZUGFeRD) — only for PDF/XML ───
+    if (!isImageFile) {
+      try {
+        const fileResp = await fetch(signedUrlData.signedUrl);
+        const fileBytes = new Uint8Array(await fileResp.arrayBuffer());
+        const eInvoice = await detectAndParseEInvoice(fileBytes, invoice.file_name);
 
-        // Auto-match building from recipient address (skip for company invoices)
-        const isCompany = invoice.is_company_invoice || isCompanyInvoice === true;
-        let matchedBuildingId: string | null = invoice.building_id || null;
-        if (!isCompany && !matchedBuildingId && eInvoice.recipient_address) {
-          const { data: allBuildings } = await supabase.from("buildings").select("id, name, address");
-          if (allBuildings) {
-            matchedBuildingId = findBestBuildingMatch(eInvoice.recipient_address, allBuildings);
+        if (eInvoice) {
+          console.log(`E-Rechnung detected (${eInvoice.format}) for invoice ${invoiceId}`);
+
+          // Auto-match building from recipient address (skip for company invoices)
+          const isCompany = invoice.is_company_invoice || isCompanyInvoice === true;
+          let matchedBuildingId: string | null = invoice.building_id || null;
+          if (!isCompany && !matchedBuildingId && eInvoice.recipient_address) {
+            const { data: allBuildings } = await supabase.from("buildings").select("id, name, address");
+            if (allBuildings) {
+              matchedBuildingId = findBestBuildingMatch(eInvoice.recipient_address, allBuildings);
+            }
           }
-        }
 
-        // Duplicate check
-        if (eInvoice.invoice_number && eInvoice.vendor_name) {
-          const { data: dups } = await supabase
-            .from("invoices")
-            .select("id, file_name")
-            .eq("invoice_number", eInvoice.invoice_number)
-            .ilike("vendor_name", eInvoice.vendor_name)
-            .neq("id", invoiceId)
-            .limit(1);
-          if (dups && dups.length > 0) {
-            await supabase.from("invoices").update({
-              ocr_status: "done",
-              einvoice_format: eInvoice.format,
-              vendor_name: eInvoice.vendor_name,
-              invoice_number: eInvoice.invoice_number,
-              invoice_date: eInvoice.invoice_date,
-              gross_amount: eInvoice.gross_amount,
-              duplicate_of: dups[0].id,
-              description: `⚠️ Mögliches Duplikat von ${dups[0].file_name || dups[0].id}`,
-            }).eq("id", invoiceId);
-            return new Response(JSON.stringify({ success: true, warning: "duplicate_detected", einvoice: true }), {
+          // Duplicate check
+          if (eInvoice.invoice_number && eInvoice.vendor_name) {
+            const { data: dups } = await supabase
+              .from("invoices")
+              .select("id, file_name")
+              .eq("invoice_number", eInvoice.invoice_number)
+              .ilike("vendor_name", eInvoice.vendor_name)
+              .neq("id", invoiceId)
+              .limit(1);
+            if (dups && dups.length > 0) {
+              await supabase.from("invoices").update({
+                ocr_status: "done",
+                einvoice_format: eInvoice.format,
+                vendor_name: eInvoice.vendor_name,
+                invoice_number: eInvoice.invoice_number,
+                invoice_date: eInvoice.invoice_date,
+                gross_amount: eInvoice.gross_amount,
+                duplicate_of: dups[0].id,
+                description: `⚠️ Mögliches Duplikat von ${dups[0].file_name || dups[0].id}`,
+              }).eq("id", invoiceId);
+              return new Response(JSON.stringify({ success: true, warning: "duplicate_detected", einvoice: true }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+          }
+
+          const eUpdate: Record<string, any> = {
+            ocr_status: "done",
+            ocr_error: null,
+            einvoice_format: eInvoice.format,
+            leitweg_id: eInvoice.leitweg_id,
+            line_items: eInvoice.line_items || [],
+            ocr_extracted_data: eInvoice,
+          };
+          if (eInvoice.vendor_name) eUpdate.vendor_name = eInvoice.vendor_name;
+          if (eInvoice.vendor_iban) eUpdate.vendor_iban = eInvoice.vendor_iban;
+          if (eInvoice.invoice_number) eUpdate.invoice_number = eInvoice.invoice_number;
+          if (eInvoice.invoice_date) eUpdate.invoice_date = eInvoice.invoice_date;
+          if (eInvoice.due_date) eUpdate.due_date = eInvoice.due_date;
+          if (eInvoice.net_amount != null) eUpdate.net_amount = eInvoice.net_amount;
+          if (eInvoice.vat_amount != null) eUpdate.vat_amount = eInvoice.vat_amount;
+          if (eInvoice.gross_amount != null) eUpdate.gross_amount = eInvoice.gross_amount;
+          if (eInvoice.description) eUpdate.description = eInvoice.description;
+          if (eInvoice.payment_purpose) eUpdate.payment_purpose = eInvoice.payment_purpose;
+          if (matchedBuildingId && !invoice.building_id && !isCompany) eUpdate.building_id = matchedBuildingId;
+          if (isCompanyInvoice === true && !invoice.is_company_invoice) eUpdate.is_company_invoice = true;
+
+          const { error: eUpdErr } = await supabase.from("invoices").update(eUpdate).eq("id", invoiceId);
+          if (eUpdErr) {
+            console.error("E-Invoice update error:", eUpdErr);
+            // fall through to OCR
+          } else {
+            return new Response(JSON.stringify({ success: true, einvoice: true, format: eInvoice.format }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
         }
-
-        const eUpdate: Record<string, any> = {
-          ocr_status: "done",
-          ocr_error: null,
-          einvoice_format: eInvoice.format,
-          leitweg_id: eInvoice.leitweg_id,
-          line_items: eInvoice.line_items || [],
-          ocr_extracted_data: eInvoice,
-        };
-        if (eInvoice.vendor_name) eUpdate.vendor_name = eInvoice.vendor_name;
-        if (eInvoice.vendor_iban) eUpdate.vendor_iban = eInvoice.vendor_iban;
-        if (eInvoice.invoice_number) eUpdate.invoice_number = eInvoice.invoice_number;
-        if (eInvoice.invoice_date) eUpdate.invoice_date = eInvoice.invoice_date;
-        if (eInvoice.due_date) eUpdate.due_date = eInvoice.due_date;
-        if (eInvoice.net_amount != null) eUpdate.net_amount = eInvoice.net_amount;
-        if (eInvoice.vat_amount != null) eUpdate.vat_amount = eInvoice.vat_amount;
-        if (eInvoice.gross_amount != null) eUpdate.gross_amount = eInvoice.gross_amount;
-        if (eInvoice.description) eUpdate.description = eInvoice.description;
-        if (eInvoice.payment_purpose) eUpdate.payment_purpose = eInvoice.payment_purpose;
-        if (matchedBuildingId && !invoice.building_id && !isCompany) eUpdate.building_id = matchedBuildingId;
-        if (isCompanyInvoice === true && !invoice.is_company_invoice) eUpdate.is_company_invoice = true;
-
-        const { error: eUpdErr } = await supabase.from("invoices").update(eUpdate).eq("id", invoiceId);
-        if (eUpdErr) {
-          console.error("E-Invoice update error:", eUpdErr);
-          // fall through to OCR
-        } else {
-          return new Response(JSON.stringify({ success: true, einvoice: true, format: eInvoice.format }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
+      } catch (eErr) {
+        console.warn("E-Rechnung detection failed, falling back to OCR:", eErr);
       }
-    } catch (eErr) {
-      console.warn("E-Rechnung detection failed, falling back to OCR:", eErr);
     }
 
     // Step 1: Mistral OCR to extract text
+    // For images: use image_url type. For PDFs: use document_url type.
+    const ocrDocument = isImageFile
+      ? { type: "image_url", image_url: signedUrlData.signedUrl }
+      : { type: "document_url", document_url: signedUrlData.signedUrl };
+
     const ocrResponse = await fetch("https://api.mistral.ai/v1/ocr", {
       method: "POST",
       headers: {
@@ -322,10 +332,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "mistral-ocr-latest",
-        document: {
-          type: "document_url",
-          document_url: signedUrlData.signedUrl,
-        },
+        document: ocrDocument,
         include_image_base64: false,
       }),
     });
