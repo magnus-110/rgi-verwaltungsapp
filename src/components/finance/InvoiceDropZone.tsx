@@ -50,7 +50,7 @@ export function InvoiceDropZone({ buildings }: Props) {
       // Use building folder, "company" for RGI invoices, or "unassigned"
       const isCompany = selectedBuilding === "company";
       const folderPrefix = isCompany ? "company" : (selectedBuilding || "unassigned");
-      const filePath = `${folderPrefix}/${Date.now()}_${fileName}`;
+      const filePath = `${folderPrefix}/${Date.now()}_${sanitizeStorageKey(fileName)}`;
       const { error: uploadError } = await supabase.storage
         .from("invoices")
         .upload(filePath, file);
