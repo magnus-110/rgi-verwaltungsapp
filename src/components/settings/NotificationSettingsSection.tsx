@@ -416,6 +416,38 @@ export function NotificationSettingsSection() {
             <Label className="flex items-center gap-2"><CheckSquare className="w-4 h-4" /> Neue Aufgaben</Label>
             <Switch checked={prefs.in_app_todo_enabled} onCheckedChange={(v) => savePrefs({ ...prefs, in_app_todo_enabled: v })} />
           </div>
+
+          <Separator />
+          <div>
+            <Label className="text-sm font-medium flex items-center gap-2"><Mail className="w-4 h-4" /> Postfächer für In-App-Pop-ups</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Wähle aus, welche Postfächer ein In-App-Pop-up auslösen sollen. Wird nichts ausgewählt, sind alle Postfächer aktiv.
+            </p>
+            <div className="space-y-2">
+              {accounts.length === 0 && <p className="text-sm text-muted-foreground">Keine aktiven E-Mail-Konten gefunden.</p>}
+              {accounts.map((a) => (
+                <div key={a.id} className="flex items-center justify-between gap-4 p-2 rounded-md border bg-card">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{a.display_name || a.email_address}</p>
+                    <p className="text-xs text-muted-foreground truncate">{a.email_address}</p>
+                  </div>
+                  <Switch
+                    checked={inAppAccountIds.has(a.id)}
+                    onCheckedChange={(v) => toggleInAppAccount(a.id, v)}
+                    disabled={!prefs.in_app_email_enabled}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">Teste, ob In-App-Pop-ups bei dir erscheinen.</p>
+            <Button size="sm" variant="outline" onClick={inAppTest}>
+              <BellRing className="w-4 h-4 mr-1.5" /> Test-Pop-up
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
