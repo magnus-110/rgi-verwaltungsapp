@@ -239,7 +239,7 @@ export const Inbox = () => {
         supabase
           .from("scheduled_emails")
           .select("id, subject, to_addresses, scheduled_at, status, account_id, body_text, body_html, attachments, error_message, created_at")
-          .eq("status", "pending")
+          .eq("status", "scheduled")
           .order("scheduled_at", { ascending: true }),
         supabase
           .from("comm_campaigns")
