@@ -397,6 +397,12 @@ export function Transfers() {
             </label>
           </div>
         )}
+        <Input
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Suche: Name oder Betrag…"
+          className="w-full sm:w-[220px] h-11 md:h-10"
+        />
         <Select value={buildingFilter} onValueChange={setBuildingFilter}>
           <SelectTrigger className="w-full sm:w-[220px] h-11 md:h-10">
             <SelectValue placeholder="Alle Gebäude" />
