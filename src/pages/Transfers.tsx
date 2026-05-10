@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
@@ -67,6 +68,7 @@ export function Transfers() {
   const [reviewIndex, setReviewIndex] = useState(0);
   const [reviewInvoices, setReviewInvoices] = useState<any[]>([]);
   const [showPaid, setShowPaid] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [retryingOcr, setRetryingOcr] = useState<string | null>(null);
@@ -202,6 +204,37 @@ export function Transfers() {
     () => invoices.filter((i: any) => !i.ocr_status || i.ocr_status === "pending" || i.ocr_status === "error"),
     [invoices]
   );
+
+  // Suche: Name (Vendor / Verwendungszweck / Re-Nr.) oder Betrag
+  const filteredInvoices = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return invoices;
+    // Betrag: erlaube "," als Dezimalzeichen
+    const num = parseFloat(q.replace(/\./g, "").replace(",", "."));
+    const isNum = !isNaN(num);
+    return invoices.filter((inv: any) => {
+      const fields = [
+        inv.vendor_name,
+        inv.payment_purpose,
+        inv.description,
+        inv.invoice_number,
+        inv.buildings?.name,
+        inv.buildings?.building_code,
+        inv.vendor_iban,
+      ]
+        .filter(Boolean)
+        .map((s: any) => String(s).toLowerCase());
+      if (fields.some((f) => f.includes(q))) return true;
+      if (isNum) {
+        const amt = Number(inv.gross_amount) || 0;
+        if (Math.abs(amt - num) < 0.005) return true;
+        // auch Substring-Treffer auf der formatierten Zahl ("123,45")
+        const amtStr = amt.toFixed(2).replace(".", ",");
+        if (amtStr.includes(q)) return true;
+      }
+      return false;
+    });
+  }, [invoices, searchTerm]);
 
   const formatCurrency = (val: number | null) =>
     val == null ? "–" : new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(val);
@@ -364,6 +397,12 @@ export function Transfers() {
             </label>
           </div>
         )}
+        <Input
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Suche: Name oder Betrag…"
+          className="w-full sm:w-[220px] h-11 md:h-10"
+        />
         <Select value={buildingFilter} onValueChange={setBuildingFilter}>
           <SelectTrigger className="w-full sm:w-[220px] h-11 md:h-10">
             <SelectValue placeholder="Alle Gebäude" />
@@ -433,12 +472,12 @@ export function Transfers() {
         <>
           {/* Mobile */}
           <div className="md:hidden space-y-2">
-            {invoices.length === 0 && (
+            {filteredInvoices.length === 0 && (
               <div className="text-center py-12 text-sm text-muted-foreground border rounded-lg">
-                {showPaid ? "Keine Rechnungen vorhanden" : "Keine offenen Rechnungen vorhanden"}
+                {searchTerm ? "Keine Treffer für die Suche" : (showPaid ? "Keine Rechnungen vorhanden" : "Keine offenen Rechnungen vorhanden")}
               </div>
             )}
-            {invoices.map((inv) => {
+            {filteredInvoices.map((inv) => {
               const overdue = inv.status !== "paid" && isOverdue(inv.due_date);
               const isPaid = inv.status === "paid";
               const hasNote = !!(inv as any).payment_notes;
@@ -502,14 +541,14 @@ export function Transfers() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoices.length === 0 && (
+                {filteredInvoices.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
-                      {showPaid ? "Keine Rechnungen vorhanden" : "Keine offenen Rechnungen vorhanden"}
+                      {searchTerm ? "Keine Treffer für die Suche" : (showPaid ? "Keine Rechnungen vorhanden" : "Keine offenen Rechnungen vorhanden")}
                     </TableCell>
                   </TableRow>
                 )}
-                {invoices.map((inv) => {
+                {filteredInvoices.map((inv) => {
                   const overdue = inv.status !== "paid" && isOverdue(inv.due_date);
                   const isPaid = inv.status === "paid";
                   const hasNote = !!(inv as any).payment_notes;
@@ -599,7 +638,7 @@ export function Transfers() {
       {/* ───────── INCOMING TABLE ───────── */}
       {direction === "incoming" && (
         <IncomingList
-          invoices={invoices}
+          invoices={filteredInvoices}
           buildings={buildings}
           formatCurrency={formatCurrency}
           retryOcr={retryOcr}
