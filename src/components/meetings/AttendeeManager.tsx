@@ -63,7 +63,7 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
   const [proxyType, setProxyType] = useState<string>("manager");
   const [proxyContactId, setProxyContactId] = useState<string>("");
 
-  const isLocked = lockTime ? new Date(lockTime) <= new Date() : false;
+  const isLocked = false; // 1h-Sperre entfernt
 
   // Load attendees with assignment details
   const { data: attendees = [], isLoading: loadingAttendees } = useQuery({

@@ -103,11 +103,9 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
   const saveMutation = useMutation({
     mutationFn: async () => {
       let meetingDateTime: string | null = null;
-      let lockTime: string | null = null;
       if (meetingDate) {
         const time = meetingTime || "00:00";
         meetingDateTime = new Date(`${meetingDate}T${time}:00`).toISOString();
-        lockTime = new Date(new Date(`${meetingDate}T${time}:00`).getTime() - 60 * 60 * 1000).toISOString();
       }
 
       const payload: any = {
@@ -116,7 +114,7 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
         meeting_date: meetingDateTime,
         location: location || null,
         notes: notes || null,
-        lock_time: lockTime,
+        lock_time: null,
         created_by: profile?.user_id,
         meeting_chair: meetingChair || null,
         minutes_taker: minutesTaker || null,
