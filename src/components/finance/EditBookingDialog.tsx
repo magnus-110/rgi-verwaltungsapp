@@ -349,6 +349,49 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     setAutoTextSignature(booking.description || "");
   }, [open, booking?.id]);
 
+  // Persistiert Rechnungs-/Vorlagen-Verknüpfung sofort (für Klick auf
+  // "Zuordnung entfernen" oder Auswahl in den Pickern). Aktualisiert auch
+  // die verknüpfte Bank-Transaktion, damit beide Seiten konsistent bleiben.
+  const persistMatchImmediately = async (
+    nextInvoiceId: string | null,
+    nextTemplateId: string | null,
+  ) => {
+    if (!booking) return;
+    const { error } = await supabase.from("bookings").update({
+      invoice_id: nextInvoiceId,
+      matched_template_id: nextTemplateId,
+    }).eq("id", booking.id);
+    if (error) {
+      toast.error("Zuordnung konnte nicht gespeichert werden: " + error.message);
+      return;
+    }
+
+    const txnId = (booking as any).bank_transaction_id;
+    if (txnId) {
+      const txnUpdate: any = {
+        matched_invoice_id: nextInvoiceId,
+        matched_template_id: nextTemplateId,
+      };
+      if (nextInvoiceId || nextTemplateId) txnUpdate.match_status = "manually_matched";
+      else txnUpdate.match_status = "unmatched";
+      await supabase.from("bank_transactions").update(txnUpdate).eq("id", txnId);
+    }
+
+    if (nextInvoiceId) {
+      await supabase.from("invoices").update({
+        status: "paid",
+        paid_at: new Date(form.booking_date || booking.booking_date).toISOString(),
+      }).eq("id", nextInvoiceId).is("paid_at", null);
+    }
+
+    toast.success(nextInvoiceId || nextTemplateId ? "Zuordnung gespeichert" : "Zuordnung entfernt");
+    onSaved?.(booking.id);
+    queryClient.invalidateQueries({ predicate: (q) => {
+      const k = q.queryKey[0] as string;
+      return k?.startsWith("bookings") || k?.startsWith("bank-transactions") || k?.startsWith("invoices") || k?.startsWith("review-bookings") || k?.startsWith("edit-booking-invoice");
+    }});
+  };
+
   const handleSave = async () => {
     if (!booking) return;
     if (!form.account_id || !form.amount || !form.booking_date) {
