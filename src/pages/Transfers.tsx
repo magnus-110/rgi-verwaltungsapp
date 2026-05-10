@@ -638,7 +638,7 @@ export function Transfers() {
       {/* ───────── INCOMING TABLE ───────── */}
       {direction === "incoming" && (
         <IncomingList
-          invoices={invoices}
+          invoices={filteredInvoices}
           buildings={buildings}
           formatCurrency={formatCurrency}
           retryOcr={retryOcr}
