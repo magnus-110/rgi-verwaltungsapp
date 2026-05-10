@@ -905,7 +905,9 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                                   value={inv.id}
                                   onSelect={() => {
                                     set("invoice_id", inv.id);
+                                    setMatchedTemplateId(null);
                                     setInvoicePickerOpen(false);
+                                    void persistMatchImmediately(inv.id, null);
                                   }}
                                   className="text-xs flex flex-col items-start gap-0.5"
                                 >
