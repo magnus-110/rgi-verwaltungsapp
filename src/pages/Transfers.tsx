@@ -472,12 +472,12 @@ export function Transfers() {
         <>
           {/* Mobile */}
           <div className="md:hidden space-y-2">
-            {invoices.length === 0 && (
+            {filteredInvoices.length === 0 && (
               <div className="text-center py-12 text-sm text-muted-foreground border rounded-lg">
-                {showPaid ? "Keine Rechnungen vorhanden" : "Keine offenen Rechnungen vorhanden"}
+                {searchTerm ? "Keine Treffer für die Suche" : (showPaid ? "Keine Rechnungen vorhanden" : "Keine offenen Rechnungen vorhanden")}
               </div>
             )}
-            {invoices.map((inv) => {
+            {filteredInvoices.map((inv) => {
               const overdue = inv.status !== "paid" && isOverdue(inv.due_date);
               const isPaid = inv.status === "paid";
               const hasNote = !!(inv as any).payment_notes;
