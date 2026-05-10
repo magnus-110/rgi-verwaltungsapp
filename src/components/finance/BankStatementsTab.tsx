@@ -435,13 +435,14 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       ai_analysis_status: null,
       ai_analysis_attempts: 0,
     };
-    if (manualAssignType === "invoice") { updateData.matched_invoice_id = manualAssignId; }
-    else { updateData.matched_template_id = manualAssignId; }
+    if (manualAssignType === "invoice") { updateData.matched_invoice_id = manualAssignId; updateData.matched_template_id = null; }
+    else { updateData.matched_template_id = manualAssignId; updateData.matched_invoice_id = null; }
     const txnId = manualAssignTxn.id;
     const { error } = await supabase.from("bank_transactions").update(updateData).eq("id", txnId);
     if (error) { toast.error("Fehler beim Zuordnen"); }
     else {
-      if (manualAssignType === "invoice") await syncBookingInvoice(txnId, manualAssignId);
+      if (manualAssignType === "invoice") await syncBookingMatch(txnId, manualAssignId, null);
+      else await syncBookingMatch(txnId, null, manualAssignId);
       toast.success("Transaktion manuell zugeordnet");
       setManualAssignTxn(null);
       setManualAssignId("");
