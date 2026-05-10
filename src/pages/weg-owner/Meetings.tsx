@@ -1281,11 +1281,11 @@ export const WegOwnerMeetings = () => {
 
       {/* Submit TOP Dialog */}
       <Dialog open={showSubmitTop} onOpenChange={setShowSubmitTop}>
-        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent className="max-w-lg max-h-[95dvh] sm:max-h-[85vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
             <DialogTitle className="text-lg">Antrag einreichen</DialogTitle>
           </DialogHeader>
-          <div className="space-y-5">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
             <p className="text-sm text-muted-foreground">
               Ihr Antrag wird der Hausverwaltung zur Prüfung vorgelegt.
             </p>
@@ -1354,18 +1354,18 @@ export const WegOwnerMeetings = () => {
                 </div>
               )}
             </div>
+          </div>
 
-            <div className="flex justify-end gap-3 border-t pt-4">
-              <Button variant="outline" onClick={() => setShowSubmitTop(false)}>
-                Abbrechen
-              </Button>
-              <Button
-                onClick={() => submitTopMutation.mutate()}
-                disabled={!topTitle || submitTopMutation.isPending}
-              >
-                {submitTopMutation.isPending ? "Wird eingereicht..." : "Einreichen"}
-              </Button>
-            </div>
+          <div className="flex justify-end gap-3 border-t px-6 py-4 shrink-0 bg-background" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
+            <Button variant="outline" onClick={() => setShowSubmitTop(false)}>
+              Abbrechen
+            </Button>
+            <Button
+              onClick={() => submitTopMutation.mutate()}
+              disabled={!topTitle || submitTopMutation.isPending}
+            >
+              {submitTopMutation.isPending ? "Wird eingereicht..." : "Einreichen"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
