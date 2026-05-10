@@ -541,14 +541,14 @@ export function Transfers() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoices.length === 0 && (
+                {filteredInvoices.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
-                      {showPaid ? "Keine Rechnungen vorhanden" : "Keine offenen Rechnungen vorhanden"}
+                      {searchTerm ? "Keine Treffer für die Suche" : (showPaid ? "Keine Rechnungen vorhanden" : "Keine offenen Rechnungen vorhanden")}
                     </TableCell>
                   </TableRow>
                 )}
-                {invoices.map((inv) => {
+                {filteredInvoices.map((inv) => {
                   const overdue = inv.status !== "paid" && isOverdue(inv.due_date);
                   const isPaid = inv.status === "paid";
                   const hasNote = !!(inv as any).payment_notes;
