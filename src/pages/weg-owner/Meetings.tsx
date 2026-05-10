@@ -375,11 +375,8 @@ export const WegOwnerMeetings = () => {
     return [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Unbenannt";
   };
 
-  const isProxyLocked = (meetingDate: string) => {
-    const lockTime = new Date(meetingDate);
-    lockTime.setHours(lockTime.getHours() - 1);
-    return new Date() >= lockTime;
-  };
+  // 1h-Sperre entfernt: Vollmachten können bis zur letzten Sekunde erteilt werden
+  const isProxyLocked = (_meetingDate: string) => false;
 
 
   const submitTopMutation = useMutation({
