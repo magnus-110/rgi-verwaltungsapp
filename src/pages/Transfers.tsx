@@ -205,6 +205,37 @@ export function Transfers() {
     [invoices]
   );
 
+  // Suche: Name (Vendor / Verwendungszweck / Re-Nr.) oder Betrag
+  const filteredInvoices = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return invoices;
+    // Betrag: erlaube "," als Dezimalzeichen
+    const num = parseFloat(q.replace(/\./g, "").replace(",", "."));
+    const isNum = !isNaN(num);
+    return invoices.filter((inv: any) => {
+      const fields = [
+        inv.vendor_name,
+        inv.payment_purpose,
+        inv.description,
+        inv.invoice_number,
+        inv.buildings?.name,
+        inv.buildings?.building_code,
+        inv.vendor_iban,
+      ]
+        .filter(Boolean)
+        .map((s: any) => String(s).toLowerCase());
+      if (fields.some((f) => f.includes(q))) return true;
+      if (isNum) {
+        const amt = Number(inv.gross_amount) || 0;
+        if (Math.abs(amt - num) < 0.005) return true;
+        // auch Substring-Treffer auf der formatierten Zahl ("123,45")
+        const amtStr = amt.toFixed(2).replace(".", ",");
+        if (amtStr.includes(q)) return true;
+      }
+      return false;
+    });
+  }, [invoices, searchTerm]);
+
   const formatCurrency = (val: number | null) =>
     val == null ? "–" : new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(val);
 
