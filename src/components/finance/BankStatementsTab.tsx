@@ -1041,8 +1041,8 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
           if (error) { toast.error("Fehler beim Zuordnen"); }
           else {
             const txnId = manualAssignTxn.id;
-            if (type === "invoice") await syncBookingInvoice(txnId, id);
-            else await syncBookingInvoice(txnId, null);
+            if (type === "invoice") await syncBookingMatch(txnId, id, null);
+            else await syncBookingMatch(txnId, null, id);
             toast.success("Transaktion manuell zugeordnet");
             setManualAssignTxn(null);
             setManualAssignId("");
