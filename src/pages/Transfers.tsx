@@ -68,6 +68,7 @@ export function Transfers() {
   const [reviewIndex, setReviewIndex] = useState(0);
   const [reviewInvoices, setReviewInvoices] = useState<any[]>([]);
   const [showPaid, setShowPaid] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [retryingOcr, setRetryingOcr] = useState<string | null>(null);
