@@ -59,6 +59,8 @@ export function BookingReviewDialog({
 }: Props) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [siblings, setSiblings] = useState<SplitSibling[] | null>(null);
+  const [siblingsLoading, setSiblingsLoading] = useState(false);
 
   const idx = bookings.findIndex((b) => b.id === selectedId);
   const booking = idx >= 0 ? bookings[idx] : null;
@@ -76,6 +78,32 @@ export function BookingReviewDialog({
     })();
     return () => { cancelled = true; };
   }, [selectedId, booking?.invoices?.file_path]);
+
+  const isSplit = !!(booking?.split_parts_total && booking.split_parts_total > 1);
+
+  useEffect(() => {
+    setSiblings(null);
+    if (!booking || !isSplit || !booking.invoice_id) return;
+    let cancelled = false;
+    setSiblingsLoading(true);
+    (async () => {
+      const { data } = await supabase
+        .from("bookings")
+        .select(`
+          id, amount, booking_type, description, split_part,
+          chart_of_accounts:account_id(account_number, account_name),
+          counter_account:counter_account_id(account_number, account_name)
+        `)
+        .eq("invoice_id", booking.invoice_id)
+        .order("split_part", { ascending: true });
+      if (!cancelled) {
+        setSiblings((data as any) || []);
+        setSiblingsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [booking?.id, booking?.invoice_id, isSplit]);
+
 
   const goTo = (i: number) => {
     if (i < 0 || i >= bookings.length) return;
