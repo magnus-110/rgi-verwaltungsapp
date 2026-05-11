@@ -94,6 +94,26 @@ const buildInitial = (id: string, opts?: OpenOpts): ComposeState => {
   const replyTo = opts?.replyTo || null;
   const forward = opts?.forward || null;
   const prefill = opts?.prefill;
+  const edit = opts?.editScheduled;
+  if (edit) {
+    return {
+      id,
+      mode: "docked",
+      accountId: edit.accountId,
+      to: edit.to,
+      cc: edit.cc || "",
+      bcc: edit.bcc || "",
+      subject: edit.subject,
+      bodyText: edit.bodyText,
+      forwardHtml: undefined,
+      attachments: [],
+      scheduledAt: edit.scheduledAt,
+      editingScheduledId: edit.id,
+      existingAttachments: edit.attachments || [],
+      replyTo: null,
+      forward: null,
+    };
+  }
   return {
     id,
     mode: "docked",
@@ -113,6 +133,8 @@ const buildInitial = (id: string, opts?: OpenOpts): ComposeState => {
     forwardHtml: forward?.body_html || undefined,
     attachments: [],
     scheduledAt: null,
+    editingScheduledId: null,
+    existingAttachments: [],
     replyTo,
     forward,
   };
