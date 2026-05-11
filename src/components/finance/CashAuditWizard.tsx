@@ -347,9 +347,9 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
           {adminNotes.length > 0 ? (
             <div className="space-y-3 mt-4">
               {adminNotes.map((n: any) => (
-                <div key={n.id} className="bg-amber-50/60 rounded-lg p-4 border border-amber-200">
-                  <p className="font-medium text-sm text-amber-900">{n.title}</p>
-                  <p className="text-sm text-foreground/80 whitespace-pre-wrap mt-1">{n.body}</p>
+                <div key={n.id} className="rounded-lg p-4 border bg-card">
+                  <p className="font-medium text-sm">{n.title}</p>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap mt-1">{n.body}</p>
                 </div>
               ))}
             </div>
