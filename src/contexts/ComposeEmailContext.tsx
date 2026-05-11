@@ -14,6 +14,10 @@ export interface ComposeState {
   forwardHtml?: string;
   attachments: { file: File; name: string; size: number }[];
   scheduledAt?: string | null; // ISO string when set
+  /** When editing an existing scheduled email row, its id. */
+  editingScheduledId?: string | null;
+  /** Existing attachments from a scheduled email being edited (already base64 in DB). */
+  existingAttachments?: any[];
   replyTo?: {
     id?: string;
     message_id?: string | null;
