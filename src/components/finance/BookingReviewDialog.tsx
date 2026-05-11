@@ -299,7 +299,10 @@ export function BookingReviewDialog({
               ) : pdfUrl ? (
                 <iframe src={pdfUrl} className="w-full h-full border-0" title="Beleg" />
               ) : (
-                <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Beleg konnte nicht geladen werden.</div>
+                <div className="flex-1 flex flex-col items-center justify-center text-sm text-muted-foreground p-6 text-center gap-1">
+                  <span>Beleg konnte nicht geladen werden.</span>
+                  {pdfError && <span className="text-xs opacity-70">{pdfError}</span>}
+                </div>
               )
             ) : booking.invoices ? (
               <div className="flex-1 overflow-y-auto p-8">
