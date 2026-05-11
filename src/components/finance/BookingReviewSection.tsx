@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronRight, Check, AlertTriangle, CircleDot, Sparkles, Loader2, BookOpen, Pencil } from "lucide-react";
@@ -30,6 +31,21 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
   const [aiChecking, setAiChecking] = useState(false);
   const [aiResults, setAiResults] = useState<any[] | null>(null);
   const [editBooking, setEditBooking] = useState<any | null>(null);
+  const reviewedKey = `booking-review-checked:${buildingId}:${fiscalYear}`;
+  const [reviewedAccounts, setReviewedAccounts] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(reviewedKey);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch { return new Set(); }
+  });
+  const toggleReviewed = (accId: string) => {
+    setReviewedAccounts(prev => {
+      const next = new Set(prev);
+      next.has(accId) ? next.delete(accId) : next.add(accId);
+      try { localStorage.setItem(reviewedKey, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
   const queryClient = useQueryClient();
 
   const { data: building } = useQuery({
@@ -207,7 +223,10 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
               return (
                 <Collapsible key={acc.id} open={isExpanded} onOpenChange={() => toggleAccount(acc.id)}>
                   <CollapsibleTrigger asChild>
-                    <button className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/40 transition-colors text-left">
+                    <button className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/40 transition-colors text-left",
+                      reviewedAccounts.has(acc.id) && "bg-green-50 hover:bg-green-100/60 dark:bg-green-950/20"
+                    )}>
                       {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                       <span className="font-mono tabular-nums text-sm font-semibold w-16">{acc.account_number}</span>
                       <span className="text-sm flex-1 truncate">{acc.account_name}</span>
@@ -236,6 +255,15 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
                       </span>
                       <span className="text-xs text-muted-foreground tabular-nums w-28 text-right border-l pl-3">
                         Saldo: {formatCurrency(closing)}
+                      </span>
+                      <span
+                        role="checkbox"
+                        aria-checked={reviewedAccounts.has(acc.id)}
+                        title="Als geprüft markieren"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleReviewed(acc.id); }}
+                        className="ml-2 inline-flex items-center"
+                      >
+                        <Checkbox checked={reviewedAccounts.has(acc.id)} />
                       </span>
                     </button>
                   </CollapsibleTrigger>
