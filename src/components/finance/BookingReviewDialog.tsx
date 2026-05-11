@@ -59,6 +59,7 @@ export function BookingReviewDialog({
 }: Props) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const [siblings, setSiblings] = useState<SplitSibling[] | null>(null);
   const [siblingsLoading, setSiblingsLoading] = useState(false);
 
@@ -67,23 +68,33 @@ export function BookingReviewDialog({
 
   useEffect(() => {
     setPdfUrl(null);
+    setPdfError(null);
     if (!booking?.invoices?.file_path) return;
     let cancelled = false;
     setPdfLoading(true);
     (async () => {
-      const cleanPath = booking.invoices!.file_path!.replace(/^\/+/, "").replace(/^invoices\//, "");
-      const { data } = await supabase.storage.from("invoices").createSignedUrl(cleanPath, 3600);
-      if (!cancelled && data?.signedUrl) setPdfUrl(data.signedUrl);
-      if (!cancelled) setPdfLoading(false);
+      const raw = booking.invoices!.file_path!;
+      const cleanPath = raw.startsWith("invoices/")
+        ? raw.slice("invoices/".length)
+        : raw.replace(/^\/+/, "");
+      const { data, error } = await supabase.storage.from("invoices").createSignedUrl(cleanPath, 3600);
+      if (cancelled) return;
+      if (error || !data?.signedUrl) {
+        setPdfError(error?.message || "Signed URL leer");
+        console.warn("[BookingReviewDialog] signed URL failed", { cleanPath, error });
+      } else {
+        setPdfUrl(data.signedUrl);
+      }
+      setPdfLoading(false);
     })();
     return () => { cancelled = true; };
   }, [selectedId, booking?.invoices?.file_path]);
 
-  const isSplit = !!(booking?.split_parts_total && booking.split_parts_total > 1);
-
+  // Lade Geschwister sobald invoice_id existiert (auch ohne split_parts_total),
+  // damit Altbestand-Splits erkannt werden.
   useEffect(() => {
     setSiblings(null);
-    if (!booking || !isSplit || !booking.invoice_id) return;
+    if (!booking?.invoice_id) return;
     let cancelled = false;
     setSiblingsLoading(true);
     (async () => {
@@ -102,7 +113,11 @@ export function BookingReviewDialog({
       }
     })();
     return () => { cancelled = true; };
-  }, [booking?.id, booking?.invoice_id, isSplit]);
+  }, [booking?.id, booking?.invoice_id]);
+
+  const isSplit =
+    !!(booking?.split_parts_total && booking.split_parts_total > 1) ||
+    (siblings ? siblings.length > 1 : false);
 
 
   const goTo = (i: number) => {
@@ -158,7 +173,10 @@ export function BookingReviewDialog({
                   <div className="px-3 py-2 bg-muted/30 space-y-1.5">
                     <div className="flex justify-between items-center text-xs">
                       <span className="font-medium text-foreground">
-                        Splitbuchung {booking.split_part ?? "?"} von {booking.split_parts_total}
+                        Splitbuchung{" "}
+                        {booking.split_part ?? (siblings ? siblings.findIndex(s => s.id === booking.id) + 1 || "?" : "?")}
+                        {" von "}
+                        {booking.split_parts_total ?? siblings?.length ?? "?"}
                       </span>
                       {siblings && siblings.length > 0 && (
                         <span className="text-muted-foreground">
@@ -281,7 +299,10 @@ export function BookingReviewDialog({
               ) : pdfUrl ? (
                 <iframe src={pdfUrl} className="w-full h-full border-0" title="Beleg" />
               ) : (
-                <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Beleg konnte nicht geladen werden.</div>
+                <div className="flex-1 flex flex-col items-center justify-center text-sm text-muted-foreground p-6 text-center gap-1">
+                  <span>Beleg konnte nicht geladen werden.</span>
+                  {pdfError && <span className="text-xs opacity-70">{pdfError}</span>}
+                </div>
               )
             ) : booking.invoices ? (
               <div className="flex-1 overflow-y-auto p-8">

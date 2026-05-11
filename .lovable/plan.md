@@ -1,71 +1,92 @@
-## Ziel
+## Beobachtung
 
-In der Kassenprüfung soll bei Splitbuchungen direkt unter der „Betrag"-Zeile sichtbar werden, dass es sich um eine Splitbuchung handelt, wie hoch der Gesamtbetrag der Originalbuchung ist und welche anderen Teile zur selben Splitgruppe gehören. Die anderen Splits werden leicht ausgegraut (Opacity ~38%) angezeigt, damit der aktuelle Split optisch dominiert.
+Aus DB-Check: Die Buchung im Screenshot (`Markus Reithemann Re. Nr. 250573 Streusalz`) hat in der Datenbank:
+- `split_parts_total = 2`, `split_part = 2`
+- `invoice_id` gesetzt, gleiche `invoice_id` wie ein zweites Booking („11/25 Winterdienst …")
+- `invoices.file_path = f7267…/1777970159191_Scan2026-04-24_163122.pdf` (Datei existiert im Bucket-Pfad)
 
-## Wo
+Trotzdem zeigt das UI weder die Splitsektion noch das PDF an. Zwei unabhängige Ursachen.
 
-Datei: `src/components/finance/BookingReviewDialog.tsx` (das ist das Vollbild-Detail, das beim Klick auf eine Buchung in der Kassenprüfung geöffnet wird – `CashAuditAccountSheet` / `CashAuditJournal` öffnen genau diesen Dialog).
+## Ursache 1: React-Query-Cache hält alte Spalten
 
-## Erkennung einer Splitbuchung
+`useQuery` in `CashAuditAccountSheet.tsx` und `CashAuditJournal.tsx` nutzt den Key `["audit-bookings", buildingId, fiscalYear, …]`. Beim Hinzufügen von `split_part, split_parts_total` zur SELECT-Liste hat sich der Key nicht geändert. Solange die App offen war und React-Query die Daten aus dem In-Memory-Cache liefert (z. B. weil dieselbe Komponente bereits einmal eingehängt war), enthalten die Buchungs-Objekte die neuen Felder nicht → `isSplit` bleibt `false` → keine Splitsektion.
 
-Eine Buchung gehört zu einer Splitgruppe, wenn `split_parts_total > 1`. Die Geschwister teilen sich dieselbe `invoice_id`. Felder existieren bereits in `bookings`:
-- `split_part` (Position innerhalb der Gruppe, 1-basiert)
-- `split_parts_total` (Anzahl Teile)
-- `invoice_id` (gemeinsamer Anker)
-
-## Datenbeschaffung
-
-In `BookingReviewDialog` zusätzliche Query (über `useEffect` analog zur PDF-Logik), die nur läuft wenn `booking.split_parts_total && booking.split_parts_total > 1 && booking.invoice_id`:
+**Fix**: Cache-Key bumpen, damit alte Einträge invalidiert werden.
 
 ```ts
-supabase
-  .from("bookings")
-  .select(`
-    id, booking_date, amount, booking_type, description, split_part,
-    chart_of_accounts:account_id(account_number, account_name),
-    counter_account:counter_account_id(account_number, account_name)
-  `)
-  .eq("invoice_id", booking.invoice_id)
-  .order("split_part", { ascending: true });
+queryKey: ["audit-bookings-v2", buildingId, fiscalYear, tokenMode ? token : "auth"]
 ```
 
-Aus dem Ergebnis abgeleitet:
-- `total = Σ amount aller Geschwister` (Gesamtbetrag der Originalbuchung)
-- Liste der Geschwister sortiert nach `split_part`
+In beiden Dateien:
+- `src/components/finance/CashAuditAccountSheet.tsx`
+- `src/components/finance/CashAuditJournal.tsx`
 
-Damit die Query funktioniert, muss `invoice_id`, `split_part`, `split_parts_total` zur `AuditBookingRow`-Schnittstelle ergänzt und in den `select`-Statements von `CashAuditAccountSheet.tsx` und `CashAuditJournal.tsx` mitgeladen werden (`split_part`, `split_parts_total` ergänzen – `invoice_id` ist bereits vorhanden).
+## Ursache 2: PDF lädt nicht
 
-## UI-Darstellung
+Wahrscheinlich liefert `supabase.storage.from("invoices").createSignedUrl(cleanPath, 3600)` für diese Datei einen Fehler (z. B. weil die path-Bereinigungslogik etwas wegsplittet, was nicht weg darf, oder weil der signed URL silently fehlschlägt). Aktuell wird der Fehler verschluckt:
 
-Direkt unter der `Row label="Betrag"`-Zeile (Zeile 111–115) wird eine zusätzliche Zelle in dieselbe `divide-y`-Box eingefügt, sichtbar nur bei Splitbuchungen:
-
-```
-┌─ Betrag ───────────────────── −48,79 € ─┐
-│ Splitbuchung 2 von 5 · Gesamt: 1.043,87 €│
-│   Teil 1 · 1110 Verbrauchsmaterial …  −48,79 € │  ← aktueller Teil, normal
-│   Teil 2 · 4210 Hausreinigung …      −250,00 €│  ← ausgegraut (opacity-[0.38])
-│   Teil 3 · 4250 Gartenpflege …       −400,00 €│  ← ausgegraut
-│   …                                              │
-└──────────────────────────────────────────┘
+```ts
+const { data } = await supabase.storage.from("invoices").createSignedUrl(cleanPath, 3600);
+if (!cancelled && data?.signedUrl) setPdfUrl(data.signedUrl);
 ```
 
-Konkret:
-- Eine neue `Row`-Variante (oder ein eigener Block in der Card) mit Label „Splitbuchung" und Wert „X von Y · Gesamt: <fmt(total)>".
-- Darunter eine kompakte Liste aller Geschwister: Pro Zeile `Teil N · <Konto-Nr> <Konto-Name> · <±Betrag>`.
-- Aktiver Teil (`sibling.id === booking.id`): normale Textfarbe, leicht hervorgehoben (`font-medium`).
-- Andere Teile: Wrapper mit `opacity-[0.38]` (entspricht 38%).
-- Vorzeichen/Farbe je Geschwister analog zur Hauptanzeige berechnen (`booking_type === "income"` → grün/+, sonst rot/−). Reine Frontend-Anzeige, keine Save-Logik.
+**Fix in `src/components/finance/BookingReviewDialog.tsx`** (PDF-useEffect):
 
-Tabelleneintrag in der bestehenden `divide-y`-Card statt separatem Block, damit die Optik konsistent bleibt.
+1. Fehler aus `createSignedUrl` destrukturieren und in der State festhalten:
+   ```ts
+   const [pdfError, setPdfError] = useState<string | null>(null);
+   …
+   const { data, error } = await supabase.storage.from("invoices").createSignedUrl(cleanPath, 3600);
+   if (cancelled) return;
+   if (error || !data?.signedUrl) {
+     setPdfError(error?.message || "Signed URL leer");
+     console.warn("[BookingReviewDialog] signed URL failed", { cleanPath, error });
+   } else {
+     setPdfUrl(data.signedUrl);
+   }
+   setPdfLoading(false);
+   ```
 
-## Edge Cases
+2. Fallback-Anzeige um den Fehler ergänzen, damit wir bei der nächsten Beobachtung sofort sehen, woran es liegt:
+   ```tsx
+   <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-6 text-center">
+     Beleg konnte nicht geladen werden.{pdfError && <><br/><span className="text-xs">{pdfError}</span></>}
+   </div>
+   ```
 
-- `split_parts_total === 1` oder `null` → komplette Splitsektion wird nicht gerendert (kein Verhalten an bestehenden Buchungen).
-- Keine `invoice_id` aber `split_parts_total > 1` (theoretisch) → fällt zurück auf reinen Hinweistext „Splitbuchung X von Y" ohne Geschwister-Liste.
-- Loading-State: solange Geschwister geladen werden, wird die Hinweiszeile gerendert, die Liste wird per dezentem „Lade Splitteile…" Skeleton ersetzt.
+3. Path-Bereinigung defensiver: nur ein einzelnes führendes `invoices/` entfernen, kein Mehrfach-Strip:
+   ```ts
+   const raw = booking.invoices!.file_path!;
+   const cleanPath = raw.startsWith("invoices/") ? raw.slice("invoices/".length) : raw.replace(/^\/+/, "");
+   ```
+
+## Robustere Split-Erkennung (bonus, gleiche Datei)
+
+Zusätzlich Splitgruppen erkennen, auch wenn `split_parts_total` (noch) nicht gesetzt ist – über Geschwister-Anzahl:
+
+```ts
+const siblingsCount = siblings?.length ?? 0;
+const isSplit =
+  !!(booking?.split_parts_total && booking.split_parts_total > 1) ||
+  siblingsCount > 1;
+```
+
+Außerdem die Sibling-Query unabhängig von `isSplit` ausführen, sobald `booking.invoice_id` existiert, und erst nach Eintreffen der Daten entscheiden, ob die Splitsektion sichtbar wird (`siblings.length > 1`). Dadurch werden auch Altbestand-Splits ohne `split_parts_total` korrekt angezeigt.
+
+Anzeige der Kennzahl „X von Y" fällt auf `siblings.length` zurück, wenn `split_parts_total`/`split_part` fehlen:
+
+```ts
+const total = booking.split_parts_total ?? siblings?.length ?? 0;
+const part  = booking.split_part ?? (siblings?.findIndex(s => s.id === booking.id) ?? -1) + 1;
+```
+
+## Geänderte Dateien
+
+- `src/components/finance/CashAuditAccountSheet.tsx` – queryKey bumpen
+- `src/components/finance/CashAuditJournal.tsx` – queryKey bumpen
+- `src/components/finance/BookingReviewDialog.tsx` – PDF-Error sichtbar machen, Path-Bereinigung defensiver, Split-Erkennung über Sibling-Count erweitern
 
 ## Nicht im Scope
 
-- Keine Änderungen an `BookingsTab` (separate Ansicht).
-- Keine DB-Migrationen, keine Aggregations-/Save-Logik.
-- Keine Anpassung in `BookingReviewMode` (separate Komponente).
+- Keine DB-Migrationen.
+- Keine Änderungen an `BookingsTab` / Make.com-Logik.
