@@ -117,12 +117,14 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
   useEffect(() => {
     if (open && booking) {
       setSaving(false);
-      // booking.booking_type liegt aus AccountPlanView für die Counter-Seite bereits
-      // GEDREHT vor. Für die Anzeige im Editor wollen wir genau das Vorzeichen zeigen,
-      // das der Nutzer in der angeklickten Zeile gesehen hat.
-      const displayBookingType = booking.booking_type
-        ? booking.booking_type
-        : (Number(booking.amount) < 0 ? "income" : "expense");
+      // AccountPlanView übergibt das Original-Booking (raw DB-Wert) plus _side.
+      // Für die Counter-Seite drehen wir den Typ für die Anzeige – symmetrisch zur
+      // Save-Logik, die ihn vor dem Persistieren wieder zurückdreht.
+      const rawType = booking.booking_type
+        ?? (Number(booking.amount) < 0 ? "income" : "expense");
+      const displayBookingType = clickedSide === "counter"
+        ? (rawType === "income" ? "expense" : "income")
+        : rawType;
       setForm({
         account_id: booking.account_id || "",
         counter_account_id: booking.counter_account_id || "",
