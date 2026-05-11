@@ -398,6 +398,10 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       toast.error("Bitte alle Pflichtfelder ausfüllen");
       return;
     }
+    if (!form.description || !form.description.trim()) {
+      toast.error("Buchungstext ist Pflicht – Format: [Zeitraum] Gegenkonto [Lieferant], Re. Nr. <Nr.>");
+      return;
+    }
     setSaving(true);
     try {
     const newInvoiceId = form.invoice_id || null;
