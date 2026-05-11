@@ -190,8 +190,13 @@ Deno.serve(async (req) => {
         let preMatchedBuildingId: string | null = null;
         let buildingCandidates: typeof buildingsWithTokens = [];
 
+        // Priority: unambiguous text match (subject or body) > contact assignment > ambiguous candidates
         if (subjectMatches.length === 1) {
           preMatchedBuildingId = subjectMatches[0].id;
+        } else if (bodyMatches.length === 1) {
+          // Eindeutiger Text-Treffer im Body schlägt Kontakt-Zuordnung,
+          // damit Handwerker/Dienstleister mit mehreren Objekten korrekt zugeordnet werden.
+          preMatchedBuildingId = bodyMatches[0].id;
         } else if (subjectMatches.length > 1) {
           buildingCandidates = subjectMatches;
         } else if (directContactId && contactBuildings[directContactId]?.length === 1) {
@@ -199,8 +204,6 @@ Deno.serve(async (req) => {
         } else if (directContactId && contactBuildings[directContactId]?.length > 1) {
           const ids = new Set(contactBuildings[directContactId]);
           buildingCandidates = buildingsWithTokens.filter((b) => ids.has(b.id));
-        } else if (bodyMatches.length === 1) {
-          preMatchedBuildingId = bodyMatches[0].id;
         } else if (bodyMatches.length > 1) {
           buildingCandidates = bodyMatches;
         }
