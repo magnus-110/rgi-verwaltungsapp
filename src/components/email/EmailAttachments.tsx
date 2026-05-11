@@ -84,19 +84,6 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
     setImportingId(att.id);
 
     try {
-      // 0. Duplicate check
-      const { data: existing } = await supabase
-        .from("invoices")
-        .select("id")
-        .eq("file_name", att.file_name)
-        .limit(1);
-      if (existing && existing.length > 0) {
-        toast.warning("Diese Datei wurde bereits importiert");
-        setImportedIds(prev => new Set(prev).add(att.id));
-        setImportingId(null);
-        return;
-      }
-
       // 1. Get signed URL for the attachment
       const { data: signedData, error: signedErr } = await supabase.storage
         .from("email-attachments")
