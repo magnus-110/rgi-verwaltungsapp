@@ -26,6 +26,7 @@ import { resolveVendorDisplayName, useVendorAliases } from "./lib/vendorAlias";
 import { buildBookingText, rebuildBookingTextIfAuto } from "./lib/bookingTextBuilder";
 import { VendorAliasDialog } from "./VendorAliasDialog";
 import { parseAmount } from "./lib/parseAmount";
+import { SollstellenQuickButton } from "./SollstellenQuickButton";
 
 interface Booking {
   id: string;
@@ -862,6 +863,14 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                       </Badge>
                     )}
                   </button>
+                  <SollstellenQuickButton
+                    buildingId={buildingId}
+                    account={accounts.find((a: any) => a.id === form.account_id) as any}
+                    counterAccount={counterAccount as any}
+                    defaultAmount={form.amount}
+                    defaultDate={form.booking_date}
+                    defaultDescription={form.description}
+                  />
                 </div>
 
                 {/* Save button */}
