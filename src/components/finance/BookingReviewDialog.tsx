@@ -173,7 +173,10 @@ export function BookingReviewDialog({
                   <div className="px-3 py-2 bg-muted/30 space-y-1.5">
                     <div className="flex justify-between items-center text-xs">
                       <span className="font-medium text-foreground">
-                        Splitbuchung {booking.split_part ?? "?"} von {booking.split_parts_total}
+                        Splitbuchung{" "}
+                        {booking.split_part ?? (siblings ? siblings.findIndex(s => s.id === booking.id) + 1 || "?" : "?")}
+                        {" von "}
+                        {booking.split_parts_total ?? siblings?.length ?? "?"}
                       </span>
                       {siblings && siblings.length > 0 && (
                         <span className="text-muted-foreground">
