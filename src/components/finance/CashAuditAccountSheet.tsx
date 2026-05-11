@@ -89,6 +89,7 @@ export function CashAuditAccountSheet({ buildingId, fiscalYear, progress, onProg
         .select(`
           id, booking_date, description, amount, account_id, counter_account_id,
           receipt_number, booking_type, amount_35a, is_35a_relevant, invoice_id, matched_template_id,
+          split_part, split_parts_total,
           chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
           counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name),
           invoices(id, vendor_name, file_path, gross_amount, invoice_number),
