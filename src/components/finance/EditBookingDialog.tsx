@@ -421,13 +421,19 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     const oldInvoiceId = booking.invoice_id || null;
     const newTemplateId = matchedTemplateId || null;
     const oldTemplateId = (booking as any).matched_template_id || null;
+    // Vorzeichen-Logik: form.booking_type ist aus Sicht der angeklickten Anzeige-Seite.
+    // Für die Counter-Seite muss vor dem Persistieren wieder zurückgedreht werden,
+    // damit dieselbe Anzeige-Seite anschließend exakt das gewählte Vorzeichen zeigt.
+    const persistedBookingType = clickedSide === "counter"
+      ? (form.booking_type === "income" ? "expense" : "income")
+      : form.booking_type;
     const { error } = await supabase.from("bookings").update({
       account_id: form.account_id,
       counter_account_id: form.counter_account_id || null,
       booking_date: form.booking_date,
       amount: parseAmount(form.amount),
       description: form.description || null,
-      booking_type: form.booking_type,
+      booking_type: persistedBookingType,
       receipt_number: form.receipt_number || null,
       booking_reference: form.booking_reference || null,
       vat_rate: parseAmount(form.vat_rate),
