@@ -31,23 +31,9 @@ export function InvoiceDropZone({ buildings }: Props) {
     setUploading(prev => [...prev, fileName]);
 
     try {
-      // Duplicate check: same file_name already exists?
-      const { data: existing } = await supabase
-        .from("invoices")
-        .select("id, file_name, vendor_name, invoice_date, gross_amount")
-        .eq("file_name", fileName)
-        .limit(1);
-
-      if (existing && existing.length > 0) {
-        const dup = existing[0];
-        const details = [
-          dup.vendor_name,
-          dup.invoice_date,
-          dup.gross_amount != null ? `${Number(dup.gross_amount).toFixed(2)} €` : null,
-        ].filter(Boolean).join(" · ");
-        toast.warning(`Duplikat erkannt: "${fileName}" existiert bereits${details ? ` (${details})` : ""} – wird übersprungen`, { duration: 6000 });
-        return;
-      }
+      // Note: Duplikate werden NACH der OCR anhand der Rechnungsnummer + Lieferant
+      // erkannt (siehe extract-invoice Edge Function). Identische Dateinamen sind
+      // erlaubt, da Handwerker oft alle Rechnungen gleich benennen.
 
       // Use building folder, "company" for RGI invoices, or "unassigned"
       const isCompany = selectedBuilding === "company";
