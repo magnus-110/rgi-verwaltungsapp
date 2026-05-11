@@ -18,10 +18,23 @@ export interface AuditBookingRow {
   counter_account_id?: string | null;
   amount_35a?: number | null;
   is_35a_relevant?: boolean | null;
+  invoice_id?: string | null;
+  split_part?: number | null;
+  split_parts_total?: number | null;
   chart_of_accounts?: { account_number: string; account_name: string } | null;
   counter_account?: { account_number: string; account_name: string } | null;
   invoices?: { id: string; vendor_name?: string | null; file_path?: string | null; gross_amount?: number | null; invoice_number?: string | null } | null;
   booking_templates?: { id: string; name: string; expected_amount?: number | null; interval?: string | null; vendor_name?: string | null } | null;
+}
+
+interface SplitSibling {
+  id: string;
+  amount: number;
+  booking_type: string | null;
+  description: string | null;
+  split_part: number | null;
+  chart_of_accounts: { account_number: string; account_name: string } | null;
+  counter_account: { account_number: string; account_name: string } | null;
 }
 
 interface Props {
@@ -46,6 +59,8 @@ export function BookingReviewDialog({
 }: Props) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [siblings, setSiblings] = useState<SplitSibling[] | null>(null);
+  const [siblingsLoading, setSiblingsLoading] = useState(false);
 
   const idx = bookings.findIndex((b) => b.id === selectedId);
   const booking = idx >= 0 ? bookings[idx] : null;
@@ -63,6 +78,32 @@ export function BookingReviewDialog({
     })();
     return () => { cancelled = true; };
   }, [selectedId, booking?.invoices?.file_path]);
+
+  const isSplit = !!(booking?.split_parts_total && booking.split_parts_total > 1);
+
+  useEffect(() => {
+    setSiblings(null);
+    if (!booking || !isSplit || !booking.invoice_id) return;
+    let cancelled = false;
+    setSiblingsLoading(true);
+    (async () => {
+      const { data } = await supabase
+        .from("bookings")
+        .select(`
+          id, amount, booking_type, description, split_part,
+          chart_of_accounts:account_id(account_number, account_name),
+          counter_account:counter_account_id(account_number, account_name)
+        `)
+        .eq("invoice_id", booking.invoice_id)
+        .order("split_part", { ascending: true });
+      if (!cancelled) {
+        setSiblings((data as any) || []);
+        setSiblingsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [booking?.id, booking?.invoice_id, isSplit]);
+
 
   const goTo = (i: number) => {
     if (i < 0 || i >= bookings.length) return;
@@ -113,6 +154,51 @@ export function BookingReviewDialog({
                     {isIncome ? "+" : "−"}{fmt(Math.abs(booking.amount))}
                   </span>
                 } />
+                {isSplit && (
+                  <div className="px-3 py-2 bg-muted/30 space-y-1.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-medium text-foreground">
+                        Splitbuchung {booking.split_part ?? "?"} von {booking.split_parts_total}
+                      </span>
+                      {siblings && siblings.length > 0 && (
+                        <span className="text-muted-foreground">
+                          Gesamt: <span className="font-mono font-semibold text-foreground">
+                            {fmt(siblings.reduce((s, x) => s + Math.abs(Number(x.amount) || 0), 0))}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                    {siblingsLoading && (
+                      <div className="text-xs text-muted-foreground italic">Lade Splitteile…</div>
+                    )}
+                    {siblings && siblings.length > 0 && (
+                      <ul className="space-y-0.5">
+                        {siblings.map((s) => {
+                          const isCurrent = s.id === booking.id;
+                          const sIncome = s.booking_type === "income";
+                          const acct = s.chart_of_accounts;
+                          return (
+                            <li
+                              key={s.id}
+                              className={cn(
+                                "flex justify-between items-baseline gap-3 text-xs tabular-nums",
+                                isCurrent ? "font-medium text-foreground" : "opacity-[0.38]"
+                              )}
+                            >
+                              <span className="truncate">
+                                Teil {s.split_part ?? "?"}
+                                {acct ? ` · ${acct.account_number} ${acct.account_name}` : ""}
+                              </span>
+                              <span className={cn("font-mono whitespace-nowrap", sIncome ? "text-green-700" : "text-red-700")}>
+                                {sIncome ? "+" : "−"}{fmt(Math.abs(Number(s.amount) || 0))}
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                )}
                 <Row label="Buchungstext" value={<span className="text-right">{booking.description || "–"}</span>} />
                 {acc && <Row label="Konto" value={<span className="text-right">{acc.account_number} {acc.account_name}</span>} />}
                 {counter && <Row label="Gegenkonto" value={<span className="text-right">{counter.account_number} {counter.account_name}</span>} />}
