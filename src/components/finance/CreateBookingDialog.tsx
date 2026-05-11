@@ -302,6 +302,16 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                   const acc = accounts.find(a => a.id === v);
                   if (acc?.is_35a_relevant) set("is_35a_relevant", true);
                   if (acc && (acc as any).default_vat_rate != null) set("vat_rate", String((acc as any).default_vat_rate));
+                  // Special: Eröffnungsbuchungen (4000) → Datum & Belegnummer auf 01.01. des Wirtschaftsjahres setzen
+                  if (acc?.account_number === "4000") {
+                    const fy = parseInt(form.fiscal_year);
+                    if (!isNaN(fy)) {
+                      const newDate = `${fy}-01-01`;
+                      const newRef = `01/${String(fy).slice(-2)}`;
+                      setForm(p => ({ ...p, booking_date: newDate, booking_reference: newRef }));
+                      setTimeout(() => rebuildAutoText({ booking_date: newDate }), 0);
+                    }
+                  }
                 }}
                 onCommit={() => {
                   // Move focus to amount input
