@@ -167,6 +167,22 @@ export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
+                    {item.kind === "single" && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        disabled={editingId === item.id}
+                        onClick={() => editScheduled(item)}
+                        title="Bearbeiten"
+                      >
+                        {editingId === item.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Pencil className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
                     {item.kind === "campaign" && (
                       <Button
                         variant="ghost"
