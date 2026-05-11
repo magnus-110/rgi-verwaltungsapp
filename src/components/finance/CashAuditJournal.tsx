@@ -25,7 +25,7 @@ export function CashAuditJournal({ buildingId, fiscalYear, progress, onProgressC
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
 
   const { data: bookings = [] } = useQuery({
-    queryKey: ["audit-journal", buildingId, fiscalYear, tokenMode ? token : "auth"],
+    queryKey: ["audit-journal-v2", buildingId, fiscalYear, tokenMode ? token : "auth"],
     queryFn: async () => {
       if (tokenMode && token) {
         const { data } = await supabase.rpc("get_audit_bookings_by_token", { p_token: token });
