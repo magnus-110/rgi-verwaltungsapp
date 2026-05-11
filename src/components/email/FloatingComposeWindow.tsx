@@ -344,13 +344,16 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         ? `<div>${userTextHtml}<br><hr><div><b>--- Weitergeleitete Nachricht ---</b></div>${sanitizeForwardHtml(compose.forwardHtml)}</div>`
         : null;
 
-      // Scheduled send → store in scheduled_emails
+      // Scheduled send → store in scheduled_emails (insert or update on edit)
       if (compose.scheduledAt && new Date(compose.scheduledAt).getTime() > Date.now()) {
         const { data: u } = await supabase.auth.getUser();
         const userId = u?.user?.id;
         if (!userId) throw new Error("Nicht angemeldet");
-        const { error } = await supabase.from("scheduled_emails").insert({
-          user_id: userId,
+        const mergedAttachments = [
+          ...((compose.existingAttachments as any[]) || []),
+          ...attachmentData,
+        ];
+        const payload = {
           account_id: compose.accountId,
           to_addresses: toAddresses,
           cc_addresses: ccAddresses.length ? ccAddresses : null,
@@ -358,13 +361,36 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           subject: compose.subject,
           body_text: compose.bodyText,
           body_html: combinedHtml,
-          attachments: attachmentData,
+          attachments: mergedAttachments,
           scheduled_at: new Date(compose.scheduledAt).toISOString(),
-        });
-        if (error) throw error;
-        toast.success(`E-Mail geplant für ${new Date(compose.scheduledAt).toLocaleString("de-DE")}`);
+        };
+        if (compose.editingScheduledId) {
+          const { error } = await supabase
+            .from("scheduled_emails")
+            .update({ ...payload, status: "scheduled", error_message: null })
+            .eq("id", compose.editingScheduledId);
+          if (error) throw error;
+          toast.success(`Geplante E-Mail aktualisiert für ${new Date(compose.scheduledAt).toLocaleString("de-DE")}`);
+        } else {
+          const { error } = await supabase.from("scheduled_emails").insert({
+            user_id: userId,
+            ...payload,
+          });
+          if (error) throw error;
+          toast.success(`E-Mail geplant für ${new Date(compose.scheduledAt).toLocaleString("de-DE")}`);
+        }
+        queryClient.invalidateQueries({ queryKey: ["scheduled-mails-virtual"] });
         closeCompose(compose.id);
         return;
+      }
+
+      // If user removed schedule on an editing row, cancel the original scheduled row
+      if (compose.editingScheduledId && !compose.scheduledAt) {
+        await supabase
+          .from("scheduled_emails")
+          .update({ status: "cancelled" })
+          .eq("id", compose.editingScheduledId);
+        queryClient.invalidateQueries({ queryKey: ["scheduled-mails-virtual"] });
       }
 
       const { error } = await supabase.functions.invoke("send-email", {
