@@ -18,10 +18,23 @@ export interface AuditBookingRow {
   counter_account_id?: string | null;
   amount_35a?: number | null;
   is_35a_relevant?: boolean | null;
+  invoice_id?: string | null;
+  split_part?: number | null;
+  split_parts_total?: number | null;
   chart_of_accounts?: { account_number: string; account_name: string } | null;
   counter_account?: { account_number: string; account_name: string } | null;
   invoices?: { id: string; vendor_name?: string | null; file_path?: string | null; gross_amount?: number | null; invoice_number?: string | null } | null;
   booking_templates?: { id: string; name: string; expected_amount?: number | null; interval?: string | null; vendor_name?: string | null } | null;
+}
+
+interface SplitSibling {
+  id: string;
+  amount: number;
+  booking_type: string | null;
+  description: string | null;
+  split_part: number | null;
+  chart_of_accounts: { account_number: string; account_name: string } | null;
+  counter_account: { account_number: string; account_name: string } | null;
 }
 
 interface Props {
