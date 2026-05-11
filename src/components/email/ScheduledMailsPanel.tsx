@@ -30,6 +30,40 @@ interface Props {
 
 export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign }: Props) {
   const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const { openCompose } = useComposeEmail();
+
+  const editScheduled = async (item: ScheduledItem) => {
+    if (item.kind !== "single") return;
+    setEditingId(item.id);
+    try {
+      const { data, error } = await supabase
+        .from("scheduled_emails")
+        .select("id, account_id, to_addresses, cc_addresses, bcc_addresses, subject, body_text, body_html, scheduled_at, attachments")
+        .eq("id", item.ref_id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("Geplante Mail nicht gefunden");
+      openCompose({
+        editScheduled: {
+          id: data.id,
+          accountId: data.account_id || "",
+          to: (data.to_addresses || []).join(", "),
+          cc: (data.cc_addresses || []).join(", "),
+          bcc: (data.bcc_addresses || []).join(", "),
+          subject: data.subject || "",
+          bodyText: data.body_text || "",
+          bodyHtml: data.body_html,
+          scheduledAt: data.scheduled_at,
+          attachments: Array.isArray(data.attachments) ? (data.attachments as any[]) : [],
+        },
+      });
+    } catch (e: any) {
+      toast.error("Bearbeiten fehlgeschlagen: " + (e.message || ""));
+    } finally {
+      setEditingId(null);
+    }
+  };
 
   const accountLabel = (id: string | null) => {
     if (!id) return "—";
