@@ -144,7 +144,11 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       });
       setMatchedTemplateId((booking as any).matched_template_id || null);
     }
-  }, [open, booking]);
+    // Nur bei Öffnen oder beim Wechsel auf eine andere Buchung neu initialisieren –
+    // NICHT bei jedem Re-Fetch der Buchung, da sonst Nutzer-Änderungen (z. B. Vorzeichen)
+    // überschrieben werden, bevor gespeichert werden kann.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, booking?.id]);
 
   const buildingId = booking?.building_id;
   const { data: accounts = [] } = useQuery({
