@@ -78,7 +78,7 @@ export function CashAuditAccountSheet({ buildingId, fiscalYear, progress, onProg
   });
 
   const { data: bookings = [] } = useQuery({
-    queryKey: ["audit-bookings", buildingId, fiscalYear, tokenMode ? token : "auth"],
+    queryKey: ["audit-bookings-v2", buildingId, fiscalYear, tokenMode ? token : "auth"],
     queryFn: async () => {
       if (tokenMode && token) {
         const { data } = await supabase.rpc("get_audit_bookings_by_token", { p_token: token });
