@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { BookingTextTemplateCombobox } from "./BookingTextTemplateCombobox";
 import { signedTotalForAccount } from "./lib/bookingAggregation";
 import { rebuildBookingTextIfAuto } from "./lib/bookingTextBuilder";
+import { SollstellenQuickButton } from "./SollstellenQuickButton";
 
 interface BookingPrefill {
   account_id?: string;
@@ -513,7 +514,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
               </div>
             </div>
 
-            {/* §35a toggle */}
+            {/* §35a toggle + Sollstellen quick action */}
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -527,6 +528,14 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
               >
                 §35a
               </button>
+              <SollstellenQuickButton
+                buildingId={form.building_id}
+                account={selectedAccountObj as any}
+                counterAccount={counterAccount as any}
+                defaultAmount={form.amount}
+                defaultDate={form.booking_date}
+                defaultDescription={form.description}
+              />
             </div>
 
             {/* Save button */}

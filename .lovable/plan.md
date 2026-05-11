@@ -1,47 +1,65 @@
-## Was ich gefunden habe
+## Analyse: Sollstellungen Adolf-Haff-Weg 3
 
-**Die Rechnung selbst ist korrekt nicht zugeordnet:**
-- Rechnung Nr. 7 von Magnus Göttinger über 589,05 € brutto (Software-Abos: Mistral, Supabase, Make.com, Lovable, KI-Tools), Datum 17.04.2026
-- Rechnungsempfänger laut OCR: **RGI Immobilien GmbH & Co. KG** (also eine reine Firmenrechnung der Verwaltung)
-- In der DB: `building_id = NULL`, `is_company_invoice = true`, Datei liegt unter `unassigned/...`
-- Die Rechnung ist also gar **keinem** Gebäude zugeordnet — sie ist eine reine Hausverwaltungs-Eigenrechnung
+Im Kontenplan dieser Liegenschaft existieren:
+- **Personenkonten 0001–0008** (Kategorie „0. Personenkonten") — je ein Hausgeld-Konto pro Eigentümer (Baraniak, Bschorr, Fahrner, Mickerts, Pawlak, Scholz, Mießen, Falls).
+- **Konto 4020 „WEG-Abrechnung Sollstellung"** (Kategorie „5. Eröffnungen & Abgrenzung") — globales Verrechnungskonto für die Jahresabrechnung.
 
-**Der Fehler liegt bei den Buchungen, nicht bei der Rechnung:**
-- An diese eine Rechnung sind **18 völlig fremde Buchungen** im Adolf‑Haff‑Weg 3 aus Juli 2025 verknüpft (HG‑Hausgelder, Versicherung Allianz, Hausmeister 314,20 €, Telekom, Kontogebühren …)
-- Inhaltlich, betragsmäßig und zeitlich passt nichts davon zu der Software‑Rechnung
-- Es ist projektweit der einzige Fall mit so vielen Fehlverknüpfungen — deutet auf einen einmaligen Bulk‑Klick / falsches "Rechnung verknüpfen" hin (z. B. Drag‑and‑Drop oder Massen‑Auswahl)
+### Beobachtetes Buchungsmuster (Abrechnung 2024, Buchungsdatum 01.06.2025)
 
-**Warum konnte das passieren:**
-- Der Trigger `trg_check_booking_account_building` schützt nur Konto ↔ Gebäude
-- Es gibt **keinen** Schutz dafür, dass `booking.invoice_id` zu einer Rechnung führt, die einem **anderen** (oder gar keinem) Gebäude zugeordnet ist
-- Eine Firmenrechnung (`is_company_invoice = true`) darf aktuell überall verknüpft werden
+Für jeden Eigentümer existieren **zwei** Buchungen:
 
-## Vorgeschlagene Korrektur
+1. **Externe Bank-Buchung** (über Kontoauszug erfasst, Bestand): `1800 Bank ↔ Personenkonto` — die tatsächliche Auszahlung des Guthabens bzw. Eingang einer Nachzahlung.
+2. **Interne Sollstellungs-Buchung** (manuell, ohne Bankbezug): `Personenkonto ↔ 4020`, `booking_type = expense`, Beschreibung z. B. *„Sollstellung Guth. Abr. 2024 BARANIAK"* (949,58 €) oder *„Nachzahl. Abr. 2024 – Wollmann (intern)"*.
 
-### 1. Daten bereinigen (Migration)
-Die 18 Buchungen behalten ihre Beträge, Konten und Beschreibungen — nur das falsch gesetzte `invoice_id` wird auf `NULL` gesetzt:
+Die Richtung (Personenkonto auf Soll vs. Haben) hängt davon ab, ob es ein **Guthaben** (Eigentümer bekommt zurück) oder eine **Nachzahlung** (Eigentümer schuldet) ist. Über die Kombination `account_id` / `counter_account_id` + `booking_type` ergibt sich der korrekte signierte Saldo auf dem Personenkonto.
 
-```sql
-UPDATE bookings
-SET invoice_id = NULL
-WHERE invoice_id = 'f3541eb6-0848-4675-aa9f-c7cf04ff0ff1';
-```
+**Zweck:** Das Konto 4020 dient als Gegenkonto, damit das Abrechnungsergebnis als Forderung/Verbindlichkeit auf dem Hausgeldkonto des Eigentümers entsteht, ohne dass eine Aufwands-/Ertragsbuchung im laufenden Jahr verfälscht wird. Die spätere Bankbewegung (Auszahlung/Eingang) gleicht das Personenkonto wieder aus → Saldo geht gegen 0.
 
-Die Rechnung selbst (`status = paid`) bleibt unverändert, korrekt als RGI‑Firmenrechnung ohne Gebäude.
+---
 
-### 2. Schutz‑Trigger ergänzen (Migration)
-Neuer Trigger `trg_check_booking_invoice_building` auf `bookings`:
+## Plan: „Sollstellen"-Quick-Button in der Buchungsmaske
 
-- **Blockiert**, wenn `invoice.is_company_invoice = true` und an eine Buchung mit `building_id IS NOT NULL` verknüpft werden soll
-- **Blockiert**, wenn `invoice.building_id IS NOT NULL` und `invoice.building_id <> booking.building_id`
-- Fehlermeldung im Stil der bestehenden Strict‑Separation‑Trigger
+### Trigger / Sichtbarkeit
+- Button erscheint **immer dann**, wenn das aktuell ausgewählte Konto (`account_id` **oder** `counter_account_id`) ein Personenkonto ist (Kategorie beginnt mit `0. Personenkonten`).
+- Sichtbar in **allen** Buchungsmasken, in denen Personenkonten erfasst werden:
+  - `CreateBookingDialog` (manuelle Buchung)
+  - `BankStatementsTab` / `TransactionVerificationMode` (sofern dort Personenkonto wählbar)
+  - `TransferReviewMode`
+  - inline Buchungs-Editor in `BookingsTab`
+- Implementierung als kleine, wiederverwendbare Komponente `SollstellenQuickButton`, die in jede Maske eingebunden wird.
 
-So wird dieselbe Fehlverknüpfung in Zukunft auf DB‑Ebene unmöglich — analog zum bestehenden Konto‑Gebäude‑Schutz (siehe Memory *Strict Building Separation v2*).
+### Aussehen / UX
+- Optisch **unscheinbar**: gleiche Größe wie der `§35a`-Pill-Button daneben, aber neutrale Farbe (`text-muted-foreground`, `border-border`, kein Akzentton). Beschriftung „Sollstellen".
+- **`tabIndex={-1}`** und nicht als Default-Submit → wird beim Tab/Enter-Durchklicken übersprungen. Nur per Maus oder gezieltem Tab erreichbar.
+- Kein Auto-Fokus, kein Keyboard-Shortcut.
 
-### 3. UI‑Hinweis (optional, klein)
-Im Buchungs‑/Verknüpfungs‑Dialog: Wenn der Nutzer eine Rechnung ohne `building_id` oder mit `is_company_invoice` auswählen will, einen Warnhinweis anzeigen, bevor der Trigger zuschlägt. Damit es eine freundliche Frontend‑Meldung gibt statt eines DB‑Errors.
+### Verhalten beim Klick
+1. Ermittle in der aktuellen Maske: das Personenkonto (Personen-ID), das Datum, den Betrag, die Beschreibung.
+2. Suche/erstelle Konto **4020 „WEG-Abrechnung Sollstellung"** für das aktuelle Building (gleiche Kategorie/Settlement-Section wie Vorlage; Konto wird automatisch angelegt, falls nicht vorhanden).
+3. Lege eine **zusätzliche, interne Buchung** an mit:
+   - `account_id = Personenkonto`
+   - `counter_account_id = 4020`
+   - `booking_type = "expense"`
+   - `amount` = Betrag aus der Maske (Default; im Bestätigungs-Popup editierbar)
+   - `booking_date` = Datum aus der Maske
+   - `description` = Vorschlag „Sollstellung <Beschreibung der Hauptbuchung>" — frei editierbar
+   - kein Bank-Bezug (`bank_transaction_id = null`), `is_internal_transfer = true` (Marker)
+4. **Mini-Bestätigungsdialog** (Popover / kleines Modal) zeigt vor dem Speichern: Richtung (Guthaben → Personenkonto Haben / Nachzahlung → Personenkonto Soll), Konten, Betrag, Beschreibung. Auswahl Guthaben/Nachzahlung steuert nur die Vorzeichen-/Richtungslogik.
+5. Nach Speichern: Toast „Sollstellung gebucht", Liste/Cache invalidieren. **Die Hauptbuchung der Maske bleibt unverändert** — die Sollstellung ist eine zusätzliche, parallele Buchung.
 
-## Was ich nicht ändere
-- Die Rechnung selbst (Inhalt, Status `paid`, Bezahldatum) — die ist sachlich richtig
-- Buchungsbeträge, Konten, Datum — bleiben alle erhalten
-- Bestehende Konto‑/Gebäude‑Trigger — bleiben unangetastet
+### Edge Cases
+- Kein Building gewählt → Button disabled mit Tooltip.
+- Personenkonto-Erkennung über `chart_of_accounts.category` (genauer Match-String wie heute).
+- Konto 4020 fehlt im Building → automatisch via `building_account_overrides`/`chart_of_accounts`-Insert anlegen (Standard-Kategorie „5. Eröffnungen & Abgrenzung").
+- Keine Auswirkung auf den Enter-/Tab-Workflow der bestehenden Speichern-Buttons.
+
+### Technische Details (für später)
+- Neue Datei: `src/components/finance/SollstellenQuickButton.tsx` mit Props `{ buildingId, personenkontoId, amount, date, description, onCreated }`.
+- Hilfsfunktion `ensureSollstellungAccount(buildingId)` in `src/components/finance/lib/sollstellung.ts`.
+- Einbindung im `CreateBookingDialog` direkt rechts neben dem `§35a`-Button (Zeile ~516–530).
+- Erkennung „ist Personenkonto?": prüfen ob das aktuell relevante Konto-Objekt `category?.startsWith("0. Personenkonten")` erfüllt.
+- Keine Datenbank-Migration nötig — Konto 4020 wird über bestehende `chart_of_accounts` angelegt, Buchung über bestehende `bookings`-Logik.
+
+---
+
+**Keine Code-Änderungen in diesem Plan-Modus.** Nach Bestätigung implementiere ich Button + Dialog + Einbindung in alle Buchungsmasken.
