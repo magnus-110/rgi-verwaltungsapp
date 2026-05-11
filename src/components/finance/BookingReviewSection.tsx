@@ -31,6 +31,21 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
   const [aiChecking, setAiChecking] = useState(false);
   const [aiResults, setAiResults] = useState<any[] | null>(null);
   const [editBooking, setEditBooking] = useState<any | null>(null);
+  const reviewedKey = `booking-review-checked:${buildingId}:${fiscalYear}`;
+  const [reviewedAccounts, setReviewedAccounts] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(reviewedKey);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch { return new Set(); }
+  });
+  const toggleReviewed = (accId: string) => {
+    setReviewedAccounts(prev => {
+      const next = new Set(prev);
+      next.has(accId) ? next.delete(accId) : next.add(accId);
+      try { localStorage.setItem(reviewedKey, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
   const queryClient = useQueryClient();
 
   const { data: building } = useQuery({
