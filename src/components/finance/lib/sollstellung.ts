@@ -97,6 +97,7 @@ export async function createSollstellungBooking(params: {
       source: "manual",
       status: "pending",
       booking_type: "expense",
+      booking_reference: "intern",
       created_by: params.createdBy ?? null,
     } as any)
     .select("id")
