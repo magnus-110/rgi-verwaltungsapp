@@ -210,7 +210,12 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
                                     "group cursor-pointer text-[13px] hover:bg-muted/60",
                                     b.needs_review && "bg-orange-50 dark:bg-orange-950/20"
                                   )}
-                                  onClick={() => onRowClick(b)}
+                                  onClick={() => {
+                                    // WICHTIG: bei Gegenkonto-Anzeige ist booking_type gedreht.
+                                    // Für die Bearbeitung IMMER den Original-Datensatz aus props.bookings nehmen.
+                                    const original = bookings.find((x: any) => x.id === b.id) || b;
+                                    onRowClick(original);
+                                  }}
                                 >
                                   <TableCell className="py-1.5 px-3 whitespace-nowrap tabular-nums">
                                     {format(new Date(b.booking_date), "dd.MM.yyyy")}
