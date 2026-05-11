@@ -343,7 +343,7 @@ export function BookingReviewDialog({
                 <div className="max-w-xl mx-auto space-y-4">
                   <div className="flex items-center gap-2">
                     <Check className="h-6 w-6 text-green-600" />
-                    <h3 className="text-lg font-semibold">Kein Beleg erforderlich ✓</h3>
+                    <h3 className="text-lg font-semibold">Kein Beleg erforderlich</h3>
                   </div>
                   <div className="rounded-lg border bg-card p-4 text-sm space-y-3">
                     <p>
