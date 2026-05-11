@@ -180,6 +180,10 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       toast.error("Bitte alle Pflichtfelder ausfüllen");
       return;
     }
+    if (!form.description || !form.description.trim()) {
+      toast.error("Buchungstext ist Pflicht – Format: [Zeitraum] Gegenkonto [Lieferant], Re. Nr. <Nr.>");
+      return;
+    }
     setSaving(true);
     const { data: insertedData, error } = await supabase.from("bookings").insert({
       building_id: form.building_id,
