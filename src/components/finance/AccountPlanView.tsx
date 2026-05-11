@@ -211,10 +211,12 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
                                     b.needs_review && "bg-orange-50 dark:bg-orange-950/20"
                                   )}
                                   onClick={() => {
-                                    // WICHTIG: bei Gegenkonto-Anzeige ist booking_type gedreht.
-                                    // Für die Bearbeitung IMMER den Original-Datensatz aus props.bookings nehmen.
+                                    // Original-Datensatz an den Editor übergeben, aber die
+                                    // angeklickte Anzeige-Seite mitliefern. Der Editor zeigt das
+                                    // Vorzeichen exakt so, wie es in dieser Zeile sichtbar ist,
+                                    // und dreht es beim Speichern ggf. zurück.
                                     const original = bookings.find((x: any) => x.id === b.id) || b;
-                                    onRowClick(original);
+                                    onRowClick({ ...original, _side: b._side });
                                   }}
                                 >
                                   <TableCell className="py-1.5 px-3 whitespace-nowrap tabular-nums">
