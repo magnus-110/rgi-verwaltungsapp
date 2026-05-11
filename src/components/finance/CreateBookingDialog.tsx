@@ -180,6 +180,10 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       toast.error("Bitte alle Pflichtfelder ausfüllen");
       return;
     }
+    if (!form.description || !form.description.trim()) {
+      toast.error("Buchungstext ist Pflicht – Format: [Zeitraum] Gegenkonto [Lieferant], Re. Nr. <Nr.>");
+      return;
+    }
     setSaving(true);
     const { data: insertedData, error } = await supabase.from("bookings").insert({
       building_id: form.building_id,
@@ -403,7 +407,9 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
 
             {/* Description */}
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstext</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                Buchungstext <span className="text-destructive">*</span>
+              </label>
               <div className="grid grid-cols-[90px_1fr] gap-2">
                 <BookingTextTemplateCombobox
                   inputRef={(el) => { if (el) el.setAttribute("data-booking-shortcut", "true"); }}
@@ -421,8 +427,11 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                     desc?.focus();
                   }}
                 />
-                <Input data-booking-desc className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} onKeyDown={handleEnterToNext} placeholder="Beschreibung der Buchung…" />
+                <Input data-booking-desc className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} onKeyDown={handleEnterToNext} placeholder="z. B. 09/25 Hausmeister Markus Gschwend, Re. Nr. 8824748" required />
               </div>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Format: <span className="font-mono">[Buchungskürzel]</span> Gegenkonto <span className="font-mono">[Lieferant]</span>, <span className="font-mono">Re. Nr. [Nr.]</span> — Buchungskürzel, Lieferant &amp; Re.-Nr. optional, Gegenkonto immer dabei.
+              </p>
             </div>
 
             {/* Compact row: Belegnummer, Beleg-Datum, Wirtschaftsjahr, MwSt */}
