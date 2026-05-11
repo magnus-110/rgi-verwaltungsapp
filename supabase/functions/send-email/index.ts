@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
     const toAddresses = Array.isArray(to) ? to : [to];
     const hasAttachments = attachments && attachments.length > 0;
     
-    const { error: insertErr } = await supabaseAdmin.from("emails").insert({
+    const { data: insertedEmail, error: insertErr } = await supabaseAdmin.from("emails").insert({
       account_id: account.id,
       folder_id: sentFolder?.id,
       subject: subject || null,
@@ -167,11 +167,46 @@ Deno.serve(async (req) => {
       has_attachments: hasAttachments || false,
       message_id: `sent-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       in_reply_to: in_reply_to || null,
-    });
+    }).select("id").single();
 
     if (insertErr) {
       console.error("Failed to save sent email:", insertErr.message);
     }
+
+    // Persist attachments to storage + email_attachments so they show up in the Sent view
+    if (insertedEmail?.id && hasAttachments) {
+      for (const att of attachments) {
+        try {
+          const buf = Uint8Array.from(atob(att.content), (c) => c.charCodeAt(0));
+          const safeName = String(att.filename || "attachment").replace(/[^\w.\-]+/g, "_");
+          const filePath = `${insertedEmail.id}/${safeName}`;
+          const { error: upErr } = await supabaseAdmin.storage
+            .from("email-attachments")
+            .upload(filePath, buf, {
+              contentType: att.contentType || "application/octet-stream",
+              upsert: true,
+            });
+          if (upErr) {
+            console.error(`Attachment upload failed (${safeName}):`, upErr.message);
+            continue;
+          }
+          const { error: attErr } = await supabaseAdmin.from("email_attachments").insert({
+            email_id: insertedEmail.id,
+            file_name: att.filename,
+            file_path: filePath,
+            file_size: buf.byteLength,
+            mime_type: att.contentType || "application/octet-stream",
+            is_inline: false,
+          });
+          if (attErr) {
+            console.error(`email_attachments insert failed (${safeName}):`, attErr.message);
+          }
+        } catch (e: any) {
+          console.error("Attachment persist error:", e?.message || e);
+        }
+      }
+    }
+
 
     return new Response(
       JSON.stringify({ success: true, message: "E-Mail gesendet" }),
