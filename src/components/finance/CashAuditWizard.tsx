@@ -303,13 +303,8 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
           <TabsTrigger variant="underline" value="konten">Kontenblätter</TabsTrigger>
           <TabsTrigger variant="underline" value="journal">Buchungsjournal</TabsTrigger>
           <TabsTrigger variant="underline" value="dokumente">Dokumente</TabsTrigger>
-          <TabsTrigger variant="underline" value="hinweise" className="gap-1.5">
-            Hinweise vom Verwalter
-            {adminNotes.length > 0 && (
-              <Badge variant="secondary" className="h-4 px-1.5 text-[10px] bg-amber-100 text-amber-900 border-amber-200">
-                {adminNotes.length}
-              </Badge>
-            )}
+          <TabsTrigger variant="underline" value="hinweise">
+            Hinweise
           </TabsTrigger>
         </TabsList>
 
