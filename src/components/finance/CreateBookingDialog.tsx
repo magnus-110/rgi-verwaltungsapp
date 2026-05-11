@@ -513,7 +513,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
               </div>
             </div>
 
-            {/* §35a toggle */}
+            {/* §35a toggle + Sollstellen quick action */}
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -527,6 +527,14 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
               >
                 §35a
               </button>
+              <SollstellenQuickButton
+                buildingId={form.building_id}
+                account={selectedAccountObj as any}
+                counterAccount={counterAccount as any}
+                defaultAmount={form.amount}
+                defaultDate={form.booking_date}
+                defaultDescription={form.description}
+              />
             </div>
 
             {/* Save button */}
