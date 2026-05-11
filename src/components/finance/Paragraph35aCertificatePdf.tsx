@@ -257,5 +257,3 @@ function triggerDownload(blob: Blob, fileName: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// Avoid tree-shaking renderToStaticMarkup if unused (kept for potential future use)
-void renderToStaticMarkup;
