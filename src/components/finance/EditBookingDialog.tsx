@@ -863,6 +863,14 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                       </Badge>
                     )}
                   </button>
+                  <SollstellenQuickButton
+                    buildingId={form.building_id}
+                    account={accounts.find((a: any) => a.id === form.account_id) as any}
+                    counterAccount={counterAccount as any}
+                    defaultAmount={form.amount}
+                    defaultDate={form.booking_date}
+                    defaultDescription={form.description}
+                  />
                 </div>
 
                 {/* Save button */}
