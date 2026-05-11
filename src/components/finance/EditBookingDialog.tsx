@@ -26,6 +26,7 @@ import { resolveVendorDisplayName, useVendorAliases } from "./lib/vendorAlias";
 import { buildBookingText, rebuildBookingTextIfAuto } from "./lib/bookingTextBuilder";
 import { VendorAliasDialog } from "./VendorAliasDialog";
 import { parseAmount } from "./lib/parseAmount";
+import { SollstellenQuickButton } from "./SollstellenQuickButton";
 
 interface Booking {
   id: string;
