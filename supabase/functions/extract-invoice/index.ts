@@ -79,12 +79,31 @@ function extractStreetStems(n: string): string[] {
   return Array.from(stems);
 }
 
+// Schneidet alles ab c/o-Markern weg (z.H., z.Hd., zu Händen, c/o, RGI Immobilien …)
+// damit nur die oberste Empfänger-Zeile (die echte Liegenschaft) gematcht wird.
+function stripCareOf(address: string): string {
+  if (!address) return "";
+  // Normalize line breaks and commas to a single separator we can split on
+  const lines = address
+    .split(/\r?\n|,/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const stopRe = /(z\.?\s*h(d)?\.?|zu\s+h[äa]nden|c\/o|c\.o\.|rgi[\s-]*immobilien)/i;
+  const kept: string[] = [];
+  for (const line of lines) {
+    if (stopRe.test(line)) break;
+    kept.push(line);
+  }
+  return (kept.length ? kept : lines.slice(0, 1)).join(", ");
+}
+
 function findBestBuildingMatch(
   recipientAddress: string,
   buildings: { id: string; name: string; address: string }[]
 ): string | null {
   if (!recipientAddress) return null;
-  const recv = normalizeForMatch(recipientAddress);
+  const trimmed = stripCareOf(recipientAddress);
+  const recv = normalizeForMatch(trimmed);
   if (!recv) return null;
 
   const recvPostals = new Set(extractPostalCodes(recv));
