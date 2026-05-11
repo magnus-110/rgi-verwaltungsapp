@@ -29,6 +29,7 @@ export interface ComposeState {
     account_id: string;
   } | null;
   forward?: {
+    email_id?: string;
     subject: string;
     body_text: string;
     body_html: string;
