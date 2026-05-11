@@ -1,42 +1,35 @@
-## Diagnose
+## Ziel
+Das angezeigte Vorzeichen muss überall zur tatsächlichen Buchung passen: beim Öffnen im Bearbeitungsdialog, beim Speichern nach Änderung und danach in Liste/Kontenplan.
 
-Der Fehler liegt nicht in Supabase und auch nicht daran, dass negative Beträge gespeichert werden sollten.
+## Festgestellte Ursache
+Aktuell wird das Vorzeichen aus `booking_type` abgeleitet, während `amount` immer positiv gespeichert wird. Im Kontenplan werden Gegenkonto-Zeilen zusätzlich nur für die Anzeige invertiert. Dadurch entstehen zwei Probleme:
 
-Aktuelle Buchungslogik:
+- Der Bearbeitungsdialog nimmt bei manchen Datensätzen/Ansichten die falsche Seite der Buchung als Quelle und zeigt deshalb beim Anklicken `+`, obwohl die Kontenplan-Zeile `-` zeigt.
+- Beim Speichern wird nur `booking_type` gesetzt; die UI und Aggregation interpretieren dieselbe Buchung je nach Hauptkonto/Gegenkonto aber unterschiedlich. Dadurch wirkt die Änderung nicht konsistent.
 
-- `bookings.amount` wird fachlich immer positiv gespeichert.
-- Das Vorzeichen wird über `bookings.booking_type` gespeichert:
-  - `income` = positiv
-  - `expense` = negativ
+## Umsetzung
+1. **Klare Vorzeichen-Helfer einführen**
+   - Eine kleine zentrale Logik im Finanzbereich nutzt künftig konsequent:
+     - `income` = positiv auf `account_id`
+     - `expense` = negativ auf `account_id`
+     - auf `counter_account_id` wird dieses Vorzeichen nur für die Anzeige gedreht
+   - Der Betrag bleibt als absoluter Betrag gespeichert.
 
-Der konkrete Fehler entsteht in **Buchen → Buchungen**, besonders in der Kontenplan-Ansicht:
+2. **EditBookingDialog korrigieren**
+   - Beim Öffnen wird das Vorzeichen aus der tatsächlichen Buchung bzw. der angeklickten Kontenplan-Seite korrekt hergeleitet.
+   - Wenn der Nutzer `+` oder `−` auswählt, wird beim Speichern die echte Buchung so aktualisiert, dass die gewählte Anzeige-Seite danach exakt dieses Vorzeichen zeigt.
+   - Damit kann eine negative Kontenplan-Zeile gezielt auf positiv geändert werden und umgekehrt.
 
-- Eine Buchung wird dort doppelt angezeigt: einmal auf dem Konto und einmal auf dem Gegenkonto.
-- Für die Gegenkonto-Anzeige wird `booking_type` künstlich gedreht, damit der Kontosaldo korrekt angezeigt wird.
-- Beim Klick auf diese Zeile bekommt `EditBookingDialog` aber diese gedrehte Anzeige-Kopie statt des echten Buchungsdatensatzes.
-- Beim Speichern wird diese gedrehte Richtung dann zurück in die echte Buchung geschrieben.
-- Ergebnis: Eine eigentlich positive Buchung kann beim Speichern negativ werden und lässt sich scheinbar nicht mehr dauerhaft positiv setzen.
+3. **Kontenplan-Zeilen stabilisieren**
+   - Die Anzeige-Zeile bekommt ein explizites Feld für das Anzeige-Vorzeichen, statt `booking_type` dauerhaft umzudeuten.
+   - Beim Klick wird diese Anzeige-Seite an den Editor weitergegeben, ohne den Originaldatensatz zu verfälschen.
 
-## Plan zur Behebung
+4. **Liste und Kontenplan vereinheitlichen**
+   - In der normalen Buchungsliste wird weiterhin das Vorzeichen der Hauptkonto-Seite angezeigt.
+   - Im Kontenplan wird je Konto die jeweilige Konto-Seite angezeigt.
+   - Nach dem Speichern werden `bookings`, `bank-transactions` und die Kontenplan-Aggregation invalidiert, damit alle Ansichten sofort konsistent neu laden.
 
-1. **Original-Buchung beim Bearbeiten erzwingen**
-   - In `AccountPlanView` beim Klick auf eine Buchungszeile nicht die kontenseitig gedrehte Anzeige-Kopie an den Editor übergeben.
-   - Stattdessen anhand der `id` die originale Buchung aus dem unveränderten `bookings`-Array suchen und diese an `onRowClick` übergeben.
-
-2. **Gedrehte Anzeige weiterhin nur für Anzeige nutzen**
-   - `useAccountAggregation` darf weiterhin die Gegenkonto-Seite für Salden/Anzeige drehen.
-   - Diese gedrehte Kopie darf aber nicht mehr als editierbarer Datensatz verwendet werden.
-
-3. **Edit-Dialog zusätzlich absichern**
-   - `EditBookingDialog` soll beim Initialisieren defensiv mit Anzeige-Metadaten wie `_side: "counter"` umgehen.
-   - Falls doch eine gedrehte Anzeige-Kopie ankommt, soll sie nicht ungeprüft als Speichergrundlage verwendet werden.
-
-4. **Speicherlogik fachlich unverändert lassen**
-   - `amount` bleibt positiv.
-   - Nur `booking_type` bestimmt das Vorzeichen.
-   - Keine Datenbankmigration nötig.
-
-5. **Validierung**
-   - Testfall: Positive Buchung öffnen → direkt speichern → bleibt positiv.
-   - Testfall: Negative Buchung öffnen → auf positiv wechseln → speichern → bleibt positiv.
-   - Testfall: Dieselbe Buchung aus der Gegenkonto-Zeile im Kontenplan öffnen → speichern → echtes Vorzeichen bleibt korrekt.
+## Validierung
+- Bestehende Buchung aus der Liste öffnen: Dialog zeigt das gleiche Vorzeichen wie die Liste.
+- Bestehende Buchung aus dem Kontenplan öffnen: Dialog zeigt das gleiche Vorzeichen wie die angeklickte Kontenplan-Zeile.
+- Vorzeichen ändern und speichern: Buchung und alle Ansichten zeigen anschließend das geänderte Vorzeichen korrekt.

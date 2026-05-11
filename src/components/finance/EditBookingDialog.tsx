@@ -110,25 +110,26 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
   });
   const [autoTextSignature, setAutoTextSignature] = useState<string>("");
 
+  // Anzeige-Seite (welche Konto-Seite wurde im Kontenplan/Liste angeklickt).
+  // "primary" = account_id-Seite (Standard), "counter" = counter_account_id-Seite.
+  const clickedSide: "primary" | "counter" = (booking as any)?._side === "counter" ? "counter" : "primary";
+
   useEffect(() => {
     if (open && booking) {
       setSaving(false);
-      // Defensive: falls eine "counter"-Anzeigekopie aus AccountPlanView ankommt,
-      // ist booking_type dort gedreht. Für die Bearbeitung IMMER zurückdrehen,
-      // damit Speichern nicht das Vorzeichen invertiert.
-      const isCounterCopy = (booking as any)._side === "counter";
-      const realBookingType = isCounterCopy
-        ? (booking.booking_type === "income" ? "expense" : "income")
-        : (booking.booking_type
-            ? booking.booking_type
-            : (Number(booking.amount) < 0 ? "income" : "expense"));
+      // booking.booking_type liegt aus AccountPlanView für die Counter-Seite bereits
+      // GEDREHT vor. Für die Anzeige im Editor wollen wir genau das Vorzeichen zeigen,
+      // das der Nutzer in der angeklickten Zeile gesehen hat.
+      const displayBookingType = booking.booking_type
+        ? booking.booking_type
+        : (Number(booking.amount) < 0 ? "income" : "expense");
       setForm({
         account_id: booking.account_id || "",
         counter_account_id: booking.counter_account_id || "",
         booking_date: booking.booking_date,
         amount: String(Math.abs(booking.amount)),
         description: booking.description || "",
-        booking_type: realBookingType,
+        booking_type: displayBookingType,
         receipt_number: booking.receipt_number || "",
         booking_reference: booking.booking_reference || "",
         vat_rate: String(booking.vat_rate ?? 19),
@@ -420,13 +421,19 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     const oldInvoiceId = booking.invoice_id || null;
     const newTemplateId = matchedTemplateId || null;
     const oldTemplateId = (booking as any).matched_template_id || null;
+    // Vorzeichen-Logik: form.booking_type ist aus Sicht der angeklickten Anzeige-Seite.
+    // Für die Counter-Seite muss vor dem Persistieren wieder zurückgedreht werden,
+    // damit dieselbe Anzeige-Seite anschließend exakt das gewählte Vorzeichen zeigt.
+    const persistedBookingType = clickedSide === "counter"
+      ? (form.booking_type === "income" ? "expense" : "income")
+      : form.booking_type;
     const { error } = await supabase.from("bookings").update({
       account_id: form.account_id,
       counter_account_id: form.counter_account_id || null,
       booking_date: form.booking_date,
       amount: parseAmount(form.amount),
       description: form.description || null,
-      booking_type: form.booking_type,
+      booking_type: persistedBookingType,
       receipt_number: form.receipt_number || null,
       booking_reference: form.booking_reference || null,
       vat_rate: parseAmount(form.vat_rate),
