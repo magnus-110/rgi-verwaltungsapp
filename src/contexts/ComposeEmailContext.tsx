@@ -40,6 +40,18 @@ interface OpenOpts {
   replyTo?: ComposeState["replyTo"];
   forward?: ComposeState["forward"];
   prefill?: { to?: string; cc?: string; bcc?: string; subject?: string; bodyText?: string; accountId?: string };
+  editScheduled?: {
+    id: string;
+    accountId: string;
+    to: string;
+    cc?: string;
+    bcc?: string;
+    subject: string;
+    bodyText: string;
+    bodyHtml?: string | null;
+    scheduledAt: string;
+    attachments?: any[];
+  };
 }
 
 interface ComposeEmailContextType {
