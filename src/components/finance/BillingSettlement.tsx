@@ -404,19 +404,30 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     const close = getEffectiveClosingBalance(acc.id, bookings as any[], flatBalances, fiscalYear, opening4000Id);
     closingByAccount[acc.id] = close.amount;
   });
-  // Rücklagenkonten anhand der Kontonummer erkennen (DATEV: 1810/1820 = IHR/Sparbuch).
-  // Die category-Spalte enthält UI-Labels wie "4. WEG-Systemkonten & Rücklagen" und
-  // ist deshalb für die Aggregation ungeeignet.
+  // Klassifizierung der Bestandskonten (Anfangs-/Endbestände).
+  // WICHTIG: "Girokonto" darf NUR echte Bankkonten enthalten (1800/1801…),
+  // sonst werden Brennstoffrestbestand (1450) und Vorauszahlungen (1470–1473)
+  // fälschlich in den Giro-Saldo eingerechnet.
+  const isBankAccount = (a: any) =>
+    typeof a.account_number === "string" && /^180\d?$/.test(a.account_number);
   const isReserveAccount = (a: any) =>
     a.account_number === "1810" || a.account_number === "1820";
+  const isFuelStockAccount = (a: any) => a.account_number === "1450";
+  const isHeatingPrepayBalanceAccount = (a: any) =>
+    ["1470", "1471", "1472", "1473"].includes(a.account_number) ||
+    a.settlement_section === "heating_prepayment";
 
-  const openingGiro = carryAccounts
-    .filter((a: any) => !isReserveAccount(a))
-    .reduce((s: number, a: any) => s + (openingByAccount[a.id] || 0), 0);
-  const openingReserve = carryAccounts
-    .filter((a: any) => isReserveAccount(a))
-    .reduce((s: number, a: any) => s + (openingByAccount[a.id] || 0), 0);
-  const openingTotal = openingGiro + openingReserve;
+  const sumOpening = (filter: (a: any) => boolean) =>
+    carryAccounts.filter(filter).reduce((s: number, a: any) => s + (openingByAccount[a.id] || 0), 0);
+
+  const openingGiro = sumOpening(isBankAccount);
+  const openingReserve = sumOpening(isReserveAccount);
+  const openingFuel = sumOpening(isFuelStockAccount);
+  const openingPrepay = sumOpening(isHeatingPrepayBalanceAccount);
+  const openingOther = sumOpening((a: any) =>
+    !isBankAccount(a) && !isReserveAccount(a) && !isFuelStockAccount(a) && !isHeatingPrepayBalanceAccount(a),
+  );
+  const openingTotal = openingGiro + openingReserve + openingFuel + openingPrepay + openingOther;
 
   // Closing balances — automatisch via Helper, manueller closing_balance als Override
   const getClosing = (acc: any) => {
@@ -426,13 +437,17 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     }
     return closingByAccount[acc.id] || 0;
   };
-  const closingGiro = carryAccounts
-    .filter((a: any) => !isReserveAccount(a))
-    .reduce((s: number, a: any) => s + getClosing(a), 0);
-  const closingReserve = carryAccounts
-    .filter((a: any) => isReserveAccount(a))
-    .reduce((s: number, a: any) => s + getClosing(a), 0);
-  const closingTotal = closingGiro + closingReserve;
+  const sumClosing = (filter: (a: any) => boolean) =>
+    carryAccounts.filter(filter).reduce((s: number, a: any) => s + getClosing(a), 0);
+
+  const closingGiro = sumClosing(isBankAccount);
+  const closingReserve = sumClosing(isReserveAccount);
+  const closingFuel = sumClosing(isFuelStockAccount);
+  const closingPrepay = sumClosing(isHeatingPrepayBalanceAccount);
+  const closingOther = sumClosing((a: any) =>
+    !isBankAccount(a) && !isReserveAccount(a) && !isFuelStockAccount(a) && !isHeatingPrepayBalanceAccount(a),
+  );
+  const closingTotal = closingGiro + closingReserve + closingFuel + closingPrepay + closingOther;
 
   // Distributable total (für Einzelabrechnung) — exclude:
   //  - ARAP/PRAP (4110/4130 = Bilanzkonten, kein Aufwand)
