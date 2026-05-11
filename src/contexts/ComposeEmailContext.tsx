@@ -14,6 +14,10 @@ export interface ComposeState {
   forwardHtml?: string;
   attachments: { file: File; name: string; size: number }[];
   scheduledAt?: string | null; // ISO string when set
+  /** When editing an existing scheduled email row, its id. */
+  editingScheduledId?: string | null;
+  /** Existing attachments from a scheduled email being edited (already base64 in DB). */
+  existingAttachments?: any[];
   replyTo?: {
     id?: string;
     message_id?: string | null;
@@ -36,6 +40,18 @@ interface OpenOpts {
   replyTo?: ComposeState["replyTo"];
   forward?: ComposeState["forward"];
   prefill?: { to?: string; cc?: string; bcc?: string; subject?: string; bodyText?: string; accountId?: string };
+  editScheduled?: {
+    id: string;
+    accountId: string;
+    to: string;
+    cc?: string;
+    bcc?: string;
+    subject: string;
+    bodyText: string;
+    bodyHtml?: string | null;
+    scheduledAt: string;
+    attachments?: any[];
+  };
 }
 
 interface ComposeEmailContextType {
@@ -78,6 +94,26 @@ const buildInitial = (id: string, opts?: OpenOpts): ComposeState => {
   const replyTo = opts?.replyTo || null;
   const forward = opts?.forward || null;
   const prefill = opts?.prefill;
+  const edit = opts?.editScheduled;
+  if (edit) {
+    return {
+      id,
+      mode: "docked",
+      accountId: edit.accountId,
+      to: edit.to,
+      cc: edit.cc || "",
+      bcc: edit.bcc || "",
+      subject: edit.subject,
+      bodyText: edit.bodyText,
+      forwardHtml: undefined,
+      attachments: [],
+      scheduledAt: edit.scheduledAt,
+      editingScheduledId: edit.id,
+      existingAttachments: edit.attachments || [],
+      replyTo: null,
+      forward: null,
+    };
+  }
   return {
     id,
     mode: "docked",
@@ -97,6 +133,8 @@ const buildInitial = (id: string, opts?: OpenOpts): ComposeState => {
     forwardHtml: forward?.body_html || undefined,
     attachments: [],
     scheduledAt: null,
+    editingScheduledId: null,
+    existingAttachments: [],
     replyTo,
     forward,
   };

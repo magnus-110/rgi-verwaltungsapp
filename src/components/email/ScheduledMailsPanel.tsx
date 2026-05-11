@@ -3,9 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CalendarClock, Mail, Users, Trash2, ExternalLink, AlertTriangle, Loader2 } from "lucide-react";
+import { CalendarClock, Mail, Users, Trash2, ExternalLink, AlertTriangle, Loader2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 
 export interface ScheduledItem {
   id: string;
@@ -29,6 +30,40 @@ interface Props {
 
 export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign }: Props) {
   const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const { openCompose } = useComposeEmail();
+
+  const editScheduled = async (item: ScheduledItem) => {
+    if (item.kind !== "single") return;
+    setEditingId(item.id);
+    try {
+      const { data, error } = await supabase
+        .from("scheduled_emails")
+        .select("id, account_id, to_addresses, cc_addresses, bcc_addresses, subject, body_text, body_html, scheduled_at, attachments")
+        .eq("id", item.ref_id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("Geplante Mail nicht gefunden");
+      openCompose({
+        editScheduled: {
+          id: data.id,
+          accountId: data.account_id || "",
+          to: (data.to_addresses || []).join(", "),
+          cc: (data.cc_addresses || []).join(", "),
+          bcc: (data.bcc_addresses || []).join(", "),
+          subject: data.subject || "",
+          bodyText: data.body_text || "",
+          bodyHtml: data.body_html,
+          scheduledAt: data.scheduled_at,
+          attachments: Array.isArray(data.attachments) ? (data.attachments as any[]) : [],
+        },
+      });
+    } catch (e: any) {
+      toast.error("Bearbeiten fehlgeschlagen: " + (e.message || ""));
+    } finally {
+      setEditingId(null);
+    }
+  };
 
   const accountLabel = (id: string | null) => {
     if (!id) return "—";
@@ -132,6 +167,22 @@ export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
+                    {item.kind === "single" && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        disabled={editingId === item.id}
+                        onClick={() => editScheduled(item)}
+                        title="Bearbeiten"
+                      >
+                        {editingId === item.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Pencil className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
                     {item.kind === "campaign" && (
                       <Button
                         variant="ghost"

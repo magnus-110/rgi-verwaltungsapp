@@ -344,13 +344,16 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         ? `<div>${userTextHtml}<br><hr><div><b>--- Weitergeleitete Nachricht ---</b></div>${sanitizeForwardHtml(compose.forwardHtml)}</div>`
         : null;
 
-      // Scheduled send → store in scheduled_emails
+      // Scheduled send → store in scheduled_emails (insert or update on edit)
       if (compose.scheduledAt && new Date(compose.scheduledAt).getTime() > Date.now()) {
         const { data: u } = await supabase.auth.getUser();
         const userId = u?.user?.id;
         if (!userId) throw new Error("Nicht angemeldet");
-        const { error } = await supabase.from("scheduled_emails").insert({
-          user_id: userId,
+        const mergedAttachments = [
+          ...((compose.existingAttachments as any[]) || []),
+          ...attachmentData,
+        ];
+        const payload = {
           account_id: compose.accountId,
           to_addresses: toAddresses,
           cc_addresses: ccAddresses.length ? ccAddresses : null,
@@ -358,13 +361,36 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           subject: compose.subject,
           body_text: compose.bodyText,
           body_html: combinedHtml,
-          attachments: attachmentData,
+          attachments: mergedAttachments,
           scheduled_at: new Date(compose.scheduledAt).toISOString(),
-        });
-        if (error) throw error;
-        toast.success(`E-Mail geplant für ${new Date(compose.scheduledAt).toLocaleString("de-DE")}`);
+        };
+        if (compose.editingScheduledId) {
+          const { error } = await supabase
+            .from("scheduled_emails")
+            .update({ ...payload, status: "scheduled", error_message: null })
+            .eq("id", compose.editingScheduledId);
+          if (error) throw error;
+          toast.success(`Geplante E-Mail aktualisiert für ${new Date(compose.scheduledAt).toLocaleString("de-DE")}`);
+        } else {
+          const { error } = await supabase.from("scheduled_emails").insert({
+            user_id: userId,
+            ...payload,
+          });
+          if (error) throw error;
+          toast.success(`E-Mail geplant für ${new Date(compose.scheduledAt).toLocaleString("de-DE")}`);
+        }
+        queryClient.invalidateQueries({ queryKey: ["scheduled-mails-virtual"] });
         closeCompose(compose.id);
         return;
+      }
+
+      // If user removed schedule on an editing row, cancel the original scheduled row
+      if (compose.editingScheduledId && !compose.scheduledAt) {
+        await supabase
+          .from("scheduled_emails")
+          .update({ status: "cancelled" })
+          .eq("id", compose.editingScheduledId);
+        queryClient.invalidateQueries({ queryKey: ["scheduled-mails-virtual"] });
       }
 
       const { error } = await supabase.functions.invoke("send-email", {
@@ -834,6 +860,23 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
               <VoiceDictationButton context={voiceContext} onAccept={handleVoiceAccept} buttonSize="sm" iconClassName="h-7 px-2 text-xs gap-1.5" />
             </div>
             <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
+            {compose.existingAttachments && compose.existingAttachments.length > 0 && (
+              <div className="space-y-0.5">
+                {compose.existingAttachments.map((att: any, idx: number) => (
+                  <div key={`ex-${idx}`} className="flex items-center gap-1.5 text-xs bg-muted rounded px-2 py-1">
+                    <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <span className="truncate flex-1">{att.filename || att.name}</span>
+                    <span className="text-muted-foreground shrink-0">{att.size ? formatFileSize(att.size) : ""}</span>
+                    <button
+                      onClick={() => update({ existingAttachments: (compose.existingAttachments || []).filter((_: any, i: number) => i !== idx) })}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             {compose.attachments.length > 0 && (
               <div className="space-y-0.5">
                 {compose.attachments.map((att, idx) => (
@@ -898,55 +941,135 @@ const RecipientField = ({
   setContactSearch: (s: string) => void;
   contacts: Array<{ id: string; displayName: string; company_name?: string | null; first_name?: string | null; emails: { email: string }[] }>;
   addEmail: (email: string) => void;
-}) => (
-  <div className="flex gap-1">
-    <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="h-8 text-sm flex-1" />
-    <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="icon" className="h-8 w-8 shrink-0">
-          <Users className="h-3.5 w-3.5" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-72 p-0" align="end">
-        <div className="p-2 border-b">
-          <div className="relative">
-            <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input placeholder="Kontakt suchen..." value={contactSearch} onChange={(e) => setContactSearch(e.target.value)} className="h-7 pl-7 text-sm" />
-          </div>
-        </div>
-        <ScrollArea className="max-h-48">
-          {contacts.length === 0 ? (
-            <p className="p-3 text-sm text-muted-foreground text-center">Keine Kontakte gefunden</p>
-          ) : (
-            contacts.map((contact) => (
-              <div key={contact.id} className="border-b last:border-0">
-                <div className="px-3 pt-1.5 pb-0.5">
-                  <span className="text-xs font-medium">{contact.displayName}</span>
-                  {contact.company_name && contact.first_name && (
-                    <span className="text-[10px] text-muted-foreground ml-1">({contact.company_name})</span>
+}) => {
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  const lastSegment = (value.split(",").pop() || "").trim();
+
+  const suggestions = useMemo(() => {
+    const q = lastSegment.toLowerCase();
+    if (q.length < 1) return [];
+    const already = new Set(value.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean));
+    const out: { email: string; name: string; company?: string | null }[] = [];
+    for (const c of contacts) {
+      for (const e of c.emails) {
+        const em = e.email.toLowerCase();
+        if (already.has(em)) continue;
+        const matches =
+          em.includes(q) ||
+          c.displayName.toLowerCase().includes(q) ||
+          (c.company_name || "").toLowerCase().includes(q);
+        if (matches) {
+          out.push({ email: e.email, name: c.displayName, company: c.company_name });
+          if (out.length >= 8) return out;
+        }
+      }
+    }
+    return out;
+  }, [lastSegment, contacts, value]);
+
+  const replaceLastSegment = (email: string) => {
+    const parts = value.split(",");
+    parts.pop();
+    const prefix = parts.map((p) => p.trim()).filter(Boolean).join(", ");
+    onChange((prefix ? prefix + ", " : "") + email + ", ");
+    setSuggestionsOpen(false);
+    setActiveIdx(0);
+  };
+
+  return (
+    <div className="flex gap-1">
+      <div className="relative flex-1">
+        <Input
+          value={value}
+          onChange={(e) => { onChange(e.target.value); setSuggestionsOpen(true); setActiveIdx(0); }}
+          onFocus={() => setSuggestionsOpen(true)}
+          onBlur={() => setTimeout(() => setSuggestionsOpen(false), 150)}
+          onKeyDown={(e) => {
+            if (!suggestionsOpen || suggestions.length === 0) return;
+            if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx((i) => Math.min(i + 1, suggestions.length - 1)); }
+            else if (e.key === "ArrowUp") { e.preventDefault(); setActiveIdx((i) => Math.max(i - 1, 0)); }
+            else if (e.key === "Enter" || e.key === "Tab") {
+              const s = suggestions[activeIdx];
+              if (s) { e.preventDefault(); replaceLastSegment(s.email); }
+            } else if (e.key === "Escape") { setSuggestionsOpen(false); }
+          }}
+          placeholder={placeholder}
+          className="h-8 text-sm w-full"
+        />
+        {suggestionsOpen && suggestions.length > 0 && (
+          <div className="absolute left-0 right-0 top-full mt-1 z-[70] bg-popover border border-border rounded-md shadow-lg max-h-64 overflow-y-auto">
+            {suggestions.map((s, idx) => (
+              <button
+                key={s.email + idx}
+                type="button"
+                className={cn(
+                  "w-full flex flex-col items-start px-3 py-1.5 text-left hover:bg-muted/60 transition-colors",
+                  idx === activeIdx && "bg-muted/60",
+                )}
+                onMouseDown={(e) => { e.preventDefault(); replaceLastSegment(s.email); }}
+                onMouseEnter={() => setActiveIdx(idx)}
+              >
+                <span className="text-xs font-medium truncate w-full">
+                  {s.name}
+                  {s.company && s.company !== s.name && (
+                    <span className="text-muted-foreground font-normal ml-1">({s.company})</span>
                   )}
+                </span>
+                <span className="text-[11px] text-muted-foreground truncate w-full">{s.email}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="icon" className="h-8 w-8 shrink-0">
+            <Users className="h-3.5 w-3.5" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-72 p-0" align="end">
+          <div className="p-2 border-b">
+            <div className="relative">
+              <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input placeholder="Kontakt suchen..." value={contactSearch} onChange={(e) => setContactSearch(e.target.value)} className="h-7 pl-7 text-sm" />
+            </div>
+          </div>
+          <ScrollArea className="max-h-48">
+            {contacts.length === 0 ? (
+              <p className="p-3 text-sm text-muted-foreground text-center">Keine Kontakte gefunden</p>
+            ) : (
+              contacts.map((contact) => (
+                <div key={contact.id} className="border-b last:border-0">
+                  <div className="px-3 pt-1.5 pb-0.5">
+                    <span className="text-xs font-medium">{contact.displayName}</span>
+                    {contact.company_name && contact.first_name && (
+                      <span className="text-[10px] text-muted-foreground ml-1">({contact.company_name})</span>
+                    )}
+                  </div>
+                  {contact.emails.map((ce) => (
+                    <button
+                      key={ce.email}
+                      className="w-full flex items-center gap-2 px-3 py-1 text-left hover:bg-muted/50 transition-colors"
+                      onClick={() => {
+                        addEmail(ce.email);
+                        if (contact.emails.length === 1) setPickerOpen(false);
+                      }}
+                    >
+                      <Checkbox checked={value.split(",").map((e) => e.trim()).includes(ce.email)} className="h-3 w-3" />
+                      <span className="text-xs text-muted-foreground truncate">{ce.email}</span>
+                    </button>
+                  ))}
                 </div>
-                {contact.emails.map((ce) => (
-                  <button
-                    key={ce.email}
-                    className="w-full flex items-center gap-2 px-3 py-1 text-left hover:bg-muted/50 transition-colors"
-                    onClick={() => {
-                      addEmail(ce.email);
-                      if (contact.emails.length === 1) setPickerOpen(false);
-                    }}
-                  >
-                    <Checkbox checked={value.split(",").map((e) => e.trim()).includes(ce.email)} className="h-3 w-3" />
-                    <span className="text-xs text-muted-foreground truncate">{ce.email}</span>
-                  </button>
-                ))}
-              </div>
-            ))
-          )}
-        </ScrollArea>
-      </PopoverContent>
-    </Popover>
-  </div>
-);
+              ))
+            )}
+          </ScrollArea>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+};
 
 const ScheduleButton = ({
   compose, update, open, setOpen,
