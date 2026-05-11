@@ -349,8 +349,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   accounts.forEach((acc) => {
     const section = acc.settlement_section;
     if (!section) return;
+    // Inline-Toggle "Abrechnungsrelevant" hat Vorrang:
+    //  - explizit false  → immer ausblenden (auch wenn Saldo ≠ 0)
+    //  - explizit true   → immer anzeigen (auch wenn Saldo = 0)
+    //  - null/undefined  → Default: nur anzeigen wenn Saldo ≠ 0 (bzw. Reserve)
+    const billingFlag = (acc as any).is_billing_relevant;
+    if (billingFlag === false) return;
     const total = getAccountBookingTotal(acc.id);
-    if (Math.abs(total) < 0.005 && section !== "reserve") return; // Show reserve even if 0
+    if (billingFlag !== true && Math.abs(total) < 0.005 && section !== "reserve") return;
     if (!sectionAccounts[section]) sectionAccounts[section] = [];
     sectionAccounts[section].push({
       ...acc,
