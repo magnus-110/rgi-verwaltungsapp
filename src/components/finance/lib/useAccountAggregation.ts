@@ -161,7 +161,7 @@ export function useAccountAggregation({
     });
 
     return orderedCats.map((cat) => ({ category: cat, accounts: byCat[cat] }));
-  }, [accounts, bookingsByAccount, showAllAccounts]);
+  }, [accounts, bookingsByAccount, balanceByAccount, showAllAccounts]);
 
   return { grouped, bookingsByAccount, balanceByAccount, accounts };
 }
