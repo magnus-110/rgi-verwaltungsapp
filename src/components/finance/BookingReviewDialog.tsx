@@ -339,13 +339,26 @@ export function BookingReviewDialog({
                 </div>
               </div>
             ) : (
-              <div className="flex-1 flex items-center justify-center p-8">
-                <div className="text-center max-w-sm">
-                  <FileText className="h-12 w-12 text-muted-foreground/50 mx-auto mb-3" />
-                  <p className="font-medium text-sm mb-1">Kein Beleg verknüpft</p>
-                  <p className="text-sm text-muted-foreground">
-                    Mit dieser Buchung ist weder eine Rechnung noch eine Buchungsvorlage verknüpft.
-                  </p>
+              <div className="flex-1 overflow-y-auto p-8">
+                <div className="max-w-xl mx-auto space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Check className="h-6 w-6 text-green-600" />
+                    <h3 className="text-lg font-semibold">Kein Beleg erforderlich ✓</h3>
+                  </div>
+                  <div className="rounded-lg border bg-card p-4 text-sm space-y-3">
+                    <p>
+                      Diese Buchung ist <strong>belegfrei</strong> – das ist völlig korrekt und kein Hinweis auf einen Fehler.
+                      Belegfreie Buchungen entstehen typischerweise bei:
+                    </p>
+                    <ul className="list-disc pl-5 space-y-1.5 text-muted-foreground">
+                      <li><strong className="text-foreground">Eröffnungsbuchungen</strong> – Übernahme von Anfangsbeständen zum Jahresbeginn</li>
+                      <li><strong className="text-foreground">Interne Umbuchungen</strong> – Umlage zwischen eigenen Konten ohne externen Zahlungsfluss</li>
+                      <li><strong className="text-foreground">Bestandsbuchungen</strong> – Werterfassung von Vorräten (z. B. Heizöl, Brennstoff)</li>
+                      <li><strong className="text-foreground">Korrekturbuchungen</strong> – Berichtigung von Buchungsfehlern ohne neuen Beleg</li>
+                      <li><strong className="text-foreground">Rücklagenbildung</strong> – Zuweisung in die Instandhaltungsrücklage</li>
+                      <li><strong className="text-foreground">Abschlussbuchungen</strong> – Jahresabschluss- und Übertragsbuchungen</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             )}
