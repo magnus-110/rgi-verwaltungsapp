@@ -113,15 +113,22 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
   useEffect(() => {
     if (open && booking) {
       setSaving(false);
+      // Defensive: falls eine "counter"-Anzeigekopie aus AccountPlanView ankommt,
+      // ist booking_type dort gedreht. Für die Bearbeitung IMMER zurückdrehen,
+      // damit Speichern nicht das Vorzeichen invertiert.
+      const isCounterCopy = (booking as any)._side === "counter";
+      const realBookingType = isCounterCopy
+        ? (booking.booking_type === "income" ? "expense" : "income")
+        : (booking.booking_type
+            ? booking.booking_type
+            : (Number(booking.amount) < 0 ? "income" : "expense"));
       setForm({
         account_id: booking.account_id || "",
         counter_account_id: booking.counter_account_id || "",
         booking_date: booking.booking_date,
         amount: String(Math.abs(booking.amount)),
         description: booking.description || "",
-        booking_type: booking.booking_type
-          ? booking.booking_type
-          : (Number(booking.amount) < 0 ? "income" : "expense"),
+        booking_type: realBookingType,
         receipt_number: booking.receipt_number || "",
         booking_reference: booking.booking_reference || "",
         vat_rate: String(booking.vat_rate ?? 19),
