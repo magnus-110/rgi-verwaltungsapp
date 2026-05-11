@@ -134,9 +134,8 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
                     <button
                       className={cn(
                         "w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/40 transition-colors text-left",
-                        !hasBookings && "opacity-60"
+                        !hasBookings && "opacity-70"
                       )}
-                      disabled={!hasBookings}
                     >
                       {hasBookings ? (
                         isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />

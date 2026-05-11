@@ -127,8 +127,15 @@ export function useAccountAggregation({
     });
 
     const list = Array.from(accMap.values()).filter((a) => {
-      const hasBookings = (bookingsByAccount[a.id]?.length || 0) > 0;
-      return showAllAccounts || hasBookings;
+      const accBookings = bookingsByAccount[a.id] || [];
+      const movement = accBookings.reduce((s, b: any) => {
+        const sign = b.booking_type === "income" ? 1 : -1;
+        return s + sign * Number(b.amount || 0);
+      }, 0);
+      const opening = balanceByAccount[a.id] || 0;
+      const closing = opening + movement;
+      if (showAllAccounts) return true;
+      return Math.abs(closing) >= 0.005;
     });
 
     const byCat: Record<string, any[]> = {};
@@ -154,7 +161,7 @@ export function useAccountAggregation({
     });
 
     return orderedCats.map((cat) => ({ category: cat, accounts: byCat[cat] }));
-  }, [accounts, bookingsByAccount, showAllAccounts]);
+  }, [accounts, bookingsByAccount, balanceByAccount, showAllAccounts]);
 
   return { grouped, bookingsByAccount, balanceByAccount, accounts };
 }
