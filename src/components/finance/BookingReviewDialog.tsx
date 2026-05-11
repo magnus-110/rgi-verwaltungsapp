@@ -154,6 +154,51 @@ export function BookingReviewDialog({
                     {isIncome ? "+" : "−"}{fmt(Math.abs(booking.amount))}
                   </span>
                 } />
+                {isSplit && (
+                  <div className="px-3 py-2 bg-muted/30 space-y-1.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-medium text-foreground">
+                        Splitbuchung {booking.split_part ?? "?"} von {booking.split_parts_total}
+                      </span>
+                      {siblings && siblings.length > 0 && (
+                        <span className="text-muted-foreground">
+                          Gesamt: <span className="font-mono font-semibold text-foreground">
+                            {fmt(siblings.reduce((s, x) => s + Math.abs(Number(x.amount) || 0), 0))}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                    {siblingsLoading && (
+                      <div className="text-xs text-muted-foreground italic">Lade Splitteile…</div>
+                    )}
+                    {siblings && siblings.length > 0 && (
+                      <ul className="space-y-0.5">
+                        {siblings.map((s) => {
+                          const isCurrent = s.id === booking.id;
+                          const sIncome = s.booking_type === "income";
+                          const acct = s.chart_of_accounts;
+                          return (
+                            <li
+                              key={s.id}
+                              className={cn(
+                                "flex justify-between items-baseline gap-3 text-xs tabular-nums",
+                                isCurrent ? "font-medium text-foreground" : "opacity-[0.38]"
+                              )}
+                            >
+                              <span className="truncate">
+                                Teil {s.split_part ?? "?"}
+                                {acct ? ` · ${acct.account_number} ${acct.account_name}` : ""}
+                              </span>
+                              <span className={cn("font-mono whitespace-nowrap", sIncome ? "text-green-700" : "text-red-700")}>
+                                {sIncome ? "+" : "−"}{fmt(Math.abs(Number(s.amount) || 0))}
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                )}
                 <Row label="Buchungstext" value={<span className="text-right">{booking.description || "–"}</span>} />
                 {acc && <Row label="Konto" value={<span className="text-right">{acc.account_number} {acc.account_name}</span>} />}
                 {counter && <Row label="Gegenkonto" value={<span className="text-right">{counter.account_number} {counter.account_name}</span>} />}
