@@ -303,13 +303,8 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
           <TabsTrigger variant="underline" value="konten">Kontenblätter</TabsTrigger>
           <TabsTrigger variant="underline" value="journal">Buchungsjournal</TabsTrigger>
           <TabsTrigger variant="underline" value="dokumente">Dokumente</TabsTrigger>
-          <TabsTrigger variant="underline" value="hinweise" className="gap-1.5">
-            Hinweise vom Verwalter
-            {adminNotes.length > 0 && (
-              <Badge variant="secondary" className="h-4 px-1.5 text-[10px] bg-amber-100 text-amber-900 border-amber-200">
-                {adminNotes.length}
-              </Badge>
-            )}
+          <TabsTrigger variant="underline" value="hinweise">
+            Hinweise
           </TabsTrigger>
         </TabsList>
 
@@ -352,9 +347,9 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
           {adminNotes.length > 0 ? (
             <div className="space-y-3 mt-4">
               {adminNotes.map((n: any) => (
-                <div key={n.id} className="bg-amber-50/60 rounded-lg p-4 border border-amber-200">
-                  <p className="font-medium text-sm text-amber-900">{n.title}</p>
-                  <p className="text-sm text-foreground/80 whitespace-pre-wrap mt-1">{n.body}</p>
+                <div key={n.id} className="rounded-lg p-4 border bg-card">
+                  <p className="font-medium text-sm">{n.title}</p>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap mt-1">{n.body}</p>
                 </div>
               ))}
             </div>
