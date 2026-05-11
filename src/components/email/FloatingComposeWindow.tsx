@@ -450,6 +450,10 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         queryClient.invalidateQueries({ queryKey: ["scheduled-mails-virtual"] });
       }
 
+      const mergedSendAttachments = [
+        ...((compose.existingAttachments as any[]) || []),
+        ...attachmentData,
+      ];
       const { error } = await supabase.functions.invoke("send-email", {
         body: {
           account_id: compose.accountId,
@@ -459,7 +463,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           subject: compose.subject,
           body_text: compose.bodyText,
           body_html: combinedHtml || undefined,
-          attachments: attachmentData.length ? attachmentData : undefined,
+          attachments: mergedSendAttachments.length ? mergedSendAttachments : undefined,
           in_reply_to: compose.replyTo?.message_id || undefined,
           reply_to_email_id: compose.replyTo?.id || undefined,
         },
