@@ -440,7 +440,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                 <Input data-booking-desc className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} onKeyDown={handleEnterToNext} placeholder="z. B. 09/25 Hausmeister Markus Gschwend, Re. Nr. 8824748" required />
               </div>
               <p className="text-[11px] text-muted-foreground mt-1">
-                Format: <span className="font-mono">[Buchungskürzel]</span> Gegenkonto <span className="font-mono">[Lieferant]</span>, <span className="font-mono">Re. Nr. [Nr.]</span> — Buchungskürzel, Lieferant &amp; Re.-Nr. optional, Gegenkonto immer dabei.
+                Format: <em>Buchungskürzel</em> Gegenkonto <em>Lieferant</em> <em>Re. Nr.</em>
               </p>
             </div>
 
