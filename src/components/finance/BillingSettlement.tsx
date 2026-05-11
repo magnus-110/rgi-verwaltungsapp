@@ -1034,6 +1034,18 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                   </TableCell>
                 </TableRow>
               ))}
+              <TableRow className="border-t-2 bg-muted/30">
+                <TableCell colSpan={2} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Abschnittsaldo {SECTION_LABELS[section] || section}
+                </TableCell>
+                <TableCell className="text-right font-mono text-sm font-semibold text-muted-foreground">
+                  {wpTotal > 0 ? formatCurrency(wpTotal) : "–"}
+                </TableCell>
+                <TableCell className="text-right text-sm font-semibold">{renderSigned(signedTotal)}</TableCell>
+                <TableCell className="text-right font-mono text-sm font-semibold">
+                  {distTotal > 0 ? formatCurrency(distTotal) : "–"}
+                </TableCell>
+              </TableRow>
             </TableBody>
           </Table>
         </CollapsibleContent>
