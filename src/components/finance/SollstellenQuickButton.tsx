@@ -40,7 +40,18 @@ interface Props {
 const parseDe = (v: string | number | null | undefined): number => {
   if (v == null) return 0;
   if (typeof v === "number") return v;
-  return parseFloat(String(v).replace(/\./g, "").replace(",", ".")) || 0;
+  const s = String(v).trim();
+  if (!s) return 0;
+  // Wenn beide Trenner vorkommen → "." = Tausender, "," = Dezimal (de)
+  if (s.includes(",") && s.includes(".")) {
+    return parseFloat(s.replace(/\./g, "").replace(",", ".")) || 0;
+  }
+  // Nur Komma → Dezimaltrenner
+  if (s.includes(",")) {
+    return parseFloat(s.replace(",", ".")) || 0;
+  }
+  // Nur Punkt → schon im JS-Number-Format (z. B. "138.11")
+  return parseFloat(s) || 0;
 };
 
 const formatDe = (n: number) =>
