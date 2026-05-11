@@ -231,6 +231,63 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     })();
   }, [accounts, compose.accountId, update]);
 
+  // When forwarding an email, load its (non-inline) attachments once and stage
+  // them as existingAttachments so they are visible in the UI and forwarded
+  // along with the message.
+  const forwardAttsLoadedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const fwdId = compose.forward?.email_id;
+    if (!fwdId) return;
+    if (forwardAttsLoadedRef.current === fwdId) return;
+    if ((compose.existingAttachments?.length || 0) > 0) {
+      forwardAttsLoadedRef.current = fwdId;
+      return;
+    }
+    forwardAttsLoadedRef.current = fwdId;
+    (async () => {
+      try {
+        const { data: atts, error } = await supabase
+          .from("email_attachments")
+          .select("file_name, file_path, file_size, mime_type")
+          .eq("email_id", fwdId)
+          .eq("is_inline", false);
+        if (error) throw error;
+        if (!atts || atts.length === 0) return;
+        const loaded = await Promise.all(
+          atts
+            .filter((a) => a.file_path)
+            .map(async (a) => {
+              const { data: blob, error: dlErr } = await supabase.storage
+                .from("email-attachments")
+                .download(a.file_path!);
+              if (dlErr || !blob) return null;
+              const buf = await blob.arrayBuffer();
+              let binary = "";
+              const bytes = new Uint8Array(buf);
+              const chunk = 0x8000;
+              for (let i = 0; i < bytes.length; i += chunk) {
+                binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)) as any);
+              }
+              const content = btoa(binary);
+              return {
+                filename: a.file_name,
+                content,
+                contentType: a.mime_type || "application/octet-stream",
+                size: a.file_size || bytes.length,
+              };
+            }),
+        );
+        const valid = loaded.filter((x): x is NonNullable<typeof x> => !!x);
+        if (valid.length > 0) {
+          update({ existingAttachments: valid });
+        }
+      } catch (err) {
+        console.error("Failed to load forwarded attachments:", err);
+        toast.error("Anhänge der Original-Mail konnten nicht geladen werden");
+      }
+    })();
+  }, [compose.forward?.email_id, compose.existingAttachments?.length, update]);
+
   // Insert signature on account change (preserving quoted text after signature)
   const prevAccountRef = useRef<string>("");
   useEffect(() => {
@@ -393,6 +450,10 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         queryClient.invalidateQueries({ queryKey: ["scheduled-mails-virtual"] });
       }
 
+      const mergedSendAttachments = [
+        ...((compose.existingAttachments as any[]) || []),
+        ...attachmentData,
+      ];
       const { error } = await supabase.functions.invoke("send-email", {
         body: {
           account_id: compose.accountId,
@@ -402,7 +463,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           subject: compose.subject,
           body_text: compose.bodyText,
           body_html: combinedHtml || undefined,
-          attachments: attachmentData.length ? attachmentData : undefined,
+          attachments: mergedSendAttachments.length ? mergedSendAttachments : undefined,
           in_reply_to: compose.replyTo?.message_id || undefined,
           reply_to_email_id: compose.replyTo?.id || undefined,
         },
