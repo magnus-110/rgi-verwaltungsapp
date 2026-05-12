@@ -33,6 +33,7 @@ export interface BookingRow {
   amount: number | string;
   amount_35a: number | string | null;
   is_35a_relevant: boolean | null;
+  settlement_35a_type?: Type35a | string | null;
   account_id: string | null;
   counter_account_id: string | null;
   invoice_id?: string | null;
