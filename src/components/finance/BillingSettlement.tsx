@@ -854,8 +854,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     carryAccountsList,
   });
 
-  const triggerDownload = (bytes: ArrayBuffer, filename: string, mime: string) => {
-    const blob = new Blob([bytes], { type: mime });
+  const triggerDownload = (bytes: ArrayBuffer | Uint8Array | Blob, filename: string, mime: string) => {
+    const blob = bytes instanceof Blob ? bytes : new Blob([bytes as BlobPart], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = filename; a.click();
