@@ -323,10 +323,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   );
 
   const blocks = useMemo(
-    () =>
-      buildAccountBlocks(bookings, accountsMap, owners, shareCtx).filter(
-        (bl) => Math.abs(bl.totalLabor) > 0,
-      ),
+    () => buildAccountBlocks(bookings, accountsMap, owners, shareCtx),
     [bookings, accountsMap, owners, shareCtx],
   );
 
