@@ -110,10 +110,13 @@ export const FloatingComposeWindow = () => {
 // =====================================================================
 // Minimized stack at the bottom-right (Gmail-style horizontal bars)
 // =====================================================================
-const MinimizedStack = ({ composes }: { composes: ComposeState[] }) => {
+const MinimizedStack = ({ composes, offsetRight = 16 }: { composes: ComposeState[]; offsetRight?: number }) => {
   const { setMode, closeCompose } = useComposeEmail();
   return (
-    <div className="fixed bottom-0 right-4 z-50 flex flex-row-reverse gap-2 pointer-events-none">
+    <div
+      className="fixed bottom-0 z-50 flex flex-row-reverse gap-2 pointer-events-none"
+      style={{ right: `${offsetRight}px` }}
+    >
       {composes.map((c) => (
         <div
           key={c.id}
