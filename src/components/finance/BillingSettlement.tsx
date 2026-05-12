@@ -93,6 +93,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const [ownerSearch, setOwnerSearch] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(SECTION_ORDER));
   const [useIstVorschuss, setUseIstVorschuss] = useState(false);
+  const [showZeroBalanceAccounts, setShowZeroBalanceAccounts] = useState(false);
 
   // Period
   const { data: period } = useQuery({
