@@ -84,6 +84,14 @@ export interface BillingPayloadInputs {
       signedFactor: number;
     }>;
   }>;
+  // Optional: Per-Konto Liste der Bestandskonten (Bank, Rücklage, Brennstoff, Vorauszahlungen, Sonstige)
+  carryAccountsList?: Array<{
+    account_number: string;
+    account_name: string;
+    opening: number;
+    closing: number;
+    category: "bank" | "reserve" | "fuel" | "prepay" | "other";
+  }>;
   // Optional: Eigentümer-Stammdaten (aus contact_building_assignments) — adresse, anrede etc.
   assignmentsById?: Record<string, any>;
 }
