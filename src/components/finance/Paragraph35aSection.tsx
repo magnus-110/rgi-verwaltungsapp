@@ -27,7 +27,7 @@ import {
   getMainOwners,
   getStellplatzCountByContact,
   ownerDisplayName,
-  
+  splitLaborByType,
   DISTRIBUTION_LABELS,
 } from "./lib/paragraph35aDistribution";
 import {
