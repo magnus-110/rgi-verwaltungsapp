@@ -502,6 +502,36 @@ export type Database = {
           },
         ]
       }
+      billing_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          management_mode: string
+          name: string
+          scope: string
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          management_mode?: string
+          name: string
+          scope?: string
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          management_mode?: string
+          name?: string
+          scope?: string
+          storage_path?: string
+        }
+        Relationships: []
+      }
       billing_validations: {
         Row: {
           actual_value: number | null
