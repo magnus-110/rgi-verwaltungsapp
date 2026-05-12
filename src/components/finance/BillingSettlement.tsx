@@ -1110,19 +1110,28 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button size="sm" variant="outline" onClick={calculateClosingBalances} disabled={calculatingSalden}>
-            {calculatingSalden ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Calculator className="h-4 w-4 mr-1" />}
-            Salden berechnen
-          </Button>
-          <Button size="sm" variant="outline" onClick={generateAiSummary} disabled={generatingAiSummary}>
-            {generatingAiSummary ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
-            KI-Zusammenfassung
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => downloadBilling("overall", "docx")} disabled={busyDownload === "overall"}>
-            {busyDownload === "overall" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
-            DOCX Gesamtabrechnung
-          </Button>
-            </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" disabled={busyDownload === "overall"}>
+                {busyDownload === "overall" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
+                Gesamtabrechnung herunterladen
+                <ChevronDown className="h-4 w-4 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => downloadBilling("overall", "docx")}>
+                <FileType className="h-4 w-4 mr-2" /> DOCX
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => downloadBilling("overall", "pdf")}>
+                <FileText className="h-4 w-4 mr-2" /> PDF
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setTemplatesOpen(true)}>
+                <Settings2 className="h-4 w-4 mr-2" /> Vorlagen verwalten
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
