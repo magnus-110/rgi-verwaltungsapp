@@ -190,6 +190,51 @@ export function getGesamtbetrag(b: BookingRow): number {
   return Math.abs(Number(b.amount)) || 0;
 }
 
+/**
+ * Aufteilung des Lohnanteils einer Buchung in Dienstleister vs. Handwerker.
+ * Quelle:
+ *  1) `invoices.line_items_detail[]` mit gesetztem `is_35a` und `type_35a` (Brutto = Netto * (1+VAT)).
+ *  2) Fallback: gesamter Lohnanteil auf `chart_of_accounts.settlement_35a_type` des Aufwandskontos.
+ *  3) Fallback: alles als "dienste".
+ */
+export function splitLaborByType(
+  b: BookingRow,
+  account: AccountInfo | undefined,
+): { dienste: number; handwerker: number } {
+  const labor = getLohnanteil(b);
+  if (labor === 0) return { dienste: 0, handwerker: 0 };
+
+  const detail = b.invoices?.line_items_detail;
+  if (Array.isArray(detail) && detail.length > 0) {
+    const vatRate = Number(b.invoices?.vat_rate ?? account?.default_vat_rate ?? 19);
+    const factor = vatRate > 0 ? 1 + vatRate / 100 : 1;
+    let netDienste = 0;
+    let netHandwerker = 0;
+    for (const it of detail) {
+      if (!it?.is_35a) continue;
+      const net = Math.abs(Number(it.amount) || 0);
+      if (net === 0) continue;
+      const t = it.type_35a === "handwerker" ? "handwerker" : "dienste";
+      if (t === "handwerker") netHandwerker += net;
+      else netDienste += net;
+    }
+    const grossDienste = netDienste * factor;
+    const grossHandwerker = netHandwerker * factor;
+    const sum = grossDienste + grossHandwerker;
+    if (sum > 0) {
+      return {
+        dienste: labor * (grossDienste / sum),
+        handwerker: labor * (grossHandwerker / sum),
+      };
+    }
+  }
+
+  const t = account?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste";
+  return t === "handwerker"
+    ? { dienste: 0, handwerker: labor }
+    : { dienste: labor, handwerker: 0 };
+}
+
 export interface AccountBlock {
   account: AccountInfo;
   key: string;
