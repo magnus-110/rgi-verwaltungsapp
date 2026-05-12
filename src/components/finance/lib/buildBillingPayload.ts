@@ -137,7 +137,13 @@ function ownerSal(assignment: any) {
  * Baut ein Payload für die Gesamtabrechnung.
  */
 export function buildOverallPayload(inp: BillingPayloadInputs) {
-  const { building, period, fiscalYear, sectionAccounts, totals, ownerResults } = inp;
+  const { building, period, fiscalYear, sectionAccounts, totals, ownerResults, carryAccountsList = [] } = inp;
+  const bestaende_anfang = carryAccountsList
+    .filter((a) => Math.abs(a.opening) > 0.005)
+    .map((a) => ({ konto_nr: a.account_number, konto_name: a.account_name, betrag: fmtEUR(a.opening), kategorie: a.category }));
+  const bestaende_ende = carryAccountsList
+    .filter((a) => Math.abs(a.closing) > 0.005)
+    .map((a) => ({ konto_nr: a.account_number, konto_name: a.account_name, betrag: fmtEUR(a.closing), kategorie: a.category }));
   return {
     document_title: "Jahresabrechnung — Gesamt",
     gebaeude_name: building?.name || "",
