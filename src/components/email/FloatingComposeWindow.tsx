@@ -378,13 +378,35 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       const toAddresses = compose.to.split(",").map((e) => e.trim()).filter(Boolean);
       const ccAddresses = compose.cc ? compose.cc.split(",").map((e) => e.trim()).filter(Boolean) : [];
       const bccAddresses = compose.bcc ? compose.bcc.split(",").map((e) => e.trim()).filter(Boolean) : [];
+      // Upload large attachments (>1MB) to storage to avoid edge function payload/memory limits.
+      // Smaller files go inline as base64 for backwards compatibility.
+      const INLINE_LIMIT = 1024 * 1024; // 1 MB
       const attachmentData = await Promise.all(
-        compose.attachments.map(async (att) => ({
-          filename: att.name,
-          content: await fileToBase64(att.file),
-          contentType: att.file.type || "application/octet-stream",
-          size: att.size,
-        })),
+        compose.attachments.map(async (att) => {
+          if (att.file.size > INLINE_LIMIT) {
+            const safeName = att.name.replace(/[^\w.\-]+/g, "_");
+            const storagePath = `outgoing/${crypto.randomUUID()}/${safeName}`;
+            const { error: upErr } = await supabase.storage
+              .from("email-attachments")
+              .upload(storagePath, att.file, {
+                contentType: att.file.type || "application/octet-stream",
+                upsert: false,
+              });
+            if (upErr) throw new Error(`Upload fehlgeschlagen (${att.name}): ${upErr.message}`);
+            return {
+              filename: att.name,
+              storage_path: storagePath,
+              contentType: att.file.type || "application/octet-stream",
+              size: att.size,
+            };
+          }
+          return {
+            filename: att.name,
+            content: await fileToBase64(att.file),
+            contentType: att.file.type || "application/octet-stream",
+            size: att.size,
+          };
+        }),
       );
 
       // Build combined HTML for forwards: user's new text on top + original HTML below
