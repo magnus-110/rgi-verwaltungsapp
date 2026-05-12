@@ -2403,7 +2403,10 @@ function BookingRowCard({
                   counterAccountName={accounts.find((a: any) => a.id === row.counter_account_id)?.account_name || null}
                   existingText={row.description}
                   preserveExistingText={false}
-                  onApply={(text) => onUpdateField("description", text)}
+                  onApply={(text) => {
+                    onUpdateField("description", text);
+                    onUpdateField("__autoTextSignature", text);
+                  }}
                   onCommit={() => focusFieldByName("description")}
                   onSkip={() => focusFieldByName("description")}
                 />
