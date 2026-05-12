@@ -783,7 +783,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const newAuto = buildAutoTextForRow(next);
         const vendorFromTxn = currentTxn ? (currentTxn.amount < 0 ? currentTxn.creditor_name : currentTxn.debtor_name) : null;
         const rebuilt = rebuildBookingTextIfAuto(next.description, next.__autoTextSignature, {
-          period: formatMonthYearRef(next.booking_date),
+          period: null,
           invoiceNumber: next.receipt_number || (invoiceDetail as any)?.invoice_number || null,
           vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || vendorFromTxn || null),
           counterAccountName: accounts.find((a: any) => a.id === next.counter_account_id)?.account_name || null,
