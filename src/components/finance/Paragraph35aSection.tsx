@@ -100,11 +100,13 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     },
   });
 
-  // Strict filter: must have amount_35a > 0 OR is_35a_relevant
+  // Strict filter: must have a positive labor amount (amount_35a > 0).
+  // is_35a_relevant alleine reicht NICHT — sonst tauchen Konten wie "Streusalz"
+  // mit 0,00 € Lohnanteil in der Bescheinigung auf.
   const bookings = useMemo(
     () =>
       bookingsRaw.filter(
-        (b) => b.is_35a_relevant === true || (b.amount_35a != null && Number(b.amount_35a) !== 0),
+        (b) => b.amount_35a != null && Math.abs(Number(b.amount_35a)) > 0,
       ),
     [bookingsRaw],
   );
