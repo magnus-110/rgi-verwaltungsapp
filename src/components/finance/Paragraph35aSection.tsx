@@ -190,8 +190,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
         )
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
-        .neq("status", "cancelled")
-        .or("is_35a_relevant.eq.true,amount_35a.not.is.null");
+        .eq("is_35a_relevant", true);
       if (error) throw error;
       return (data || []) as unknown as BookingRow[];
     },
