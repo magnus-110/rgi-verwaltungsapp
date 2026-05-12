@@ -796,6 +796,7 @@ export type Database = {
           performance_period_to: string | null
           receipt_number: string | null
           review_note: string | null
+          settlement_35a_type: string | null
           source: string
           source_line_index: number | null
           split_part: number | null
@@ -833,6 +834,7 @@ export type Database = {
           performance_period_to?: string | null
           receipt_number?: string | null
           review_note?: string | null
+          settlement_35a_type?: string | null
           source?: string
           source_line_index?: number | null
           split_part?: number | null
@@ -870,6 +872,7 @@ export type Database = {
           performance_period_to?: string | null
           receipt_number?: string | null
           review_note?: string | null
+          settlement_35a_type?: string | null
           source?: string
           source_line_index?: number | null
           split_part?: number | null
