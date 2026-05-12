@@ -476,7 +476,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       //   "MM/JJ <Gegenkonto> <Lieferant>, Re. Nr. <invoice_number>"
       const invoiceNumber = (invoiceDetail as any)?.invoice_number || null;
       const vendorName = resolveVendor((invoiceDetail as any)?.vendor_name || null);
-      const period = formatMonthYearRef(txnDate);
       const rows: BookingRowData[] = suggestedBookings.map((sb: any, idx: number) => {
         let counterAccountId = "";
         if (sb.account_id) counterAccountId = sb.account_id;
@@ -490,7 +489,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const accountLabel = counterAcc?.account_name || "";
         const receiptNo = sb.receipt_number || invoiceNumber || "";
         const splitDescription = buildBookingText({
-          period,
+          period: null,
           invoiceNumber: receiptNo,
           vendorName,
           counterAccountName: accountLabel,
@@ -574,7 +573,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const _invCounterId = invoiceDetail.suggested_account_id || row.counter_account_id;
         const _invCounter = accounts.find(a => a.id === _invCounterId);
         row.description = buildBookingText({
-          period: formatMonthYearRef(txnDate),
+          period: null,
           invoiceNumber: invoiceDetail.invoice_number,
           vendorName: resolveVendor(invoiceDetail.vendor_name),
           counterAccountName: _invCounter?.account_name || null,
@@ -698,7 +697,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       const _aiCounter = accounts.find((a: any) => a.id === row.counter_account_id);
       const _vendorFromTxn = currentTxn.amount < 0 ? currentTxn.creditor_name : currentTxn.debtor_name;
       const _aiText = buildBookingText({
-        period: formatMonthYearRef(txnDate),
+        period: null,
         invoiceNumber: row.receipt_number || null,
         vendorName: resolveVendor(_vendorFromTxn || null),
         counterAccountName: _aiCounter?.account_name || null,
@@ -756,7 +755,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     const ca = accounts.find((a: any) => a.id === eff.counter_account_id);
     const vendorFromTxn = currentTxn ? (currentTxn.amount < 0 ? currentTxn.creditor_name : currentTxn.debtor_name) : null;
     return buildBookingText({
-      period: formatMonthYearRef(eff.booking_date),
+      period: null,
       invoiceNumber: eff.receipt_number || (invoiceDetail as any)?.invoice_number || null,
       vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || vendorFromTxn || null),
       counterAccountName: ca?.account_name || null,
@@ -784,7 +783,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const newAuto = buildAutoTextForRow(next);
         const vendorFromTxn = currentTxn ? (currentTxn.amount < 0 ? currentTxn.creditor_name : currentTxn.debtor_name) : null;
         const rebuilt = rebuildBookingTextIfAuto(next.description, next.__autoTextSignature, {
-          period: formatMonthYearRef(next.booking_date),
+          period: null,
           invoiceNumber: next.receipt_number || (invoiceDetail as any)?.invoice_number || null,
           vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || vendorFromTxn || null),
           counterAccountName: accounts.find((a: any) => a.id === next.counter_account_id)?.account_name || null,
@@ -829,7 +828,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       }, 0);
       const ca = accounts.find((a: any) => a.id === r.counter_account_id);
       const rebuilt = rebuildBookingTextIfAuto(r.description, r.__autoTextSignature, {
-        period: formatMonthYearRef(r.booking_date),
+        period: null,
         invoiceNumber: r.receipt_number || (invoiceDetail as any)?.invoice_number || null,
         vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || null),
         counterAccountName: ca?.account_name || null,
@@ -873,10 +872,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     // Vorbefüllung aus invoiceDetail, damit jeder Split automatisch
     // Re.Nr. + Lieferant + Periode im Buchungstext hat (RGI-Schema).
     const inv: any = invoiceDetail || null;
-    const period = formatMonthYearRef(currentTxn?.booking_date);
     const receiptNo = inv?.invoice_number || "";
     const autoText = buildBookingText({
-      period,
+      period: null,
       invoiceNumber: receiptNo,
       vendorName: resolveVendor(inv?.vendor_name || null),
       counterAccountName: null,
@@ -1760,13 +1758,13 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                             // Apply invoice assignment to ALL rows (split-safe). Update auto-text if not user-edited.
                             const _ca = accounts.find((a: any) => a.id === (r.counter_account_id || inv.suggested_account_id));
                             const newAutoText = buildBookingText({
-                              period: formatMonthYearRef(currentTxn?.booking_date),
+                              period: null,
                               invoiceNumber: inv.invoice_number,
                               vendorName: resolveVendor(inv.vendor_name),
                               counterAccountName: _ca?.account_name || null,
                             });
                             const rebuilt = rebuildBookingTextIfAuto(r.description, r.__autoTextSignature, {
-                              period: formatMonthYearRef(currentTxn?.booking_date),
+                              period: null,
                               invoiceNumber: inv.invoice_number,
                               vendorName: resolveVendor(inv.vendor_name),
                               counterAccountName: _ca?.account_name || null,
@@ -2406,8 +2404,12 @@ function BookingRowCard({
                 />
                 <Input ref={el => fieldRefs.current["description"] = el} className="h-9 text-sm"
                   value={row.description} onChange={e => onUpdateField("description", e.target.value)}
-                  onKeyDown={e => handleEnterNavigation(e, "description")} />
+                  onKeyDown={e => handleEnterNavigation(e, "description")}
+                  placeholder="z. B. 09/25 Hausmeister Markus Gschwend, Re. Nr. 8824748" />
               </div>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Format: <em>Buchungskürzel</em> Gegenkonto <em>Lieferant</em> <em>Re. Nr.</em>
+              </p>
             </div>
 
             {/* Compact row */}
