@@ -146,15 +146,20 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   });
 
   const { data: accounts = [] } = useQuery({
-    queryKey: ["chart-of-accounts-list"],
+    queryKey: ["chart-of-accounts-list", form.building_id ?? "all"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("chart_of_accounts")
-        .select("id, account_number, account_name")
+        .select("id, account_number, account_name, building_id")
         .order("account_number");
+      if (form.building_id) {
+        q = q.or(`building_id.eq.${form.building_id},building_id.is.null`);
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return data;
     },
+    enabled: !!form.building_id,
   });
 
   // Load presets
