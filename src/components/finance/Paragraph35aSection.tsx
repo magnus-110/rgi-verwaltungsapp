@@ -419,26 +419,31 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
       {/* Owner overview */}
       {owners.length > 0 && blocks.length > 0 && (
         <Card>
-          <CardHeader className="py-3 flex flex-row items-center justify-between gap-2">
+          <CardHeader className="py-3 flex flex-row items-center justify-between gap-2 flex-wrap">
             <CardTitle className="text-sm">Bescheinigungen je Eigentümer</CardTitle>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleZip}
-              disabled={!!zipBusy}
-            >
-              {zipBusy ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  {zipBusy.done}/{zipBusy.total}
-                </>
-              ) : (
-                <>
-                  <Package className="h-4 w-4 mr-2" />
-                  Alle als ZIP
-                </>
-              )}
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select value={templateId} onValueChange={setTemplateId}>
+                <SelectTrigger className="h-8 w-[200px] text-xs">
+                  <SelectValue placeholder="Word-Vorlage wählen…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((t: any) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="ghost" onClick={() => setTplDialogOpen(true)} title="Vorlagen verwalten">
+                <Settings className="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => downloadDocx()} disabled={!templateId || !!docxBusy}>
+                {docxBusy === "zip" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileType className="h-4 w-4 mr-2" />}
+                DOCX (ZIP)
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleZip} disabled={!!zipBusy}>
+                {zipBusy ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />{zipBusy.done}/{zipBusy.total}</>)
+                  : (<><Package className="h-4 w-4 mr-2" />PDF (ZIP)</>)}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
