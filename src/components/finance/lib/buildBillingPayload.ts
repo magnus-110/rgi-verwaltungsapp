@@ -195,6 +195,10 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     bestaende_anfang_gesamt: fmtEUR(totals.openingTotal),
     bestaende_ende_gesamt: fmtEUR(totals.closingTotal),
 
+    // Per-Konto-Listen (DOCX-Loops {#bestaende_anfang}/{#bestaende_ende})
+    bestaende_anfang,
+    bestaende_ende,
+
     // Eigentümer-Tabelle (Übersicht)
     eigentuemer: ownerResults.map((o) => ({
       name: o.name,
