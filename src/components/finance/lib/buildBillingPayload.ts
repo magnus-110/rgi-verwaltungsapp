@@ -148,10 +148,10 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
   const { building, period, fiscalYear, sectionAccounts, totals, ownerResults, carryAccountsList = [] } = inp;
   const bestaende_anfang = carryAccountsList
     .filter((a) => Math.abs(a.opening) > 0.005)
-    .map((a) => ({ konto_nr: a.account_number, konto_name: a.account_name, betrag: fmtEUR(a.opening), kategorie: a.category }));
+    .map((a) => ({ konto_nr: a.account_number, konto_name: a.account_name, betrag: fmtEUR(Math.abs(a.opening)), kategorie: a.category }));
   const bestaende_ende = carryAccountsList
     .filter((a) => Math.abs(a.closing) > 0.005)
-    .map((a) => ({ konto_nr: a.account_number, konto_name: a.account_name, betrag: fmtEUR(a.closing), kategorie: a.category }));
+    .map((a) => ({ konto_nr: a.account_number, konto_name: a.account_name, betrag: fmtEUR(Math.abs(a.closing)), kategorie: a.category }));
   // Kombinierte Bestandsentwicklung pro Konto (Anfang + Ende in einer Zeile),
   // Brennstoff bewusst ausgenommen (separat in Vermögensbericht ausgewiesen).
   const carry_accounts = carryAccountsList
@@ -160,8 +160,8 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     .map((a) => ({
       konto_nr: a.account_number,
       konto_name: a.account_name,
-      anfangsbestand: fmtEUR(a.opening),
-      endbestand: fmtEUR(a.closing),
+      anfangsbestand: fmtEUR(Math.abs(a.opening)),
+      endbestand: fmtEUR(Math.abs(a.closing)),
       kategorie: a.category,
     }));
   // Einnahmen inkl. Hausgeld-Vorschüssen (Soll) als virtuelle erste Zeile
@@ -176,7 +176,27 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     },
     ...sectionListFromUi(sectionAccounts.income),
   ];
-  const sumEinnahmenInkl = totals.totalVorschuss + totals.totalEinnahmen;
+  // totals.totalEinnahmen enthält bereits totalVorschuss + Buchungen (Zinsen etc.)
+  // — nicht erneut addieren, sonst Vorschuss x2.
+  const sumEinnahmenInkl = totals.totalEinnahmen;
+
+  // Ausgaben-Sektionen als negative Beträge ausgeben
+  const bewirtschaftung = sectionListFromUi(sectionAccounts.operating_distributable, { asExpense: true });
+  const nicht_umlagefaehig = sectionListFromUi(sectionAccounts.operating_non_distributable, { asExpense: true });
+  const heizkosten = sectionListFromUi(sectionAccounts.heating, { asExpense: true });
+  const ruecklage = sectionListFromUi(sectionAccounts.reserve, { asExpense: true });
+
+  const sumIst = totals.totalOperatingDist + totals.totalOperatingNonDist + totals.totalReserve +
+    (sectionAccounts.heating || []).reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
+  const sumWp = [
+    ...(sectionAccounts.operating_distributable || []),
+    ...(sectionAccounts.operating_non_distributable || []),
+    ...(sectionAccounts.heating || []),
+    ...(sectionAccounts.reserve || []),
+  ].reduce((s: number, a: any) => s + Math.abs(a.wpAmount || 0), 0);
+  const sumVerteilbar = totals.totalOperatingDist +
+    (sectionAccounts.heating || []).reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
+
   return {
     document_title: "Jahresabrechnung — Gesamt",
     gebaeude_name: building?.name || "",
@@ -190,22 +210,26 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     // Sektions-Listen (jede Position 1:1 wie in der UI-Section)
     einnahmen: einnahmen_full,
     einnahmen_nur_buchungen: sectionListFromUi(sectionAccounts.income),
-    bewirtschaftung: sectionListFromUi(sectionAccounts.operating_distributable),
-    nicht_umlagefaehig: sectionListFromUi(sectionAccounts.operating_non_distributable),
-    heizkosten: sectionListFromUi(sectionAccounts.heating),
-    ruecklage: sectionListFromUi(sectionAccounts.reserve),
-    abgrenzungen: sectionListFromUi(sectionAccounts.accrual),
+    bewirtschaftung,
+    nicht_umlagefaehig,
+    heizkosten,
+    ruecklage,
+    abgrenzungen: sectionListFromUi(sectionAccounts.accrual, { asExpense: true }),
 
     // Sektions-Summen (entspricht Spalten in der UI)
     sum_einnahmen: fmtEUR(totals.totalEinnahmen),
     sum_einnahmen_inkl_vorschuss: fmtEUR(sumEinnahmenInkl),
-    sum_bewirtschaftung_umlagefaehig: fmtEUR(totals.totalOperatingDist),
-    sum_bewirtschaftung_nicht_umlagefaehig: fmtEUR(totals.totalOperatingNonDist),
+    sum_bewirtschaftung_umlagefaehig: fmtEUR(-Math.abs(totals.totalOperatingDist)),
+    sum_bewirtschaftung_nicht_umlagefaehig: fmtEUR(-Math.abs(totals.totalOperatingNonDist)),
     sum_heizkosten: fmtEUR(
-      (sectionAccounts.heating || []).reduce((s: number, a: any) => s + (a.totalAbs || 0), 0),
+      -(sectionAccounts.heating || []).reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0),
     ),
-    sum_ruecklage: fmtEUR(totals.totalReserve),
+    sum_ruecklage: fmtEUR(-Math.abs(totals.totalReserve)),
     sum_ruecklage_entnahme: fmtEUR(totals.totalReserveWithdrawal),
+    // Aggregierte Ausgaben-Summen (über alle Ausgabe-Sektionen)
+    sum_ausgaben_ist: fmtEUR(-sumIst),
+    sum_ausgaben_wp: fmtEUR(-sumWp),
+    sum_ausgaben_verteilbar: fmtEUR(-sumVerteilbar),
     sum_abgrenzungen: fmtEUR(totals.totalAccrual),
     sum_abrechnung: fmtEUR(totals.abrechnungssumme),
     sum_vorschuss: fmtEUR(totals.totalVorschuss),
