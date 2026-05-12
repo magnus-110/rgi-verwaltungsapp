@@ -573,7 +573,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const _invCounterId = invoiceDetail.suggested_account_id || row.counter_account_id;
         const _invCounter = accounts.find(a => a.id === _invCounterId);
         row.description = buildBookingText({
-          period: formatMonthYearRef(txnDate),
+          period: null,
           invoiceNumber: invoiceDetail.invoice_number,
           vendorName: resolveVendor(invoiceDetail.vendor_name),
           counterAccountName: _invCounter?.account_name || null,
