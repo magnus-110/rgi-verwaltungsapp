@@ -35,18 +35,55 @@ async function dispatch(args: {
   });
 }
 
+async function getInboxFolderId(): Promise<string | null> {
+  const { data } = await supabase
+    .from("email_folders")
+    .select("id")
+    .eq("name", "Eingang")
+    .eq("is_system", true)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
+async function getFallbackInternalUserIds(): Promise<string[]> {
+  // All admins + employees with email_enabled (or no preference row -> default true)
+  const { data: roles } = await supabase
+    .from("user_roles")
+    .select("user_id, role")
+    .in("role", ["admin", "employee"]);
+  const ids = Array.from(new Set((roles ?? []).map((r: any) => r.user_id).filter(Boolean)));
+  if (!ids.length) return [];
+  const { data: prefs } = await supabase
+    .from("notification_preferences")
+    .select("user_id, email_enabled")
+    .in("user_id", ids);
+  const disabled = new Set(
+    (prefs ?? []).filter((p: any) => p.email_enabled === false).map((p: any) => p.user_id),
+  );
+  return ids.filter((id) => !disabled.has(id));
+}
+
 async function notifyEmails() {
-  // fetch internal users (admin/employee) - we'll match per-account subscriptions
+  const inboxId = await getInboxFolderId();
+  if (!inboxId) {
+    console.warn("notify-pending: no Eingang folder found");
+    return;
+  }
   const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const { data: emails } = await supabase
     .from("emails")
-    .select("id,subject,from_name,from_address,account_id,created_at,is_draft")
+    .select("id,subject,from_name,from_address,account_id,created_at,is_draft,folder_id")
     .gte("created_at", since)
     .eq("is_draft", false)
+    .eq("folder_id", inboxId)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .limit(200);
 
   if (!emails?.length) return;
+
+  // Cache fallback users once per run
+  let fallbackUsers: string[] | null = null;
 
   for (const mail of emails) {
     if (!mail.account_id) continue;
@@ -54,7 +91,11 @@ async function notifyEmails() {
       .from("email_account_subscriptions")
       .select("user_id")
       .eq("account_id", mail.account_id);
-    const user_ids = subs?.map((s) => s.user_id) ?? [];
+    let user_ids = subs?.map((s) => s.user_id).filter(Boolean) ?? [];
+    if (!user_ids.length) {
+      if (fallbackUsers === null) fallbackUsers = await getFallbackInternalUserIds();
+      user_ids = fallbackUsers;
+    }
     if (!user_ids.length) continue;
 
     const sender = mail.from_name || mail.from_address || "Unbekannt";
