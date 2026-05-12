@@ -56,7 +56,7 @@ function escapeHtml(s: string): string {
   );
 }
 
-function buildCertificateHtml(owner: OwnerAssignment, ctx: CertificateContext, idx: number): string {
+export function buildCertificateHtml(owner: OwnerAssignment, ctx: CertificateContext, idx: number = 0): string {
   const { blocks, total } = buildOwnerCertificate(owner, ctx.blocks, ctx.shareCtx);
   const sal = ownerSalutation(owner);
   const name = ownerDisplayName(owner);
