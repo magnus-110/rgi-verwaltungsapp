@@ -872,10 +872,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     // Vorbefüllung aus invoiceDetail, damit jeder Split automatisch
     // Re.Nr. + Lieferant + Periode im Buchungstext hat (RGI-Schema).
     const inv: any = invoiceDetail || null;
-    const period = formatMonthYearRef(currentTxn?.booking_date);
     const receiptNo = inv?.invoice_number || "";
     const autoText = buildBookingText({
-      period,
+      period: null,
       invoiceNumber: receiptNo,
       vendorName: resolveVendor(inv?.vendor_name || null),
       counterAccountName: null,
