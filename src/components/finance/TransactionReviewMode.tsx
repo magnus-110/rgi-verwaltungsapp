@@ -2404,8 +2404,12 @@ function BookingRowCard({
                 />
                 <Input ref={el => fieldRefs.current["description"] = el} className="h-9 text-sm"
                   value={row.description} onChange={e => onUpdateField("description", e.target.value)}
-                  onKeyDown={e => handleEnterNavigation(e, "description")} />
+                  onKeyDown={e => handleEnterNavigation(e, "description")}
+                  placeholder="z. B. 09/25 Hausmeister Markus Gschwend, Re. Nr. 8824748" />
               </div>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Format: <em>Buchungskürzel</em> Gegenkonto <em>Lieferant</em> <em>Re. Nr.</em>
+              </p>
             </div>
 
             {/* Compact row */}
