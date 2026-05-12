@@ -660,6 +660,59 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
               type="email"
               className="h-12 border-0 px-0 shadow-none focus-visible:ring-0 text-sm flex-1 min-w-0"
             />
+            <Popover open={contactPickerOpen} onOpenChange={setContactPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Kontakt auswählen">
+                  <Users className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[92vw] max-w-sm p-0 z-[80]" align="end">
+                <div className="p-2 border-b">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Kontakt suchen..."
+                      value={contactSearch}
+                      onChange={(e) => setContactSearch(e.target.value)}
+                      className="h-8 pl-7 text-sm"
+                    />
+                  </div>
+                </div>
+                <ScrollArea className="max-h-[50vh]">
+                  {filteredContacts.length === 0 ? (
+                    <p className="p-3 text-sm text-muted-foreground text-center">Keine Kontakte gefunden</p>
+                  ) : (
+                    filteredContacts.map((contact) => (
+                      <div key={contact.id} className="border-b last:border-0">
+                        <div className="px-3 pt-2 pb-0.5">
+                          <span className="text-xs font-medium">{contact.displayName}</span>
+                          {contact.company_name && contact.first_name && (
+                            <span className="text-[10px] text-muted-foreground ml-1">({contact.company_name})</span>
+                          )}
+                        </div>
+                        {contact.emails.map((ce) => (
+                          <button
+                            key={ce.email}
+                            type="button"
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50 transition-colors"
+                            onClick={() => {
+                              addEmailToField(ce.email, "to");
+                              if (contact.emails.length === 1) setContactPickerOpen(false);
+                            }}
+                          >
+                            <Checkbox
+                              checked={compose.to.split(",").map((e) => e.trim()).includes(ce.email)}
+                              className="h-3.5 w-3.5"
+                            />
+                            <span className="text-xs text-muted-foreground truncate">{ce.email}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ))
+                  )}
+                </ScrollArea>
+              </PopoverContent>
+            </Popover>
           </FieldRow>
 
           <FieldRow label="">
