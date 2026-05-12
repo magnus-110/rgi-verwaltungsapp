@@ -1301,19 +1301,6 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               </div>
             </div>
 
-            {/* AI Summary */}
-            {aiSummary && (
-              <Card className="border-dashed border-primary/30 bg-primary/5">
-                <CardHeader className="py-3">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Sparkles className="h-4 w-4" /> KI-Zusammenfassung
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0 text-sm whitespace-pre-wrap">
-                  {aiSummary}
-                </CardContent>
-              </Card>
-            )}
           </TabsContent>
 
           {/* ===== TAB 2: EINZELABRECHNUNGEN ===== */}
