@@ -693,23 +693,40 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                     <TableCell className="text-right font-mono text-xs text-emerald-700">{formatCurrency(totalDienste)}</TableCell>
                     <TableCell className="text-right font-mono text-xs text-blue-700">{formatCurrency(totalHandwerker)}</TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSinglePdf(owner);
-                        }}
-                        disabled={busyOwnerId === owner.id || !!zipBusy}
-                      >
-                        {busyOwnerId === owner.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <>
-                            <Download className="h-4 w-4 mr-1" /> PDF
-                          </>
-                        )}
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSinglePdf(owner);
+                          }}
+                          disabled={busyOwnerId === owner.id || !!zipBusy}
+                          title="Eigenes PDF (interner Designer)"
+                        >
+                          {busyOwnerId === owner.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <><Download className="h-4 w-4 mr-1" /> PDF</>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadWordPdf([owner.id]);
+                          }}
+                          disabled={!templateId || pdfBusy === owner.id || pdfBusy === "zip"}
+                          title={templateId ? "Word-Vorlage als PDF" : "Bitte zuerst eine Word-Vorlage wählen"}
+                        >
+                          {pdfBusy === owner.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <><FileType className="h-4 w-4 mr-1" /> Word-PDF</>
+                          )}
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
