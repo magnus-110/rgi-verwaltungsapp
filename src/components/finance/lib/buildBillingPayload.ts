@@ -180,7 +180,8 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     verwalter_name: "RGI Immobilien GmbH & Co. KG",
 
     // Sektions-Listen (jede Position 1:1 wie in der UI-Section)
-    einnahmen: sectionListFromUi(sectionAccounts.income),
+    einnahmen: einnahmen_full,
+    einnahmen_nur_buchungen: sectionListFromUi(sectionAccounts.income),
     bewirtschaftung: sectionListFromUi(sectionAccounts.operating_distributable),
     nicht_umlagefaehig: sectionListFromUi(sectionAccounts.operating_non_distributable),
     heizkosten: sectionListFromUi(sectionAccounts.heating),
