@@ -46,6 +46,7 @@ export function InAppNotificationsProvider({ children }: { children: React.React
   const navigate = useNavigate();
   const prefsRef = useRef<Prefs>(DEFAULTS);
   const accountIdsRef = useRef<Set<string>>(new Set());
+  const inboxFolderIdRef = useRef<string | null>(null);
   const mountedAtRef = useRef<number>(Date.now());
   const seenIdsRef = useRef<Set<string>>(new Set());
 
@@ -77,8 +78,19 @@ export function InAppNotificationsProvider({ children }: { children: React.React
       if (!cancelled) accountIdsRef.current = new Set((data ?? []).map((s: any) => s.account_id));
     };
 
+    const loadInbox = async () => {
+      const { data } = await supabase
+        .from("email_folders")
+        .select("id")
+        .eq("name", "Eingang")
+        .eq("is_system", true)
+        .maybeSingle();
+      if (!cancelled) inboxFolderIdRef.current = (data as any)?.id ?? null;
+    };
+
     loadPrefs();
     loadAccounts();
+    loadInbox();
 
     const dedupe = (id: string) => {
       if (seenIdsRef.current.has(id)) return true;
@@ -96,6 +108,9 @@ export function InAppNotificationsProvider({ children }: { children: React.React
         const row: any = payload.new;
         if (!prefsRef.current.in_app_email_enabled) return;
         if (row.is_draft) return;
+        if (row.deleted_at) return;
+        // Only notify for incoming mail (Eingang). If inbox id not yet loaded, fall back to non-draft check.
+        if (inboxFolderIdRef.current && row.folder_id !== inboxFolderIdRef.current) return;
         if (accountIdsRef.current.size > 0 && !accountIdsRef.current.has(row.account_id)) return;
         if (!isFresh(row.created_at) || dedupe(row.id)) return;
         showToast({
