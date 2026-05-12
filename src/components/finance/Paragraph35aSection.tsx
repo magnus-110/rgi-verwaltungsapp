@@ -593,8 +593,22 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                   ))}
                 </SelectContent>
               </Select>
-              <Button size="sm" variant="ghost" onClick={() => setTplDialogOpen(true)} title="Vorlagen verwalten">
-                <Settings className="h-4 w-4" />
+              <input
+                ref={tplFileInputRef}
+                type="file"
+                accept=".docx"
+                className="hidden"
+                onChange={handleTplFileChange}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => tplFileInputRef.current?.click()}
+                disabled={uploadingTpl}
+                title="Neue Word-Vorlage hochladen"
+              >
+                {uploadingTpl ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                Vorlage hochladen
               </Button>
               <Button size="sm" variant="outline" onClick={() => downloadDocx()} disabled={!templateId || !!docxBusy}>
                 {docxBusy === "zip" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileType className="h-4 w-4 mr-2" />}
