@@ -660,12 +660,8 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                 DOCX (ZIP)
               </Button>
               <Button size="sm" variant="outline" onClick={() => downloadWordPdf()} disabled={!templateId || !!pdfBusy}>
-                {pdfBusy === "zip" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileType className="h-4 w-4 mr-2" />}
-                Word-PDF (ZIP)
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleZip} disabled={!!zipBusy}>
-                {zipBusy ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />{zipBusy.done}/{zipBusy.total}</>)
-                  : (<><Package className="h-4 w-4 mr-2" />PDF (ZIP)</>)}
+                {pdfBusy === "zip" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Package className="h-4 w-4 mr-2" />}
+                PDF (ZIP)
               </Button>
             </div>
           </CardHeader>
