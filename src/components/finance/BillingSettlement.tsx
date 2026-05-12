@@ -1392,8 +1392,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                     </Button>
                     <h3 className="text-lg font-semibold">{selectedOwnerData.name} — Einheit {selectedOwnerData.unitNumber}</h3>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => downloadDocx(selectedOwnerData.assignmentId, selectedOwnerData.name)} disabled={generatingDocx}>
-                    {generatingDocx ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />} DOCX
+                  <Button size="sm" variant="outline" onClick={() => downloadBilling("owner", "docx", { assignmentId: selectedOwnerData.assignmentId, name: selectedOwnerData.name })} disabled={busyDownload === selectedOwnerData.assignmentId}>
+                    {busyDownload === selectedOwnerData.assignmentId ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />} DOCX
                   </Button>
                 </div>
 
