@@ -553,7 +553,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       row.description = buildBookingText({
         period: null,
         invoiceNumber: null,
-        vendorName: templateDetail.vendor_name || null,
+        vendorName: null,
         counterAccountName: _tplCounter?.account_name || templateDetail.chart_of_accounts?.account_name || null,
       });
       row.__autoTextSignature = row.description;
@@ -1804,7 +1804,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                             const newAutoText = buildBookingText({
                               period: null,
                               invoiceNumber: null,
-                              vendorName: tpl.vendor_name || null,
+                              vendorName: null,
                               counterAccountName: _ca?.account_name || tpl.chart_of_accounts?.account_name || null,
                             });
                             // Nur überschreiben, wenn User-Text noch automatisch
