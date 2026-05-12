@@ -9,6 +9,48 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+async function convertDocxToPdf(docxBytes: Uint8Array, filename: string): Promise<Uint8Array> {
+  const apiKey = Deno.env.get("CLOUDCONVERT_API_KEY");
+  if (!apiKey) throw new Error("CLOUDCONVERT_API_KEY ist nicht konfiguriert");
+  // base64 encode
+  let bin = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < docxBytes.length; i += chunk) {
+    bin += String.fromCharCode(...docxBytes.subarray(i, i + chunk));
+  }
+  const b64 = btoa(bin);
+  const jobResp = await fetch("https://api.cloudconvert.com/v2/jobs", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      tasks: {
+        "import-1": { operation: "import/base64", file: b64, filename },
+        "convert-1": { operation: "convert", input: "import-1", output_format: "pdf", engine: "libreoffice" },
+        "export-1": { operation: "export/url", input: "convert-1" },
+      },
+    }),
+  });
+  if (!jobResp.ok) throw new Error(`CloudConvert Job fehlgeschlagen: ${jobResp.status} ${await jobResp.text()}`);
+  const jobJson = await jobResp.json();
+  const jobId = jobJson?.data?.id;
+  if (!jobId) throw new Error("CloudConvert: keine Job-ID erhalten");
+  // server-side wait (blocks until finished, max ~10min)
+  const waitResp = await fetch(`https://sync.api.cloudconvert.com/v2/jobs/${jobId}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!waitResp.ok) throw new Error(`CloudConvert Wait fehlgeschlagen: ${waitResp.status} ${await waitResp.text()}`);
+  const waitJson = await waitResp.json();
+  if (waitJson?.data?.status !== "finished") {
+    throw new Error(`CloudConvert Job nicht erfolgreich: ${waitJson?.data?.status} – ${JSON.stringify(waitJson?.data?.tasks?.map((t: any) => ({ name: t.name, status: t.status, message: t.message })) || [])}`);
+  }
+  const exportTask = (waitJson.data.tasks || []).find((t: any) => t.name === "export-1");
+  const url = exportTask?.result?.files?.[0]?.url;
+  if (!url) throw new Error("CloudConvert: keine Download-URL");
+  const dl = await fetch(url);
+  if (!dl.ok) throw new Error(`PDF-Download fehlgeschlagen: ${dl.status}`);
+  return new Uint8Array(await dl.arrayBuffer());
+}
+
 function sanitize(s: string): string {
   return (s || "").replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 80);
 }
