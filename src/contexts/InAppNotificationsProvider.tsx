@@ -78,8 +78,19 @@ export function InAppNotificationsProvider({ children }: { children: React.React
       if (!cancelled) accountIdsRef.current = new Set((data ?? []).map((s: any) => s.account_id));
     };
 
+    const loadInbox = async () => {
+      const { data } = await supabase
+        .from("email_folders")
+        .select("id")
+        .eq("name", "Eingang")
+        .eq("is_system", true)
+        .maybeSingle();
+      if (!cancelled) inboxFolderIdRef.current = (data as any)?.id ?? null;
+    };
+
     loadPrefs();
     loadAccounts();
+    loadInbox();
 
     const dedupe = (id: string) => {
       if (seenIdsRef.current.has(id)) return true;
