@@ -13,8 +13,9 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table";
-import { FileText, Download, Loader2, Package, Upload, FileType, X, Trash2 } from "lucide-react";
+import { FileText, Download, Loader2, Package, Upload, FileType, X, Trash2, ChevronDown } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import {
   AccountInfo,
@@ -659,12 +660,8 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                 DOCX (ZIP)
               </Button>
               <Button size="sm" variant="outline" onClick={() => downloadWordPdf()} disabled={!templateId || !!pdfBusy}>
-                {pdfBusy === "zip" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileType className="h-4 w-4 mr-2" />}
-                Word-PDF (ZIP)
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleZip} disabled={!!zipBusy}>
-                {zipBusy ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />{zipBusy.done}/{zipBusy.total}</>)
-                  : (<><Package className="h-4 w-4 mr-2" />PDF (ZIP)</>)}
+                {pdfBusy === "zip" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Package className="h-4 w-4 mr-2" />}
+                PDF (ZIP)
               </Button>
             </div>
           </CardHeader>
@@ -693,39 +690,31 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                     <TableCell className="text-right font-mono text-xs text-emerald-700">{formatCurrency(totalDienste)}</TableCell>
                     <TableCell className="text-right font-mono text-xs text-blue-700">{formatCurrency(totalHandwerker)}</TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSinglePdf(owner);
-                          }}
-                          disabled={busyOwnerId === owner.id || !!zipBusy}
-                          title="Eigenes PDF (interner Designer)"
-                        >
-                          {busyOwnerId === owner.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <><Download className="h-4 w-4 mr-1" /> PDF</>
-                          )}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            downloadWordPdf([owner.id]);
-                          }}
-                          disabled={!templateId || pdfBusy === owner.id || pdfBusy === "zip"}
-                          title={templateId ? "Word-Vorlage als PDF" : "Bitte zuerst eine Word-Vorlage wählen"}
-                        >
-                          {pdfBusy === owner.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <><FileType className="h-4 w-4 mr-1" /> Word-PDF</>
-                          )}
-                        </Button>
+                      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={!templateId || pdfBusy === owner.id || docxBusy === "single" || pdfBusy === "zip" || docxBusy === "zip"}
+                              title={templateId ? "Download" : "Bitte zuerst eine Word-Vorlage wählen"}
+                            >
+                              {pdfBusy === owner.id || (docxBusy === "single" && busyOwnerId === owner.id) ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <><Download className="h-4 w-4 mr-1" /> Download <ChevronDown className="h-3 w-3 ml-1" /></>
+                              )}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => downloadDocx([owner.id])}>
+                              <FileType className="h-4 w-4 mr-2" /> DOCX
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => downloadWordPdf([owner.id])}>
+                              <FileText className="h-4 w-4 mr-2" /> PDF
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </TableCell>
                   </TableRow>
