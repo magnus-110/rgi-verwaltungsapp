@@ -6,19 +6,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Upload, FileText } from "lucide-react";
+import { Trash2, Upload, FileText, Check } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  selectedSingleId?: string | null;
+  selectedOverallId?: string | null;
+  onSelectSingle?: (id: string) => void;
+  onSelectOverall?: (id: string) => void;
 }
 
-export function BillingTemplatesDialog({ open, onOpenChange }: Props) {
+export function BillingTemplatesDialog({
+  open,
+  onOpenChange,
+  selectedSingleId,
+  selectedOverallId,
+  onSelectSingle,
+  onSelectOverall,
+}: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [name, setName] = useState("");
-  const [scope, setScope] = useState<"single" | "overall">("single");
+  const [scope, setScope] = useState<"single" | "overall">("overall");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -76,16 +88,26 @@ export function BillingTemplatesDialog({ open, onOpenChange }: Props) {
     qc.invalidateQueries({ queryKey: ["billing-templates"] });
   };
 
+  const select = (t: any) => {
+    if (t.scope === "overall") onSelectOverall?.(t.id);
+    else onSelectSingle?.(t.id);
+    toast({ title: "Vorlage aktiviert", description: t.name });
+  };
+
+  const isActive = (t: any) =>
+    (t.scope === "overall" && selectedOverallId === t.id) ||
+    (t.scope === "single" && selectedSingleId === t.id);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Abrechnungs-Vorlagen</DialogTitle>
           <DialogDescription>
-            Lade Word-Vorlagen (.docx) für Jahresabrechnungen hoch. Verwende Platzhalter wie{" "}
-            <code>{"{empfaenger_name}"}</code> sowie Schleifen{" "}
+            Lade Word-Vorlagen (.docx) für Jahresabrechnungen hoch und wähle die aktive Vorlage.
+            Platzhalter wie <code>{"{empfaenger_name}"}</code> sowie Schleifen{" "}
             <code>{"{#sektionen}…{/sektionen}"}</code> und{" "}
-            <code>{"{#zeilen}…{/zeilen}"}</code>.
+            <code>{"{#zeilen}…{/zeilen}"}</code> werden unterstützt.
           </DialogDescription>
         </DialogHeader>
 
@@ -100,8 +122,8 @@ export function BillingTemplatesDialog({ open, onOpenChange }: Props) {
               <Select value={scope} onValueChange={(v) => setScope(v as any)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="single">Einzelabrechnung</SelectItem>
                   <SelectItem value="overall">Gesamtabrechnung</SelectItem>
+                  <SelectItem value="single">Einzelabrechnung</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -118,22 +140,35 @@ export function BillingTemplatesDialog({ open, onOpenChange }: Props) {
         <div className="space-y-1 max-h-[400px] overflow-auto">
           {templates.length === 0 ? (
             <div className="text-sm text-muted-foreground text-center py-6">Noch keine Vorlagen.</div>
-          ) : templates.map((t: any) => (
-            <div key={t.id} className="flex items-center justify-between border rounded p-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <FileText className="h-4 w-4 shrink-0" />
-                <div className="min-w-0">
-                  <div className="text-sm font-medium truncate">{t.name}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {t.scope === "overall" ? "Gesamtabrechnung" : "Einzelabrechnung"}
+          ) : templates.map((t: any) => {
+            const active = isActive(t);
+            return (
+              <div key={t.id} className={`flex items-center justify-between border rounded p-2 ${active ? "border-primary bg-primary/5" : ""}`}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <FileText className="h-4 w-4 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate flex items-center gap-2">
+                      {t.name}
+                      {active && <Badge variant="default" className="gap-1"><Check className="h-3 w-3" />Aktiv</Badge>}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {t.scope === "overall" ? "Gesamtabrechnung" : "Einzelabrechnung"}
+                    </div>
                   </div>
                 </div>
+                <div className="flex items-center gap-1">
+                  {!active && (
+                    <Button size="sm" variant="outline" onClick={() => select(t)}>
+                      Auswählen
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={() => remove(t)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => remove(t)}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </DialogContent>
     </Dialog>
