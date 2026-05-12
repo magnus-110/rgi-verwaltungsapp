@@ -46,6 +46,7 @@ export function InAppNotificationsProvider({ children }: { children: React.React
   const navigate = useNavigate();
   const prefsRef = useRef<Prefs>(DEFAULTS);
   const accountIdsRef = useRef<Set<string>>(new Set());
+  const inboxFolderIdRef = useRef<string | null>(null);
   const mountedAtRef = useRef<number>(Date.now());
   const seenIdsRef = useRef<Set<string>>(new Set());
 
