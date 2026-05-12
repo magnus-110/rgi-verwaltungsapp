@@ -93,6 +93,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const [ownerSearch, setOwnerSearch] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(SECTION_ORDER));
   const [useIstVorschuss, setUseIstVorschuss] = useState(false);
+  const [showZeroBalanceAccounts, setShowZeroBalanceAccounts] = useState(false);
 
   // Period
   const { data: period } = useQuery({
@@ -352,14 +353,15 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   accounts.forEach((acc) => {
     const section = acc.settlement_section;
     if (!section) return;
-    // Inline-Toggle "Abrechnungsrelevant" hat Vorrang:
-    //  - explizit false  → immer ausblenden (auch wenn Saldo ≠ 0)
-    //  - explizit true   → immer anzeigen (auch wenn Saldo = 0)
-    //  - null/undefined  → Default: nur anzeigen wenn Saldo ≠ 0 (bzw. Reserve)
+    // Inline-Toggle "Abrechnungsrelevant":
+    //  - explizit false  → immer ausblenden
+    //  - sonst: Konten mit Saldo ≈ 0 standardmäßig ausblenden (auch wenn Flag = true);
+    //    Toggle "Null-Saldo Konten anzeigen" macht sie wieder sichtbar.
+    //    Reserve-Sektion ist Ausnahme (immer anzeigen).
     const billingFlag = (acc as any).is_billing_relevant;
     if (billingFlag === false) return;
     const total = getAccountBookingTotal(acc.id);
-    if (billingFlag !== true && Math.abs(total) < 0.005 && section !== "reserve") return;
+    if (Math.abs(total) < 0.005 && section !== "reserve" && !showZeroBalanceAccounts) return;
     if (!sectionAccounts[section]) sectionAccounts[section] = [];
     sectionAccounts[section].push({
       ...acc,
@@ -1161,6 +1163,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
           {/* ===== TAB 1: GESAMTABRECHNUNG ===== */}
           <TabsContent value="total" className="space-y-3">
+            <div className="flex items-center justify-end gap-2 text-sm">
+              <span className="text-muted-foreground">Null-Saldo Konten anzeigen</span>
+              <Switch checked={showZeroBalanceAccounts} onCheckedChange={setShowZeroBalanceAccounts} />
+            </div>
             {distributionWarnings.length > 0 && (
               <Alert variant="destructive" className="border-destructive/50 bg-destructive/5 text-foreground">
                 <AlertTriangle className="h-4 w-4" />

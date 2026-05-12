@@ -1,40 +1,54 @@
 ## Problem
 
-In der Maske **Buchhaltung → Buchungen → "Neue Buchung"** (`CreateBookingDialog`) funktioniert der Buchungstext-Generator korrekt:
-- Periode (z. B. `09/25`) wird **nur** über das Kürzel-Feld der `BookingTextTemplateCombobox` eingefügt (1, 01–12, 000) — niemals automatisch aus dem Beleg-Datum.
-- Unter dem Eingabefeld steht ein Hinweis: *Format: Buchungskürzel Gegenkonto Lieferant Re. Nr.*
-- Im Eingabefeld ist ein Beispiel-Placeholder.
+In der Abrechnung werden viele Konten mit Saldo 0,00 € angezeigt (z. B. 1000 Straßenreinigung, 1011 Papiertonne, 1013 Gewerbemüll …).
 
-In der Maske **Buchhaltung → Kontoauszüge → Buchen** (`TransactionReviewMode`) gibt es zwei Probleme:
-1. **Bug**: Der Buchungstext bekommt automatisch ein Perioden-Präfix aus `booking_date` (`formatMonthYearRef(...)`) injiziert — an mehreren Stellen (`buildAutoTextForRow`, `updateRow`, `applySelectionToRow`, `onAssignInvoice`, `createNewBookingFromSelection`). Das erzeugt unerwünschte/falsche Präfixe und weicht vom Verhalten der anderen Maske ab.
-2. **Hinweis fehlt**: Weder Format-Hinweis noch Beispiel-Placeholder werden angezeigt.
+**Ursache:** In `BillingSettlement.tsx` (Zeile 355–362) gilt aktuell:
 
-## Lösung — Logik aus `CreateBookingDialog` übernehmen
+- `is_billing_relevant === true` → **immer anzeigen**, auch bei Saldo 0
+- `is_billing_relevant === false` → immer ausblenden
+- `null` → nur anzeigen wenn Saldo ≠ 0
 
-### 1. Periode nicht mehr automatisch setzen
-In `src/components/finance/TransactionReviewMode.tsx` an allen Aufrufen von `buildBookingText` / `rebuildBookingTextIfAuto` für Buchungstext-Generierung `period` auf `null` setzen (statt `formatMonthYearRef(...)`):
+DB-Check zeigt: Alle Standard-Aufwandskonten (1000–1071) haben `is_billing_relevant = true` als Default. Dadurch erscheinen sie auch bei Null-Saldo in der Liste.
 
-- `buildAutoTextForRow` (≈Zeile 758)
-- `updateRow` Auto-Rebuild-Block (≈Zeile 786)
-- `applySelectionToRow` (≈Zeile 832)
-- `createNewBookingFromSelection` (≈Zeile 876–883)
-- `onAssignInvoice` (≈Zeile 1762 + 1769)
-- ggf. weitere Stellen mit `formatMonthYearRef` im Kontext eines Buchungstext-Builds (Zeilen 492, 576, 700)
+## Lösung
 
-Die Periode kommt dann ausschließlich vom Nutzer über die `BookingTextTemplateCombobox` (Kürzel `01`–`12`, `1`–`4`, `000`) — exakt wie in `CreateBookingDialog`.
+Standardverhalten umdrehen, damit Null-Saldo-Konten in der Abrechnung nicht mehr stören:
 
-### 2. Format-Hinweis + Placeholder ergänzen
-In `TransactionReviewMode.tsx` im Buchungstext-Block (≈Zeilen 2393–2411):
-- `placeholder="z. B. 09/25 Hausmeister Markus Gschwend, Re. Nr. 8824748"` am `Input`-Feld
-- Unterhalb des Grids ein `<p>` mit dem Hinweis-Text (1:1 wie in `CreateBookingDialog` Zeilen 437–439):
-  *"Format: Buchungskürzel Gegenkonto Lieferant Re. Nr."*
+### 1. Filterlogik in `BillingSettlement.tsx` (Zeile 355–362) anpassen
 
-### 3. Keine sonstigen Änderungen
-Andere Logik (Vendor-Resolve, Rechnungs-Zuordnung, Vorlagen-Buchungstext via `buildTemplateBookingText`) bleibt unverändert. Es geht ausschließlich um Angleichung des Buchungstext-Generators.
+Neue Regel:
+- `is_billing_relevant === false` → immer ausblenden (unverändert)
+- **Standard: Konten mit Saldo ≈ 0 ausblenden — auch wenn `is_billing_relevant = true`**
+- Nur wenn der Nutzer den neuen Toggle „Konten mit Null-Saldo anzeigen" aktiviert, werden diese sichtbar (für Korrekturen / Buchungsnachweis)
+- Reserve-Sektion bleibt wie bisher Ausnahme (immer anzeigen)
 
-## Betroffene Dateien
-- `src/components/finance/TransactionReviewMode.tsx` (einzige Datei)
+### 2. UI: Toggle „Null-Saldo Konten anzeigen"
 
-## Validierung
-- Build / TS-Check
-- Manuell im Preview: Bank-Transaktion buchen → Buchungstext zeigt nur `Gegenkonto Lieferant, Re. Nr. …`; Periode erscheint erst nach Eingabe `01` ↵ im Kürzel-Feld; Hinweis sichtbar.
+Schalter im Header der Abrechnungs-Übersicht (neben dem bestehenden Steuerungselementen), default **aus**. State lokal im Component.
+
+### 3. Auswirkung
+
+- Saubere Übersicht: nur Konten mit tatsächlicher Bewegung erscheinen
+- Verteilungstabelle, Vermögensbericht und Summen bleiben mathematisch identisch (Null trägt nichts bei)
+- Konten mit Saldo 0, die manuell auf `is_billing_relevant = true` gesetzt wurden, bleiben in den Konten-Stammdaten unverändert — nur die Anzeige ändert sich
+
+### Technische Details
+
+Datei: `src/components/finance/BillingSettlement.tsx`
+
+```ts
+const [showZeroBalanceAccounts, setShowZeroBalanceAccounts] = useState(false);
+
+accounts.forEach((acc) => {
+  const section = acc.settlement_section;
+  if (!section) return;
+  const billingFlag = (acc as any).is_billing_relevant;
+  if (billingFlag === false) return;
+  const total = getAccountBookingTotal(acc.id);
+  const isZero = Math.abs(total) < 0.005;
+  if (isZero && section !== "reserve" && !showZeroBalanceAccounts) return;
+  // ...
+});
+```
+
+Toggle-Switch via `<Switch>` (shadcn) oberhalb der Tabelle einfügen.
