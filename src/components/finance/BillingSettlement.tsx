@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { BarChart3, ChevronDown, ChevronRight, Users, PiggyBank, AlertTriangle, Check, FileText, Building2, Loader2, Search, Calculator, Sparkles, Download, Settings2, FileType } from "lucide-react";
+import { BarChart3, ChevronDown, ChevronRight, Users, PiggyBank, AlertTriangle, Check, FileText, Building2, Loader2, Search, Download, Settings2, FileType } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getEffectiveOpeningBalance, getEffectiveClosingBalance, signedTotalForAccount } from "./lib/bookingAggregation";
@@ -93,9 +93,6 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const [ownerSearch, setOwnerSearch] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(SECTION_ORDER));
   const [useIstVorschuss, setUseIstVorschuss] = useState(false);
-  const [calculatingSalden, setCalculatingSalden] = useState(false);
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
-  const [generatingAiSummary, setGeneratingAiSummary] = useState(false);
 
   // Period
   const { data: period } = useQuery({
@@ -1011,78 +1008,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
 
 
-  // --- Closing balance calculation ---
-  // Nutzt den Helper (Anfangsbestand aus 4000-Buchung oder manuell + alle Bewegungen);
-  // Manueller Eintrag bleibt als Override im UI editierbar.
-  const calculateClosingBalances = async () => {
-    setCalculatingSalden(true);
-    try {
-      const carryForwardAccounts = accounts.filter(a => a.carry_forward_balance);
-      let updated = 0;
 
-      for (const acc of carryForwardAccounts) {
-        const eff = getEffectiveClosingBalance(
-          acc.id,
-          bookings as any[],
-          flatBalances,
-          fiscalYear,
-          opening4000Id,
-        );
-        const closing = eff.amount;
-        const opening = eff.opening;
-
-        const existingBalance = balances.find((bal: any) => bal.account_id === acc.id);
-        if (existingBalance) {
-          await supabase.from("account_balances").update({
-            opening_balance: opening,
-            closing_balance: closing,
-          }).eq("id", existingBalance.id);
-        } else {
-          await supabase.from("account_balances").insert({
-            account_id: acc.id,
-            building_id: buildingId,
-            fiscal_year: fiscalYear,
-            opening_balance: opening,
-            closing_balance: closing,
-          });
-        }
-        updated++;
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["account-balances-settlement"] });
-      toast.success(`${updated} Kontensalden automatisch berechnet`);
-    } catch (e: any) {
-      toast.error("Fehler: " + (e.message || "Unbekannt"));
-    } finally {
-      setCalculatingSalden(false);
-    }
-  };
-
-  // --- AI Summary ---
-  const generateAiSummary = async () => {
-    setGeneratingAiSummary(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("analyze-billing", {
-        body: { 
-          buildingId, periodId, fiscalYear, 
-          mode: "settlement_summary",
-          settlementData: {
-            totalIncome, totalOperatingDist, totalOperatingNonDist, totalReserve,
-            abrechnungssumme, totalVorschuss, abrechnungsspitze,
-            ownerCount: ownerResults.length,
-            owners: ownerResults.map(o => ({ name: o.name, unit: o.unitNumber, cost: o.totalOwnerCost, paid: o.totalPaid, result: o.result })),
-          }
-        },
-      });
-      if (error) throw error;
-      setAiSummary(data?.summary || data?.text || "Keine Zusammenfassung generiert.");
-      toast.success("KI-Zusammenfassung erstellt");
-    } catch (e: any) {
-      toast.error("Fehler: " + (e.message || "Unbekannt"));
-    } finally {
-      setGeneratingAiSummary(false);
-    }
-  };
 
   // --- Render helper for Gesamtabrechnung section ---
   const renderSection = (section: string) => {
@@ -1184,19 +1110,28 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button size="sm" variant="outline" onClick={calculateClosingBalances} disabled={calculatingSalden}>
-            {calculatingSalden ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Calculator className="h-4 w-4 mr-1" />}
-            Salden berechnen
-          </Button>
-          <Button size="sm" variant="outline" onClick={generateAiSummary} disabled={generatingAiSummary}>
-            {generatingAiSummary ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
-            KI-Zusammenfassung
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => downloadBilling("overall", "docx")} disabled={busyDownload === "overall"}>
-            {busyDownload === "overall" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
-            DOCX Gesamtabrechnung
-          </Button>
-            </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" disabled={busyDownload === "overall"}>
+                {busyDownload === "overall" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
+                Gesamtabrechnung herunterladen
+                <ChevronDown className="h-4 w-4 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => downloadBilling("overall", "docx")}>
+                <FileType className="h-4 w-4 mr-2" /> DOCX
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => downloadBilling("overall", "pdf")}>
+                <FileText className="h-4 w-4 mr-2" /> PDF
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setTemplatesOpen(true)}>
+                <Settings2 className="h-4 w-4 mr-2" /> Vorlagen verwalten
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -1366,19 +1301,6 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               </div>
             </div>
 
-            {/* AI Summary */}
-            {aiSummary && (
-              <Card className="border-dashed border-primary/30 bg-primary/5">
-                <CardHeader className="py-3">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Sparkles className="h-4 w-4" /> KI-Zusammenfassung
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0 text-sm whitespace-pre-wrap">
-                  {aiSummary}
-                </CardContent>
-              </Card>
-            )}
           </TabsContent>
 
           {/* ===== TAB 2: EINZELABRECHNUNGEN ===== */}
