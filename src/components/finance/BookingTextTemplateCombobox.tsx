@@ -16,6 +16,8 @@ type Props = {
   counterAccountName?: string | null;
   /** Aktueller Buchungstext – das Zeitraum-Präfix wird vorangestellt, vorhandener Text bleibt erhalten. */
   existingText?: string | null;
+  /** Wenn false, ersetzt ein Kürzel den Buchungstext sauber statt vorhandenen Auto-Text anzuhängen. */
+  preserveExistingText?: boolean;
   /** Wird aufgerufen, sobald der Nutzer einen Vorschlag mit Enter übernimmt */
   onApply: (generatedText: string) => void;
   /** Optional: nach Übernahme den Fokus weitersetzen (Enter-Navigation) */
@@ -44,6 +46,7 @@ export function BookingTextTemplateCombobox({
   invoice,
   counterAccountName,
   existingText,
+  preserveExistingText = true,
   onApply,
   onCommit,
   onSkip,
@@ -79,7 +82,7 @@ export function BookingTextTemplateCombobox({
     // [Zeitraum] [Re. Nr.] [Lieferant] [Gegenkonto].
     // Nur falls der bisherige Text vom Generator abweicht UND zusätzliche
     // Information enthält, hängen wir ihn als Zusatz an.
-    const existing = (existingText || "").trim();
+    const existing = preserveExistingText ? (existingText || "").trim() : "";
     let finalText = generated;
     if (existing && !generated.toLowerCase().includes(existing.toLowerCase())) {
       // Wenn der existierende Text mit dem Period-Präfix beginnt, schneide es ab

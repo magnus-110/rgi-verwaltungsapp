@@ -27,7 +27,6 @@ import { VendorHistorySection } from "./VendorHistorySection";
 import { AccountSearchSelect } from "./AccountSearchSelect";
 import { Section35aEditor } from "./Section35aEditor";
 import { build35aDetailFromSuggestion } from "./build35aDetail";
-import { buildTemplateBookingText } from "./lib/templateBookingText";
 import { buildBookingText, rebuildBookingTextIfAuto } from "./lib/bookingTextBuilder";
 import { BookingTextTemplateCombobox } from "./BookingTextTemplateCombobox";
 import { useMobileSplitView, MobileViewSwitcher, MobileBackToListButton } from "@/components/shared/MobileSplitView";
@@ -551,8 +550,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       if (templateDetail.vat_rate != null) row.vat_rate = String(templateDetail.vat_rate);
       if (templateDetail.is_35a_relevant) row.is_35a_relevant = true;
       const _tplCounter = accounts.find(a => a.id === templateDetail.account_id);
-      row.description = buildTemplateBookingText(templateDetail, txnDate, {
-        invoiceNumber: (invoiceDetail as any)?.invoice_number || null,
+      row.description = buildBookingText({
+        period: null,
+        invoiceNumber: null,
+        vendorName: null,
         counterAccountName: _tplCounter?.account_name || templateDetail.chart_of_accounts?.account_name || null,
       });
       row.__autoTextSignature = row.description;
@@ -1800,7 +1801,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                             if (tpl.vat_rate != null) updated.vat_rate = String(tpl.vat_rate);
                             if (tpl.is_35a_relevant) updated.is_35a_relevant = true;
                             const _ca = accounts.find((a: any) => a.id === (tpl.account_id || r.counter_account_id));
-                            const newAutoText = buildTemplateBookingText(tpl, currentTxn?.booking_date, {
+                            const newAutoText = buildBookingText({
+                              period: null,
+                              invoiceNumber: null,
+                              vendorName: null,
                               counterAccountName: _ca?.account_name || tpl.chart_of_accounts?.account_name || null,
                             });
                             // Nur überschreiben, wenn User-Text noch automatisch
@@ -2398,7 +2402,11 @@ function BookingRowCard({
                   invoice={invoiceDetail ? { invoice_number: (invoiceDetail as any).invoice_number, vendor_name: (invoiceDetail as any).vendor_name } : null}
                   counterAccountName={accounts.find((a: any) => a.id === row.counter_account_id)?.account_name || null}
                   existingText={row.description}
-                  onApply={(text) => onUpdateField("description", text)}
+                  preserveExistingText={false}
+                  onApply={(text) => {
+                    onUpdateField("description", text);
+                    onUpdateField("__autoTextSignature", text);
+                  }}
                   onCommit={() => focusFieldByName("description")}
                   onSkip={() => focusFieldByName("description")}
                 />
