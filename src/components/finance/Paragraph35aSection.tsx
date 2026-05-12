@@ -54,6 +54,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   const [logoCache, setLogoCache] = useState<string | null>(null);
   const [templateId, setTemplateId] = useState<string>("");
   const [docxBusy, setDocxBusy] = useState<"single" | "zip" | null>(null);
+  const [pdfBusy, setPdfBusy] = useState<"zip" | string | null>(null);
   const [uploadingTpl, setUploadingTpl] = useState(false);
   const tplFileInputRef = useRef<HTMLInputElement>(null);
   const [busyBookingId, setBusyBookingId] = useState<string | null>(null);
@@ -156,12 +157,17 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     }
   };
 
-  const downloadDocx = async (assignmentIds?: string[]) => {
+  const downloadFromTemplate = async (
+    assignmentIds: string[] | undefined,
+    format: "docx" | "pdf",
+  ) => {
     if (!templateId) {
       toast({ title: "Bitte zuerst eine Vorlage auswählen", variant: "destructive" });
       return;
     }
-    setDocxBusy(assignmentIds && assignmentIds.length === 1 ? "single" : "zip");
+    const isSingle = !!(assignmentIds && assignmentIds.length === 1);
+    if (format === "docx") setDocxBusy(isSingle ? "single" : "zip");
+    else setPdfBusy(isSingle ? assignmentIds![0] : "zip");
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const url = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`;
@@ -177,24 +183,34 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
           fiscal_year: fiscalYear,
           period_id: periodId,
           assignment_ids: assignmentIds,
+          format,
         }),
       });
       if (!resp.ok) throw new Error(await resp.text());
       const blob = await resp.blob();
       const cd = resp.headers.get("Content-Disposition") || "";
       const m = cd.match(/filename="?([^"]+)"?/);
-      const fname = m?.[1] || (assignmentIds?.length === 1 ? "35a.docx" : `35a_${fiscalYear}.zip`);
+      const ext = format === "pdf" ? "pdf" : "docx";
+      const fname = m?.[1] || (isSingle ? `35a.${ext}` : `35a_${fiscalYear}.zip`);
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = fname;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     } catch (e) {
-      toast({ title: "DOCX-Export fehlgeschlagen", description: String((e as Error).message), variant: "destructive" });
+      toast({
+        title: format === "pdf" ? "PDF-Export fehlgeschlagen" : "DOCX-Export fehlgeschlagen",
+        description: String((e as Error).message),
+        variant: "destructive",
+      });
     } finally {
-      setDocxBusy(null);
+      if (format === "docx") setDocxBusy(null);
+      else setPdfBusy(null);
     }
   };
+
+  const downloadDocx = (assignmentIds?: string[]) => downloadFromTemplate(assignmentIds, "docx");
+  const downloadWordPdf = (assignmentIds?: string[]) => downloadFromTemplate(assignmentIds, "pdf");
 
 
   const formatCurrency = (n: number) =>
@@ -642,6 +658,10 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                 {docxBusy === "zip" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileType className="h-4 w-4 mr-2" />}
                 DOCX (ZIP)
               </Button>
+              <Button size="sm" variant="outline" onClick={() => downloadWordPdf()} disabled={!templateId || !!pdfBusy}>
+                {pdfBusy === "zip" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileType className="h-4 w-4 mr-2" />}
+                Word-PDF (ZIP)
+              </Button>
               <Button size="sm" variant="outline" onClick={handleZip} disabled={!!zipBusy}>
                 {zipBusy ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />{zipBusy.done}/{zipBusy.total}</>)
                   : (<><Package className="h-4 w-4 mr-2" />PDF (ZIP)</>)}
@@ -657,7 +677,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                   <TableHead className="text-xs text-right w-28">Gesamt §35a</TableHead>
                   <TableHead className="text-xs text-right w-28 text-emerald-700">Dienste</TableHead>
                   <TableHead className="text-xs text-right w-28 text-blue-700">Handwerker</TableHead>
-                  <TableHead className="text-xs text-right w-32">Aktion</TableHead>
+                  <TableHead className="text-xs text-right w-56">Aktion</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -673,23 +693,40 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                     <TableCell className="text-right font-mono text-xs text-emerald-700">{formatCurrency(totalDienste)}</TableCell>
                     <TableCell className="text-right font-mono text-xs text-blue-700">{formatCurrency(totalHandwerker)}</TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSinglePdf(owner);
-                        }}
-                        disabled={busyOwnerId === owner.id || !!zipBusy}
-                      >
-                        {busyOwnerId === owner.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <>
-                            <Download className="h-4 w-4 mr-1" /> PDF
-                          </>
-                        )}
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSinglePdf(owner);
+                          }}
+                          disabled={busyOwnerId === owner.id || !!zipBusy}
+                          title="Eigenes PDF (interner Designer)"
+                        >
+                          {busyOwnerId === owner.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <><Download className="h-4 w-4 mr-1" /> PDF</>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadWordPdf([owner.id]);
+                          }}
+                          disabled={!templateId || pdfBusy === owner.id || pdfBusy === "zip"}
+                          title={templateId ? "Word-Vorlage als PDF" : "Bitte zuerst eine Word-Vorlage wählen"}
+                        >
+                          {pdfBusy === owner.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <><FileType className="h-4 w-4 mr-1" /> Word-PDF</>
+                          )}
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

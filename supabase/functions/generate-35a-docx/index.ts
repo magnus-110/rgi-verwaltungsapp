@@ -9,6 +9,48 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+async function convertDocxToPdf(docxBytes: Uint8Array, filename: string): Promise<Uint8Array> {
+  const apiKey = Deno.env.get("CLOUDCONVERT_API_KEY");
+  if (!apiKey) throw new Error("CLOUDCONVERT_API_KEY ist nicht konfiguriert");
+  // base64 encode
+  let bin = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < docxBytes.length; i += chunk) {
+    bin += String.fromCharCode(...docxBytes.subarray(i, i + chunk));
+  }
+  const b64 = btoa(bin);
+  const jobResp = await fetch("https://api.cloudconvert.com/v2/jobs", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      tasks: {
+        "import-1": { operation: "import/base64", file: b64, filename },
+        "convert-1": { operation: "convert", input: "import-1", output_format: "pdf", engine: "libreoffice" },
+        "export-1": { operation: "export/url", input: "convert-1" },
+      },
+    }),
+  });
+  if (!jobResp.ok) throw new Error(`CloudConvert Job fehlgeschlagen: ${jobResp.status} ${await jobResp.text()}`);
+  const jobJson = await jobResp.json();
+  const jobId = jobJson?.data?.id;
+  if (!jobId) throw new Error("CloudConvert: keine Job-ID erhalten");
+  // server-side wait (blocks until finished, max ~10min)
+  const waitResp = await fetch(`https://sync.api.cloudconvert.com/v2/jobs/${jobId}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!waitResp.ok) throw new Error(`CloudConvert Wait fehlgeschlagen: ${waitResp.status} ${await waitResp.text()}`);
+  const waitJson = await waitResp.json();
+  if (waitJson?.data?.status !== "finished") {
+    throw new Error(`CloudConvert Job nicht erfolgreich: ${waitJson?.data?.status} – ${JSON.stringify(waitJson?.data?.tasks?.map((t: any) => ({ name: t.name, status: t.status, message: t.message })) || [])}`);
+  }
+  const exportTask = (waitJson.data.tasks || []).find((t: any) => t.name === "export-1");
+  const url = exportTask?.result?.files?.[0]?.url;
+  if (!url) throw new Error("CloudConvert: keine Download-URL");
+  const dl = await fetch(url);
+  if (!dl.ok) throw new Error(`PDF-Download fehlgeschlagen: ${dl.status}`);
+  return new Uint8Array(await dl.arrayBuffer());
+}
+
 function sanitize(s: string): string {
   return (s || "").replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 80);
 }
@@ -145,7 +187,8 @@ Deno.serve(async (req) => {
     );
 
     const body = await req.json();
-    const { template_id, building_id, fiscal_year, period_id, assignment_ids } = body || {};
+    const { template_id, building_id, fiscal_year, period_id, assignment_ids, format } = body || {};
+    const wantPdf = format === "pdf";
     if (!template_id || !building_id || !fiscal_year) {
       return json({ error: "template_id, building_id, fiscal_year required" }, 400);
     }
@@ -355,12 +398,22 @@ Deno.serve(async (req) => {
       });
       doc.render(buildVarsFor(owner));
       const out = doc.getZip().generate({ type: "uint8array" });
-      const fname = `35a_${fiscal_year}_${sanitize(owner.unit_number || "")}_${sanitize(ownerName(owner))}.docx`;
+      const baseName = `35a_${fiscal_year}_${sanitize(owner.unit_number || "")}_${sanitize(ownerName(owner))}`;
+      if (wantPdf) {
+        const pdf = await convertDocxToPdf(out, `${baseName}.docx`);
+        return new Response(pdf, {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `attachment; filename="${baseName}.pdf"`,
+          },
+        });
+      }
       return new Response(out, {
         headers: {
           ...corsHeaders,
           "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          "Content-Disposition": `attachment; filename="${fname}"`,
+          "Content-Disposition": `attachment; filename="${baseName}.docx"`,
         },
       });
     }
@@ -376,8 +429,13 @@ Deno.serve(async (req) => {
         });
         doc.render(buildVarsFor(owner));
         const out = doc.getZip().generate({ type: "uint8array" });
-        const fname = `35a_${fiscal_year}_${sanitize(owner.unit_number || "")}_${sanitize(ownerName(owner))}.docx`;
-        bundle.file(fname, out);
+        const baseName = `35a_${fiscal_year}_${sanitize(owner.unit_number || "")}_${sanitize(ownerName(owner))}`;
+        if (wantPdf) {
+          const pdf = await convertDocxToPdf(out, `${baseName}.docx`);
+          bundle.file(`${baseName}.pdf`, pdf);
+        } else {
+          bundle.file(`${baseName}.docx`, out);
+        }
       } catch (e: any) {
         bundle.file(`ERROR_${i + 1}_${sanitize(ownerName(owner))}.txt`, String(e?.message || e));
       }
@@ -387,7 +445,7 @@ Deno.serve(async (req) => {
       headers: {
         ...corsHeaders,
         "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="35a_Bescheinigungen_${fiscal_year}.zip"`,
+        "Content-Disposition": `attachment; filename="35a_Bescheinigungen_${fiscal_year}${wantPdf ? "_PDF" : ""}.zip"`,
       },
     });
   } catch (e: any) {
