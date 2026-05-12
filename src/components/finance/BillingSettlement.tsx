@@ -1008,78 +1008,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
 
 
-  // --- Closing balance calculation ---
-  // Nutzt den Helper (Anfangsbestand aus 4000-Buchung oder manuell + alle Bewegungen);
-  // Manueller Eintrag bleibt als Override im UI editierbar.
-  const calculateClosingBalances = async () => {
-    setCalculatingSalden(true);
-    try {
-      const carryForwardAccounts = accounts.filter(a => a.carry_forward_balance);
-      let updated = 0;
 
-      for (const acc of carryForwardAccounts) {
-        const eff = getEffectiveClosingBalance(
-          acc.id,
-          bookings as any[],
-          flatBalances,
-          fiscalYear,
-          opening4000Id,
-        );
-        const closing = eff.amount;
-        const opening = eff.opening;
-
-        const existingBalance = balances.find((bal: any) => bal.account_id === acc.id);
-        if (existingBalance) {
-          await supabase.from("account_balances").update({
-            opening_balance: opening,
-            closing_balance: closing,
-          }).eq("id", existingBalance.id);
-        } else {
-          await supabase.from("account_balances").insert({
-            account_id: acc.id,
-            building_id: buildingId,
-            fiscal_year: fiscalYear,
-            opening_balance: opening,
-            closing_balance: closing,
-          });
-        }
-        updated++;
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["account-balances-settlement"] });
-      toast.success(`${updated} Kontensalden automatisch berechnet`);
-    } catch (e: any) {
-      toast.error("Fehler: " + (e.message || "Unbekannt"));
-    } finally {
-      setCalculatingSalden(false);
-    }
-  };
-
-  // --- AI Summary ---
-  const generateAiSummary = async () => {
-    setGeneratingAiSummary(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("analyze-billing", {
-        body: { 
-          buildingId, periodId, fiscalYear, 
-          mode: "settlement_summary",
-          settlementData: {
-            totalIncome, totalOperatingDist, totalOperatingNonDist, totalReserve,
-            abrechnungssumme, totalVorschuss, abrechnungsspitze,
-            ownerCount: ownerResults.length,
-            owners: ownerResults.map(o => ({ name: o.name, unit: o.unitNumber, cost: o.totalOwnerCost, paid: o.totalPaid, result: o.result })),
-          }
-        },
-      });
-      if (error) throw error;
-      setAiSummary(data?.summary || data?.text || "Keine Zusammenfassung generiert.");
-      toast.success("KI-Zusammenfassung erstellt");
-    } catch (e: any) {
-      toast.error("Fehler: " + (e.message || "Unbekannt"));
-    } finally {
-      setGeneratingAiSummary(false);
-    }
-  };
 
   // --- Render helper for Gesamtabrechnung section ---
   const renderSection = (section: string) => {
