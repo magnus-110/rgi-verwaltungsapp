@@ -398,12 +398,22 @@ Deno.serve(async (req) => {
       });
       doc.render(buildVarsFor(owner));
       const out = doc.getZip().generate({ type: "uint8array" });
-      const fname = `35a_${fiscal_year}_${sanitize(owner.unit_number || "")}_${sanitize(ownerName(owner))}.docx`;
+      const baseName = `35a_${fiscal_year}_${sanitize(owner.unit_number || "")}_${sanitize(ownerName(owner))}`;
+      if (wantPdf) {
+        const pdf = await convertDocxToPdf(out, `${baseName}.docx`);
+        return new Response(pdf, {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `attachment; filename="${baseName}.pdf"`,
+          },
+        });
+      }
       return new Response(out, {
         headers: {
           ...corsHeaders,
           "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          "Content-Disposition": `attachment; filename="${fname}"`,
+          "Content-Disposition": `attachment; filename="${baseName}.docx"`,
         },
       });
     }
@@ -419,8 +429,13 @@ Deno.serve(async (req) => {
         });
         doc.render(buildVarsFor(owner));
         const out = doc.getZip().generate({ type: "uint8array" });
-        const fname = `35a_${fiscal_year}_${sanitize(owner.unit_number || "")}_${sanitize(ownerName(owner))}.docx`;
-        bundle.file(fname, out);
+        const baseName = `35a_${fiscal_year}_${sanitize(owner.unit_number || "")}_${sanitize(ownerName(owner))}`;
+        if (wantPdf) {
+          const pdf = await convertDocxToPdf(out, `${baseName}.docx`);
+          bundle.file(`${baseName}.pdf`, pdf);
+        } else {
+          bundle.file(`${baseName}.docx`, out);
+        }
       } catch (e: any) {
         bundle.file(`ERROR_${i + 1}_${sanitize(ownerName(owner))}.txt`, String(e?.message || e));
       }
@@ -430,7 +445,7 @@ Deno.serve(async (req) => {
       headers: {
         ...corsHeaders,
         "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="35a_Bescheinigungen_${fiscal_year}.zip"`,
+        "Content-Disposition": `attachment; filename="35a_Bescheinigungen_${fiscal_year}${wantPdf ? "_PDF" : ""}.zip"`,
       },
     });
   } catch (e: any) {
