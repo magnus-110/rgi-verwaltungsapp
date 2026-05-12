@@ -36,6 +36,7 @@ import {
   generate35aZip,
   loadLogoBase64,
 } from "./Paragraph35aCertificatePdf";
+import { Paragraph35aCertificatePreviewDialog } from "./Paragraph35aCertificatePreviewDialog";
 
 interface Paragraph35aSectionProps {
   buildingId: string;
