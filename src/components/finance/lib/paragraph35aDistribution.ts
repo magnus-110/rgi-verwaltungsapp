@@ -241,10 +241,11 @@ export interface AccountBlock {
   bookings: BookingRow[];
   totalGross: number;
   totalLabor: number;
-  totalDistributable: number; // Σ share aller Hauptwohnungen
+  totalLaborDienste: number;
+  totalLaborHandwerker: number;
+  totalDistributable: number;
 }
 
-/** Gruppiert Buchungen pro Aufwandskonto. */
 export function buildAccountBlocks(
   bookings: BookingRow[],
   accounts: Map<string, AccountInfo>,
@@ -265,9 +266,21 @@ export function buildAccountBlocks(
     if (!acc) continue;
     const key = (acc.default_distribution_key || "mea").toLowerCase();
     const totalGross = bs.reduce((s, b) => s + getGesamtbetrag(b), 0);
-    const totalLabor = bs.reduce((s, b) => s + getLohnanteil(b), 0);
+    let totalLabor = 0;
+    let totalLaborDienste = 0;
+    let totalLaborHandwerker = 0;
+    for (const b of bs) {
+      const { dienste, handwerker } = splitLaborByType(b, acc);
+      totalLabor += dienste + handwerker;
+      totalLaborDienste += dienste;
+      totalLaborHandwerker += handwerker;
+    }
     const totalDistributable = owners.reduce((s, o) => s + getOwnerShare(o, key, ctx), 0);
-    blocks.push({ account: acc, key, bookings: bs, totalGross, totalLabor, totalDistributable });
+    blocks.push({
+      account: acc, key, bookings: bs,
+      totalGross, totalLabor, totalLaborDienste, totalLaborHandwerker,
+      totalDistributable,
+    });
   }
 
   blocks.sort((a, b) => a.account.account_number.localeCompare(b.account.account_number));
@@ -278,9 +291,13 @@ export interface OwnerBlockLine {
   booking: BookingRow;
   gross: number;
   labor: number;
-  totalShare: number; // Σ share über alle Eigentümer dieser Schlüssel-Sicht
+  laborDienste: number;
+  laborHandwerker: number;
+  totalShare: number;
   ownerShare: number;
-  ownerCost: number; // labor * ownerShare/totalShare
+  ownerCost: number;
+  ownerCostDienste: number;
+  ownerCostHandwerker: number;
 }
 
 export interface OwnerAccountBlock {
@@ -289,7 +306,11 @@ export interface OwnerAccountBlock {
   lines: OwnerBlockLine[];
   subtotalGross: number;
   subtotalLabor: number;
+  subtotalLaborDienste: number;
+  subtotalLaborHandwerker: number;
   subtotalOwnerCost: number;
+  subtotalOwnerCostDienste: number;
+  subtotalOwnerCostHandwerker: number;
 }
 
 /** Pro Eigentümer: Liste aller Konto-Blöcke mit anteiligen Kosten je Beleg. */
