@@ -125,20 +125,48 @@ Deno.serve(async (req) => {
       mailOptions.inReplyTo = in_reply_to;
     }
 
-    // Handle attachments (base64 encoded from client)
+    // Resolve attachments. Each entry has either inline base64 `content` (small files)
+    // or a `storage_path` pointing to the email-attachments bucket (large files uploaded
+    // directly by the client to avoid edge function payload/memory limits).
+    const resolvedAttachments: Array<{
+      filename: string;
+      buffer: Uint8Array;
+      contentType: string;
+      storage_path?: string;
+    }> = [];
     if (attachments && Array.isArray(attachments) && attachments.length > 0) {
       console.log(`Processing ${attachments.length} attachment(s)`);
-      mailOptions.attachments = attachments.map((att: any) => {
-        const sizeBytes = att.content ? Math.floor((att.content.length * 3) / 4) : 0;
-        console.log(`  - ${att.filename} (${att.contentType}, ~${sizeBytes} bytes)`);
-        // Convert base64 string to Buffer for reliable nodemailer handling in Deno
-        const buf = Uint8Array.from(atob(att.content), (c) => c.charCodeAt(0));
-        return {
+      for (const att of attachments) {
+        let buf: Uint8Array;
+        if (att.storage_path) {
+          const { data: blob, error: dlErr } = await supabaseAdmin.storage
+            .from("email-attachments")
+            .download(att.storage_path);
+          if (dlErr || !blob) {
+            console.error(`Storage download failed (${att.storage_path}):`, dlErr?.message);
+            throw new Error(`Anhang konnte nicht geladen werden: ${att.filename}`);
+          }
+          buf = new Uint8Array(await blob.arrayBuffer());
+          console.log(`  - ${att.filename} (${att.contentType}, ${buf.byteLength} bytes, from storage)`);
+        } else if (att.content) {
+          buf = Uint8Array.from(atob(att.content), (c) => c.charCodeAt(0));
+          console.log(`  - ${att.filename} (${att.contentType}, ${buf.byteLength} bytes, inline)`);
+        } else {
+          console.warn(`  - skipping ${att.filename}: no content or storage_path`);
+          continue;
+        }
+        resolvedAttachments.push({
           filename: att.filename,
-          content: buf,
+          buffer: buf,
           contentType: att.contentType || "application/octet-stream",
-        };
-      });
+          storage_path: att.storage_path,
+        });
+      }
+      mailOptions.attachments = resolvedAttachments.map((a) => ({
+        filename: a.filename,
+        content: a.buffer,
+        contentType: a.contentType,
+      }));
     }
 
     try {
