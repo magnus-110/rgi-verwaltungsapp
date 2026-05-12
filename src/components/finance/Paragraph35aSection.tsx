@@ -59,7 +59,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   const [busyBookingId, setBusyBookingId] = useState<string | null>(null);
 
   const refreshBookings = () =>
-    queryClient.invalidateQueries({ queryKey: ["35a-bookings-v2", buildingId, fiscalYear] });
+    queryClient.invalidateQueries({ queryKey: ["35a-bookings-v3", buildingId, fiscalYear] });
 
   const updateBookingType = async (bookingId: string, type: "dienste" | "handwerker") => {
     setBusyBookingId(bookingId);
