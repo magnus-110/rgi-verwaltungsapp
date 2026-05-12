@@ -1203,6 +1203,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                 <span>Instandhaltungsrücklage</span>
                 <span className="font-mono">{formatCurrency(Math.abs(openingReserve))}</span>
               </div>
+              {openingFuel !== 0 && (
+                <div className="flex justify-between text-sm">
+                  <span>Brennstoffanfangsbestand (Heizöl)</span>
+                  <span className="font-mono">{formatCurrency(Math.abs(openingFuel))}</span>
+                </div>
+              )}
               {openingPrepay !== 0 && (
                 <div className="flex justify-between text-sm">
                   <span>Vorauszahlungen Versorger (1470–1473)</span>
@@ -1217,7 +1223,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               )}
               <div className="flex justify-between text-sm font-medium border-t pt-1">
                 <span>Gesamt</span>
-                <span className="font-mono">{formatCurrency(Math.abs(openingGiro) + Math.abs(openingReserve) + openingPrepay + openingOther)}</span>
+                <span className="font-mono">{formatCurrency(Math.abs(openingGiro) + Math.abs(openingReserve) + Math.abs(openingFuel) + openingPrepay + openingOther)}</span>
               </div>
             </div>
 
