@@ -205,6 +205,10 @@ export function splitLaborByType(
   const labor = getLohnanteil(b);
   if (labor === 0) return { dienste: 0, handwerker: 0 };
 
+  // 1) Manuelle Buchungs-Übersteuerung hat Vorrang
+  if (b.settlement_35a_type === "handwerker") return { dienste: 0, handwerker: labor };
+  if (b.settlement_35a_type === "dienste") return { dienste: labor, handwerker: 0 };
+
   const detail = b.invoices?.line_items_detail;
   if (Array.isArray(detail) && detail.length > 0) {
     const vatRate = Number(b.invoices?.vat_rate ?? account?.default_vat_rate ?? 19);
