@@ -801,42 +801,115 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   };
 
   // ============================================================
-  //  DOCX-Export — generiert über Edge Function `generate-billing-docx`
-  //  Liefert Base64; wir bauen daraus einen Blob und triggern Download.
+  //  Vorlagen-basierter Export — neu (DOCX/PDF via generate-billing-document)
+  //  Quelle der Wahrheit: ausschließlich UI-Werte aus diesem Component.
   // ============================================================
+  const { data: billingTemplates = [] } = useQuery({
+    queryKey: ["billing-templates"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("billing_templates").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+  const singleTemplates = billingTemplates.filter((t: any) => t.scope === "single");
+  const overallTemplates = billingTemplates.filter((t: any) => t.scope === "overall");
+  const effectiveSingleTpl = selectedTemplate || singleTemplates[0]?.id || null;
+  const effectiveOverallTpl = selectedOverallTemplate || overallTemplates[0]?.id || effectiveSingleTpl;
+
   const sanitizeFilename = (s: string) =>
     s.replace(/[^a-zA-Z0-9äöüÄÖÜß_\-]+/g, "_").replace(/^_+|_+$/g, "");
 
-  const downloadDocx = async (ownerId?: string, ownerName?: string) => {
-    setGeneratingDocx(true);
+  const buildPayloadInputs = (): BillingPayloadInputs => ({
+    building, period, fiscalYear,
+    sectionAccounts: Object.fromEntries(
+      Object.entries(sectionAccounts).map(([k, accs]) => [
+        k,
+        (accs as any[]).map((a) => ({ ...a, distKeyLabel: SHARE_LABELS[a.distKey] || a.distKey })),
+      ]),
+    ),
+    totals: {
+      totalIncome, totalOperatingDist, totalOperatingNonDist, totalAccrual,
+      totalReserve, totalReserveWithdrawal, abrechnungssumme, totalVorschuss, abrechnungsspitze,
+      totalSollKostendeckung, totalSollEHR, totalEinnahmen,
+      incomeInterest: incomeAccountTotals.interest, incomeOther: incomeAccountTotals.other,
+      openingGiro, openingReserve, openingFuel, openingPrepay, openingOther, openingTotal,
+      closingGiro, closingReserve, closingFuel, closingPrepay, closingOther, closingTotal,
+    },
+    ownerResults,
+    assignmentsById: Object.fromEntries(assignments.map((a: any) => [a.id, a])),
+  });
+
+  const triggerDownload = (bytes: ArrayBuffer, filename: string, mime: string) => {
+    const blob = new Blob([bytes], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadBilling = async (
+    target: "overall" | "owner" | "all",
+    format: "docx" | "pdf",
+    owner?: { assignmentId: string; name: string },
+  ) => {
+    const tplId = target === "overall" ? effectiveOverallTpl : effectiveSingleTpl;
+    if (!tplId) {
+      toast.error("Bitte zuerst eine Vorlage hochladen (Vorlagen-Verwaltung).");
+      setTemplatesOpen(true);
+      return;
+    }
+    const busyKey = target === "owner" ? owner!.assignmentId : target;
+    setBusyDownload(busyKey);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-billing-docx", {
-        body: { buildingId, periodId, fiscalYear, ownerId },
+      const inp = buildPayloadInputs();
+      let items: Array<{ kind: "owner" | "overall"; ownerId?: string; ownerName?: string; payload: any }> = [];
+      if (target === "overall") {
+        items = [{ kind: "overall", payload: buildOverallPayload(inp) }];
+      } else if (target === "owner") {
+        items = [{ kind: "owner", ownerId: owner!.assignmentId, ownerName: owner!.name, payload: buildOwnerPayload(inp, owner!.assignmentId) }];
+      } else {
+        items = [
+          { kind: "overall", payload: buildOverallPayload(inp) },
+          ...ownerResults.map((o) => ({ kind: "owner" as const, ownerId: o.assignmentId, ownerName: o.name, payload: buildOwnerPayload(inp, o.assignmentId) })),
+        ];
+      }
+      const mode = target === "all" ? "all" : "single";
+      const { data, error } = await supabase.functions.invoke("generate-billing-document", {
+        body: {
+          template_id: tplId,
+          overall_template_id: effectiveOverallTpl,
+          fiscal_year: fiscalYear,
+          mode,
+          format,
+          file_prefix: `Abrechnung_${fiscalYear}`,
+          items,
+        },
       });
       if (error) throw error;
-      if (!data?.docx) throw new Error("Keine DOCX-Daten erhalten");
-
-      const binary = atob(data.docx);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const blob = new Blob([bytes], {
-        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = data.filename || (ownerId
-        ? `Einzelabrechnung_${sanitizeFilename(ownerName || "Eigentuemer")}_${fiscalYear}.docx`
-        : `WEG_Jahresabrechnung_${fiscalYear}.docx`);
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success(ownerId ? `DOCX für ${ownerName} heruntergeladen` : "Gesamtabrechnung als DOCX heruntergeladen");
+      const bytes = data instanceof ArrayBuffer ? data : await (data as Blob).arrayBuffer();
+      const ext = target === "all" ? "zip" : format;
+      const mime =
+        target === "all"
+          ? "application/zip"
+          : format === "pdf"
+            ? "application/pdf"
+            : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      const fname =
+        target === "owner"
+          ? `Einzelabrechnung_${sanitizeFilename(owner!.name)}_${fiscalYear}.${ext}`
+          : target === "overall"
+            ? `Gesamtabrechnung_${fiscalYear}.${ext}`
+            : `Abrechnung_${fiscalYear}.${ext}`;
+      triggerDownload(bytes, fname, mime);
+      toast.success("Download bereit");
     } catch (e: any) {
-      toast.error("Fehler beim DOCX-Export: " + (e.message || "Unbekannt"));
+      toast.error("Fehler: " + (e?.message || "Unbekannt"));
     } finally {
-      setGeneratingDocx(false);
+      setBusyDownload(null);
     }
   };
+
 
   // ============================================================
   //  Verteilerschlüssel-Warnungen — meldet Konten, die nicht
