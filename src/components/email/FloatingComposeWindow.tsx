@@ -94,11 +94,15 @@ export const FloatingComposeWindow = () => {
   // Desktop: render docked/fullscreen window (at most one) + minimized stack
   const visible = composes.find((c) => c.mode === "docked" || c.mode === "fullscreen");
   const minimized = composes.filter((c) => c.mode === "minimized");
+  // Shift minimized stack to the left of the docked window so action buttons don't get covered.
+  const dockedVisible = visible?.mode === "docked";
 
   return (
     <>
       {visible && <ComposeWindow compose={visible} />}
-      {minimized.length > 0 && <MinimizedStack composes={minimized} />}
+      {minimized.length > 0 && (
+        <MinimizedStack composes={minimized} offsetRight={dockedVisible ? 580 : 16} />
+      )}
     </>
   );
 };
