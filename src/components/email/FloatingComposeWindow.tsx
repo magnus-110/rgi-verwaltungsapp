@@ -351,7 +351,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    const maxSize = 10 * 1024 * 1024;
+    const maxSize = 25 * 1024 * 1024;
     const newAttachments = [...compose.attachments];
     for (const file of files) {
       if (file.size > maxSize) {
