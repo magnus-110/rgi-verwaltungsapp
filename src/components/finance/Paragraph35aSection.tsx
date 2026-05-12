@@ -177,31 +177,66 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     enabled: !!periodId,
   });
 
-  // Bookings flagged with §35a position
-  const { data: bookingsRaw = [] } = useQuery({
-    queryKey: ["35a-bookings-v2", buildingId, fiscalYear],
+  // Bookings flagged with §35a position. Embedded invoice fields are loaded
+  // separately to avoid the parent query being affected by the join.
+  const { data: bookingsRaw = [], error: bookingsError } = useQuery({
+    queryKey: ["35a-bookings-v3", buildingId, fiscalYear],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
         .select(
           `id, booking_date, description, amount, amount_35a, is_35a_relevant, settlement_35a_type,
-           account_id, counter_account_id, invoice_id,
-           invoices(invoice_number, invoice_date, vendor_name, line_items_detail, vat_rate)`
+           account_id, counter_account_id, invoice_id`
         )
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
-        .eq("is_35a_relevant", true);
-      if (error) throw error;
+        .eq("is_35a_relevant", true)
+        .order("booking_date", { ascending: false })
+        .limit(2000);
+      if (error) {
+        console.error("[§35a] bookings query failed", error);
+        throw error;
+      }
       return (data || []) as unknown as BookingRow[];
     },
   });
 
+  // Optional invoice metadata (used only for line item splitting). Failure must
+  // not hide bookings.
+  const invoiceIds = useMemo(
+    () => Array.from(new Set(bookingsRaw.map((b) => b.invoice_id).filter(Boolean) as string[])),
+    [bookingsRaw],
+  );
+
+  const { data: invoiceMap = {} } = useQuery({
+    queryKey: ["35a-invoices-v1", invoiceIds.sort().join(",")],
+    queryFn: async () => {
+      if (invoiceIds.length === 0) return {} as Record<string, BookingRow["invoices"]>;
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("id, invoice_number, invoice_date, vendor_name, line_items_detail, vat_rate")
+        .in("id", invoiceIds);
+      if (error) {
+        console.warn("[§35a] invoices fetch failed (non-blocking)", error);
+        return {} as Record<string, BookingRow["invoices"]>;
+      }
+      const m: Record<string, BookingRow["invoices"]> = {};
+      for (const r of data || []) m[(r as any).id] = r as any;
+      return m;
+    },
+    enabled: invoiceIds.length > 0,
+  });
+
+  // Show every flagged booking. Per the user, "is_35a_relevant=true" alone
+  // qualifies a booking for the certificate; amount_35a falls back to amount
+  // when the labor share has not been entered yet.
   const bookings = useMemo(
     () =>
-      bookingsRaw.filter(
-        (b) => b.amount_35a != null && Math.abs(Number(b.amount_35a)) > 0,
-      ),
-    [bookingsRaw],
+      bookingsRaw.map((b) => ({
+        ...b,
+        invoices: b.invoice_id ? invoiceMap[b.invoice_id] ?? null : null,
+      })),
+    [bookingsRaw, invoiceMap],
   );
 
   const accountIds = useMemo(() => {
