@@ -137,10 +137,24 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   const { data: templates = [] } = useQuery({
     queryKey: ["35a-templates-select"],
     queryFn: async () => {
-      const { data } = await supabase.from("paragraph_35a_templates").select("id, name").order("name");
+      const { data } = await supabase.from("paragraph_35a_templates").select("id, name, storage_path").order("name");
       return data || [];
     },
   });
+
+  const deleteTemplate = async (t: { id: string; name: string; storage_path: string }) => {
+    if (!confirm(`Vorlage "${t.name}" löschen?`)) return;
+    try {
+      if (t.storage_path) await supabase.storage.from("paragraph-35a-templates").remove([t.storage_path]);
+      const { error } = await supabase.from("paragraph_35a_templates").delete().eq("id", t.id);
+      if (error) throw error;
+      if (templateId === t.id) setTemplateId("");
+      await queryClient.invalidateQueries({ queryKey: ["35a-templates-select"] });
+      toast({ title: "Vorlage gelöscht" });
+    } catch (e) {
+      toast({ title: "Löschen fehlgeschlagen", description: String((e as Error).message), variant: "destructive" });
+    }
+  };
 
   const downloadDocx = async (assignmentIds?: string[]) => {
     if (!templateId) {
