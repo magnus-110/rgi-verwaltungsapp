@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +36,7 @@ import {
   generate35aZip,
   loadLogoBase64,
 } from "./Paragraph35aCertificatePdf";
+import { Paragraph35aCertificatePreviewDialog } from "./Paragraph35aCertificatePreviewDialog";
 
 interface Paragraph35aSectionProps {
   buildingId: string;
@@ -47,6 +48,8 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   const { toast } = useToast();
   const [busyOwnerId, setBusyOwnerId] = useState<string | null>(null);
   const [zipBusy, setZipBusy] = useState<{ done: number; total: number } | null>(null);
+  const [previewOwner, setPreviewOwner] = useState<OwnerAssignment | null>(null);
+  const [logoCache, setLogoCache] = useState<string | null>(null);
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
@@ -100,11 +103,13 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     },
   });
 
-  // Strict filter: must have amount_35a > 0 OR is_35a_relevant
+  // Strict filter: must have a positive labor amount (amount_35a > 0).
+  // is_35a_relevant alleine reicht NICHT — sonst tauchen Konten wie "Streusalz"
+  // mit 0,00 € Lohnanteil in der Bescheinigung auf.
   const bookings = useMemo(
     () =>
       bookingsRaw.filter(
-        (b) => b.is_35a_relevant === true || (b.amount_35a != null && Number(b.amount_35a) !== 0),
+        (b) => b.amount_35a != null && Math.abs(Number(b.amount_35a)) > 0,
       ),
     [bookingsRaw],
   );
@@ -194,7 +199,10 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   );
 
   const blocks = useMemo(
-    () => buildAccountBlocks(bookings, accountsMap, owners, shareCtx),
+    () =>
+      buildAccountBlocks(bookings, accountsMap, owners, shareCtx).filter(
+        (bl) => Math.abs(bl.totalLabor) > 0,
+      ),
     [bookings, accountsMap, owners, shareCtx],
   );
 
@@ -204,6 +212,30 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     () => owners.map((o) => ({ owner: o, ...buildOwnerCertificate(o, blocks, shareCtx) })),
     [owners, blocks, shareCtx],
   );
+
+  // Preload logo once for the in-app preview iframe
+  useEffect(() => {
+    let cancelled = false;
+    loadLogoBase64().then((logo) => {
+      if (!cancelled) setLogoCache(logo);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const previewCtx = useMemo<CertificateContext | null>(() => {
+    if (!building) return null;
+    return {
+      building: { name: building?.name, address: building?.address },
+      fiscalYear,
+      periodFrom: period?.period_from,
+      periodTo: period?.period_to,
+      blocks,
+      shareCtx,
+      logoBase64: logoCache,
+    };
+  }, [building, fiscalYear, period, blocks, shareCtx, logoCache]);
 
   const handleSinglePdf = async (owner: OwnerAssignment) => {
     setBusyOwnerId(owner.id);
@@ -365,7 +397,11 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
               </TableHeader>
               <TableBody>
                 {ownerCertificates.map(({ owner, total }) => (
-                  <TableRow key={owner.id}>
+                  <TableRow
+                    key={owner.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => setPreviewOwner(owner)}
+                  >
                     <TableCell className="font-mono text-xs">{owner.unit_number || "–"}</TableCell>
                     <TableCell className="text-sm">{ownerDisplayName(owner)}</TableCell>
                     <TableCell className="text-right font-mono text-sm font-medium">
@@ -375,7 +411,10 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleSinglePdf(owner)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSinglePdf(owner);
+                        }}
                         disabled={busyOwnerId === owner.id || !!zipBusy}
                       >
                         {busyOwnerId === owner.id ? (
@@ -405,6 +444,13 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
           </CardContent>
         </Card>
       )}
+
+      <Paragraph35aCertificatePreviewDialog
+        open={!!previewOwner}
+        onOpenChange={(o) => !o && setPreviewOwner(null)}
+        owner={previewOwner}
+        ctx={previewCtx}
+      />
     </div>
   );
 }
