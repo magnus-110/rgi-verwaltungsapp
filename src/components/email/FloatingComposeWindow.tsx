@@ -355,7 +355,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     const newAttachments = [...compose.attachments];
     for (const file of files) {
       if (file.size > maxSize) {
-        toast.error(`${file.name} ist zu groß (max. 10MB)`);
+        toast.error(`${file.name} ist zu groß (max. 25MB)`);
         continue;
       }
       newAttachments.push({ file, name: file.name, size: file.size });
