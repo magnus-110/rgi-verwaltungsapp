@@ -48,6 +48,7 @@ interface Paragraph35aSectionProps {
 
 export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragraph35aSectionProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [busyOwnerId, setBusyOwnerId] = useState<string | null>(null);
   const [zipBusy, setZipBusy] = useState<{ done: number; total: number } | null>(null);
   const [previewOwner, setPreviewOwner] = useState<OwnerAssignment | null>(null);
@@ -55,6 +56,45 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   const [templateId, setTemplateId] = useState<string>("");
   const [docxBusy, setDocxBusy] = useState<"single" | "zip" | null>(null);
   const [tplDialogOpen, setTplDialogOpen] = useState(false);
+  const [busyBookingId, setBusyBookingId] = useState<string | null>(null);
+
+  const refreshBookings = () =>
+    queryClient.invalidateQueries({ queryKey: ["35a-bookings-v2", buildingId, fiscalYear] });
+
+  const updateBookingType = async (bookingId: string, type: "dienste" | "handwerker") => {
+    setBusyBookingId(bookingId);
+    try {
+      const { error } = await supabase
+        .from("bookings")
+        .update({ settlement_35a_type: type })
+        .eq("id", bookingId);
+      if (error) throw error;
+      await refreshBookings();
+      toast({ title: type === "handwerker" ? "Als Handwerker markiert" : "Als Dienstleister markiert" });
+    } catch (e) {
+      toast({ title: "Aktualisierung fehlgeschlagen", description: String((e as Error).message), variant: "destructive" });
+    } finally {
+      setBusyBookingId(null);
+    }
+  };
+
+  const removeFrom35a = async (bookingId: string) => {
+    if (!confirm("Diese Position wirklich aus der §35a-Bescheinigung entfernen?")) return;
+    setBusyBookingId(bookingId);
+    try {
+      const { error } = await supabase
+        .from("bookings")
+        .update({ is_35a_relevant: false, amount_35a: null, settlement_35a_type: null })
+        .eq("id", bookingId);
+      if (error) throw error;
+      await refreshBookings();
+      toast({ title: "Position aus §35a entfernt" });
+    } catch (e) {
+      toast({ title: "Entfernen fehlgeschlagen", description: String((e as Error).message), variant: "destructive" });
+    } finally {
+      setBusyBookingId(null);
+    }
+  };
 
   const { data: templates = [] } = useQuery({
     queryKey: ["35a-templates-select"],
