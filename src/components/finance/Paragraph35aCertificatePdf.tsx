@@ -57,12 +57,12 @@ function escapeHtml(s: string): string {
 }
 
 export function buildCertificateHtml(owner: OwnerAssignment, ctx: CertificateContext, idx: number = 0): string {
-  const { blocks, total } = buildOwnerCertificate(owner, ctx.blocks, ctx.shareCtx);
+  const { blocks, total, totalDienste, totalHandwerker } = buildOwnerCertificate(owner, ctx.blocks, ctx.shareCtx);
   const sal = ownerSalutation(owner);
   const name = ownerDisplayName(owner);
   const addr = ownerAddress(owner);
   const unitNo = (owner.unit_number || "").padStart(4, "0");
-  const buildingShort = "1001"; // generischer Platzhalter (Building-Code)
+  const buildingShort = "1001";
   const certNo = `a${buildingShort}${ctx.fiscalYear}${unitNo}3112`;
   const tage = daysBetween(ctx.periodFrom, ctx.periodTo);
 
@@ -78,9 +78,28 @@ export function buildCertificateHtml(owner: OwnerAssignment, ctx: CertificateCon
             <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;font-size:9.5pt;">${fmtShare(ln.totalShare, bl.key)}</td>
             <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;font-size:9.5pt;">${fmtShare(ln.ownerShare, bl.key)}</td>
             <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;font-size:9.5pt;">${fmtEUR(ln.ownerCost)}</td>
+            <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;font-size:9.5pt;color:#0a6">${ln.ownerCostDienste > 0 ? fmtEUR(ln.ownerCostDienste) : "–"}</td>
+            <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;font-size:9.5pt;color:#06a">${ln.ownerCostHandwerker > 0 ? fmtEUR(ln.ownerCostHandwerker) : "–"}</td>
           </tr>`;
         })
         .join("");
+      return `
+        <tr><td colspan="8" style="padding:10px 6px 4px;font-weight:bold;font-size:10pt;background:#f7f7f7;">
+          ${escapeHtml(bl.account.account_number)} ${escapeHtml(bl.account.account_name)} – Verteilung nach ${escapeHtml(keyLabel)}
+        </td></tr>
+        ${linesHtml}
+        <tr style="font-weight:bold;background:#fafafa;">
+          <td style="padding:5px 6px;font-size:9.5pt;">Summe</td>
+          <td style="padding:5px 6px;text-align:right;font-size:9.5pt;">${fmtEUR(bl.subtotalGross)}</td>
+          <td style="padding:5px 6px;text-align:right;font-size:9.5pt;">${fmtEUR(bl.subtotalLabor)}</td>
+          <td></td><td></td>
+          <td style="padding:5px 6px;text-align:right;font-size:9.5pt;">${fmtEUR(bl.subtotalOwnerCost)}</td>
+          <td style="padding:5px 6px;text-align:right;font-size:9.5pt;color:#0a6">${fmtEUR(bl.subtotalOwnerCostDienste)}</td>
+          <td style="padding:5px 6px;text-align:right;font-size:9.5pt;color:#06a">${fmtEUR(bl.subtotalOwnerCostHandwerker)}</td>
+        </tr>
+      `;
+    })
+    .join("");
       return `
         <tr><td colspan="6" style="padding:10px 6px 4px;font-weight:bold;font-size:10pt;background:#f7f7f7;">
           ${escapeHtml(bl.account.account_number)} ${escapeHtml(bl.account.account_name)} – Verteilung nach ${escapeHtml(keyLabel)}
