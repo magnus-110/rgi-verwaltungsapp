@@ -889,8 +889,19 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         ];
       }
       const mode = target === "all" ? "all" : "single";
-      const { data, error } = await supabase.functions.invoke("generate-billing-document", {
-        body: {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("Bitte erneut anmelden, um die Abrechnung herunterzuladen.");
+
+      // Wichtig: nicht supabase.functions.invoke() für DOCX/ZIP nutzen.
+      // Der Supabase-Client decodiert Office-Binaries teilweise als Text und beschädigt dadurch die ZIP-Struktur.
+      const resp = await fetch(`https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-billing-document`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
           template_id: tplId,
           overall_template_id: effectiveOverallTpl,
           fiscal_year: fiscalYear,
@@ -898,22 +909,13 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           format,
           file_prefix: `Abrechnung_${fiscalYear}`,
           items,
-        },
+        }),
       });
-      if (error) throw error;
-      let bytes: ArrayBuffer | Uint8Array | Blob;
-      if (data instanceof ArrayBuffer || data instanceof Uint8Array) {
-        bytes = data;
-      } else if (data instanceof Blob) {
-        bytes = await data.arrayBuffer();
-      } else if (data && typeof (data as any).arrayBuffer === "function") {
-        bytes = await (data as any).arrayBuffer();
-      } else if (data && typeof data === "object" && (data as any).error) {
-        throw new Error((data as any).error);
-      } else {
-        // Fallback: stringify
-        bytes = new Blob([typeof data === "string" ? data : JSON.stringify(data)]);
+      if (!resp.ok) {
+        const msg = await resp.text();
+        throw new Error(msg || `Export fehlgeschlagen (${resp.status})`);
       }
+      const bytes = await resp.blob();
       const ext = target === "all" ? "zip" : format;
       const mime =
         target === "all"
