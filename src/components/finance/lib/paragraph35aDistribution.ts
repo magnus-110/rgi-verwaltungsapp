@@ -268,9 +268,16 @@ export function buildAccountBlocks(
 
   const blocks: AccountBlock[] = [];
   for (const [accId, bs] of groups) {
-    const acc = accounts.get(accId);
-    if (!acc) continue;
-    const key = (acc.default_distribution_key || "mea").toLowerCase();
+    const acc: AccountInfo = accounts.get(accId) ?? {
+      id: accId,
+      account_number: "?",
+      account_name: "Unbekanntes Konto",
+      default_distribution_key: "mea",
+      is_35a_relevant: true,
+      settlement_35a_type: null,
+      default_vat_rate: null,
+    };
+    const key = (acc.default_distribution_key || "mea").toString().toLowerCase();
     const totalGross = bs.reduce((s, b) => s + getGesamtbetrag(b), 0);
     let totalLabor = 0;
     let totalLaborDienste = 0;
@@ -289,7 +296,7 @@ export function buildAccountBlocks(
     });
   }
 
-  blocks.sort((a, b) => a.account.account_number.localeCompare(b.account.account_number));
+  blocks.sort((a, b) => (a.account.account_number || "").localeCompare(b.account.account_number || ""));
   return blocks;
 }
 
