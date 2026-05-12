@@ -106,15 +106,23 @@ const SECTION_LABELS: Record<string, string> = {
   accrual: "Abgrenzungen (nachrichtlich)",
 };
 
-function sectionListFromUi(accs: any[] = []) {
-  return accs.map((a) => ({
-    konto_nr: a.account_number,
-    konto_name: a.account_name,
-    verteiler: a.distKeyLabel || a.distKey || "",
-    betrag: fmtEUR(a.total),
-    betrag_abs: fmtEUR(a.totalAbs),
-    wirtschaftsplan: a.wpAmount > 0 ? fmtEUR(a.wpAmount) : "",
-  }));
+function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean } = {}) {
+  return accs.map((a) => {
+    const abs = Math.abs(a.totalAbs || 0);
+    const signed = opts.asExpense ? -abs : a.total;
+    const wp = Math.abs(a.wpAmount || 0);
+    const wpSigned = opts.asExpense ? -wp : a.wpAmount;
+    return {
+      konto_nr: a.account_number,
+      konto_name: a.account_name,
+      verteiler: a.distKeyLabel || a.distKey || "",
+      betrag: fmtEUR(signed),
+      betrag_abs: fmtEUR(abs),
+      betrag_ist: fmtEUR(signed),
+      betrag_verteilbar: fmtEUR(opts.asExpense ? -(a.distributableAmount ?? abs) : (a.distributableAmount ?? abs)),
+      wirtschaftsplan: wp > 0 ? fmtEUR(wpSigned) : "",
+    };
+  });
 }
 
 function ownerAddr(assignment: any) {
