@@ -187,7 +187,8 @@ Deno.serve(async (req) => {
     );
 
     const body = await req.json();
-    const { template_id, building_id, fiscal_year, period_id, assignment_ids } = body || {};
+    const { template_id, building_id, fiscal_year, period_id, assignment_ids, format } = body || {};
+    const wantPdf = format === "pdf";
     if (!template_id || !building_id || !fiscal_year) {
       return json({ error: "template_id, building_id, fiscal_year required" }, 400);
     }
