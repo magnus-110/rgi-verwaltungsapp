@@ -54,6 +54,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   const [logoCache, setLogoCache] = useState<string | null>(null);
   const [templateId, setTemplateId] = useState<string>("");
   const [docxBusy, setDocxBusy] = useState<"single" | "zip" | null>(null);
+  const [pdfBusy, setPdfBusy] = useState<"zip" | string | null>(null);
   const [uploadingTpl, setUploadingTpl] = useState(false);
   const tplFileInputRef = useRef<HTMLInputElement>(null);
   const [busyBookingId, setBusyBookingId] = useState<string | null>(null);
