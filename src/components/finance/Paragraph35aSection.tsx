@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,7 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table";
-import { FileText, Download, Loader2, Package, Settings, FileType } from "lucide-react";
+import { FileText, Download, Loader2, Package, Settings, FileType, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Paragraph35aTemplatesDialog } from "./Paragraph35aTemplatesDialog";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +48,7 @@ interface Paragraph35aSectionProps {
 
 export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragraph35aSectionProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [busyOwnerId, setBusyOwnerId] = useState<string | null>(null);
   const [zipBusy, setZipBusy] = useState<{ done: number; total: number } | null>(null);
   const [previewOwner, setPreviewOwner] = useState<OwnerAssignment | null>(null);
@@ -55,6 +56,45 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   const [templateId, setTemplateId] = useState<string>("");
   const [docxBusy, setDocxBusy] = useState<"single" | "zip" | null>(null);
   const [tplDialogOpen, setTplDialogOpen] = useState(false);
+  const [busyBookingId, setBusyBookingId] = useState<string | null>(null);
+
+  const refreshBookings = () =>
+    queryClient.invalidateQueries({ queryKey: ["35a-bookings-v2", buildingId, fiscalYear] });
+
+  const updateBookingType = async (bookingId: string, type: "dienste" | "handwerker") => {
+    setBusyBookingId(bookingId);
+    try {
+      const { error } = await supabase
+        .from("bookings")
+        .update({ settlement_35a_type: type })
+        .eq("id", bookingId);
+      if (error) throw error;
+      await refreshBookings();
+      toast({ title: type === "handwerker" ? "Als Handwerker markiert" : "Als Dienstleister markiert" });
+    } catch (e) {
+      toast({ title: "Aktualisierung fehlgeschlagen", description: String((e as Error).message), variant: "destructive" });
+    } finally {
+      setBusyBookingId(null);
+    }
+  };
+
+  const removeFrom35a = async (bookingId: string) => {
+    if (!confirm("Diese Position wirklich aus der §35a-Bescheinigung entfernen?")) return;
+    setBusyBookingId(bookingId);
+    try {
+      const { error } = await supabase
+        .from("bookings")
+        .update({ is_35a_relevant: false, amount_35a: null, settlement_35a_type: null })
+        .eq("id", bookingId);
+      if (error) throw error;
+      await refreshBookings();
+      toast({ title: "Position aus §35a entfernt" });
+    } catch (e) {
+      toast({ title: "Entfernen fehlgeschlagen", description: String((e as Error).message), variant: "destructive" });
+    } finally {
+      setBusyBookingId(null);
+    }
+  };
 
   const { data: templates = [] } = useQuery({
     queryKey: ["35a-templates-select"],
@@ -144,7 +184,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
       const { data, error } = await supabase
         .from("bookings")
         .select(
-          `id, booking_date, description, amount, amount_35a, is_35a_relevant,
+          `id, booking_date, description, amount, amount_35a, is_35a_relevant, settlement_35a_type,
            account_id, counter_account_id, invoice_id,
            invoices(invoice_number, invoice_date, vendor_name, line_items_detail, vat_rate)`
         )
@@ -368,11 +408,17 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                         <TableHead className="text-xs text-right w-28">Lohnanteil</TableHead>
                         <TableHead className="text-xs text-right w-24 text-emerald-700">davon Dienste</TableHead>
                         <TableHead className="text-xs text-right w-28 text-blue-700">davon Handwerker</TableHead>
+                        <TableHead className="text-xs w-[170px]">Typ</TableHead>
+                        <TableHead className="text-xs w-10"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {bl.bookings.map((b) => {
                         const split = splitLaborByType(b, bl.account);
+                        const currentType: "dienste" | "handwerker" =
+                          (b.settlement_35a_type as any) ||
+                          (split.handwerker > split.dienste ? "handwerker" : "dienste");
+                        const isOverride = !!b.settlement_35a_type;
                         return (
                           <TableRow key={b.id}>
                             <TableCell className="text-xs">
@@ -391,6 +437,41 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                             <TableCell className="text-right font-mono text-xs text-blue-700">
                               {split.handwerker > 0 ? formatCurrency(split.handwerker) : "–"}
                             </TableCell>
+                            <TableCell>
+                              <Select
+                                value={currentType}
+                                onValueChange={(v) => updateBookingType(b.id, v as any)}
+                                disabled={busyBookingId === b.id}
+                              >
+                                <SelectTrigger className="h-7 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="dienste" className="text-xs">
+                                    Dienstleister{!isOverride && currentType === "dienste" ? " (auto)" : ""}
+                                  </SelectItem>
+                                  <SelectItem value="handwerker" className="text-xs">
+                                    Handwerker{!isOverride && currentType === "handwerker" ? " (auto)" : ""}
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                title="Aus §35a entfernen"
+                                onClick={() => removeFrom35a(b.id)}
+                                disabled={busyBookingId === b.id}
+                              >
+                                {busyBookingId === b.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <X className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -402,6 +483,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                         <TableCell className="text-right font-mono text-xs font-medium">{formatCurrency(bl.totalLabor)}</TableCell>
                         <TableCell className="text-right font-mono text-xs font-medium text-emerald-700">{formatCurrency(bl.totalLaborDienste)}</TableCell>
                         <TableCell className="text-right font-mono text-xs font-medium text-blue-700">{formatCurrency(bl.totalLaborHandwerker)}</TableCell>
+                        <TableCell colSpan={2} />
                       </TableRow>
                     </TableFooter>
                   </Table>

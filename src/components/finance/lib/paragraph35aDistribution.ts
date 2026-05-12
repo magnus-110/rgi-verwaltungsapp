@@ -33,6 +33,7 @@ export interface BookingRow {
   amount: number | string;
   amount_35a: number | string | null;
   is_35a_relevant: boolean | null;
+  settlement_35a_type?: Type35a | string | null;
   account_id: string | null;
   counter_account_id: string | null;
   invoice_id?: string | null;
@@ -203,6 +204,10 @@ export function splitLaborByType(
 ): { dienste: number; handwerker: number } {
   const labor = getLohnanteil(b);
   if (labor === 0) return { dienste: 0, handwerker: 0 };
+
+  // 1) Manuelle Buchungs-Übersteuerung hat Vorrang
+  if (b.settlement_35a_type === "handwerker") return { dienste: 0, handwerker: labor };
+  if (b.settlement_35a_type === "dienste") return { dienste: labor, handwerker: 0 };
 
   const detail = b.invoices?.line_items_detail;
   if (Array.isArray(detail) && detail.length > 0) {
