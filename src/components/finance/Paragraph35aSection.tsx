@@ -655,14 +655,28 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                 className="hidden"
                 onChange={handleTplFileChange}
               />
-              <Button size="sm" variant="outline" onClick={() => downloadDocx()} disabled={!templateId || !!docxBusy}>
-                {docxBusy === "zip" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileType className="h-4 w-4 mr-2" />}
-                DOCX (ZIP)
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => downloadWordPdf()} disabled={!templateId || !!pdfBusy}>
-                {pdfBusy === "zip" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Package className="h-4 w-4 mr-2" />}
-                PDF (ZIP)
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!templateId || !!docxBusy || !!pdfBusy}
+                    title={templateId ? "Alle herunterladen (ZIP)" : "Bitte zuerst eine Word-Vorlage wählen"}
+                  >
+                    {docxBusy === "zip" || pdfBusy === "zip"
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Download className="h-4 w-4" />}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => downloadDocx()}>
+                    <FileType className="h-4 w-4 mr-2" /> DOCX (ZIP)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => downloadWordPdf()}>
+                    <FileText className="h-4 w-4 mr-2" /> PDF (ZIP)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -694,15 +708,16 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
-                              size="sm"
+                              size="icon"
                               variant="ghost"
+                              className="h-8 w-8"
                               disabled={!templateId || pdfBusy === owner.id || docxBusy === "single" || pdfBusy === "zip" || docxBusy === "zip"}
                               title={templateId ? "Download" : "Bitte zuerst eine Word-Vorlage wählen"}
                             >
                               {pdfBusy === owner.id || (docxBusy === "single" && busyOwnerId === owner.id) ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                <><Download className="h-4 w-4 mr-1" /> Download <ChevronDown className="h-3 w-3 ml-1" /></>
+                                <Download className="h-4 w-4" />
                               )}
                             </Button>
                           </DropdownMenuTrigger>
