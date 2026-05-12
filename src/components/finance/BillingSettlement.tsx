@@ -1265,18 +1265,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               <div className="text-sm font-medium mb-1">Kontrolle Endbestände zum {period ? new Date(period.period_to).toLocaleDateString("de-DE") : "–"}</div>
               <div className="flex justify-between text-sm">
                 <span>Girokonto</span>
-                <span className="font-mono">{formatCurrency(closingGiro)}</span>
+                <span className="font-mono">{formatCurrency(Math.abs(closingGiro))}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span>Instandhaltungsrücklage</span>
-                <span className="font-mono">{formatCurrency(closingReserve)}</span>
+                <span className="font-mono">{formatCurrency(Math.abs(closingReserve))}</span>
               </div>
-              {closingFuel !== 0 && (
-                <div className="flex justify-between text-sm">
-                  <span>Brennstoffrestbestand (1450)</span>
-                  <span className="font-mono">{formatCurrency(closingFuel)}</span>
-                </div>
-              )}
               {closingPrepay !== 0 && (
                 <div className="flex justify-between text-sm">
                   <span>Vorauszahlungen Versorger (1470–1473)</span>
@@ -1291,7 +1285,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               )}
               <div className="flex justify-between text-sm font-medium border-t pt-1">
                 <span>Gesamt</span>
-                <span className="font-mono">{formatCurrency(closingTotal)}</span>
+                <span className="font-mono">{formatCurrency(Math.abs(closingGiro) + Math.abs(closingReserve) + closingPrepay + closingOther)}</span>
               </div>
             </div>
 
