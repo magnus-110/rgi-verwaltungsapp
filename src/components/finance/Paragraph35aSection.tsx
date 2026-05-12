@@ -310,39 +310,44 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                       <TableRow>
                         <TableHead className="text-xs w-24">Datum</TableHead>
                         <TableHead className="text-xs">Beleg</TableHead>
-                        <TableHead className="text-xs text-right w-28">Gesamt</TableHead>
-                        <TableHead className="text-xs text-right w-32">§35a-Lohnanteil</TableHead>
+                        <TableHead className="text-xs text-right w-24">Gesamt</TableHead>
+                        <TableHead className="text-xs text-right w-28">Lohnanteil</TableHead>
+                        <TableHead className="text-xs text-right w-24 text-emerald-700">davon Dienste</TableHead>
+                        <TableHead className="text-xs text-right w-28 text-blue-700">davon Handwerker</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {bl.bookings.map((b) => (
-                        <TableRow key={b.id}>
-                          <TableCell className="text-xs">
-                            {new Date(b.booking_date).toLocaleDateString("de-DE")}
-                          </TableCell>
-                          <TableCell className="text-xs">{formatBookingLabel(b)}</TableCell>
-                          <TableCell className="text-right font-mono text-xs">
-                            {formatCurrency(Math.abs(Number(b.amount)))}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-xs font-medium">
-                            {formatCurrency(
-                              b.amount_35a != null ? Math.abs(Number(b.amount_35a)) : Math.abs(Number(b.amount)),
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {bl.bookings.map((b) => {
+                        const split = splitLaborByType(b, bl.account);
+                        return (
+                          <TableRow key={b.id}>
+                            <TableCell className="text-xs">
+                              {new Date(b.booking_date).toLocaleDateString("de-DE")}
+                            </TableCell>
+                            <TableCell className="text-xs">{formatBookingLabel(b)}</TableCell>
+                            <TableCell className="text-right font-mono text-xs">
+                              {formatCurrency(Math.abs(Number(b.amount)))}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-xs font-medium">
+                              {formatCurrency(split.dienste + split.handwerker)}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-xs text-emerald-700">
+                              {split.dienste > 0 ? formatCurrency(split.dienste) : "–"}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-xs text-blue-700">
+                              {split.handwerker > 0 ? formatCurrency(split.handwerker) : "–"}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                     <TableFooter>
                       <TableRow>
-                        <TableCell colSpan={2} className="text-xs font-medium">
-                          Summe Konto
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-xs font-medium">
-                          {formatCurrency(bl.totalGross)}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-xs font-medium">
-                          {formatCurrency(bl.totalLabor)}
-                        </TableCell>
+                        <TableCell colSpan={2} className="text-xs font-medium">Summe Konto</TableCell>
+                        <TableCell className="text-right font-mono text-xs font-medium">{formatCurrency(bl.totalGross)}</TableCell>
+                        <TableCell className="text-right font-mono text-xs font-medium">{formatCurrency(bl.totalLabor)}</TableCell>
+                        <TableCell className="text-right font-mono text-xs font-medium text-emerald-700">{formatCurrency(bl.totalLaborDienste)}</TableCell>
+                        <TableCell className="text-right font-mono text-xs font-medium text-blue-700">{formatCurrency(bl.totalLaborHandwerker)}</TableCell>
                       </TableRow>
                     </TableFooter>
                   </Table>
