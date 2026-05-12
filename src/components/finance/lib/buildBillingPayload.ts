@@ -190,6 +190,7 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
 
     // Sektions-Summen (entspricht Spalten in der UI)
     sum_einnahmen: fmtEUR(totals.totalEinnahmen),
+    sum_einnahmen_inkl_vorschuss: fmtEUR(sumEinnahmenInkl),
     sum_bewirtschaftung_umlagefaehig: fmtEUR(totals.totalOperatingDist),
     sum_bewirtschaftung_nicht_umlagefaehig: fmtEUR(totals.totalOperatingNonDist),
     sum_heizkosten: fmtEUR(
@@ -206,6 +207,8 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     sum_sonstige_ertraege: fmtEUR(totals.incomeOther),
     abrechnungsspitze: fmtEUR(Math.abs(totals.abrechnungsspitze)),
     abrechnungsspitze_label: totals.abrechnungsspitze >= 0 ? "Guthaben" : "Nachzahlung",
+    abrechnungsspitze_guthaben: totals.abrechnungsspitze >= 0,
+    abrechnungsspitze_nachzahlung: totals.abrechnungsspitze < 0,
 
     // Vermögensbericht / Kontrollbestände
     bank_anfangsbestand: fmtEUR(totals.openingGiro),
