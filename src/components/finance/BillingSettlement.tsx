@@ -901,7 +901,19 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         },
       });
       if (error) throw error;
-      const bytes = data instanceof ArrayBuffer ? data : await (data as Blob).arrayBuffer();
+      let bytes: ArrayBuffer | Uint8Array | Blob;
+      if (data instanceof ArrayBuffer || data instanceof Uint8Array) {
+        bytes = data;
+      } else if (data instanceof Blob) {
+        bytes = await data.arrayBuffer();
+      } else if (data && typeof (data as any).arrayBuffer === "function") {
+        bytes = await (data as any).arrayBuffer();
+      } else if (data && typeof data === "object" && (data as any).error) {
+        throw new Error((data as any).error);
+      } else {
+        // Fallback: stringify
+        bytes = new Blob([typeof data === "string" ? data : JSON.stringify(data)]);
+      }
       const ext = target === "all" ? "zip" : format;
       const mime =
         target === "all"
