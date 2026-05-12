@@ -392,12 +392,14 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                 <TableRow>
                   <TableHead className="text-xs w-20">Einheit</TableHead>
                   <TableHead className="text-xs">Eigentümer</TableHead>
-                  <TableHead className="text-xs text-right w-32">Ihre Kosten §35a</TableHead>
+                  <TableHead className="text-xs text-right w-28">Gesamt §35a</TableHead>
+                  <TableHead className="text-xs text-right w-28 text-emerald-700">Dienste</TableHead>
+                  <TableHead className="text-xs text-right w-28 text-blue-700">Handwerker</TableHead>
                   <TableHead className="text-xs text-right w-32">Aktion</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ownerCertificates.map(({ owner, total }) => (
+                {ownerCertificates.map(({ owner, total, totalDienste, totalHandwerker }) => (
                   <TableRow
                     key={owner.id}
                     className="cursor-pointer hover:bg-muted/50"
@@ -405,9 +407,9 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                   >
                     <TableCell className="font-mono text-xs">{owner.unit_number || "–"}</TableCell>
                     <TableCell className="text-sm">{ownerDisplayName(owner)}</TableCell>
-                    <TableCell className="text-right font-mono text-sm font-medium">
-                      {formatCurrency(total)}
-                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm font-medium">{formatCurrency(total)}</TableCell>
+                    <TableCell className="text-right font-mono text-xs text-emerald-700">{formatCurrency(totalDienste)}</TableCell>
+                    <TableCell className="text-right font-mono text-xs text-blue-700">{formatCurrency(totalHandwerker)}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         size="sm"
@@ -432,11 +434,15 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
               </TableBody>
               <TableFooter>
                 <TableRow>
-                  <TableCell colSpan={2} className="font-medium text-sm">
-                    Gesamt
-                  </TableCell>
+                  <TableCell colSpan={2} className="font-medium text-sm">Gesamt</TableCell>
                   <TableCell className="text-right font-mono font-medium text-sm">
                     {formatCurrency(ownerCertificates.reduce((s, c) => s + c.total, 0))}
+                  </TableCell>
+                  <TableCell className="text-right font-mono font-medium text-xs text-emerald-700">
+                    {formatCurrency(ownerCertificates.reduce((s, c) => s + c.totalDienste, 0))}
+                  </TableCell>
+                  <TableCell className="text-right font-mono font-medium text-xs text-blue-700">
+                    {formatCurrency(ownerCertificates.reduce((s, c) => s + c.totalHandwerker, 0))}
                   </TableCell>
                   <TableCell />
                 </TableRow>
