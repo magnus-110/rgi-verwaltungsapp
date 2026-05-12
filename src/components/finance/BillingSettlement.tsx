@@ -1175,8 +1175,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             {generatingAiSummary ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
             KI-Zusammenfassung
           </Button>
-          <Button size="sm" variant="outline" onClick={() => downloadDocx()} disabled={generatingDocx}>
-            {generatingDocx ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
+          <Button size="sm" variant="outline" onClick={() => downloadBilling("overall", "docx")} disabled={busyDownload === "overall"}>
+            {busyDownload === "overall" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
             DOCX Gesamtabrechnung
           </Button>
             </div>
