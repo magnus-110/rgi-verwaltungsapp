@@ -247,6 +247,14 @@ Deno.serve(async (req) => {
     blocks.sort((a, b) => a.acc.account_number.localeCompare(b.acc.account_number));
     const blocksFiltered = blocks.filter((b) => Math.abs(b.totalLabor) > 0);
 
+    console.log("generate-35a-docx distribution", {
+      bookings: bookings.length,
+      owners: mainOwners.length,
+      firstOwner: mainOwners[0]?.id,
+      firstOwnerShares: mainOwners[0]?.contact_building_shares,
+      blocks: blocksFiltered.map((b) => ({ account: b.acc.account_number, key: b.key, totalLabor: b.totalLabor, totalDist: b.totalDist })).slice(0, 8),
+    });
+
     const targetOwners = Array.isArray(assignment_ids) && assignment_ids.length
       ? mainOwners.filter((o: any) => assignment_ids.includes(o.id))
       : mainOwners;
