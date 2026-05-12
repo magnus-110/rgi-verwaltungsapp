@@ -373,7 +373,11 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
               </TableHeader>
               <TableBody>
                 {ownerCertificates.map(({ owner, total }) => (
-                  <TableRow key={owner.id}>
+                  <TableRow
+                    key={owner.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => setPreviewOwner(owner)}
+                  >
                     <TableCell className="font-mono text-xs">{owner.unit_number || "–"}</TableCell>
                     <TableCell className="text-sm">{ownerDisplayName(owner)}</TableCell>
                     <TableCell className="text-right font-mono text-sm font-medium">
