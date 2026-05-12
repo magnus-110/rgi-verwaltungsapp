@@ -444,6 +444,13 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
           </CardContent>
         </Card>
       )}
+
+      <Paragraph35aCertificatePreviewDialog
+        open={!!previewOwner}
+        onOpenChange={(o) => !o && setPreviewOwner(null)}
+        owner={previewOwner}
+        ctx={previewCtx}
+      />
     </div>
   );
 }
