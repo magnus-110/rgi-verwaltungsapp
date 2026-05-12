@@ -408,11 +408,17 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                         <TableHead className="text-xs text-right w-28">Lohnanteil</TableHead>
                         <TableHead className="text-xs text-right w-24 text-emerald-700">davon Dienste</TableHead>
                         <TableHead className="text-xs text-right w-28 text-blue-700">davon Handwerker</TableHead>
+                        <TableHead className="text-xs w-[170px]">Typ</TableHead>
+                        <TableHead className="text-xs w-10"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {bl.bookings.map((b) => {
                         const split = splitLaborByType(b, bl.account);
+                        const currentType: "dienste" | "handwerker" =
+                          (b.settlement_35a_type as any) ||
+                          (split.handwerker > split.dienste ? "handwerker" : "dienste");
+                        const isOverride = !!b.settlement_35a_type;
                         return (
                           <TableRow key={b.id}>
                             <TableCell className="text-xs">
@@ -431,6 +437,41 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                             <TableCell className="text-right font-mono text-xs text-blue-700">
                               {split.handwerker > 0 ? formatCurrency(split.handwerker) : "–"}
                             </TableCell>
+                            <TableCell>
+                              <Select
+                                value={currentType}
+                                onValueChange={(v) => updateBookingType(b.id, v as any)}
+                                disabled={busyBookingId === b.id}
+                              >
+                                <SelectTrigger className="h-7 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="dienste" className="text-xs">
+                                    Dienstleister{!isOverride && currentType === "dienste" ? " (auto)" : ""}
+                                  </SelectItem>
+                                  <SelectItem value="handwerker" className="text-xs">
+                                    Handwerker{!isOverride && currentType === "handwerker" ? " (auto)" : ""}
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                title="Aus §35a entfernen"
+                                onClick={() => removeFrom35a(b.id)}
+                                disabled={busyBookingId === b.id}
+                              >
+                                {busyBookingId === b.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <X className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -442,6 +483,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                         <TableCell className="text-right font-mono text-xs font-medium">{formatCurrency(bl.totalLabor)}</TableCell>
                         <TableCell className="text-right font-mono text-xs font-medium text-emerald-700">{formatCurrency(bl.totalLaborDienste)}</TableCell>
                         <TableCell className="text-right font-mono text-xs font-medium text-blue-700">{formatCurrency(bl.totalLaborHandwerker)}</TableCell>
+                        <TableCell colSpan={2} />
                       </TableRow>
                     </TableFooter>
                   </Table>
