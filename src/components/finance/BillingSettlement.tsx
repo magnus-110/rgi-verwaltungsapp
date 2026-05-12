@@ -1175,8 +1175,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             {generatingAiSummary ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
             KI-Zusammenfassung
           </Button>
-          <Button size="sm" variant="outline" onClick={() => downloadDocx()} disabled={generatingDocx}>
-            {generatingDocx ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
+          <Button size="sm" variant="outline" onClick={() => downloadBilling("overall", "docx")} disabled={busyDownload === "overall"}>
+            {busyDownload === "overall" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
             DOCX Gesamtabrechnung
           </Button>
             </div>
@@ -1392,8 +1392,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                     </Button>
                     <h3 className="text-lg font-semibold">{selectedOwnerData.name} — Einheit {selectedOwnerData.unitNumber}</h3>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => downloadDocx(selectedOwnerData.assignmentId, selectedOwnerData.name)} disabled={generatingDocx}>
-                    {generatingDocx ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />} DOCX
+                  <Button size="sm" variant="outline" onClick={() => downloadBilling("owner", "docx", { assignmentId: selectedOwnerData.assignmentId, name: selectedOwnerData.name })} disabled={busyDownload === selectedOwnerData.assignmentId}>
+                    {busyDownload === selectedOwnerData.assignmentId ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />} DOCX
                   </Button>
                 </div>
 
@@ -1569,8 +1569,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                           </TableCell>
                           <TableCell>
                             <Button size="sm" variant="ghost" className="h-7 px-2"
-                              onClick={(e) => { e.stopPropagation(); downloadDocx(owner.assignmentId, owner.name); }}
-                              disabled={generatingDocx} title="DOCX herunterladen">
+                              onClick={(e) => { e.stopPropagation(); downloadBilling("owner", "docx", { assignmentId: owner.assignmentId, name: owner.name }); }}
+                              disabled={busyDownload === owner.assignmentId} title="DOCX herunterladen">
                               <FileText className="h-3.5 w-3.5" />
                             </Button>
                           </TableCell>
