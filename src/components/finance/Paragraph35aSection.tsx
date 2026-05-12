@@ -387,7 +387,10 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleSinglePdf(owner)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSinglePdf(owner);
+                        }}
                         disabled={busyOwnerId === owner.id || !!zipBusy}
                       >
                         {busyOwnerId === owner.id ? (
