@@ -169,6 +169,7 @@ Deno.serve(async (req) => {
     const { data: bookingsRaw } = await admin
       .from("bookings")
       .select(`id, booking_date, description, amount, amount_35a, is_35a_relevant,
+               settlement_35a_type,
                account_id, counter_account_id, invoice_id,
                invoices(invoice_number, invoice_date, vendor_name, line_items_detail, vat_rate)`)
       .eq("building_id", building_id)
@@ -232,7 +233,7 @@ Deno.serve(async (req) => {
     for (const [accId, bs] of groups) {
       const acc = accMap.get(accId);
       if (!acc) continue;
-      const key = (acc.default_distribution_key || "mea").toLowerCase();
+      const key = normalizeDistributionKey(acc.default_distribution_key || "mea");
       let totalGross = 0, totalLabor = 0, totalLaborD = 0, totalLaborH = 0;
       for (const b of bs) {
         totalGross += Math.abs(Number(b.amount) || 0);
