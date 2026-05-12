@@ -697,7 +697,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       const _aiCounter = accounts.find((a: any) => a.id === row.counter_account_id);
       const _vendorFromTxn = currentTxn.amount < 0 ? currentTxn.creditor_name : currentTxn.debtor_name;
       const _aiText = buildBookingText({
-        period: formatMonthYearRef(txnDate),
+        period: null,
         invoiceNumber: row.receipt_number || null,
         vendorName: resolveVendor(_vendorFromTxn || null),
         counterAccountName: _aiCounter?.account_name || null,
