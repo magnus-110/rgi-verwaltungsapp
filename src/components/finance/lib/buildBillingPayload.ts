@@ -227,6 +227,7 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     // Per-Konto-Listen (DOCX-Loops {#bestaende_anfang}/{#bestaende_ende})
     bestaende_anfang,
     bestaende_ende,
+    carry_accounts,
 
     // Eigentümer-Tabelle (Übersicht)
     eigentuemer: ownerResults.map((o) => ({
