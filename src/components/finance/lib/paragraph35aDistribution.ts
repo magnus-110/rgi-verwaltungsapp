@@ -14,12 +14,16 @@ export type DistributionKey =
   | "stellplaetze"
   | "heizk_abr";
 
+export type Type35a = "dienste" | "handwerker";
+
 export interface AccountInfo {
   id: string;
   account_number: string;
   account_name: string;
   default_distribution_key: DistributionKey | string | null;
   is_35a_relevant?: boolean | null;
+  settlement_35a_type?: Type35a | string | null;
+  default_vat_rate?: number | null;
 }
 
 export interface BookingRow {
@@ -36,6 +40,8 @@ export interface BookingRow {
     invoice_number?: string | null;
     invoice_date?: string | null;
     vendor_name?: string | null;
+    line_items_detail?: any;
+    vat_rate?: number | null;
   } | null;
 }
 
