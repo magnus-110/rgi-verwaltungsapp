@@ -318,29 +318,40 @@ export function buildOwnerCertificate(
   owner: OwnerAssignment,
   blocks: AccountBlock[],
   ctx: Parameters<typeof getOwnerShare>[2],
-): { blocks: OwnerAccountBlock[]; total: number } {
+): { blocks: OwnerAccountBlock[]; total: number; totalDienste: number; totalHandwerker: number } {
   const result: OwnerAccountBlock[] = [];
   let total = 0;
+  let totalDienste = 0;
+  let totalHandwerker = 0;
 
   for (const block of blocks) {
     const ownerShare = getOwnerShare(owner, block.key, ctx);
     const totalShare = block.totalDistributable;
+    const factor = totalShare > 0 ? ownerShare / totalShare : 0;
 
     const lines: OwnerBlockLine[] = block.bookings.map((b) => {
-      const labor = getLohnanteil(b);
-      const ownerCost = totalShare > 0 ? labor * (ownerShare / totalShare) : 0;
+      const { dienste, handwerker } = splitLaborByType(b, block.account);
+      const labor = dienste + handwerker;
       return {
         booking: b,
         gross: getGesamtbetrag(b),
         labor,
+        laborDienste: dienste,
+        laborHandwerker: handwerker,
         totalShare,
         ownerShare,
-        ownerCost,
+        ownerCost: labor * factor,
+        ownerCostDienste: dienste * factor,
+        ownerCostHandwerker: handwerker * factor,
       };
     });
 
     const subtotalOwnerCost = lines.reduce((s, l) => s + l.ownerCost, 0);
+    const subtotalOwnerCostDienste = lines.reduce((s, l) => s + l.ownerCostDienste, 0);
+    const subtotalOwnerCostHandwerker = lines.reduce((s, l) => s + l.ownerCostHandwerker, 0);
     total += subtotalOwnerCost;
+    totalDienste += subtotalOwnerCostDienste;
+    totalHandwerker += subtotalOwnerCostHandwerker;
 
     result.push({
       account: block.account,
@@ -348,11 +359,15 @@ export function buildOwnerCertificate(
       lines,
       subtotalGross: block.totalGross,
       subtotalLabor: block.totalLabor,
+      subtotalLaborDienste: block.totalLaborDienste,
+      subtotalLaborHandwerker: block.totalLaborHandwerker,
       subtotalOwnerCost,
+      subtotalOwnerCostDienste,
+      subtotalOwnerCostHandwerker,
     });
   }
 
-  return { blocks: result, total };
+  return { blocks: result, total, totalDienste, totalHandwerker };
 }
 
 /** Beleg-Beschreibung im PDF-Stil: "<Beschreibung> (<Nr.>/ <Datum>/ <Lieferant>)". */
