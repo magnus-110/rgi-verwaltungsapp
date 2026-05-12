@@ -13,9 +13,8 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table";
-import { FileText, Download, Loader2, Package, Upload, FileType, X } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Paragraph35aTemplatesDialog } from "./Paragraph35aTemplatesDialog";
+import { FileText, Download, Loader2, Package, Upload, FileType, X, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
   AccountInfo,
@@ -138,10 +137,24 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   const { data: templates = [] } = useQuery({
     queryKey: ["35a-templates-select"],
     queryFn: async () => {
-      const { data } = await supabase.from("paragraph_35a_templates").select("id, name").order("name");
+      const { data } = await supabase.from("paragraph_35a_templates").select("id, name, storage_path").order("name");
       return data || [];
     },
   });
+
+  const deleteTemplate = async (t: { id: string; name: string; storage_path: string }) => {
+    if (!confirm(`Vorlage "${t.name}" löschen?`)) return;
+    try {
+      if (t.storage_path) await supabase.storage.from("paragraph-35a-templates").remove([t.storage_path]);
+      const { error } = await supabase.from("paragraph_35a_templates").delete().eq("id", t.id);
+      if (error) throw error;
+      if (templateId === t.id) setTemplateId("");
+      await queryClient.invalidateQueries({ queryKey: ["35a-templates-select"] });
+      toast({ title: "Vorlage gelöscht" });
+    } catch (e) {
+      toast({ title: "Löschen fehlgeschlagen", description: String((e as Error).message), variant: "destructive" });
+    }
+  };
 
   const downloadDocx = async (assignmentIds?: string[]) => {
     if (!templateId) {
@@ -584,13 +597,38 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
             <CardTitle className="text-sm">Bescheinigungen je Eigentümer</CardTitle>
             <div className="flex items-center gap-2 flex-wrap">
               <Select value={templateId} onValueChange={setTemplateId}>
-                <SelectTrigger className="h-8 w-[200px] text-xs">
+                <SelectTrigger className="h-8 w-[220px] text-xs">
                   <SelectValue placeholder="Word-Vorlage wählen…" />
                 </SelectTrigger>
                 <SelectContent>
+                  {templates.length === 0 && (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">Noch keine Vorlagen</div>
+                  )}
                   {templates.map((t: any) => (
-                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    <div key={t.id} className="relative flex items-center pr-1 group">
+                      <SelectItem value={t.id} className="flex-1 pr-8">{t.name}</SelectItem>
+                      <button
+                        type="button"
+                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteTemplate(t); }}
+                        className="absolute right-1 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-60 hover:opacity-100"
+                        title="Vorlage löschen"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   ))}
+                  <SelectSeparator />
+                  <button
+                    type="button"
+                    onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); tplFileInputRef.current?.click(); }}
+                    disabled={uploadingTpl}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 text-xs hover:bg-accent rounded-sm text-left"
+                  >
+                    {uploadingTpl ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                    Neue Vorlage hochladen…
+                  </button>
                 </SelectContent>
               </Select>
               <input
@@ -600,16 +638,6 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                 className="hidden"
                 onChange={handleTplFileChange}
               />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => tplFileInputRef.current?.click()}
-                disabled={uploadingTpl}
-                title="Neue Word-Vorlage hochladen"
-              >
-                {uploadingTpl ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                Vorlage hochladen
-              </Button>
               <Button size="sm" variant="outline" onClick={() => downloadDocx()} disabled={!templateId || !!docxBusy}>
                 {docxBusy === "zip" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileType className="h-4 w-4 mr-2" />}
                 DOCX (ZIP)
