@@ -2402,6 +2402,7 @@ function BookingRowCard({
                   invoice={invoiceDetail ? { invoice_number: (invoiceDetail as any).invoice_number, vendor_name: (invoiceDetail as any).vendor_name } : null}
                   counterAccountName={accounts.find((a: any) => a.id === row.counter_account_id)?.account_name || null}
                   existingText={row.description}
+                  preserveExistingText={false}
                   onApply={(text) => onUpdateField("description", text)}
                   onCommit={() => focusFieldByName("description")}
                   onSkip={() => focusFieldByName("description")}
