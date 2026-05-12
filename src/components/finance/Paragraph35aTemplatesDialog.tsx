@@ -41,9 +41,23 @@ export function Paragraph35aTemplatesDialog({ open, onOpenChange, buildingId }: 
     }
     setBusy(true);
     try {
-      const path = `${crypto.randomUUID()}_${file.name}`;
-      const { error: upErr } = await supabase.storage.from("paragraph-35a-templates").upload(path, file);
-      if (upErr) throw upErr;
+      const safeName = file.name
+        .normalize("NFKD")
+        .replace(/[^\w.\-]+/g, "_")
+        .replace(/_+/g, "_");
+      const path = `${crypto.randomUUID()}_${safeName}`;
+      const { error: upErr } = await supabase.storage
+        .from("paragraph-35a-templates")
+        .upload(path, file, {
+          contentType:
+            file.type ||
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          upsert: false,
+        });
+      if (upErr) {
+        console.error("[35a-template upload] storage error", upErr);
+        throw upErr;
+      }
       const { error: insErr } = await supabase.from("paragraph_35a_templates").insert({
         name: name.trim(),
         storage_path: path,
