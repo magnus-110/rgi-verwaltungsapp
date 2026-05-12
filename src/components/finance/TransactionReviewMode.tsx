@@ -476,7 +476,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       //   "MM/JJ <Gegenkonto> <Lieferant>, Re. Nr. <invoice_number>"
       const invoiceNumber = (invoiceDetail as any)?.invoice_number || null;
       const vendorName = resolveVendor((invoiceDetail as any)?.vendor_name || null);
-      const period = formatMonthYearRef(txnDate);
       const rows: BookingRowData[] = suggestedBookings.map((sb: any, idx: number) => {
         let counterAccountId = "";
         if (sb.account_id) counterAccountId = sb.account_id;
