@@ -828,7 +828,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       }, 0);
       const ca = accounts.find((a: any) => a.id === r.counter_account_id);
       const rebuilt = rebuildBookingTextIfAuto(r.description, r.__autoTextSignature, {
-        period: formatMonthYearRef(r.booking_date),
+        period: null,
         invoiceNumber: r.receipt_number || (invoiceDetail as any)?.invoice_number || null,
         vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || null),
         counterAccountName: ca?.account_name || null,
