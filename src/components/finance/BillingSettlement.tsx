@@ -463,7 +463,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
   // Per-Konto Liste der Bestandskonten (für DOCX-Loop {#bestaende_anfang}/{#bestaende_ende})
   const carryAccountsList = carryAccounts.map((acc: any) => {
-    const cat = isBankAccount(acc) ? "bank"
+    const cat: "bank" | "reserve" | "fuel" | "prepay" | "other" = isBankAccount(acc) ? "bank"
       : isReserveAccount(acc) ? "reserve"
       : isFuelStockAccount(acc) ? "fuel"
       : isHeatingPrepayBalanceAccount(acc) ? "prepay"
