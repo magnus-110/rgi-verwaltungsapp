@@ -489,7 +489,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const accountLabel = counterAcc?.account_name || "";
         const receiptNo = sb.receipt_number || invoiceNumber || "";
         const splitDescription = buildBookingText({
-          period,
+          period: null,
           invoiceNumber: receiptNo,
           vendorName,
           counterAccountName: accountLabel,
