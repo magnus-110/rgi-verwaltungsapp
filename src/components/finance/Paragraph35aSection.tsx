@@ -677,7 +677,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                   <TableHead className="text-xs text-right w-28">Gesamt §35a</TableHead>
                   <TableHead className="text-xs text-right w-28 text-emerald-700">Dienste</TableHead>
                   <TableHead className="text-xs text-right w-28 text-blue-700">Handwerker</TableHead>
-                  <TableHead className="text-xs text-right w-32">Aktion</TableHead>
+                  <TableHead className="text-xs text-right w-56">Aktion</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
