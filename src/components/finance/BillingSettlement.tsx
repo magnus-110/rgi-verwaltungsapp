@@ -854,6 +854,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     },
     ownerResults,
     assignmentsById: Object.fromEntries(assignments.map((a: any) => [a.id, a])),
+    carryAccountsList,
   });
 
   const triggerDownload = (bytes: ArrayBuffer, filename: string, mime: string) => {
