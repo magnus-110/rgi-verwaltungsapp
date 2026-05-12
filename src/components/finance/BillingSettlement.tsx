@@ -1569,8 +1569,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                           </TableCell>
                           <TableCell>
                             <Button size="sm" variant="ghost" className="h-7 px-2"
-                              onClick={(e) => { e.stopPropagation(); downloadDocx(owner.assignmentId, owner.name); }}
-                              disabled={generatingDocx} title="DOCX herunterladen">
+                              onClick={(e) => { e.stopPropagation(); downloadBilling("owner", "docx", { assignmentId: owner.assignmentId, name: owner.name }); }}
+                              disabled={busyDownload === owner.assignmentId} title="DOCX herunterladen">
                               <FileText className="h-3.5 w-3.5" />
                             </Button>
                           </TableCell>
