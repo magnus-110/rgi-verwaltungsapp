@@ -84,6 +84,14 @@ export interface BillingPayloadInputs {
       signedFactor: number;
     }>;
   }>;
+  // Optional: Per-Konto Liste der Bestandskonten (Bank, Rücklage, Brennstoff, Vorauszahlungen, Sonstige)
+  carryAccountsList?: Array<{
+    account_number: string;
+    account_name: string;
+    opening: number;
+    closing: number;
+    category: "bank" | "reserve" | "fuel" | "prepay" | "other";
+  }>;
   // Optional: Eigentümer-Stammdaten (aus contact_building_assignments) — adresse, anrede etc.
   assignmentsById?: Record<string, any>;
 }
@@ -129,7 +137,13 @@ function ownerSal(assignment: any) {
  * Baut ein Payload für die Gesamtabrechnung.
  */
 export function buildOverallPayload(inp: BillingPayloadInputs) {
-  const { building, period, fiscalYear, sectionAccounts, totals, ownerResults } = inp;
+  const { building, period, fiscalYear, sectionAccounts, totals, ownerResults, carryAccountsList = [] } = inp;
+  const bestaende_anfang = carryAccountsList
+    .filter((a) => Math.abs(a.opening) > 0.005)
+    .map((a) => ({ konto_nr: a.account_number, konto_name: a.account_name, betrag: fmtEUR(a.opening), kategorie: a.category }));
+  const bestaende_ende = carryAccountsList
+    .filter((a) => Math.abs(a.closing) > 0.005)
+    .map((a) => ({ konto_nr: a.account_number, konto_name: a.account_name, betrag: fmtEUR(a.closing), kategorie: a.category }));
   return {
     document_title: "Jahresabrechnung — Gesamt",
     gebaeude_name: building?.name || "",
@@ -180,6 +194,10 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     sonstige_endbestand: fmtEUR(totals.closingOther),
     bestaende_anfang_gesamt: fmtEUR(totals.openingTotal),
     bestaende_ende_gesamt: fmtEUR(totals.closingTotal),
+
+    // Per-Konto-Listen (DOCX-Loops {#bestaende_anfang}/{#bestaende_ende})
+    bestaende_anfang,
+    bestaende_ende,
 
     // Eigentümer-Tabelle (Übersicht)
     eigentuemer: ownerResults.map((o) => ({

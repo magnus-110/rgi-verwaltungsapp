@@ -461,6 +461,22 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   );
   const closingTotal = closingGiro + closingReserve + closingFuel + closingPrepay + closingOther;
 
+  // Per-Konto Liste der Bestandskonten (für DOCX-Loop {#bestaende_anfang}/{#bestaende_ende})
+  const carryAccountsList = carryAccounts.map((acc: any) => {
+    const cat: "bank" | "reserve" | "fuel" | "prepay" | "other" = isBankAccount(acc) ? "bank"
+      : isReserveAccount(acc) ? "reserve"
+      : isFuelStockAccount(acc) ? "fuel"
+      : isHeatingPrepayBalanceAccount(acc) ? "prepay"
+      : "other";
+    return {
+      account_number: acc.account_number,
+      account_name: acc.account_name,
+      opening: openingByAccount[acc.id] || 0,
+      closing: getClosing(acc),
+      category: cat,
+    };
+  });
+
   // Distributable total (für Einzelabrechnung) — exclude:
   //  - ARAP/PRAP (4110/4130 = Bilanzkonten, kein Aufwand)
   //  - heating_prepayment Vorauszahlungskonten (1470–1473): reine Durchlaufkonten
@@ -838,6 +854,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     },
     ownerResults,
     assignmentsById: Object.fromEntries(assignments.map((a: any) => [a.id, a])),
+    carryAccountsList,
   });
 
   const triggerDownload = (bytes: ArrayBuffer, filename: string, mime: string) => {
