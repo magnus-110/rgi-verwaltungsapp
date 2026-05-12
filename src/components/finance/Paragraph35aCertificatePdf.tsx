@@ -142,12 +142,14 @@ export function buildCertificateHtml(owner: OwnerAssignment, ctx: CertificateCon
       <table style="width:100%;border-collapse:collapse;border-top:2px solid #333;">
         <thead>
           <tr style="background:#eee;">
-            <th style="padding:6px;text-align:left;font-size:9.5pt;">Beleg</th>
-            <th style="padding:6px;text-align:right;font-size:9.5pt;">Gesamt EUR</th>
-            <th style="padding:6px;text-align:right;font-size:9.5pt;">Lohnkosten EUR</th>
-            <th style="padding:6px;text-align:right;font-size:9.5pt;">Gesamtanteil</th>
-            <th style="padding:6px;text-align:right;font-size:9.5pt;">Ihr Anteil</th>
-            <th style="padding:6px;text-align:right;font-size:9.5pt;">Ihre Kosten EUR</th>
+            <th style="padding:6px;text-align:left;font-size:9pt;">Beleg</th>
+            <th style="padding:6px;text-align:right;font-size:9pt;">Gesamt EUR</th>
+            <th style="padding:6px;text-align:right;font-size:9pt;">Lohnkosten EUR</th>
+            <th style="padding:6px;text-align:right;font-size:9pt;">Gesamtanteil</th>
+            <th style="padding:6px;text-align:right;font-size:9pt;">Ihr Anteil</th>
+            <th style="padding:6px;text-align:right;font-size:9pt;">Ihre Kosten EUR</th>
+            <th style="padding:6px;text-align:right;font-size:9pt;color:#0a6;">davon Dienste</th>
+            <th style="padding:6px;text-align:right;font-size:9pt;color:#06a;">davon Handwerker</th>
           </tr>
         </thead>
         <tbody>
@@ -155,6 +157,16 @@ export function buildCertificateHtml(owner: OwnerAssignment, ctx: CertificateCon
           <tr style="border-top:2px solid #333;font-weight:bold;background:#f0f0f0;">
             <td style="padding:8px 6px;font-size:10pt;" colspan="5">Gesamt §35a EStG</td>
             <td style="padding:8px 6px;text-align:right;font-size:10pt;">${fmtEUR(total)}</td>
+            <td style="padding:8px 6px;text-align:right;font-size:10pt;color:#0a6;">${fmtEUR(totalDienste)}</td>
+            <td style="padding:8px 6px;text-align:right;font-size:10pt;color:#06a;">${fmtEUR(totalHandwerker)}</td>
+          </tr>
+          <tr style="background:#f7faf7;">
+            <td style="padding:6px;font-size:9.5pt;" colspan="7">Haushaltsnahe Dienstleistungen § 35a Abs. 2 EStG (Lohnanteil)</td>
+            <td style="padding:6px;text-align:right;font-size:9.5pt;color:#0a6;font-weight:bold;">${fmtEUR(totalDienste)}</td>
+          </tr>
+          <tr style="background:#f7f7fa;">
+            <td style="padding:6px;font-size:9.5pt;" colspan="7">Handwerkerleistungen § 35a Abs. 3 EStG (Lohnanteil)</td>
+            <td style="padding:6px;text-align:right;font-size:9.5pt;color:#06a;font-weight:bold;">${fmtEUR(totalHandwerker)}</td>
           </tr>
         </tbody>
       </table>
