@@ -755,7 +755,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     const ca = accounts.find((a: any) => a.id === eff.counter_account_id);
     const vendorFromTxn = currentTxn ? (currentTxn.amount < 0 ? currentTxn.creditor_name : currentTxn.debtor_name) : null;
     return buildBookingText({
-      period: formatMonthYearRef(eff.booking_date),
+      period: null,
       invoiceNumber: eff.receipt_number || (invoiceDetail as any)?.invoice_number || null,
       vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || vendorFromTxn || null),
       counterAccountName: ca?.account_name || null,
