@@ -708,15 +708,16 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
-                              size="sm"
+                              size="icon"
                               variant="ghost"
+                              className="h-8 w-8"
                               disabled={!templateId || pdfBusy === owner.id || docxBusy === "single" || pdfBusy === "zip" || docxBusy === "zip"}
                               title={templateId ? "Download" : "Bitte zuerst eine Word-Vorlage wählen"}
                             >
                               {pdfBusy === owner.id || (docxBusy === "single" && busyOwnerId === owner.id) ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                <><Download className="h-4 w-4 mr-1" /> Download <ChevronDown className="h-3 w-3 ml-1" /></>
+                                <Download className="h-4 w-4" />
                               )}
                             </Button>
                           </DropdownMenuTrigger>
