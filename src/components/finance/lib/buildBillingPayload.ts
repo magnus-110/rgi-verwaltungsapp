@@ -312,6 +312,8 @@ export function buildOwnerPayload(inp: BillingPayloadInputs, ownerId: string) {
     sum_vorschuss: fmtEUR(owner.totalPaid),
     abrechnungsspitze: fmtEUR(Math.abs(owner.result)),
     abrechnungsspitze_label: owner.result >= 0 ? "Guthaben" : "Nachzahlung",
+    abrechnungsspitze_guthaben: owner.result >= 0,
+    abrechnungsspitze_nachzahlung: owner.result < 0,
 
     // §35a Block
     has_35a: owner.owner35aDienste > 0 || owner.owner35aHandwerker > 0,
