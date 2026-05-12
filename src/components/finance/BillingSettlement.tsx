@@ -1667,6 +1667,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           </TabsContent>
         </Tabs>
       </CardContent>
+      <BillingTemplatesDialog
+        open={templatesOpen}
+        onOpenChange={setTemplatesOpen}
+        selectedSingleId={effectiveSingleTpl}
+        selectedOverallId={effectiveOverallTpl}
+        onSelectSingle={setSelectedTemplate}
+        onSelectOverall={setSelectedOverallTemplate}
+      />
     </Card>
   );
 }
