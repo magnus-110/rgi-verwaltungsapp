@@ -64,11 +64,15 @@ export function Paragraph35aTemplatesDialog({ open, onOpenChange, buildingId }: 
         original_filename: file.name,
         building_id: buildingId || null,
       });
-      if (insErr) throw insErr;
+      if (insErr) {
+        console.error("[35a-template upload] db insert error", insErr);
+        throw insErr;
+      }
       setName(""); setFile(null);
       qc.invalidateQueries({ queryKey: ["35a-templates"] });
       toast({ title: "Vorlage gespeichert" });
     } catch (e) {
+      console.error("[35a-template upload] failed", e);
       toast({ title: "Upload fehlgeschlagen", description: String((e as Error).message), variant: "destructive" });
     } finally {
       setBusy(false);
