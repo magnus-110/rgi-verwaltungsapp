@@ -55,8 +55,47 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   const [logoCache, setLogoCache] = useState<string | null>(null);
   const [templateId, setTemplateId] = useState<string>("");
   const [docxBusy, setDocxBusy] = useState<"single" | "zip" | null>(null);
-  const [tplDialogOpen, setTplDialogOpen] = useState(false);
+  const [uploadingTpl, setUploadingTpl] = useState(false);
+  const tplFileInputRef = useRef<HTMLInputElement>(null);
   const [busyBookingId, setBusyBookingId] = useState<string | null>(null);
+
+  const handleTplFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploadingTpl(true);
+    try {
+      const safeName = file.name.normalize("NFKD").replace(/[^\w.\-]+/g, "_").replace(/_+/g, "_");
+      const path = `${crypto.randomUUID()}_${safeName}`;
+      const { error: upErr } = await supabase.storage
+        .from("paragraph-35a-templates")
+        .upload(path, file, {
+          contentType: file.type || "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          upsert: false,
+        });
+      if (upErr) throw upErr;
+      const displayName = file.name.replace(/\.docx$/i, "");
+      const { data: inserted, error: insErr } = await supabase
+        .from("paragraph_35a_templates")
+        .insert({
+          name: displayName,
+          storage_path: path,
+          original_filename: file.name,
+          building_id: buildingId || null,
+        })
+        .select("id")
+        .single();
+      if (insErr) throw insErr;
+      await queryClient.invalidateQueries({ queryKey: ["35a-templates-select"] });
+      if (inserted?.id) setTemplateId(inserted.id);
+      toast({ title: "Vorlage hochgeladen" });
+    } catch (err) {
+      console.error("[35a-template upload]", err);
+      toast({ title: "Upload fehlgeschlagen", description: String((err as Error).message), variant: "destructive" });
+    } finally {
+      setUploadingTpl(false);
+    }
+  };
 
   const refreshBookings = () =>
     queryClient.invalidateQueries({ queryKey: ["35a-bookings-v3", buildingId, fiscalYear] });
