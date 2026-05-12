@@ -52,6 +52,58 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   const [zipBusy, setZipBusy] = useState<{ done: number; total: number } | null>(null);
   const [previewOwner, setPreviewOwner] = useState<OwnerAssignment | null>(null);
   const [logoCache, setLogoCache] = useState<string | null>(null);
+  const [templateId, setTemplateId] = useState<string>("");
+  const [docxBusy, setDocxBusy] = useState<"single" | "zip" | null>(null);
+  const [tplDialogOpen, setTplDialogOpen] = useState(false);
+
+  const { data: templates = [] } = useQuery({
+    queryKey: ["35a-templates-select"],
+    queryFn: async () => {
+      const { data } = await supabase.from("paragraph_35a_templates").select("id, name").order("name");
+      return data || [];
+    },
+  });
+
+  const downloadDocx = async (assignmentIds?: string[]) => {
+    if (!templateId) {
+      toast({ title: "Bitte zuerst eine Vorlage auswählen", variant: "destructive" });
+      return;
+    }
+    setDocxBusy(assignmentIds && assignmentIds.length === 1 ? "single" : "zip");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const url = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          template_id: templateId,
+          building_id: buildingId,
+          fiscal_year: fiscalYear,
+          period_id: periodId,
+          assignment_ids: assignmentIds,
+        }),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const blob = await resp.blob();
+      const cd = resp.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename="?([^"]+)"?/);
+      const fname = m?.[1] || (assignmentIds?.length === 1 ? "35a.docx" : `35a_${fiscalYear}.zip`);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = fname;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    } catch (e) {
+      toast({ title: "DOCX-Export fehlgeschlagen", description: String((e as Error).message), variant: "destructive" });
+    } finally {
+      setDocxBusy(null);
+    }
+  };
+
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
