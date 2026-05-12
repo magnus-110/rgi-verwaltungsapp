@@ -94,11 +94,15 @@ export const FloatingComposeWindow = () => {
   // Desktop: render docked/fullscreen window (at most one) + minimized stack
   const visible = composes.find((c) => c.mode === "docked" || c.mode === "fullscreen");
   const minimized = composes.filter((c) => c.mode === "minimized");
+  // Shift minimized stack to the left of the docked window so action buttons don't get covered.
+  const dockedVisible = visible?.mode === "docked";
 
   return (
     <>
       {visible && <ComposeWindow compose={visible} />}
-      {minimized.length > 0 && <MinimizedStack composes={minimized} />}
+      {minimized.length > 0 && (
+        <MinimizedStack composes={minimized} offsetRight={dockedVisible ? 580 : 16} />
+      )}
     </>
   );
 };
@@ -106,10 +110,13 @@ export const FloatingComposeWindow = () => {
 // =====================================================================
 // Minimized stack at the bottom-right (Gmail-style horizontal bars)
 // =====================================================================
-const MinimizedStack = ({ composes }: { composes: ComposeState[] }) => {
+const MinimizedStack = ({ composes, offsetRight = 16 }: { composes: ComposeState[]; offsetRight?: number }) => {
   const { setMode, closeCompose } = useComposeEmail();
   return (
-    <div className="fixed bottom-0 right-4 z-50 flex flex-row-reverse gap-2 pointer-events-none">
+    <div
+      className="fixed bottom-0 z-50 flex flex-row-reverse gap-2 pointer-events-none"
+      style={{ right: `${offsetRight}px` }}
+    >
       {composes.map((c) => (
         <div
           key={c.id}
@@ -344,11 +351,11 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    const maxSize = 10 * 1024 * 1024;
+    const maxSize = 25 * 1024 * 1024;
     const newAttachments = [...compose.attachments];
     for (const file of files) {
       if (file.size > maxSize) {
-        toast.error(`${file.name} ist zu groß (max. 10MB)`);
+        toast.error(`${file.name} ist zu groß (max. 25MB)`);
         continue;
       }
       newAttachments.push({ file, name: file.name, size: file.size });
@@ -371,13 +378,35 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       const toAddresses = compose.to.split(",").map((e) => e.trim()).filter(Boolean);
       const ccAddresses = compose.cc ? compose.cc.split(",").map((e) => e.trim()).filter(Boolean) : [];
       const bccAddresses = compose.bcc ? compose.bcc.split(",").map((e) => e.trim()).filter(Boolean) : [];
+      // Upload large attachments (>1MB) to storage to avoid edge function payload/memory limits.
+      // Smaller files go inline as base64 for backwards compatibility.
+      const INLINE_LIMIT = 1024 * 1024; // 1 MB
       const attachmentData = await Promise.all(
-        compose.attachments.map(async (att) => ({
-          filename: att.name,
-          content: await fileToBase64(att.file),
-          contentType: att.file.type || "application/octet-stream",
-          size: att.size,
-        })),
+        compose.attachments.map(async (att) => {
+          if (att.file.size > INLINE_LIMIT) {
+            const safeName = att.name.replace(/[^\w.\-]+/g, "_");
+            const storagePath = `outgoing/${crypto.randomUUID()}/${safeName}`;
+            const { error: upErr } = await supabase.storage
+              .from("email-attachments")
+              .upload(storagePath, att.file, {
+                contentType: att.file.type || "application/octet-stream",
+                upsert: false,
+              });
+            if (upErr) throw new Error(`Upload fehlgeschlagen (${att.name}): ${upErr.message}`);
+            return {
+              filename: att.name,
+              storage_path: storagePath,
+              contentType: att.file.type || "application/octet-stream",
+              size: att.size,
+            };
+          }
+          return {
+            filename: att.name,
+            content: await fileToBase64(att.file),
+            contentType: att.file.type || "application/octet-stream",
+            size: att.size,
+          };
+        }),
       );
 
       // Build combined HTML for forwards: user's new text on top + original HTML below
