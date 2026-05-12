@@ -57,12 +57,12 @@ function escapeHtml(s: string): string {
 }
 
 export function buildCertificateHtml(owner: OwnerAssignment, ctx: CertificateContext, idx: number = 0): string {
-  const { blocks, total } = buildOwnerCertificate(owner, ctx.blocks, ctx.shareCtx);
+  const { blocks, total, totalDienste, totalHandwerker } = buildOwnerCertificate(owner, ctx.blocks, ctx.shareCtx);
   const sal = ownerSalutation(owner);
   const name = ownerDisplayName(owner);
   const addr = ownerAddress(owner);
   const unitNo = (owner.unit_number || "").padStart(4, "0");
-  const buildingShort = "1001"; // generischer Platzhalter (Building-Code)
+  const buildingShort = "1001";
   const certNo = `a${buildingShort}${ctx.fiscalYear}${unitNo}3112`;
   const tage = daysBetween(ctx.periodFrom, ctx.periodTo);
 
@@ -78,11 +78,13 @@ export function buildCertificateHtml(owner: OwnerAssignment, ctx: CertificateCon
             <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;font-size:9.5pt;">${fmtShare(ln.totalShare, bl.key)}</td>
             <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;font-size:9.5pt;">${fmtShare(ln.ownerShare, bl.key)}</td>
             <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;font-size:9.5pt;">${fmtEUR(ln.ownerCost)}</td>
+            <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;font-size:9.5pt;color:#0a6">${ln.ownerCostDienste > 0 ? fmtEUR(ln.ownerCostDienste) : "–"}</td>
+            <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;font-size:9.5pt;color:#06a">${ln.ownerCostHandwerker > 0 ? fmtEUR(ln.ownerCostHandwerker) : "–"}</td>
           </tr>`;
         })
         .join("");
       return `
-        <tr><td colspan="6" style="padding:10px 6px 4px;font-weight:bold;font-size:10pt;background:#f7f7f7;">
+        <tr><td colspan="8" style="padding:10px 6px 4px;font-weight:bold;font-size:10pt;background:#f7f7f7;">
           ${escapeHtml(bl.account.account_number)} ${escapeHtml(bl.account.account_name)} – Verteilung nach ${escapeHtml(keyLabel)}
         </td></tr>
         ${linesHtml}
@@ -92,6 +94,8 @@ export function buildCertificateHtml(owner: OwnerAssignment, ctx: CertificateCon
           <td style="padding:5px 6px;text-align:right;font-size:9.5pt;">${fmtEUR(bl.subtotalLabor)}</td>
           <td></td><td></td>
           <td style="padding:5px 6px;text-align:right;font-size:9.5pt;">${fmtEUR(bl.subtotalOwnerCost)}</td>
+          <td style="padding:5px 6px;text-align:right;font-size:9.5pt;color:#0a6">${fmtEUR(bl.subtotalOwnerCostDienste)}</td>
+          <td style="padding:5px 6px;text-align:right;font-size:9.5pt;color:#06a">${fmtEUR(bl.subtotalOwnerCostHandwerker)}</td>
         </tr>
       `;
     })
@@ -138,12 +142,14 @@ export function buildCertificateHtml(owner: OwnerAssignment, ctx: CertificateCon
       <table style="width:100%;border-collapse:collapse;border-top:2px solid #333;">
         <thead>
           <tr style="background:#eee;">
-            <th style="padding:6px;text-align:left;font-size:9.5pt;">Beleg</th>
-            <th style="padding:6px;text-align:right;font-size:9.5pt;">Gesamt EUR</th>
-            <th style="padding:6px;text-align:right;font-size:9.5pt;">Lohnkosten EUR</th>
-            <th style="padding:6px;text-align:right;font-size:9.5pt;">Gesamtanteil</th>
-            <th style="padding:6px;text-align:right;font-size:9.5pt;">Ihr Anteil</th>
-            <th style="padding:6px;text-align:right;font-size:9.5pt;">Ihre Kosten EUR</th>
+            <th style="padding:6px;text-align:left;font-size:9pt;">Beleg</th>
+            <th style="padding:6px;text-align:right;font-size:9pt;">Gesamt EUR</th>
+            <th style="padding:6px;text-align:right;font-size:9pt;">Lohnkosten EUR</th>
+            <th style="padding:6px;text-align:right;font-size:9pt;">Gesamtanteil</th>
+            <th style="padding:6px;text-align:right;font-size:9pt;">Ihr Anteil</th>
+            <th style="padding:6px;text-align:right;font-size:9pt;">Ihre Kosten EUR</th>
+            <th style="padding:6px;text-align:right;font-size:9pt;color:#0a6;">davon Dienste</th>
+            <th style="padding:6px;text-align:right;font-size:9pt;color:#06a;">davon Handwerker</th>
           </tr>
         </thead>
         <tbody>
@@ -151,6 +157,16 @@ export function buildCertificateHtml(owner: OwnerAssignment, ctx: CertificateCon
           <tr style="border-top:2px solid #333;font-weight:bold;background:#f0f0f0;">
             <td style="padding:8px 6px;font-size:10pt;" colspan="5">Gesamt §35a EStG</td>
             <td style="padding:8px 6px;text-align:right;font-size:10pt;">${fmtEUR(total)}</td>
+            <td style="padding:8px 6px;text-align:right;font-size:10pt;color:#0a6;">${fmtEUR(totalDienste)}</td>
+            <td style="padding:8px 6px;text-align:right;font-size:10pt;color:#06a;">${fmtEUR(totalHandwerker)}</td>
+          </tr>
+          <tr style="background:#f7faf7;">
+            <td style="padding:6px;font-size:9.5pt;" colspan="7">Haushaltsnahe Dienstleistungen § 35a Abs. 2 EStG (Lohnanteil)</td>
+            <td style="padding:6px;text-align:right;font-size:9.5pt;color:#0a6;font-weight:bold;">${fmtEUR(totalDienste)}</td>
+          </tr>
+          <tr style="background:#f7f7fa;">
+            <td style="padding:6px;font-size:9.5pt;" colspan="7">Handwerkerleistungen § 35a Abs. 3 EStG (Lohnanteil)</td>
+            <td style="padding:6px;text-align:right;font-size:9.5pt;color:#06a;font-weight:bold;">${fmtEUR(totalHandwerker)}</td>
           </tr>
         </tbody>
       </table>

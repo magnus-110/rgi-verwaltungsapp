@@ -13,7 +13,9 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table";
-import { FileText, Download, Loader2, Package } from "lucide-react";
+import { FileText, Download, Loader2, Package, Settings, FileType } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Paragraph35aTemplatesDialog } from "./Paragraph35aTemplatesDialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   AccountInfo,
@@ -27,7 +29,7 @@ import {
   getMainOwners,
   getStellplatzCountByContact,
   ownerDisplayName,
-  
+  splitLaborByType,
   DISTRIBUTION_LABELS,
 } from "./lib/paragraph35aDistribution";
 import {
@@ -50,6 +52,58 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   const [zipBusy, setZipBusy] = useState<{ done: number; total: number } | null>(null);
   const [previewOwner, setPreviewOwner] = useState<OwnerAssignment | null>(null);
   const [logoCache, setLogoCache] = useState<string | null>(null);
+  const [templateId, setTemplateId] = useState<string>("");
+  const [docxBusy, setDocxBusy] = useState<"single" | "zip" | null>(null);
+  const [tplDialogOpen, setTplDialogOpen] = useState(false);
+
+  const { data: templates = [] } = useQuery({
+    queryKey: ["35a-templates-select"],
+    queryFn: async () => {
+      const { data } = await supabase.from("paragraph_35a_templates").select("id, name").order("name");
+      return data || [];
+    },
+  });
+
+  const downloadDocx = async (assignmentIds?: string[]) => {
+    if (!templateId) {
+      toast({ title: "Bitte zuerst eine Vorlage auswählen", variant: "destructive" });
+      return;
+    }
+    setDocxBusy(assignmentIds && assignmentIds.length === 1 ? "single" : "zip");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const url = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          template_id: templateId,
+          building_id: buildingId,
+          fiscal_year: fiscalYear,
+          period_id: periodId,
+          assignment_ids: assignmentIds,
+        }),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const blob = await resp.blob();
+      const cd = resp.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename="?([^"]+)"?/);
+      const fname = m?.[1] || (assignmentIds?.length === 1 ? "35a.docx" : `35a_${fiscalYear}.zip`);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = fname;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    } catch (e) {
+      toast({ title: "DOCX-Export fehlgeschlagen", description: String((e as Error).message), variant: "destructive" });
+    } finally {
+      setDocxBusy(null);
+    }
+  };
+
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
@@ -92,7 +146,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
         .select(
           `id, booking_date, description, amount, amount_35a, is_35a_relevant,
            account_id, counter_account_id, invoice_id,
-           invoices(invoice_number, invoice_date, vendor_name)`
+           invoices(invoice_number, invoice_date, vendor_name, line_items_detail, vat_rate)`
         )
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
@@ -103,9 +157,6 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     },
   });
 
-  // Strict filter: must have a positive labor amount (amount_35a > 0).
-  // is_35a_relevant alleine reicht NICHT — sonst tauchen Konten wie "Streusalz"
-  // mit 0,00 € Lohnanteil in der Bescheinigung auf.
   const bookings = useMemo(
     () =>
       bookingsRaw.filter(
@@ -114,7 +165,6 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     [bookingsRaw],
   );
 
-  // Account ids referenced by these bookings
   const accountIds = useMemo(() => {
     const s = new Set<string>();
     for (const b of bookings) {
@@ -125,12 +175,12 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   }, [bookings]);
 
   const { data: accountsList = [] } = useQuery({
-    queryKey: ["35a-accounts-v2", accountIds.sort().join(",")],
+    queryKey: ["35a-accounts-v3", accountIds.sort().join(",")],
     queryFn: async () => {
       if (accountIds.length === 0) return [];
       const { data, error } = await supabase
         .from("chart_of_accounts")
-        .select("id, account_number, account_name, default_distribution_key, is_35a_relevant")
+        .select("id, account_number, account_name, default_distribution_key, is_35a_relevant, settlement_35a_type, default_vat_rate")
         .in("id", accountIds);
       if (error) throw error;
       return data as AccountInfo[];
@@ -314,39 +364,44 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                       <TableRow>
                         <TableHead className="text-xs w-24">Datum</TableHead>
                         <TableHead className="text-xs">Beleg</TableHead>
-                        <TableHead className="text-xs text-right w-28">Gesamt</TableHead>
-                        <TableHead className="text-xs text-right w-32">§35a-Lohnanteil</TableHead>
+                        <TableHead className="text-xs text-right w-24">Gesamt</TableHead>
+                        <TableHead className="text-xs text-right w-28">Lohnanteil</TableHead>
+                        <TableHead className="text-xs text-right w-24 text-emerald-700">davon Dienste</TableHead>
+                        <TableHead className="text-xs text-right w-28 text-blue-700">davon Handwerker</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {bl.bookings.map((b) => (
-                        <TableRow key={b.id}>
-                          <TableCell className="text-xs">
-                            {new Date(b.booking_date).toLocaleDateString("de-DE")}
-                          </TableCell>
-                          <TableCell className="text-xs">{formatBookingLabel(b)}</TableCell>
-                          <TableCell className="text-right font-mono text-xs">
-                            {formatCurrency(Math.abs(Number(b.amount)))}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-xs font-medium">
-                            {formatCurrency(
-                              b.amount_35a != null ? Math.abs(Number(b.amount_35a)) : Math.abs(Number(b.amount)),
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {bl.bookings.map((b) => {
+                        const split = splitLaborByType(b, bl.account);
+                        return (
+                          <TableRow key={b.id}>
+                            <TableCell className="text-xs">
+                              {new Date(b.booking_date).toLocaleDateString("de-DE")}
+                            </TableCell>
+                            <TableCell className="text-xs">{formatBookingLabel(b)}</TableCell>
+                            <TableCell className="text-right font-mono text-xs">
+                              {formatCurrency(Math.abs(Number(b.amount)))}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-xs font-medium">
+                              {formatCurrency(split.dienste + split.handwerker)}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-xs text-emerald-700">
+                              {split.dienste > 0 ? formatCurrency(split.dienste) : "–"}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-xs text-blue-700">
+                              {split.handwerker > 0 ? formatCurrency(split.handwerker) : "–"}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                     <TableFooter>
                       <TableRow>
-                        <TableCell colSpan={2} className="text-xs font-medium">
-                          Summe Konto
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-xs font-medium">
-                          {formatCurrency(bl.totalGross)}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-xs font-medium">
-                          {formatCurrency(bl.totalLabor)}
-                        </TableCell>
+                        <TableCell colSpan={2} className="text-xs font-medium">Summe Konto</TableCell>
+                        <TableCell className="text-right font-mono text-xs font-medium">{formatCurrency(bl.totalGross)}</TableCell>
+                        <TableCell className="text-right font-mono text-xs font-medium">{formatCurrency(bl.totalLabor)}</TableCell>
+                        <TableCell className="text-right font-mono text-xs font-medium text-emerald-700">{formatCurrency(bl.totalLaborDienste)}</TableCell>
+                        <TableCell className="text-right font-mono text-xs font-medium text-blue-700">{formatCurrency(bl.totalLaborHandwerker)}</TableCell>
                       </TableRow>
                     </TableFooter>
                   </Table>
@@ -364,26 +419,31 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
       {/* Owner overview */}
       {owners.length > 0 && blocks.length > 0 && (
         <Card>
-          <CardHeader className="py-3 flex flex-row items-center justify-between gap-2">
+          <CardHeader className="py-3 flex flex-row items-center justify-between gap-2 flex-wrap">
             <CardTitle className="text-sm">Bescheinigungen je Eigentümer</CardTitle>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleZip}
-              disabled={!!zipBusy}
-            >
-              {zipBusy ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  {zipBusy.done}/{zipBusy.total}
-                </>
-              ) : (
-                <>
-                  <Package className="h-4 w-4 mr-2" />
-                  Alle als ZIP
-                </>
-              )}
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select value={templateId} onValueChange={setTemplateId}>
+                <SelectTrigger className="h-8 w-[200px] text-xs">
+                  <SelectValue placeholder="Word-Vorlage wählen…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((t: any) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="ghost" onClick={() => setTplDialogOpen(true)} title="Vorlagen verwalten">
+                <Settings className="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => downloadDocx()} disabled={!templateId || !!docxBusy}>
+                {docxBusy === "zip" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileType className="h-4 w-4 mr-2" />}
+                DOCX (ZIP)
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleZip} disabled={!!zipBusy}>
+                {zipBusy ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />{zipBusy.done}/{zipBusy.total}</>)
+                  : (<><Package className="h-4 w-4 mr-2" />PDF (ZIP)</>)}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
@@ -391,12 +451,14 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                 <TableRow>
                   <TableHead className="text-xs w-20">Einheit</TableHead>
                   <TableHead className="text-xs">Eigentümer</TableHead>
-                  <TableHead className="text-xs text-right w-32">Ihre Kosten §35a</TableHead>
+                  <TableHead className="text-xs text-right w-28">Gesamt §35a</TableHead>
+                  <TableHead className="text-xs text-right w-28 text-emerald-700">Dienste</TableHead>
+                  <TableHead className="text-xs text-right w-28 text-blue-700">Handwerker</TableHead>
                   <TableHead className="text-xs text-right w-32">Aktion</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ownerCertificates.map(({ owner, total }) => (
+                {ownerCertificates.map(({ owner, total, totalDienste, totalHandwerker }) => (
                   <TableRow
                     key={owner.id}
                     className="cursor-pointer hover:bg-muted/50"
@@ -404,9 +466,9 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
                   >
                     <TableCell className="font-mono text-xs">{owner.unit_number || "–"}</TableCell>
                     <TableCell className="text-sm">{ownerDisplayName(owner)}</TableCell>
-                    <TableCell className="text-right font-mono text-sm font-medium">
-                      {formatCurrency(total)}
-                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm font-medium">{formatCurrency(total)}</TableCell>
+                    <TableCell className="text-right font-mono text-xs text-emerald-700">{formatCurrency(totalDienste)}</TableCell>
+                    <TableCell className="text-right font-mono text-xs text-blue-700">{formatCurrency(totalHandwerker)}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         size="sm"
@@ -431,11 +493,15 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
               </TableBody>
               <TableFooter>
                 <TableRow>
-                  <TableCell colSpan={2} className="font-medium text-sm">
-                    Gesamt
-                  </TableCell>
+                  <TableCell colSpan={2} className="font-medium text-sm">Gesamt</TableCell>
                   <TableCell className="text-right font-mono font-medium text-sm">
                     {formatCurrency(ownerCertificates.reduce((s, c) => s + c.total, 0))}
+                  </TableCell>
+                  <TableCell className="text-right font-mono font-medium text-xs text-emerald-700">
+                    {formatCurrency(ownerCertificates.reduce((s, c) => s + c.totalDienste, 0))}
+                  </TableCell>
+                  <TableCell className="text-right font-mono font-medium text-xs text-blue-700">
+                    {formatCurrency(ownerCertificates.reduce((s, c) => s + c.totalHandwerker, 0))}
                   </TableCell>
                   <TableCell />
                 </TableRow>

@@ -14,12 +14,16 @@ export type DistributionKey =
   | "stellplaetze"
   | "heizk_abr";
 
+export type Type35a = "dienste" | "handwerker";
+
 export interface AccountInfo {
   id: string;
   account_number: string;
   account_name: string;
   default_distribution_key: DistributionKey | string | null;
   is_35a_relevant?: boolean | null;
+  settlement_35a_type?: Type35a | string | null;
+  default_vat_rate?: number | null;
 }
 
 export interface BookingRow {
@@ -36,6 +40,8 @@ export interface BookingRow {
     invoice_number?: string | null;
     invoice_date?: string | null;
     vendor_name?: string | null;
+    line_items_detail?: any;
+    vat_rate?: number | null;
   } | null;
 }
 
@@ -184,16 +190,62 @@ export function getGesamtbetrag(b: BookingRow): number {
   return Math.abs(Number(b.amount)) || 0;
 }
 
+/**
+ * Aufteilung des Lohnanteils einer Buchung in Dienstleister vs. Handwerker.
+ * Quelle:
+ *  1) `invoices.line_items_detail[]` mit gesetztem `is_35a` und `type_35a` (Brutto = Netto * (1+VAT)).
+ *  2) Fallback: gesamter Lohnanteil auf `chart_of_accounts.settlement_35a_type` des Aufwandskontos.
+ *  3) Fallback: alles als "dienste".
+ */
+export function splitLaborByType(
+  b: BookingRow,
+  account: AccountInfo | undefined,
+): { dienste: number; handwerker: number } {
+  const labor = getLohnanteil(b);
+  if (labor === 0) return { dienste: 0, handwerker: 0 };
+
+  const detail = b.invoices?.line_items_detail;
+  if (Array.isArray(detail) && detail.length > 0) {
+    const vatRate = Number(b.invoices?.vat_rate ?? account?.default_vat_rate ?? 19);
+    const factor = vatRate > 0 ? 1 + vatRate / 100 : 1;
+    let netDienste = 0;
+    let netHandwerker = 0;
+    for (const it of detail) {
+      if (!it?.is_35a) continue;
+      const net = Math.abs(Number(it.amount) || 0);
+      if (net === 0) continue;
+      const t = it.type_35a === "handwerker" ? "handwerker" : "dienste";
+      if (t === "handwerker") netHandwerker += net;
+      else netDienste += net;
+    }
+    const grossDienste = netDienste * factor;
+    const grossHandwerker = netHandwerker * factor;
+    const sum = grossDienste + grossHandwerker;
+    if (sum > 0) {
+      return {
+        dienste: labor * (grossDienste / sum),
+        handwerker: labor * (grossHandwerker / sum),
+      };
+    }
+  }
+
+  const t = account?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste";
+  return t === "handwerker"
+    ? { dienste: 0, handwerker: labor }
+    : { dienste: labor, handwerker: 0 };
+}
+
 export interface AccountBlock {
   account: AccountInfo;
   key: string;
   bookings: BookingRow[];
   totalGross: number;
   totalLabor: number;
-  totalDistributable: number; // Σ share aller Hauptwohnungen
+  totalLaborDienste: number;
+  totalLaborHandwerker: number;
+  totalDistributable: number;
 }
 
-/** Gruppiert Buchungen pro Aufwandskonto. */
 export function buildAccountBlocks(
   bookings: BookingRow[],
   accounts: Map<string, AccountInfo>,
@@ -214,9 +266,21 @@ export function buildAccountBlocks(
     if (!acc) continue;
     const key = (acc.default_distribution_key || "mea").toLowerCase();
     const totalGross = bs.reduce((s, b) => s + getGesamtbetrag(b), 0);
-    const totalLabor = bs.reduce((s, b) => s + getLohnanteil(b), 0);
+    let totalLabor = 0;
+    let totalLaborDienste = 0;
+    let totalLaborHandwerker = 0;
+    for (const b of bs) {
+      const { dienste, handwerker } = splitLaborByType(b, acc);
+      totalLabor += dienste + handwerker;
+      totalLaborDienste += dienste;
+      totalLaborHandwerker += handwerker;
+    }
     const totalDistributable = owners.reduce((s, o) => s + getOwnerShare(o, key, ctx), 0);
-    blocks.push({ account: acc, key, bookings: bs, totalGross, totalLabor, totalDistributable });
+    blocks.push({
+      account: acc, key, bookings: bs,
+      totalGross, totalLabor, totalLaborDienste, totalLaborHandwerker,
+      totalDistributable,
+    });
   }
 
   blocks.sort((a, b) => a.account.account_number.localeCompare(b.account.account_number));
@@ -227,9 +291,13 @@ export interface OwnerBlockLine {
   booking: BookingRow;
   gross: number;
   labor: number;
-  totalShare: number; // Σ share über alle Eigentümer dieser Schlüssel-Sicht
+  laborDienste: number;
+  laborHandwerker: number;
+  totalShare: number;
   ownerShare: number;
-  ownerCost: number; // labor * ownerShare/totalShare
+  ownerCost: number;
+  ownerCostDienste: number;
+  ownerCostHandwerker: number;
 }
 
 export interface OwnerAccountBlock {
@@ -238,7 +306,11 @@ export interface OwnerAccountBlock {
   lines: OwnerBlockLine[];
   subtotalGross: number;
   subtotalLabor: number;
+  subtotalLaborDienste: number;
+  subtotalLaborHandwerker: number;
   subtotalOwnerCost: number;
+  subtotalOwnerCostDienste: number;
+  subtotalOwnerCostHandwerker: number;
 }
 
 /** Pro Eigentümer: Liste aller Konto-Blöcke mit anteiligen Kosten je Beleg. */
@@ -246,29 +318,40 @@ export function buildOwnerCertificate(
   owner: OwnerAssignment,
   blocks: AccountBlock[],
   ctx: Parameters<typeof getOwnerShare>[2],
-): { blocks: OwnerAccountBlock[]; total: number } {
+): { blocks: OwnerAccountBlock[]; total: number; totalDienste: number; totalHandwerker: number } {
   const result: OwnerAccountBlock[] = [];
   let total = 0;
+  let totalDienste = 0;
+  let totalHandwerker = 0;
 
   for (const block of blocks) {
     const ownerShare = getOwnerShare(owner, block.key, ctx);
     const totalShare = block.totalDistributable;
+    const factor = totalShare > 0 ? ownerShare / totalShare : 0;
 
     const lines: OwnerBlockLine[] = block.bookings.map((b) => {
-      const labor = getLohnanteil(b);
-      const ownerCost = totalShare > 0 ? labor * (ownerShare / totalShare) : 0;
+      const { dienste, handwerker } = splitLaborByType(b, block.account);
+      const labor = dienste + handwerker;
       return {
         booking: b,
         gross: getGesamtbetrag(b),
         labor,
+        laborDienste: dienste,
+        laborHandwerker: handwerker,
         totalShare,
         ownerShare,
-        ownerCost,
+        ownerCost: labor * factor,
+        ownerCostDienste: dienste * factor,
+        ownerCostHandwerker: handwerker * factor,
       };
     });
 
     const subtotalOwnerCost = lines.reduce((s, l) => s + l.ownerCost, 0);
+    const subtotalOwnerCostDienste = lines.reduce((s, l) => s + l.ownerCostDienste, 0);
+    const subtotalOwnerCostHandwerker = lines.reduce((s, l) => s + l.ownerCostHandwerker, 0);
     total += subtotalOwnerCost;
+    totalDienste += subtotalOwnerCostDienste;
+    totalHandwerker += subtotalOwnerCostHandwerker;
 
     result.push({
       account: block.account,
@@ -276,11 +359,15 @@ export function buildOwnerCertificate(
       lines,
       subtotalGross: block.totalGross,
       subtotalLabor: block.totalLabor,
+      subtotalLaborDienste: block.totalLaborDienste,
+      subtotalLaborHandwerker: block.totalLaborHandwerker,
       subtotalOwnerCost,
+      subtotalOwnerCostDienste,
+      subtotalOwnerCostHandwerker,
     });
   }
 
-  return { blocks: result, total };
+  return { blocks: result, total, totalDienste, totalHandwerker };
 }
 
 /** Beleg-Beschreibung im PDF-Stil: "<Beschreibung> (<Nr.>/ <Datum>/ <Lieferant>)". */
