@@ -144,6 +144,31 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
   const bestaende_ende = carryAccountsList
     .filter((a) => Math.abs(a.closing) > 0.005)
     .map((a) => ({ konto_nr: a.account_number, konto_name: a.account_name, betrag: fmtEUR(a.closing), kategorie: a.category }));
+  // Kombinierte Bestandsentwicklung pro Konto (Anfang + Ende in einer Zeile),
+  // Brennstoff bewusst ausgenommen (separat in Vermögensbericht ausgewiesen).
+  const carry_accounts = carryAccountsList
+    .filter((a) => a.category !== "fuel")
+    .filter((a) => Math.abs(a.opening) > 0.005 || Math.abs(a.closing) > 0.005)
+    .map((a) => ({
+      konto_nr: a.account_number,
+      konto_name: a.account_name,
+      anfangsbestand: fmtEUR(a.opening),
+      endbestand: fmtEUR(a.closing),
+      kategorie: a.category,
+    }));
+  // Einnahmen inkl. Hausgeld-Vorschüssen (Soll) als virtuelle erste Zeile
+  const einnahmen_full = [
+    {
+      konto_nr: "—",
+      konto_name: "Hausgeld-Vorschüsse (Soll)",
+      verteiler: "",
+      betrag: fmtEUR(totals.totalVorschuss),
+      betrag_abs: fmtEUR(Math.abs(totals.totalVorschuss)),
+      wirtschaftsplan: "",
+    },
+    ...sectionListFromUi(sectionAccounts.income),
+  ];
+  const sumEinnahmenInkl = totals.totalVorschuss + totals.totalEinnahmen;
   return {
     document_title: "Jahresabrechnung — Gesamt",
     gebaeude_name: building?.name || "",
@@ -155,7 +180,8 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     verwalter_name: "RGI Immobilien GmbH & Co. KG",
 
     // Sektions-Listen (jede Position 1:1 wie in der UI-Section)
-    einnahmen: sectionListFromUi(sectionAccounts.income),
+    einnahmen: einnahmen_full,
+    einnahmen_nur_buchungen: sectionListFromUi(sectionAccounts.income),
     bewirtschaftung: sectionListFromUi(sectionAccounts.operating_distributable),
     nicht_umlagefaehig: sectionListFromUi(sectionAccounts.operating_non_distributable),
     heizkosten: sectionListFromUi(sectionAccounts.heating),
@@ -164,6 +190,7 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
 
     // Sektions-Summen (entspricht Spalten in der UI)
     sum_einnahmen: fmtEUR(totals.totalEinnahmen),
+    sum_einnahmen_inkl_vorschuss: fmtEUR(sumEinnahmenInkl),
     sum_bewirtschaftung_umlagefaehig: fmtEUR(totals.totalOperatingDist),
     sum_bewirtschaftung_nicht_umlagefaehig: fmtEUR(totals.totalOperatingNonDist),
     sum_heizkosten: fmtEUR(
@@ -180,6 +207,8 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     sum_sonstige_ertraege: fmtEUR(totals.incomeOther),
     abrechnungsspitze: fmtEUR(Math.abs(totals.abrechnungsspitze)),
     abrechnungsspitze_label: totals.abrechnungsspitze >= 0 ? "Guthaben" : "Nachzahlung",
+    abrechnungsspitze_guthaben: totals.abrechnungsspitze >= 0,
+    abrechnungsspitze_nachzahlung: totals.abrechnungsspitze < 0,
 
     // Vermögensbericht / Kontrollbestände
     bank_anfangsbestand: fmtEUR(totals.openingGiro),
@@ -198,6 +227,7 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     // Per-Konto-Listen (DOCX-Loops {#bestaende_anfang}/{#bestaende_ende})
     bestaende_anfang,
     bestaende_ende,
+    carry_accounts,
 
     // Eigentümer-Tabelle (Übersicht)
     eigentuemer: ownerResults.map((o) => ({
@@ -282,6 +312,8 @@ export function buildOwnerPayload(inp: BillingPayloadInputs, ownerId: string) {
     sum_vorschuss: fmtEUR(owner.totalPaid),
     abrechnungsspitze: fmtEUR(Math.abs(owner.result)),
     abrechnungsspitze_label: owner.result >= 0 ? "Guthaben" : "Nachzahlung",
+    abrechnungsspitze_guthaben: owner.result >= 0,
+    abrechnungsspitze_nachzahlung: owner.result < 0,
 
     // §35a Block
     has_35a: owner.owner35aDienste > 0 || owner.owner35aHandwerker > 0,
