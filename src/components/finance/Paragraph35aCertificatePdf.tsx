@@ -100,21 +100,6 @@ export function buildCertificateHtml(owner: OwnerAssignment, ctx: CertificateCon
       `;
     })
     .join("");
-      return `
-        <tr><td colspan="6" style="padding:10px 6px 4px;font-weight:bold;font-size:10pt;background:#f7f7f7;">
-          ${escapeHtml(bl.account.account_number)} ${escapeHtml(bl.account.account_name)} – Verteilung nach ${escapeHtml(keyLabel)}
-        </td></tr>
-        ${linesHtml}
-        <tr style="font-weight:bold;background:#fafafa;">
-          <td style="padding:5px 6px;font-size:9.5pt;">Summe</td>
-          <td style="padding:5px 6px;text-align:right;font-size:9.5pt;">${fmtEUR(bl.subtotalGross)}</td>
-          <td style="padding:5px 6px;text-align:right;font-size:9.5pt;">${fmtEUR(bl.subtotalLabor)}</td>
-          <td></td><td></td>
-          <td style="padding:5px 6px;text-align:right;font-size:9.5pt;">${fmtEUR(bl.subtotalOwnerCost)}</td>
-        </tr>
-      `;
-    })
-    .join("");
 
   return `
     <div style="font-family:'Work Sans',Arial,sans-serif;color:#222;padding:30mm 20mm;width:210mm;min-height:297mm;box-sizing:border-box;background:#fff;">
