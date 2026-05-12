@@ -213,6 +213,30 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     [owners, blocks, shareCtx],
   );
 
+  // Preload logo once for the in-app preview iframe
+  useEffect(() => {
+    let cancelled = false;
+    loadLogoBase64().then((logo) => {
+      if (!cancelled) setLogoCache(logo);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const previewCtx = useMemo<CertificateContext | null>(() => {
+    if (!building) return null;
+    return {
+      building: { name: building?.name, address: building?.address },
+      fiscalYear,
+      periodFrom: period?.period_from,
+      periodTo: period?.period_to,
+      blocks,
+      shareCtx,
+      logoBase64: logoCache,
+    };
+  }, [building, fiscalYear, period, blocks, shareCtx, logoCache]);
+
   const handleSinglePdf = async (owner: OwnerAssignment) => {
     setBusyOwnerId(owner.id);
     try {
