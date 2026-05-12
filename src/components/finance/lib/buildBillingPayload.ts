@@ -144,6 +144,31 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
   const bestaende_ende = carryAccountsList
     .filter((a) => Math.abs(a.closing) > 0.005)
     .map((a) => ({ konto_nr: a.account_number, konto_name: a.account_name, betrag: fmtEUR(a.closing), kategorie: a.category }));
+  // Kombinierte Bestandsentwicklung pro Konto (Anfang + Ende in einer Zeile),
+  // Brennstoff bewusst ausgenommen (separat in Vermögensbericht ausgewiesen).
+  const carry_accounts = carryAccountsList
+    .filter((a) => a.category !== "fuel")
+    .filter((a) => Math.abs(a.opening) > 0.005 || Math.abs(a.closing) > 0.005)
+    .map((a) => ({
+      konto_nr: a.account_number,
+      konto_name: a.account_name,
+      anfangsbestand: fmtEUR(a.opening),
+      endbestand: fmtEUR(a.closing),
+      kategorie: a.category,
+    }));
+  // Einnahmen inkl. Hausgeld-Vorschüssen (Soll) als virtuelle erste Zeile
+  const einnahmen_full = [
+    {
+      konto_nr: "—",
+      konto_name: "Hausgeld-Vorschüsse (Soll)",
+      verteiler: "",
+      betrag: fmtEUR(totals.totalVorschuss),
+      betrag_abs: fmtEUR(Math.abs(totals.totalVorschuss)),
+      wirtschaftsplan: "",
+    },
+    ...sectionListFromUi(sectionAccounts.income),
+  ];
+  const sumEinnahmenInkl = totals.totalVorschuss + totals.totalEinnahmen;
   return {
     document_title: "Jahresabrechnung — Gesamt",
     gebaeude_name: building?.name || "",
