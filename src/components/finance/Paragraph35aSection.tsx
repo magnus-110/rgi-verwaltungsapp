@@ -13,7 +13,9 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table";
-import { FileText, Download, Loader2, Package } from "lucide-react";
+import { FileText, Download, Loader2, Package, Settings, FileType } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Paragraph35aTemplatesDialog } from "./Paragraph35aTemplatesDialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   AccountInfo,
