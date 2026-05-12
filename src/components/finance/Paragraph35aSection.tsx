@@ -157,12 +157,17 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     }
   };
 
-  const downloadDocx = async (assignmentIds?: string[]) => {
+  const downloadFromTemplate = async (
+    assignmentIds: string[] | undefined,
+    format: "docx" | "pdf",
+  ) => {
     if (!templateId) {
       toast({ title: "Bitte zuerst eine Vorlage auswählen", variant: "destructive" });
       return;
     }
-    setDocxBusy(assignmentIds && assignmentIds.length === 1 ? "single" : "zip");
+    const isSingle = !!(assignmentIds && assignmentIds.length === 1);
+    if (format === "docx") setDocxBusy(isSingle ? "single" : "zip");
+    else setPdfBusy(isSingle ? assignmentIds![0] : "zip");
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const url = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`;
@@ -178,24 +183,34 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
           fiscal_year: fiscalYear,
           period_id: periodId,
           assignment_ids: assignmentIds,
+          format,
         }),
       });
       if (!resp.ok) throw new Error(await resp.text());
       const blob = await resp.blob();
       const cd = resp.headers.get("Content-Disposition") || "";
       const m = cd.match(/filename="?([^"]+)"?/);
-      const fname = m?.[1] || (assignmentIds?.length === 1 ? "35a.docx" : `35a_${fiscalYear}.zip`);
+      const ext = format === "pdf" ? "pdf" : "docx";
+      const fname = m?.[1] || (isSingle ? `35a.${ext}` : `35a_${fiscalYear}.zip`);
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = fname;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     } catch (e) {
-      toast({ title: "DOCX-Export fehlgeschlagen", description: String((e as Error).message), variant: "destructive" });
+      toast({
+        title: format === "pdf" ? "PDF-Export fehlgeschlagen" : "DOCX-Export fehlgeschlagen",
+        description: String((e as Error).message),
+        variant: "destructive",
+      });
     } finally {
-      setDocxBusy(null);
+      if (format === "docx") setDocxBusy(null);
+      else setPdfBusy(null);
     }
   };
+
+  const downloadDocx = (assignmentIds?: string[]) => downloadFromTemplate(assignmentIds, "docx");
+  const downloadWordPdf = (assignmentIds?: string[]) => downloadFromTemplate(assignmentIds, "pdf");
 
 
   const formatCurrency = (n: number) =>
