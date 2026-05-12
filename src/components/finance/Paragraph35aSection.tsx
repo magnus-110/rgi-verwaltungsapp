@@ -92,7 +92,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
         .select(
           `id, booking_date, description, amount, amount_35a, is_35a_relevant,
            account_id, counter_account_id, invoice_id,
-           invoices(invoice_number, invoice_date, vendor_name)`
+           invoices(invoice_number, invoice_date, vendor_name, line_items_detail, vat_rate)`
         )
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
@@ -103,9 +103,6 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     },
   });
 
-  // Strict filter: must have a positive labor amount (amount_35a > 0).
-  // is_35a_relevant alleine reicht NICHT — sonst tauchen Konten wie "Streusalz"
-  // mit 0,00 € Lohnanteil in der Bescheinigung auf.
   const bookings = useMemo(
     () =>
       bookingsRaw.filter(
@@ -114,7 +111,6 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     [bookingsRaw],
   );
 
-  // Account ids referenced by these bookings
   const accountIds = useMemo(() => {
     const s = new Set<string>();
     for (const b of bookings) {
@@ -125,12 +121,12 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   }, [bookings]);
 
   const { data: accountsList = [] } = useQuery({
-    queryKey: ["35a-accounts-v2", accountIds.sort().join(",")],
+    queryKey: ["35a-accounts-v3", accountIds.sort().join(",")],
     queryFn: async () => {
       if (accountIds.length === 0) return [];
       const { data, error } = await supabase
         .from("chart_of_accounts")
-        .select("id, account_number, account_name, default_distribution_key, is_35a_relevant")
+        .select("id, account_number, account_name, default_distribution_key, is_35a_relevant, settlement_35a_type, default_vat_rate")
         .in("id", accountIds);
       if (error) throw error;
       return data as AccountInfo[];
