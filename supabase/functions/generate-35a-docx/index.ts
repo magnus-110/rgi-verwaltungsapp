@@ -35,11 +35,19 @@ const DISTRIBUTION_LABELS: Record<string, string> = {
   heizk_abr: "Heizkostenabrechnung",
 };
 
+function normalizeDistributionKey(key: string | null | undefined): string {
+  const raw = String(key || "mea").trim();
+  const lower = raw.toLowerCase();
+  if (["mea", "einheit", "einheiten", "qm", "personen", "stellplaetze", "heizk_abr"].includes(lower)) return lower;
+  return raw;
+}
+
 function isSecondary(a: any) {
   return a.billing_mode === "distribution_only" || (a.unit_kind != null && a.unit_kind !== "apartment");
 }
 function shareValue(a: any, type: string): number {
-  return Number(a.contact_building_shares?.find((s: any) => s.share_type === type)?.share_value ?? 0) || 0;
+  const needle = String(type || "").trim().toLowerCase();
+  return Number(a.contact_building_shares?.find((s: any) => String(s.share_type || "").trim().toLowerCase() === needle)?.share_value ?? 0) || 0;
 }
 function ownerName(a: any): string {
   const c = a.contacts || {};
@@ -73,6 +81,10 @@ function pickAccountId(b: any, accounts: Map<string, any>): string | null {
 function splitLabor(b: any, account: any): { dienste: number; handwerker: number } {
   const labor = Math.abs(Number(b.amount_35a ?? b.amount) || 0);
   if (labor === 0) return { dienste: 0, handwerker: 0 };
+
+  if (b.settlement_35a_type === "handwerker") return { dienste: 0, handwerker: labor };
+  if (b.settlement_35a_type === "dienste") return { dienste: labor, handwerker: 0 };
+
   const detail = b.invoices?.line_items_detail;
   if (Array.isArray(detail) && detail.length > 0) {
     const vatRate = Number(b.invoices?.vat_rate ?? account?.default_vat_rate ?? 19);
@@ -154,17 +166,21 @@ Deno.serve(async (req) => {
     }
 
     // Bookings
-    const { data: bookingsRaw } = await admin
+    const { data: bookingsRaw, error: bookingsError } = await admin
       .from("bookings")
       .select(`id, booking_date, description, amount, amount_35a, is_35a_relevant,
+               settlement_35a_type,
                account_id, counter_account_id, invoice_id,
-               invoices(invoice_number, invoice_date, vendor_name, line_items_detail, vat_rate)`)
+               invoices(invoice_number, invoice_date, vendor_name)`)
       .eq("building_id", building_id)
       .eq("fiscal_year", fiscal_year)
-      .neq("status", "cancelled")
-      .or("is_35a_relevant.eq.true,amount_35a.not.is.null");
+      .neq("status", "cancelled");
+    if (bookingsError) throw bookingsError;
 
-    const bookings = (bookingsRaw || []).filter((b: any) => b.amount_35a != null && Math.abs(Number(b.amount_35a)) > 0);
+    const bookings = (bookingsRaw || []).filter((b: any) =>
+      (b.is_35a_relevant || b.amount_35a != null) &&
+      Math.abs(Number(b.amount_35a ?? b.amount) || 0) > 0
+    );
 
     // Accounts
     const accIds = Array.from(new Set(bookings.flatMap((b: any) => [b.account_id, b.counter_account_id]).filter(Boolean)));
@@ -220,7 +236,7 @@ Deno.serve(async (req) => {
     for (const [accId, bs] of groups) {
       const acc = accMap.get(accId);
       if (!acc) continue;
-      const key = (acc.default_distribution_key || "mea").toLowerCase();
+      const key = normalizeDistributionKey(acc.default_distribution_key || "mea");
       let totalGross = 0, totalLabor = 0, totalLaborD = 0, totalLaborH = 0;
       for (const b of bs) {
         totalGross += Math.abs(Number(b.amount) || 0);
