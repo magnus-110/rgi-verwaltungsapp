@@ -196,6 +196,10 @@ export function Transfers() {
     () => outgoingInvoices.filter(i => i.status !== "paid"),
     [outgoingInvoices]
   );
+  const paidInvoices = useMemo(
+    () => outgoingInvoices.filter(i => i.status === "paid"),
+    [outgoingInvoices]
+  );
   const unreviewedInvoices = useMemo(
     () => outgoingInvoices.filter(i => i.status !== "paid" && i.review_status !== "verified"),
     [outgoingInvoices]
@@ -318,8 +322,11 @@ export function Transfers() {
       return;
     }
     const isPaid = inv.status === "paid";
-    if (isPaid) { setReviewInvoices([inv]); setReviewIndex(0); }
-    else {
+    if (isPaid) {
+      setReviewInvoices(paidInvoices);
+      const idx = paidInvoices.findIndex(p => p.id === inv.id);
+      setReviewIndex(idx >= 0 ? idx : 0);
+    } else {
       setReviewInvoices(unpaidInvoices);
       const idx = unpaidInvoices.findIndex(u => u.id === inv.id);
       setReviewIndex(idx >= 0 ? idx : 0);
