@@ -108,6 +108,9 @@ export function InAppNotificationsProvider({ children }: { children: React.React
         const row: any = payload.new;
         if (!prefsRef.current.in_app_email_enabled) return;
         if (row.is_draft) return;
+        if (row.deleted_at) return;
+        // Only notify for incoming mail (Eingang). If inbox id not yet loaded, fall back to non-draft check.
+        if (inboxFolderIdRef.current && row.folder_id !== inboxFolderIdRef.current) return;
         if (accountIdsRef.current.size > 0 && !accountIdsRef.current.has(row.account_id)) return;
         if (!isFresh(row.created_at) || dedupe(row.id)) return;
         showToast({
