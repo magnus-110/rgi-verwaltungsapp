@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
     }
 
     // Bookings
-    const { data: bookingsRaw } = await admin
+    const { data: bookingsRaw, error: bookingsError } = await admin
       .from("bookings")
       .select(`id, booking_date, description, amount, amount_35a, is_35a_relevant,
                settlement_35a_type,
@@ -174,10 +174,13 @@ Deno.serve(async (req) => {
                invoices(invoice_number, invoice_date, vendor_name, line_items_detail, vat_rate)`)
       .eq("building_id", building_id)
       .eq("fiscal_year", fiscal_year)
-      .neq("status", "cancelled")
-      .or("is_35a_relevant.eq.true,amount_35a.not.is.null");
+      .neq("status", "cancelled");
+    if (bookingsError) throw bookingsError;
 
-    const bookings = (bookingsRaw || []).filter((b: any) => b.amount_35a != null && Math.abs(Number(b.amount_35a)) > 0);
+    const bookings = (bookingsRaw || []).filter((b: any) =>
+      (b.is_35a_relevant || b.amount_35a != null) &&
+      Math.abs(Number(b.amount_35a ?? b.amount) || 0) > 0
+    );
 
     // Accounts
     const accIds = Array.from(new Set(bookings.flatMap((b: any) => [b.account_id, b.counter_account_id]).filter(Boolean)));
@@ -246,14 +249,6 @@ Deno.serve(async (req) => {
     }
     blocks.sort((a, b) => a.acc.account_number.localeCompare(b.acc.account_number));
     const blocksFiltered = blocks.filter((b) => Math.abs(b.totalLabor) > 0);
-
-    console.log("generate-35a-docx distribution", {
-      bookings: bookings.length,
-      owners: mainOwners.length,
-      firstOwner: mainOwners[0]?.id,
-      firstOwnerShares: mainOwners[0]?.contact_building_shares,
-      blocks: blocksFiltered.map((b) => ({ account: b.acc.account_number, key: b.key, totalLabor: b.totalLabor, totalDist: b.totalDist })).slice(0, 8),
-    });
 
     const targetOwners = Array.isArray(assignment_ids) && assignment_ids.length
       ? mainOwners.filter((o: any) => assignment_ids.includes(o.id))
