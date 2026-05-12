@@ -1758,13 +1758,13 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                             // Apply invoice assignment to ALL rows (split-safe). Update auto-text if not user-edited.
                             const _ca = accounts.find((a: any) => a.id === (r.counter_account_id || inv.suggested_account_id));
                             const newAutoText = buildBookingText({
-                              period: formatMonthYearRef(currentTxn?.booking_date),
+                              period: null,
                               invoiceNumber: inv.invoice_number,
                               vendorName: resolveVendor(inv.vendor_name),
                               counterAccountName: _ca?.account_name || null,
                             });
                             const rebuilt = rebuildBookingTextIfAuto(r.description, r.__autoTextSignature, {
-                              period: formatMonthYearRef(currentTxn?.booking_date),
+                              period: null,
                               invoiceNumber: inv.invoice_number,
                               vendorName: resolveVendor(inv.vendor_name),
                               counterAccountName: _ca?.account_name || null,
