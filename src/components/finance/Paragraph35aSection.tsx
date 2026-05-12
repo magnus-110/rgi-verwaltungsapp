@@ -418,9 +418,18 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {blocks.length === 0 ? (
+          {bookingsError ? (
+            <div className="text-center text-sm text-destructive py-8">
+              Fehler beim Laden der §35a-Buchungen: {String((bookingsError as Error).message)}
+            </div>
+          ) : bookings.length === 0 ? (
             <div className="text-center text-sm text-muted-foreground py-8">
               Keine Buchungen mit §35a-Position für {fiscalYear} gefunden.
+            </div>
+          ) : blocks.length === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-8">
+              {bookings.length} §35a-Buchungen gefunden, aber keinem Aufwandskonto zuordenbar.
+              Bitte Konto-Zuordnung der Buchungen prüfen.
             </div>
           ) : (
             <div className="divide-y">
