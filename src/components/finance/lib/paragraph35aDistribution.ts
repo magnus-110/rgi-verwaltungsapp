@@ -179,6 +179,7 @@ export function pickExpenseAccountId(
   if (c?.is_35a_relevant) return c.id;
   if (a?.default_distribution_key) return a.id;
   if (c?.default_distribution_key) return c.id;
+  // Bank-centric default: counter side is the expense account.
   return b.counter_account_id || b.account_id || null;
 }
 
