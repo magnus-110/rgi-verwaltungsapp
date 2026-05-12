@@ -196,6 +196,10 @@ export function Transfers() {
     () => outgoingInvoices.filter(i => i.status !== "paid"),
     [outgoingInvoices]
   );
+  const paidInvoices = useMemo(
+    () => outgoingInvoices.filter(i => i.status === "paid"),
+    [outgoingInvoices]
+  );
   const unreviewedInvoices = useMemo(
     () => outgoingInvoices.filter(i => i.status !== "paid" && i.review_status !== "verified"),
     [outgoingInvoices]
