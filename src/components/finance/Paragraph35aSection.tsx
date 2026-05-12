@@ -48,6 +48,8 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   const { toast } = useToast();
   const [busyOwnerId, setBusyOwnerId] = useState<string | null>(null);
   const [zipBusy, setZipBusy] = useState<{ done: number; total: number } | null>(null);
+  const [previewOwner, setPreviewOwner] = useState<OwnerAssignment | null>(null);
+  const [logoCache, setLogoCache] = useState<string | null>(null);
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
