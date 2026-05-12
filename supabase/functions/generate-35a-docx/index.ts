@@ -241,6 +241,8 @@ Deno.serve(async (req) => {
     const buildVarsFor = (owner: any) => {
       let total = 0, totalD = 0, totalH = 0;
       const positionen: any[] = [];
+      const positionen_dienste: any[] = [];
+      const positionen_handwerker: any[] = [];
       const bloecke: any[] = [];
       for (const block of blocksFiltered) {
         const ownerShare = getOwnerShare(owner, block.key, ctx);
@@ -255,7 +257,7 @@ Deno.serve(async (req) => {
           const ocD = sp.dienste * factor;
           const ocH = sp.handwerker * factor;
           blockOC += oc; blockD += ocD; blockH += ocH;
-          const row = {
+          const baseRow = {
             konto_nr: block.acc.account_number,
             konto_name: block.acc.account_name,
             verteiler: DISTRIBUTION_LABELS[block.key] || block.key,
@@ -268,8 +270,22 @@ Deno.serve(async (req) => {
             ihre_kosten_dienste: ocD > 0 ? fmtEUR(ocD) : "",
             ihre_kosten_handwerker: ocH > 0 ? fmtEUR(ocH) : "",
           };
-          zeilen.push(row);
-          positionen.push(row);
+          zeilen.push(baseRow);
+          positionen.push(baseRow);
+          if (ocD > 0) {
+            positionen_dienste.push({
+              ...baseRow,
+              lohn: fmtEUR(sp.dienste),
+              ihre_kosten: fmtEUR(ocD),
+            });
+          }
+          if (ocH > 0) {
+            positionen_handwerker.push({
+              ...baseRow,
+              lohn: fmtEUR(sp.handwerker),
+              ihre_kosten: fmtEUR(ocH),
+            });
+          }
         }
         bloecke.push({
           konto_nr: block.acc.account_number,
@@ -303,10 +319,13 @@ Deno.serve(async (req) => {
         tage: String(tage),
         bescheinigung_nr: `a1001${fiscal_year}${unitNo}3112`,
         erstell_datum: fmtDateDe(new Date().toISOString()),
+        verwalter_name: "RGI Immobilien GmbH & Co. KG",
         summe_dienste: fmtEUR(totalD),
         summe_handwerker: fmtEUR(totalH),
         summe_gesamt: fmtEUR(total),
         positionen,
+        positionen_dienste,
+        positionen_handwerker,
         bloecke,
       };
     };
