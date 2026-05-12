@@ -353,14 +353,15 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   accounts.forEach((acc) => {
     const section = acc.settlement_section;
     if (!section) return;
-    // Inline-Toggle "Abrechnungsrelevant" hat Vorrang:
-    //  - explizit false  → immer ausblenden (auch wenn Saldo ≠ 0)
-    //  - explizit true   → immer anzeigen (auch wenn Saldo = 0)
-    //  - null/undefined  → Default: nur anzeigen wenn Saldo ≠ 0 (bzw. Reserve)
+    // Inline-Toggle "Abrechnungsrelevant":
+    //  - explizit false  → immer ausblenden
+    //  - sonst: Konten mit Saldo ≈ 0 standardmäßig ausblenden (auch wenn Flag = true);
+    //    Toggle "Null-Saldo Konten anzeigen" macht sie wieder sichtbar.
+    //    Reserve-Sektion ist Ausnahme (immer anzeigen).
     const billingFlag = (acc as any).is_billing_relevant;
     if (billingFlag === false) return;
     const total = getAccountBookingTotal(acc.id);
-    if (billingFlag !== true && Math.abs(total) < 0.005 && section !== "reserve") return;
+    if (Math.abs(total) < 0.005 && section !== "reserve" && !showZeroBalanceAccounts) return;
     if (!sectionAccounts[section]) sectionAccounts[section] = [];
     sectionAccounts[section].push({
       ...acc,
