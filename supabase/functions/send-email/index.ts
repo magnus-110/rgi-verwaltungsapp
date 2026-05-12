@@ -202,28 +202,47 @@ Deno.serve(async (req) => {
     }
 
     // Persist attachments to storage + email_attachments so they show up in the Sent view
-    if (insertedEmail?.id && hasAttachments) {
-      for (const att of attachments) {
+    if (insertedEmail?.id && resolvedAttachments.length > 0) {
+      for (const att of resolvedAttachments) {
         try {
-          const buf = Uint8Array.from(atob(att.content), (c) => c.charCodeAt(0));
           const safeName = String(att.filename || "attachment").replace(/[^\w.\-]+/g, "_");
           const filePath = `${insertedEmail.id}/${safeName}`;
-          const { error: upErr } = await supabaseAdmin.storage
-            .from("email-attachments")
-            .upload(filePath, buf, {
-              contentType: att.contentType || "application/octet-stream",
-              upsert: true,
-            });
-          if (upErr) {
-            console.error(`Attachment upload failed (${safeName}):`, upErr.message);
-            continue;
+          // If already in storage at outgoing path, copy/move into the email folder.
+          if (att.storage_path) {
+            const { error: mvErr } = await supabaseAdmin.storage
+              .from("email-attachments")
+              .move(att.storage_path, filePath);
+            if (mvErr) {
+              // Fallback: re-upload buffer
+              const { error: upErr } = await supabaseAdmin.storage
+                .from("email-attachments")
+                .upload(filePath, att.buffer, {
+                  contentType: att.contentType,
+                  upsert: true,
+                });
+              if (upErr) {
+                console.error(`Attachment move/upload failed (${safeName}):`, upErr.message);
+                continue;
+              }
+            }
+          } else {
+            const { error: upErr } = await supabaseAdmin.storage
+              .from("email-attachments")
+              .upload(filePath, att.buffer, {
+                contentType: att.contentType,
+                upsert: true,
+              });
+            if (upErr) {
+              console.error(`Attachment upload failed (${safeName}):`, upErr.message);
+              continue;
+            }
           }
           const { error: attErr } = await supabaseAdmin.from("email_attachments").insert({
             email_id: insertedEmail.id,
             file_name: att.filename,
             file_path: filePath,
-            file_size: buf.byteLength,
-            mime_type: att.contentType || "application/octet-stream",
+            file_size: att.buffer.byteLength,
+            mime_type: att.contentType,
             is_inline: false,
           });
           if (attErr) {
