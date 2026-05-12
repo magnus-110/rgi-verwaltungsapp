@@ -35,11 +35,19 @@ const DISTRIBUTION_LABELS: Record<string, string> = {
   heizk_abr: "Heizkostenabrechnung",
 };
 
+function normalizeDistributionKey(key: string | null | undefined): string {
+  const raw = String(key || "mea").trim();
+  const lower = raw.toLowerCase();
+  if (["mea", "einheit", "einheiten", "qm", "personen", "stellplaetze", "heizk_abr"].includes(lower)) return lower;
+  return raw;
+}
+
 function isSecondary(a: any) {
   return a.billing_mode === "distribution_only" || (a.unit_kind != null && a.unit_kind !== "apartment");
 }
 function shareValue(a: any, type: string): number {
-  return Number(a.contact_building_shares?.find((s: any) => s.share_type === type)?.share_value ?? 0) || 0;
+  const needle = String(type || "").trim().toLowerCase();
+  return Number(a.contact_building_shares?.find((s: any) => String(s.share_type || "").trim().toLowerCase() === needle)?.share_value ?? 0) || 0;
 }
 function ownerName(a: any): string {
   const c = a.contacts || {};
@@ -73,6 +81,10 @@ function pickAccountId(b: any, accounts: Map<string, any>): string | null {
 function splitLabor(b: any, account: any): { dienste: number; handwerker: number } {
   const labor = Math.abs(Number(b.amount_35a ?? b.amount) || 0);
   if (labor === 0) return { dienste: 0, handwerker: 0 };
+
+  if (b.settlement_35a_type === "handwerker") return { dienste: 0, handwerker: labor };
+  if (b.settlement_35a_type === "dienste") return { dienste: labor, handwerker: 0 };
+
   const detail = b.invoices?.line_items_detail;
   if (Array.isArray(detail) && detail.length > 0) {
     const vatRate = Number(b.invoices?.vat_rate ?? account?.default_vat_rate ?? 19);
