@@ -14,6 +14,7 @@ import { BarChart3, ChevronDown, ChevronRight, Users, PiggyBank, AlertTriangle, 
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getEffectiveOpeningBalance, getEffectiveClosingBalance, signedTotalForAccount } from "./lib/bookingAggregation";
+import { getAccrualDisplaySign } from "./lib/accrualSign";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { BillingTemplatesDialog } from "./BillingTemplatesDialog";
 import { buildOverallPayload, buildOwnerPayload, type BillingPayloadInputs } from "./lib/buildBillingPayload";
@@ -1068,24 +1069,35 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const renderSection = (section: string) => {
     const accs = sectionAccounts[section] || [];
     if (accs.length === 0 && section !== "reserve") return null;
-    const signedTotal = getSectionSignedTotal(section);
     const wpTotal = accs.reduce((s, a) => s + a.wpAmount, 0);
     // Verteilungsrelevante Summe nutzt Magnitude (Kostensumme zur Verteilung)
     const distTotal = accs.filter(a => a.is_distributable).reduce((s, a) => s + a.totalAbs, 0);
     const isExpanded = expandedSections.has(section);
     const isIncomeSection = section === "income";
+    const isAccrualSection = section === "accrual";
 
     // Vorzeichen-Konvention für die Anzeige:
     //  - Einnahmen-Sektion → positive Werte mit "+"
-    //  - Aufwands-Sektionen (Bewirtschaftung, Heizung, Rücklage, Abgrenzung) → mit "−"
+    //  - Aufwands-Sektionen (Bewirtschaftung, Heizung, Rücklage) → mit "−"
+    //  - Abgrenzungs-Sektion → pro Konto je nach Konto-Nummer (siehe accrualSign.ts)
     const isExpenseSection = section !== "income";
+
+    // Pro-Konto Anzeigewert (signiert) — bei Abgrenzungen abhängig von Kontonummer
+    const accountDisplayValue = (acc: any): number => {
+      if (isAccrualSection) return acc.totalAbs * getAccrualDisplaySign(acc.account_number);
+      if (isIncomeSection) return acc.totalAbs; // Einnahmen positiv
+      return -acc.totalAbs; // Aufwand negativ
+    };
+
+    const sectionDisplayTotal = accs.reduce((s, a) => s + accountDisplayValue(a), 0);
+
     const renderSigned = (n: number) => {
       const v = Math.round(n * 100) / 100;
       if (v === 0) return <span className="font-mono">{formatCurrency(0)}</span>;
-      const displayPositive = isExpenseSection ? false : v > 0;
+      const positive = v > 0;
       return (
-        <span className={cn("font-mono", displayPositive ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
-          {displayPositive ? "+" : "−"}{formatCurrency(Math.abs(v))}
+        <span className={cn("font-mono", positive ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
+          {positive ? "+" : "−"}{formatCurrency(Math.abs(v))}
         </span>
       );
     };
@@ -1100,8 +1112,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           </div>
           <div className="flex gap-4 text-sm">
             {wpTotal > 0 && <span className="font-mono text-muted-foreground">{formatCurrency(wpTotal)}</span>}
-            <span className="font-medium">{renderSigned(signedTotal)}</span>
-            {distTotal > 0 && Math.abs(distTotal - Math.abs(signedTotal)) > 0.005 && (
+            <span className="font-medium">{renderSigned(sectionDisplayTotal)}</span>
+            {distTotal > 0 && Math.abs(distTotal - Math.abs(sectionDisplayTotal)) > 0.005 && (
               <span className="font-mono text-muted-foreground">{formatCurrency(distTotal)}</span>
             )}
           </div>
@@ -1125,7 +1137,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                   <TableCell className="text-right font-mono text-sm text-muted-foreground">
                     {acc.wpAmount > 0 ? formatCurrency(acc.wpAmount) : "–"}
                   </TableCell>
-                  <TableCell className="text-right text-sm">{renderSigned(acc.total)}</TableCell>
+                  <TableCell className="text-right text-sm">{renderSigned(accountDisplayValue(acc))}</TableCell>
                   <TableCell className="text-right font-mono text-sm">
                     {acc.is_distributable ? formatCurrency(acc.totalAbs) : "–"}
                   </TableCell>
@@ -1138,7 +1150,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                 <TableCell className="text-right font-mono text-sm font-semibold text-muted-foreground">
                   {wpTotal > 0 ? formatCurrency(wpTotal) : "–"}
                 </TableCell>
-                <TableCell className="text-right text-sm font-semibold">{renderSigned(signedTotal)}</TableCell>
+                <TableCell className="text-right text-sm font-semibold">{renderSigned(sectionDisplayTotal)}</TableCell>
                 <TableCell className="text-right font-mono text-sm font-semibold">
                   {distTotal > 0 ? formatCurrency(distTotal) : "–"}
                 </TableCell>

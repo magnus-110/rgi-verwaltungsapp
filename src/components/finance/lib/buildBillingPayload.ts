@@ -107,12 +107,21 @@ const SECTION_LABELS: Record<string, string> = {
   accrual: "Abgrenzungen (nachrichtlich)",
 };
 
-function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean } = {}) {
+import { getAccrualDisplaySign } from "./accrualSign";
+
+function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccrual?: boolean } = {}) {
   return accs.map((a) => {
     const abs = Math.abs(a.totalAbs || 0);
-    const signed = opts.asExpense ? -abs : a.total;
+    let signed: number;
+    if (opts.asAccrual) {
+      signed = abs * getAccrualDisplaySign(a.account_number);
+    } else if (opts.asExpense) {
+      signed = -abs;
+    } else {
+      signed = a.total;
+    }
     const wp = Math.abs(a.wpAmount || 0);
-    const wpSigned = opts.asExpense ? -wp : a.wpAmount;
+    const wpSigned = opts.asAccrual ? wp * getAccrualDisplaySign(a.account_number) : (opts.asExpense ? -wp : a.wpAmount);
     return {
       konto_nr: a.account_number,
       konto_name: a.account_name,
@@ -125,6 +134,7 @@ function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean } = {})
     };
   });
 }
+
 
 function ownerAddr(assignment: any) {
   if (!assignment) return { street: "", zip: "", city: "" };
@@ -239,7 +249,7 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     nicht_umlagefaehig,
     heizkosten,
     ruecklage,
-    abgrenzungen: sectionListFromUi(sectionAccounts.accrual, { asExpense: true }),
+    abgrenzungen: sectionListFromUi(sectionAccounts.accrual, { asAccrual: true }),
 
     // Sektions-Summen (entspricht Spalten in der UI)
     sum_einnahmen: fmtEUR(totals.totalEinnahmen),
@@ -255,7 +265,12 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     sum_ausgaben_ist: fmtEUR(-sumIst),
     sum_ausgaben_wp: fmtEUR(-sumWp),
     sum_ausgaben_verteilbar: fmtEUR(-sumVerteilbar),
-    sum_abgrenzungen: fmtEUR(totals.totalAccrual),
+    sum_abgrenzungen: fmtEUR(
+      (sectionAccounts.accrual || []).reduce(
+        (s: number, a: any) => s + Math.abs(a.totalAbs || 0) * getAccrualDisplaySign(a.account_number),
+        0,
+      ),
+    ),
     sum_abrechnung: fmtEUR(totals.abrechnungssumme),
     sum_vorschuss: fmtEUR(totals.totalVorschuss),
     sum_vorschuss_kostendeckung: fmtEUR(totals.totalSollKostendeckung),
