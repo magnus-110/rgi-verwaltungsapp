@@ -607,10 +607,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   );
   const personenkontenPaid = -personenkontenSigned;
 
-  const totalSollEHR = ehrAccountClosing;
+  // EHR-Soll: Schlusssaldo Konto 1930, Fallback economicPlan.total_reserve.
+  const totalSollEHR = ehrAccountClosing > 0.005
+    ? ehrAccountClosing
+    : (Number(economicPlan?.total_reserve) || 0);
   const totalSollKostendeckung = Math.max(0, sollHausgeldGesamt - totalSollEHR);
-  // Überzahlung = tatsächlich gezahlt − Soll-Hausgeld gesamt (mathematisch
-  // identisch zu paid − Kostendeckung − EHR, aber klarer).
+  // Überzahlung = tatsächlich gezahlt − Soll-Hausgeld gesamt
   const totalUeberzahlung = personenkontenPaid - sollHausgeldGesamt;
   const hasReserveSplit = totalSollEHR > 0.005;
   const totalVorschuss = totalSollKostendeckung + totalSollEHR + Math.max(0, totalUeberzahlung);
