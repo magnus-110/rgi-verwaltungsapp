@@ -519,27 +519,48 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   //   sollKostendeckung  = sollHausgeldGesamt − sollEHR
   //   ueberzahlung       = Σ Schlusssaldo Personenkonten (00xx Hausgeld …)
   //                        − sollKostendeckung − sollEHR
+  // Effektiver Zeitraum = Schnittmenge aus Abrechnungszeitraum, Assignment-
+  // Validity UND Cost-Validity. Vermeidet Doppel-Proration.
   let sollHausgeldGesamt = 0;
   assignments.forEach((a: any) => {
     const costs = a.contact_building_costs || [];
-    const timeProp = getTimeProportion(a);
     costs.forEach((c: any) => {
       const ct = (c.cost_type || "").toLowerCase();
       const isHausgeld = ["hausgeld", "nebenkosten"].includes(ct);
       const isReserve = ct === "ruecklage";
-      const annual = period
-        ? getCostAnnualAmount(c, period.period_from, period.period_to) * timeProp
-        : (() => {
-            const amount = Number(c.amount);
-            switch (c.interval) {
-              case "monatlich": return amount * 12 * timeProp;
-              case "quartal": return amount * 4 * timeProp;
-              case "jaehrlich": return amount * timeProp;
-              default: return amount * 12 * timeProp;
-            }
-          })();
+      let annual = 0;
+      if (period) {
+        const pStart = new Date(period.period_from);
+        const pEnd = new Date(period.period_to);
+        const aStart = a.valid_from ? new Date(a.valid_from) : pStart;
+        const aEnd = a.valid_to ? new Date(a.valid_to) : pEnd;
+        const cStart = c.valid_from ? new Date(c.valid_from) : pStart;
+        const cEnd = c.valid_to ? new Date(c.valid_to) : pEnd;
+        const effStart = new Date(Math.max(pStart.getTime(), aStart.getTime(), cStart.getTime()));
+        const effEnd = new Date(Math.min(pEnd.getTime(), aEnd.getTime(), cEnd.getTime()));
+        if (effEnd >= effStart) {
+          const totalPeriodDays = (pEnd.getTime() - pStart.getTime()) / 86400000 + 1;
+          const overlapDays = (effEnd.getTime() - effStart.getTime()) / 86400000 + 1;
+          const overlapMonths = (overlapDays / totalPeriodDays) * 12;
+          const amount = Number(c.amount);
+          switch (c.interval) {
+            case "monatlich": annual = amount * overlapMonths; break;
+            case "quartal": annual = amount * (overlapMonths / 3); break;
+            case "jaehrlich": annual = amount * (overlapMonths / 12); break;
+            default: annual = amount * overlapMonths;
+          }
+        }
+      } else {
+        const amount = Number(c.amount);
+        switch (c.interval) {
+          case "monatlich": annual = amount * 12; break;
+          case "quartal": annual = amount * 4; break;
+          case "jaehrlich": annual = amount; break;
+          default: annual = amount * 12;
+        }
+      }
       if (isHausgeld || isReserve) sollHausgeldGesamt += annual;
-      else sollHausgeldGesamt += annual; // Sonderumlagen etc.
+      else sollHausgeldGesamt += annual;
     });
   });
 

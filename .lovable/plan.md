@@ -1,73 +1,54 @@
-## Ziel
+## Problem
 
-1. Im Abrechnungs-PDF (und UI) wieder **Zwischensummen je Block** ausweisen (Einnahmen, umlagefähig, nicht umlagefähig, Heizkosten, Rücklage, Abgrenzungen).
-2. **Einnahmen-Block aufsplitten** in drei feste Zeilen: *Vorschüsse zur Kostendeckung*, *Vorschüsse auf Erhaltungsrücklage (EHR)*, *Überzahlung Vorschüsse*. Berechnung neu — basiert auf Personenkonten + Konto 1930 + Hub-Hausgeldern.
-3. Im Building-Hub das Feld **„davon EHR"** (`reserve_share_monthly`) bei Personen-Hausgeld **entfernen** (UI + Spalte bleibt in DB).
+Aktuell zeigt die Vorschuss-Aufstellung:
+- Vorschüsse zur Kostendeckung: **27.938,06 €** (erwartet: 27.946 €, Diff ~8 €)
+- Überzahlung: **2.427,94 €** (erwartet: 210 €, Diff ~2.218 €)
 
-## Neue Berechnungslogik (Vorschüsse)
+Zwei eigenständige Bugs in `src/components/finance/BillingSettlement.tsx`:
 
-In `BillingSettlement.tsx` (Block ab Zeile 516–562) ersetzen wir die bisherige `reserve_share_monthly`-Aufteilung durch:
+### Bug 1 — Doppel-Proration beim Soll-Hausgeld (~8 € Diff)
 
-```text
-sollHausgeldGesamt   = Σ über alle assignments × contact_building_costs (Hausgeld/Nebenkosten)
-                       — bisherige Logik mit getCostAnnualAmount + timeProp,
-                         aber OHNE Split via reserve_share_monthly
-ehrAccountClosing    = Schlusssaldo Konto 1930 (settlement_section='reserve',
-                       Name "Planmäßige IHR Wohnungen") via getEffectiveClosingBalance
-sollKostendeckung    = sollHausgeldGesamt − ehrAccountClosing
-sollEHR              = ehrAccountClosing
-personenkontenClose  = Σ Schlusssaldo aller Personenkonten
-                       (account_number Regex /^00\d{2}$/  und Name beginnt mit "Hausgeld ")
-ueberzahlung         = personenkontenClose − sollKostendeckung − ehrAccountClosing
-totalVorschuss       = sollKostendeckung + sollEHR + max(ueberzahlung, 0)
+In Zeile 530-540 wird der Jahresbetrag **doppelt zeitanteilig** gerechnet:
+```
+getCostAnnualAmount(c, period.period_from, period.period_to)  // bereits zeitanteilig nach cost.valid_from/to im Abrechnungszeitraum
+  * timeProp                                                    // nochmal zeitanteilig nach assignment.valid_from/to
 ```
 
-`hasReserveSplit` = `sollEHR > 0.005` (steuert ob die EHR-Zeile gerendert wird).
-Überzahlung-Zeile wird nur gerendert wenn `|ueberzahlung| > 0.005`.
+Beispiel: Eigentümer ab 01.07., Kosten ab 01.07. gültig → `getCostAnnualAmount` liefert bereits den Halbjahresbetrag, `timeProp = 0,5` halbiert ihn nochmal → ¼ statt ½.
 
-`abrechnungsspitze`/`abrechnungssumme` bleiben unverändert (nutzen `totalVorschuss`).
+**Fix:** Schnittmenge aus Assignment- UND Cost-Validity gegen den Abrechnungszeitraum bilden, einmalige Proration. `timeProp` entfällt für die Soll-Berechnung.
 
-## Payload + Template
+### Bug 2 — Überzahlung enthält Vorjahres-Eröffnungssalden (~2.210 € Diff)
 
-In `buildBillingPayload.ts`:
+`personenkontenClose` summiert die Schlusssalden inkl. **Eröffnungsbestand** der Personenkonten 00xx. Hat ein Eigentümer Vorjahres-Guthaben/Schulden, fließt das in `personenkontenPaid` mit ein und verfälscht die Überzahlung.
 
-- `einnahmen_full` (virtuelle Vorzeile) ersetzen durch **drei** Vorzeilen:
-  - `Vorschüsse zur Kostendeckung` → `sollKostendeckung`
-  - `Vorschüsse auf Erhaltungsrücklage` → `sollEHR` (nur wenn > 0)
-  - `Überzahlung Vorschüsse` → `ueberzahlung` (nur wenn ≠ 0)
-  - …gefolgt von Buchungs-Einnahmen (Zinsen etc.)
-- Neue Felder in totals durchreichen: `totalSollKostendeckung`, `totalSollEHR`, `totalUeberzahlung`, sowie String-Felder `sum_vorschuss_kostendeckung`, `sum_vorschuss_ehr`, `sum_vorschuss_ueberzahlung`.
-- **Zwischensummen je Block** als eigene Felder + `_label`:
-  - `sum_einnahmen` (bereits vorhanden)
-  - `sum_bewirtschaftung_umlagefaehig` (vorhanden)
-  - `sum_bewirtschaftung_nicht_umlagefaehig` (vorhanden)
-  - `sum_heizkosten` (vorhanden)
-  - `sum_ruecklage` (vorhanden)
-  - `sum_abgrenzungen` (vorhanden)
-  → keine neuen Felder nötig, aber wir liefern eine **Konvenienz-Variable** `subtotals` (Array) aus, damit das Template einen einzigen Loop für alle Blockzwischensummen nutzen kann (für v6.2 nicht nötig — die Felder existieren bereits, wir beleben nur den vom Nutzer aktuell vermissten Wert in UI/Doc).
+Der Nutzer rechnet:
+```
+Überzahlung = Σ tatsächlich gezahlte Hausgelder DIESES Jahres − Σ Soll-Hausgelder
+            = 33.156 − 32.946 = 210
+```
 
-## UI BillingSettlement
+**Fix:** `personenkontenPaid` aus den **Bewegungen** (movements) des Geschäftsjahres berechnen, nicht aus dem Schlussbestand. `getEffectiveClosingBalance` liefert bereits `.movements` — diesen Wert verwenden (invertiert).
 
-- Aktuelle Vorschuss-Anzeige (Zeilen ~1230–1280) erweitert um die neue Überzahlungs-Zeile.
-- Im Einnahmen-Section (Tabelle) drei virtuelle Zeilen oben einfügen analog zur jetzigen Hausgeld-Zeile.
+## Änderungen
 
-## Building-Hub: EHR-Feld entfernen
+**Datei:** `src/components/finance/BillingSettlement.tsx`
 
-`src/components/contacts/BuildingContactsList.tsx` Zeilen ~1040–1055: das gesamte „davon EHR" Eingabefeld + Tooltip entfernen. `reserve_share_monthly` bleibt in DB & Type, wird nur nicht mehr im UI editiert und nicht mehr in der Berechnung gelesen. Default-Wert beim Anlegen neuer Hausgeld-Kosten auf `0` setzen.
+1. **Zeilen 522–544** (`sollHausgeldGesamt`): `getCostAnnualAmount` so erweitern/aufrufen, dass es Assignment-Validity berücksichtigt — Multiplikation mit `timeProp` entfernen.
+2. **Zeilen 562–565** (`personenkontenClose` → `personenkontenPaid`): nur `movements` verwenden:
+   ```ts
+   const personenkontenMovements = personenkontenAccounts.reduce((s, a) =>
+     s + getEffectiveClosingBalance(a.id, bookings, flatBalances, fiscalYear, opening4000Id).movements, 0);
+   const personenkontenPaid = -personenkontenMovements;
+   ```
+3. Vereinfachung der Überzahlungs-Formel (mathematisch äquivalent, klarer):
+   ```ts
+   const totalUeberzahlung = personenkontenPaid - sollHausgeldGesamt;
+   ```
 
-## Technische Details
+## Verifikation
 
-- Personenkonten-Erkennung: `account.account_number` matcht `/^00\d{2}$/` UND `account_name` startet mit `Hausgeld ` (Regex aus DB-Stichprobe bestätigt). Building-scoped (accounts werden bereits per `building_id` gefiltert in BillingSettlement).
-- Konto 1930: `accounts.find(a => a.account_number === '1930')`. Falls nicht vorhanden → `ehrAccountClosing = 0`, Block "Vorschüsse auf EHR" wird ausgeblendet.
-- Schlusssaldo via vorhandenen Helper `getEffectiveClosingBalance(acc.id, bookings, flatBalances, fiscalYear, opening4000Id)`.
-- Keine DB-Migration nötig.
-
-## Files to change
-
-- `src/components/finance/BillingSettlement.tsx` — neue Vorschuss-Berechnung, UI-Erweiterung
-- `src/components/finance/lib/buildBillingPayload.ts` — Payload (3 Vorzeilen + neue Summenfelder)
-- `src/components/contacts/BuildingContactsList.tsx` — „davon EHR"-Feld entfernen
-
-## Out of scope
-
-- DOCX-Template selbst (v6.2) muss vom Nutzer im Word ergänzt werden um Platzhalter `{sum_vorschuss_kostendeckung}`, `{sum_vorschuss_ehr}`, `{sum_vorschuss_ueberzahlung}` falls separate Anzeige außerhalb des `{#einnahmen}`-Loops gewünscht. Die bestehenden `{#einnahmen}`-Loops + `{sum_einnahmen}` etc. funktionieren ohne Änderung weiter.
+Nach dem Fix mit den Beispielzahlen:
+- Soll-Hausgeld gesamt: 32.946 € → Kostendeckung 27.946 € + EHR 5.000 €
+- Tatsächlich gezahlt (nur GJ): 33.156 €
+- Überzahlung: 33.156 − 32.946 = **210 €** ✓
