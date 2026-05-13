@@ -265,7 +265,12 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     sum_ausgaben_ist: fmtEUR(-sumIst),
     sum_ausgaben_wp: fmtEUR(-sumWp),
     sum_ausgaben_verteilbar: fmtEUR(-sumVerteilbar),
-    sum_abgrenzungen: fmtEUR(totals.totalAccrual),
+    sum_abgrenzungen: fmtEUR(
+      (sectionAccounts.accrual || []).reduce(
+        (s: number, a: any) => s + Math.abs(a.totalAbs || 0) * getAccrualDisplaySign(a.account_number),
+        0,
+      ),
+    ),
     sum_abrechnung: fmtEUR(totals.abrechnungssumme),
     sum_vorschuss: fmtEUR(totals.totalVorschuss),
     sum_vorschuss_kostendeckung: fmtEUR(totals.totalSollKostendeckung),
