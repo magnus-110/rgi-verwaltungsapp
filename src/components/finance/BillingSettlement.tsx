@@ -556,9 +556,13 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     typeof a.account_name === "string" &&
     a.account_name.startsWith("Hausgeld "),
   );
+  // Bank-zentrisch: Zahlungseingänge auf Personenkonten erscheinen als negativer
+  // Saldo (Gegenkonto-Vorzeichen). Für die Überzahlungs-Logik invertieren wir,
+  // damit "tatsächlich gezahlt" als positiver Betrag vorliegt.
   const personenkontenClose = personenkontenAccounts.reduce((s: number, a: any) => {
     return s + getEffectiveClosingBalance(a.id, bookings as any[], flatBalances, fiscalYear, opening4000Id).amount;
   }, 0);
+  const personenkontenPaid = -personenkontenClose;
 
   const totalSollEHR = ehrAccountClosing;
   const totalSollKostendeckung = Math.max(0, sollHausgeldGesamt - totalSollEHR);
