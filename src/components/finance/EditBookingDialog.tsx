@@ -758,7 +758,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                     <BookingTextTemplateCombobox
                       inputRef={(el) => { if (el) el.setAttribute("data-edit-booking-shortcut", "true"); }}
                       fiscalYear={form.fiscal_year}
-                      invoice={invoiceDetail ? { invoice_number: (invoiceDetail as any).invoice_number, vendor_name: (invoiceDetail as any).vendor_name } : null}
+                      invoice={invoiceDetail ? { invoice_number: (invoiceDetail as any).invoice_number, vendor_name: resolveVendorDisplayName((invoiceDetail as any).vendor_name, buildingId, vendorAliases) } : null}
                       counterAccountName={accounts.find((a: any) => a.id === form.counter_account_id)?.account_name || null}
                       existingText={form.description}
                       onApply={(text) => { set("description", text); setAutoTextSignature(text); }}
