@@ -566,7 +566,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
   const totalSollEHR = ehrAccountClosing;
   const totalSollKostendeckung = Math.max(0, sollHausgeldGesamt - totalSollEHR);
-  const totalUeberzahlung = personenkontenClose - totalSollKostendeckung - totalSollEHR;
+  const totalUeberzahlung = personenkontenPaid - totalSollKostendeckung - totalSollEHR;
   const hasReserveSplit = totalSollEHR > 0.005;
   const totalVorschuss = totalSollKostendeckung + totalSollEHR + Math.max(0, totalUeberzahlung);
 
