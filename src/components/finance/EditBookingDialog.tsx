@@ -282,7 +282,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       if (!matchedTemplateId) return null;
       const { data } = await supabase
         .from("booking_templates")
-        .select("id, name, vendor_name, expected_amount, amount_tolerance, vat_rate, interval, category, description")
+        .select("id, name, vendor_name, expected_amount, amount_tolerance, vat_rate, interval, category, description, account_id, is_35a_relevant")
         .eq("id", matchedTemplateId)
         .maybeSingle();
       return data;
@@ -296,7 +296,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     queryFn: async () => {
       let q = supabase
         .from("booking_templates")
-        .select("id, name, vendor_name, expected_amount, interval, category")
+        .select("id, name, vendor_name, expected_amount, interval, category, account_id, vat_rate, is_35a_relevant")
         .eq("building_id", buildingId!)
         .order("name");
       if (templateSearch.trim()) {
@@ -1016,6 +1016,24 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                                   onSelect={() => {
                                     setMatchedTemplateId(tpl.id);
                                     set("invoice_id", "");
+                                    // Vorlage-Werte ins Formular übernehmen, ohne bereits gesetzte
+                                    // Werte zu überschreiben.
+                                    setForm(p => {
+                                      const next = { ...p };
+                                      if (tpl.account_id && !p.counter_account_id) {
+                                        next.counter_account_id = tpl.account_id;
+                                      }
+                                      if (tpl.vat_rate != null && (p.vat_rate === "" || p.vat_rate === "19")) {
+                                        next.vat_rate = String(tpl.vat_rate);
+                                      }
+                                      if (tpl.is_35a_relevant && !p.is_35a_relevant) {
+                                        next.is_35a_relevant = true;
+                                      }
+                                      return next;
+                                    });
+                                    if (tpl.account_id) {
+                                      rebuildAutoText({ counter_account_id: tpl.account_id });
+                                    }
                                     setTemplatePickerOpen(false);
                                     void persistMatchImmediately(null, tpl.id);
                                   }}
