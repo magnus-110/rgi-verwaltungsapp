@@ -581,10 +581,15 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   // Saldo. Für die Überzahlung verwenden wir nur die BEWEGUNGEN des aktuellen
   // Geschäftsjahres (ohne Eröffnungsbestand), damit Vorjahres-Salden nicht
   // fälschlich als Überzahlung erscheinen.
-  const personenkontenMovements = personenkontenAccounts.reduce((s: number, a: any) => {
-    return s + getEffectiveClosingBalance(a.id, bookings as any[], flatBalances, fiscalYear, opening4000Id).movements;
-  }, 0);
-  const personenkontenPaid = -personenkontenMovements;
+  // signedTotalForAccount ist booking_type-aware: Eine income-Buchung auf der
+  // Gegenkonto-Seite (Personenkonto) ergibt -amount, eine expense-Rückzahlung
+  // ergibt korrekt +amount. So werden Doppelzahlungen + Rückzahlungen sauber
+  // gegengerechnet (sumForAccount würde beides als -amount werten).
+  const personenkontenSigned = personenkontenAccounts.reduce(
+    (s: number, a: any) => s + signedTotalForAccount(a.id, bookings as any),
+    0,
+  );
+  const personenkontenPaid = -personenkontenSigned;
 
   const totalSollEHR = ehrAccountClosing;
   const totalSollKostendeckung = Math.max(0, sollHausgeldGesamt - totalSollEHR);
