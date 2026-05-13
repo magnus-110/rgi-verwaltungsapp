@@ -107,12 +107,21 @@ const SECTION_LABELS: Record<string, string> = {
   accrual: "Abgrenzungen (nachrichtlich)",
 };
 
-function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean } = {}) {
+import { getAccrualDisplaySign } from "../lib/accrualSign";
+
+function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccrual?: boolean } = {}) {
   return accs.map((a) => {
     const abs = Math.abs(a.totalAbs || 0);
-    const signed = opts.asExpense ? -abs : a.total;
+    let signed: number;
+    if (opts.asAccrual) {
+      signed = abs * getAccrualDisplaySign(a.account_number);
+    } else if (opts.asExpense) {
+      signed = -abs;
+    } else {
+      signed = a.total;
+    }
     const wp = Math.abs(a.wpAmount || 0);
-    const wpSigned = opts.asExpense ? -wp : a.wpAmount;
+    const wpSigned = opts.asAccrual ? wp * getAccrualDisplaySign(a.account_number) : (opts.asExpense ? -wp : a.wpAmount);
     return {
       konto_nr: a.account_number,
       konto_name: a.account_name,
@@ -125,6 +134,7 @@ function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean } = {})
     };
   });
 }
+
 
 function ownerAddr(assignment: any) {
   if (!assignment) return { street: "", zip: "", city: "" };
