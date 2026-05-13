@@ -42,6 +42,7 @@ export interface BillingPayloadInputs {
     abrechnungsspitze: number;
     totalSollKostendeckung: number;
     totalSollEHR: number;
+    totalUeberzahlung: number;
     totalEinnahmen: number;
     incomeInterest: number;
     incomeOther: number;
