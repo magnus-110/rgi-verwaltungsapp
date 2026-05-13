@@ -183,6 +183,35 @@ Deno.serve(async (req) => {
     });
   } catch (e: any) {
     console.error("generate-billing-document error", e);
+    // Docxtemplater-Fehler enthalten in e.properties.errors die konkreten
+    // Tag-Probleme (z. B. "Unopened loop", "Unclosed loop"). Diese wollen
+    // wir an den Client weiterreichen, damit der User die Vorlage gezielt
+    // korrigieren kann.
+    const tplErrors = e?.properties?.errors;
+    if (Array.isArray(tplErrors) && tplErrors.length) {
+      const details = tplErrors.map((te: any) => {
+        const p = te?.properties || {};
+        return {
+          message: te?.message || "Template-Fehler",
+          explanation: p.explanation || null,
+          tag: p.xtag || null,
+          id: p.id || null,
+          file: p.file || null,
+        };
+      });
+      const summary = details
+        .map((d) => `• ${d.message}: ${d.explanation || d.tag || ""}`)
+        .join("\n");
+      return json(
+        {
+          error: "DOCX-Vorlage enthält ungültige Platzhalter",
+          hint: "Bitte die Word-Vorlage prüfen — wahrscheinlich ein {#tag}…{/tag} Block, der nicht sauber geöffnet/geschlossen ist.",
+          details,
+          summary,
+        },
+        422,
+      );
+    }
     return json({ error: String(e?.message || e) }, 500);
   }
 });
