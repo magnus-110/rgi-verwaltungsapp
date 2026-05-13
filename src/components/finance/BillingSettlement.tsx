@@ -513,20 +513,20 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     }
   }
 
-  // Vorschussverpflichtung (total prepayments from all owners) — SOLL aus Stammdaten
-  // Aufgeteilt in Kostendeckung und EHR-Anteil (HV-Office-Layout):
-  //   reserve_share_monthly > 0 → fließt in totalSollEHR
-  //   Rest des Hausgelds         → fließt in totalSollKostendeckung
-  // Wenn reserve_share_monthly = 0 / leer, wird KEINE Aufteilung angezeigt
-  // (Block "Vorschüsse auf EHR" entfällt dann).
-  let totalSollKostendeckung = 0;
-  let totalSollEHR = 0;
+  // Vorschussverpflichtung — neue Logik (siehe Plan):
+  //   sollHausgeldGesamt = Σ Hausgeld/Nebenkosten aus Stammdaten (mit Zeitanteil)
+  //   sollEHR            = Schlusssaldo Konto 1930 (Planmäßige IHR Wohnungen)
+  //   sollKostendeckung  = sollHausgeldGesamt − sollEHR
+  //   ueberzahlung       = Σ Schlusssaldo Personenkonten (00xx Hausgeld …)
+  //                        − sollKostendeckung − sollEHR
+  let sollHausgeldGesamt = 0;
   assignments.forEach((a: any) => {
     const costs = a.contact_building_costs || [];
     const timeProp = getTimeProportion(a);
     costs.forEach((c: any) => {
-      const isHausgeld = ["hausgeld", "nebenkosten"].includes((c.cost_type || "").toLowerCase());
-      const isReserve = (c.cost_type || "").toLowerCase() === "ruecklage";
+      const ct = (c.cost_type || "").toLowerCase();
+      const isHausgeld = ["hausgeld", "nebenkosten"].includes(ct);
+      const isReserve = ct === "ruecklage";
       const annual = period
         ? getCostAnnualAmount(c, period.period_from, period.period_to) * timeProp
         : (() => {
@@ -538,28 +538,33 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               default: return amount * 12 * timeProp;
             }
           })();
-
-      if (isHausgeld) {
-        const reserveShareMonthly = Number(c.reserve_share_monthly) || 0;
-        if (reserveShareMonthly > 0 && c.interval === "monatlich") {
-          // Anteilig: EHR-Teil aus monatlichem Hausgeld, Rest = Kostendeckung
-          const fullMonthly = Number(c.amount) || 0;
-          const ratio = fullMonthly > 0 ? Math.min(reserveShareMonthly / fullMonthly, 1) : 0;
-          totalSollEHR += annual * ratio;
-          totalSollKostendeckung += annual * (1 - ratio);
-        } else {
-          totalSollKostendeckung += annual;
-        }
-      } else if (isReserve) {
-        totalSollEHR += annual;
-      } else {
-        // Andere Kostenarten (Sonderumlage etc.) → in Kostendeckung
-        totalSollKostendeckung += annual;
-      }
+      if (isHausgeld || isReserve) sollHausgeldGesamt += annual;
+      else sollHausgeldGesamt += annual; // Sonderumlagen etc.
     });
   });
+
+  // Konto 1930 (EHR-Soll) — Schlusssaldo
+  const ehrAccount = accounts.find((a: any) => a.account_number === "1930");
+  const ehrAccountClosing = ehrAccount
+    ? Math.abs(getEffectiveClosingBalance(ehrAccount.id, bookings as any[], flatBalances, fiscalYear, opening4000Id).amount)
+    : 0;
+
+  // Personenkonten (Hausgeld 00xx) — Σ Schlusssaldo
+  const personenkontenAccounts = accounts.filter((a: any) =>
+    typeof a.account_number === "string" &&
+    /^00\d{2}$/.test(a.account_number) &&
+    typeof a.account_name === "string" &&
+    a.account_name.startsWith("Hausgeld "),
+  );
+  const personenkontenClose = personenkontenAccounts.reduce((s: number, a: any) => {
+    return s + getEffectiveClosingBalance(a.id, bookings as any[], flatBalances, fiscalYear, opening4000Id).amount;
+  }, 0);
+
+  const totalSollEHR = ehrAccountClosing;
+  const totalSollKostendeckung = Math.max(0, sollHausgeldGesamt - totalSollEHR);
+  const totalUeberzahlung = personenkontenClose - totalSollKostendeckung - totalSollEHR;
   const hasReserveSplit = totalSollEHR > 0.005;
-  const totalVorschuss = totalSollKostendeckung + totalSollEHR;
+  const totalVorschuss = totalSollKostendeckung + totalSollEHR + Math.max(0, totalUeberzahlung);
 
   // Zinseinnahmen aus Buchungen (Konto 1840 — settlement_section='income')
   const incomeAccountTotals = (sectionAccounts["income"] || []).reduce(
