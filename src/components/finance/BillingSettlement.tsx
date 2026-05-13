@@ -490,9 +490,22 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     .reduce((s, a) => s + getAccountAbsTotal(a.id), 0);
 
   // Abrechnungssumme — HV-Office-konform:
-  // Abgrenzungen (totalAccrual) sind jahresübergreifend und werden NICHT verteilt,
-  // sondern nur nachrichtlich ausgewiesen. Sie fließen daher nicht in die Spitze.
-  const abrechnungssumme = totalOperatingDist + totalOperatingNonDist + totalReserve - totalReserveWithdrawal;
+  // Es zählen nur die VERTEILUNGSRELEVANTEN Anteile der Aufwandskonten
+  // (is_distributable=true, ohne ARAP/PRAP) plus Plan-IHR aus dem Wirtschaftsplan.
+  // Abgrenzungen sind nachrichtlich und fließen NICHT in die Spitze.
+  const getSectionDistributable = (section: string) =>
+    (sectionAccounts[section] || [])
+      .filter((a: any) => a.is_distributable && !isAccrualBalanceAccount(a) && !isHeatingPrepayAccount(a))
+      .reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
+  const totalOperatingDistRelevant = getSectionDistributable("operating_distributable");
+  const totalOperatingNonDistRelevant = getSectionDistributable("operating_non_distributable");
+  const totalHeatingRelevant = getSectionDistributable("heating");
+  const abrechnungssumme =
+      totalOperatingDistRelevant
+    + totalOperatingNonDistRelevant
+    + totalHeatingRelevant
+    + totalReserve            // Plan-IHR (Konto 1930 / economicPlan)
+    - totalReserveWithdrawal; // Entnahmen mindern
 
   // Helper: calculate overlap months between a cost's validity and the billing period
   function getCostAnnualAmount(cost: any, periodFrom: string, periodTo: string) {
