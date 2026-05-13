@@ -1,54 +1,39 @@
-## Problem
+## Ursache gefunden
 
-Aktuell zeigt die Vorschuss-Aufstellung:
-- Vorschüsse zur Kostendeckung: **27.938,06 €** (erwartet: 27.946 €, Diff ~8 €)
-- Überzahlung: **2.427,94 €** (erwartet: 210 €, Diff ~2.218 €)
+Beim Durchsehen der Buchungen für `Adolf-Haff-Weg 3 / 2025` zeigt sich der Fehler:
 
-Zwei eigenständige Bugs in `src/components/finance/BillingSettlement.tsx`:
-
-### Bug 1 — Doppel-Proration beim Soll-Hausgeld (~8 € Diff)
-
-In Zeile 530-540 wird der Jahresbetrag **doppelt zeitanteilig** gerechnet:
 ```
-getCostAnnualAmount(c, period.period_from, period.period_to)  // bereits zeitanteilig nach cost.valid_from/to im Abrechnungszeitraum
-  * timeProp                                                    // nochmal zeitanteilig nach assignment.valid_from/to
+2025-01-02  Bank 1800 ←→ 0004 Mickerts   388 €  income   (Zahlung)
+2025-01-03  Bank 1800 ←→ 0004 Mickerts   388 €  income   (Doppelzahlung)
+2025-01-29  Bank 1800 ←→ 0004 Mickerts   388 €  EXPENSE  (Rückzahlung wg. Doppel)
 ```
 
-Beispiel: Eigentümer ab 01.07., Kosten ab 01.07. gültig → `getCostAnnualAmount` liefert bereits den Halbjahresbetrag, `timeProp = 0,5` halbiert ihn nochmal → ¼ statt ½.
+Mickerts hat netto **388 €** gezahlt (1× regulär), nicht 1.164 €.
 
-**Fix:** Schnittmenge aus Assignment- UND Cost-Validity gegen den Abrechnungszeitraum bilden, einmalige Proration. `timeProp` entfällt für die Soll-Berechnung.
+Mein letzter Fix für die Personenkonten verwendet `getEffectiveClosingBalance(...).movements`, das intern `sumForAccount` nutzt — diese Funktion **ignoriert `booking_type`** und behandelt jede Buchung auf der Gegenkonto-Seite gleich (immer als "−amount"). Dadurch wird die expense-Rückzahlung nicht gegengerechnet, sondern doppelt subtrahiert. Über alle Eigentümer summiert sich genau das auf die fehlenden ~2.210 €, die Sie sehen.
 
-### Bug 2 — Überzahlung enthält Vorjahres-Eröffnungssalden (~2.210 € Diff)
+Die UI-Sektionssummen verwenden bereits `signedTotalForAccount` (booking-type-aware) — der Vorschuss-Block nutzt versehentlich die andere Funktion. Daher die Diskrepanz nur in diesem einen Block.
 
-`personenkontenClose` summiert die Schlusssalden inkl. **Eröffnungsbestand** der Personenkonten 00xx. Hat ein Eigentümer Vorjahres-Guthaben/Schulden, fließt das in `personenkontenPaid` mit ein und verfälscht die Überzahlung.
-
-Der Nutzer rechnet:
-```
-Überzahlung = Σ tatsächlich gezahlte Hausgelder DIESES Jahres − Σ Soll-Hausgelder
-            = 33.156 − 32.946 = 210
-```
-
-**Fix:** `personenkontenPaid` aus den **Bewegungen** (movements) des Geschäftsjahres berechnen, nicht aus dem Schlussbestand. `getEffectiveClosingBalance` liefert bereits `.movements` — diesen Wert verwenden (invertiert).
-
-## Änderungen
+## Fix
 
 **Datei:** `src/components/finance/BillingSettlement.tsx`
 
-1. **Zeilen 522–544** (`sollHausgeldGesamt`): `getCostAnnualAmount` so erweitern/aufrufen, dass es Assignment-Validity berücksichtigt — Multiplikation mit `timeProp` entfernen.
-2. **Zeilen 562–565** (`personenkontenClose` → `personenkontenPaid`): nur `movements` verwenden:
-   ```ts
-   const personenkontenMovements = personenkontenAccounts.reduce((s, a) =>
-     s + getEffectiveClosingBalance(a.id, bookings, flatBalances, fiscalYear, opening4000Id).movements, 0);
-   const personenkontenPaid = -personenkontenMovements;
-   ```
-3. Vereinfachung der Überzahlungs-Formel (mathematisch äquivalent, klarer):
-   ```ts
-   const totalUeberzahlung = personenkontenPaid - sollHausgeldGesamt;
-   ```
+`personenkontenMovements`/`personenkontenPaid` (Zeile 584–587) auf `signedTotalForAccount` umstellen:
 
-## Verifikation
+```ts
+const personenkontenSigned = personenkontenAccounts.reduce(
+  (s: number, a: any) => s + signedTotalForAccount(a.id, bookings as any),
+  0,
+);
+// signedTotal liefert für Personenkonten negative Werte bei Zahlungseingang
+// und positive bei Rückzahlungen → invertieren = "tatsächlich netto gezahlt".
+const personenkontenPaid = -personenkontenSigned;
+```
 
-Nach dem Fix mit den Beispielzahlen:
-- Soll-Hausgeld gesamt: 32.946 € → Kostendeckung 27.946 € + EHR 5.000 €
-- Tatsächlich gezahlt (nur GJ): 33.156 €
-- Überzahlung: 33.156 − 32.946 = **210 €** ✓
+`signedTotalForAccount` ist bereits importiert (Zeile 16) und wird im Rest der Datei für alle anderen Sektionssummen verwendet — damit ist der Block konsistent zur restlichen Abrechnung.
+
+## Erwartung nach dem Fix
+
+- `personenkontenPaid`: 35.366 → ~33.156 €
+- `totalUeberzahlung`: 2.428 → ~210 €
+- `totalSollKostendeckung` bleibt 27.938,06 (Soll-Hausgeld unverändert; die ~8 € Diff zu Ihrer Handrechnung entstehen durch Tag-genaue Quotierung — falls das stört, separat nachschärfen)
