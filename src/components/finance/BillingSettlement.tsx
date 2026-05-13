@@ -1235,21 +1235,22 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             {/* Einnahmen-Hochrechnung (HV-Office-Stil) — Soll aus Stammdaten + Zinsen aus Buchungen */}
             <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 space-y-1">
               <div className="text-sm font-medium mb-1">Einnahmen (Soll-Hochrechnung)</div>
-              {hasReserveSplit ? (
-                <>
-                  <div className="flex justify-between text-sm">
-                    <span>Vorschüsse zur Kostendeckung</span>
-                    <span className="font-mono text-emerald-700 dark:text-emerald-400">+{formatCurrency(totalSollKostendeckung)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Vorschüsse auf Erhaltungsrücklage</span>
-                    <span className="font-mono text-emerald-700 dark:text-emerald-400">+{formatCurrency(totalSollEHR)}</span>
-                  </div>
-                </>
-              ) : (
+              <div className="flex justify-between text-sm">
+                <span>Vorschüsse zur Kostendeckung</span>
+                <span className="font-mono text-emerald-700 dark:text-emerald-400">+{formatCurrency(totalSollKostendeckung)}</span>
+              </div>
+              {hasReserveSplit && (
                 <div className="flex justify-between text-sm">
-                  <span>Vorschüsse (Hausgeld lt. Stammdaten)</span>
-                  <span className="font-mono text-emerald-700 dark:text-emerald-400">+{formatCurrency(totalVorschuss)}</span>
+                  <span>Vorschüsse auf Erhaltungsrücklage</span>
+                  <span className="font-mono text-emerald-700 dark:text-emerald-400">+{formatCurrency(totalSollEHR)}</span>
+                </div>
+              )}
+              {Math.abs(totalUeberzahlung) > 0.005 && (
+                <div className="flex justify-between text-sm">
+                  <span>Überzahlung Vorschüsse</span>
+                  <span className={`font-mono ${totalUeberzahlung >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
+                    {totalUeberzahlung >= 0 ? "+" : ""}{formatCurrency(totalUeberzahlung)}
+                  </span>
                 </div>
               )}
               {incomeAccountTotals.interest > 0 && (
