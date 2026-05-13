@@ -282,7 +282,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       if (!matchedTemplateId) return null;
       const { data } = await supabase
         .from("booking_templates")
-        .select("id, name, vendor_name, expected_amount, amount_tolerance, vat_rate, interval, category, description")
+        .select("id, name, vendor_name, expected_amount, amount_tolerance, vat_rate, interval, category, description, account_id, is_35a_relevant")
         .eq("id", matchedTemplateId)
         .maybeSingle();
       return data;
