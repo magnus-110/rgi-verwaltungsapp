@@ -107,7 +107,7 @@ const SECTION_LABELS: Record<string, string> = {
   accrual: "Abgrenzungen (nachrichtlich)",
 };
 
-import { getAccrualDisplaySign } from "../lib/accrualSign";
+import { getAccrualDisplaySign } from "./accrualSign";
 
 function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccrual?: boolean } = {}) {
   return accs.map((a) => {
