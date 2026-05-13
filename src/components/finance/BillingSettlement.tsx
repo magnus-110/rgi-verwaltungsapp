@@ -851,7 +851,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     totals: {
       totalIncome, totalOperatingDist, totalOperatingNonDist, totalAccrual,
       totalReserve, totalReserveWithdrawal, abrechnungssumme, totalVorschuss, abrechnungsspitze,
-      totalSollKostendeckung, totalSollEHR, totalEinnahmen,
+      totalSollKostendeckung, totalSollEHR, totalUeberzahlung, totalEinnahmen,
       incomeInterest: incomeAccountTotals.interest, incomeOther: incomeAccountTotals.other,
       openingGiro, openingReserve, openingFuel, openingPrepay, openingOther, openingTotal,
       closingGiro, closingReserve, closingFuel, closingPrepay, closingOther, closingTotal,
