@@ -630,7 +630,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const totalIncomeFromBookings = incomeAccountTotals.interest + incomeAccountTotals.other;
   const totalEinnahmen = totalVorschuss + totalIncomeFromBookings;
 
-  const abrechnungsspitze = totalVorschuss - abrechnungssumme;
+  // Spitze: nur Soll-Vorschüsse (Kostendeckung + EHR) zählen, KEINE Überzahlung
+  const vorschussFuerSpitze = totalSollKostendeckung + totalSollEHR;
+  const abrechnungsspitze = vorschussFuerSpitze - abrechnungssumme;
 
   function getTimeProportion(assignment: any) {
     if (!period) return 1;
