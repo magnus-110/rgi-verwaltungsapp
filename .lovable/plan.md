@@ -1,87 +1,93 @@
-# Abgrenzungs-Vorzeichen korrigieren (HV-Office Konvention)
+## Ziel
+Adolf-Haff-Weg 2025: **Abrechnungsspitze** korrekt aus den **verteilungsrelevanten** Beträgen berechnen, **Endbestände** direkt aus den Konten-Salden zeigen, und den **Einnahmen-Block** stabil mit Kostendeckung/EHR/Überzahlung anzeigen. Konten-Listen oben (sectionAccounts) bleiben unverändert.
 
-## Problem
+## Korrekte Formel (vom Nutzer bestätigt)
 
-In der Sektion „Abgrenzungen / Sollstellungen" werden aktuell **alle** Konten pauschal mit „−" angezeigt, weil der Renderer (`BillingSettlement.tsx`, Zeile 1080–1091) jede Nicht-Einnahmen-Sektion als Aufwand behandelt.
-
-Buchhalterisch ist das falsch: Abgrenzungen verlagern Aufwand/Ertrag **zwischen Jahren**, daher hängt das Vorzeichen davon ab, in welche Richtung verlagert wird.
-
-## Buchhalterische Regel (entspricht HV-Office-Screenshot)
-
-Bezogen auf die Abrechnungssumme des **lfd. Jahres**:
-
-| Konto-Bereich (SKR03 HV) | Bedeutung | Wirkung auf lfd. Jahr | Vorzeichen im Report |
-|---|---|---|---|
-| **4100–4119** | Ausgaben im lfd. J. **für Vorjahr** (ARA-Auflösung) | Aufwand wird **rausgenommen** | **negativ (−)** |
-| **4120–4139** | Einnahmen im lfd. J. **für Vorjahr** | Einnahme wird **rausgenommen** | **positiv (+)** |
-| **4160–4179** | Ausgaben im Folgejahr **für lfd. J.** (PRA-Bildung) | Aufwand wird **hinzugerechnet** | **positiv (+)** |
-| **4180–4199** | Einnahmen im Folgejahr **für lfd. J.** | Einnahme wird **hinzugerechnet** | **negativ (−)** |
-| **4020** WEG-Abrech.Sollstellung | Sollstellung an Eigentümer | reduziert Abrechnungsspitze | **negativ (−)** (wie heute) |
-
-Merksatz: **Aus dem Jahr raus → Vorzeichen wie Originalbuchung. Ins Jahr rein → Vorzeichen umkehren.**
-
-Im Screenshot rechnet die Zwischensumme dann sauber:
-`-6.093,13 (4020) − 1.805,85 (4110) + 1.293,95 (4160) − 25,00 (4180) = −6.630,03 ✓`
-
-## Technische Umsetzung
-
-### 1. Klassifizierungs-Helper (neu)
-
-Neue Datei `src/components/finance/lib/accrualSign.ts`:
-
-```ts
-// Liefert +1 oder -1 für die Anzeige in der Abrechnung
-export function getAccrualDisplaySign(accountNumber: string): 1 | -1 {
-  const n = parseInt(accountNumber, 10);
-  if (Number.isNaN(n)) return -1;
-  if (n >= 4100 && n <= 4119) return -1; // Ausg. lfd. J. für Vorjahr
-  if (n >= 4120 && n <= 4139) return  1; // Einn. lfd. J. für Vorjahr
-  if (n >= 4160 && n <= 4179) return  1; // Ausg. Folgejahr für lfd. J.
-  if (n >= 4180 && n <= 4199) return -1; // Einn. Folgejahr für lfd. J.
-  return -1; // 4020 + sonstige Abgrenzung: wie Aufwand
-}
-
-export function isAccrualAccount(accountNumber: string): boolean {
-  const n = parseInt(accountNumber, 10);
-  return n === 4020 || (n >= 4100 && n <= 4199);
-}
+```text
++ Vorschüsse Kostendeckung                     +27.938,06
++ Vorschüsse EHR (Schluss-Saldo Konto 1930)    + 5.000,00
+− Verteilungsrelevant Umlagefähige Bewirtsch.  −18.712,21
+− Verteilungsrelevant Nicht umlagefähige K.    − 7.204,69
+− Abgrenzungen, die das lfd. Jahr betreffen      0,00 (Adolf-Haff-Weg: keine)
+− IHR-Plan (aus Wirtschaftsplan / 1930-Soll)   − 5.000,00
+= Abrechnungsspitze                            + 2.021,16  (Guthaben)
 ```
 
-### 2. Renderer anpassen — `BillingSettlement.tsx`
+Wichtige Punkte (anders als bisher):
+- **Überzahlung** zählt NICHT in die Abrechnungsspitze (wird nur als Einnahmenzeile nachrichtlich angezeigt).
+- Es zählen **nur die verteilungsrelevanten Anteile** der Aufwandskonten, nicht die Brutto-Salden. Nicht-verteilungsrelevante Beträge (z. B. ARAP-Anteil, durchlaufende Vorauszahlungen) werden ausgeschlossen.
+- **Abgrenzungen sind nachrichtlich**: Im Adolf-Haff-Weg betreffen 4020/4110/4160/4180 alle Vorjahre/Folgejahre und sind für die Spitze des lfd. Jahres irrelevant. Die Sektion bleibt im UI sichtbar (mit korrekten Vorzeichen), fließt aber NICHT in die Spitze ein.
+- **IHR-Plan** kommt 1:1 aus `economicPlan.total_reserve` (Fallback: Schlusssaldo 1930).
 
-In `renderSection` (Zeile 1068–1151) und beim Abschnittsaldo:
+## Änderungen in `src/components/finance/BillingSettlement.tsx`
 
-- `renderSigned` darf für die **Sektion `accrual`** nicht pauschal "−" setzen.
-- Stattdessen pro Konto: Magnitude × `getAccrualDisplaySign(acc.account_number)` anzeigen.
-- Abschnittsaldo der Sektion = Summe der **bereits vorzeichenrichtig** umgerechneten Konten (nicht `getSectionSignedTotal` verwenden, das spiegelt nur Buchungs-Vorzeichen).
+### 1. Verteilungsrelevante Sektionssummen einführen
+Aktuell summiert `getSectionTotal` nur `totalAbs` (Brutto). Neu: pro Sektion `Σ distributableAmount` der enthaltenen Konten verwenden, wobei `distributableAmount` das ist, was bereits pro Konto in der Tabelle als „verteilungsrelevant" angezeigt wird.
 
-Konkret:
-- Neue Hilfsfunktion `getAccrualSectionTotal()` in der Komponente:  
-  `Σ totalAbs(acc) * getAccrualDisplaySign(acc.account_number)`
-- `renderSigned` erhält für accrual-Sektion einen optionalen Modus, der `displayPositive` aus dem Konto-Vorzeichen ableitet (statt aus Sektion).
-- `totalAccrual` (Zeile 386) bleibt als Magnitude für die Verteilungs-/Soll-Berechnung erhalten, aber für Anzeige wird der **signierte** accrual-Total benutzt.
+```ts
+const getSectionDistributable = (section: string) =>
+  (sectionAccounts[section] || [])
+    .reduce((s, a) => s + (Number(a.distributableAmount ?? a.totalAbs) || 0), 0);
 
-### 3. Einzelabrechnung & Vermögensbericht prüfen
+const totalOperatingDistRelevant     = getSectionDistributable("operating_distributable");
+const totalOperatingNonDistRelevant  = getSectionDistributable("operating_non_distributable");
+```
+Die bestehenden `totalOperatingDist` (Brutto) bleiben für die Anzeige der Konten-Listen erhalten — sie sind nur für die Spitze ungeeignet.
 
-- In `BillingSettlement.tsx` Zeile 480–490 wird `accrual` aktuell aus der verteilbaren Summe ausgeschlossen → bleibt so (nachrichtlich).
-- Die Anzeige in der **Einzelabrechnung** (Owner-PDF/HTML) muss dieselbe Konvention verwenden — gleiche Helper-Funktion dort einsetzen.
-- DOCX-/PDF-Export (settlement edge function) ebenfalls anpassen, damit UI und Dokumente identisch bleiben (Memory: „PDF Aggregation Shared").
+### 2. Abrechnungssumme & Spitze nach neuer Formel
+Zeile 493 ersetzen:
+```ts
+// HV-Office-konform: Spitze nutzt nur verteilungsrelevante Beträge + Plan-IHR
+const abrechnungssumme =
+    totalOperatingDistRelevant
+  + totalOperatingNonDistRelevant
+  + totalReserve;             // = Plan-IHR (5.000,00)
+// Hinweis: Abgrenzungen werden NICHT addiert (nachrichtlich).
+// Hinweis: totalReserveWithdrawal entfällt — Plan-IHR ist die einzige Reserve-Last.
+```
+Zeile 616 ersetzen:
+```ts
+// Nur Soll-Vorschüsse zählen, nicht Überzahlungen
+const vorschussFuerSpitze = totalSollKostendeckung + totalSollEHR;
+const abrechnungsspitze   = vorschussFuerSpitze - abrechnungssumme;
+```
+`totalVorschuss` (inkl. Überzahlung) bleibt für den Einnahmen-Anzeigeblock.
 
-### 4. Validierung
+### 3. Einnahmen-Block wieder stabil
+Sicherstellen, dass die drei Vorzeilen IMMER aus den festen Quellen kommen und EHR auch dann angezeigt wird, wenn `1930` per economicPlan kommt:
+```ts
+const totalSollEHR = ehrAccountClosing > 0.005
+  ? ehrAccountClosing
+  : (Number(economicPlan?.total_reserve) || 0);
+```
+So wird die EHR-Zeile (Zeile ~1289) bei Adolf-Haff-Weg garantiert mit 5.000,00 € angezeigt und Kostendeckung erscheint mit 27.938,06 €.
 
-Nach der Änderung muss im Beispiel-Screenshot gelten:
-- 4020: −6.093,13 €
-- 4110: −1.805,85 €
-- 4160: **+1.293,95 €** (vorher fälschlich −)
-- 4180: −25,00 €
-- Zwischensumme „Abgrenzungen": **−6.630,03 €**
+### 4. Endbestände direkt aus Kontensaldo
+`getClosing` (Zeile 445–451) so anpassen, dass es exakt den Saldo zeigt, der auch in der Konten-Liste oben steht (z. B. 1800 = 5.631,94 €):
+```ts
+import { sumForAccount } from "./lib/bookingAggregation";
 
-### 5. Memory-Update
+const getClosing = (acc: any) => {
+  const manual = balances.find((b: any) => b.account_id === acc.id);
+  if (manual?.closing_balance != null && Number(manual.closing_balance) !== 0) {
+    return Number(manual.closing_balance);
+  }
+  // Bewegungs-Saldo (Bank-Zentrik) — identisch zur Anzeige in der Kontenliste
+  return sumForAccount(acc.id, bookings as any);
+};
+```
+Damit stimmen `closingGiro / closingReserve / closingFuel / closingPrepay / closingOther / closingTotal` 1:1 mit der Kontenanzeige überein.
 
-Neuer Eintrag `mem://features/finance/abgrenzungs-vorzeichen` mit der obigen Tabelle, plus Verweis im Index unter „Core" als Kurzregel:  
-„Abgrenzungen: 4100/4180 negativ, 4120/4160 positiv (Ins-Jahr-rein dreht das Vorzeichen)."
+### 5. Optional (transparent, kein Funktionsbruch)
+Im Vermögensbericht (`AssetReportSection`) prüfen, ob dort dieselben Aggregate verwendet werden — falls ja, dieselbe `getClosing`-Logik verwenden.
 
-## Nicht im Scope
+## Validierung nach Umsetzung
+- Vorschüsse Block: 27.938,06 + 5.000,00 + 210,00 (nachrichtlich) = 33.148,06
+- Abrechnungssumme: 18.712,21 + 7.204,69 + 5.000,00 = 30.916,90
+- **Abrechnungsspitze: +2.021,16 € Guthaben**
+- Endbestand 1800 = 5.631,94 €, 1810 = 25.166,39 € (1:1 wie Kontenliste)
 
-- Kontenrahmen wird nicht umnummeriert.
-- Buchungs-Eingabe-Logik (Soll/Haben beim Buchen) bleibt unverändert — nur die **Anzeige** in Abrechnung/Bericht wird korrigiert.
+## Out of scope
+- DOCX-Payload (`buildBillingPayload.ts`) zieht die Werte automatisch aus `totals` — keine separate Anpassung nötig.
+- Datenkorrekturen in `account_balances` werden nicht angefasst.
+- Logik „Abgrenzung X betrifft das lfd. Jahr" bleibt vorerst auf 0 (= keine im Adolf-Haff-Weg). Falls später ein Konto explizit als „Abgrenzung lfd. Jahr" markiert werden soll, kann ein eigenes Flag (z. B. `accrual_affects_current_year`) ergänzt werden — separate Story.

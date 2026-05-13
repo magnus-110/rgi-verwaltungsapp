@@ -13,7 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BarChart3, ChevronDown, ChevronRight, Users, PiggyBank, AlertTriangle, Check, FileText, Building2, Loader2, Search, Download, Settings2, FileType } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { getEffectiveOpeningBalance, getEffectiveClosingBalance, signedTotalForAccount } from "./lib/bookingAggregation";
+import { getEffectiveOpeningBalance, getEffectiveClosingBalance, signedTotalForAccount, sumForAccount } from "./lib/bookingAggregation";
 import { getAccrualDisplaySign } from "./lib/accrualSign";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { BillingTemplatesDialog } from "./BillingTemplatesDialog";
@@ -441,13 +441,15 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   );
   const openingTotal = openingGiro + openingReserve + openingFuel + openingPrepay + openingOther;
 
-  // Closing balances — automatisch via Helper, manueller closing_balance als Override
+  // Closing balances — strikt das Bewegungs-Saldo (Bank-Zentrik), identisch zur
+  // Anzeige in der oberen Konten-Liste. Manuelle account_balances.closing_balance
+  // dient nur als expliziter Override.
   const getClosing = (acc: any) => {
     const manual = balances.find((b: any) => b.account_id === acc.id);
     if (manual && manual.closing_balance !== null && manual.closing_balance !== undefined && Number(manual.closing_balance) !== 0) {
       return Number(manual.closing_balance);
     }
-    return closingByAccount[acc.id] || 0;
+    return sumForAccount(acc.id, bookings as any);
   };
   const sumClosing = (filter: (a: any) => boolean) =>
     carryAccounts.filter(filter).reduce((s: number, a: any) => s + getClosing(a), 0);
@@ -488,9 +490,22 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     .reduce((s, a) => s + getAccountAbsTotal(a.id), 0);
 
   // Abrechnungssumme — HV-Office-konform:
-  // Abgrenzungen (totalAccrual) sind jahresübergreifend und werden NICHT verteilt,
-  // sondern nur nachrichtlich ausgewiesen. Sie fließen daher nicht in die Spitze.
-  const abrechnungssumme = totalOperatingDist + totalOperatingNonDist + totalReserve - totalReserveWithdrawal;
+  // Es zählen nur die VERTEILUNGSRELEVANTEN Anteile der Aufwandskonten
+  // (is_distributable=true, ohne ARAP/PRAP) plus Plan-IHR aus dem Wirtschaftsplan.
+  // Abgrenzungen sind nachrichtlich und fließen NICHT in die Spitze.
+  const getSectionDistributable = (section: string) =>
+    (sectionAccounts[section] || [])
+      .filter((a: any) => a.is_distributable && !isAccrualBalanceAccount(a) && !isHeatingPrepayAccount(a))
+      .reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
+  const totalOperatingDistRelevant = getSectionDistributable("operating_distributable");
+  const totalOperatingNonDistRelevant = getSectionDistributable("operating_non_distributable");
+  const totalHeatingRelevant = getSectionDistributable("heating");
+  const abrechnungssumme =
+      totalOperatingDistRelevant
+    + totalOperatingNonDistRelevant
+    + totalHeatingRelevant
+    + totalReserve            // Plan-IHR (Konto 1930 / economicPlan)
+    - totalReserveWithdrawal; // Entnahmen mindern
 
   // Helper: calculate overlap months between a cost's validity and the billing period
   function getCostAnnualAmount(cost: any, periodFrom: string, periodTo: string) {
@@ -592,10 +607,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   );
   const personenkontenPaid = -personenkontenSigned;
 
-  const totalSollEHR = ehrAccountClosing;
+  // EHR-Soll: Schlusssaldo Konto 1930, Fallback economicPlan.total_reserve.
+  const totalSollEHR = ehrAccountClosing > 0.005
+    ? ehrAccountClosing
+    : (Number(economicPlan?.total_reserve) || 0);
   const totalSollKostendeckung = Math.max(0, sollHausgeldGesamt - totalSollEHR);
-  // Überzahlung = tatsächlich gezahlt − Soll-Hausgeld gesamt (mathematisch
-  // identisch zu paid − Kostendeckung − EHR, aber klarer).
+  // Überzahlung = tatsächlich gezahlt − Soll-Hausgeld gesamt
   const totalUeberzahlung = personenkontenPaid - sollHausgeldGesamt;
   const hasReserveSplit = totalSollEHR > 0.005;
   const totalVorschuss = totalSollKostendeckung + totalSollEHR + Math.max(0, totalUeberzahlung);
@@ -613,7 +630,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const totalIncomeFromBookings = incomeAccountTotals.interest + incomeAccountTotals.other;
   const totalEinnahmen = totalVorschuss + totalIncomeFromBookings;
 
-  const abrechnungsspitze = totalVorschuss - abrechnungssumme;
+  // Spitze: nur Soll-Vorschüsse (Kostendeckung + EHR) zählen, KEINE Überzahlung
+  const vorschussFuerSpitze = totalSollKostendeckung + totalSollEHR;
+  const abrechnungsspitze = vorschussFuerSpitze - abrechnungssumme;
 
   function getTimeProportion(assignment: any) {
     if (!period) return 1;
