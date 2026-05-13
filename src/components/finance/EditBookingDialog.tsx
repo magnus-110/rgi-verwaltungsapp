@@ -296,7 +296,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     queryFn: async () => {
       let q = supabase
         .from("booking_templates")
-        .select("id, name, vendor_name, expected_amount, interval, category")
+        .select("id, name, vendor_name, expected_amount, interval, category, account_id, vat_rate, is_35a_relevant")
         .eq("building_id", buildingId!)
         .order("name");
       if (templateSearch.trim()) {
