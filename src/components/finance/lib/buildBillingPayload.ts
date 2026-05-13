@@ -42,6 +42,7 @@ export interface BillingPayloadInputs {
     abrechnungsspitze: number;
     totalSollKostendeckung: number;
     totalSollEHR: number;
+    totalUeberzahlung: number;
     totalEinnahmen: number;
     incomeInterest: number;
     incomeOther: number;
@@ -164,21 +165,45 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
       endbestand: fmtEUR(Math.abs(a.closing)),
       kategorie: a.category,
     }));
-  // Einnahmen inkl. Hausgeld-Vorschüssen (Soll) als virtuelle erste Zeile
-  const einnahmen_full = [
+  // Einnahmen-Block: Vorschüsse Kostendeckung / EHR / Überzahlung als virtuelle Vorzeilen
+  const einnahmenPrefix: any[] = [
     {
       konto_nr: "—",
-      konto_name: "Hausgeld-Vorschüsse (Soll)",
+      konto_name: "Vorschüsse zur Kostendeckung",
       verteiler: "",
-      betrag: fmtEUR(totals.totalVorschuss),
-      betrag_abs: fmtEUR(Math.abs(totals.totalVorschuss)),
+      betrag: fmtEUR(totals.totalSollKostendeckung),
+      betrag_abs: fmtEUR(Math.abs(totals.totalSollKostendeckung)),
       wirtschaftsplan: "",
     },
-    ...sectionListFromUi(sectionAccounts.income),
   ];
-  // totals.totalEinnahmen enthält bereits totalVorschuss + Buchungen (Zinsen etc.)
-  // — nicht erneut addieren, sonst Vorschuss x2.
-  const sumEinnahmenInkl = totals.totalEinnahmen;
+  if (totals.totalSollEHR > 0.005) {
+    einnahmenPrefix.push({
+      konto_nr: "—",
+      konto_name: "Vorschüsse auf Erhaltungsrücklage",
+      verteiler: "",
+      betrag: fmtEUR(totals.totalSollEHR),
+      betrag_abs: fmtEUR(Math.abs(totals.totalSollEHR)),
+      wirtschaftsplan: "",
+    });
+  }
+  if (Math.abs(totals.totalUeberzahlung) > 0.005) {
+    einnahmenPrefix.push({
+      konto_nr: "—",
+      konto_name: "Überzahlung Vorschüsse",
+      verteiler: "",
+      betrag: fmtEUR(totals.totalUeberzahlung),
+      betrag_abs: fmtEUR(Math.abs(totals.totalUeberzahlung)),
+      wirtschaftsplan: "",
+    });
+  }
+  const einnahmen_full = [...einnahmenPrefix, ...sectionListFromUi(sectionAccounts.income)];
+  // Summe Einnahmen für PDF (Vorschüsse + Buchungseinnahmen wie Zinsen)
+  const sumEinnahmenInkl =
+    totals.totalSollKostendeckung +
+    totals.totalSollEHR +
+    Math.max(0, totals.totalUeberzahlung) +
+    totals.incomeInterest +
+    totals.incomeOther;
 
   // Ausgaben-Sektionen als negative Beträge ausgeben
   const bewirtschaftung = sectionListFromUi(sectionAccounts.operating_distributable, { asExpense: true });
@@ -233,6 +258,9 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     sum_abgrenzungen: fmtEUR(totals.totalAccrual),
     sum_abrechnung: fmtEUR(totals.abrechnungssumme),
     sum_vorschuss: fmtEUR(totals.totalVorschuss),
+    sum_vorschuss_kostendeckung: fmtEUR(totals.totalSollKostendeckung),
+    sum_vorschuss_ehr: fmtEUR(totals.totalSollEHR),
+    sum_vorschuss_ueberzahlung: fmtEUR(totals.totalUeberzahlung),
     sum_soll_kostendeckung: fmtEUR(totals.totalSollKostendeckung),
     sum_soll_ehr: fmtEUR(totals.totalSollEHR),
     sum_zinseinnahmen: fmtEUR(totals.incomeInterest),
