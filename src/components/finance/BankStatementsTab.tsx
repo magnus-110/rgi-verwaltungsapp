@@ -232,18 +232,22 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     [filteredBuildingTxns]
   );
 
-  // All unbooked transactions for review mode — chronologically (as on the bank statement)
+  // All unbooked transactions for review mode — same order as the list view:
+  // first matched (chronological), then unmatched/invoice_pending (chronological).
   const allUnbookedForReview = useMemo(() => {
-    const reviewable = allBuildingTxns.filter((t: any) =>
-      ["matched_invoice", "matched_template", "manually_matched", "unmatched", "invoice_pending"].includes(t.match_status)
-      && !t.booked_at
-    );
-    return [...reviewable].sort((a: any, b: any) => {
+    const sortByDateThenId = (a: any, b: any) => {
       const da = new Date(a.booking_date).getTime();
       const db = new Date(b.booking_date).getTime();
       if (da !== db) return da - db;
       return String(a.id).localeCompare(String(b.id));
-    });
+    };
+    const matched = allBuildingTxns
+      .filter((t: any) => ["matched_invoice", "matched_template", "manually_matched"].includes(t.match_status) && !t.booked_at)
+      .sort(sortByDateThenId);
+    const unmatched = allBuildingTxns
+      .filter((t: any) => (t.match_status === "unmatched" || t.match_status === "invoice_pending") && !t.booked_at)
+      .sort(sortByDateThenId);
+    return [...matched, ...unmatched];
   }, [allBuildingTxns]);
 
   const globalBookableCount = useMemo(() => {
