@@ -441,13 +441,15 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   );
   const openingTotal = openingGiro + openingReserve + openingFuel + openingPrepay + openingOther;
 
-  // Closing balances — automatisch via Helper, manueller closing_balance als Override
+  // Closing balances — strikt das Bewegungs-Saldo (Bank-Zentrik), identisch zur
+  // Anzeige in der oberen Konten-Liste. Manuelle account_balances.closing_balance
+  // dient nur als expliziter Override.
   const getClosing = (acc: any) => {
     const manual = balances.find((b: any) => b.account_id === acc.id);
     if (manual && manual.closing_balance !== null && manual.closing_balance !== undefined && Number(manual.closing_balance) !== 0) {
       return Number(manual.closing_balance);
     }
-    return closingByAccount[acc.id] || 0;
+    return sumForAccount(acc.id, bookings as any);
   };
   const sumClosing = (filter: (a: any) => boolean) =>
     carryAccounts.filter(filter).reduce((s: number, a: any) => s + getClosing(a), 0);
