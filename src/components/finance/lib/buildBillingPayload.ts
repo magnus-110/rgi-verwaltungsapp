@@ -249,7 +249,7 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     nicht_umlagefaehig,
     heizkosten,
     ruecklage,
-    abgrenzungen: sectionListFromUi(sectionAccounts.accrual, { asExpense: true }),
+    abgrenzungen: sectionListFromUi(sectionAccounts.accrual, { asAccrual: true }),
 
     // Sektions-Summen (entspricht Spalten in der UI)
     sum_einnahmen: fmtEUR(totals.totalEinnahmen),
