@@ -1016,6 +1016,24 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                                   onSelect={() => {
                                     setMatchedTemplateId(tpl.id);
                                     set("invoice_id", "");
+                                    // Vorlage-Werte ins Formular übernehmen, ohne bereits gesetzte
+                                    // Werte zu überschreiben.
+                                    setForm(p => {
+                                      const next = { ...p };
+                                      if (tpl.account_id && !p.counter_account_id) {
+                                        next.counter_account_id = tpl.account_id;
+                                      }
+                                      if (tpl.vat_rate != null && (p.vat_rate === "" || p.vat_rate === "19")) {
+                                        next.vat_rate = String(tpl.vat_rate);
+                                      }
+                                      if (tpl.is_35a_relevant && !p.is_35a_relevant) {
+                                        next.is_35a_relevant = true;
+                                      }
+                                      return next;
+                                    });
+                                    if (tpl.account_id) {
+                                      rebuildAutoText({ counter_account_id: tpl.account_id });
+                                    }
                                     setTemplatePickerOpen(false);
                                     void persistMatchImmediately(null, tpl.id);
                                   }}
