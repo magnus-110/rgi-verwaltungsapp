@@ -578,16 +578,19 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     a.account_name.startsWith("Hausgeld "),
   );
   // Bank-zentrisch: Zahlungseingänge auf Personenkonten erscheinen als negativer
-  // Saldo (Gegenkonto-Vorzeichen). Für die Überzahlungs-Logik invertieren wir,
-  // damit "tatsächlich gezahlt" als positiver Betrag vorliegt.
-  const personenkontenClose = personenkontenAccounts.reduce((s: number, a: any) => {
-    return s + getEffectiveClosingBalance(a.id, bookings as any[], flatBalances, fiscalYear, opening4000Id).amount;
+  // Saldo. Für die Überzahlung verwenden wir nur die BEWEGUNGEN des aktuellen
+  // Geschäftsjahres (ohne Eröffnungsbestand), damit Vorjahres-Salden nicht
+  // fälschlich als Überzahlung erscheinen.
+  const personenkontenMovements = personenkontenAccounts.reduce((s: number, a: any) => {
+    return s + getEffectiveClosingBalance(a.id, bookings as any[], flatBalances, fiscalYear, opening4000Id).movements;
   }, 0);
-  const personenkontenPaid = -personenkontenClose;
+  const personenkontenPaid = -personenkontenMovements;
 
   const totalSollEHR = ehrAccountClosing;
   const totalSollKostendeckung = Math.max(0, sollHausgeldGesamt - totalSollEHR);
-  const totalUeberzahlung = personenkontenPaid - totalSollKostendeckung - totalSollEHR;
+  // Überzahlung = tatsächlich gezahlt − Soll-Hausgeld gesamt (mathematisch
+  // identisch zu paid − Kostendeckung − EHR, aber klarer).
+  const totalUeberzahlung = personenkontenPaid - sollHausgeldGesamt;
   const hasReserveSplit = totalSollEHR > 0.005;
   const totalVorschuss = totalSollKostendeckung + totalSollEHR + Math.max(0, totalUeberzahlung);
 
