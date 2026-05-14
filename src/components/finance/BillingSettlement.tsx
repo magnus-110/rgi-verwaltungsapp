@@ -452,7 +452,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const openingOther = sumOpening((a: any) =>
     !isBankAccount(a) && !isReserveAccount(a) && !isFuelStockAccount(a) && !isHeatingPrepayBalanceAccount(a),
   );
-  const openingTotal = openingGiro + openingReserve + openingFuel + openingPrepay + openingOther;
+  const openingTotal =
+    Math.abs(openingGiro) + Math.abs(openingReserve) + Math.abs(openingFuel) +
+    Math.abs(openingPrepay) + Math.abs(openingOther);
 
   // Closing balances — strikt das Bewegungs-Saldo (Bank-Zentrik), identisch zur
   // Anzeige in der oberen Konten-Liste. Manuelle account_balances.closing_balance
