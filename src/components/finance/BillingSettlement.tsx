@@ -452,7 +452,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const openingOther = sumOpening((a: any) =>
     !isBankAccount(a) && !isReserveAccount(a) && !isFuelStockAccount(a) && !isHeatingPrepayBalanceAccount(a),
   );
-  const openingTotal = openingGiro + openingReserve + openingFuel + openingPrepay + openingOther;
+  const openingTotal =
+    Math.abs(openingGiro) + Math.abs(openingReserve) + Math.abs(openingFuel) +
+    Math.abs(openingPrepay) + Math.abs(openingOther);
 
   // Closing balances — strikt das Bewegungs-Saldo (Bank-Zentrik), identisch zur
   // Anzeige in der oberen Konten-Liste. Manuelle account_balances.closing_balance
@@ -477,7 +479,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const closingOther = sumClosing((a: any) =>
     !isBankAccount(a) && !isReserveAccount(a) && !isFuelStockAccount(a) && !isHeatingPrepayBalanceAccount(a),
   );
-  const closingTotal = closingGiro + closingReserve + closingFuel + closingPrepay + closingOther;
+  const closingTotal =
+    Math.abs(closingGiro) + Math.abs(closingReserve) + Math.abs(closingFuel) +
+    Math.abs(closingPrepay) + Math.abs(closingOther);
 
   // Per-Konto Liste der Bestandskonten (für DOCX-Loop {#bestaende_anfang}/{#bestaende_ende})
   const carryAccountsList = carryAccounts.map((acc: any) => {

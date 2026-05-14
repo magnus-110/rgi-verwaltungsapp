@@ -109,7 +109,7 @@ const SECTION_LABELS: Record<string, string> = {
 
 import { getAccrualDisplaySign } from "./accrualSign";
 
-function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccrual?: boolean } = {}) {
+function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccrual?: boolean; asIncome?: boolean } = {}) {
   return accs.map((a) => {
     const abs = Math.abs(a.totalAbs || 0);
     let signed: number;
@@ -117,11 +117,21 @@ function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccr
       signed = abs * getAccrualDisplaySign(a.account_number);
     } else if (opts.asExpense) {
       signed = -abs;
+    } else if (opts.asIncome) {
+      signed = abs;
     } else {
       signed = a.total;
     }
     const wp = Math.abs(a.wpAmount || 0);
-    const wpSigned = opts.asAccrual ? wp * getAccrualDisplaySign(a.account_number) : (opts.asExpense ? -wp : a.wpAmount);
+    const wpSigned = opts.asAccrual
+      ? wp * getAccrualDisplaySign(a.account_number)
+      : opts.asExpense ? -wp
+      : opts.asIncome ? wp
+      : a.wpAmount;
+    const verteilbarBase = a.distributableAmount ?? abs;
+    const verteilbar = opts.asExpense ? -Math.abs(verteilbarBase)
+      : opts.asIncome ? Math.abs(verteilbarBase)
+      : verteilbarBase;
     return {
       konto_nr: a.account_number,
       konto_name: a.account_name,
@@ -129,7 +139,7 @@ function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccr
       betrag: fmtEUR(signed),
       betrag_abs: fmtEUR(abs),
       betrag_ist: fmtEUR(signed),
-      betrag_verteilbar: fmtEUR(opts.asExpense ? -(a.distributableAmount ?? abs) : (a.distributableAmount ?? abs)),
+      betrag_verteilbar: fmtEUR(verteilbar),
       wirtschaftsplan: wp > 0 ? fmtEUR(wpSigned) : "",
     };
   });
@@ -206,7 +216,7 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
       wirtschaftsplan: "",
     });
   }
-  const einnahmen_full = [...einnahmenPrefix, ...sectionListFromUi(sectionAccounts.income)];
+  const einnahmen_full = [...einnahmenPrefix, ...sectionListFromUi(sectionAccounts.income, { asIncome: true })];
   // Summe Einnahmen für PDF (Vorschüsse + Buchungseinnahmen wie Zinsen)
   const sumEinnahmenInkl =
     totals.totalSollKostendeckung +
@@ -220,6 +230,22 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
   const nicht_umlagefaehig = sectionListFromUi(sectionAccounts.operating_non_distributable, { asExpense: true });
   const heizkosten = sectionListFromUi(sectionAccounts.heating, { asExpense: true });
   const ruecklage = sectionListFromUi(sectionAccounts.reserve, { asExpense: true });
+
+  // Per-Sektion-Subtotale (Plan / Ist / Verteilbar) — alle als negative
+  // Aufwandsbeträge formatiert, damit DOCX-Zwischensummenzeilen vorzeichen-
+  // konsistent zu den Einzelpositionen erscheinen.
+  const subtotals = (accs: any[] = []) => {
+    const ist = accs.reduce((s, a) => s + Math.abs(a.totalAbs || 0), 0);
+    const plan = accs.reduce((s, a) => s + Math.abs(a.wpAmount || 0), 0);
+    const verteilbar = accs
+      .filter((a) => a.is_distributable === true)
+      .reduce((s, a) => s + Math.abs(a.totalAbs || 0), 0);
+    return { ist: fmtEUR(-ist), plan: fmtEUR(-plan), verteilbar: fmtEUR(-verteilbar) };
+  };
+  const sub_bewirtschaftung = subtotals(sectionAccounts.operating_distributable);
+  const sub_nicht_umlagefaehig = subtotals(sectionAccounts.operating_non_distributable);
+  const sub_heizkosten = subtotals(sectionAccounts.heating);
+  const sub_ruecklage = subtotals(sectionAccounts.reserve);
 
   const sumIst = totals.totalOperatingDist + totals.totalOperatingNonDist + totals.totalReserve +
     (sectionAccounts.heating || []).reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
@@ -244,7 +270,7 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
 
     // Sektions-Listen (jede Position 1:1 wie in der UI-Section)
     einnahmen: einnahmen_full,
-    einnahmen_nur_buchungen: sectionListFromUi(sectionAccounts.income),
+    einnahmen_nur_buchungen: sectionListFromUi(sectionAccounts.income, { asIncome: true }),
     bewirtschaftung,
     nicht_umlagefaehig,
     heizkosten,
@@ -261,6 +287,19 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     ),
     sum_ruecklage: fmtEUR(-Math.abs(totals.totalReserve)),
     sum_ruecklage_entnahme: fmtEUR(totals.totalReserveWithdrawal),
+    // Per-Sektion Zwischensummen für DOCX-Spalten Plan / Ist / Verteilbar
+    sum_bewirtschaftung_plan: sub_bewirtschaftung.plan,
+    sum_bewirtschaftung_ist: sub_bewirtschaftung.ist,
+    sum_bewirtschaftung_verteilbar: sub_bewirtschaftung.verteilbar,
+    sum_nicht_umlagefaehig_plan: sub_nicht_umlagefaehig.plan,
+    sum_nicht_umlagefaehig_ist: sub_nicht_umlagefaehig.ist,
+    sum_nicht_umlagefaehig_verteilbar: sub_nicht_umlagefaehig.verteilbar,
+    sum_heizkosten_plan: sub_heizkosten.plan,
+    sum_heizkosten_ist: sub_heizkosten.ist,
+    sum_heizkosten_verteilbar: sub_heizkosten.verteilbar,
+    sum_ruecklage_plan: sub_ruecklage.plan,
+    sum_ruecklage_ist: sub_ruecklage.ist,
+    sum_ruecklage_verteilbar: sub_ruecklage.verteilbar,
     // Aggregierte Ausgaben-Summen (über alle Ausgabe-Sektionen)
     sum_ausgaben_ist: fmtEUR(-sumIst),
     sum_ausgaben_wp: fmtEUR(-sumWp),
