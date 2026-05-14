@@ -304,16 +304,26 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     sum_ausgaben_ist: fmtEUR(-sumIst),
     sum_ausgaben_wp: fmtEUR(-sumWp),
     sum_ausgaben_verteilbar: fmtEUR(-sumVerteilbar),
-    sum_abgrenzungen: fmtEUR(
+    sum_abgrenzungen: (() => {
+      const v = (sectionAccounts.accrual || []).reduce(
+        (s: number, a: any) => s + Math.abs(a.totalAbs || 0) * getAccrualDisplaySign(a.account_number),
+        0,
+      );
+      return fmtEUR(v);
+    })(),
+    sum_abgrenzungen_ist: fmtEUR(
       (sectionAccounts.accrual || []).reduce(
         (s: number, a: any) => s + Math.abs(a.totalAbs || 0) * getAccrualDisplaySign(a.account_number),
         0,
       ),
     ),
-    // Aliase für Vorlagen, die _ist/_plan/_verteilbar verwenden (Abgrenzungen kennt nur Ist)
-    get sum_abgrenzungen_ist() { return this.sum_abgrenzungen; },
-    get sum_abgrenzungen_plan() { return this.sum_abgrenzungen; },
-    get sum_abgrenzungen_verteilbar() { return this.sum_abgrenzungen; },
+    sum_abgrenzungen_plan: fmtEUR(0),
+    sum_abgrenzungen_verteilbar: fmtEUR(
+      (sectionAccounts.accrual || []).reduce(
+        (s: number, a: any) => s + Math.abs(a.totalAbs || 0) * getAccrualDisplaySign(a.account_number),
+        0,
+      ),
+    ),
     sum_abrechnung: fmtEUR(totals.abrechnungssumme),
     sum_vorschuss: fmtEUR(totals.totalVorschuss),
     sum_vorschuss_kostendeckung: fmtEUR(totals.totalSollKostendeckung),
