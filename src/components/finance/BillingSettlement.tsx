@@ -533,8 +533,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     + totalOperatingNonDistRelevant
     + totalHeatingRelevant
     + totalReserve            // Plan-IHR (Konto 193x / economicPlan)
-    + totalAccrualRelevant    // Abgrenzungen vorzeichenrichtig
     - totalReserveWithdrawal; // Entnahmen mindern
+  // Hinweis: totalAccrualRelevant ist bewusst NICHT Teil der Abrechnungssumme.
+  // Abgrenzungen werden nur nachrichtlich ausgewiesen (Vermögensbericht).
 
   // ISO-Datum (YYYY-MM-DD) als LOKALES Datum parsen — verhindert UTC-Drift,
   // bei der z. B. '2025-01-01' in DE-Zeitzone als 31.12.2024 23:00 interpretiert wird
