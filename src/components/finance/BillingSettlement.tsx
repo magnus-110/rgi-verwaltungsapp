@@ -457,7 +457,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     if (manual && manual.closing_balance !== null && manual.closing_balance !== undefined && Number(manual.closing_balance) !== 0) {
       return Number(manual.closing_balance);
     }
-    return sumForAccount(acc.id, bookings as any);
+    // signedTotalForAccount ist booking_type-aware: Bei bank-zentrischen
+    // Buchungen werden income (+) und expense (−) korrekt saldiert. sumForAccount
+    // würde stattdessen alle Beträge auf der Bankseite gleich aufsummieren.
+    return signedTotalForAccount(acc.id, bookings as any);
   };
   const sumClosing = (filter: (a: any) => boolean) =>
     carryAccounts.filter(filter).reduce((s: number, a: any) => s + getClosing(a), 0);
