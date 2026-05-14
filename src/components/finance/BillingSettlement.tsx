@@ -1227,30 +1227,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" disabled={busyDownload === "overall"}>
-                {busyDownload === "overall" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
-                Gesamtabrechnung herunterladen
-                <ChevronDown className="h-4 w-4 ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => downloadBilling("overall", "docx")}>
-                <FileType className="h-4 w-4 mr-2" /> DOCX
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => downloadBilling("overall", "pdf")}>
-                <FileText className="h-4 w-4 mr-2" /> PDF
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setTemplatesOpen(true)}>
-                <Settings2 className="h-4 w-4 mr-2" /> Vorlagen verwalten
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button size="sm" variant="ghost" onClick={() => openTemplatesFor(undefined as any)}>
+            <Settings2 className="h-4 w-4 mr-1" /> Vorlagen verwalten
+          </Button>
         </div>
       </CardHeader>
       <CardContent>
+        {(() => null)()}
+        {/* Helper: pro-Tab Download-Button (DOCX/PDF + Vorlagen verwalten) */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList variant="underline" className="mb-4 flex-wrap h-auto">
             <TabsTrigger variant="underline" value="total">Gesamtabrechnung</TabsTrigger>
