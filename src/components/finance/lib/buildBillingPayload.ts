@@ -304,7 +304,21 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     sum_ausgaben_ist: fmtEUR(-sumIst),
     sum_ausgaben_wp: fmtEUR(-sumWp),
     sum_ausgaben_verteilbar: fmtEUR(-sumVerteilbar),
-    sum_abgrenzungen: fmtEUR(
+    sum_abgrenzungen: (() => {
+      const v = (sectionAccounts.accrual || []).reduce(
+        (s: number, a: any) => s + Math.abs(a.totalAbs || 0) * getAccrualDisplaySign(a.account_number),
+        0,
+      );
+      return fmtEUR(v);
+    })(),
+    sum_abgrenzungen_ist: fmtEUR(
+      (sectionAccounts.accrual || []).reduce(
+        (s: number, a: any) => s + Math.abs(a.totalAbs || 0) * getAccrualDisplaySign(a.account_number),
+        0,
+      ),
+    ),
+    sum_abgrenzungen_plan: fmtEUR(0),
+    sum_abgrenzungen_verteilbar: fmtEUR(
       (sectionAccounts.accrual || []).reduce(
         (s: number, a: any) => s + Math.abs(a.totalAbs || 0) * getAccrualDisplaySign(a.account_number),
         0,
@@ -312,9 +326,6 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     ),
     sum_abrechnung: fmtEUR(totals.abrechnungssumme),
     sum_vorschuss: fmtEUR(totals.totalVorschuss),
-    // Spitzen-konsistente Felder: Vorschuss (nur Soll, ohne Überzahlung) − Ausgaben (= abrechnungssumme) = abrechnungsspitze
-    sum_einnahmen_spitze: fmtEUR(totals.totalSollKostendeckung + totals.totalSollEHR),
-    sum_ausgaben_spitze: fmtEUR(totals.abrechnungssumme),
     sum_vorschuss_kostendeckung: fmtEUR(totals.totalSollKostendeckung),
     sum_vorschuss_ehr: fmtEUR(totals.totalSollEHR),
     sum_vorschuss_ueberzahlung: fmtEUR(totals.totalUeberzahlung),
