@@ -520,7 +520,11 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   };
   const getSectionDistributable = (section: string) =>
     (sectionAccounts[section] || [])
-      .filter((a: any) => !isAccrualBalanceAccount(a) && !isHeatingPrepayAccount(a) && !isBalanceSheetAccount(a))
+      .filter((a: any) =>
+           a.is_distributable
+        && !isAccrualBalanceAccount(a)
+        && !isHeatingPrepayAccount(a)
+        && !isBalanceSheetAccount(a))
       .reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
   const totalOperatingDistRelevant = getSectionDistributable("operating_distributable");
   const totalOperatingNonDistRelevant = getSectionDistributable("operating_non_distributable");
