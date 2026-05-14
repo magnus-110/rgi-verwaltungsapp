@@ -1,0 +1,1 @@
+UPDATE public.chart_of_accounts SET is_heating_relevant = false WHERE account_number = '1040';
