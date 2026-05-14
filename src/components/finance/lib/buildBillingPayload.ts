@@ -270,7 +270,7 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
 
     // Sektions-Listen (jede Position 1:1 wie in der UI-Section)
     einnahmen: einnahmen_full,
-    einnahmen_nur_buchungen: sectionListFromUi(sectionAccounts.income),
+    einnahmen_nur_buchungen: sectionListFromUi(sectionAccounts.income, { asIncome: true }),
     bewirtschaftung,
     nicht_umlagefaehig,
     heizkosten,
@@ -287,6 +287,19 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     ),
     sum_ruecklage: fmtEUR(-Math.abs(totals.totalReserve)),
     sum_ruecklage_entnahme: fmtEUR(totals.totalReserveWithdrawal),
+    // Per-Sektion Zwischensummen für DOCX-Spalten Plan / Ist / Verteilbar
+    sum_bewirtschaftung_plan: sub_bewirtschaftung.plan,
+    sum_bewirtschaftung_ist: sub_bewirtschaftung.ist,
+    sum_bewirtschaftung_verteilbar: sub_bewirtschaftung.verteilbar,
+    sum_nicht_umlagefaehig_plan: sub_nicht_umlagefaehig.plan,
+    sum_nicht_umlagefaehig_ist: sub_nicht_umlagefaehig.ist,
+    sum_nicht_umlagefaehig_verteilbar: sub_nicht_umlagefaehig.verteilbar,
+    sum_heizkosten_plan: sub_heizkosten.plan,
+    sum_heizkosten_ist: sub_heizkosten.ist,
+    sum_heizkosten_verteilbar: sub_heizkosten.verteilbar,
+    sum_ruecklage_plan: sub_ruecklage.plan,
+    sum_ruecklage_ist: sub_ruecklage.ist,
+    sum_ruecklage_verteilbar: sub_ruecklage.verteilbar,
     // Aggregierte Ausgaben-Summen (über alle Ausgabe-Sektionen)
     sum_ausgaben_ist: fmtEUR(-sumIst),
     sum_ausgaben_wp: fmtEUR(-sumWp),
