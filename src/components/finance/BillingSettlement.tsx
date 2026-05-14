@@ -1449,17 +1449,22 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
           {/* ===== TAB 2: EINZELABRECHNUNGEN ===== */}
           <TabsContent value="owners">
-            {/* SOLL/IST Toggle */}
-            <div className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-muted/30">
-              <span className="text-sm text-muted-foreground">Vorschüsse aus:</span>
-              <div className="flex items-center gap-2">
-                <span className={`text-sm font-medium ${!useIstVorschuss ? "text-foreground" : "text-muted-foreground"}`}>SOLL</span>
-                <Switch checked={useIstVorschuss} onCheckedChange={setUseIstVorschuss} />
-                <span className={`text-sm font-medium ${useIstVorschuss ? "text-foreground" : "text-muted-foreground"}`}>IST</span>
+            {/* SOLL/IST Toggle + Download */}
+            <div className="flex items-center justify-between gap-3 mb-4 p-3 rounded-lg bg-muted/30 flex-wrap">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground">Vorschüsse aus:</span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-medium ${!useIstVorschuss ? "text-foreground" : "text-muted-foreground"}`}>SOLL</span>
+                  <Switch checked={useIstVorschuss} onCheckedChange={setUseIstVorschuss} />
+                  <span className={`text-sm font-medium ${useIstVorschuss ? "text-foreground" : "text-muted-foreground"}`}>IST</span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {useIstVorschuss ? "Tatsächliche Zahlungen aus Personenkonten" : "Geplante Beträge aus Kostenzuordnung"}
+                </span>
               </div>
-              <span className="text-xs text-muted-foreground">
-                {useIstVorschuss ? "Tatsächliche Zahlungen aus Personenkonten" : "Geplante Beträge aus Kostenzuordnung"}
-              </span>
+              {ownerResults.length > 0 && !selectedOwnerData && (
+                <TabDownloadMenu target="all" label={`Alle Einzelabrechnungen (${ownerResults.length}) als ZIP`} scope="single" busyKey="all" />
+              )}
             </div>
             {ownerResults.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
