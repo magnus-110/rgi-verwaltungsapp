@@ -902,8 +902,15 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   });
   const singleTemplates = billingTemplates.filter((t: any) => t.scope === "single");
   const overallTemplates = billingTemplates.filter((t: any) => t.scope === "overall");
+  const assetReportTemplates = billingTemplates.filter((t: any) => t.scope === "asset_report");
   const effectiveSingleTpl = selectedTemplate || singleTemplates[0]?.id || null;
   const effectiveOverallTpl = selectedOverallTemplate || overallTemplates[0]?.id || effectiveSingleTpl;
+  const effectiveAssetReportTpl = selectedAssetReportTemplate || assetReportTemplates[0]?.id || null;
+
+  const openTemplatesFor = (filter: "single" | "overall" | "asset_report") => {
+    setTemplatesScopeFilter(filter);
+    setTemplatesOpen(true);
+  };
 
   const sanitizeFilename = (s: string) =>
     s.replace(/[^a-zA-Z0-9äöüÄÖÜß_\-]+/g, "_").replace(/^_+|_+$/g, "");
