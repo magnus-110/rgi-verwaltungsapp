@@ -966,9 +966,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       if (target === "overall") {
         items = [{ kind: "overall", payload: buildOverallPayload(inp) }];
       } else if (target === "asset_report") {
-        // Vermögensbericht nutzt den Overall-Payload (enthält bereits alle Bestände, Rücklagen, Brennstoff,
-        // Abgrenzungen) — Template entscheidet, welche Felder gerendert werden.
-        items = [{ kind: "asset_report", payload: { ...buildOverallPayload(inp), document_title: `Vermögensbericht ${fiscalYear}` } }];
+        // Vermögensbericht: dedizierter Payload mit 5 HV-Office-Sektionen
+        items = [{ kind: "asset_report", payload: buildAssetReportPayload(inp) }];
       } else if (target === "owner") {
         items = [{ kind: "owner", ownerId: owner!.assignmentId, ownerName: owner!.name, payload: buildOwnerPayload(inp, owner!.assignmentId) }];
       } else {
