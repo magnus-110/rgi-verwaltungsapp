@@ -734,7 +734,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
       // Heizkosten-Konten (z. B. 1400) — strikt Brunata-Werte, KEIN MEA-Fallback.
       // Fehlen Brunata-Werte, wird 0 verteilt (Warnung wird in der UI angezeigt).
-      const isHeatingAccount = acc.is_heating_relevant === true;
+      // Greift NUR wenn der effektive Verteiler-Schlüssel auch heizungsbezogen ist.
+      // Ein MEA-/Einheit-/qm-Override hebt die Brunata-Logik auf.
+      const isHeatingShareType = ["heizkosten", "wasser", "warmwasser"].includes(shareType);
+      const isHeatingAccount = acc.is_heating_relevant === true && isHeatingShareType;
       // Special handling for "einheit" share — total = building unit count, owner share = 1
       const isUnitsKey = shareType === "einheit";
       let ownerCost = 0;
