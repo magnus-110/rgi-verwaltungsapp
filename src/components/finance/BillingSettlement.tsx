@@ -1825,11 +1825,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       </CardContent>
       <BillingTemplatesDialog
         open={templatesOpen}
-        onOpenChange={setTemplatesOpen}
+        onOpenChange={(o) => { setTemplatesOpen(o); if (!o) setTemplatesScopeFilter(undefined); }}
         selectedSingleId={effectiveSingleTpl}
         selectedOverallId={effectiveOverallTpl}
+        selectedAssetReportId={effectiveAssetReportTpl}
         onSelectSingle={setSelectedTemplate}
         onSelectOverall={setSelectedOverallTemplate}
+        onSelectAssetReport={setSelectedAssetReportTemplate}
+        scopeFilter={templatesScopeFilter}
       />
     </Card>
   );
