@@ -1215,6 +1215,43 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
   const selectedOwnerData = selectedOwner ? ownerResults.find(o => o.assignmentId === selectedOwner) : null;
 
+  // Wiederverwendbarer Tab-Download-Button (DOCX/PDF + Vorlage wählen).
+  const TabDownloadMenu = ({
+    target,
+    label,
+    scope,
+    busyKey,
+    onOwner,
+  }: {
+    target: "overall" | "asset_report" | "all" | "owner";
+    label: string;
+    scope: "overall" | "single" | "asset_report";
+    busyKey: string;
+    onOwner?: { assignmentId: string; name: string };
+  }) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button size="sm" variant="outline" disabled={busyDownload === busyKey}>
+          {busyDownload === busyKey ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
+          {label}
+          <ChevronDown className="h-4 w-4 ml-1" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => downloadBilling(target, "docx", onOwner)}>
+          <FileType className="h-4 w-4 mr-2" /> DOCX
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => downloadBilling(target, "pdf", onOwner)}>
+          <FileText className="h-4 w-4 mr-2" /> PDF
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => openTemplatesFor(scope)}>
+          <Settings2 className="h-4 w-4 mr-2" /> Vorlage wählen / hochladen
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
