@@ -109,7 +109,7 @@ const SECTION_LABELS: Record<string, string> = {
 
 import { getAccrualDisplaySign } from "./accrualSign";
 
-function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccrual?: boolean } = {}) {
+function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccrual?: boolean; asIncome?: boolean } = {}) {
   return accs.map((a) => {
     const abs = Math.abs(a.totalAbs || 0);
     let signed: number;
@@ -117,11 +117,21 @@ function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccr
       signed = abs * getAccrualDisplaySign(a.account_number);
     } else if (opts.asExpense) {
       signed = -abs;
+    } else if (opts.asIncome) {
+      signed = abs;
     } else {
       signed = a.total;
     }
     const wp = Math.abs(a.wpAmount || 0);
-    const wpSigned = opts.asAccrual ? wp * getAccrualDisplaySign(a.account_number) : (opts.asExpense ? -wp : a.wpAmount);
+    const wpSigned = opts.asAccrual
+      ? wp * getAccrualDisplaySign(a.account_number)
+      : opts.asExpense ? -wp
+      : opts.asIncome ? wp
+      : a.wpAmount;
+    const verteilbarBase = a.distributableAmount ?? abs;
+    const verteilbar = opts.asExpense ? -Math.abs(verteilbarBase)
+      : opts.asIncome ? Math.abs(verteilbarBase)
+      : verteilbarBase;
     return {
       konto_nr: a.account_number,
       konto_name: a.account_name,
@@ -129,7 +139,7 @@ function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccr
       betrag: fmtEUR(signed),
       betrag_abs: fmtEUR(abs),
       betrag_ist: fmtEUR(signed),
-      betrag_verteilbar: fmtEUR(opts.asExpense ? -(a.distributableAmount ?? abs) : (a.distributableAmount ?? abs)),
+      betrag_verteilbar: fmtEUR(verteilbar),
       wirtschaftsplan: wp > 0 ? fmtEUR(wpSigned) : "",
     };
   });
