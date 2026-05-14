@@ -312,9 +312,6 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     ),
     sum_abrechnung: fmtEUR(totals.abrechnungssumme),
     sum_vorschuss: fmtEUR(totals.totalVorschuss),
-    // Spitzen-konsistente Felder: Vorschuss (nur Soll, ohne Überzahlung) − Ausgaben (= abrechnungssumme) = abrechnungsspitze
-    sum_einnahmen_spitze: fmtEUR(totals.totalSollKostendeckung + totals.totalSollEHR),
-    sum_ausgaben_spitze: fmtEUR(totals.abrechnungssumme),
     sum_vorschuss_kostendeckung: fmtEUR(totals.totalSollKostendeckung),
     sum_vorschuss_ehr: fmtEUR(totals.totalSollEHR),
     sum_vorschuss_ueberzahlung: fmtEUR(totals.totalUeberzahlung),
