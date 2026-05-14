@@ -17,7 +17,7 @@ import { getEffectiveOpeningBalance, getEffectiveClosingBalance, signedTotalForA
 import { getAccrualDisplaySign } from "./lib/accrualSign";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { BillingTemplatesDialog } from "./BillingTemplatesDialog";
-import { buildOverallPayload, buildOwnerPayload, type BillingPayloadInputs } from "./lib/buildBillingPayload";
+import { buildOverallPayload, buildOwnerPayload, buildAssetReportPayload, type BillingPayloadInputs } from "./lib/buildBillingPayload";
 
 interface BillingSettlementProps {
   buildingId: string;
