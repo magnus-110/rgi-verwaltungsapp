@@ -132,7 +132,9 @@ Deno.serve(async (req) => {
       const baseName =
         it.kind === "overall"
           ? `${prefix}_Gesamt`
-          : `${prefix}_${sanitize(it.ownerName || "Eigentuemer")}`;
+          : it.kind === "asset_report"
+            ? prefix
+            : `${prefix}_${sanitize(it.ownerName || "Eigentuemer")}`;
       if (wantPdf) {
         const pdf = await convertDocxToPdf(docxBytes, `${baseName}.docx`);
         return new Response(pdf, {
