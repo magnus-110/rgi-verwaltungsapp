@@ -1,56 +1,34 @@
 ## Befund
 
-Die Abrechnungssumme enthält aktuell die Abgrenzungen (`totalAccrualRelevant = −6.630,03 €`), obwohl diese laut UI-Label bereits als „nachrichtlich, nicht verteilt" gekennzeichnet sind. Dadurch wird die Abrechnungssumme künstlich um 6.616,69 € reduziert und die Spitze entsprechend zu hoch (8.645,79 € statt 2.029,10 €).
+In `BillingSettlement.tsx` (Zeile 521–524) summiert `getSectionDistributable` aktuell **alle** Konten der Sektion (außer Bilanz-/Abgrenzungs-/Heizungs-Vorauszahlungs-Konten). Das `is_distributable`-Flag (VR — Verteilungsrelevant) wird nicht berücksichtigt.
 
-Aktuelle Berechnung (`BillingSettlement.tsx`, Zeile 531–537):
-```
-abrechnungssumme = op_dist + op_non_dist + heating + totalReserve
-                 + totalAccrualRelevant   ← falsch
-                 − totalReserveWithdrawal
-```
-
-Erwartung des Nutzers für Adolf-Haff 2025:
-```
-+ 32.946,00  Vorschüsse (Hausgeld + IHR)
-−  18.712,21 op_distributable
-−   7.204,69 op_non_distributable
-−   5.000,00 Plan-IHR
-=   2.029,10 Abrechnungsspitze (Guthaben)
-```
-
-Abgrenzungen sind reine Periodisierungs-Information für den Vermögensbericht und gehören nicht in die Abrechnungssumme der Eigentümer.
+Dadurch fließen Konten wie **1850** und **1860** (Abrechnungsrelevant, aber NICHT Verteilungsrelevant) in `totalOperatingNonDistRelevant` ein. Folge: Abrechnungssumme ist um ca. 14 € zu hoch, Spitze entsprechend zu niedrig.
 
 ## Fix
 
-Eine einzige Änderung in `src/components/finance/BillingSettlement.tsx`:
+Eine einzige Änderung in `src/components/finance/BillingSettlement.tsx`, Zeile 521–524:
 
-1. **Zeile 536 entfernen** — `+ totalAccrualRelevant` aus `abrechnungssumme` streichen. Variable bleibt erhalten, weil sie für den nachrichtlichen Block und den DOCX-Payload weiter gebraucht wird.
+`getSectionDistributable` zusätzlich nach `a.is_distributable === true` filtern:
 
-Neue Formel:
+```ts
+const getSectionDistributable = (section: string) =>
+  (sectionAccounts[section] || [])
+    .filter((a: any) =>
+         a.is_distributable
+      && !isAccrualBalanceAccount(a)
+      && !isHeatingPrepayAccount(a)
+      && !isBalanceSheetAccount(a))
+    .reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
 ```
-abrechnungssumme =
-    op_dist_relevant
-  + op_non_dist_relevant
-  + heating_relevant
-  + plan_ihr (totalReserve)
-  − totalReserveWithdrawal
-```
+
+Wirkt auf alle drei Aufrufe (`operating_distributable`, `operating_non_distributable`, `heating`) — Konten ohne VR-Flag (z. B. 1850, 1860) werden in keiner Sektion mehr in die Abrechnungssumme aufgenommen.
 
 ## Erwartetes Ergebnis
 
-| Position | Betrag |
-|---|---|
-| op_distributable | 18.712,21 € |
-| op_non_distributable | 7.204,69 € |
-| heating | 0,00 € |
-| Plan-IHR | 5.000,00 € |
-| Entnahmen IHR | 0,00 € |
-| **Abrechnungssumme** | **30.916,90 €** (≈ 30.917 €) |
-| Vorschuss Soll | 32.946,00 € |
-| **Abrechnungsspitze** | **+ 2.029,10 € Guthaben** |
+| Position | vorher | nachher |
+|---|---|---|
+| op_non_distributable | 7.218 € | 7.204,69 € |
+| **Abrechnungssumme** | 30.930 € | **30.916,90 €** |
+| **Abrechnungsspitze** | +2.015 € | **+2.029,10 €** |
 
-Abgrenzungen (−6.630,03 €) bleiben als nachrichtliche Zeile sichtbar, fließen aber nicht in die Verteilung ein.
-
-## Hinweis
-
-Falls die angezeigte Abrechnungssumme leicht von 30.916,90 € abweicht (z. B. um ein paar Cent / um 13 €), klären wir das im nächsten Schritt — wahrscheinlich Rundung oder ein einzelnes Konto in `op_non_distributable`.
+Konten 1850 / 1860 bleiben im Kontenrahmen sichtbar und auch Abrechnungs­relevant (für den Vermögensbericht), wandern aber nicht mehr in die Verteilung.
