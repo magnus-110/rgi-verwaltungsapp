@@ -88,8 +88,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const [activeTab, setActiveTab] = useState("total");
   const [busyDownload, setBusyDownload] = useState<string | null>(null); // owner.assignmentId | "overall" | "all"
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [templatesScopeFilter, setTemplatesScopeFilter] = useState<"single" | "overall" | "asset_report" | undefined>(undefined);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [selectedOverallTemplate, setSelectedOverallTemplate] = useState<string | null>(null);
+  const [selectedAssetReportTemplate, setSelectedAssetReportTemplate] = useState<string | null>(null);
   const [selectedOwner, setSelectedOwner] = useState<string | null>(null);
   const [ownerSearch, setOwnerSearch] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(SECTION_ORDER));
@@ -900,8 +902,15 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   });
   const singleTemplates = billingTemplates.filter((t: any) => t.scope === "single");
   const overallTemplates = billingTemplates.filter((t: any) => t.scope === "overall");
+  const assetReportTemplates = billingTemplates.filter((t: any) => t.scope === "asset_report");
   const effectiveSingleTpl = selectedTemplate || singleTemplates[0]?.id || null;
   const effectiveOverallTpl = selectedOverallTemplate || overallTemplates[0]?.id || effectiveSingleTpl;
+  const effectiveAssetReportTpl = selectedAssetReportTemplate || assetReportTemplates[0]?.id || null;
+
+  const openTemplatesFor = (filter?: "single" | "overall" | "asset_report") => {
+    setTemplatesScopeFilter(filter);
+    setTemplatesOpen(true);
+  };
 
   const sanitizeFilename = (s: string) =>
     s.replace(/[^a-zA-Z0-9äöüÄÖÜß_\-]+/g, "_").replace(/^_+|_+$/g, "");
@@ -936,23 +945,30 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   };
 
   const downloadBilling = async (
-    target: "overall" | "owner" | "all",
+    target: "overall" | "owner" | "all" | "asset_report",
     format: "docx" | "pdf",
     owner?: { assignmentId: string; name: string },
   ) => {
-    const tplId = target === "overall" ? effectiveOverallTpl : effectiveSingleTpl;
+    const tplId =
+      target === "overall" ? effectiveOverallTpl
+      : target === "asset_report" ? effectiveAssetReportTpl
+      : effectiveSingleTpl;
     if (!tplId) {
       toast.error("Bitte zuerst eine Vorlage hochladen (Vorlagen-Verwaltung).");
-      setTemplatesOpen(true);
+      openTemplatesFor(target === "overall" ? "overall" : target === "asset_report" ? "asset_report" : "single");
       return;
     }
     const busyKey = target === "owner" ? owner!.assignmentId : target;
     setBusyDownload(busyKey);
     try {
       const inp = buildPayloadInputs();
-      let items: Array<{ kind: "owner" | "overall"; ownerId?: string; ownerName?: string; payload: any }> = [];
+      let items: Array<{ kind: "owner" | "overall" | "asset_report"; ownerId?: string; ownerName?: string; payload: any }> = [];
       if (target === "overall") {
         items = [{ kind: "overall", payload: buildOverallPayload(inp) }];
+      } else if (target === "asset_report") {
+        // Vermögensbericht nutzt den Overall-Payload (enthält bereits alle Bestände, Rücklagen, Brennstoff,
+        // Abgrenzungen) — Template entscheidet, welche Felder gerendert werden.
+        items = [{ kind: "asset_report", payload: { ...buildOverallPayload(inp), document_title: `Vermögensbericht ${fiscalYear}` } }];
       } else if (target === "owner") {
         items = [{ kind: "owner", ownerId: owner!.assignmentId, ownerName: owner!.name, payload: buildOwnerPayload(inp, owner!.assignmentId) }];
       } else {
@@ -967,7 +983,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       if (!accessToken) throw new Error("Bitte erneut anmelden, um die Abrechnung herunterzuladen.");
 
       // Wichtig: nicht supabase.functions.invoke() für DOCX/ZIP nutzen.
-      // Der Supabase-Client decodiert Office-Binaries teilweise als Text und beschädigt dadurch die ZIP-Struktur.
+      const filePrefix =
+        target === "asset_report" ? `Vermoegensbericht_${fiscalYear}` : `Abrechnung_${fiscalYear}`;
       const resp = await fetch(`https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-billing-document`, {
         method: "POST",
         headers: {
@@ -980,7 +997,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           fiscal_year: fiscalYear,
           mode,
           format,
-          file_prefix: `Abrechnung_${fiscalYear}`,
+          file_prefix: filePrefix,
           items,
         }),
       });
@@ -1001,7 +1018,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           ? `Einzelabrechnung_${sanitizeFilename(owner!.name)}_${fiscalYear}.${ext}`
           : target === "overall"
             ? `Gesamtabrechnung_${fiscalYear}.${ext}`
-            : `Abrechnung_${fiscalYear}.${ext}`;
+            : target === "asset_report"
+              ? `Vermoegensbericht_${fiscalYear}.${ext}`
+              : `Abrechnung_${fiscalYear}.${ext}`;
       triggerDownload(bytes, fname, mime);
       toast.success("Download bereit");
     } catch (e: any) {
@@ -1196,6 +1215,43 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
   const selectedOwnerData = selectedOwner ? ownerResults.find(o => o.assignmentId === selectedOwner) : null;
 
+  // Wiederverwendbarer Tab-Download-Button (DOCX/PDF + Vorlage wählen).
+  const TabDownloadMenu = ({
+    target,
+    label,
+    scope,
+    busyKey,
+    onOwner,
+  }: {
+    target: "overall" | "asset_report" | "all" | "owner";
+    label: string;
+    scope: "overall" | "single" | "asset_report";
+    busyKey: string;
+    onOwner?: { assignmentId: string; name: string };
+  }) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button size="sm" variant="outline" disabled={busyDownload === busyKey}>
+          {busyDownload === busyKey ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
+          {label}
+          <ChevronDown className="h-4 w-4 ml-1" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => downloadBilling(target, "docx", onOwner)}>
+          <FileType className="h-4 w-4 mr-2" /> DOCX
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => downloadBilling(target, "pdf", onOwner)}>
+          <FileText className="h-4 w-4 mr-2" /> PDF
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => openTemplatesFor(scope)}>
+          <Settings2 className="h-4 w-4 mr-2" /> Vorlage wählen / hochladen
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
@@ -1208,27 +1264,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" disabled={busyDownload === "overall"}>
-                {busyDownload === "overall" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
-                Gesamtabrechnung herunterladen
-                <ChevronDown className="h-4 w-4 ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => downloadBilling("overall", "docx")}>
-                <FileType className="h-4 w-4 mr-2" /> DOCX
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => downloadBilling("overall", "pdf")}>
-                <FileText className="h-4 w-4 mr-2" /> PDF
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setTemplatesOpen(true)}>
-                <Settings2 className="h-4 w-4 mr-2" /> Vorlagen verwalten
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button size="sm" variant="ghost" onClick={() => openTemplatesFor()}>
+            <Settings2 className="h-4 w-4 mr-1" /> Vorlagen verwalten
+          </Button>
         </div>
       </CardHeader>
       <CardContent>
@@ -1245,9 +1283,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
           {/* ===== TAB 1: GESAMTABRECHNUNG ===== */}
           <TabsContent value="total" className="space-y-3">
-            <div className="flex items-center justify-end gap-2 text-sm">
-              <span className="text-muted-foreground">Null-Saldo Konten anzeigen</span>
-              <Switch checked={showZeroBalanceAccounts} onCheckedChange={setShowZeroBalanceAccounts} />
+            <div className="flex items-center justify-between gap-2 text-sm flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Null-Saldo Konten anzeigen</span>
+                <Switch checked={showZeroBalanceAccounts} onCheckedChange={setShowZeroBalanceAccounts} />
+              </div>
+              <TabDownloadMenu target="overall" label="Gesamtabrechnung herunterladen" scope="overall" busyKey="overall" />
             </div>
             {distributionWarnings.length > 0 && (
               <Alert variant="destructive" className="border-destructive/50 bg-destructive/5 text-foreground">
@@ -1408,17 +1449,22 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
           {/* ===== TAB 2: EINZELABRECHNUNGEN ===== */}
           <TabsContent value="owners">
-            {/* SOLL/IST Toggle */}
-            <div className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-muted/30">
-              <span className="text-sm text-muted-foreground">Vorschüsse aus:</span>
-              <div className="flex items-center gap-2">
-                <span className={`text-sm font-medium ${!useIstVorschuss ? "text-foreground" : "text-muted-foreground"}`}>SOLL</span>
-                <Switch checked={useIstVorschuss} onCheckedChange={setUseIstVorschuss} />
-                <span className={`text-sm font-medium ${useIstVorschuss ? "text-foreground" : "text-muted-foreground"}`}>IST</span>
+            {/* SOLL/IST Toggle + Download */}
+            <div className="flex items-center justify-between gap-3 mb-4 p-3 rounded-lg bg-muted/30 flex-wrap">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground">Vorschüsse aus:</span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-medium ${!useIstVorschuss ? "text-foreground" : "text-muted-foreground"}`}>SOLL</span>
+                  <Switch checked={useIstVorschuss} onCheckedChange={setUseIstVorschuss} />
+                  <span className={`text-sm font-medium ${useIstVorschuss ? "text-foreground" : "text-muted-foreground"}`}>IST</span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {useIstVorschuss ? "Tatsächliche Zahlungen aus Personenkonten" : "Geplante Beträge aus Kostenzuordnung"}
+                </span>
               </div>
-              <span className="text-xs text-muted-foreground">
-                {useIstVorschuss ? "Tatsächliche Zahlungen aus Personenkonten" : "Geplante Beträge aus Kostenzuordnung"}
-              </span>
+              {ownerResults.length > 0 && !selectedOwnerData && (
+                <TabDownloadMenu target="all" label={`Alle Einzelabrechnungen (${ownerResults.length}) als ZIP`} scope="single" busyKey="all" />
+              )}
             </div>
             {ownerResults.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
@@ -1434,9 +1480,13 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                     </Button>
                     <h3 className="text-lg font-semibold">{selectedOwnerData.name} — Einheit {selectedOwnerData.unitNumber}</h3>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => downloadBilling("owner", "docx", { assignmentId: selectedOwnerData.assignmentId, name: selectedOwnerData.name })} disabled={busyDownload === selectedOwnerData.assignmentId}>
-                    {busyDownload === selectedOwnerData.assignmentId ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />} DOCX
-                  </Button>
+                  <TabDownloadMenu
+                    target="owner"
+                    label="Diese Einzelabrechnung"
+                    scope="single"
+                    busyKey={selectedOwnerData.assignmentId}
+                    onOwner={{ assignmentId: selectedOwnerData.assignmentId, name: selectedOwnerData.name }}
+                  />
                 </div>
 
                 {/* 7-column detail table — gruppiert nach displaySection (HV-Office-konform) */}
@@ -1635,9 +1685,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
           {/* ===== TAB 3: VERMÖGENSBERICHT ===== */}
           <TabsContent value="assets" className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Gemäß §28 WEG — Vermögenslage zum Ende des Abrechnungszeitraums {fiscalYear}.
-            </p>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <p className="text-sm text-muted-foreground">
+                Gemäß §28 WEG — Vermögenslage zum Ende des Abrechnungszeitraums {fiscalYear}.
+              </p>
+              <TabDownloadMenu target="asset_report" label="Vermögensbericht herunterladen" scope="asset_report" busyKey="asset_report" />
+            </div>
 
             {/* Bankkonten */}
             <Card>
@@ -1772,11 +1825,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       </CardContent>
       <BillingTemplatesDialog
         open={templatesOpen}
-        onOpenChange={setTemplatesOpen}
+        onOpenChange={(o) => { setTemplatesOpen(o); if (!o) setTemplatesScopeFilter(undefined); }}
         selectedSingleId={effectiveSingleTpl}
         selectedOverallId={effectiveOverallTpl}
+        selectedAssetReportId={effectiveAssetReportTpl}
         onSelectSingle={setSelectedTemplate}
         onSelectOverall={setSelectedOverallTemplate}
+        onSelectAssetReport={setSelectedAssetReportTemplate}
+        scopeFilter={templatesScopeFilter}
       />
     </Card>
   );

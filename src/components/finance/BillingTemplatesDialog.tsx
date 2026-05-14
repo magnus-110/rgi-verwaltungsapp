@@ -10,13 +10,25 @@ import { Trash2, Upload, FileText, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
+type Scope = "single" | "overall" | "asset_report";
+
+const SCOPE_LABEL: Record<Scope, string> = {
+  overall: "Gesamtabrechnung",
+  single: "Einzelabrechnung",
+  asset_report: "Vermögensbericht",
+};
+
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   selectedSingleId?: string | null;
   selectedOverallId?: string | null;
+  selectedAssetReportId?: string | null;
   onSelectSingle?: (id: string) => void;
   onSelectOverall?: (id: string) => void;
+  onSelectAssetReport?: (id: string) => void;
+  /** Optional Filter, um den Dialog vorgefiltert auf einen Typ zu öffnen */
+  scopeFilter?: Scope;
 }
 
 export function BillingTemplatesDialog({
@@ -24,13 +36,16 @@ export function BillingTemplatesDialog({
   onOpenChange,
   selectedSingleId,
   selectedOverallId,
+  selectedAssetReportId,
   onSelectSingle,
   onSelectOverall,
+  onSelectAssetReport,
+  scopeFilter,
 }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [name, setName] = useState("");
-  const [scope, setScope] = useState<"single" | "overall">("overall");
+  const [scope, setScope] = useState<Scope>(scopeFilter ?? "overall");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -90,13 +105,19 @@ export function BillingTemplatesDialog({
 
   const select = (t: any) => {
     if (t.scope === "overall") onSelectOverall?.(t.id);
+    else if (t.scope === "asset_report") onSelectAssetReport?.(t.id);
     else onSelectSingle?.(t.id);
     toast({ title: "Vorlage aktiviert", description: t.name });
   };
 
   const isActive = (t: any) =>
     (t.scope === "overall" && selectedOverallId === t.id) ||
-    (t.scope === "single" && selectedSingleId === t.id);
+    (t.scope === "single" && selectedSingleId === t.id) ||
+    (t.scope === "asset_report" && selectedAssetReportId === t.id);
+
+  const filteredTemplates = scopeFilter
+    ? templates.filter((t: any) => t.scope === scopeFilter)
+    : templates;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -119,11 +140,12 @@ export function BillingTemplatesDialog({
             </div>
             <div>
               <Label className="text-xs">Typ</Label>
-              <Select value={scope} onValueChange={(v) => setScope(v as any)}>
+              <Select value={scope} onValueChange={(v) => setScope(v as Scope)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="overall">Gesamtabrechnung</SelectItem>
                   <SelectItem value="single">Einzelabrechnung</SelectItem>
+                  <SelectItem value="asset_report">Vermögensbericht</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -138,9 +160,11 @@ export function BillingTemplatesDialog({
         </div>
 
         <div className="space-y-1 max-h-[400px] overflow-auto">
-          {templates.length === 0 ? (
-            <div className="text-sm text-muted-foreground text-center py-6">Noch keine Vorlagen.</div>
-          ) : templates.map((t: any) => {
+          {filteredTemplates.length === 0 ? (
+            <div className="text-sm text-muted-foreground text-center py-6">
+              {scopeFilter ? `Noch keine Vorlage für ${SCOPE_LABEL[scopeFilter]}.` : "Noch keine Vorlagen."}
+            </div>
+          ) : filteredTemplates.map((t: any) => {
             const active = isActive(t);
             return (
               <div key={t.id} className={`flex items-center justify-between border rounded p-2 ${active ? "border-primary bg-primary/5" : ""}`}>
@@ -152,7 +176,7 @@ export function BillingTemplatesDialog({
                       {active && <Badge variant="default" className="gap-1"><Check className="h-3 w-3" />Aktiv</Badge>}
                     </div>
                     <div className="text-xs text-muted-foreground truncate">
-                      {t.scope === "overall" ? "Gesamtabrechnung" : "Einzelabrechnung"}
+                      {SCOPE_LABEL[t.scope as Scope] || t.scope}
                     </div>
                   </div>
                 </div>
