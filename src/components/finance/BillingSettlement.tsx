@@ -907,7 +907,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const effectiveOverallTpl = selectedOverallTemplate || overallTemplates[0]?.id || effectiveSingleTpl;
   const effectiveAssetReportTpl = selectedAssetReportTemplate || assetReportTemplates[0]?.id || null;
 
-  const openTemplatesFor = (filter: "single" | "overall" | "asset_report") => {
+  const openTemplatesFor = (filter?: "single" | "overall" | "asset_report") => {
     setTemplatesScopeFilter(filter);
     setTemplatesOpen(true);
   };
