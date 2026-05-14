@@ -568,39 +568,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     const costs = a.contact_building_costs || [];
     costs.forEach((c: any) => {
       const ct = (c.cost_type || "").toLowerCase();
-      const isHausgeld = ["hausgeld", "nebenkosten"].includes(ct);
-      const isReserve = ct === "ruecklage";
-      let annual = 0;
-      const amount = Number(c.amount);
-      // Monatlicher Äquivalentbetrag (HV-Office-Konvention: Stichtag = 1. des Monats).
-      let monthlyEquiv = 0;
-      switch (c.interval) {
-        case "monatlich": monthlyEquiv = amount; break;
-        case "quartal":   monthlyEquiv = amount / 3; break;
-        case "jaehrlich": monthlyEquiv = amount / 12; break;
-        default:          monthlyEquiv = amount;
-      }
+      if (!["hausgeld", "nebenkosten", "ruecklage"].includes(ct)) return;
       if (period) {
-        const pStart = new Date(period.period_from);
-        const pEnd = new Date(period.period_to);
-        const aStart = a.valid_from ? new Date(a.valid_from) : null;
-        const aEnd   = a.valid_to   ? new Date(a.valid_to)   : null;
-        const cStart = c.valid_from ? new Date(c.valid_from) : null;
-        const cEnd   = c.valid_to   ? new Date(c.valid_to)   : null;
-        // Iteriere über jeden Monatsersten im Abrechnungszeitraum.
-        const cursor = new Date(pStart.getFullYear(), pStart.getMonth(), 1);
-        const last   = new Date(pEnd.getFullYear(), pEnd.getMonth(), 1);
-        while (cursor <= last) {
-          const validAssignment = (!aStart || cursor >= aStart) && (!aEnd || cursor <= aEnd);
-          const validCost       = (!cStart || cursor >= cStart) && (!cEnd || cursor <= cEnd);
-          if (validAssignment && validCost) annual += monthlyEquiv;
-          cursor.setMonth(cursor.getMonth() + 1);
-        }
+        sollHausgeldGesamt += getCostAnnualAmount(c, period.period_from, period.period_to, a);
       } else {
-        annual = monthlyEquiv * 12;
+        sollHausgeldGesamt += monthlyEquivOfCost(c) * 12;
       }
-      if (isHausgeld || isReserve) sollHausgeldGesamt += annual;
-      else sollHausgeldGesamt += annual;
     });
   });
 
