@@ -1227,7 +1227,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button size="sm" variant="ghost" onClick={() => openTemplatesFor(undefined as any)}>
+          <Button size="sm" variant="ghost" onClick={() => openTemplatesFor()}>
             <Settings2 className="h-4 w-4 mr-1" /> Vorlagen verwalten
           </Button>
         </div>
