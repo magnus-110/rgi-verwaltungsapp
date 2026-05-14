@@ -373,36 +373,54 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
  * Baut ein Payload für die Einzelabrechnung eines Eigentümers.
  */
 export function buildOwnerPayload(inp: BillingPayloadInputs, ownerId: string) {
-  const { building, period, fiscalYear, ownerResults, assignmentsById } = inp;
+  const { building, period, fiscalYear, ownerResults, assignmentsById, totals } = inp;
   const owner = ownerResults.find((o) => o.assignmentId === ownerId);
   if (!owner) throw new Error(`Eigentümer ${ownerId} nicht gefunden`);
 
   const assignment = assignmentsById?.[ownerId];
   const addr = ownerAddr(assignment);
 
-  // Konten gruppiert nach Sektion (entspricht 7-Spalten-Tabelle in der UI)
-  const groupOrder = [
-    "operating_distributable",
-    "operating_non_distributable",
-    "heating",
-    "reserve",
+  // HV-Office Verteiler-Labels (überschreiben den rohen distKey für die Vorlage)
+  const VERTEILER_LABELS: Record<string, string> = {
+    mea: "Ges.Tausendstel",
+    einheit: "Einheiten",
+    qm: "qm",
+    stellplaetze: "TG-Stellplätze",
+    personen: "Personen",
+    heizk_abr: "Heizk.Abr",
+  };
+  const verteilerLabel = (k: string) => VERTEILER_LABELS[k] || k || "";
+
+  // Sektionen-Reihenfolge entspricht HV-Office-Layout. Heizkonten werden in
+  // "operating_distributable" gemerged (eigene Zeile mit Verteiler "Heizk.Abr").
+  const groupOrder: Array<{ key: string; sources: string[] }> = [
+    { key: "income", sources: ["income"] },
+    { key: "operating_distributable", sources: ["operating_distributable", "heating"] },
+    { key: "operating_non_distributable", sources: ["operating_non_distributable"] },
+    { key: "reserve", sources: ["reserve"] },
   ];
+
   const sektionen = groupOrder
-    .map((sec) => {
-      const rows = owner.accountBreakdown.filter((r) => r.displaySection === sec);
-      if (rows.length === 0) return null;
+    .map(({ key, sources }) => {
+      const rows = owner.accountBreakdown.filter((r) => sources.includes(r.displaySection));
+      if (key !== "income" && rows.length === 0) return null;
+      const sumGesamt = rows.reduce((s, r) => s + (r.distributableAmount || 0), 0);
+      const sumIhre = rows.reduce((s, r) => s + (r.ownerCost || 0), 0);
       return {
-        sektion: SECTION_LABELS[sec] || sec,
+        sektion: SECTION_LABELS[key] || key,
         zeilen: rows.map((r) => ({
           konto_nr: r.accountNumber,
           konto_name: r.signedFactor < 0 ? `./. ${r.accountName} (aus Rücklage)` : r.accountName,
           verteilungsrelevant: fmtEUR(r.distributableAmount),
-          verteiler: r.distKey,
+          verteiler: verteilerLabel(r.distKey),
           gesamt_anteil: fmtNum(r.totalShares, 3),
           ihr_anteil: fmtNum(r.ownerShare, 3),
           ihre_kosten: fmtEUR(r.ownerCost),
         })),
-        zwischensumme: fmtEUR(rows.reduce((s, r) => s + r.ownerCost, 0)),
+        zwischensumme_gesamt: fmtEUR(sumGesamt),
+        zwischensumme_ihre_kosten: fmtEUR(sumIhre),
+        // Alias für bestehende Vorlagen
+        zwischensumme: fmtEUR(sumIhre),
       };
     })
     .filter(Boolean);
@@ -410,6 +428,19 @@ export function buildOwnerPayload(inp: BillingPayloadInputs, ownerId: string) {
   const steuerbonus =
     Math.min(owner.owner35aDienste * 0.2, 4000) +
     Math.min(owner.owner35aHandwerker * 0.2, 1200);
+
+  // Spitze (nur Soll-Vorschuss vs. Kosten) — analog Gesamtabrechnung-Logik
+  const ownerSollVorschuss = owner.hausgeld + owner.reserve;
+  const ownerSpitze = ownerSollVorschuss - owner.totalOwnerCost;
+  const ownerUeberzahlung = Math.max(0, owner.totalPaid - ownerSollVorschuss);
+  const ownerSaldo = owner.result; // = totalPaid − totalOwnerCost
+
+  const wegSollVorschuss = totals.totalSollKostendeckung + totals.totalSollEHR;
+  const wegVorschussIst = totals.totalSollKostendeckung + totals.totalSollEHR + Math.max(0, totals.totalUeberzahlung);
+  const wegUeberzahlung = Math.max(0, totals.totalUeberzahlung);
+  const wegSaldo = totals.abrechnungsspitze + wegUeberzahlung;
+
+  const ghnz = (v: number) => (v >= 0 ? "GH" : "NZ");
 
   return {
     document_title: "Jahresabrechnung — Einzelabrechnung",
@@ -433,15 +464,39 @@ export function buildOwnerPayload(inp: BillingPayloadInputs, ownerId: string) {
     // Sektions-Tabellen
     sektionen,
 
-    // Summen
+    // Abrechnungssumme (zweispaltig)
+    sum_abrechnung_gesamt: fmtEUR(-Math.abs(totals.abrechnungssumme)),
+    sum_abrechnung_ihre: fmtEUR(-Math.abs(owner.totalOwnerCost)),
+
+    // Vorschussverpflichtung gem. Wirtschaftsplan (Soll, zweispaltig)
+    sum_vorschuss_wp_gesamt: fmtEUR(wegSollVorschuss),
+    sum_vorschuss_wp_ihre: fmtEUR(ownerSollVorschuss),
+
+    // Abrechnungsspitze (zweispaltig + GH/NZ)
+    abrechnungsspitze_gesamt: fmtEUR(Math.abs(totals.abrechnungsspitze)),
+    abrechnungsspitze_ihre: fmtEUR(Math.abs(ownerSpitze)),
+    abrechnungsspitze_label: ghnz(ownerSpitze),
+    abrechnungsspitze_guthaben: ownerSpitze >= 0,
+    abrechnungsspitze_nachzahlung: ownerSpitze < 0,
+
+    // Block "zusätzliche Informationen"
+    vorschuss_ist_gesamt: fmtEUR(wegVorschussIst),
+    vorschuss_ist_ihre: fmtEUR(owner.totalPaid),
+    has_ueberzahlung: wegUeberzahlung > 0.005 || ownerUeberzahlung > 0.005,
+    ueberzahlung_wpl_gesamt: fmtEUR(wegUeberzahlung),
+    ueberzahlung_wpl_ihre: fmtEUR(ownerUeberzahlung),
+    abrechnungssaldo_gesamt: fmtEUR(Math.abs(wegSaldo)),
+    abrechnungssaldo_ihre: fmtEUR(Math.abs(ownerSaldo)),
+    abrechnungssaldo_label: ghnz(ownerSaldo),
+    abrechnungssaldo_guthaben: ownerSaldo >= 0,
+    abrechnungssaldo_nachzahlung: ownerSaldo < 0,
+
+    // Aliase (Rückwärtskompatibilität)
     sum_abrechnung: fmtEUR(owner.totalOwnerCost),
     sum_hausgeld: fmtEUR(owner.hausgeld),
     sum_ruecklage_vorschuss: fmtEUR(owner.reserve),
     sum_vorschuss: fmtEUR(owner.totalPaid),
     abrechnungsspitze: fmtEUR(Math.abs(owner.result)),
-    abrechnungsspitze_label: owner.result >= 0 ? "Guthaben" : "Nachzahlung",
-    abrechnungsspitze_guthaben: owner.result >= 0,
-    abrechnungsspitze_nachzahlung: owner.result < 0,
 
     // §35a Block
     has_35a: owner.owner35aDienste > 0 || owner.owner35aHandwerker > 0,
