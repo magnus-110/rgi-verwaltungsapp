@@ -1283,9 +1283,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
           {/* ===== TAB 1: GESAMTABRECHNUNG ===== */}
           <TabsContent value="total" className="space-y-3">
-            <div className="flex items-center justify-end gap-2 text-sm">
-              <span className="text-muted-foreground">Null-Saldo Konten anzeigen</span>
-              <Switch checked={showZeroBalanceAccounts} onCheckedChange={setShowZeroBalanceAccounts} />
+            <div className="flex items-center justify-between gap-2 text-sm flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Null-Saldo Konten anzeigen</span>
+                <Switch checked={showZeroBalanceAccounts} onCheckedChange={setShowZeroBalanceAccounts} />
+              </div>
+              <TabDownloadMenu target="overall" label="Gesamtabrechnung herunterladen" scope="overall" busyKey="overall" />
             </div>
             {distributionWarnings.length > 0 && (
               <Alert variant="destructive" className="border-destructive/50 bg-destructive/5 text-foreground">
