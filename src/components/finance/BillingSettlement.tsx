@@ -1233,8 +1233,6 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         </div>
       </CardHeader>
       <CardContent>
-        {(() => null)()}
-        {/* Helper: pro-Tab Download-Button (DOCX/PDF + Vorlagen verwalten) */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList variant="underline" className="mb-4 flex-wrap h-auto">
             <TabsTrigger variant="underline" value="total">Gesamtabrechnung</TabsTrigger>
