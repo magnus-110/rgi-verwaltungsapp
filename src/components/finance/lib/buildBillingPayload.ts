@@ -506,6 +506,114 @@ export function buildOwnerPayload(inp: BillingPayloadInputs, ownerId: string) {
   };
 }
 
+/**
+ * Baut ein Payload für den Vermögensbericht (HV-Office Layout):
+ * 5 Sektionen — Liquide Mittel, Guthaben/Nachzahlung, Abgrenzungen,
+ * Forderungen Vorjahr, Verbindlichkeiten Vorjahr — plus Gesamtvermögensstand.
+ */
+export function buildAssetReportPayload(inp: BillingPayloadInputs) {
+  const { building, period, fiscalYear, sectionAccounts, totals, ownerResults, carryAccountsList = [] } = inp;
+
+  // Sektion 1: Liquide Mittel (Bank + Rücklage + Brennstoff + Sonstige Bestände)
+  const liquideRows = carryAccountsList
+    .filter((a) => Math.abs(a.closing) > 0.005)
+    .filter((a) => ["bank", "reserve", "fuel", "other"].includes(a.category))
+    .map((a) => ({
+      konto_nr: a.account_number,
+      konto_name: a.account_name,
+      bezeichnung: a.account_name,
+      betrag: fmtEUR(a.closing),
+      betrag_raw: a.closing,
+    }));
+  const sumLiquide = liquideRows.reduce((s, r) => s + r.betrag_raw, 0);
+
+  // Sektion 2: Guthaben & Nachzahlungen aus Abrechnung
+  const sumGuthaben = ownerResults.reduce((s, o) => s + Math.max(0, o.result), 0);    // owner-Guthaben → WEG-Verbindlichkeit
+  const sumNachzahlung = ownerResults.reduce((s, o) => s + Math.max(0, -o.result), 0); // owner-Nachzahlung → WEG-Forderung
+  const guthabenRows = [
+    { bezeichnung: "Guthaben aus Abr.",     betrag: fmtEUR(-sumGuthaben),    betrag_raw: -sumGuthaben },
+    { bezeichnung: "Nachzahlung aus Abr.",  betrag: fmtEUR(sumNachzahlung),  betrag_raw: sumNachzahlung },
+  ];
+  const sumGuthabenNachzahlung = -sumGuthaben + sumNachzahlung;
+
+  // Helper: Summen pro Abgrenzungs-Range
+  const accrualAccs = sectionAccounts.accrual || [];
+  const sumRange = (lo: number, hi: number) =>
+    accrualAccs
+      .filter((a) => {
+        const n = parseInt(String(a.account_number), 10);
+        return !Number.isNaN(n) && n >= lo && n <= hi;
+      })
+      .reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
+
+  // Sektion 3: Abgrenzung — Folgejahr-Bezug (HV-Office Vorzeichen aus Vermögenssicht)
+  const abg_einn_lfd_folge   = -sumRange(4180, 4199); // PRA-Bildung Einnahmen → Verbindlichkeit
+  const abg_ausg_lfd_folge   =  sumRange(4160, 4179); // ARA-Bildung Ausgaben  → Forderung
+  const abg_einn_folge_lfd   =  sumRange(4120, 4139); // PRA-Auflösung
+  const abg_ausg_folge_lfd   = -sumRange(4100, 4119); // ARA-Auflösung
+  const abgrenzungRows = [
+    { bezeichnung: "Einn. im lfd. J. für Folgejahr",  betrag: fmtEUR(abg_einn_lfd_folge),  betrag_raw: abg_einn_lfd_folge  },
+    { bezeichnung: "Ausg. im lfd. J. für Folgejahr",  betrag: fmtEUR(abg_ausg_lfd_folge),  betrag_raw: abg_ausg_lfd_folge  },
+    { bezeichnung: "Einn. im Folgejahr für lfd. J.",  betrag: fmtEUR(abg_einn_folge_lfd),  betrag_raw: abg_einn_folge_lfd  },
+    { bezeichnung: "Ausg. im Folgejahr für lfd. J.",  betrag: fmtEUR(abg_ausg_folge_lfd),  betrag_raw: abg_ausg_folge_lfd  },
+  ];
+  const sumAbgrenzung = abgrenzungRows.reduce((s, r) => s + r.betrag_raw, 0);
+
+  // Sektion 4: Forderungen zum Jahresende (Vorjahr-Bezug; aktuell strukturell mit 0,00)
+  const forderungenRows = [
+    { bezeichnung: "Ausg. im lfd. J. für Vorjahr",   betrag: fmtEUR(0), betrag_raw: 0 },
+    { bezeichnung: "Einn. im lfd. J. für Vorjahr",   betrag: fmtEUR(0), betrag_raw: 0 },
+    { bezeichnung: "Ausg. im Vorjahr für lfd. J.",   betrag: fmtEUR(0), betrag_raw: 0 },
+    { bezeichnung: "Einn. im Vorjahr für lfd. J.",   betrag: fmtEUR(0), betrag_raw: 0 },
+  ];
+  const sumForderungen = 0;
+
+  // Sektion 5: Verbindlichkeiten zum Jahresende (aktuell leer)
+  const verbindlichkeitenRows: Array<{ bezeichnung: string; betrag: string; betrag_raw: number }> = [];
+  const sumVerbindlichkeiten = 0;
+
+  const stichtag = period?.period_to ? fmtDateDe(period.period_to) : `31.12.${fiscalYear}`;
+  const vermoegensstandGesamt =
+    sumLiquide + sumGuthabenNachzahlung + sumAbgrenzung + sumForderungen + sumVerbindlichkeiten;
+
+  // Brennstoff-Detailblock (optional, Conditional {#has_brennstoff})
+  const fuelRows = carryAccountsList
+    .filter((a) => a.category === "fuel" && Math.abs(a.closing) > 0.005)
+    .map((a) => ({ konto_nr: a.account_number, konto_name: a.account_name, betrag: fmtEUR(a.closing) }));
+
+  return {
+    document_title: `Vermögensbericht ${fiscalYear}`,
+    gebaeude_name: building?.name || "",
+    gebaeude_adresse: building?.address || "",
+    wirtschaftsjahr: String(fiscalYear),
+    stichtag,
+    erstell_datum: fmtDateDe(new Date().toISOString()),
+    verwalter_name: "RGI Immobilien GmbH & Co. KG",
+
+    // Sektions-Listen
+    liquide_mittel: liquideRows,
+    guthaben_nachzahlung: guthabenRows,
+    abgrenzung: abgrenzungRows,
+    forderungen: forderungenRows,
+    verbindlichkeiten: verbindlichkeitenRows,
+
+    // Zwischensummen
+    sum_liquide_mittel: fmtEUR(sumLiquide),
+    sum_guthaben_nachzahlung: fmtEUR(sumGuthabenNachzahlung),
+    sum_abgrenzung: fmtEUR(sumAbgrenzung),
+    sum_forderungen: fmtEUR(sumForderungen),
+    sum_verbindlichkeiten: fmtEUR(sumVerbindlichkeiten),
+
+    // Gesamtvermögensstand
+    vermoegensstand_gesamt: fmtEUR(vermoegensstandGesamt),
+    vermoegensstand_label: `Vermögensstand zum ${stichtag}`,
+
+    // Brennstoff-Detail (optional)
+    has_brennstoff: fuelRows.length > 0,
+    brennstoff_details: fuelRows,
+  };
+}
+
 export function buildPayloads(inp: BillingPayloadInputs, mode: "single" | "all", ownerId?: string) {
   if (mode === "single" && ownerId) {
     return [{ kind: "owner" as const, ownerId, payload: buildOwnerPayload(inp, ownerId) }];
