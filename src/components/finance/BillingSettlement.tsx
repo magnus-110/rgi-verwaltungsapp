@@ -780,58 +780,30 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         const totalIst = accountPayments.reduce((s: number, p: any) => s + Math.abs(Number(p.amount)), 0);
         hausgeld = totalIst; // IST includes everything
       } else {
-        // Fallback to SOLL
+        // Fallback to SOLL — assignment + cost validity, Stichtag = 1. des Monats.
         hausgeld = costs
           .filter((c: any) => ["hausgeld", "nebenkosten"].includes((c.cost_type || "").toLowerCase()))
-          .reduce((s: number, c: any) => {
-            if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
-            const a = Number(c.amount);
-            switch (c.interval) {
-              case "monatlich": return s + a * 12;
-              case "quartal": return s + a * 4;
-              case "jaehrlich": return s + a;
-              default: return s + a * 12;
-            }
-          }, 0) * timeProp;
+          .reduce((s: number, c: any) => period
+            ? s + getCostAnnualAmount(c, period.period_from, period.period_to, assignment)
+            : s + monthlyEquivOfCost(c) * 12, 0);
         reserve = costs
           .filter((c: any) => (c.cost_type || "").toLowerCase() === "ruecklage")
-          .reduce((s: number, c: any) => {
-            if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
-            const a = Number(c.amount);
-            switch (c.interval) {
-              case "monatlich": return s + a * 12;
-              case "quartal": return s + a * 4;
-              case "jaehrlich": return s + a;
-              default: return s + a * 12;
-            }
-          }, 0) * timeProp;
+          .reduce((s: number, c: any) => period
+            ? s + getCostAnnualAmount(c, period.period_from, period.period_to, assignment)
+            : s + monthlyEquivOfCost(c) * 12, 0);
       }
     } else {
-      // SOLL: from contact_building_costs
+      // SOLL: from contact_building_costs (Stichtag = 1. des Monats, keine Doppel-Proration).
       hausgeld = costs
         .filter((c: any) => ["hausgeld", "nebenkosten"].includes((c.cost_type || "").toLowerCase()))
-        .reduce((s: number, c: any) => {
-          if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
-          const a = Number(c.amount);
-          switch (c.interval) {
-            case "monatlich": return s + a * 12;
-            case "quartal": return s + a * 4;
-            case "jaehrlich": return s + a;
-            default: return s + a * 12;
-          }
-        }, 0) * timeProp;
+        .reduce((s: number, c: any) => period
+          ? s + getCostAnnualAmount(c, period.period_from, period.period_to, assignment)
+          : s + monthlyEquivOfCost(c) * 12, 0);
       reserve = costs
         .filter((c: any) => (c.cost_type || "").toLowerCase() === "ruecklage")
-        .reduce((s: number, c: any) => {
-          if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
-          const a = Number(c.amount);
-          switch (c.interval) {
-            case "monatlich": return s + a * 12;
-            case "quartal": return s + a * 4;
-            case "jaehrlich": return s + a;
-            default: return s + a * 12;
-          }
-        }, 0) * timeProp;
+        .reduce((s: number, c: any) => period
+          ? s + getCostAnnualAmount(c, period.period_from, period.period_to, assignment)
+          : s + monthlyEquivOfCost(c) * 12, 0);
     }
 
     const totalPaid = hausgeld + reserve;
