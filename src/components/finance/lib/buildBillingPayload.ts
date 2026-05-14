@@ -231,6 +231,22 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
   const heizkosten = sectionListFromUi(sectionAccounts.heating, { asExpense: true });
   const ruecklage = sectionListFromUi(sectionAccounts.reserve, { asExpense: true });
 
+  // Per-Sektion-Subtotale (Plan / Ist / Verteilbar) — alle als negative
+  // Aufwandsbeträge formatiert, damit DOCX-Zwischensummenzeilen vorzeichen-
+  // konsistent zu den Einzelpositionen erscheinen.
+  const subtotals = (accs: any[] = []) => {
+    const ist = accs.reduce((s, a) => s + Math.abs(a.totalAbs || 0), 0);
+    const plan = accs.reduce((s, a) => s + Math.abs(a.wpAmount || 0), 0);
+    const verteilbar = accs
+      .filter((a) => a.is_distributable === true)
+      .reduce((s, a) => s + Math.abs(a.totalAbs || 0), 0);
+    return { ist: fmtEUR(-ist), plan: fmtEUR(-plan), verteilbar: fmtEUR(-verteilbar) };
+  };
+  const sub_bewirtschaftung = subtotals(sectionAccounts.operating_distributable);
+  const sub_nicht_umlagefaehig = subtotals(sectionAccounts.operating_non_distributable);
+  const sub_heizkosten = subtotals(sectionAccounts.heating);
+  const sub_ruecklage = subtotals(sectionAccounts.reserve);
+
   const sumIst = totals.totalOperatingDist + totals.totalOperatingNonDist + totals.totalReserve +
     (sectionAccounts.heating || []).reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
   const sumWp = [
