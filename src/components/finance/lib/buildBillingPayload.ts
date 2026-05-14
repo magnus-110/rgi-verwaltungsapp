@@ -310,6 +310,10 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
         0,
       ),
     ),
+    // Aliase für Vorlagen, die _ist/_plan/_verteilbar verwenden (Abgrenzungen kennt nur Ist)
+    get sum_abgrenzungen_ist() { return this.sum_abgrenzungen; },
+    get sum_abgrenzungen_plan() { return this.sum_abgrenzungen; },
+    get sum_abgrenzungen_verteilbar() { return this.sum_abgrenzungen; },
     sum_abrechnung: fmtEUR(totals.abrechnungssumme),
     sum_vorschuss: fmtEUR(totals.totalVorschuss),
     sum_vorschuss_kostendeckung: fmtEUR(totals.totalSollKostendeckung),
