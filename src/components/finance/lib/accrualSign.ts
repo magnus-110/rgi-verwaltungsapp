@@ -16,6 +16,9 @@ export function getAccrualDisplaySign(accountNumber: string | null | undefined):
   if (!accountNumber) return -1;
   const n = parseInt(String(accountNumber), 10);
   if (Number.isNaN(n)) return -1;
+  // 4020 WEG-Sollstellung: in der Abrechnung als positive Korrektur darstellen
+  // (negativer Saldo = mehr Nachzahlungen als Guthaben → Forderung an Eigentümer)
+  if (n === 4020) return 1;
   if (n >= 4100 && n <= 4119) return -1;
   if (n >= 4120 && n <= 4139) return 1;
   if (n >= 4160 && n <= 4179) return 1;
