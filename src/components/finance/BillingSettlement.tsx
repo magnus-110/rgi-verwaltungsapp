@@ -479,7 +479,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const closingOther = sumClosing((a: any) =>
     !isBankAccount(a) && !isReserveAccount(a) && !isFuelStockAccount(a) && !isHeatingPrepayBalanceAccount(a),
   );
-  const closingTotal = closingGiro + closingReserve + closingFuel + closingPrepay + closingOther;
+  const closingTotal =
+    Math.abs(closingGiro) + Math.abs(closingReserve) + Math.abs(closingFuel) +
+    Math.abs(closingPrepay) + Math.abs(closingOther);
 
   // Per-Konto Liste der Bestandskonten (für DOCX-Loop {#bestaende_anfang}/{#bestaende_ende})
   const carryAccountsList = carryAccounts.map((acc: any) => {
