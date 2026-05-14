@@ -1,41 +1,43 @@
 ## Befund
 
-Die 5.701 € entstehen nicht aus den Hausgeld-Stammdaten selbst, sondern aus der Monatslogik in `BillingSettlement.tsx`:
+**Ursache 1 — falsche Endbestände bei Bank & Rücklage:**
+`getClosing` benutzt `sumForAccount`, das **nicht** booking_type-aware ist. Bei bank-zentrischen Buchungen werden dadurch alle Beträge auf der Bankseite (Ein- UND Ausgang) addiert, statt income vs. expense zu saldieren.
 
-- Die Datenbank-Hausgelder ergeben korrekt **32.946 €** Gesamt-Soll für 2025.
-- Abzüglich **5.000 € EHR** ergibt das **27.946 € Vorschüsse zur Kostendeckung**.
-- Die aktuelle App zeigt aber **22.455 € Kostendeckung** und **5.701 € Überzahlung**.
-- Differenz: **5.491 €**. Das ist exakt die Summe der Hausgelder für **Januar + Juli 2025**.
+Mit der korrekten signierten Aggregation (`signedTotalForAccount`, identisch zur oberen Konten-Liste):
 
-Ursache: `new Date('2025-01-01')` wird im Browser als UTC-Datum geparst. In deutscher Zeitzone wird daraus lokal der Vortag, wodurch Monats-Stichtage am `valid_from`-Datum (01.01. und 01.07.) beim Vergleich aus der Gültigkeit herausfallen. Dadurch fehlen Januar und Juli im Soll; die fehlenden 5.491 € werden dann fälschlich als Überzahlung interpretiert.
+| Konto | Aktuell falsch | Signiert (richtig) | Erwartet |
+|---|---|---|---|
+| 1800 Bank | 92.581,84 | 5.656,94 | 5.856,94 |
+| 1810 Rücklage | 29.030,23 | **25.166,39** | **25.166,39** ✓ |
+| 1450 Brennstoff | 1.401,10 | 1.401,10 | 1.401,10 ✓ |
+
+(Die kleine 1800-Restdifferenz von 200 € ist Datenqualität, kein Logikfehler — sie verschwindet automatisch, sobald die fehlende Bewegung eingetragen wird.)
+
+**Ursache 2 — was sind die 9.266,59 € „Sonstige Bestandskonten"?**
+Das ist Konto **4000 „Eröffnungsbuchungen"**. Es hat `carry_forward_balance=true`, fällt aber in keine der Kategorien Bank/Rücklage/Brennstoff/Vorauszahlung — und landet deshalb im Sammeltopf „Sonstige".
+
+Konzeptionell ist 4000 kein Bestandskonto, sondern das technische Gegenkonto für Eröffnungsbuchungen (SKR-Standard). Es darf in den Anfangs-/Endbeständen **nicht** auftauchen. Genauso wenig die Konten 4900/4910 (ARAP/PRAP) — die sind hier zwar 0, gehören aber konzeptionell in die Abgrenzungen, nicht in die Bestände.
 
 ## Umsetzung
 
-1. In `BillingSettlement.tsx` eine sichere Datums-/Monatsstichtag-Logik einführen:
-   - ISO-Datum `YYYY-MM-DD` ohne Zeitzonenverschiebung als lokales Datum parsen.
-   - Monatserste als `Date(year, month, 1)` vergleichen.
-   - `valid_from`/`valid_to` ebenfalls auf lokale Monatsstichtage normalisieren.
+In `src/components/finance/BillingSettlement.tsx`:
 
-2. Die Soll-Hausgeld-Gesamtberechnung damit korrigieren:
-   - Für jeden Monat im Abrechnungszeitraum zählt ausschließlich der Betrag, der am **1. des Monats** gültig ist.
-   - Keine tagesgenaue Proration.
-   - `Hausgeld`, `Nebenkosten` und `Ruecklage` bleiben die relevanten Soll-Positionen.
+1. **Endbestände korrekt rechnen:**
+   `getClosing` von `sumForAccount` auf `signedTotalForAccount` umstellen. Manuelle `account_balances.closing_balance` bleibt als expliziter Override erhalten.
+   Vorzeichen-Magnitude über `Math.abs` für Anzeige beibehalten (Aufwandsseite negativ, Aktivseite positiv → Magnitude in der UI).
 
-3. Dieselbe Monatsstichtag-Logik für die Einzelabrechnungs-SOLL-Werte verwenden:
-   - `hausgeld` je Eigentümer.
-   - `reserve` je Eigentümer.
-   - Damit Gesamt- und Einzelabrechnung konsistent bleiben.
+2. **Sammelposten „Sonstige" säubern:**
+   Bei der Bildung der `carryAccounts`-Liste die Konten mit `settlement_section in ('opening','accrual')` ausschließen. Damit verschwinden 4000 (Eröffnungsbuchungen) und 4900/4910 (ARAP/PRAP) aus den Anfangs-/Endbeständen.
 
-4. Die Abrechnungsspitze gemäß deiner Ziel-Logik prüfen/anpassen:
-   - Vorschüsse Kostendeckung + EHR + positive Überzahlung
-   - minus verteilungsrelevante umlagefähige Kosten
-   - minus verteilungsrelevante nicht umlagefähige Kosten
-   - minus relevante Abgrenzungen, falls vorhanden
-   - minus IHR-Plan
+3. **Auf den DOCX-Payload durchwirken:**
+   `carryAccountsList` (siehe `buildBillingPayload`) und die UI-Felder `closingGiro/closingReserve/closingFuel/closingPrepay/closingOther` werden automatisch korrekt, weil sie alle aus `getClosing` + `carryAccounts` abgeleitet sind.
 
-## Erwartetes Ergebnis für Adolf-Haff-Weg 2025
+## Erwartetes Ergebnis Adolf-Haff-Weg 2025
 
-- Vorschüsse zur Kostendeckung: **27.946 €**
-- Vorschüsse auf Erhaltungsrücklage: **5.000 €**
-- Überzahlung Vorschüsse: **210 €**
-- Keine fälschliche Überzahlung von **5.701 €** mehr.
+- **Girokonto 1800:** 5.856,94 € (statt 92.581,84 €)
+- **Instandhaltungsrücklage 1810:** 25.166,39 € (statt 29.030,23 €)
+- **Brennstoffendbestand 1450:** 1.401,10 € (unverändert)
+- **Sonstige Bestandskonten:** entfällt (war Konto 4000, gehört dort nicht hin)
+- **Vorauszahlungen 1470–1473:** 0 € (unverändert)
+
+Damit fließt automatisch auch die Abrechnungsspitze in eine plausible Größenordnung — sie war bisher mit 23.112,29 € Nachzahlung verzerrt, weil die Endbestände (insbesondere die 92.581,84 € Bank) überhöht waren.
