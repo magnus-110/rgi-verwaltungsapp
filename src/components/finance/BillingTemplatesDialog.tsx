@@ -140,11 +140,12 @@ export function BillingTemplatesDialog({
             </div>
             <div>
               <Label className="text-xs">Typ</Label>
-              <Select value={scope} onValueChange={(v) => setScope(v as any)}>
+              <Select value={scope} onValueChange={(v) => setScope(v as Scope)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="overall">Gesamtabrechnung</SelectItem>
                   <SelectItem value="single">Einzelabrechnung</SelectItem>
+                  <SelectItem value="asset_report">Vermögensbericht</SelectItem>
                 </SelectContent>
               </Select>
             </div>
