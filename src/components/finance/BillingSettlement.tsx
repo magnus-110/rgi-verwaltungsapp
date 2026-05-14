@@ -717,7 +717,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     let owner35aHandwerker = 0;
 
     // Distributable accounts
-    const distributableAccounts = accounts.filter((a) => a.is_distributable && !isAccrualBalanceAccount(a));
+    // Inline-Toggle "Abrechnungsrelevant" respektieren: explizit false → ausblenden
+    const distributableAccounts = accounts.filter(
+      (a) => a.is_distributable && !isAccrualBalanceAccount(a) && (a as any).is_billing_relevant !== false
+    );
     distributableAccounts.forEach((acc) => {
       // IHR-Zuführung (reserve section): nimm WP-Wert 1:1 statt Buchungs-Summe
       const isReserveAcc = acc.settlement_section === "reserve";
