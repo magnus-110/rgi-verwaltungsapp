@@ -945,23 +945,30 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   };
 
   const downloadBilling = async (
-    target: "overall" | "owner" | "all",
+    target: "overall" | "owner" | "all" | "asset_report",
     format: "docx" | "pdf",
     owner?: { assignmentId: string; name: string },
   ) => {
-    const tplId = target === "overall" ? effectiveOverallTpl : effectiveSingleTpl;
+    const tplId =
+      target === "overall" ? effectiveOverallTpl
+      : target === "asset_report" ? effectiveAssetReportTpl
+      : effectiveSingleTpl;
     if (!tplId) {
       toast.error("Bitte zuerst eine Vorlage hochladen (Vorlagen-Verwaltung).");
-      setTemplatesOpen(true);
+      openTemplatesFor(target === "overall" ? "overall" : target === "asset_report" ? "asset_report" : "single");
       return;
     }
     const busyKey = target === "owner" ? owner!.assignmentId : target;
     setBusyDownload(busyKey);
     try {
       const inp = buildPayloadInputs();
-      let items: Array<{ kind: "owner" | "overall"; ownerId?: string; ownerName?: string; payload: any }> = [];
+      let items: Array<{ kind: "owner" | "overall" | "asset_report"; ownerId?: string; ownerName?: string; payload: any }> = [];
       if (target === "overall") {
         items = [{ kind: "overall", payload: buildOverallPayload(inp) }];
+      } else if (target === "asset_report") {
+        // Vermögensbericht nutzt den Overall-Payload (enthält bereits alle Bestände, Rücklagen, Brennstoff,
+        // Abgrenzungen) — Template entscheidet, welche Felder gerendert werden.
+        items = [{ kind: "asset_report", payload: { ...buildOverallPayload(inp), document_title: `Vermögensbericht ${fiscalYear}` } }];
       } else if (target === "owner") {
         items = [{ kind: "owner", ownerId: owner!.assignmentId, ownerName: owner!.name, payload: buildOwnerPayload(inp, owner!.assignmentId) }];
       } else {
@@ -976,7 +983,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       if (!accessToken) throw new Error("Bitte erneut anmelden, um die Abrechnung herunterzuladen.");
 
       // Wichtig: nicht supabase.functions.invoke() für DOCX/ZIP nutzen.
-      // Der Supabase-Client decodiert Office-Binaries teilweise als Text und beschädigt dadurch die ZIP-Struktur.
+      const filePrefix =
+        target === "asset_report" ? `Vermoegensbericht_${fiscalYear}` : `Abrechnung_${fiscalYear}`;
       const resp = await fetch(`https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-billing-document`, {
         method: "POST",
         headers: {
@@ -989,7 +997,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           fiscal_year: fiscalYear,
           mode,
           format,
-          file_prefix: `Abrechnung_${fiscalYear}`,
+          file_prefix: filePrefix,
           items,
         }),
       });
@@ -1010,7 +1018,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           ? `Einzelabrechnung_${sanitizeFilename(owner!.name)}_${fiscalYear}.${ext}`
           : target === "overall"
             ? `Gesamtabrechnung_${fiscalYear}.${ext}`
-            : `Abrechnung_${fiscalYear}.${ext}`;
+            : target === "asset_report"
+              ? `Vermoegensbericht_${fiscalYear}.${ext}`
+              : `Abrechnung_${fiscalYear}.${ext}`;
       triggerDownload(bytes, fname, mime);
       toast.success("Download bereit");
     } catch (e: any) {
