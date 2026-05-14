@@ -216,7 +216,7 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
       wirtschaftsplan: "",
     });
   }
-  const einnahmen_full = [...einnahmenPrefix, ...sectionListFromUi(sectionAccounts.income)];
+  const einnahmen_full = [...einnahmenPrefix, ...sectionListFromUi(sectionAccounts.income, { asIncome: true })];
   // Summe Einnahmen für PDF (Vorschüsse + Buchungseinnahmen wie Zinsen)
   const sumEinnahmenInkl =
     totals.totalSollKostendeckung +
