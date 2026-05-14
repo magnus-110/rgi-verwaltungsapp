@@ -10,13 +10,25 @@ import { Trash2, Upload, FileText, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
+type Scope = "single" | "overall" | "asset_report";
+
+const SCOPE_LABEL: Record<Scope, string> = {
+  overall: "Gesamtabrechnung",
+  single: "Einzelabrechnung",
+  asset_report: "Vermögensbericht",
+};
+
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   selectedSingleId?: string | null;
   selectedOverallId?: string | null;
+  selectedAssetReportId?: string | null;
   onSelectSingle?: (id: string) => void;
   onSelectOverall?: (id: string) => void;
+  onSelectAssetReport?: (id: string) => void;
+  /** Optional Filter, um den Dialog vorgefiltert auf einen Typ zu öffnen */
+  scopeFilter?: Scope;
 }
 
 export function BillingTemplatesDialog({
@@ -24,13 +36,16 @@ export function BillingTemplatesDialog({
   onOpenChange,
   selectedSingleId,
   selectedOverallId,
+  selectedAssetReportId,
   onSelectSingle,
   onSelectOverall,
+  onSelectAssetReport,
+  scopeFilter,
 }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [name, setName] = useState("");
-  const [scope, setScope] = useState<"single" | "overall">("overall");
+  const [scope, setScope] = useState<Scope>(scopeFilter ?? "overall");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
 
