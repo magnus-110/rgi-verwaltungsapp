@@ -373,7 +373,7 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
  * Baut ein Payload für die Einzelabrechnung eines Eigentümers.
  */
 export function buildOwnerPayload(inp: BillingPayloadInputs, ownerId: string) {
-  const { building, period, fiscalYear, ownerResults, assignmentsById } = inp;
+  const { building, period, fiscalYear, ownerResults, assignmentsById, totals } = inp;
   const owner = ownerResults.find((o) => o.assignmentId === ownerId);
   if (!owner) throw new Error(`Eigentümer ${ownerId} nicht gefunden`);
 
