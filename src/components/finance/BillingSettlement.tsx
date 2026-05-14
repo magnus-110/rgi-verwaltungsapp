@@ -403,7 +403,15 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   // Fallback auf manuellen Eintrag in account_balances.
   const opening4000Account = accounts.find((a: any) => a.account_number === "4000");
   const opening4000Id = opening4000Account?.id || null;
-  const carryAccounts = accounts.filter((a: any) => a.carry_forward_balance);
+  // Konto 4000 (Eröffnungsbuchungen) und 4900/4910 (ARAP/PRAP) sind technische
+  // Gegenkonten bzw. Abgrenzungen — keine echten Bestandskonten. Ausschließen,
+  // damit sie nicht als "Sonstige Bestandskonten" in den Endbeständen auftauchen.
+  const carryAccounts = accounts.filter(
+    (a: any) =>
+      a.carry_forward_balance &&
+      a.settlement_section !== "opening" &&
+      a.settlement_section !== "accrual",
+  );
   const flatBalances = balances.map((b: any) => ({
     account_id: b.account_id,
     opening_balance: b.opening_balance,
