@@ -160,9 +160,11 @@ export function BillingTemplatesDialog({
         </div>
 
         <div className="space-y-1 max-h-[400px] overflow-auto">
-          {templates.length === 0 ? (
-            <div className="text-sm text-muted-foreground text-center py-6">Noch keine Vorlagen.</div>
-          ) : templates.map((t: any) => {
+          {filteredTemplates.length === 0 ? (
+            <div className="text-sm text-muted-foreground text-center py-6">
+              {scopeFilter ? `Noch keine Vorlage für ${SCOPE_LABEL[scopeFilter]}.` : "Noch keine Vorlagen."}
+            </div>
+          ) : filteredTemplates.map((t: any) => {
             const active = isActive(t);
             return (
               <div key={t.id} className={`flex items-center justify-between border rounded p-2 ${active ? "border-primary bg-primary/5" : ""}`}>
@@ -174,7 +176,7 @@ export function BillingTemplatesDialog({
                       {active && <Badge variant="default" className="gap-1"><Check className="h-3 w-3" />Aktiv</Badge>}
                     </div>
                     <div className="text-xs text-muted-foreground truncate">
-                      {t.scope === "overall" ? "Gesamtabrechnung" : "Einzelabrechnung"}
+                      {SCOPE_LABEL[t.scope as Scope] || t.scope}
                     </div>
                   </div>
                 </div>
