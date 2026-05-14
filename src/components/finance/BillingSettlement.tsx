@@ -507,26 +507,52 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     + totalReserve            // Plan-IHR (Konto 1930 / economicPlan)
     - totalReserveWithdrawal; // Entnahmen mindern
 
-  // Helper: calculate overlap months between a cost's validity and the billing period
-  function getCostAnnualAmount(cost: any, periodFrom: string, periodTo: string) {
-    const pStart = new Date(periodFrom);
-    const pEnd = new Date(periodTo);
-    const cStart = cost.valid_from ? new Date(cost.valid_from) : pStart;
-    const cEnd = cost.valid_to ? new Date(cost.valid_to) : pEnd;
-    const effStart = cStart > pStart ? cStart : pStart;
-    const effEnd = cEnd < pEnd ? cEnd : pEnd;
-    if (effStart > effEnd) return 0;
-    // Calculate months overlap (day-precise)
-    const totalPeriodDays = (pEnd.getTime() - pStart.getTime()) / (1000 * 60 * 60 * 24) + 1;
-    const overlapDays = (effEnd.getTime() - effStart.getTime()) / (1000 * 60 * 60 * 24) + 1;
-    const overlapMonths = (overlapDays / totalPeriodDays) * 12;
-    const amount = Number(cost.amount);
-    switch (cost.interval) {
-      case "monatlich": return amount * overlapMonths;
-      case "quartal": return amount * (overlapMonths / 3);
-      case "jaehrlich": return amount * (overlapMonths / 12);
-      default: return amount * overlapMonths;
+  // ISO-Datum (YYYY-MM-DD) als LOKALES Datum parsen — verhindert UTC-Drift,
+  // bei der z. B. '2025-01-01' in DE-Zeitzone als 31.12.2024 23:00 interpretiert wird
+  // und dadurch der 01.01. aus der Gültigkeit fällt (führte zu falscher Überzahlung).
+  const parseLocalDate = (s: string | null | undefined): Date | null => {
+    if (!s) return null;
+    const m = String(s).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return new Date(s);
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  };
+
+  // Monatlicher Äquivalentbetrag aus interval + amount.
+  const monthlyEquivOfCost = (c: any): number => {
+    const amount = Number(c.amount) || 0;
+    switch (c.interval) {
+      case "monatlich": return amount;
+      case "quartal":   return amount / 3;
+      case "jaehrlich": return amount / 12;
+      default:          return amount;
     }
+  };
+
+  // Soll-Jahresbetrag: zählt für jeden Monat im Abrechnungszeitraum den Betrag,
+  // der am 1. des Monats gültig ist (HV-Office-Konvention, keine Tages-Proration).
+  function getCostAnnualAmount(
+    cost: any,
+    periodFrom: string,
+    periodTo: string,
+    assignment?: any,
+  ) {
+    const pStart = parseLocalDate(periodFrom)!;
+    const pEnd   = parseLocalDate(periodTo)!;
+    const cStart = parseLocalDate(cost.valid_from);
+    const cEnd   = parseLocalDate(cost.valid_to);
+    const aStart = assignment ? parseLocalDate(assignment.valid_from) : null;
+    const aEnd   = assignment ? parseLocalDate(assignment.valid_to)   : null;
+    const monthlyEquiv = monthlyEquivOfCost(cost);
+    let total = 0;
+    const cursor = new Date(pStart.getFullYear(), pStart.getMonth(), 1);
+    const last   = new Date(pEnd.getFullYear(),   pEnd.getMonth(),   1);
+    while (cursor <= last) {
+      const validAssignment = (!aStart || cursor >= aStart) && (!aEnd || cursor <= aEnd);
+      const validCost       = (!cStart || cursor >= cStart) && (!cEnd || cursor <= cEnd);
+      if (validAssignment && validCost) total += monthlyEquiv;
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return total;
   }
 
   // Vorschussverpflichtung — neue Logik (siehe Plan):
@@ -542,39 +568,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     const costs = a.contact_building_costs || [];
     costs.forEach((c: any) => {
       const ct = (c.cost_type || "").toLowerCase();
-      const isHausgeld = ["hausgeld", "nebenkosten"].includes(ct);
-      const isReserve = ct === "ruecklage";
-      let annual = 0;
-      const amount = Number(c.amount);
-      // Monatlicher Äquivalentbetrag (HV-Office-Konvention: Stichtag = 1. des Monats).
-      let monthlyEquiv = 0;
-      switch (c.interval) {
-        case "monatlich": monthlyEquiv = amount; break;
-        case "quartal":   monthlyEquiv = amount / 3; break;
-        case "jaehrlich": monthlyEquiv = amount / 12; break;
-        default:          monthlyEquiv = amount;
-      }
+      if (!["hausgeld", "nebenkosten", "ruecklage"].includes(ct)) return;
       if (period) {
-        const pStart = new Date(period.period_from);
-        const pEnd = new Date(period.period_to);
-        const aStart = a.valid_from ? new Date(a.valid_from) : null;
-        const aEnd   = a.valid_to   ? new Date(a.valid_to)   : null;
-        const cStart = c.valid_from ? new Date(c.valid_from) : null;
-        const cEnd   = c.valid_to   ? new Date(c.valid_to)   : null;
-        // Iteriere über jeden Monatsersten im Abrechnungszeitraum.
-        const cursor = new Date(pStart.getFullYear(), pStart.getMonth(), 1);
-        const last   = new Date(pEnd.getFullYear(), pEnd.getMonth(), 1);
-        while (cursor <= last) {
-          const validAssignment = (!aStart || cursor >= aStart) && (!aEnd || cursor <= aEnd);
-          const validCost       = (!cStart || cursor >= cStart) && (!cEnd || cursor <= cEnd);
-          if (validAssignment && validCost) annual += monthlyEquiv;
-          cursor.setMonth(cursor.getMonth() + 1);
-        }
+        sollHausgeldGesamt += getCostAnnualAmount(c, period.period_from, period.period_to, a);
       } else {
-        annual = monthlyEquiv * 12;
+        sollHausgeldGesamt += monthlyEquivOfCost(c) * 12;
       }
-      if (isHausgeld || isReserve) sollHausgeldGesamt += annual;
-      else sollHausgeldGesamt += annual;
     });
   });
 
@@ -781,58 +780,30 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         const totalIst = accountPayments.reduce((s: number, p: any) => s + Math.abs(Number(p.amount)), 0);
         hausgeld = totalIst; // IST includes everything
       } else {
-        // Fallback to SOLL
+        // Fallback to SOLL — assignment + cost validity, Stichtag = 1. des Monats.
         hausgeld = costs
           .filter((c: any) => ["hausgeld", "nebenkosten"].includes((c.cost_type || "").toLowerCase()))
-          .reduce((s: number, c: any) => {
-            if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
-            const a = Number(c.amount);
-            switch (c.interval) {
-              case "monatlich": return s + a * 12;
-              case "quartal": return s + a * 4;
-              case "jaehrlich": return s + a;
-              default: return s + a * 12;
-            }
-          }, 0) * timeProp;
+          .reduce((s: number, c: any) => period
+            ? s + getCostAnnualAmount(c, period.period_from, period.period_to, assignment)
+            : s + monthlyEquivOfCost(c) * 12, 0);
         reserve = costs
           .filter((c: any) => (c.cost_type || "").toLowerCase() === "ruecklage")
-          .reduce((s: number, c: any) => {
-            if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
-            const a = Number(c.amount);
-            switch (c.interval) {
-              case "monatlich": return s + a * 12;
-              case "quartal": return s + a * 4;
-              case "jaehrlich": return s + a;
-              default: return s + a * 12;
-            }
-          }, 0) * timeProp;
+          .reduce((s: number, c: any) => period
+            ? s + getCostAnnualAmount(c, period.period_from, period.period_to, assignment)
+            : s + monthlyEquivOfCost(c) * 12, 0);
       }
     } else {
-      // SOLL: from contact_building_costs
+      // SOLL: from contact_building_costs (Stichtag = 1. des Monats, keine Doppel-Proration).
       hausgeld = costs
         .filter((c: any) => ["hausgeld", "nebenkosten"].includes((c.cost_type || "").toLowerCase()))
-        .reduce((s: number, c: any) => {
-          if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
-          const a = Number(c.amount);
-          switch (c.interval) {
-            case "monatlich": return s + a * 12;
-            case "quartal": return s + a * 4;
-            case "jaehrlich": return s + a;
-            default: return s + a * 12;
-          }
-        }, 0) * timeProp;
+        .reduce((s: number, c: any) => period
+          ? s + getCostAnnualAmount(c, period.period_from, period.period_to, assignment)
+          : s + monthlyEquivOfCost(c) * 12, 0);
       reserve = costs
         .filter((c: any) => (c.cost_type || "").toLowerCase() === "ruecklage")
-        .reduce((s: number, c: any) => {
-          if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
-          const a = Number(c.amount);
-          switch (c.interval) {
-            case "monatlich": return s + a * 12;
-            case "quartal": return s + a * 4;
-            case "jaehrlich": return s + a;
-            default: return s + a * 12;
-          }
-        }, 0) * timeProp;
+        .reduce((s: number, c: any) => period
+          ? s + getCostAnnualAmount(c, period.period_from, period.period_to, assignment)
+          : s + monthlyEquivOfCost(c) * 12, 0);
     }
 
     const totalPaid = hausgeld + reserve;
