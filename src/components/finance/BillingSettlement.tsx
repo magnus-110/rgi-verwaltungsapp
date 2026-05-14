@@ -506,21 +506,34 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     .reduce((s, a) => s + getAccountAbsTotal(a.id), 0);
 
   // Abrechnungssumme — HV-Office-konform:
-  // Es zählen nur die VERTEILUNGSRELEVANTEN Anteile der Aufwandskonten
-  // (is_distributable=true, ohne ARAP/PRAP) plus Plan-IHR aus dem Wirtschaftsplan.
-  // Abgrenzungen sind nachrichtlich und fließen NICHT in die Spitze.
+  // Es zählen alle VERTEILUNGSRELEVANTEN Aufwandskonten der Sektionen
+  // (operating_distributable, operating_non_distributable, heating) plus
+  // Plan-IHR aus dem Wirtschaftsplan plus vorzeichenrichtige Abgrenzungen.
+  // Nicht enthalten: ARAP/PRAP-Bilanzkonten, Heating-Vorauszahlungen,
+  // Bilanzkonten 145x (Brennstoffrestbestand) und Bestandskonten 1810/1820/193x
+  // (die gehören in den Vermögensbericht bzw. werden separat als Plan-IHR addiert).
+  const isBalanceSheetAccount = (a: any) => {
+    const num = String(a.account_number || "");
+    return /^145\d$/.test(num)            // Brennstoffrestbestand
+        || /^181\d$/.test(num) || /^182\d$/.test(num)  // Rücklagen-Bestand
+        || /^193\d$/.test(num);           // Plan-IHR (separat als totalReserve)
+  };
   const getSectionDistributable = (section: string) =>
     (sectionAccounts[section] || [])
-      .filter((a: any) => a.is_distributable && !isAccrualBalanceAccount(a) && !isHeatingPrepayAccount(a))
+      .filter((a: any) => !isAccrualBalanceAccount(a) && !isHeatingPrepayAccount(a) && !isBalanceSheetAccount(a))
       .reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
   const totalOperatingDistRelevant = getSectionDistributable("operating_distributable");
   const totalOperatingNonDistRelevant = getSectionDistributable("operating_non_distributable");
   const totalHeatingRelevant = getSectionDistributable("heating");
+  // Abgrenzungen vorzeichenrichtig (4100/4180 negativ, 4120/4160 positiv)
+  const totalAccrualRelevant = (sectionAccounts["accrual"] || [])
+    .reduce((s: number, a: any) => s + (a.totalAbs || 0) * getAccrualDisplaySign(a.account_number), 0);
   const abrechnungssumme =
       totalOperatingDistRelevant
     + totalOperatingNonDistRelevant
     + totalHeatingRelevant
-    + totalReserve            // Plan-IHR (Konto 1930 / economicPlan)
+    + totalReserve            // Plan-IHR (Konto 193x / economicPlan)
+    + totalAccrualRelevant    // Abgrenzungen vorzeichenrichtig
     - totalReserveWithdrawal; // Entnahmen mindern
 
   // ISO-Datum (YYYY-MM-DD) als LOKALES Datum parsen — verhindert UTC-Drift,
