@@ -460,13 +460,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     Math.abs(openingPrepay) + Math.abs(openingOther);
 
   // Closing balances — strikt das Bewegungs-Saldo (Bank-Zentrik), identisch zur
-  // Anzeige in der oberen Konten-Liste. Manuelle account_balances.closing_balance
-  // dient nur als expliziter Override.
+  // Anzeige in der oberen Konten-Liste.
+  // WICHTIG: Manuelle account_balances.closing_balance werden NICHT mehr als Override
+  // verwendet — die Werte sind in vielen Liegenschaften veraltet (z. B. Birkenweg 6:
+  // 1800=32.223,14 statt buchhalterisch korrekt 4.378,64). Der einzig zuverlässige
+  // Endsaldo ergibt sich aus Eröffnungsbuchung 4000 + alle Bewegungen (= signedTotalForAccount
+  // über alle Buchungen, da die 4000-Buchung das Konto bereits mit dem Anfangsbestand
+  // belastet/entlastet).
   const getClosing = (acc: any) => {
-    const manual = balances.find((b: any) => b.account_id === acc.id);
-    if (manual && manual.closing_balance !== null && manual.closing_balance !== undefined && Number(manual.closing_balance) !== 0) {
-      return Number(manual.closing_balance);
-    }
     // signedTotalForAccount ist booking_type-aware: Bei bank-zentrischen
     // Buchungen werden income (+) und expense (−) korrekt saldiert. sumForAccount
     // würde stattdessen alle Beträge auf der Bankseite gleich aufsummieren.
