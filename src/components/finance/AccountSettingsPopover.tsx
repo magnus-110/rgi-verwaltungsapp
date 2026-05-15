@@ -116,6 +116,7 @@ interface AccountSettings {
   is_billing_relevant: boolean;
   is_heating_relevant: boolean;
   is_wirtschaftsplan_relevant: boolean;
+  is_asset_report_relevant?: boolean;
   carry_forward_balance: boolean;
   is_35a_relevant: boolean;
   is_reserve_funded?: boolean;
