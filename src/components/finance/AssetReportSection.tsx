@@ -243,7 +243,7 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear, ownerResu
   const filterZero = (lines: SectionLine[]) => lines.filter(l => l.keepZero || isNonZero(l.amount));
 
   const sections: Section[] = [
-    { title: "Liquide Mittel aus Bankkonten und Kasse", icon: "wallet", lines: filterZero(liquideLines) },
+    { title: "Liquide Mittel aus Bankkonten und Kasse", icon: "wallet" as const, lines: filterZero(liquideLines) },
     { title: "Guth. und Nachz. aus Abrechnung incl. Altschulden", lines: filterZero(guthabenLines) },
     { title: "Vorauszahlungen Versorger", lines: filterZero(vzLines) },
     { title: "Zu- und Abflüsse aus Jahresabgrenzung", lines: filterZero(abgFolgeLines) },
