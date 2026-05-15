@@ -373,6 +373,21 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
                           })}
                         </TableBody>
                       </Table>
+                      <div className="px-3 py-2 border-t bg-background/40">
+                        <label className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground mb-1">
+                          <StickyNote className="h-3 w-3" /> Prüfnotiz (z. B. Auffälligkeiten, Klärungsbedarf)
+                        </label>
+                        <Textarea
+                          value={getNoteValue(acc.id)}
+                          onChange={(e) => onNoteChange(acc.id, e.target.value)}
+                          onBlur={(e) => {
+                            if (saveTimers.current[acc.id]) clearTimeout(saveTimers.current[acc.id]);
+                            saveNote(acc.id, e.target.value);
+                          }}
+                          placeholder="Notiz zu diesem Konto…"
+                          className="min-h-[60px] text-sm"
+                        />
+                      </div>
                     </div>
                   </CollapsibleContent>
                 </Collapsible>
