@@ -51,6 +51,53 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
   };
   const queryClient = useQueryClient();
 
+  // Notes per account (persisted in DB)
+  const { data: notesRows = [] } = useQuery({
+    queryKey: ["account-review-notes", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("account_review_notes")
+        .select("account_id, note")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+  const notesByAccount: Record<string, string> = {};
+  for (const r of notesRows as any[]) notesByAccount[r.account_id] = r.note || "";
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const saveTimers = useRef<Record<string, any>>({});
+  const getNoteValue = (accId: string) =>
+    noteDrafts[accId] !== undefined ? noteDrafts[accId] : (notesByAccount[accId] || "");
+
+  const saveNote = async (accId: string, value: string) => {
+    const { data: u } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from("account_review_notes")
+      .upsert(
+        {
+          building_id: buildingId,
+          fiscal_year: fiscalYear,
+          account_id: accId,
+          note: value,
+          updated_by: u?.user?.id || null,
+        },
+        { onConflict: "building_id,fiscal_year,account_id" }
+      );
+    if (error) {
+      toast.error("Notiz nicht gespeichert: " + error.message);
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["account-review-notes", buildingId, fiscalYear] });
+  };
+
+  const onNoteChange = (accId: string, value: string) => {
+    setNoteDrafts((p) => ({ ...p, [accId]: value }));
+    if (saveTimers.current[accId]) clearTimeout(saveTimers.current[accId]);
+    saveTimers.current[accId] = setTimeout(() => saveNote(accId, value), 700);
+  };
+
   const { data: building } = useQuery({
     queryKey: ["building-name-review", buildingId],
     queryFn: async () => {
