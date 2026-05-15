@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, Check, AlertTriangle, CircleDot, BookOpen, Pencil, Settings2, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Check, AlertTriangle, CircleDot, BookOpen, Pencil, Settings2 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { AccountPlanView } from "./AccountPlanView";
+import { BuildingDistributionKeysTab } from "./BuildingDistributionKeysTab";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useState } from "react";
@@ -186,20 +186,11 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
 
       <Dialog open={coaOpen} onOpenChange={setCoaOpen}>
         <DialogContent className="max-w-[100vw] w-screen h-screen sm:max-w-[100vw] p-0 gap-0 rounded-none flex flex-col">
-          <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+          <div className="px-4 py-3 border-b bg-muted/30 shrink-0">
             <h2 className="text-base font-semibold">Kontenrahmen bearbeiten</h2>
-            <Button size="sm" variant="ghost" onClick={() => setCoaOpen(false)}>
-              <X className="h-4 w-4" />
-            </Button>
           </div>
           <div className="flex-1 overflow-auto p-4">
-            <AccountPlanView
-              bookings={bookings}
-              fiscalYear={fiscalYear}
-              buildingId={buildingId}
-              showAllAccounts={true}
-              onRowClick={() => {}}
-            />
+            {buildingId && <BuildingDistributionKeysTab buildingId={buildingId} />}
           </div>
         </DialogContent>
       </Dialog>
