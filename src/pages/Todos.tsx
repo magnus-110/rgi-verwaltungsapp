@@ -135,6 +135,7 @@ export function Todos() {
 
       {/* Todo lists */}
       {!isLoading && (
+        <ErrorBoundary fallbackTitle="Aufgaben konnten nicht angezeigt werden">
         <div className="space-y-4 sm:space-y-6">
           {/* Open tasks */}
           {groupedTodos.open.length > 0 && (
