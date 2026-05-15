@@ -154,23 +154,11 @@ export function AccountSettingsPopover({ account, onUpdate }: Props) {
     return (account as any)[key];
   };
 
-  const activeCount = SETTINGS_FIELDS.filter(f => {
-    if (f.type === "checkbox") return getVal(f.key) === true;
-    if (f.key === "settlement_section") return !!account.settlement_section;
-    if (f.key === "settlement_35a_type") return !!account.settlement_35a_type;
-    return false;
-  }).length;
-
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 relative">
+        <Button variant="ghost" size="icon" className="h-8 w-8">
           <MoreHorizontal className="h-4 w-4" />
-          {activeCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-primary text-[10px] text-primary-foreground flex items-center justify-center font-medium">
-              {activeCount}
-            </span>
-          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[340px] p-0" align="end" side="left">
