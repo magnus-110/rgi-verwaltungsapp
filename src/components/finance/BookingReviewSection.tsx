@@ -33,8 +33,7 @@ const formatCurrency = (n: number) =>
 
 export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSectionProps) {
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
-  const [aiChecking, setAiChecking] = useState(false);
-  const [aiResults, setAiResults] = useState<any[] | null>(null);
+  const [coaOpen, setCoaOpen] = useState(false);
   const [editBooking, setEditBooking] = useState<any | null>(null);
   const reviewedKey = `booking-review-checked:${buildingId}:${fiscalYear}`;
   const [reviewedAccounts, setReviewedAccounts] = useState<Set<string>>(() => {
