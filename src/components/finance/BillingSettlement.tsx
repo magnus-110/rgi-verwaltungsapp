@@ -1694,7 +1694,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               <TabDownloadMenu target="asset_report" label="Vermögensbericht herunterladen" scope="asset_report" busyKey="asset_report" />
             </div>
 
-            <AssetReportSection buildingId={buildingId} periodId={periodId} fiscalYear={fiscalYear} />
+            <AssetReportSection buildingId={buildingId} periodId={periodId} fiscalYear={fiscalYear} ownerResults={ownerResults} />
           </TabsContent>
         </Tabs>
       </CardContent>
