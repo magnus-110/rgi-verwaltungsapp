@@ -1691,13 +1691,13 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               <TabDownloadMenu target="asset_report" label="Vermögensbericht herunterladen" scope="asset_report" busyKey="asset_report" />
             </div>
 
-            {/* Bankkonten */}
+            {/* Bankkonten & Liquidität — abgeleitet aus carryAccountsList (Bewegungen + Eröffnungsbuchung 4000) */}
             <Card>
               <CardHeader className="py-3">
                 <CardTitle className="text-sm">Bankkonten & Liquidität</CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
-                {balances.filter((b: any) => b.chart_of_accounts?.carry_forward_balance).length > 0 ? (
+                {carryAccountsList.filter((a: any) => a.category === "bank").length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1708,12 +1708,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {balances.filter((b: any) => b.chart_of_accounts?.carry_forward_balance).map((b: any) => (
-                        <TableRow key={b.id}>
-                          <TableCell className="font-mono text-xs">{b.chart_of_accounts?.account_number}</TableCell>
-                          <TableCell className="text-sm">{b.chart_of_accounts?.account_name}</TableCell>
-                          <TableCell className="text-right font-mono text-sm text-muted-foreground">{formatCurrency(Number(b.opening_balance))}</TableCell>
-                          <TableCell className="text-right font-mono text-sm">{formatCurrency(Number(b.closing_balance))}</TableCell>
+                      {carryAccountsList.filter((a: any) => a.category === "bank").map((a: any) => (
+                        <TableRow key={a.account_number}>
+                          <TableCell className="font-mono text-xs">{a.account_number}</TableCell>
+                          <TableCell className="text-sm">{a.account_name}</TableCell>
+                          <TableCell className="text-right font-mono text-sm text-muted-foreground">{formatCurrency(a.opening)}</TableCell>
+                          <TableCell className="text-right font-mono text-sm">{formatCurrency(a.closing)}</TableCell>
                         </TableRow>
                       ))}
                       <TableRow className="font-medium border-t-2">
@@ -1724,40 +1724,33 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                     </TableBody>
                   </Table>
                 ) : (
-                  <p className="text-sm text-muted-foreground py-4 text-center">Keine Kontensalden erfasst.</p>
+                  <p className="text-sm text-muted-foreground py-4 text-center">Keine Bankkonten gefunden.</p>
                 )}
               </CardContent>
             </Card>
 
-            {/* Rücklagenentwicklung */}
+            {/* Rücklagenentwicklung — abgeleitet aus carryAccountsList */}
             <Card>
               <CardHeader className="py-3">
                 <CardTitle className="text-sm">Rücklagenentwicklung</CardTitle>
               </CardHeader>
               <CardContent className="pt-0 space-y-2">
-                {balances.filter((b: any) => b.chart_of_accounts?.category === "ruecklage").map((b: any) => (
-                  <div key={b.id} className="space-y-1 text-sm">
+                {carryAccountsList.filter((a: any) => a.category === "reserve").map((a: any) => (
+                  <div key={a.account_number} className="space-y-1 text-sm">
+                    <div className="flex justify-between font-medium">
+                      <span>{a.account_number} {a.account_name}</span>
+                    </div>
                     <div className="flex justify-between">
                       <span>Anfangsbestand</span>
-                      <span className="font-mono">{formatCurrency(Number(b.opening_balance))}</span>
+                      <span className="font-mono">{formatCurrency(a.opening)}</span>
                     </div>
-                    <div className="flex justify-between text-green-700">
-                      <span>+ Zuführungen (Plan)</span>
-                      <span className="font-mono">{formatCurrency(totalReserve)}</span>
-                    </div>
-                    {totalReserveWithdrawal > 0 && (
-                      <div className="flex justify-between text-red-700">
-                        <span>- Entnahmen</span>
-                        <span className="font-mono">{formatCurrency(totalReserveWithdrawal)}</span>
-                      </div>
-                    )}
                     <div className="flex justify-between font-medium border-t pt-1">
                       <span>Endbestand</span>
-                      <span className="font-mono">{formatCurrency(Number(b.closing_balance))}</span>
+                      <span className="font-mono">{formatCurrency(a.closing)}</span>
                     </div>
                   </div>
                 ))}
-                {balances.filter((b: any) => b.chart_of_accounts?.category === "ruecklage").length === 0 && (
+                {carryAccountsList.filter((a: any) => a.category === "reserve").length === 0 && (
                   <p className="text-sm text-muted-foreground py-2 text-center">Keine Rücklagenkonten gefunden.</p>
                 )}
               </CardContent>
