@@ -19,6 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { BillingTemplatesDialog } from "./BillingTemplatesDialog";
 import { buildOverallPayload, buildOwnerPayload, buildAssetReportPayload, type BillingPayloadInputs } from "./lib/buildBillingPayload";
 import { AssetReportItemsCard } from "./AssetReportItemsCard";
+import { AssetReportSection } from "./AssetReportSection";
 
 interface BillingSettlementProps {
   buildingId: string;
