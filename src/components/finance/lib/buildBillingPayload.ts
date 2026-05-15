@@ -388,6 +388,8 @@ export function buildOwnerPayload(inp: BillingPayloadInputs, ownerId: string) {
     stellplaetze: "TG-Stellplätze",
     personen: "Personen",
     heizk_abr: "Heizk.Abr",
+    heizkostenverordnung: "Heizkostenverordnung",
+    heating_individual: "Heizkostenverordnung",
   };
   const verteilerLabel = (k: string) => VERTEILER_LABELS[k] || k || "";
 
