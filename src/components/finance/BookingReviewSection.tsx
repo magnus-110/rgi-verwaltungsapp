@@ -14,6 +14,9 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAccountAggregation, CATEGORY_LABELS } from "./lib/useAccountAggregation";
 import { EditBookingDialog } from "./EditBookingDialog";
+import { Textarea } from "@/components/ui/textarea";
+import { useEffect, useRef } from "react";
+import { StickyNote } from "lucide-react";
 
 
 interface BookingReviewSectionProps {
