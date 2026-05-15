@@ -1692,41 +1692,55 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               <TabDownloadMenu target="asset_report" label="Vermögensbericht herunterladen" scope="asset_report" busyKey="asset_report" />
             </div>
 
-            {/* Bankkonten & Liquidität — abgeleitet aus carryAccountsList (Bewegungen + Eröffnungsbuchung 4000) */}
+            {/* Bankkonten & Liquidität — Bank + Brennstoffrestbestand + Vorauszahlungen */}
             <Card>
               <CardHeader className="py-3">
                 <CardTitle className="text-sm">Bankkonten & Liquidität</CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
-                {carryAccountsList.filter((a: any) => a.category === "bank").length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Konto</TableHead>
-                        <TableHead>Bezeichnung</TableHead>
-                        <TableHead className="text-right">Anfangsbestand</TableHead>
-                        <TableHead className="text-right">Endbestand</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {carryAccountsList.filter((a: any) => a.category === "bank").map((a: any) => (
-                        <TableRow key={a.account_number}>
-                          <TableCell className="font-mono text-xs">{a.account_number}</TableCell>
-                          <TableCell className="text-sm">{a.account_name}</TableCell>
-                          <TableCell className="text-right font-mono text-sm text-muted-foreground">{formatCurrency(a.opening)}</TableCell>
-                          <TableCell className="text-right font-mono text-sm">{formatCurrency(a.closing)}</TableCell>
+                {(() => {
+                  const liquidRows = carryAccountsList.filter(
+                    (a: any) => a.category === "bank" || a.category === "fuel" || a.category === "prepay",
+                  );
+                  if (liquidRows.length === 0) {
+                    return <p className="text-sm text-muted-foreground py-4 text-center">Keine Bestandskonten gefunden.</p>;
+                  }
+                  const labelFor = (cat: string) =>
+                    cat === "fuel" ? "Brennstoffrestbestand" : cat === "prepay" ? "Vorauszahlung" : "Bankkonto";
+                  return (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Konto</TableHead>
+                          <TableHead>Bezeichnung</TableHead>
+                          <TableHead>Art</TableHead>
+                          <TableHead className="text-right">Anfangsbestand</TableHead>
+                          <TableHead className="text-right">Endbestand</TableHead>
                         </TableRow>
-                      ))}
-                      <TableRow className="font-medium border-t-2">
-                        <TableCell colSpan={2}>Gesamtliquidität</TableCell>
-                        <TableCell className="text-right font-mono text-muted-foreground">{formatCurrency(openingTotal)}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(closingTotal)}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <p className="text-sm text-muted-foreground py-4 text-center">Keine Bankkonten gefunden.</p>
-                )}
+                      </TableHeader>
+                      <TableBody>
+                        {liquidRows.map((a: any) => (
+                          <TableRow key={a.account_number}>
+                            <TableCell className="font-mono text-xs">{a.account_number}</TableCell>
+                            <TableCell className="text-sm">{a.account_name}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{labelFor(a.category)}</TableCell>
+                            <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                              {formatCurrency(Math.abs(a.opening))}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-sm">
+                              {formatCurrency(Math.abs(a.closing))}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        <TableRow className="font-medium border-t-2">
+                          <TableCell colSpan={3}>Gesamtliquidität</TableCell>
+                          <TableCell className="text-right font-mono text-muted-foreground">{formatCurrency(openingTotal)}</TableCell>
+                          <TableCell className="text-right font-mono">{formatCurrency(closingTotal)}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  );
+                })()}
               </CardContent>
             </Card>
 
@@ -1743,11 +1757,11 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                     </div>
                     <div className="flex justify-between">
                       <span>Anfangsbestand</span>
-                      <span className="font-mono">{formatCurrency(a.opening)}</span>
+                      <span className="font-mono">{formatCurrency(Math.abs(a.opening))}</span>
                     </div>
                     <div className="flex justify-between font-medium border-t pt-1">
                       <span>Endbestand</span>
-                      <span className="font-mono">{formatCurrency(a.closing)}</span>
+                      <span className="font-mono">{formatCurrency(Math.abs(a.closing))}</span>
                     </div>
                   </div>
                 ))}
@@ -1756,6 +1770,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                 )}
               </CardContent>
             </Card>
+
+            {/* Manuell erfasste weitere Vermögenswerte */}
+            <AssetReportItemsCard buildingId={buildingId} fiscalYear={fiscalYear} />
 
             {/* Offene Verbindlichkeiten */}
             {openInvoices.length > 0 && (
