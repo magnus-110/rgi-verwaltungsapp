@@ -260,27 +260,27 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           .eq("is_inline", false);
         if (error) throw error;
         if (!atts || atts.length === 0) return;
+        // Copy original attachments to a new "outgoing/" path in storage so
+        // the edge function can stream them without loading base64 into memory.
+        // Avoids OOM when forwarding emails with large attachments.
         const loaded = await Promise.all(
           atts
             .filter((a) => a.file_path)
             .map(async (a) => {
-              const { data: blob, error: dlErr } = await supabase.storage
+              const safeName = String(a.file_name || "attachment").replace(/[^\w.\-]+/g, "_");
+              const newPath = `outgoing/${crypto.randomUUID()}/${safeName}`;
+              const { error: cpErr } = await supabase.storage
                 .from("email-attachments")
-                .download(a.file_path!);
-              if (dlErr || !blob) return null;
-              const buf = await blob.arrayBuffer();
-              let binary = "";
-              const bytes = new Uint8Array(buf);
-              const chunk = 0x8000;
-              for (let i = 0; i < bytes.length; i += chunk) {
-                binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)) as any);
+                .copy(a.file_path!, newPath);
+              if (cpErr) {
+                console.error("Forward attachment copy failed:", cpErr.message);
+                return null;
               }
-              const content = btoa(binary);
               return {
                 filename: a.file_name,
-                content,
+                storage_path: newPath,
                 contentType: a.mime_type || "application/octet-stream",
-                size: a.file_size || bytes.length,
+                size: a.file_size || 0,
               };
             }),
         );
