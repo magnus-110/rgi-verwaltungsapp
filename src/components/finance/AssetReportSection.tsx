@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Wallet, Flame } from "lucide-react";
-import { getEffectiveClosingBalance } from "./lib/bookingAggregation";
+import { getEffectiveOpeningBalance, signedTotalForAccount } from "./lib/bookingAggregation";
 import { getAccrualDisplaySign } from "./lib/accrualSign";
 import { AssetReportItemsCard } from "./AssetReportItemsCard";
 
