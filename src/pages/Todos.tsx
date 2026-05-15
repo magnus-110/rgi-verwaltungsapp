@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, Download, ChevronDown, ChevronUp } from "lucide-react";
 import { useTodos, Todo, TodoFilters as TodoFiltersType, isOverdue, useSoftDeleteTodo } from "@/hooks/useTodos";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { TodoFilters } from "@/components/todos/TodoFilters";
 import { TodoCard } from "@/components/todos/TodoCard";
 import { TodoDialog } from "@/components/todos/TodoDialog";
@@ -134,6 +135,7 @@ export function Todos() {
 
       {/* Todo lists */}
       {!isLoading && (
+        <ErrorBoundary fallbackTitle="Aufgaben konnten nicht angezeigt werden">
         <div className="space-y-4 sm:space-y-6">
           {/* Open tasks */}
           {groupedTodos.open.length > 0 && (
@@ -224,6 +226,7 @@ export function Todos() {
             </div>
           )}
         </div>
+        </ErrorBoundary>
       )}
 
       {/* Dialogs */}

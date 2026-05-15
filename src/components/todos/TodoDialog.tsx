@@ -190,11 +190,9 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
     localStorage.removeItem(STORAGE_KEY);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
-
-    setUploading(true);
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!title.trim() || isPending) return;
 
     try {
       if (mode === 'create') {
@@ -216,40 +214,40 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
           subtasks: subtasks.length > 0 ? subtasks : undefined,
         };
 
-        createTodo.mutate(input, {
-          onSuccess: async (newTodo) => {
-            // Upload files after todo is created
-            if (files.length > 0 && newTodo) {
-              const uploadedAttachments = [];
-              for (const file of files) {
-                const fileExt = file.name.split('.').pop();
-                const fileName = `${newTodo.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const newTodo = await createTodo.mutateAsync(input);
 
-                const { error } = await supabase.storage
-                  .from('todo-attachments')
-                  .upload(fileName, file);
-
-                if (!error) {
-                  uploadedAttachments.push({
-                    name: file.name,
-                    path: fileName,
-                    size: file.size,
-                    type: file.type,
-                  });
-                }
-              }
-
-              if (uploadedAttachments.length > 0) {
-                await supabase
-                  .from('todos')
-                  .update({ attachments: uploadedAttachments })
-                  .eq('id', newTodo.id);
+        // Upload files after todo is created
+        if (files.length > 0 && newTodo) {
+          setUploading(true);
+          try {
+            const uploadedAttachments: any[] = [];
+            for (const file of files) {
+              const fileExt = file.name.split('.').pop();
+              const fileName = `${newTodo.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+              const { error } = await supabase.storage
+                .from('todo-attachments')
+                .upload(fileName, file);
+              if (!error) {
+                uploadedAttachments.push({
+                  name: file.name,
+                  path: fileName,
+                  size: file.size,
+                  type: file.type,
+                });
               }
             }
-            clearForm();
-            onOpenChange(false);
-          },
-        });
+            if (uploadedAttachments.length > 0) {
+              await supabase
+                .from('todos')
+                .update({ attachments: uploadedAttachments })
+                .eq('id', newTodo.id);
+            }
+          } finally {
+            setUploading(false);
+          }
+        }
+        clearForm();
+        onOpenChange(false);
       } else if (mode === 'edit' && todo) {
         const updatePayload: any = {
           id: todo.id,
@@ -266,15 +264,14 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
           recurrence_interval: isRecurring ? recurrenceInterval : null,
           recurrence_end_date: isRecurring ? recurrenceEndDate : null,
         };
-        // Add arrays for junction tables separately to avoid type issues
         updatePayload.assignees = assignees;
         updatePayload.building_ids = buildingIds;
-        
-        updateTodo.mutate(updatePayload, {
-          onSuccess: () => onOpenChange(false),
-        });
+
+        await updateTodo.mutateAsync(updatePayload);
+        onOpenChange(false);
       }
-    } finally {
+    } catch (err) {
+      console.error('TodoDialog submit failed:', err);
       setUploading(false);
     }
   };
@@ -300,14 +297,14 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>
               {mode === 'create' ? 'Neue Aufgabe erstellen' : 'Aufgabe bearbeiten'}
             </DialogTitle>
           </DialogHeader>
 
-          <ScrollArea className="max-h-[calc(90vh-150px)]">
+          <ScrollArea className="flex-1 min-h-0">
             <form onSubmit={handleSubmit} className="space-y-4 pr-4">
               {/* Title */}
               <div className="space-y-2">
@@ -537,11 +534,11 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
             </form>
           </ScrollArea>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="shrink-0">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
               Abbrechen
             </Button>
-            <Button onClick={handleSubmit} disabled={!title.trim() || isPending}>
+            <Button type="button" onClick={handleSubmit} disabled={!title.trim() || isPending}>
               {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {mode === 'create' ? 'Erstellen' : 'Speichern'}
             </Button>
