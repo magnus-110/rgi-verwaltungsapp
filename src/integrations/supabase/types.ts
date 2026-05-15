@@ -188,6 +188,53 @@ export type Database = {
           },
         ]
       }
+      asset_report_items: {
+        Row: {
+          amount: number
+          building_id: string
+          created_at: string
+          created_by: string | null
+          fiscal_year: number
+          id: string
+          label: string
+          notes: string | null
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          building_id: string
+          created_at?: string
+          created_by?: string | null
+          fiscal_year: number
+          id?: string
+          label: string
+          notes?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          building_id?: string
+          created_at?: string
+          created_by?: string | null
+          fiscal_year?: number
+          id?: string
+          label?: string
+          notes?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_report_items_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_reconciliations: {
         Row: {
           bank_account_id: string
