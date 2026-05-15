@@ -2221,6 +2221,7 @@ export type Database = {
           default_vat_rate: number | null
           id: string
           is_35a_relevant: boolean | null
+          is_asset_report_relevant: boolean
           is_billing_relevant: boolean
           is_distributable: boolean
           is_heating_relevant: boolean
@@ -2244,6 +2245,7 @@ export type Database = {
           default_vat_rate?: number | null
           id?: string
           is_35a_relevant?: boolean | null
+          is_asset_report_relevant?: boolean
           is_billing_relevant?: boolean
           is_distributable?: boolean
           is_heating_relevant?: boolean
@@ -2267,6 +2269,7 @@ export type Database = {
           default_vat_rate?: number | null
           id?: string
           is_35a_relevant?: boolean | null
+          is_asset_report_relevant?: boolean
           is_billing_relevant?: boolean
           is_distributable?: boolean
           is_heating_relevant?: boolean
