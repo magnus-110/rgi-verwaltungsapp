@@ -3,14 +3,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Wallet, Flame } from "lucide-react";
-import { getEffectiveOpeningBalance, signedTotalForAccount } from "./lib/bookingAggregation";
-import { getAccrualDisplaySign } from "./lib/accrualSign";
+import { signedTotalForAccount } from "./lib/bookingAggregation";
 import { AssetReportItemsCard } from "./AssetReportItemsCard";
+
+interface OwnerResultLike {
+  result: number; // >0 = Guthaben Eigentümer, <0 = Nachzahlung Eigentümer
+}
 
 interface AssetReportSectionProps {
   buildingId: string;
   periodId: string;
   fiscalYear: number;
+  /** Optional: Wenn aus BillingSettlement übergeben, wird Guth./Nachz. korrekt befüllt. */
+  ownerResults?: OwnerResultLike[];
 }
 
 interface SectionLine {
@@ -18,20 +23,34 @@ interface SectionLine {
   label: string;
   account_number?: string;
   amount: number;
+  /** true = Zeile auch bei 0 anzeigen (Excel-Vorlage erwartet feste Zeilen) */
+  keepZero?: boolean;
 }
 
 interface Section {
   title: string;
+  icon?: "wallet" | "flame";
   lines: SectionLine[];
+  /** true = Sektion auch ohne Zeilen mit "Keine Posten" einblenden */
+  alwaysShow?: boolean;
 }
 
-export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetReportSectionProps) {
+export function AssetReportSection({ buildingId, periodId, fiscalYear, ownerResults }: AssetReportSectionProps) {
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
 
   const { data: ctx, isLoading } = useQuery({
-    queryKey: ["asset-report-ctx", buildingId, fiscalYear, periodId],
+    queryKey: ["asset-report-ctx-v2", buildingId, fiscalYear, periodId],
     queryFn: async () => {
+      // Periode laden, um booking_date-basiert zu filtern (statt blind nach fiscal_year)
+      const periodRes = await supabase
+        .from("billing_periods")
+        .select("period_from, period_to")
+        .eq("id", periodId)
+        .maybeSingle();
+      const periodFrom = periodRes.data?.period_from || `${fiscalYear}-01-01`;
+      const periodTo = periodRes.data?.period_to || `${fiscalYear}-12-31`;
+
       const [accRes, bkRes, balRes, fuelRes, itemsRes] = await Promise.all([
         supabase
           .from("chart_of_accounts")
@@ -39,9 +58,10 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
           .or(`building_id.is.null,building_id.eq.${buildingId}`),
         supabase
           .from("bookings")
-          .select("account_id, counter_account_id, amount, booking_date")
+          .select("account_id, counter_account_id, amount, booking_date, booking_type")
           .eq("building_id", buildingId)
-          .eq("fiscal_year", fiscalYear)
+          .gte("booking_date", periodFrom)
+          .lte("booking_date", periodTo)
           .neq("status", "cancelled"),
         supabase
           .from("account_balances")
@@ -49,8 +69,8 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
           .eq("building_id", buildingId)
           .eq("fiscal_year", fiscalYear),
         supabase
-          .from("fuel_inventory" as any)
-          .select("fuel_type, entry_type, quantity, total_price, end_value_eur")
+          .from("fuel_inventory")
+          .select("entry_type, quantity, total_price, billing_period_id")
           .eq("building_id", buildingId)
           .or(`billing_period_id.eq.${periodId},billing_period_id.is.null`),
         supabase
@@ -80,30 +100,30 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
   const fuelEntries: any[] = ctx?.fuelEntries ?? [];
   const manualItems = ctx?.manualItems ?? [];
 
-  const opening4000Id = accounts.find((a: any) => a.account_number === "4000")?.id || null;
-
-  const isOpeningBooking = (b: any) =>
-    opening4000Id &&
-    typeof b.booking_date === "string" &&
-    b.booking_date.startsWith(`${fiscalYear}-01-`) &&
-    (b.account_id === opening4000Id || b.counter_account_id === opening4000Id);
-
-  const movementBookings = bookings.filter((b: any) => !isOpeningBooking(b));
-
+  // ============================================================
+  //  Saldo-Berechnung — IDENTISCH zur Doppik im Kontenrahmen
+  //  signedTotalForAccount summiert über ALLE Periodenbuchungen
+  //  inkl. Eröffnungsbuchung 4000 (booking_type-aware).
+  // ============================================================
   const closingFor = (acc: any): number => {
+    const signed = signedTotalForAccount(acc.id, bookings as any);
+    if (Math.abs(signed) >= 0.005) return signed;
+    // Fallback: manueller Eintrag in account_balances (z. B. Altbestände
+    // ohne Buchungen). closing_balance hat Vorrang vor opening_balance.
     const manual = balances.find((b: any) => b.account_id === acc.id);
-    if (manual && manual.closing_balance !== null && manual.closing_balance !== undefined && Number(manual.closing_balance) !== 0) {
+    if (manual?.closing_balance != null && Number(manual.closing_balance) !== 0) {
       return Number(manual.closing_balance);
     }
-    const opening = getEffectiveOpeningBalance(acc.id, bookings as any, balances as any, fiscalYear, opening4000Id);
-    const movements = signedTotalForAccount(acc.id, movementBookings as any);
-    return opening.amount + movements;
+    if (manual?.opening_balance != null && Number(manual.opening_balance) !== 0) {
+      return Number(manual.opening_balance);
+    }
+    return 0;
   };
 
-  // Brennstoffrestbestand-Wert (closing_balance Einträge)
+  // Heizöl-Endbestand (closing_balance Einträge)
   const fuelClosingValue = fuelEntries
     .filter(e => e.entry_type === "closing_balance")
-    .reduce((s, e) => s + (Number(e.total_price ?? e.end_value_eur) || 0), 0);
+    .reduce((s, e) => s + (Number(e.total_price) || 0), 0);
 
   // Nur Konten mit Flag berücksichtigen
   const relevantAccs = accounts.filter((a: any) => a.is_asset_report_relevant === true);
@@ -111,65 +131,100 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
   const inRange = (n: number, lo: number, hi: number) => n >= lo && n <= hi;
   const accNum = (a: any) => parseInt(String(a.account_number), 10);
 
-  const isLiquide = (a: any) => {
+  const isBank = (a: any) => {
     const n = accNum(a);
     return inRange(n, 1800, 1899) || a.settlement_section === "bank";
   };
-  const isVorauszahlung = (a: any) => {
+  const isVorauszahlung = (a: any) => inRange(accNum(a), 1470, 1473);
+  const isFuelStock = (a: any) => accNum(a) === 1450;
+  // Forderungen zum Jahresende = Vorjahres-Bezug (4100–4139)
+  const isForderung = (a: any) => {
     const n = accNum(a);
-    return inRange(n, 1470, 1473);
+    return inRange(n, 4100, 4119) || inRange(n, 4120, 4139);
   };
-  const isAbrSpitze = (a: any) => {
+  // Zu-/Abflüsse aus Jahresabgrenzung = Folgejahr-Bezug (4140–4199)
+  const isAbgrenzungFolgejahr = (a: any) => {
     const n = accNum(a);
-    return n === 1700 || n === 1710;
+    return inRange(n, 4140, 4159) || inRange(n, 4160, 4179) || inRange(n, 4180, 4199);
   };
-  const isAbgrenzung = (a: any) => {
-    const n = accNum(a);
-    return inRange(n, 4100, 4119) || inRange(n, 4120, 4139) || inRange(n, 4160, 4179) || inRange(n, 4180, 4199);
-  };
+
   const accrualLabel = (a: any): string => {
     const n = accNum(a);
     if (inRange(n, 4100, 4119)) return "Ausg. im lfd. J. für Vorjahr";
     if (inRange(n, 4120, 4139)) return "Einn. im lfd. J. für Vorjahr";
+    if (inRange(n, 4140, 4159)) return "Einn. im lfd. J. für Folgejahr";
     if (inRange(n, 4160, 4179)) return "Ausg. im Folgejahr für lfd. J.";
     if (inRange(n, 4180, 4199)) return "Einn. im Folgejahr für lfd. J.";
     return a.account_name;
   };
 
-  // Sektion 1: Liquide Mittel aus Bankkonten und Kasse
-  const liquideAccs = relevantAccs.filter(isLiquide).sort((a, b) => a.account_number.localeCompare(b.account_number));
+  // ============================================================
+  //  Sektion 1: Liquide Mittel aus Bankkonten und Kasse
+  //  inkl. Heizölrestbestand (Excel-Konvention)
+  // ============================================================
+  const bankAccs = relevantAccs.filter(isBank).sort((a, b) => a.account_number.localeCompare(b.account_number));
+  // Konto 1450 wird durch fuel_inventory abgebildet — wenn vorhanden, COA-Konto unterdrücken.
+  const fuelStockAccs = relevantAccs.filter(isFuelStock);
   const liquideLines: SectionLine[] = [];
   if (fuelClosingValue !== 0) {
     liquideLines.push({ key: "fuel", label: "Heizölrestbestand", amount: fuelClosingValue });
+  } else {
+    fuelStockAccs.forEach(a => {
+      liquideLines.push({ key: a.id, label: "Heizölrestbestand", account_number: a.account_number, amount: closingFor(a) });
+    });
   }
-  liquideAccs.forEach(a => {
+  bankAccs.forEach(a => {
     liquideLines.push({ key: a.id, label: a.account_name, account_number: a.account_number, amount: closingFor(a) });
   });
 
-  // Sektion 2: Guth. und Nachz. aus Abrechnung
-  const abrAccs = relevantAccs.filter(isAbrSpitze).sort((a, b) => a.account_number.localeCompare(b.account_number));
-  const abrLines: SectionLine[] = abrAccs.map(a => ({
-    key: a.id, label: a.account_name, account_number: a.account_number, amount: closingFor(a),
-  }));
+  // ============================================================
+  //  Sektion 2: Guth. und Nachz. aus Abrechnung
+  //  Quelle: ownerResults aus BillingSettlement (sonst leer)
+  // ============================================================
+  const sumGuthabenOwner = (ownerResults || []).reduce((s, o) => s + Math.max(0, o.result), 0);
+  const sumNachzahlungOwner = (ownerResults || []).reduce((s, o) => s + Math.max(0, -o.result), 0);
+  const guthabenLines: SectionLine[] = ownerResults
+    ? [
+        { key: "guthaben", label: "Guthaben aus Abr.", amount: -sumGuthabenOwner, keepZero: true },
+        { key: "nachzahlung", label: "Nachzahlung aus Abr.", amount: sumNachzahlungOwner, keepZero: true },
+      ]
+    : [];
 
-  // Sektion 3: Vorauszahlungen Versorger
+  // ============================================================
+  //  Sektion 3: Vorauszahlungen Versorger (1470–1473)
+  // ============================================================
   const vzAccs = relevantAccs.filter(isVorauszahlung).sort((a, b) => a.account_number.localeCompare(b.account_number));
   const vzLines: SectionLine[] = vzAccs.map(a => ({
     key: a.id, label: a.account_name, account_number: a.account_number, amount: closingFor(a),
   }));
 
-  // Sektion 4: Zu- und Abflüsse aus Jahresabgrenzung (Vorzeichen-Konvention)
-  const abgAccs = relevantAccs.filter(isAbgrenzung).sort((a, b) => a.account_number.localeCompare(b.account_number));
-  const abgLines: SectionLine[] = abgAccs.map(a => {
-    const raw = closingFor(a);
-    const signed = Math.abs(raw) * getAccrualDisplaySign(a.account_number);
-    return { key: a.id, label: accrualLabel(a), account_number: a.account_number, amount: signed };
-  });
+  // ============================================================
+  //  Sektion 4: Zu- und Abflüsse aus Jahresabgrenzung (Folgejahr-Bezug)
+  //  Echter signierter Saldo, KEINE künstliche Vorzeichendrehung.
+  // ============================================================
+  const abgFolgeAccs = relevantAccs.filter(isAbgrenzungFolgejahr).sort((a, b) => a.account_number.localeCompare(b.account_number));
+  const abgFolgeLines: SectionLine[] = abgFolgeAccs.map(a => ({
+    key: a.id, label: accrualLabel(a), account_number: a.account_number, amount: closingFor(a),
+  }));
 
-  // Sektion 5: Sonstige Vermögensposten — alle weiteren Flag-Konten + manuelle Items
+  // ============================================================
+  //  Sektion 5: Forderungen zum Jahresende (Vorjahres-Bezug)
+  // ============================================================
+  const forderungAccs = relevantAccs.filter(isForderung).sort((a, b) => a.account_number.localeCompare(b.account_number));
+  const forderungLines: SectionLine[] = forderungAccs.map(a => ({
+    key: a.id, label: accrualLabel(a), account_number: a.account_number, amount: closingFor(a),
+  }));
+
+  // ============================================================
+  //  Sektion 6: Sonstige Vermögensposten — alle weiteren Flag-Konten
+  //  + manuelle Items aus asset_report_items
+  // ============================================================
   const handledIds = new Set([
-    ...liquideAccs.map(a => a.id), ...abrAccs.map(a => a.id),
-    ...vzAccs.map(a => a.id), ...abgAccs.map(a => a.id),
+    ...bankAccs.map(a => a.id),
+    ...fuelStockAccs.map(a => a.id),
+    ...vzAccs.map(a => a.id),
+    ...abgFolgeAccs.map(a => a.id),
+    ...forderungAccs.map(a => a.id),
   ]);
   const sonstigeAccs = relevantAccs
     .filter(a => !handledIds.has(a.id))
@@ -181,18 +236,18 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
     ...manualItems
       .slice()
       .sort((a, b) => a.label.localeCompare(b.label, "de"))
-      .map(i => ({ key: `manual-${i.id}`, label: i.label, amount: Number(i.amount) || 0 })),
+      .map(i => ({ key: `manual-${i.id}`, label: i.label, amount: Number(i.amount) || 0, keepZero: true })),
   ];
 
   const isNonZero = (n: number) => Math.abs(n) >= 0.005;
-  const filterZero = (lines: SectionLine[]) =>
-    lines.filter(l => typeof l.key === "string" && l.key.startsWith("manual-") ? true : isNonZero(l.amount));
+  const filterZero = (lines: SectionLine[]) => lines.filter(l => l.keepZero || isNonZero(l.amount));
 
   const sections: Section[] = [
-    { title: "Liquide Mittel aus Bankkonten und Kasse", lines: filterZero(liquideLines) },
-    { title: "Guth. und Nachz. aus Abrechnung incl. Altschulden", lines: filterZero(abrLines) },
+    { title: "Liquide Mittel aus Bankkonten und Kasse", icon: "wallet" as const, lines: filterZero(liquideLines) },
+    { title: "Guth. und Nachz. aus Abrechnung incl. Altschulden", lines: filterZero(guthabenLines) },
     { title: "Vorauszahlungen Versorger", lines: filterZero(vzLines) },
-    { title: "Zu- und Abflüsse aus Jahresabgrenzung", lines: filterZero(abgLines) },
+    { title: "Zu- und Abflüsse aus Jahresabgrenzung", lines: filterZero(abgFolgeLines) },
+    { title: "Forderungen zum Jahresende", lines: filterZero(forderungLines) },
     { title: "Sonstige Vermögensposten", lines: filterZero(sonstigeLines) },
   ].filter(s => s.lines.length > 0);
 
@@ -208,7 +263,10 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
       <p className="text-sm text-muted-foreground">
         Vermögensstand zum 31.12.{fiscalYear}. Es werden ausschließlich Konten ausgewiesen, die als
         <strong> Vermögensbericht-relevant (VB)</strong> markiert sind, sowie manuell erfasste Posten.
-        Abgrenzungskonten (4100/4120/4160/4180) fließen mit dem für das Wirtschaftsjahr korrekten Vorzeichen ein.
+        Salden entsprechen 1:1 dem Kontenrahmen (signierter Saldo aus Eröffnungsbuchung 4000 + alle Bewegungen).
+        {!ownerResults && (
+          <> Hinweis: Guthaben/Nachzahlungen aus der Abrechnung werden nur in der Abrechnungs-Ansicht eingespeist.</>
+        )}
       </p>
 
       {sections.map((sec) => {
@@ -217,7 +275,7 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
           <Card key={sec.title}>
             <CardHeader className="py-3">
               <CardTitle className="text-sm flex items-center gap-2">
-                {sec.title === "Liquide Mittel aus Bankkonten und Kasse" ? <Wallet className="h-4 w-4" /> : null}
+                {sec.icon === "wallet" ? <Wallet className="h-4 w-4" /> : null}
                 {sec.title}
               </CardTitle>
             </CardHeader>
@@ -259,18 +317,16 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
         <Card className="border-amber-200 bg-amber-50/50">
           <CardContent className="py-2 flex items-center gap-2 text-xs text-muted-foreground">
             <Flame className="h-3.5 w-3.5" />
-            Heizölrestbestand wird automatisch aus der Brennstoff-Inventur (closing_balance) übernommen.
+            Heizölrestbestand wird aus <code>fuel_inventory</code> (closing_balance) übernommen und in „Liquide Mittel" ausgewiesen.
           </CardContent>
         </Card>
       )}
 
-      {/* Vermögensstand */}
+      {/* Vermögensstand-Endsumme */}
       <Card className="border-primary/30 bg-primary/5">
-        <CardContent className="py-4">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold">Vermögensstand zum 31.12.{fiscalYear}</span>
-            <span className="text-lg font-bold font-mono">{formatCurrency(grandTotal)}</span>
-          </div>
+        <CardContent className="py-3 flex items-center justify-between">
+          <span className="font-semibold text-sm">Vermögensstand zum 31.12.{fiscalYear}</span>
+          <span className="font-mono font-semibold">{formatCurrency(grandTotal)}</span>
         </CardContent>
       </Card>
     </div>
