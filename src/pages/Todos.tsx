@@ -226,6 +226,7 @@ export function Todos() {
             </div>
           )}
         </div>
+        </ErrorBoundary>
       )}
 
       {/* Dialogs */}
