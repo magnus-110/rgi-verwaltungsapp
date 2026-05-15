@@ -378,9 +378,9 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       const toAddresses = compose.to.split(",").map((e) => e.trim()).filter(Boolean);
       const ccAddresses = compose.cc ? compose.cc.split(",").map((e) => e.trim()).filter(Boolean) : [];
       const bccAddresses = compose.bcc ? compose.bcc.split(",").map((e) => e.trim()).filter(Boolean) : [];
-      // Upload large attachments (>1MB) to storage to avoid edge function payload/memory limits.
-      // Smaller files go inline as base64 for backwards compatibility.
-      const INLINE_LIMIT = 1024 * 1024; // 1 MB
+      // Upload almost all attachments to storage to avoid edge function memory limits.
+      // Only tiny files (<128KB) may be sent inline as base64.
+      const INLINE_LIMIT = 128 * 1024; // 128 KB
       const attachmentData = await Promise.all(
         compose.attachments.map(async (att) => {
           if (att.file.size > INLINE_LIMIT) {
