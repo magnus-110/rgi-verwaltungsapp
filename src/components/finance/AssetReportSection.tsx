@@ -82,13 +82,22 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
 
   const opening4000Id = accounts.find((a: any) => a.account_number === "4000")?.id || null;
 
+  const isOpeningBooking = (b: any) =>
+    opening4000Id &&
+    typeof b.booking_date === "string" &&
+    b.booking_date.startsWith(`${fiscalYear}-01-`) &&
+    (b.account_id === opening4000Id || b.counter_account_id === opening4000Id);
+
+  const movementBookings = bookings.filter((b: any) => !isOpeningBooking(b));
+
   const closingFor = (acc: any): number => {
-    const eff = getEffectiveClosingBalance(acc.id, bookings as any, balances as any, fiscalYear, opening4000Id);
     const manual = balances.find((b: any) => b.account_id === acc.id);
     if (manual && manual.closing_balance !== null && manual.closing_balance !== undefined && Number(manual.closing_balance) !== 0) {
       return Number(manual.closing_balance);
     }
-    return eff.amount;
+    const opening = getEffectiveOpeningBalance(acc.id, bookings as any, balances as any, fiscalYear, opening4000Id);
+    const movements = signedTotalForAccount(acc.id, movementBookings as any);
+    return opening.amount + movements;
   };
 
   // Brennstoffrestbestand-Wert (closing_balance Einträge)
