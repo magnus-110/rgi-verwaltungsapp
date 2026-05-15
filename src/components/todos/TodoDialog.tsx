@@ -297,14 +297,14 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>
               {mode === 'create' ? 'Neue Aufgabe erstellen' : 'Aufgabe bearbeiten'}
             </DialogTitle>
           </DialogHeader>
 
-          <ScrollArea className="max-h-[calc(90vh-150px)]">
+          <ScrollArea className="flex-1 min-h-0">
             <form onSubmit={handleSubmit} className="space-y-4 pr-4">
               {/* Title */}
               <div className="space-y-2">
