@@ -19,6 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { BillingTemplatesDialog } from "./BillingTemplatesDialog";
 import { buildOverallPayload, buildOwnerPayload, buildAssetReportPayload, type BillingPayloadInputs } from "./lib/buildBillingPayload";
 import { AssetReportItemsCard } from "./AssetReportItemsCard";
+import { AssetReportSection } from "./AssetReportSection";
 
 interface BillingSettlementProps {
   buildingId: string;
@@ -1693,142 +1694,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               <TabDownloadMenu target="asset_report" label="Vermögensbericht herunterladen" scope="asset_report" busyKey="asset_report" />
             </div>
 
-            {/* Bankkonten & Liquidität — Bank + Brennstoffrestbestand + Vorauszahlungen */}
-            <Card>
-              <CardHeader className="py-3">
-                <CardTitle className="text-sm">Bankkonten & Liquidität</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {(() => {
-                  const liquidRows = carryAccountsList.filter(
-                    (a: any) => a.category === "bank" || a.category === "fuel" || a.category === "prepay",
-                  );
-                  if (liquidRows.length === 0) {
-                    return <p className="text-sm text-muted-foreground py-4 text-center">Keine Bestandskonten gefunden.</p>;
-                  }
-                  const labelFor = (cat: string) =>
-                    cat === "fuel" ? "Brennstoffrestbestand" : cat === "prepay" ? "Vorauszahlung" : "Bankkonto";
-                  return (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Konto</TableHead>
-                          <TableHead>Bezeichnung</TableHead>
-                          <TableHead>Art</TableHead>
-                          <TableHead className="text-right">Anfangsbestand</TableHead>
-                          <TableHead className="text-right">Endbestand</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {liquidRows.map((a: any) => (
-                          <TableRow key={a.account_number}>
-                            <TableCell className="font-mono text-xs">{a.account_number}</TableCell>
-                            <TableCell className="text-sm">{a.account_name}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{labelFor(a.category)}</TableCell>
-                            <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                              {formatCurrency(Math.abs(a.opening))}
-                            </TableCell>
-                            <TableCell className="text-right font-mono text-sm">
-                              {formatCurrency(Math.abs(a.closing))}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                        <TableRow className="font-medium border-t-2">
-                          <TableCell colSpan={3}>Gesamtliquidität</TableCell>
-                          <TableCell className="text-right font-mono text-muted-foreground">{formatCurrency(openingTotal)}</TableCell>
-                          <TableCell className="text-right font-mono">{formatCurrency(closingTotal)}</TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  );
-                })()}
-              </CardContent>
-            </Card>
-
-            {/* Rücklagenentwicklung — abgeleitet aus carryAccountsList */}
-            <Card>
-              <CardHeader className="py-3">
-                <CardTitle className="text-sm">Rücklagenentwicklung</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0 space-y-2">
-                {carryAccountsList.filter((a: any) => a.category === "reserve").map((a: any) => (
-                  <div key={a.account_number} className="space-y-1 text-sm">
-                    <div className="flex justify-between font-medium">
-                      <span>{a.account_number} {a.account_name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Anfangsbestand</span>
-                      <span className="font-mono">{formatCurrency(Math.abs(a.opening))}</span>
-                    </div>
-                    <div className="flex justify-between font-medium border-t pt-1">
-                      <span>Endbestand</span>
-                      <span className="font-mono">{formatCurrency(Math.abs(a.closing))}</span>
-                    </div>
-                  </div>
-                ))}
-                {carryAccountsList.filter((a: any) => a.category === "reserve").length === 0 && (
-                  <p className="text-sm text-muted-foreground py-2 text-center">Keine Rücklagenkonten gefunden.</p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Manuelle Vermögensposten werden bereits in AssetReportSection gerendert */}
-            {/* Offene Verbindlichkeiten */}
-            {openInvoices.length > 0 && (
-              <Card>
-                <CardHeader className="py-3">
-                  <CardTitle className="text-sm">Offene Verbindlichkeiten</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Lieferant</TableHead>
-                        <TableHead>Datum</TableHead>
-                        <TableHead className="text-right">Betrag</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {openInvoices.map((inv: any) => (
-                        <TableRow key={inv.id}>
-                          <TableCell className="text-sm">{inv.vendor_name || "–"}</TableCell>
-                          <TableCell className="text-sm">{inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString("de-DE") : "–"}</TableCell>
-                          <TableCell className="text-right font-mono text-sm">{formatCurrency(Number(inv.gross_amount || 0))}</TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow className="font-medium border-t-2">
-                        <TableCell colSpan={2}>Gesamt</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(openInvoices.reduce((s: number, i: any) => s + Number(i.gross_amount || 0), 0))}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Zusammenfassung */}
-            <Card className="border-2 border-primary/20">
-              <CardContent className="pt-4 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>Bankkonten</span>
-                  <span className="font-mono font-medium">{formatCurrency(closingTotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>davon Rücklagen</span>
-                  <span className="font-mono text-muted-foreground">{formatCurrency(closingReserve)}</span>
-                </div>
-                {openInvoices.length > 0 && (
-                  <div className="flex justify-between text-red-700">
-                    <span>./. offene Verbindlichkeiten</span>
-                    <span className="font-mono">{formatCurrency(-openInvoices.reduce((s: number, i: any) => s + Number(i.gross_amount || 0), 0))}</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-semibold border-t pt-2">
-                  <span>Verfügbare Mittel</span>
-                  <span className="font-mono">{formatCurrency(closingTotal - openInvoices.reduce((s: number, i: any) => s + Number(i.gross_amount || 0), 0))}</span>
-                </div>
-              </CardContent>
-            </Card>
+            <AssetReportSection buildingId={buildingId} periodId={periodId} fiscalYear={fiscalYear} />
           </TabsContent>
         </Tabs>
       </CardContent>
