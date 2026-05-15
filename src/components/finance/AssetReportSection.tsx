@@ -184,12 +184,16 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
       .map(i => ({ key: `manual-${i.id}`, label: i.label, amount: Number(i.amount) || 0 })),
   ];
 
+  const isNonZero = (n: number) => Math.abs(n) >= 0.005;
+  const filterZero = (lines: SectionLine[]) =>
+    lines.filter(l => typeof l.key === "string" && l.key.startsWith("manual-") ? true : isNonZero(l.amount));
+
   const sections: Section[] = [
-    { title: "Liquide Mittel aus Bankkonten und Kasse", lines: liquideLines },
-    { title: "Guth. und Nachz. aus Abrechnung incl. Altschulden", lines: abrLines },
-    { title: "Vorauszahlungen Versorger", lines: vzLines },
-    { title: "Zu- und Abflüsse aus Jahresabgrenzung", lines: abgLines },
-    { title: "Sonstige Vermögensposten", lines: sonstigeLines },
+    { title: "Liquide Mittel aus Bankkonten und Kasse", lines: filterZero(liquideLines) },
+    { title: "Guth. und Nachz. aus Abrechnung incl. Altschulden", lines: filterZero(abrLines) },
+    { title: "Vorauszahlungen Versorger", lines: filterZero(vzLines) },
+    { title: "Zu- und Abflüsse aus Jahresabgrenzung", lines: filterZero(abgLines) },
+    { title: "Sonstige Vermögensposten", lines: filterZero(sonstigeLines) },
   ].filter(s => s.lines.length > 0);
 
   const sectionTotal = (s: Section) => s.lines.reduce((sum, l) => sum + l.amount, 0);
