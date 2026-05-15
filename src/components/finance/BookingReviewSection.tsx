@@ -198,6 +198,7 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
               fiscalYear={fiscalYear}
               buildingId={buildingId}
               showAllAccounts={true}
+              onRowClick={() => {}}
             />
           </div>
         </DialogContent>
