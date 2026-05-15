@@ -306,6 +306,9 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
                       <span className="text-xs text-muted-foreground tabular-nums w-28 text-right border-l pl-3">
                         Saldo: {formatCurrency(closing)}
                       </span>
+                      {(notesByAccount[acc.id] || "").trim() && (
+                        <StickyNote className="h-4 w-4 text-amber-600 ml-1" aria-label="Notiz vorhanden" />
+                      )}
                       <span
                         role="checkbox"
                         aria-checked={reviewedAccounts.has(acc.id)}
