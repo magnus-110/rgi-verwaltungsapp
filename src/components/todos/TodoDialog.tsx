@@ -534,11 +534,11 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
             </form>
           </ScrollArea>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="shrink-0">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
               Abbrechen
             </Button>
-            <Button onClick={handleSubmit} disabled={!title.trim() || isPending}>
+            <Button type="button" onClick={handleSubmit} disabled={!title.trim() || isPending}>
               {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {mode === 'create' ? 'Erstellen' : 'Speichern'}
             </Button>
