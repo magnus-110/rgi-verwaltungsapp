@@ -1633,7 +1633,7 @@ export const Inbox = () => {
                     Antworten
                   </Button>
                   <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
-                    openCompose({ forward: { email_id: selectedEmail.id, subject: selectedEmail.subject, body_text: selectedEmail.body_text, body_html: selectedEmail.body_html, account_id: selectedEmail.account_id } });
+                    openCompose({ forward: { email_id: selectedEmail.id, message_id: (selectedEmail as any).message_id, subject: selectedEmail.subject, body_text: selectedEmail.body_text, body_html: selectedEmail.body_html, account_id: selectedEmail.account_id } });
                   }}>
                     <Forward className="h-3.5 w-3.5" />
                     Weiterleiten

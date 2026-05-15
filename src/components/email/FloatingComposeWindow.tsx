@@ -493,8 +493,8 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           body_text: compose.bodyText,
           body_html: combinedHtml || undefined,
           attachments: mergedSendAttachments.length ? mergedSendAttachments : undefined,
-          in_reply_to: compose.replyTo?.message_id || undefined,
-          reply_to_email_id: compose.replyTo?.id || undefined,
+          in_reply_to: compose.replyTo?.message_id || compose.forward?.message_id || undefined,
+          reply_to_email_id: compose.replyTo?.id || compose.forward?.email_id || undefined,
         },
       });
       if (error) throw error;
