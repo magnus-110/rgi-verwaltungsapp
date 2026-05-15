@@ -314,7 +314,11 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
                                     variant="ghost"
                                     className="h-7 w-7"
                                     title="Buchung bearbeiten"
-                                    onClick={(e) => { e.stopPropagation(); setEditBooking(b); }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const original = bookings.find((x: any) => x.id === b.id) || b;
+                                      setEditBooking({ ...original, _side: b._side });
+                                    }}
                                   >
                                     <Pencil className="h-3.5 w-3.5" />
                                   </Button>
