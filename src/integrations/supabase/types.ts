@@ -65,6 +65,54 @@ export type Database = {
           },
         ]
       }
+      account_review_notes: {
+        Row: {
+          account_id: string
+          building_id: string
+          created_at: string
+          fiscal_year: number
+          id: string
+          note: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          account_id: string
+          building_id: string
+          created_at?: string
+          fiscal_year: number
+          id?: string
+          note?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          account_id?: string
+          building_id?: string
+          created_at?: string
+          fiscal_year?: number
+          id?: string
+          note?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_review_notes_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_review_notes_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_booking_feedback: {
         Row: {
           ai_confidence_score: number | null
