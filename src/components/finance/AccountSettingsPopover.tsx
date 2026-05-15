@@ -86,6 +86,12 @@ const SETTINGS_FIELDS: SettingsField[] = [
     type: "checkbox",
   },
   {
+    key: "is_asset_report_relevant",
+    label: "Vermögensbericht-relevant (VB)",
+    info: "Erscheint im Vermögensbericht (Vermögensstand zum Stichtag). Beispiel: Bankkonten, Rücklagen, Vorauszahlungen Versorger, Abgrenzungskonten 4100/4120/4160/4180.",
+    type: "checkbox",
+  },
+  {
     key: "carry_forward_balance",
     label: "Saldovortrag (SV)",
     info: "Der Saldo wird ins nächste Geschäftsjahr übertragen. Beispiel: Bankkonten, Vorauszahlungskonten, Rücklagen.",
