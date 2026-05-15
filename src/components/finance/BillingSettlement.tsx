@@ -1772,9 +1772,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               </CardContent>
             </Card>
 
-            {/* Manuell erfasste weitere Vermögenswerte */}
-            <AssetReportItemsCard buildingId={buildingId} fiscalYear={fiscalYear} />
-
+            {/* Manuelle Vermögensposten werden bereits in AssetReportSection gerendert */}
             {/* Offene Verbindlichkeiten */}
             {openInvoices.length > 0 && (
               <Card>

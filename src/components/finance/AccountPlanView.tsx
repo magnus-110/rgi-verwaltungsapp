@@ -169,7 +169,35 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
                               <span className="text-[10px] text-muted-foreground select-none">Abr.</span>
                             </div>
                           </TooltipTrigger>
-                          <TooltipContent><p className="text-xs">Abrechnungsrelevant – beeinflusst Abrechnung & Vermögensbericht</p></TooltipContent>
+                          <TooltipContent><p className="text-xs">Abrechnungsrelevant – beeinflusst Abrechnung</p></TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div
+                              className="flex items-center gap-1.5 px-2"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Switch
+                                checked={!!(acc as any).is_asset_report_relevant}
+                                onCheckedChange={async (v) => {
+                                  const { error } = await supabase
+                                    .from("chart_of_accounts")
+                                    .update({ is_asset_report_relevant: v } as any)
+                                    .eq("id", acc.id);
+                                  if (error) { toast.error("Fehler: " + error.message); return; }
+                                  toast.success(v ? "Konto erscheint im Vermögensbericht" : "Konto nicht mehr im Vermögensbericht");
+                                  queryClient.invalidateQueries({ queryKey: ["coa-aggregation"] });
+                                  queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
+                                  queryClient.invalidateQueries({ queryKey: ["asset-report-ctx"] });
+                                }}
+                                className="scale-75"
+                              />
+                              <span className="text-[10px] text-muted-foreground select-none">VB</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent><p className="text-xs">Vermögensbericht-relevant – erscheint im Vermögensstand zum Stichtag</p></TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                       <span className="text-xs text-muted-foreground tabular-nums w-28 text-right">
