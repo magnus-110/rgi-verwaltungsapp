@@ -170,47 +170,6 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
   const totalBookings = bookings.length;
   const totalAmount = bookings.reduce((s: number, b: any) => s + Math.abs(Number(b.amount)), 0);
 
-  const runAiCheck = async () => {
-    setAiChecking(true);
-    try {
-      const accountData = grouped.flatMap(({ accounts: catAccounts }) =>
-        catAccounts.map((acc) => {
-          const accBookings = bookingsByAccount[acc.id] || [];
-          const movement = accBookings.reduce((s, b) => {
-            const sign = b.booking_type === "income" ? 1 : -1;
-            return s + sign * Number(b.amount || 0);
-          }, 0);
-          return {
-            accountNumber: acc.account_number,
-            accountName: acc.account_name,
-            category: acc.category,
-            bookingCount: accBookings.length,
-            total: movement,
-            expected: (() => {
-              const tmpl = templates.find((t: any) => t.account_id === acc.id);
-              return tmpl
-                ? {
-                    count: tmpl.interval === "monatlich" ? 12 : tmpl.interval === "quartalsweise" ? 4 : tmpl.interval === "halbjährlich" ? 2 : 1,
-                    amount: tmpl.expected_amount,
-                  }
-                : null;
-            })(),
-          };
-        })
-      );
-
-      const { data, error } = await supabase.functions.invoke("analyze-billing", {
-        body: { buildingId, fiscalYear, periodId: "review", mode: "booking_review", accountData },
-      });
-      if (error) throw error;
-      setAiResults(data?.recommendations || []);
-      toast.success("KI-Prüfung abgeschlossen");
-    } catch (e: any) {
-      toast.error("Fehler: " + (e.message || "Unbekannt"));
-    } finally {
-      setAiChecking(false);
-    }
-  };
 
   if (isLoading) return <div className="text-muted-foreground p-4 text-sm">Buchungen werden geladen...</div>;
 
@@ -219,31 +178,30 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
       <div className="flex flex-wrap gap-2 mb-2 items-center">
         <Badge variant="outline">{totalBookings} Buchungen</Badge>
         <Badge variant="outline">Gesamt: {formatCurrency(totalAmount)}</Badge>
-        <Button size="sm" variant="outline" onClick={runAiCheck} disabled={aiChecking} className="ml-auto">
-          {aiChecking ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
-          KI prüfen
+        <Button size="sm" variant="outline" onClick={() => setCoaOpen(true)} className="ml-auto">
+          <Settings2 className="h-4 w-4 mr-1" />
+          Kontenrahmen bearbeiten
         </Button>
       </div>
 
-      {aiResults && aiResults.length > 0 && (
-        <Card className="border-dashed border-primary/30 bg-primary/5">
-          <CardContent className="pt-4 space-y-2">
-            {aiResults.map((r: any, i: number) => (
-              <div key={i} className="flex items-start gap-2 text-sm">
-                <Badge className={`text-xs shrink-0 ${
-                  r.severity === "error" ? "bg-destructive text-destructive-foreground" :
-                  r.severity === "warning" ? "bg-amber-100 text-amber-800" :
-                  r.severity === "success" ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"
-                }`}>{r.area || "Info"}</Badge>
-                <div>
-                  <span className="font-medium">{r.title}</span>
-                  {r.suggestion && <span className="text-muted-foreground"> — {r.suggestion}</span>}
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+      <Dialog open={coaOpen} onOpenChange={setCoaOpen}>
+        <DialogContent className="max-w-[100vw] w-screen h-screen sm:max-w-[100vw] p-0 gap-0 rounded-none flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+            <h2 className="text-base font-semibold">Kontenrahmen bearbeiten</h2>
+            <Button size="sm" variant="ghost" onClick={() => setCoaOpen(false)}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex-1 overflow-auto p-4">
+            <AccountPlanView
+              bookings={bookings}
+              fiscalYear={fiscalYear}
+              buildingId={buildingId}
+              showAllAccounts={true}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {grouped.length === 0 && (
         <div className="text-center py-10 text-muted-foreground">
