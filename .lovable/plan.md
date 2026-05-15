@@ -1,131 +1,38 @@
-## Ziel
+## Problem
 
-Vermögensbericht beim Birkenweg 6 (und allen anderen Liegenschaften) soll dem HV-Office-Format aus der hochgeladenen XLSX (Tirolerstr. 142) folgen: nur IST-Stände der Positionen zum Stichtag, am Ende eine Gesamtsumme. Abgrenzungsbuchungen müssen mit korrektem Vorzeichen je Konto einfließen, manuelle Positionen ebenfalls.
+Im Vermögensbericht sind drei Probleme sichtbar:
 
-## Ziel-Struktur (analog HV-Office)
+1. **Falsche Salden** — Konto 1800 zeigt 33.229,33 €, im Kontenrahmen aber korrekt 8.961,47 €.
+2. **Falsche Vorzeichen** — Rücklagenkonto 1810 erscheint negativ statt positiv.
+3. **Null-Salden werden angezeigt** — Konten 4100, 4120, 4180 mit 0,00 € (bzw. -0,00 €) erscheinen unnötig.
 
-```text
-Objekt {nr} - WJ {jahr} - {anschrift}
-Vermögensstand zum 31.12.{jahr}
+Ursache für 1+2: `AssetReportSection` nutzt `getEffectiveClosingBalance` → `sumForAccount`. Diese Funktion ist **bank-zentrisch ohne `booking_type`-Berücksichtigung** und addiert für ein Bankkonto alle Beträge ohne Vorzeichen-Drehung — also Einnahmen + Ausgaben statt Einnahmen − Ausgaben.
 
-Liquide Mittel aus Bankkonten und Kasse
-  Heizölrestbestand                                   {x} €
-  {Bankkonto 1}                                       {x} €
-  {Rücklagenkonto}                                    {x} €
-                                                  ────────
-                                          Zwischensumme  €
+Der Kontenrahmen (`AccountPlanView` / `useAccountAggregation`) macht es richtig: `sign = booking_type === "income" ? +1 : −1`, jeweils auf primär- und gespiegelt auf Gegenkonto-Seite. Genau das gleiche Verfahren liefert auch `signedTotalForAccount` aus `bookingAggregation.ts`.
 
-Guth. und Nachz. aus Abrechnung incl. Altschulden
-  Guthaben aus Abrechnung                             {x} €
-  Nachzahlung aus Abrechnung                          {x} €
-                                          Zwischensumme  €
+## Lösung
 
-Zu- und Abflüsse aus Jahresabgrenzung   (Konten 4100/4120 → Folgejahr-Effekt)
-  Einnahmen im lfd. J. für Folgejahr (PRA, 4120)
-  Ausgaben  im lfd. J. für Folgejahr (ARA, 4100)
-  Einnahmen im Folgejahr für lfd. J. (4160)
-  Ausgaben  im Folgejahr für lfd. J. (4180)
-                                          Zwischensumme  €
+In `src/components/finance/AssetReportSection.tsx`:
 
-Forderungen zum Jahresende
-  (Personenkonten mit Soll-Saldo / offene Posten)     {x} €
-                                          Zwischensumme  €
+1. **Saldoberechnung umstellen** — `closingFor(acc)` so umbauen, dass es die gleiche Logik wie der Kontenrahmen nutzt:
+   - Anfangsbestand via `getEffectiveOpeningBalance` (unverändert) bzw. `account_balances.opening_balance`
+   - Bewegungen via `signedTotalForAccount(acc.id, bookingsOhneEröffnung)` statt `sumForAccount`
+   - Manueller `closing_balance`-Override bleibt als Fallback erhalten
+   - Damit ergibt 1800 = 0 + 8.961,47 = **8.961,47 €** und 1810 wird **positiv**.
 
-Verbindlichkeiten zum Jahresende
-  (Personenkonten mit Haben-Saldo)                    {x} €
-                                          Zwischensumme  €
-
-Sonstige Vermögensposten        (nach Kontonummer + manuelle Items)
-  {Konto Flag-markiert ohne Standardgruppe}           {x} €
-  {Manuelle Position 1 (asset_report_items)}          {x} €
-                                          Zwischensumme  €
-
-══════════════════════════════════════════════════
-Vermögensstand zum 31.12.{jahr}                  {Σ} €
-```
-
-Vorzeichen-Regeln (aus `lib/accrualSign.ts`, bereits Core-Memory):
-- 4100/4180: negativ
-- 4120/4160: positiv
-- Ins-Folgejahr-rein dreht das Vorzeichen entsprechend
-
-## Was umgesetzt wird
-
-### 1. Neues Flag `is_asset_report_relevant`
-
-- Spalte in `chart_of_accounts`, Default `false`.
-- Migration setzt für **alle Liegenschaften gleichzeitig** automatisch `true` für:
-  - 1800–1899 (Bank/Kasse)
-  - 1810/1820 (Erhaltungsrücklage)
-  - 1470–1473 (Vorauszahlungen Versorger)
-  - 4100, 4120, 4160, 4180 (Abgrenzungen)
-  - 1700/1710 (Abrechnungsspitze/IHR-Soll für Guth./Nachz.)
-- Inline togglebar in `AccountPlanView` und `AccountSettingsPopover` — gleiche UX wie die zwei bestehenden Flags.
-
-### 2. Vermögensbericht flag-getrieben + HV-Office-Layout
-
-Refactor `AssetReportSection.tsx`:
-
-- Eingangsmenge = alle Konten mit `is_asset_report_relevant = true` + Brennstoffbestand + manuelle Items.
-- Gruppierung in feste Sektionen anhand Kontonummer:
-
-| Sektion | Kontonummern |
-|---|---|
-| Liquide Mittel aus Bankkonten und Kasse | 1800–1899 + Brennstoff |
-| Erhaltungsrücklage (eigener Block, separat von liquide) | 1810/1820 + reserve_role |
-| Guth. und Nachz. aus Abrechnung incl. Altschulden | 1700/1710 |
-| Vorauszahlungen Versorger | 1470–1473 |
-| Zu- und Abflüsse aus Jahresabgrenzung | 4100/4120/4160/4180 mit `getAccrualDisplaySign` |
-| Forderungen zum Jahresende | Personenkonten Soll-Saldo (optional, falls Anforderung) |
-| Verbindlichkeiten zum Jahresende | Personenkonten Haben-Saldo (optional) |
-| Sonstige Vermögensposten | alle weiteren flag-markierten Konten **+ manuelle Items**, sortiert nach Kontonummer |
-
-- Pro Sektion: Zeilen + Zwischensumme.
-- **Keine Veränderungs-/Bewegungsspalten** — nur IST-Stand zum Stichtag (`getEffectiveClosingBalance`).
-- Gesamtsumme = Σ aller Sektions-Zwischensummen.
-
-### 3. Manuelle Positionen integriert
-
-- `AssetReportItemsCard` bleibt als Edit-UI bestehen, wird aber **innerhalb** der `AssetReportSection` als Subkomponente platziert.
-- Items fließen in die Sektion „Sonstige Vermögensposten" und in die Gesamtsumme.
-- Sortierung dort: zuerst flag-markierte Konten nach Kontonummer, dann manuelle Items alphabetisch.
-
-### 4. Payload / Word-Vorlage
-
-`buildAssetReportPayload` in `lib/buildBillingPayload.ts` liefert generisches Schema:
-
-```json
-{
-  "stichtag": "31.12.2025",
-  "objekt": "...",
-  "sektionen": [
-    { "titel": "Liquide Mittel ...", "zeilen": [{label, betrag}], "zwischensumme": x },
-    ...
-  ],
-  "vermoegensstand": x
-}
-```
-
-Bestehende DOCX-Vorlage `vermoegensbericht` muss einmalig auf dieses Schema angepasst werden (`{#sektionen} {sektion} {#zeilen} ... {/zeilen} {zwischensumme} {/sektionen}` plus `{vermoegensstand}`) — separater Folge-Task.
+2. **Null-Salden ausblenden** — In jeder Sektion (Liquide, Abr.-Spitze, Vorauszahlungen, Abgrenzung, Sonstige) Zeilen mit `Math.abs(amount) < 0.005` herausfiltern, **bevor** sie in die `lines`-Arrays geschoben werden. Sektionen, die danach leer sind, fallen durch das bestehende `.filter(s => s.lines.length > 0)` automatisch weg. Manuelle Items (`asset_report_items`) bleiben sichtbar, auch wenn 0 — der Nutzer hat sie bewusst angelegt.
 
 ## Technische Details
 
-**Migration**
-```sql
-ALTER TABLE chart_of_accounts
-  ADD COLUMN is_asset_report_relevant boolean NOT NULL DEFAULT false;
+- Neue Helper-Funktion lokal in `AssetReportSection.tsx` (oder als `getEffectiveSignedClosingBalance` in `bookingAggregation.ts` hinzufügen, falls woanders wiederverwendbar):
+  ```ts
+  const movements = signedTotalForAccount(acc.id, bookingsOhneEröffnung);
+  const closing = opening + movements;
+  ```
+- Eröffnungsbuchungen (gegen Konto 4000 im Januar) werden wie bisher aus den Bewegungen herausgefiltert, damit sie nicht doppelt zählen.
+- `getAccrualDisplaySign`-Logik für 4100/4120/4160/4180 bleibt unverändert; sie wirkt erst nach der korrekten Saldo-Ermittlung.
 
-UPDATE chart_of_accounts SET is_asset_report_relevant = true
-WHERE account_number ~ '^(18\d{2}|147[0-3]|17[01]0|410[0-9]|412[0-9]|416[0-9]|418[0-9])$';
-```
+## Dateien
 
-**Code**
-- `src/components/finance/AssetReportSection.tsx` — Refactor: flag-getriebene Sektionsbildung, HV-Office-Layout, manuelle Items integriert, Vorzeichen via `getAccrualDisplaySign`.
-- `src/components/finance/AccountSettingsPopover.tsx`, `AccountPlanView.tsx` — drittes Flag „Vermögensbericht" inline.
-- `src/components/finance/CreateAccountInlineDialog.tsx`, `ChartOfAccountsTab.tsx` — Flag im Anlage-Formular.
-- `src/components/finance/lib/buildBillingPayload.ts` — `buildAssetReportPayload` generisch über `sektionen[]`.
-- `src/components/finance/AssetReportItemsCard.tsx` — bleibt, wird in Section eingebettet.
-- Memory-Update: neuer Eintrag `mem://features/finance/asset-report-flag-driven`.
-
-**Unverändert**
-- `getEffectiveClosingBalance`, `sumForAccount`, Eröffnungsbestands-Quellen, Brennstoff-Logik, `accrualSign.ts`.
+- `src/components/finance/AssetReportSection.tsx` — `closingFor` umbauen, Null-Filter ergänzen
+- ggf. `src/components/finance/lib/bookingAggregation.ts` — neuer Helper `getEffectiveSignedClosingBalance` (optional, nur falls wir die Berechnung exportieren wollen)

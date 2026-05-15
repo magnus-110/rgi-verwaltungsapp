@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Wallet, Flame } from "lucide-react";
-import { getEffectiveClosingBalance } from "./lib/bookingAggregation";
+import { getEffectiveOpeningBalance, signedTotalForAccount } from "./lib/bookingAggregation";
 import { getAccrualDisplaySign } from "./lib/accrualSign";
 import { AssetReportItemsCard } from "./AssetReportItemsCard";
 
@@ -82,13 +82,22 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
 
   const opening4000Id = accounts.find((a: any) => a.account_number === "4000")?.id || null;
 
+  const isOpeningBooking = (b: any) =>
+    opening4000Id &&
+    typeof b.booking_date === "string" &&
+    b.booking_date.startsWith(`${fiscalYear}-01-`) &&
+    (b.account_id === opening4000Id || b.counter_account_id === opening4000Id);
+
+  const movementBookings = bookings.filter((b: any) => !isOpeningBooking(b));
+
   const closingFor = (acc: any): number => {
-    const eff = getEffectiveClosingBalance(acc.id, bookings as any, balances as any, fiscalYear, opening4000Id);
     const manual = balances.find((b: any) => b.account_id === acc.id);
     if (manual && manual.closing_balance !== null && manual.closing_balance !== undefined && Number(manual.closing_balance) !== 0) {
       return Number(manual.closing_balance);
     }
-    return eff.amount;
+    const opening = getEffectiveOpeningBalance(acc.id, bookings as any, balances as any, fiscalYear, opening4000Id);
+    const movements = signedTotalForAccount(acc.id, movementBookings as any);
+    return opening.amount + movements;
   };
 
   // Brennstoffrestbestand-Wert (closing_balance Einträge)
@@ -175,12 +184,16 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
       .map(i => ({ key: `manual-${i.id}`, label: i.label, amount: Number(i.amount) || 0 })),
   ];
 
+  const isNonZero = (n: number) => Math.abs(n) >= 0.005;
+  const filterZero = (lines: SectionLine[]) =>
+    lines.filter(l => typeof l.key === "string" && l.key.startsWith("manual-") ? true : isNonZero(l.amount));
+
   const sections: Section[] = [
-    { title: "Liquide Mittel aus Bankkonten und Kasse", lines: liquideLines },
-    { title: "Guth. und Nachz. aus Abrechnung incl. Altschulden", lines: abrLines },
-    { title: "Vorauszahlungen Versorger", lines: vzLines },
-    { title: "Zu- und Abflüsse aus Jahresabgrenzung", lines: abgLines },
-    { title: "Sonstige Vermögensposten", lines: sonstigeLines },
+    { title: "Liquide Mittel aus Bankkonten und Kasse", lines: filterZero(liquideLines) },
+    { title: "Guth. und Nachz. aus Abrechnung incl. Altschulden", lines: filterZero(abrLines) },
+    { title: "Vorauszahlungen Versorger", lines: filterZero(vzLines) },
+    { title: "Zu- und Abflüsse aus Jahresabgrenzung", lines: filterZero(abgLines) },
+    { title: "Sonstige Vermögensposten", lines: filterZero(sonstigeLines) },
   ].filter(s => s.lines.length > 0);
 
   const sectionTotal = (s: Section) => s.lines.reduce((sum, l) => sum + l.amount, 0);
