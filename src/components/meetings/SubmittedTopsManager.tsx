@@ -10,11 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, XCircle, FileText, Inbox, Building2, ExternalLink, ChevronDown, ChevronRight, Mail } from "lucide-react";
+import { CheckCircle2, XCircle, FileText, Inbox, Building2, ExternalLink, ChevronDown, ChevronRight, Mail, StickyNote, Plus, Pencil, Trash2 } from "lucide-react";
 import { format as formatDate } from "date-fns";
 import { de } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EtvRelevantEmailsManager } from "./EtvRelevantEmailsManager";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/hooks/useAuth";
 
 interface SubmittedTopsManagerProps {
   buildingFilter?: string;
