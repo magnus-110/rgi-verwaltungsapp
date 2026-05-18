@@ -14,11 +14,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import { ChevronDown, ChevronRight, Plus, Search, Trash2, Pencil, Check, X } from "lucide-react";
 import { AccountSettingsPopover } from "./AccountSettingsPopover";
-import { useCustomShareTypes } from "@/hooks/useCustomShareTypes";
-import { SHARE_TYPES } from "@/lib/shareTypes";
-
-// Verteilerschlüssel-Liste = exakt dieselbe wie bei "Anteilen pro Person".
-const DISTRIBUTION_KEYS = SHARE_TYPES;
+import { useBuildingShareTypes } from "@/hooks/useBuildingShareTypes";
+import { getShareTypeLabel } from "@/lib/shareTypes";
 
 const SETTLEMENT_SECTIONS = [
   { value: "none", label: "– Keine –" },
