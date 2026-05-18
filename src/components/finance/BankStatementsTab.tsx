@@ -135,6 +135,40 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     });
   }, [bankStatements]);
 
+  // IBAN -> Konto im Kontenrahmen Zuordnung (pro Liegenschaft)
+  const { data: bankMappings = [] } = useBuildingBankAccounts(selectedBuilding || null);
+  const mappingByIban = useMemo(() => {
+    const m: Record<string, { display_name: string | null; coa_account_id: string | null; account_number?: string }> = {};
+    bankMappings.forEach((b) => {
+      m[b.iban] = { display_name: b.display_name, coa_account_id: b.coa_account_id };
+    });
+    return m;
+  }, [bankMappings]);
+
+  // Lade Account-Numbers der zugeordneten Konten (für Anzeige in der Pille)
+  const mappedAccountIds = useMemo(
+    () => bankMappings.map((b) => b.coa_account_id).filter(Boolean) as string[],
+    [bankMappings]
+  );
+  const { data: mappedAccounts = [] } = useQuery({
+    queryKey: ["bank-mapping-accounts", mappedAccountIds.sort().join(",")],
+    queryFn: async () => {
+      if (mappedAccountIds.length === 0) return [] as any[];
+      const { data, error } = await supabase
+        .from("chart_of_accounts")
+        .select("id, account_number, account_name")
+        .in("id", mappedAccountIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: mappedAccountIds.length > 0,
+  });
+  const accountById = useMemo(() => {
+    const m: Record<string, { account_number: string; account_name: string }> = {};
+    (mappedAccounts as any[]).forEach((a) => (m[a.id] = a));
+    return m;
+  }, [mappedAccounts]);
+
   // Global bookable count (across all buildings)
   const { data: allTransactions = [] } = useQuery({
     queryKey: ["bank-transactions-all"],
