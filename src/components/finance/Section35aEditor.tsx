@@ -344,9 +344,22 @@ export function Section35aEditor({
           <span className="text-xs font-medium">Lohnanteil gesamt</span>
           <span className="text-base font-bold tabular-nums">{formatCurrency(totals.total)}</span>
         </div>
-        {applyVat && vatRate > 0 && totals.netSum > 0 && (
-          <p className="text-[10px] text-muted-foreground">Netto {formatCurrency(totals.netSum)} + {vatRate}% MwSt.</p>
-        )}
+        {(() => {
+          const selectedCount = items.filter(i => i.is_35a).length;
+          const totalPositions = (invoiceLineItems?.length || 0) + customItems.length;
+          if (selectedCount > 0 && totalPositions > 0) {
+            return (
+              <p className="text-[10px] text-muted-foreground">
+                Aus {selectedCount} von {totalPositions} Position{totalPositions === 1 ? "" : "en"}
+                {applyVat && vatRate > 0 && totals.netSum > 0 ? ` · netto ${formatCurrency(totals.netSum)} + ${vatRate}% MwSt.` : ""}
+              </p>
+            );
+          }
+          if (applyVat && vatRate > 0 && totals.netSum > 0) {
+            return <p className="text-[10px] text-muted-foreground">Netto {formatCurrency(totals.netSum)} + {vatRate}% MwSt.</p>;
+          }
+          return null;
+        })()}
       </div>
     </div>
   );
