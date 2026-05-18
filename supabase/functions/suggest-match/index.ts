@@ -107,8 +107,11 @@ Deno.serve(async (req) => {
         };
       }
     }
-
-
+    // ---------- RAG Tier 1+2: Similar bookings ----------
+    let ragSimilar: any[] = [];
+    let ragOtherBuildings: any[] = [];
+    let ragVendorMemory: any[] = [];
+    const queryEmbedding = await embedText(buildEmbedInput(transaction));
 
     if (queryEmbedding && buildingId && managementMode) {
       // Tier 1: gleiche Liegenschaft
