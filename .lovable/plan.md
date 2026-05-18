@@ -1,85 +1,52 @@
 ## Ziel
 
-Bei §35a soll die KI keine geschätzten Lohnanteile mehr ausrechnen, sondern die **tatsächlichen Rechnungspositionen** der verknüpften Rechnung analysieren, die §35a-relevanten Positionen **per Index auswählen** und daraus den Betrag **summieren**. Im UI (`Section35aEditor`) sind genau diese Positionen sichtbar angeklickt, sodass der Nutzer jede Position nachvollziehen und ent-/anklicken kann.
+Zwei Probleme im Adolf-Haff-Weg-Kontenrahmen beheben:
 
-Kein Erfinden von Zahlen mehr: Wenn keine Rechnungspositionen vorliegen, gibt die KI keinen `amount_35a` aus, sondern markiert die Buchung nur als `is_35a_relevant=true` und überlässt dem Nutzer die Eingabe.
+1. **Verteilerschlüssel-Dropdown im Kontenrahmen** zeigt aktuell *alle* Standard-Schlüssel + nur die Custom-Schlüssel der Liegenschaft. Es soll exakt die Liste der **im Gebäude tatsächlich gepflegten Anteile** zeigen (Standard *und* Custom). Im globalen Kontenrahmen sind nur Standard-Schlüssel erlaubt.
+2. **Konto 1401 (Nutzerwechsel Heizkostenabrechnung)** ist als „Abrechnungsrelevant" markiert, taucht aber nicht in der Abrechnung auf.
 
-## 1. `suggest-match` Edge Function — Positions-basierte §35a-Analyse
+---
 
-### 1a) Rechnungspositionen in den Prompt geben
-Wenn `transaction.matched_invoice_id` gesetzt ist (oder die KI eine Rechnung matcht), Rechnung inkl. `line_items` aus DB laden und im User-Prompt als eigenen Block einfügen:
+## Teil 1 — Verteilerschlüssel synchron zu Gebäude-Anteilen
 
-```
-RECHNUNGSPOSITIONEN (Rechnung {nr}, brutto {x} €):
-[0] "Wartung Aufzug Jahrespauschale" — netto 420,00 € (USt 19%)
-[1] "Anfahrtspauschale"               — netto  35,00 € (USt 19%)
-[2] "Ersatzteil Türkontakt"           — netto  78,50 € (USt 19%)
-[3] "Material Schmierfett"            — netto  12,00 € (USt 19%)
-```
+### Regel
+- **Gebäude-spezifischer Kontenrahmen**: Dropdown listet exakt die `share_type`-Werte, die im jeweiligen Gebäude unter `contact_building_shares` existieren (Standard wie z. B. „mea", „qm" + Custom wie „Zwischenablesung Heizkosten").
+- **Globaler Kontenrahmen (Alle / global)**: Dropdown listet nur die globalen Standard-Schlüssel aus `SHARE_TYPES`. Keine gebäudespezifischen Custom-Keys.
+- Wenn ein Konto bereits einen Schlüssel hat, der nicht (mehr) in der gefilterten Liste vorkommt, wird dieser Wert zusätzlich als „(nicht im Gebäude gepflegt)" angezeigt, damit er sichtbar bleibt und korrigiert werden kann.
 
-### 1b) Neues §35a-Feld im Tool-Schema
-`suggested_bookings[].paragraph_35a` ersetzt die heutige Heuristik. Struktur:
+### Umsetzung
+- `useCustomShareTypes` zu `useBuildingShareTypes(buildingId?)` umbauen: liefert künftig alle in `contact_building_shares` verwendeten `share_type` (Standard + Custom), gefiltert pro Gebäude. Für `buildingId=undefined` (globaler Tab) liefert es nur die `SHARE_TYPES`-Standardliste.
+- `ChartOfAccountsTab.tsx`: `allDistKeys` aus diesem Hook bauen statt aus `DISTRIBUTION_KEYS ∪ custom`. Mapping `value → Label` über `getShareTypeLabel`. „Stale-Key"-Anzeige für vorhandene aber nicht mehr gepflegte Werte ergänzen.
+- `CreateAccountInlineDialog.tsx`: dieselbe Liste verwenden (Prop `buildingId` durchreichen, falls noch nicht vorhanden).
+- `ManualEconomicPlanEditor.tsx` analog auf den neuen Hook umstellen, damit Wirtschaftsplan und Kontenrahmen identische Optionen zeigen.
 
-```json
-{
-  "is_35a_relevant": true,
-  "selected_line_items": [
-    { "index": 0, "type_35a": "labor", "reason": "Arbeitsleistung Wartung" },
-    { "index": 1, "type_35a": "labor", "reason": "Anfahrt = Fahrtkosten Handwerker" },
-    { "index": 2, "type_35a": "labor", "reason": "Reparaturarbeit (Ersatzteil bleibt Material, hier 0)" }
-  ],
-  "explanation": "Material (Schmierfett, Ersatzteil-Anteil) ausgeschlossen."
-}
-```
+---
 
-`amount_35a` wird **server-seitig** aus `selected_line_items` berechnet (Summe der Netto-Beträge der gewählten Positionen, ggf. type_35a-gewichtet) — die KI darf den Betrag nicht mehr frei nennen.
+## Teil 2 — Konto 1401 erscheint nicht in der Abrechnung
 
-Wenn keine `line_items` vorhanden sind:
-- `is_35a_relevant` darf `true` sein,
-- `selected_line_items` bleibt leer,
-- `amount_35a` bleibt **null** (keine erfundene Pauschale, kein Fallback auf Brutto×%).
+### Befund aus der DB
+- `1401` (building Adolf-Haff-Weg): `is_billing_relevant=true`, `is_distributable=true`, `settlement_section='operating_non_distributable'`, `default_distribution_key='mea'`.
+- Eine Buchung 35,99 € am 31.12.2025 (Hauptkonto 4160 / Gegenkonto 1401), status `pending`, im Period-Range 2025-01-01 – 2025-12-31.
+- Erwartung: erscheint in Sektion „Nicht umlagefähige Kosten" mit −35,99 €. Tatsächlich nicht sichtbar.
 
-### 1c) System-Prompt anpassen
-- §35a-Sektion umschreiben: „Analysiere Rechnungspositionen **einzeln**. Markiere nur Positionen, die echte Arbeitsleistung (Lohn/Anfahrt) enthalten. Material, Ersatzteile, Gerätekosten ausschließen. Wenn keine Positionen vorliegen: keinen amount_35a setzen."
-- Die alten Pauschalsätze (~50%, ~80%, …) nur noch als **Plausibilitätscheck** behalten, nicht als Berechnungsbasis.
+### Ursachen-Hypothesen (in dieser Reihenfolge prüfen)
+1. **React-Query Cache** nach Anlegen des Kontos nicht invalidiert (`settlement-accounts` Key). → Sicherstellen, dass `invalidateAllCoa` auch diesen Key invalidiert.
+2. **Section-Default greift nicht**: Beim Anlegen wurde `settlement_section` evtl. erst nachträglich gesetzt; Period-Aggregation vor dem Setzen gecached.
+3. **`is_distributable=true` in `operating_non_distributable`**: Wird in `BookingReviewSection` / `BillingSettlement` evtl. doppelt klassifiziert (sowohl umlagefähig als auch nicht-umlagefähig) und durch eine spätere Dedupe-Logik verworfen. Speziell prüfen: 1401 darf nicht parallel als „heating"-Konto behandelt werden, weil Account-Number 1400–1499 in `HeatingAccountsSection` getriggert wird, aber `is_heating_relevant=false`. In `BillingSettlement.tsx` Zeile 1071 wird auf `account_number === "1400"` geprüft — 1401 ist davon nicht betroffen, also unkritisch.
 
-### 1d) Validation-Layer
-- Wenn `selected_line_items[i].index` außerhalb von `line_items` liegt → entfernen + Warning.
-- `amount_35a` immer aus Summe neu rechnen, KI-Wert ignorieren.
+### Umsetzung
+- Reproduktion durch Hard-Refresh; falls dann sichtbar → React-Query Invalidation in `ChartOfAccountsTab` um `settlement-accounts`, `settlement-bookings`, `coa-aggregation` ergänzen.
+- Falls weiterhin unsichtbar: zusätzliche Sektion-Auswahl-Pflicht beim Anlegen (Dialog) erzwingen + Validierung „is_distributable nur mit gepflegtem Verteilerschlüssel".
+- Klarer Hint im UI: Wenn `is_billing_relevant=true` aber `settlement_section=null`, einen gelben Badge „Sektion fehlt – wird in Abrechnung ignoriert" im Kontenrahmen anzeigen.
 
-## 2. `build35aDetail.ts` — Auto-Übernahme aus KI
+---
 
-`build35aDetailFromSuggestion(...)` bekommt ein neues Argument `aiSelectedItems?: {index, type_35a, reason}[]`.
+## Geänderte/neue Dateien
 
-- Wenn `aiSelectedItems` vorhanden: genau diese Indizes als `is_35a: true` zurückgeben, `description` aus der echten OCR-Position, `type_35a` aus KI, neues Feld `ai_picked: true` + `ai_reason` für UI-Tooltip.
-- Greedy-Matching nach Brutto-Summe (heutiger Algorithmus) entfällt — er erfindet Auswahl.
-- Fallback „custom item" nur, wenn `aiSelectedItems` leer **und** der Nutzer den Vorschlag explizit übernimmt — sonst gar nichts.
+- `src/hooks/useCustomShareTypes.ts` → umbenennen/erweitern zu `useBuildingShareTypes`
+- `src/components/finance/ChartOfAccountsTab.tsx`
+- `src/components/finance/CreateAccountInlineDialog.tsx`
+- `src/components/finance/ManualEconomicPlanEditor.tsx`
+- `src/components/finance/BillingSettlement.tsx` (nur falls Ursache 2/3 bestätigt; sonst nur Query-Invalidation)
 
-## 3. `TransactionReviewMode` — Vorschlag übernehmen
-
-In der schon vorhandenen `applyAiSuggestion`-Logik (rechtes Panel, „Vorschlag übernehmen"):
-- `line_items_detail` aus `paragraph_35a.selected_line_items` + `invoiceDetail.line_items` bauen (über neuen `build35aDetail`-Pfad).
-- Falls Rechnung verknüpft, aber `selected_line_items` leer → `line_items_detail = null`, `amount_35a = null`, `is_35a_relevant` bleibt wie vom KI vorgeschlagen; UI zeigt Hinweis „KI konnte keine Position eindeutig zuordnen — bitte manuell auswählen".
-
-## 4. `Section35aEditor` UI
-
-Bereits vorhandene Checkboxen pro Position bleiben. Ergänzungen:
-- Pro Position kleines Sparkles-Badge „KI" wenn `ai_picked: true`, mit Tooltip = `ai_reason`.
-- Summen-Zeile zeigt: „Netto-Lohnanteil aus 3 von 4 Positionen: 533,00 €" — also klar nachvollziehbar woher die Zahl kommt.
-- Wenn Nutzer eine Position abwählt/dazunimmt, Summe + `amount_35a` live neu berechnen (bereits implementiert) und `ai_picked`-Badge bleibt zur Transparenz stehen.
-
-## 5. Nicht im Scope
-
-- Keine Änderungen am OCR (Rechnungspositionen müssen aus `invoices.line_items` vorhanden sein; bei Altrechnungen ohne Positionen fällt der Mechanismus sauber auf „kein amount_35a" zurück).
-- Keine Änderungen an `generate-35a-docx` — die liest weiter `line_items_detail`.
-- Keine Änderungen am Prefetch-Loop, RAG-Suche oder Vendor-Memory.
-
-## Technische Stichpunkte
-
-- Geänderte Dateien:
-  - `supabase/functions/suggest-match/index.ts` (Prompt + Tool-Schema + Validation + Invoice-Load mit `line_items`)
-  - `src/components/finance/build35aDetail.ts` (neuer Signaturpfad `aiSelectedItems`)
-  - `src/components/finance/TransactionReviewMode.tsx` (`applyAiSuggestion` nutzt neuen Pfad; kein Brutto×%-Fallback mehr)
-  - `src/components/finance/Section35aEditor.tsx` (Sparkles-Badge + Tooltip für `ai_picked`)
-- `LineItemDetail`-Typ um optionale `ai_picked?: boolean`, `ai_reason?: string` erweitern.
-- DB-Schema: unverändert (`line_items_detail` ist `jsonb`).
+Keine Datenbankänderungen erforderlich.

@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { useBuildingShareTypes } from "@/hooks/useBuildingShareTypes";
 
 interface Props {
   open: boolean;
@@ -18,6 +19,8 @@ interface Props {
 
 export function CreateAccountInlineDialog({ open, onOpenChange, buildingId, onCreated }: Props) {
   const queryClient = useQueryClient();
+  const { options: shareTypeOptions } = useBuildingShareTypes(buildingId);
+  const { options: globalShareTypeOptions } = useBuildingShareTypes(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     account_number: "",
@@ -152,12 +155,9 @@ export function CreateAccountInlineDialog({ open, onOpenChange, buildingId, onCr
             <Select value={form.default_distribution_key} onValueChange={v => update("default_distribution_key", v)}>
               <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Optional" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="mea">MEA</SelectItem>
-                <SelectItem value="flaeche">Fläche</SelectItem>
-                <SelectItem value="einheiten">Einheiten</SelectItem>
-                <SelectItem value="personen">Personen</SelectItem>
-                <SelectItem value="direkt">Direkt</SelectItem>
-                <SelectItem value="verbrauch">Verbrauch</SelectItem>
+                {(form.scope === "building" ? shareTypeOptions : globalShareTypeOptions).map(o => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

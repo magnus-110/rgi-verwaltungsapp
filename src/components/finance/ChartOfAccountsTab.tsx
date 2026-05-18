@@ -13,10 +13,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AccountSettingsPopover } from "./AccountSettingsPopover";
-import { useCustomShareTypes } from "@/hooks/useCustomShareTypes";
-import { SHARE_TYPES } from "@/lib/shareTypes";
-
-const DISTRIBUTION_KEYS = SHARE_TYPES;
+import { useBuildingShareTypes } from "@/hooks/useBuildingShareTypes";
+import { getShareTypeLabel } from "@/lib/shareTypes";
+import { AlertTriangle } from "lucide-react";
 
 const SETTLEMENT_SECTIONS = [
   { value: "none", label: "– Keine –" },
@@ -42,7 +41,13 @@ export function ChartOfAccountsTab() {
   const invalidateAllCoa = () => {
     queryClient.invalidateQueries({ predicate: (q) => {
       const k = q.queryKey[0];
-      return typeof k === "string" && (k.startsWith("chart-of-accounts") || k.startsWith("coa-"));
+      return typeof k === "string" && (
+        k.startsWith("chart-of-accounts") ||
+        k.startsWith("coa-") ||
+        k.startsWith("settlement-accounts") ||
+        k.startsWith("settlement-bookings") ||
+        k === "building-share-types"
+      );
     }});
   };
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -167,17 +172,18 @@ export function ChartOfAccountsTab() {
     invalidateAllCoa();
   };
 
-  // Im globalen Tab building-übergreifend laden, sonst building-spezifisch
-  const { data: customShareTypes = [] } = useCustomShareTypes(
-    selectedBuilding && selectedBuilding !== "global" ? selectedBuilding : undefined
-  );
-  const customDistKeys = [...new Set(customShareTypes)];
-  const allDistKeys = [
-    ...DISTRIBUTION_KEYS,
-    ...customDistKeys.map(k => ({ value: k, label: k })),
-  ];
+  // Verteilerschlüssel-Liste = exakt die Anteile, die im jeweiligen Gebäude
+  // tatsächlich gepflegt sind. Für den globalen Tab nur Standard-Schlüssel.
+  const buildingForShareTypes = selectedBuilding && selectedBuilding !== "global"
+    ? selectedBuilding
+    : undefined;
+  const { options: shareTypeOptionsBase } = useBuildingShareTypes(buildingForShareTypes);
+  // Beim Inline-Edit den aktuell gespeicherten Wert als Stale-Option ergänzen,
+  // damit er sichtbar bleibt, falls er nicht mehr im Gebäude gepflegt ist.
+  const { options: editShareTypeOptions } = useBuildingShareTypes(buildingForShareTypes, editDistKey);
+  const allDistKeys = shareTypeOptionsBase;
 
-  const getKeyLabel = (key: string | null) => allDistKeys.find(k => k.value === key)?.label || key || "–";
+  const getKeyLabel = (key: string | null) => getShareTypeLabel(key);
 
   if (isLoading) return <div className="text-muted-foreground p-4">Laden...</div>;
 
@@ -254,11 +260,22 @@ export function ChartOfAccountsTab() {
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {allDistKeys.map(k => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
+                                    {editShareTypeOptions.map(k => (
+                                      <SelectItem key={k.value} value={k.value}>
+                                        {k.label}
+                                      </SelectItem>
+                                    ))}
                                   </SelectContent>
                                 </Select>
                               ) : (
-                                <Badge variant="outline" className="text-xs">{getKeyLabel(account.default_distribution_key)}</Badge>
+                                <div className="flex items-center gap-1">
+                                  <Badge variant="outline" className="text-xs">{getKeyLabel(account.default_distribution_key)}</Badge>
+                                  {(account as any).is_billing_relevant && !(account as any).settlement_section && (
+                                    <span title="Konto ist als abrechnungsrelevant markiert, aber ohne Abrechnungssektion – wird in der Abrechnung nicht angezeigt.">
+                                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                                    </span>
+                                  )}
+                                </div>
                               )}
                             </TableCell>
                             <TableCell className="text-center">
