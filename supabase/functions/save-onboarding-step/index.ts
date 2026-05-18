@@ -61,6 +61,7 @@ Deno.serve(async (req) => {
       await syncBankAccountFromStep1(admin, userId, stepNum, data);
 
       return json({ success: true, id: existing.id });
+    }
 
     const { data: created, error } = await admin
       .from("onboarding_progress")
