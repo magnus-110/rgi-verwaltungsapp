@@ -289,12 +289,14 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
               contact_id: contact.id, person_id: personId, account_holder: bk.account_holder,
               bank_name: bk.bank_name, iban: bk.iban ? bk.iban.replace(/\s/g, "").toUpperCase() : null,
               bic: bk.bic, is_default: bk.is_default,
+              sepa_mandate_date: bk.sepa_mandate_date,
             });
           } else if (!bk._deleted && bk.id) {
             await supabase.from("contact_bank_accounts").update({
               account_holder: bk.account_holder, bank_name: bk.bank_name,
               iban: bk.iban ? bk.iban.replace(/\s/g, "").toUpperCase() : null,
               bic: bk.bic, is_default: bk.is_default, person_id: personId,
+              sepa_mandate_date: bk.sepa_mandate_date,
             }).eq("id", bk.id);
           }
         }
