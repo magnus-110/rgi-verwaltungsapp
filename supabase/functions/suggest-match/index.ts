@@ -240,6 +240,24 @@ Deno.serve(async (req) => {
       billingPeriodContext = `\n\nAbrechnungszeiträume (Wirtschaftsjahre):\n${lines.join("\n")}`;
     }
 
+    // ---------- Invoice Line Items (für präzise §35a-Auswahl) ----------
+    let lineItemsContext = "";
+    if (matchedInvoiceLineItems && matchedInvoiceMeta) {
+      const fmtAmount = (v: any) => {
+        const n = Number(v) || 0;
+        return n.toFixed(2);
+      };
+      const lines = matchedInvoiceLineItems.map((it: any, idx: number) => {
+        const desc = (it?.description || it?.name || "").toString().replace(/\s+/g, " ").slice(0, 200);
+        const net = fmtAmount(it?.amount ?? it?.total ?? 0);
+        const vat = it?.vat_rate != null ? `${it.vat_rate}%` : "?";
+        return `  [${idx}] "${desc}" — netto ${net} € (USt ${vat})`;
+      });
+      lineItemsContext = `\n\nRECHNUNGSPOSITIONEN (Rechnung ${matchedInvoiceMeta.number || matchedInvoiceMeta.id}, brutto ${matchedInvoiceMeta.gross.toFixed(2)} €):\n${lines.join("\n")}\n\n` +
+        `→ Für §35a MUSST du paragraph_35a.selected_line_items mit den Indizes der Lohn-/Anfahrt-Positionen befüllen. Material/Ersatzteile/Gerätekosten NIEMALS auswählen. Pro Position eine kurze reason.`;
+    }
+
+
     // ---------- System Prompt: Bank-Centric Logic ----------
     const systemPrompt = `Du bist ein hochspezialisierter WEG-Buchhalter (Deutschland) für automatisierte Belegverbuchung. Du arbeitest BANK-ZENTRISCH.
 
