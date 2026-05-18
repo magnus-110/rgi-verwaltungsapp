@@ -572,7 +572,30 @@ ${candidatesSummary || "(keine offenen Rechnungen/Vorlagen)"}${lineItemsContext}
           if (sb.amount <= 0) {
             sb.amount = Math.abs(sb.amount);
           }
-          // §35a Plausibilität
+          // §35a — Server-seitige Berechnung aus selected_line_items (anti-Halluzination)
+          if (sb.is_35a_relevant && sb.paragraph_35a?.selected_line_items?.length && matchedInvoiceLineItems) {
+            const sel = sb.paragraph_35a.selected_line_items
+              .filter((x: any) =>
+                Number.isInteger(x?.index) &&
+                x.index >= 0 &&
+                x.index < matchedInvoiceLineItems!.length,
+              );
+            if (sel.length !== sb.paragraph_35a.selected_line_items.length) {
+              validationWarnings.push(`Ungültige Positions-Indizes verworfen: ${sb.description}`);
+            }
+            sb.paragraph_35a.selected_line_items = sel;
+            const invVatRate =
+              matchedInvoiceMeta?.vat_rate != null && matchedInvoiceMeta.vat_rate > 0
+                ? matchedInvoiceMeta.vat_rate
+                : (sb.vat_rate != null ? Number(sb.vat_rate) : 19);
+            const netSum = sel.reduce((acc: number, x: any) => {
+              const raw = matchedInvoiceLineItems![x.index];
+              return acc + (Number(raw?.amount ?? raw?.total ?? 0) || 0);
+            }, 0);
+            const grossSum = invVatRate > 0 ? netSum * (1 + invVatRate / 100) : netSum;
+            sb.amount_35a = parseFloat(grossSum.toFixed(2));
+          }
+          // §35a Plausibilität (Fallback ohne Positionen)
           if (sb.is_35a_relevant && sb.amount_35a && sb.amount_35a > sb.amount) {
             sb.amount_35a = sb.amount;
             validationWarnings.push(`amount_35a > amount korrigiert: ${sb.description}`);
