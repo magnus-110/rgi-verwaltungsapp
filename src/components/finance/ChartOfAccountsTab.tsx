@@ -172,17 +172,18 @@ export function ChartOfAccountsTab() {
     invalidateAllCoa();
   };
 
-  // Im globalen Tab building-übergreifend laden, sonst building-spezifisch
-  const { data: customShareTypes = [] } = useCustomShareTypes(
-    selectedBuilding && selectedBuilding !== "global" ? selectedBuilding : undefined
-  );
-  const customDistKeys = [...new Set(customShareTypes)];
-  const allDistKeys = [
-    ...DISTRIBUTION_KEYS,
-    ...customDistKeys.map(k => ({ value: k, label: k })),
-  ];
+  // Verteilerschlüssel-Liste = exakt die Anteile, die im jeweiligen Gebäude
+  // tatsächlich gepflegt sind. Für den globalen Tab nur Standard-Schlüssel.
+  const buildingForShareTypes = selectedBuilding && selectedBuilding !== "global"
+    ? selectedBuilding
+    : undefined;
+  const { options: shareTypeOptionsBase } = useBuildingShareTypes(buildingForShareTypes);
+  // Beim Inline-Edit den aktuell gespeicherten Wert als Stale-Option ergänzen,
+  // damit er sichtbar bleibt, falls er nicht mehr im Gebäude gepflegt ist.
+  const { options: editShareTypeOptions } = useBuildingShareTypes(buildingForShareTypes, editDistKey);
+  const allDistKeys = shareTypeOptionsBase;
 
-  const getKeyLabel = (key: string | null) => allDistKeys.find(k => k.value === key)?.label || key || "–";
+  const getKeyLabel = (key: string | null) => getShareTypeLabel(key);
 
   if (isLoading) return <div className="text-muted-foreground p-4">Laden...</div>;
 
