@@ -234,6 +234,9 @@ export const SubmittedTopsManager = ({ buildingFilter: externalBuildingFilter }:
           <TabsTrigger value="emails" className="gap-1.5">
             <Mail className="h-3.5 w-3.5" /> ETV-relevante E-Mails
           </TabsTrigger>
+          <TabsTrigger value="weitere" className="gap-1.5">
+            <StickyNote className="h-3.5 w-3.5" /> Weitere
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="app" className="space-y-4 mt-4">
