@@ -356,7 +356,7 @@ Deno.serve(async (req) => {
             .from("contacts")
             .select("id")
             .ilike("company_name", name)
-            .eq("contact_type", "firma")
+            .in("contact_type", ["company", "service_provider"])
             .limit(1)
             .maybeSingle();
 
@@ -367,7 +367,7 @@ Deno.serve(async (req) => {
               .from("contacts")
               .insert({
                 company_name: name,
-                contact_type: "firma",
+                contact_type: "service_provider",
                 short_name: name.slice(0, 40),
               })
               .select("id")
