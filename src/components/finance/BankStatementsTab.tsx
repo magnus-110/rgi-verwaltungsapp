@@ -1212,6 +1212,16 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
         documentUrl={statementPdf?.url ?? null}
         documentName={statementPdf?.name ?? "Kontoauszug"}
       />
+
+      {mappingDialog && selectedBuilding && (
+        <BankAccountMappingDialog
+          open={!!mappingDialog}
+          onOpenChange={(o) => { if (!o) setMappingDialog(null); }}
+          buildingId={selectedBuilding}
+          iban={mappingDialog.iban}
+          bankNameFromStatement={mappingDialog.bankName}
+        />
+      )}
     </div>
   );
 }
