@@ -1094,7 +1094,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                                 bankId={bank.id}
                                 sepaRef={bank.sepa_mandate_ref}
                                 sepaDate={bank.sepa_mandate_date}
-                                onSaved={() => qc.invalidateQueries({ queryKey: ["building-contacts", buildingId] })}
+                                onSaved={() => queryClient.invalidateQueries({ queryKey: ["building-contacts", buildingId] })}
                               />
                             </div>
                           ))}
