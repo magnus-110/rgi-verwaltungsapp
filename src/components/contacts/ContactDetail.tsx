@@ -8,8 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ArrowLeft, Plus, Save, Trash2, Phone, Mail, Landmark, Users, ChevronDown, ChevronRight, FileText, Wrench } from "lucide-react";
+import { ArrowLeft, Plus, Save, Trash2, Phone, Mail, Landmark, Users, ChevronDown, ChevronRight, FileText, Wrench, CalendarIcon, CheckCircle2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 import { ContactBuildingAssignments } from "./ContactBuildingAssignments";
 import { ContactDocumentsSection } from "./ContactDocumentsSection";
 import { supabase } from "@/integrations/supabase/client";
