@@ -334,6 +334,22 @@ export function Transfers() {
     setReviewMode(true);
   };
 
+  // Halte reviewInvoices nach Refetch frisch, damit Änderungen (z. B. Liegenschaft,
+  // Verwendungszweck, Empfänger) sofort in der Detailansicht sichtbar sind.
+  useEffect(() => {
+    if (!reviewMode || reviewInvoices.length === 0) return;
+    const pool = [...outgoingInvoices, ...incomingInvoices];
+    if (pool.length === 0) return;
+    let changed = false;
+    const next = reviewInvoices.map((cur) => {
+      const fresh = pool.find((p) => p.id === cur.id);
+      if (fresh && fresh !== cur) { changed = true; return fresh; }
+      return cur;
+    });
+    if (changed) setReviewInvoices(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [outgoingInvoices, incomingInvoices, reviewMode]);
+
   if (reviewMode && reviewInvoices.length > 0) {
     return (
       <TransferReviewMode
