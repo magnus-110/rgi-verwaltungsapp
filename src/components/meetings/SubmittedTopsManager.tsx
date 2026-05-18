@@ -294,6 +294,10 @@ export const SubmittedTopsManager = ({ buildingFilter: externalBuildingFilter }:
         <TabsContent value="emails" className="mt-4">
           <EtvRelevantEmailsManager buildingFilter={filterBuildingId} />
         </TabsContent>
+
+        <TabsContent value="weitere" className="mt-4">
+          <ManualNotesSection buildingFilter={filterBuildingId} buildings={buildings} />
+        </TabsContent>
       </Tabs>
 
       {/* Detail dialog */}
