@@ -2084,6 +2084,37 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                       </div>
                     ) : currentTxn.ai_suggestion ? (
                       <div className="p-4 space-y-3">
+                        <div className="rounded-md border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+                          KI-Vorschlag — nicht automatisch übernommen. Du kannst alle Felder manuell ausfüllen oder den Vorschlag mit einem Klick übernehmen.
+                        </div>
+                        {(() => {
+                          const _sb = currentTxn.ai_suggestion?.booking_hint?.suggested_bookings || [];
+                          const _hasAny = _sb.length > 0 || !!currentTxn.ai_suggestion?.template_suggestion;
+                          const _isSplit = currentTxn.ai_suggestion?.booking_hint?.type === "split" && _sb.length > 1;
+                          const _isApplied = appliedAiTxnId === currentTxn.id;
+                          if (!_hasAny) return null;
+                          return (
+                            <div className="flex flex-wrap gap-2">
+                              {!_isApplied && (
+                                <Button size="sm" onClick={() => applyAiSuggestion("single")}>
+                                  <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                                  Vorschlag übernehmen
+                                </Button>
+                              )}
+                              {!_isApplied && _isSplit && (
+                                <Button size="sm" variant="secondary" onClick={() => applyAiSuggestion("split")}>
+                                  Als Splitbuchung übernehmen ({_sb.length})
+                                </Button>
+                              )}
+                              {_isApplied && (
+                                <Button size="sm" variant="ghost" onClick={removeAiSuggestion}>
+                                  <X className="h-3.5 w-3.5 mr-1.5" />
+                                  Vorschlag entfernen
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {currentTxn.ai_suggestion.matches?.length > 0 && (
                           <div className="space-y-2">
                             <p className="text-xs text-muted-foreground font-medium">Mögliche Zuordnungen:</p>
