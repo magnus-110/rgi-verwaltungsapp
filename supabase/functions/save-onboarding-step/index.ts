@@ -91,3 +91,63 @@ Deno.serve(async (req) => {
     });
   }
 });
+
+async function syncBankAccountFromStep1(
+  admin: any,
+  userId: string,
+  stepNum: number,
+  data: any
+) {
+  try {
+    if (stepNum !== 1 || !data) return;
+    const rawIban = (data.iban ?? "").toString().replace(/\s+/g, "").toUpperCase();
+    if (!rawIban || rawIban.length < 15) return;
+    if (!data.sepa_mandate_accepted) return;
+
+    // Find contact for this user
+    const { data: contact } = await admin
+      .from("contacts")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!contact?.id) return;
+
+    const accountHolder = (data.account_holder ?? "").toString().trim() || null;
+    const sepaDate = data.sepa_mandate_signed_at
+      ? new Date(data.sepa_mandate_signed_at).toISOString().slice(0, 10)
+      : null;
+
+    // Look for existing bank account for this contact (any IBAN match or empty)
+    const { data: existingAccts } = await admin
+      .from("contact_bank_accounts")
+      .select("id, iban")
+      .eq("contact_id", contact.id);
+
+    const match = (existingAccts ?? []).find(
+      (a: any) => !a.iban || a.iban.replace(/\s+/g, "").toUpperCase() === rawIban
+    );
+
+    if (match) {
+      await admin
+        .from("contact_bank_accounts")
+        .update({
+          iban: rawIban,
+          account_holder: accountHolder,
+          sepa_mandate_date: sepaDate,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", match.id);
+    } else {
+      await admin.from("contact_bank_accounts").insert({
+        contact_id: contact.id,
+        iban: rawIban,
+        account_holder: accountHolder,
+        sepa_mandate_date: sepaDate,
+        is_default: true,
+      });
+    }
+  } catch (e) {
+    console.error("syncBankAccountFromStep1 failed", e);
+  }
+}
+
