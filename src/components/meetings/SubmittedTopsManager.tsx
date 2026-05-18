@@ -10,11 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, XCircle, FileText, Inbox, Building2, ExternalLink, ChevronDown, ChevronRight, Mail } from "lucide-react";
+import { CheckCircle2, XCircle, FileText, Inbox, Building2, ExternalLink, ChevronDown, ChevronRight, Mail, StickyNote, Plus, Pencil, Trash2 } from "lucide-react";
 import { format as formatDate } from "date-fns";
 import { de } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EtvRelevantEmailsManager } from "./EtvRelevantEmailsManager";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/hooks/useAuth";
 
 interface SubmittedTopsManagerProps {
   buildingFilter?: string;
@@ -231,6 +234,9 @@ export const SubmittedTopsManager = ({ buildingFilter: externalBuildingFilter }:
           <TabsTrigger value="emails" className="gap-1.5">
             <Mail className="h-3.5 w-3.5" /> ETV-relevante E-Mails
           </TabsTrigger>
+          <TabsTrigger value="weitere" className="gap-1.5">
+            <StickyNote className="h-3.5 w-3.5" /> Weitere
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="app" className="space-y-4 mt-4">
@@ -287,6 +293,10 @@ export const SubmittedTopsManager = ({ buildingFilter: externalBuildingFilter }:
 
         <TabsContent value="emails" className="mt-4">
           <EtvRelevantEmailsManager buildingFilter={filterBuildingId} />
+        </TabsContent>
+
+        <TabsContent value="weitere" className="mt-4">
+          <ManualNotesSection buildingFilter={filterBuildingId} buildings={buildings} />
         </TabsContent>
       </Tabs>
 
@@ -451,6 +461,191 @@ export const SubmittedTopsManager = ({ buildingFilter: externalBuildingFilter }:
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+};
+
+interface ManualNotesSectionProps {
+  buildingFilter: string;
+  buildings: any[];
+}
+
+const ManualNotesSection = ({ buildingFilter, buildings }: ManualNotesSectionProps) => {
+  const { profile } = useAuth();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [buildingId, setBuildingId] = useState<string>("");
+
+  const { data: notes = [], isLoading } = useQuery({
+    queryKey: ["etv-manual-notes", buildingFilter],
+    queryFn: async () => {
+      let q = supabase
+        .from("etv_manual_notes")
+        .select("*, buildings(id, name)")
+        .order("created_at", { ascending: false });
+      if (buildingFilter !== "all") q = q.eq("building_id", buildingFilter);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const resetForm = () => {
+    setTitle("");
+    setDescription("");
+    setBuildingId(buildingFilter !== "all" ? buildingFilter : "");
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const payload: any = {
+        title: title.trim(),
+        description: description.trim() || null,
+        building_id: buildingId || null,
+      };
+      if (editingId) {
+        const { error } = await supabase.from("etv_manual_notes").update(payload).eq("id", editingId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("etv_manual_notes").insert({ ...payload, created_by: profile?.user_id });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      toast({ title: editingId ? "Notiz aktualisiert" : "Notiz gespeichert" });
+      qc.invalidateQueries({ queryKey: ["etv-manual-notes"] });
+      resetForm();
+    },
+    onError: (e: any) => toast({ title: "Fehler", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("etv_manual_notes").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Notiz gelöscht" });
+      qc.invalidateQueries({ queryKey: ["etv-manual-notes"] });
+    },
+  });
+
+  const startEdit = (n: any) => {
+    setEditingId(n.id);
+    setTitle(n.title);
+    setDescription(n.description || "");
+    setBuildingId(n.building_id || "");
+    setShowForm(true);
+  };
+
+  const startNew = () => {
+    resetForm();
+    setBuildingId(buildingFilter !== "all" ? buildingFilter : "");
+    setShowForm(true);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">Eigene Notizen mit Titel und Beschreibung (z. B. mündliche Anliegen).</p>
+        {!showForm && (
+          <Button size="sm" onClick={startNew} className="gap-1.5">
+            <Plus className="h-4 w-4" /> Neue Notiz
+          </Button>
+        )}
+      </div>
+
+      {showForm && (
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div className="space-y-1.5">
+              <Label>Liegenschaft</Label>
+              <Select value={buildingId} onValueChange={setBuildingId}>
+                <SelectTrigger><SelectValue placeholder="Liegenschaft wählen..." /></SelectTrigger>
+                <SelectContent>
+                  {buildings.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Titel *</Label>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="z. B. Hinweis von Frau Müller" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Beschreibung</Label>
+              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder="Details der Notiz..." />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={resetForm}>Abbrechen</Button>
+              <Button
+                onClick={() => saveMutation.mutate()}
+                disabled={!title.trim() || !buildingId || saveMutation.isPending}
+              >
+                {editingId ? "Speichern" : "Anlegen"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isLoading ? (
+        <Skeleton className="h-20 w-full" />
+      ) : notes.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <StickyNote className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">Noch keine Notizen vorhanden.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {notes.map((n: any) => (
+            <Card key={n.id}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <h5 className="font-semibold text-sm">{n.title}</h5>
+                    {n.description && <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{n.description}</p>}
+                    <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground flex-wrap">
+                      {n.buildings?.name && (
+                        <span className="flex items-center gap-1">
+                          <Building2 className="h-3 w-3" />
+                          {n.buildings.name}
+                        </span>
+                      )}
+                      <span>•</span>
+                      <span>{formatDate(new Date(n.created_at), "dd.MM.yyyy HH:mm", { locale: de })}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => startEdit(n)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      onClick={() => {
+                        if (confirm("Notiz wirklich löschen?")) deleteMutation.mutate(n.id);
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
