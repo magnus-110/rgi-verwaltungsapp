@@ -672,12 +672,48 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
                                     <Input className="h-7 text-xs" value={bk.account_holder || ""} onChange={e => updateBankInPerson(p._localId, bk._localId, "account_holder", e.target.value)} />
                                   </div>
                                 </div>
-                                {bk.sepa_mandate_ref && (
-                                  <p className="text-[10px] text-muted-foreground">
-                                    SEPA: <span className="font-mono font-medium text-foreground">{bk.sepa_mandate_ref}</span>
-                                    {bk.sepa_mandate_date && <span className="ml-2">vom {new Date(bk.sepa_mandate_date).toLocaleDateString("de-DE")}</span>}
-                                  </p>
-                                )}
+                                <div className="border-t pt-2 mt-1 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <Switch
+                                        id={`sepa-${bk._localId}`}
+                                        checked={!!bk.sepa_mandate_date}
+                                        onCheckedChange={(checked) => {
+                                          updateBankInPerson(p._localId, bk._localId, "sepa_mandate_date", checked ? new Date().toISOString().slice(0, 10) : null);
+                                        }}
+                                      />
+                                      <Label htmlFor={`sepa-${bk._localId}`} className="text-xs cursor-pointer flex items-center gap-1">
+                                        {bk.sepa_mandate_date && <CheckCircle2 className="h-3 w-3 text-green-600" />}
+                                        SEPA-Mandat erteilt
+                                      </Label>
+                                    </div>
+                                    {bk.sepa_mandate_date && (
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                                            <CalendarIcon className="h-3 w-3" />
+                                            {new Date(bk.sepa_mandate_date).toLocaleDateString("de-DE")}
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="end">
+                                          <Calendar
+                                            mode="single"
+                                            selected={bk.sepa_mandate_date ? new Date(bk.sepa_mandate_date) : undefined}
+                                            onSelect={(d) => updateBankInPerson(p._localId, bk._localId, "sepa_mandate_date", d ? d.toISOString().slice(0, 10) : null)}
+                                            initialFocus
+                                            className={cn("p-3 pointer-events-auto")}
+                                          />
+                                        </PopoverContent>
+                                      </Popover>
+                                    )}
+                                  </div>
+                                  {bk.sepa_mandate_date && (
+                                    <p className="text-[10px] text-muted-foreground">
+                                      {bk.sepa_mandate_ref && <>SEPA-Ref: <span className="font-mono font-medium text-foreground">{bk.sepa_mandate_ref}</span> · </>}
+                                      erteilt am <span className="font-medium text-foreground">{new Date(bk.sepa_mandate_date).toLocaleDateString("de-DE")}</span>
+                                    </p>
+                                  )}
+                                </div>
                               </div>
                             );
                           })}
