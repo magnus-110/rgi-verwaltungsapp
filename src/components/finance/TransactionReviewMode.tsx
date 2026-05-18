@@ -410,7 +410,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     const fiscalYear = getFiscalYearForDate(txnDate);
     const absAmount = Math.abs(currentTxn?.amount || 0);
     const isIncome = (currentTxn?.amount || 0) > 0;
-    const bankAccount = accounts.find(a => a.account_number === "1800") || accounts.find(a => a.account_number === "1200") || accounts.find(a => a.category === "Bankkonto");
+    const bankAccountId = resolveBankAccountId(currentTxn);
+    const bankAccount = (accounts as any[]).find(a => a.id === bankAccountId) || accounts.find(a => a.account_number === "1800") || accounts.find(a => a.account_number === "1200") || accounts.find(a => a.category === "Bankkonto");
 
     return {
       id: nextRowId(),
