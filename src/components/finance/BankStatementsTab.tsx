@@ -72,6 +72,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   const [reviewInitialIndex, setReviewInitialIndex] = useState(0);
   const [reviewFlaggedFirst, setReviewFlaggedFirst] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [mappingDialog, setMappingDialog] = useState<{ iban: string; bankName?: string | null } | null>(null);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
