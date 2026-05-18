@@ -24,6 +24,8 @@ import { CreateBookingDialog } from "./CreateBookingDialog";
 import { TransactionReviewMode } from "./TransactionReviewMode";
 import { useTransactionAiPrefetch } from "@/hooks/useTransactionAiPrefetch";
 import { PdfViewerModal } from "@/components/documents/PdfViewerModal";
+import { BankAccountMappingDialog } from "./BankAccountMappingDialog";
+import { useBuildingBankAccounts } from "@/hooks/useBuildingBankAccounts";
 const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   matched_invoice: { label: "Rechnung", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", icon: CheckCircle2 },
   matched_template: { label: "Vorlage", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", icon: LayoutTemplate },
