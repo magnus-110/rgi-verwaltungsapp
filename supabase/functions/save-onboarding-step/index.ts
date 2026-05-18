@@ -56,8 +56,11 @@ Deno.serve(async (req) => {
         })
         .eq("id", existing.id);
       if (error) return json({ error: error.message }, 500);
+
+      // Sync IBAN/SEPA from step 1 into contact_bank_accounts (master data)
+      await syncBankAccountFromStep1(admin, userId, stepNum, data);
+
       return json({ success: true, id: existing.id });
-    }
 
     const { data: created, error } = await admin
       .from("onboarding_progress")
