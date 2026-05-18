@@ -145,7 +145,7 @@ interface ContactAssignment {
   phones: { id: string; phone_number: string; label: string; contact_id: string }[];
   emails: { id: string; email: string; label: string; contact_id: string }[];
   costs: { id: string; cost_type: string; amount: number; reserve_share_monthly: number | null; interval: string; valid_from: string | null; valid_to: string | null }[];
-  bankAccounts: { id: string; iban: string | null; bic: string | null; bank_name: string | null; account_holder: string | null; sepa_mandate_ref: string | null }[];
+  bankAccounts: { id: string; iban: string | null; bic: string | null; bank_name: string | null; account_holder: string | null; sepa_mandate_ref: string | null; sepa_mandate_date: string | null }[];
   persons: { id: string; salutation: string | null; first_name: string | null; last_name: string | null; is_primary: boolean | null }[];
 }
 
@@ -1090,7 +1090,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                               {bank.iban && <CopyableField label="IBAN" value={bank.iban} />}
                               {bank.bic && <CopyableField label="BIC" value={bank.bic} />}
                               {bank.bank_name && <CopyableField label="Bank" value={bank.bank_name} />}
-                              {bank.sepa_mandate_ref && <CopyableField label="SEPA-Ref." value={bank.sepa_mandate_ref} />}
+                              <BankSepaInlineEditor
+                                bankId={bank.id}
+                                sepaRef={bank.sepa_mandate_ref}
+                                sepaDate={bank.sepa_mandate_date}
+                                onSaved={() => qc.invalidateQueries({ queryKey: ["building-contacts", buildingId] })}
+                              />
                             </div>
                           ))}
                         </div>
