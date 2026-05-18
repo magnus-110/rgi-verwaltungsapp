@@ -218,6 +218,14 @@ export function Section35aEditor({
       >
         <div className="flex items-center gap-2 min-w-0">
           <Checkbox checked={isSelected} onCheckedChange={(v) => toggleSelect(i, item, !!v)} />
+          {detail?.ai_picked && (
+            <span
+              title={detail.ai_reason || "Von KI als §35a-relevant erkannt"}
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700 shrink-0"
+            >
+              <Sparkles className="h-2.5 w-2.5" /> KI
+            </span>
+          )}
           {isSelected ? (
             <Input
               value={description}
