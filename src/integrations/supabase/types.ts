@@ -1154,6 +1154,57 @@ export type Database = {
           },
         ]
       }
+      building_bank_accounts: {
+        Row: {
+          bank_name: string | null
+          building_id: string
+          coa_account_id: string | null
+          created_at: string
+          display_name: string | null
+          iban: string
+          id: string
+          is_active: boolean
+          updated_at: string
+        }
+        Insert: {
+          bank_name?: string | null
+          building_id: string
+          coa_account_id?: string | null
+          created_at?: string
+          display_name?: string | null
+          iban: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          bank_name?: string | null
+          building_id?: string
+          coa_account_id?: string | null
+          created_at?: string
+          display_name?: string | null
+          iban?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "building_bank_accounts_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_bank_accounts_coa_account_id_fkey"
+            columns: ["coa_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       building_documents: {
         Row: {
           building_id: string | null

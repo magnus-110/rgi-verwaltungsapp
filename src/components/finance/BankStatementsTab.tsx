@@ -24,6 +24,8 @@ import { CreateBookingDialog } from "./CreateBookingDialog";
 import { TransactionReviewMode } from "./TransactionReviewMode";
 import { useTransactionAiPrefetch } from "@/hooks/useTransactionAiPrefetch";
 import { PdfViewerModal } from "@/components/documents/PdfViewerModal";
+import { BankAccountMappingDialog } from "./BankAccountMappingDialog";
+import { useBuildingBankAccounts } from "@/hooks/useBuildingBankAccounts";
 const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   matched_invoice: { label: "Rechnung", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", icon: CheckCircle2 },
   matched_template: { label: "Vorlage", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", icon: LayoutTemplate },
@@ -70,6 +72,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   const [reviewInitialIndex, setReviewInitialIndex] = useState(0);
   const [reviewFlaggedFirst, setReviewFlaggedFirst] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [mappingDialog, setMappingDialog] = useState<{ iban: string; bankName?: string | null } | null>(null);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -131,6 +134,40 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       return true;
     });
   }, [bankStatements]);
+
+  // IBAN -> Konto im Kontenrahmen Zuordnung (pro Liegenschaft)
+  const { data: bankMappings = [] } = useBuildingBankAccounts(selectedBuilding || null);
+  const mappingByIban = useMemo(() => {
+    const m: Record<string, { display_name: string | null; coa_account_id: string | null; account_number?: string }> = {};
+    bankMappings.forEach((b) => {
+      m[b.iban] = { display_name: b.display_name, coa_account_id: b.coa_account_id };
+    });
+    return m;
+  }, [bankMappings]);
+
+  // Lade Account-Numbers der zugeordneten Konten (für Anzeige in der Pille)
+  const mappedAccountIds = useMemo(
+    () => bankMappings.map((b) => b.coa_account_id).filter(Boolean) as string[],
+    [bankMappings]
+  );
+  const { data: mappedAccounts = [] } = useQuery({
+    queryKey: ["bank-mapping-accounts", mappedAccountIds.sort().join(",")],
+    queryFn: async () => {
+      if (mappedAccountIds.length === 0) return [] as any[];
+      const { data, error } = await supabase
+        .from("chart_of_accounts")
+        .select("id, account_number, account_name")
+        .in("id", mappedAccountIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: mappedAccountIds.length > 0,
+  });
+  const accountById = useMemo(() => {
+    const m: Record<string, { account_number: string; account_name: string }> = {};
+    (mappedAccounts as any[]).forEach((a) => (m[a.id] = a));
+    return m;
+  }, [mappedAccounts]);
 
   // Global bookable count (across all buildings)
   const { data: allTransactions = [] } = useQuery({
@@ -693,13 +730,36 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
               {/* Bank account info */}
               {bankAccounts.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  {bankAccounts.map((ba: any, i: number) => (
-                    <div key={i} className="flex items-center gap-2 text-sm bg-muted/50 rounded-lg px-3 py-2 border">
-                      <Landmark className="h-4 w-4 text-primary shrink-0" />
-                      <span className="font-mono text-xs">{ba.account_iban?.replace(/(.{4})/g, '$1 ').trim()}</span>
-                      {ba.account_name && <span className="text-muted-foreground">— {ba.account_name}</span>}
-                    </div>
-                  ))}
+                  {bankAccounts.map((ba: any, i: number) => {
+                    const map = mappingByIban[ba.account_iban];
+                    const acc = map?.coa_account_id ? accountById[map.coa_account_id] : null;
+                    const isMapped = !!acc;
+                    return (
+                      <button
+                        type="button"
+                        key={i}
+                        onClick={() => setMappingDialog({ iban: ba.account_iban, bankName: ba.account_name })}
+                        className={
+                          "flex items-center gap-2 text-sm rounded-lg px-3 py-2 border transition-colors text-left " +
+                          (isMapped
+                            ? "bg-muted/50 hover:bg-muted border-border"
+                            : "bg-orange-50 dark:bg-orange-950/30 hover:bg-orange-100 dark:hover:bg-orange-950/50 border-orange-300 dark:border-orange-800")
+                        }
+                        title="Klicken um IBAN einem Konto im Kontenrahmen zuzuordnen"
+                      >
+                        <Landmark className={"h-4 w-4 shrink-0 " + (isMapped ? "text-primary" : "text-orange-600")} />
+                        <span className="font-mono text-xs">{ba.account_iban?.replace(/(.{4})/g, '$1 ').trim()}</span>
+                        {ba.account_name && <span className="text-muted-foreground">— {ba.account_name}</span>}
+                        {isMapped ? (
+                          <Badge variant="secondary" className="text-[10px] ml-1">
+                            {map?.display_name ? `${map.display_name} · ` : ""}{acc?.account_number} {acc?.account_name}
+                          </Badge>
+                        ) : (
+                          <Badge className="text-[10px] ml-1 bg-orange-500 hover:bg-orange-600 text-white">Zuordnen</Badge>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
@@ -1152,6 +1212,16 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
         documentUrl={statementPdf?.url ?? null}
         documentName={statementPdf?.name ?? "Kontoauszug"}
       />
+
+      {mappingDialog && selectedBuilding && (
+        <BankAccountMappingDialog
+          open={!!mappingDialog}
+          onOpenChange={(o) => { if (!o) setMappingDialog(null); }}
+          buildingId={selectedBuilding}
+          iban={mappingDialog.iban}
+          bankNameFromStatement={mappingDialog.bankName}
+        />
+      )}
     </div>
   );
 }

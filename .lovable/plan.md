@@ -1,111 +1,84 @@
-## Diagnose: Warum aktuell -63.667,45 € entsteht
+## Ziel
 
-Der falsche Wert kommt nicht aus einem einzelnen Rundungsfehler, sondern aus mehreren Quellen in `AssetReportSection`:
+Pro Liegenschaft soll jedem aus den Kontoauszügen erkannten Bankkonto (IBAN) eine eigene Bezeichnung **und** ein Konto aus dem Kontenrahmen (z. B. Bank 1800, Rücklage I 1810, Rücklage II 1820 …) zugeordnet werden können. Buchungen aus diesem Kontoauszug werden danach automatisch auf das richtige Bank-/Rücklagenkonto gebucht.
 
-1. **`booking_type` wird im Vermögensbericht nicht geladen**
-   - `AssetReportSection` ruft Buchungen aktuell ohne `booking_type` ab.
-   - Danach wird aber `signedTotalForAccount(...)` verwendet.
-   - Ohne `booking_type` behandelt diese Funktion jede Buchung als Ausgabe.
-   - Dadurch werden echte Bestandskonten massiv falsch:
-     - Konto 1800 wird aktuell rechnerisch ca. **-58.528,85 €** statt korrekt **+8.961,47 €**.
-     - Konto 1810 wird ca. **-457,82 €** statt korrekt **+15.443,14 €**.
+Beispiel **Neuer Weg 14**: 6 IBANs → jede IBAN bekommt einen Namen ("Instandhaltungsrücklage Haus A") und ein eigenes COA-Konto (1811, 1812, …). Beim Import der Auszüge landet jede Transaktion automatisch auf dem zugeordneten Konto.
 
-2. **Die Anfangsbestände werden mit der falschen Logik kombiniert**
-   - Für den Vermögensbericht darf nicht `opening aus 4000` plus `signed movements ohne 4000` verwendet werden.
-   - Korrekt ist für Bestandskonten: **signierter Kontensaldo über alle Periodenbuchungen inkl. Eröffnungsbuchung 4000**.
-   - Genau damit kommt man bei der Tiroler Straße auf:
-     - 1450 Heizöl: **4.650,59 €**
-     - 1800 Giro: **8.961,47 €**
-     - 1810 Rücklage: **15.443,14 €**
+## Was gebaut wird
 
-3. **Heizöl wird falsch einsortiert bzw. aktuell nicht sauber aus `fuel_inventory` geladen**
-   - Die Excel-Vorlage zeigt Heizölrestbestand unter **Liquide Mittel aus Bankkonten und Kasse**.
-   - Die UI zeigt Konto 1450 aktuell unter **Sonstige Vermögensposten** und mit falschem Vorzeichen.
-   - Zusätzlich fragt der Code ein nicht vorhandenes Feld `end_value_eur` aus `fuel_inventory` ab; dadurch kann der Fuel-Block leer bleiben.
+### 1. Neue Tabelle `building_bank_accounts`
 
-4. **Abgrenzungen werden im Vermögensbericht mit einer falschen Display-Formel gedreht**
-   - Aktuell wird teilweise `Math.abs(...) * getAccrualDisplaySign(...)` genutzt.
-   - Für den Vermögensbericht muss aber der **echte signierte Kontensaldo** angezeigt werden.
-   - Damit entstehen die Excel-Werte:
-     - 4110 Ausg. im lfd. J. für Vorjahr: **+924,95 €**
-     - 4130 Einn. im lfd. J. für Vorjahr: **-20,79 €**
-     - 4160 Ausg. im Folgejahr für lfd. J.: **-940,51 €**
+Speichert die Zuordnung IBAN → COA-Konto pro Liegenschaft.
 
-5. **Die Struktur entspricht noch nicht vollständig der Excel-Struktur**
-   - Korrekt sind diese Blöcke:
-     1. Liquide Mittel aus Bankkonten und Kasse
-     2. Guth. und Nachz. aus Abrechnung incl. Altschulden
-     3. Zu- und Abflüsse aus Jahresabgrenzung
-     4. Forderungen zum Jahresende
-     5. Verbindlichkeiten zum Jahresende
-     6. Weitere Vermögenswerte / manuelle Posten
+Felder (Domain):
+- `building_id`, `iban` (unique je Liegenschaft)
+- `display_name` (frei wählbare Bezeichnung, z. B. "Rücklage Aufzug")
+- `coa_account_id` → `chart_of_accounts.id` (Pflicht, sobald zugeordnet)
+- `bank_name` (auto aus BIC/Auszug), `is_active`
 
-## Zielwert laut Excel
+RLS analog zu anderen finance-Tabellen (Admin/Verwalter dieser Liegenschaft).
 
-```text
-Liquide Mittel:
-  Heizölrestbestand        4.650,59 €
-  VR Bank Giro             8.961,47 €
-  VR Bank Rücklagen       15.443,14 €
-  Zwischensumme           29.055,20 €
+### 2. UI: Bank-Konten-Verwaltung in **Buchhaltung → Kontoauszüge**
 
-Guthaben/Nachzahlungen:
-  Guthaben aus Abr.       -1.223,06 €
-  Nachzahlung aus Abr.     1.443,15 €
-  Zwischensumme              220,09 €
+Die heutige Pillen-Leiste mit den IBANs (siehe Screenshot Neuer Weg 14) wird klickbar. Klick auf eine IBAN-Pille öffnet ein Dialog mit:
 
-Jahresabgrenzung:
-  Ausg. im Folgejahr       -940,51 €
+- IBAN (read-only) + Bank
+- Feld **Bezeichnung** (Freitext, z. B. "Rücklage Haus A")
+- Feld **Konto im Kontenrahmen** (Suchcombobox `AccountSearchSelect`, gefiltert auf Kategorie "Bankkonto" / Rücklagen)
+- Button **„Neues Konto im Kontenrahmen anlegen"** → öffnet `CreateAccountInlineDialog` (nur für diese Liegenschaft, `building_id` gesetzt). Nach dem Anlegen wird es direkt in der Combobox vorausgewählt.
+- Speichern
 
-Forderungen zum Jahresende:
-  Ausg. lfd. J. Vorjahr     924,95 €
-  Einn. lfd. J. Vorjahr     -20,79 €
-  Zwischensumme             904,16 €
+Nicht zugeordnete IBANs erhalten einen orangen „Zuordnen"-Badge, damit der Nutzer sieht, wo noch Arbeit liegt.
 
-Vermögensstand:          29.238,94 €
+### 3. Automatische Konto-Zuweisung bei Buchungen
+
+Heute hardcoded:
+```
+const bankAccount = accounts.find(a => a.account_number === "1800") || …
+```
+in `TransactionReviewMode.tsx` (Zeilen 379 und 464) sowie analog im Make-Webhook-Pfad.
+
+Neue Logik (Helper `resolveBankAccountForTransaction`):
+1. IBAN der Transaktion → `bank_statements.account_iban` lesen
+2. In `building_bank_accounts` nach (building_id, iban) suchen
+3. Wenn Mapping vorhanden → `coa_account_id` verwenden
+4. Sonst Fallback wie bisher (1800)
+
+Damit landen Buchungen aus Auszug IBAN-A automatisch auf 1811, aus IBAN-B auf 1812 usw. — sowohl im Review-Mode als auch beim Auto-Booking via Make.
+
+### 4. Anzeige der Zuordnung
+
+- IBAN-Pille zeigt: `IBAN — Bezeichnung (Kontonr.)`
+- In Kontenplan-Übersicht erscheinen die neu angelegten Liegenschafts-spezifischen Bankkonten korrekt sortiert in der Sektion „Bankkonten".
+
+## Technische Details
+
+Migration:
+```sql
+CREATE TABLE public.building_bank_accounts (
+  id uuid pk default gen_random_uuid(),
+  building_id uuid not null references buildings(id) on delete cascade,
+  iban text not null,
+  display_name text,
+  coa_account_id uuid references chart_of_accounts(id) on delete set null,
+  bank_name text,
+  is_active boolean default true,
+  created_at, updated_at,
+  unique (building_id, iban)
+);
+-- RLS: SELECT/INSERT/UPDATE/DELETE für authentifizierte Admins der Liegenschaft
 ```
 
-## Was ich zur korrekten Berechnung brauche
+Frontend:
+- Neue Komponente `BankAccountMappingDialog.tsx`
+- Neuer Hook `useBuildingBankAccounts(buildingId)`
+- Anpassung `BankStatementsTab.tsx` (Pillen klickbar, Mapping-Anzeige)
+- Anpassung `TransactionReviewMode.tsx` (Helper statt Hardcode)
+- Ggf. Anpassung Make-Webhook-Handler in `supabase/functions/` (gleicher Helper-Port nach Deno).
 
-Aus der Datenbank:
+Keine Änderung an bestehenden Buchungen — Mapping wirkt nur auf neue/künftige Buchungen. Optional späterer „Bestehende Buchungen umbuchen"-Button (nicht in diesem Scope).
 
-- `bookings`: `account_id`, `counter_account_id`, `amount`, `booking_date`, `booking_type`, `status`
-- `billing_periods`: `period_from`, `period_to`, damit nach Zeitraum gefiltert wird, nicht blind nach `fiscal_year`
-- `chart_of_accounts`: `account_number`, `account_name`, `settlement_section`, `is_asset_report_relevant`
-- `fuel_inventory`: `entry_type`, `total_price`, `billing_period_id` für den Heizöl-Endbestand
-- `asset_report_items`: manuelle weitere Vermögenswerte
-- Für **Guthaben/Nachzahlung aus Abrechnung** zusätzlich die berechneten `ownerResults` aus der Abrechnung, weil diese Werte aktuell nicht als Buchungen auf 4020 gespeichert sind.
+## Nicht enthalten
 
-## Umsetzungsplan
-
-1. **Saldo-Helfer für Vermögensbericht korrigieren**
-   - Buchungen inklusive `booking_type` laden.
-   - Nach `billing_period.period_from` bis `period_to` filtern.
-   - Für Bestandskonten den signierten Saldo über alle Periodenbuchungen verwenden.
-   - Fallback nur dann auf `account_balances.opening_balance + Bewegungen`, wenn keine 4000-Eröffnungsbuchung existiert.
-
-2. **Fuel-Logik korrigieren**
-   - `end_value_eur` aus der Supabase-Abfrage entfernen.
-   - Heizöl-Endbestand aus `fuel_inventory.entry_type = 'closing_balance'` und `total_price` berechnen.
-   - Konto 1450 nicht mehr als „Sonstige Vermögensposten“ ausgeben, wenn es als Heizölrestbestand in Liquide Mittel ausgewiesen wird.
-
-3. **Excel-Struktur exakt nachbauen**
-   - Sektionen wie in der Excel-Datei aufbauen.
-   - Null-Zeilen ausblenden, außer wenn eine feste Excel-Zeile fachlich sichtbar bleiben soll.
-   - Manuelle weitere Vermögenswerte separat darunter behalten.
-
-4. **Abgrenzungen nach echtem signierten Saldo ausweisen**
-   - Keine `Math.abs(...) * Vorzeichenregel` mehr im Vermögensbericht.
-   - 4110/4130 in **Forderungen zum Jahresende**.
-   - 4120/4140/4160/4180 bzw. die entsprechenden Folgejahr-Konten in **Zu- und Abflüsse aus Jahresabgrenzung**.
-
-5. **Guthaben/Nachzahlungen einspeisen**
-   - `AssetReportSection` bekommt optional die `ownerResults` aus `BillingSettlement`.
-   - In der Abrechnungsansicht werden daraus korrekt berechnet:
-     - Eigentümer-Guthaben = negative WEG-Verbindlichkeit
-     - Eigentümer-Nachzahlung = positive WEG-Forderung
-   - In der separaten Finanz-Seite kann der Block nur dann vollständig sein, wenn diese Ergebnisse übergeben oder später gespeichert werden.
-
-6. **Prüfung gegen Tiroler Straße 2025**
-   - Nach Umsetzung rechnerisch prüfen, dass die UI auf **29.238,94 €** kommt.
-   - Zusätzlich sicherstellen, dass Konten mit Saldo 0 ausgeblendet werden und das Rücklagenkonto positiv erscheint.
+- Rückwirkendes Umbuchen bereits existierender Buchungen (separater Schritt, auf Wunsch)
+- Multi-IBAN-Mapping zu einem Konto (1:1 reicht für den Use-Case)

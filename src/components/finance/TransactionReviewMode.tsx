@@ -38,6 +38,7 @@ import { resolveVendorDisplayName, useVendorAliases } from "./lib/vendorAlias";
 import { VendorAliasDialog } from "./VendorAliasDialog";
 import { Pencil } from "lucide-react";
 import { CreateAccountInlineDialog } from "./CreateAccountInlineDialog";
+import { useBuildingBankAccounts } from "@/hooks/useBuildingBankAccounts";
 
 interface TransactionReviewModeProps {
   open: boolean;
@@ -194,6 +195,39 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     },
     enabled: open && !!buildingId,
   });
+
+  // Bank-Konto-Zuordnung pro IBAN → COA-Konto
+  const { data: bankMappings = [] } = useBuildingBankAccounts(buildingId);
+  const { data: statementIbans = [] } = useQuery({
+    queryKey: ["txn-review-statements", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bank_statements")
+        .select("id, account_iban")
+        .eq("building_id", buildingId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open && !!buildingId,
+  });
+  const statementIbanById = useMemo(() => {
+    const m: Record<string, string> = {};
+    (statementIbans as any[]).forEach((s) => { if (s.account_iban) m[s.id] = s.account_iban; });
+    return m;
+  }, [statementIbans]);
+  const coaIdByIban = useMemo(() => {
+    const m: Record<string, string> = {};
+    bankMappings.forEach((b) => { if (b.coa_account_id) m[b.iban] = b.coa_account_id; });
+    return m;
+  }, [bankMappings]);
+  const resolveBankAccountId = useCallback((txn: any): string => {
+    const iban = txn?.statement_id ? statementIbanById[txn.statement_id] : null;
+    if (iban && coaIdByIban[iban]) return coaIdByIban[iban];
+    const fallback = (accounts as any[]).find(a => a.account_number === "1800")
+      || (accounts as any[]).find(a => a.account_number === "1200")
+      || (accounts as any[]).find(a => a.category === "Bankkonto");
+    return fallback?.id || "";
+  }, [statementIbanById, coaIdByIban, accounts]);
 
   const { data: invoiceDetail } = useQuery({
     queryKey: ["txn-review-invoice", currentTxn?.matched_invoice_id],
@@ -376,7 +410,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     const fiscalYear = getFiscalYearForDate(txnDate);
     const absAmount = Math.abs(currentTxn?.amount || 0);
     const isIncome = (currentTxn?.amount || 0) > 0;
-    const bankAccount = accounts.find(a => a.account_number === "1800") || accounts.find(a => a.account_number === "1200") || accounts.find(a => a.category === "Bankkonto");
+    const bankAccountId = resolveBankAccountId(currentTxn);
+    const bankAccount = (accounts as any[]).find(a => a.id === bankAccountId) || accounts.find(a => a.account_number === "1800") || accounts.find(a => a.account_number === "1200") || accounts.find(a => a.category === "Bankkonto");
 
     return {
       id: nextRowId(),
@@ -461,7 +496,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     const fiscalYear = getFiscalYearForDate(txnDate);
     const absAmount = Math.abs(currentTxn.amount);
     const isIncome = currentTxn.amount > 0;
-    const bankAccount = accounts.find(a => a.account_number === "1800") || accounts.find(a => a.account_number === "1200") || accounts.find(a => a.category === "Bankkonto");
+    const resolvedBankId = resolveBankAccountId(currentTxn);
+    const bankAccount = (accounts as any[]).find(a => a.id === resolvedBankId) || accounts.find(a => a.account_number === "1800") || accounts.find(a => a.account_number === "1200") || accounts.find(a => a.category === "Bankkonto");
     const defaultBankAccountId = bankAccount?.id || "";
 
     // Check for AI split suggestion
