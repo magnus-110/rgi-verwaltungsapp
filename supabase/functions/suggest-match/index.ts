@@ -88,11 +88,27 @@ Deno.serve(async (req) => {
     const txnName = txnIsExpense ? transaction.creditor_name : transaction.debtor_name;
     const txnIban = txnIsExpense ? transaction.creditor_iban : transaction.debtor_iban;
 
-    // ---------- RAG Tier 1+2: Similar bookings ----------
-    let ragSimilar: any[] = [];
-    let ragOtherBuildings: any[] = [];
-    let ragVendorMemory: any[] = [];
-    const queryEmbedding = await embedText(buildEmbedInput(transaction));
+    // ---------- Load invoice line items for matched invoice (§35a precision) ----------
+    let matchedInvoiceLineItems: any[] | null = null;
+    let matchedInvoiceMeta: { id: string; gross: number; vat_rate: number | null; number: string | null } | null = null;
+    if (transaction.matched_invoice_id) {
+      const { data: inv } = await supabase
+        .from("invoices")
+        .select("id, invoice_number, gross_amount, vat_rate, line_items")
+        .eq("id", transaction.matched_invoice_id)
+        .maybeSingle();
+      if (inv && Array.isArray((inv as any).line_items) && (inv as any).line_items.length > 0) {
+        matchedInvoiceLineItems = (inv as any).line_items;
+        matchedInvoiceMeta = {
+          id: (inv as any).id,
+          gross: Number((inv as any).gross_amount) || 0,
+          vat_rate: (inv as any).vat_rate != null ? Number((inv as any).vat_rate) : null,
+          number: (inv as any).invoice_number || null,
+        };
+      }
+    }
+
+
 
     if (queryEmbedding && buildingId && managementMode) {
       // Tier 1: gleiche Liegenschaft
