@@ -729,12 +729,13 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           booking_type: isIncome ? "income" : "expense",
           is_35a_relevant: !!s.is_35a_relevant,
           amount_35a: s.is_35a_relevant && s.amount_35a != null ? String(s.amount_35a) : "",
-          line_items_detail: s.is_35a_relevant && s.amount_35a != null
+          line_items_detail: s.is_35a_relevant
             ? build35aDetailFromSuggestion(
                 (invoiceDetail as any)?.line_items,
                 Number(s.amount_35a) || 0,
                 (accounts.find((a: any) => a.id === counterAccountId)?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste"),
                 s.vat_rate != null ? Number(s.vat_rate) : 19,
+                s.paragraph_35a?.selected_line_items || null,
               )
             : null as any,
           fiscal_year: fiscalYear,
