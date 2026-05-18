@@ -19,6 +19,8 @@ interface Props {
 
 export function CreateAccountInlineDialog({ open, onOpenChange, buildingId, onCreated }: Props) {
   const queryClient = useQueryClient();
+  const { options: shareTypeOptions } = useBuildingShareTypes(buildingId);
+  const { options: globalShareTypeOptions } = useBuildingShareTypes(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     account_number: "",
