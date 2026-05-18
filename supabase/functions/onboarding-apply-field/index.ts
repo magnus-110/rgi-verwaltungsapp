@@ -60,7 +60,9 @@ Deno.serve(async (req) => {
       return json({ error: "Forbidden" }, 403);
     }
 
-    const { submission_id, field, value } = await req.json();
+    const reqBody = await req.json();
+    console.log("apply-field request", JSON.stringify(reqBody));
+    const { submission_id, field, value } = reqBody;
     if (!submission_id || !field) {
       return json({ error: "submission_id and field required" }, 400);
     }
