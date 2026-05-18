@@ -666,6 +666,183 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     if (expandedRowId === rowId) setExpandedRowId(null);
   };
 
+  // KI-Vorschlag explizit übernehmen / entfernen
+  const [appliedAiTxnId, setAppliedAiTxnId] = useState<string | null>(null);
+
+  const applyAiSuggestion = useCallback((mode: "single" | "split") => {
+    if (!currentTxn) return;
+    const aiSuggestion = currentTxn.ai_suggestion;
+    const sb = aiSuggestion?.booking_hint?.suggested_bookings || [];
+    if (sb.length === 0 && !aiSuggestion?.template_suggestion) return;
+
+    const txnDate = currentTxn.booking_date;
+    const fiscalYear = getFiscalYearForDate(txnDate);
+    const absAmount = Math.abs(currentTxn.amount || 0);
+    const isIncome = (currentTxn.amount || 0) > 0;
+    const bankAccountId = resolveBankAccountId(currentTxn);
+    const bankAccount = (accounts as any[]).find(a => a.id === bankAccountId)
+      || accounts.find(a => a.account_number === "1800")
+      || accounts.find(a => a.account_number === "1200")
+      || accounts.find(a => a.category === "Bankkonto");
+    const defaultBankAccountId = bankAccount?.id || "";
+    const vendorFromTxn = currentTxn.amount < 0 ? currentTxn.creditor_name : currentTxn.debtor_name;
+
+    const resolveCounterAccount = (s: any): string => {
+      if (s?.account_id) return s.account_id;
+      if (s?.account_number) {
+        const acc = accounts.find(a => a.account_number === s.account_number);
+        if (acc) return acc.id;
+      }
+      if (s?.counter_account_number) {
+        const acc = accounts.find(a => a.account_number === s.counter_account_number);
+        if (acc) return acc.id;
+      }
+      return "";
+    };
+
+    if (mode === "split" && sb.length > 1) {
+      const invoiceNumber = (invoiceDetail as any)?.invoice_number || null;
+      const vendorName = resolveVendor((invoiceDetail as any)?.vendor_name || vendorFromTxn || null);
+      const rows: BookingRowData[] = sb.map((s: any) => {
+        const counterAccountId = resolveCounterAccount(s);
+        const rowAmount = s.amount != null ? Math.abs(s.amount) : absAmount / sb.length;
+        const counterAcc = accounts.find(a => a.id === counterAccountId);
+        const receiptNo = s.receipt_number || invoiceNumber || "";
+        const splitDescription = buildBookingText({
+          period: null,
+          invoiceNumber: receiptNo,
+          vendorName,
+          counterAccountName: counterAcc?.account_name || null,
+        }) || s.description || "";
+        return {
+          id: nextRowId(),
+          account_id: defaultBankAccountId,
+          counter_account_id: counterAccountId,
+          amount: rowAmount.toFixed(2),
+          vat_rate: s.vat_rate != null ? String(s.vat_rate) : "19",
+          vat_amount: "",
+          description: splitDescription,
+          __autoTextSignature: splitDescription,
+          booking_reference: formatMonthYearRef(txnDate),
+          booking_date: txnDate || "",
+          receipt_number: receiptNo,
+          booking_type: isIncome ? "income" : "expense",
+          is_35a_relevant: !!s.is_35a_relevant,
+          amount_35a: s.is_35a_relevant && s.amount_35a != null ? String(s.amount_35a) : "",
+          line_items_detail: s.is_35a_relevant && s.amount_35a != null
+            ? build35aDetailFromSuggestion(
+                (invoiceDetail as any)?.line_items,
+                Number(s.amount_35a) || 0,
+                (accounts.find((a: any) => a.id === counterAccountId)?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste"),
+                s.vat_rate != null ? Number(s.vat_rate) : 19,
+              )
+            : null as any,
+          fiscal_year: fiscalYear,
+          invoice_id: (invoiceDetail as any)?.id || currentTxn?.matched_invoice_id || null,
+          matched_template_id: s.template_id || null,
+          booked: false,
+          needs_review: false,
+          review_note: "",
+          is_fuel_purchase: false,
+          fuel_type: "",
+          fuel_quantity: "",
+          fuel_total_price: "",
+          fuel_date: txnDate || "",
+          fuel_co2_emissions_kg: "",
+          fuel_co2_tax_amount: "",
+          fuel_energy_content_kwh: "",
+          fuel_heating_unit_id: "",
+          fuel_consumption_from: "",
+          fuel_consumption_to: "",
+        };
+      });
+      setFormRows(rows);
+      setExpandedRowId(rows[0]?.id || null);
+      setAppliedAiTxnId(currentTxn.id);
+      return;
+    }
+
+    const s = sb[0] || {};
+    const tplFallback = aiSuggestion?.template_suggestion;
+    setFormRows(rows => {
+      if (rows.length === 0) return rows;
+      const targetId = expandedRowId && rows.find(r => r.id === expandedRowId) ? expandedRowId : rows[0].id;
+      return rows.map(r => {
+        if (r.id !== targetId) return r;
+        const next = { ...r };
+        let counterAccountId = resolveCounterAccount(s);
+        if (!counterAccountId && tplFallback?.account_number) {
+          const acc = accounts.find(a => a.account_number === tplFallback.account_number);
+          if (acc) counterAccountId = acc.id;
+        }
+        if (counterAccountId) next.counter_account_id = counterAccountId;
+        if (s.vat_rate != null) next.vat_rate = String(s.vat_rate);
+        if (s.is_35a_relevant) {
+          next.is_35a_relevant = true;
+          if (s.amount_35a != null) {
+            next.amount_35a = String(s.amount_35a);
+            const acc = accounts.find((a: any) => a.id === next.counter_account_id);
+            const t35a: "handwerker" | "dienste" = acc?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste";
+            next.line_items_detail = build35aDetailFromSuggestion(
+              (invoiceDetail as any)?.line_items,
+              Number(s.amount_35a) || 0,
+              t35a,
+              s.vat_rate != null ? Number(s.vat_rate) : (parseAmount(next.vat_rate) || 19),
+            );
+          }
+        }
+        // Vorzeichen IMMER aus Banktransaktion — KI darf das nicht drehen
+        next.booking_type = isIncome ? "income" : "expense";
+        const counterAcc = accounts.find((a: any) => a.id === next.counter_account_id);
+        const newText = buildBookingText({
+          period: null,
+          invoiceNumber: next.receipt_number || (invoiceDetail as any)?.invoice_number || null,
+          vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || vendorFromTxn || null),
+          counterAccountName: counterAcc?.account_name || null,
+        });
+        if (newText) {
+          next.description = newText;
+          next.__autoTextSignature = newText;
+        }
+        return next;
+      });
+    });
+    setAppliedAiTxnId(currentTxn.id);
+  }, [currentTxn, accounts, invoiceDetail, expandedRowId, resolveVendor, getFiscalYearForDate]);
+
+  const removeAiSuggestion = useCallback(() => {
+    if (!currentTxn) return;
+    const isIncome = (currentTxn.amount || 0) > 0;
+
+    if (invoiceDetail || templateDetail) {
+      // Rechnungs-/Vorlagen-Zuordnung bleibt — Vorzeichen sicherheitshalber neu setzen
+      setFormRows(rows => rows.map(r => ({
+        ...r,
+        booking_type: isIncome ? "income" : "expense",
+      })));
+    } else {
+      // Reset auf nackten Default: nur Bank + Betrag + Datum + Vorzeichen
+      const fresh = createDefaultRow();
+      fresh.counter_account_id = "";
+      fresh.vat_rate = "";
+      fresh.description = "";
+      fresh.__autoTextSignature = undefined;
+      fresh.receipt_number = "";
+      fresh.is_35a_relevant = false;
+      fresh.amount_35a = "";
+      fresh.line_items_detail = null;
+      fresh.booking_type = isIncome ? "income" : "expense";
+      setFormRows([fresh]);
+      setExpandedRowId(fresh.id);
+    }
+    setAppliedAiTxnId(null);
+  }, [currentTxn, invoiceDetail, templateDetail, createDefaultRow]);
+
+  // Reset Applied-Marker bei Transaktionswechsel
+  useEffect(() => {
+    setAppliedAiTxnId(null);
+  }, [currentTxn?.id]);
+
   /**
    * Apply a set of selected invoice line-item indices to a booking row:
    * sets amount = sum of selected items. Buchungstext folgt strikt RGI-Schema
