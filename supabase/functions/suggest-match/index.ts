@@ -367,7 +367,7 @@ SCORE-VERGABE:
 - Datum: ${transaction.booking_date}
 
 Kandidaten:
-${candidatesSummary || "(keine offenen Rechnungen/Vorlagen)"}${otherTxnContext}${historicalContext}${ragContext}${vendorMemoryContext}${billingPeriodContext}${accountsContext}${instructionsContext}`;
+${candidatesSummary || "(keine offenen Rechnungen/Vorlagen)"}${lineItemsContext}${otherTxnContext}${historicalContext}${ragContext}${vendorMemoryContext}${billingPeriodContext}${accountsContext}${instructionsContext}`;
 
     // ---------- Mistral Call ----------
     const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
