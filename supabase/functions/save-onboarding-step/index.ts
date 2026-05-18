@@ -70,6 +70,10 @@ Deno.serve(async (req) => {
       .select("id")
       .single();
     if (error) return json({ error: error.message }, 500);
+
+    // Sync IBAN/SEPA from step 1 into contact_bank_accounts (master data)
+    await syncBankAccountFromStep1(admin, userId, stepNum, data);
+
     return json({ success: true, id: created.id });
   } catch (e: any) {
     console.error("save-onboarding-step error", e);
