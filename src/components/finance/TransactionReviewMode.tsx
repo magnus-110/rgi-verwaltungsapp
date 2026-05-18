@@ -500,82 +500,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     const bankAccount = (accounts as any[]).find(a => a.id === resolvedBankId) || accounts.find(a => a.account_number === "1800") || accounts.find(a => a.account_number === "1200") || accounts.find(a => a.category === "Bankkonto");
     const defaultBankAccountId = bankAccount?.id || "";
 
-    // Check for AI split suggestion
-    const aiSuggestion = currentTxn.ai_suggestion;
-    const suggestedBookings = aiSuggestion?.booking_hint?.suggested_bookings;
-    const isSplit = aiSuggestion?.booking_hint?.type === "split" && suggestedBookings?.length > 1;
-
-    if (isSplit) {
-      // Multiple booking rows from AI.
-      // Splitbuchungen IMMER nach RGI-Schema:
-      //   "MM/JJ <Gegenkonto> <Lieferant>, Re. Nr. <invoice_number>"
-      const invoiceNumber = (invoiceDetail as any)?.invoice_number || null;
-      const vendorName = resolveVendor((invoiceDetail as any)?.vendor_name || null);
-      const rows: BookingRowData[] = suggestedBookings.map((sb: any, idx: number) => {
-        let counterAccountId = "";
-        if (sb.account_id) counterAccountId = sb.account_id;
-        if (sb.account_number) {
-          const acc = accounts.find(a => a.account_number === sb.account_number);
-          if (acc) counterAccountId = acc.id;
-        }
-
-        const rowAmount = sb.amount != null ? Math.abs(sb.amount) : absAmount / suggestedBookings.length;
-        const counterAcc = accounts.find(a => a.id === counterAccountId);
-        const accountLabel = counterAcc?.account_name || "";
-        const receiptNo = sb.receipt_number || invoiceNumber || "";
-        const splitDescription = buildBookingText({
-          period: null,
-          invoiceNumber: receiptNo,
-          vendorName,
-          counterAccountName: accountLabel,
-        }) || sb.description || "";
-
-        return {
-          id: nextRowId(),
-          account_id: defaultBankAccountId,
-          counter_account_id: counterAccountId,
-          amount: rowAmount.toFixed(2),
-          vat_rate: sb.vat_rate != null ? String(sb.vat_rate) : "19",
-          vat_amount: "",
-          description: splitDescription,
-          __autoTextSignature: splitDescription,
-          booking_reference: formatMonthYearRef(txnDate),
-          booking_date: txnDate || "",
-          receipt_number: receiptNo,
-          booking_type: sb.booking_type || (isIncome ? "income" : "expense"),
-          is_35a_relevant: sb.is_35a_relevant || false,
-          amount_35a: sb.is_35a_relevant && sb.amount_35a != null ? String(sb.amount_35a) : "",
-          line_items_detail: sb.is_35a_relevant && sb.amount_35a != null
-            ? build35aDetailFromSuggestion(
-                (invoiceDetail as any)?.line_items,
-                Number(sb.amount_35a) || 0,
-                (accounts.find((a: any) => a.id === counterAccountId)?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste"),
-                sb.vat_rate != null ? Number(sb.vat_rate) : 19,
-              )
-            : null as any,
-          fiscal_year: fiscalYear,
-          invoice_id: (invoiceDetail as any)?.id || currentTxn?.matched_invoice_id || null,
-          matched_template_id: sb.template_id || null,
-          booked: false,
-          needs_review: false,
-          review_note: "",
-          is_fuel_purchase: false,
-          fuel_type: "",
-          fuel_quantity: "",
-          fuel_total_price: "",
-          fuel_date: txnDate || "",
-          fuel_co2_emissions_kg: "",
-          fuel_co2_tax_amount: "",
-          fuel_energy_content_kwh: "",
-          fuel_heating_unit_id: "",
-          fuel_consumption_from: "",
-          fuel_consumption_to: "",
-        };
-      });
-      setFormRows(rows);
-      setExpandedRowId(rows[0]?.id || null);
-      return;
-    }
+    // KI-Vorschläge werden NICHT mehr automatisch in die Maske geschrieben.
+    // Sie erscheinen nur als Vorschlag-Karte rechts und können per Button
+    // übernommen oder entfernt werden. Vorlagen- und Rechnungs-Matches gelten
+    // als harte Zuordnungen und befüllen weiterhin automatisch.
 
     // Single booking row
     const row = createDefaultRow();
@@ -601,7 +529,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       }
     }
 
-    // Auto-fill from invoice
+    // Auto-fill from invoice (harte Zuordnung)
     if (invoiceDetail) {
       if (invoiceDetail.suggested_account_id) row.counter_account_id = invoiceDetail.suggested_account_id;
       if (invoiceDetail.vat_amount != null) row.vat_amount = String(Math.abs(invoiceDetail.vat_amount));
@@ -622,47 +550,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const vatPct = ((invoiceDetail.gross_amount / invoiceDetail.net_amount) - 1) * 100;
         row.vat_rate = String(Math.round(vatPct));
       }
-
-      // Use AI suggestion as fallback/supplement for fields the invoice doesn't provide
-      if (aiSuggestion && suggestedBookings?.[0]) {
-        const sb = suggestedBookings[0];
-        // Counter account: invoice OCR first, then AI
-        if (!row.counter_account_id) {
-          if (sb.account_id) row.counter_account_id = sb.account_id;
-          else if (sb.account_number) {
-            const acc = accounts.find(a => a.account_number === sb.account_number);
-            if (acc) row.counter_account_id = acc.id;
-          } else if (sb.counter_account_number) {
-            const acc = accounts.find(a => a.account_number === sb.counter_account_number);
-            if (acc) row.counter_account_id = acc.id;
-          }
-        }
-        // §35a from AI (invoice OCR rarely provides this)
-        if (sb.is_35a_relevant) {
-          row.is_35a_relevant = true;
-          if (sb.amount_35a != null) {
-            row.amount_35a = String(sb.amount_35a);
-            const acc = accounts.find((a: any) => a.id === row.counter_account_id);
-            const t35a: "handwerker" | "dienste" = acc?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste";
-            row.line_items_detail = build35aDetailFromSuggestion(
-              (invoiceDetail as any)?.line_items,
-              Number(sb.amount_35a) || 0,
-              t35a,
-              sb.vat_rate != null ? Number(sb.vat_rate) : (parseAmount(row.vat_rate) || 19),
-            );
-          }
-        }
-        // Booking type from AI if not already set
-        if (sb.booking_type) row.booking_type = sb.booking_type;
-      }
-      // Fallback to template_suggestion from AI
-      if (!row.counter_account_id && aiSuggestion?.template_suggestion) {
-        const ts = aiSuggestion.template_suggestion;
-        if (ts.account_number) {
-          const acc = accounts.find(a => a.account_number === ts.account_number);
-          if (acc) row.counter_account_id = acc.id;
-        }
-      }
     }
 
     // Auto-fill fuel purchase from OCR data
@@ -679,7 +566,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         if (ocrData.co2_tax_amount_eur != null) row.fuel_co2_tax_amount = String(ocrData.co2_tax_amount_eur);
         if (ocrData.energy_content_kwh != null) row.fuel_energy_content_kwh = String(ocrData.energy_content_kwh);
 
-        // Verbrauchszeitraum: bei Jahresabrechnungen für Gas/Fernwärme aus billing_period_*, sonst Lieferdatum
         const isAnnualGasFW =
           ocrData.invoice_type === "annual_settlement" &&
           (row.fuel_type === "gas" || row.fuel_type === "district_heating");
@@ -693,84 +579,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       }
     }
 
-    // Auto-fill from single AI suggestion (no invoice, no template)
-    if (!templateDetail && !invoiceDetail && aiSuggestion) {
-      if (suggestedBookings?.[0]) {
-        const sb = suggestedBookings[0];
-        if (sb.account_id) row.counter_account_id = sb.account_id;
-        if (sb.account_number) {
-          const acc = accounts.find(a => a.account_number === sb.account_number);
-          if (acc) row.counter_account_id = acc.id;
-        }
-        if (sb.counter_account_number && !row.counter_account_id) {
-          const acc = accounts.find(a => a.account_number === sb.counter_account_number);
-          if (acc) row.counter_account_id = acc.id;
-        }
-        if (sb.booking_type) row.booking_type = sb.booking_type;
-        if (sb.is_35a_relevant) {
-          row.is_35a_relevant = true;
-          if (sb.amount_35a != null) {
-            row.amount_35a = String(sb.amount_35a);
-            const acc = accounts.find((a: any) => a.id === row.counter_account_id);
-            const t35a: "handwerker" | "dienste" = acc?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste";
-            row.line_items_detail = build35aDetailFromSuggestion(
-              (invoiceDetail as any)?.line_items,
-              Number(sb.amount_35a) || 0,
-              t35a,
-              sb.vat_rate != null ? Number(sb.vat_rate) : (parseAmount(row.vat_rate) || 19),
-            );
-          }
-        }
-      }
-      // Auto-fill from template_suggestion if no other source
-      if (!row.counter_account_id && aiSuggestion.template_suggestion) {
-        const ts = aiSuggestion.template_suggestion;
-        if (ts.account_number) {
-          const acc = accounts.find(a => a.account_number === ts.account_number);
-          if (acc) row.counter_account_id = acc.id;
-        }
-      }
-      // Buchungstext IMMER nach RGI-Schema bauen (auch bei reinem AI-Vorschlag ohne Rechnung)
-      const _aiCounter = accounts.find((a: any) => a.id === row.counter_account_id);
-      const _vendorFromTxn = currentTxn.amount < 0 ? currentTxn.creditor_name : currentTxn.debtor_name;
-      const _aiText = buildBookingText({
-        period: null,
-        invoiceNumber: row.receipt_number || null,
-        vendorName: resolveVendor(_vendorFromTxn || null),
-        counterAccountName: _aiCounter?.account_name || null,
-      });
-      if (_aiText) {
-        row.description = _aiText;
-        row.__autoTextSignature = _aiText;
-      }
-    }
-
-    // Fiscal year hint from AI - only show when fiscal year differs or accrual needed
-    if (aiSuggestion?.fiscal_year_hint) {
-      const hint = aiSuggestion.fiscal_year_hint;
-      const defaultFiscalYear = getFiscalYearForDate(currentTxn.booking_date);
-      const hintFiscalYear = hint.fiscal_year || defaultFiscalYear;
-      
-      if (hint.fiscal_year) row.fiscal_year = hint.fiscal_year;
-      
-      // Only show accrual hint if fiscal year differs or accrual is actually needed
-      const fiscalYearDiffers = hintFiscalYear !== defaultFiscalYear;
-      if (fiscalYearDiffers || hint.needs_accrual) {
-        row.accrualHint = {
-          needs_accrual: hint.needs_accrual || false,
-          accrual_explanation: hint.accrual_explanation || "",
-          service_period_from: hint.service_period_from,
-          service_period_to: hint.service_period_to,
-        };
-      }
-    }
-
     // VAT defaults from counter account
     if (row.counter_account_id) {
       const selectedCounterAcc = accounts.find(a => a.id === row.counter_account_id);
       const isAccrualAccount = selectedCounterAcc?.account_number?.startsWith("4");
-      if (isAccrualAccount && !invoiceDetail && !templateDetail && !(aiSuggestion?.booking_hint?.suggested_bookings?.[0]?.vat_rate != null)) {
-        // 4000er accounts: VAT must be explicitly chosen, not pre-filled
+      if (isAccrualAccount && !invoiceDetail && !templateDetail) {
         row.vat_rate = "";
       } else if (selectedCounterAcc?.default_vat_rate != null && !invoiceDetail && !templateDetail) {
         row.vat_rate = String(selectedCounterAcc.default_vat_rate);
@@ -780,11 +593,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       }
     }
 
+    // Vorzeichen wird IMMER aus der Banktransaktion abgeleitet — nie aus KI.
+    row.booking_type = isIncome ? "income" : "expense";
+
     setFormRows([row]);
     setExpandedRowId(row.id);
     setShowLinkedInvoicePdf(false);
     setLinkedInvoicePdfUrl(null);
-  }, [currentTxn?.id, templateDetail, invoiceDetail, accounts, currentTxn?.ai_suggestion, getFiscalYearForDate]);
+  }, [currentTxn?.id, templateDetail, invoiceDetail, accounts, getFiscalYearForDate]);
 
   /** Helper: build the auto RGI text for a row given its current state. */
   const buildAutoTextForRow = useCallback((r: BookingRowData, override?: Partial<BookingRowData>): string => {
