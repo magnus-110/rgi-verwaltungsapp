@@ -38,6 +38,7 @@ import { resolveVendorDisplayName, useVendorAliases } from "./lib/vendorAlias";
 import { VendorAliasDialog } from "./VendorAliasDialog";
 import { Pencil } from "lucide-react";
 import { CreateAccountInlineDialog } from "./CreateAccountInlineDialog";
+import { useBuildingBankAccounts } from "@/hooks/useBuildingBankAccounts";
 
 interface TransactionReviewModeProps {
   open: boolean;
