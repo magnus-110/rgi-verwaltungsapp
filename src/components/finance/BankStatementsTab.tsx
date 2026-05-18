@@ -730,13 +730,36 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
               {/* Bank account info */}
               {bankAccounts.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  {bankAccounts.map((ba: any, i: number) => (
-                    <div key={i} className="flex items-center gap-2 text-sm bg-muted/50 rounded-lg px-3 py-2 border">
-                      <Landmark className="h-4 w-4 text-primary shrink-0" />
-                      <span className="font-mono text-xs">{ba.account_iban?.replace(/(.{4})/g, '$1 ').trim()}</span>
-                      {ba.account_name && <span className="text-muted-foreground">— {ba.account_name}</span>}
-                    </div>
-                  ))}
+                  {bankAccounts.map((ba: any, i: number) => {
+                    const map = mappingByIban[ba.account_iban];
+                    const acc = map?.coa_account_id ? accountById[map.coa_account_id] : null;
+                    const isMapped = !!acc;
+                    return (
+                      <button
+                        type="button"
+                        key={i}
+                        onClick={() => setMappingDialog({ iban: ba.account_iban, bankName: ba.account_name })}
+                        className={
+                          "flex items-center gap-2 text-sm rounded-lg px-3 py-2 border transition-colors text-left " +
+                          (isMapped
+                            ? "bg-muted/50 hover:bg-muted border-border"
+                            : "bg-orange-50 dark:bg-orange-950/30 hover:bg-orange-100 dark:hover:bg-orange-950/50 border-orange-300 dark:border-orange-800")
+                        }
+                        title="Klicken um IBAN einem Konto im Kontenrahmen zuzuordnen"
+                      >
+                        <Landmark className={"h-4 w-4 shrink-0 " + (isMapped ? "text-primary" : "text-orange-600")} />
+                        <span className="font-mono text-xs">{ba.account_iban?.replace(/(.{4})/g, '$1 ').trim()}</span>
+                        {ba.account_name && <span className="text-muted-foreground">— {ba.account_name}</span>}
+                        {isMapped ? (
+                          <Badge variant="secondary" className="text-[10px] ml-1">
+                            {map?.display_name ? `${map.display_name} · ` : ""}{acc?.account_number} {acc?.account_name}
+                          </Badge>
+                        ) : (
+                          <Badge className="text-[10px] ml-1 bg-orange-500 hover:bg-orange-600 text-white">Zuordnen</Badge>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
