@@ -19,6 +19,89 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Switch } from "@/components/ui/switch";
+import { Calendar as CalendarIcon, CheckCircle2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { toast as sonnerToast } from "sonner";
+
+function BankSepaInlineEditor({ bankId, sepaRef, sepaDate, onSaved }: { bankId: string; sepaRef: string | null; sepaDate: string | null; onSaved: () => void }) {
+  const [refVal, setRefVal] = useState(sepaRef || "");
+  const [dateVal, setDateVal] = useState<string | null>(sepaDate);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setRefVal(sepaRef || ""); setDateVal(sepaDate); }, [sepaRef, sepaDate, bankId]);
+
+  const save = async (patch: { sepa_mandate_ref?: string | null; sepa_mandate_date?: string | null }) => {
+    setSaving(true);
+    const { error } = await supabase.from("contact_bank_accounts").update(patch).eq("id", bankId);
+    setSaving(false);
+    if (error) { sonnerToast.error("Fehler: " + error.message); return; }
+    sonnerToast.success("SEPA-Mandat gespeichert");
+    onSaved();
+  };
+
+  return (
+    <div className="border-t pt-2 mt-1 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={!!dateVal}
+            disabled={saving}
+            onCheckedChange={(checked) => {
+              const d = checked ? new Date().toISOString().slice(0, 10) : null;
+              setDateVal(d);
+              save({ sepa_mandate_date: d });
+            }}
+          />
+          <span className="text-xs flex items-center gap-1">
+            {dateVal && <CheckCircle2 className="h-3 w-3 text-green-600" />}
+            SEPA-Mandat erteilt
+          </span>
+        </div>
+        {dateVal && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                <CalendarIcon className="h-3 w-3" />
+                {new Date(dateVal).toLocaleDateString("de-DE")}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={dateVal ? new Date(dateVal) : undefined}
+                onSelect={(d) => {
+                  const iso = d ? d.toISOString().slice(0, 10) : null;
+                  setDateVal(iso);
+                  save({ sepa_mandate_date: iso });
+                }}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
+      <div>
+        <Label className="text-xs text-muted-foreground">SEPA-Mandatsreferenz</Label>
+        <Input
+          className="h-7 text-xs font-mono"
+          value={refVal}
+          onChange={(e) => setRefVal(e.target.value)}
+          onBlur={() => { if ((refVal || null) !== (sepaRef || null)) save({ sepa_mandate_ref: refVal.trim() || null }); }}
+          placeholder="z. B. RGI-SEPA-000123"
+          disabled={saving}
+        />
+      </div>
+      {dateVal && (
+        <p className="text-[10px] text-muted-foreground">
+          erteilt am <span className="font-medium text-foreground">{new Date(dateVal).toLocaleDateString("de-DE")}</span>
+        </p>
+      )}
+    </div>
+  );
+}
 
 /** Input that buffers locally and only calls onSave on blur */
 function BufferedInput({ value: externalValue, onSave, className, ...props }: Omit<React.ComponentProps<typeof Input>, 'onChange' | 'onBlur' | 'value'> & { value: string; onSave: (val: string) => void }) {
@@ -145,7 +228,7 @@ interface ContactAssignment {
   phones: { id: string; phone_number: string; label: string; contact_id: string }[];
   emails: { id: string; email: string; label: string; contact_id: string }[];
   costs: { id: string; cost_type: string; amount: number; reserve_share_monthly: number | null; interval: string; valid_from: string | null; valid_to: string | null }[];
-  bankAccounts: { id: string; iban: string | null; bic: string | null; bank_name: string | null; account_holder: string | null; sepa_mandate_ref: string | null }[];
+  bankAccounts: { id: string; iban: string | null; bic: string | null; bank_name: string | null; account_holder: string | null; sepa_mandate_ref: string | null; sepa_mandate_date: string | null }[];
   persons: { id: string; salutation: string | null; first_name: string | null; last_name: string | null; is_primary: boolean | null }[];
 }
 
@@ -1090,7 +1173,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                               {bank.iban && <CopyableField label="IBAN" value={bank.iban} />}
                               {bank.bic && <CopyableField label="BIC" value={bank.bic} />}
                               {bank.bank_name && <CopyableField label="Bank" value={bank.bank_name} />}
-                              {bank.sepa_mandate_ref && <CopyableField label="SEPA-Ref." value={bank.sepa_mandate_ref} />}
+                              <BankSepaInlineEditor
+                                bankId={bank.id}
+                                sepaRef={bank.sepa_mandate_ref}
+                                sepaDate={bank.sepa_mandate_date}
+                                onSaved={() => queryClient.invalidateQueries({ queryKey: ['building-contact-assignments', buildingId, managementMode] })}
+                              />
                             </div>
                           ))}
                         </div>

@@ -290,6 +290,7 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
               bank_name: bk.bank_name, iban: bk.iban ? bk.iban.replace(/\s/g, "").toUpperCase() : null,
               bic: bk.bic, is_default: bk.is_default,
               sepa_mandate_date: bk.sepa_mandate_date,
+              sepa_mandate_ref: bk.sepa_mandate_ref || null,
             });
           } else if (!bk._deleted && bk.id) {
             await supabase.from("contact_bank_accounts").update({
@@ -297,6 +298,7 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
               iban: bk.iban ? bk.iban.replace(/\s/g, "").toUpperCase() : null,
               bic: bk.bic, is_default: bk.is_default, person_id: personId,
               sepa_mandate_date: bk.sepa_mandate_date,
+              sepa_mandate_ref: bk.sepa_mandate_ref || null,
             }).eq("id", bk.id);
           }
         }
@@ -708,10 +710,21 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
                                     )}
                                   </div>
                                   {bk.sepa_mandate_date && (
-                                    <p className="text-[10px] text-muted-foreground">
-                                      {bk.sepa_mandate_ref && <>SEPA-Ref: <span className="font-mono font-medium text-foreground">{bk.sepa_mandate_ref}</span> · </>}
-                                      erteilt am <span className="font-medium text-foreground">{new Date(bk.sepa_mandate_date).toLocaleDateString("de-DE")}</span>
-                                    </p>
+                                    <>
+                                      <div>
+                                        <Label className="text-xs">SEPA-Mandatsreferenz</Label>
+                                        <Input
+                                          className="h-7 text-xs font-mono"
+                                          value={bk.sepa_mandate_ref || ""}
+                                          onChange={(e) => updateBankInPerson(p._localId, bk._localId, "sepa_mandate_ref", e.target.value)}
+                                          placeholder="wird automatisch vergeben, z. B. RGI-SEPA-000123"
+                                        />
+                                        <p className="text-[10px] text-muted-foreground mt-0.5">Leer lassen für automatische Vergabe beim Speichern.</p>
+                                      </div>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        erteilt am <span className="font-medium text-foreground">{new Date(bk.sepa_mandate_date).toLocaleDateString("de-DE")}</span>
+                                      </p>
+                                    </>
                                   )}
                                 </div>
                               </div>
