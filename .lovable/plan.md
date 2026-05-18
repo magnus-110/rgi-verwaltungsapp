@@ -1,84 +1,41 @@
 ## Ziel
+Die 5 vorhandenen IBANs + SEPA-Mandate aus dem Onboarding (Neuer Weg 8) in die Stammdaten (`contact_bank_accounts`) übernehmen und sicherstellen, dass künftiges Onboarding automatisch in die Stammdaten schreibt — damit Bankdaten im Admin-Bereich sofort sichtbar sind.
 
-Pro Liegenschaft soll jedem aus den Kontoauszügen erkannten Bankkonto (IBAN) eine eigene Bezeichnung **und** ein Konto aus dem Kontenrahmen (z. B. Bank 1800, Rücklage I 1810, Rücklage II 1820 …) zugeordnet werden können. Buchungen aus diesem Kontoauszug werden danach automatisch auf das richtige Bank-/Rücklagenkonto gebucht.
+## Umfang
 
-Beispiel **Neuer Weg 14**: 6 IBANs → jede IBAN bekommt einen Namen ("Instandhaltungsrücklage Haus A") und ein eigenes COA-Konto (1811, 1812, …). Beim Import der Auszüge landet jede Transaktion automatisch auf dem zugeordneten Konto.
+### 1. Einmal-Migration der bestehenden Daten (Neuer Weg 8)
+Für die 5 Eigentümer (Weyand, Grimm, Gayer-Lesti, Hauber, Junk):
+- IBAN, BIC, Kontoinhaber, SEPA-Mandatsdatum aus `onboarding_progress.step_data->step1` lesen
+- Einträge in `contact_bank_accounts` anlegen/aktualisieren (verknüpft mit dem jeweiligen Contact)
+- SEPA-Mandatsreferenz wird per Trigger automatisch generiert (`RGI-SEPA-XXXXXX`)
+- Bei Gayer-Lesti: bestehenden leeren Eintrag aktualisieren statt neu anlegen
+- Audit-Eintrag in `sepa_mandate_audit_log` mit Quelle "onboarding_migration"
 
-## Was gebaut wird
+Wird als reine Daten-Operation per Insert-Tool ausgeführt (keine Schemaänderung).
 
-### 1. Neue Tabelle `building_bank_accounts`
+### 2. Onboarding-Logik anpassen (zukünftige Fälle)
+Im Onboarding-Step 1 (Bankdaten) zusätzlich zum bisherigen Speichern in `onboarding_progress`:
+- Direkt in `contact_bank_accounts` upserten, sobald der Eigentümer "Speichern" klickt
+- Auf den Contact des eingeloggten Users verknüpfen (`contact_id` über `contacts.user_id = auth.uid()`)
+- Falls bereits ein Bankkonto existiert: aktualisieren statt duplizieren
+- Bei Ablehnung (kein SEPA): nichts schreiben, wie bisher
 
-Speichert die Zuordnung IBAN → COA-Konto pro Liegenschaft.
+Betroffene Datei (zu prüfen): `src/components/onboarding/` (Step 1 Bankdaten-Komponente) und ggf. der zugehörige Hook/Service der das `onboarding_progress` aktualisiert.
 
-Felder (Domain):
-- `building_id`, `iban` (unique je Liegenschaft)
-- `display_name` (frei wählbare Bezeichnung, z. B. "Rücklage Aufzug")
-- `coa_account_id` → `chart_of_accounts.id` (Pflicht, sobald zugeordnet)
-- `bank_name` (auto aus BIC/Auszug), `is_active`
-
-RLS analog zu anderen finance-Tabellen (Admin/Verwalter dieser Liegenschaft).
-
-### 2. UI: Bank-Konten-Verwaltung in **Buchhaltung → Kontoauszüge**
-
-Die heutige Pillen-Leiste mit den IBANs (siehe Screenshot Neuer Weg 14) wird klickbar. Klick auf eine IBAN-Pille öffnet ein Dialog mit:
-
-- IBAN (read-only) + Bank
-- Feld **Bezeichnung** (Freitext, z. B. "Rücklage Haus A")
-- Feld **Konto im Kontenrahmen** (Suchcombobox `AccountSearchSelect`, gefiltert auf Kategorie "Bankkonto" / Rücklagen)
-- Button **„Neues Konto im Kontenrahmen anlegen"** → öffnet `CreateAccountInlineDialog` (nur für diese Liegenschaft, `building_id` gesetzt). Nach dem Anlegen wird es direkt in der Combobox vorausgewählt.
-- Speichern
-
-Nicht zugeordnete IBANs erhalten einen orangen „Zuordnen"-Badge, damit der Nutzer sieht, wo noch Arbeit liegt.
-
-### 3. Automatische Konto-Zuweisung bei Buchungen
-
-Heute hardcoded:
-```
-const bankAccount = accounts.find(a => a.account_number === "1800") || …
-```
-in `TransactionReviewMode.tsx` (Zeilen 379 und 464) sowie analog im Make-Webhook-Pfad.
-
-Neue Logik (Helper `resolveBankAccountForTransaction`):
-1. IBAN der Transaktion → `bank_statements.account_iban` lesen
-2. In `building_bank_accounts` nach (building_id, iban) suchen
-3. Wenn Mapping vorhanden → `coa_account_id` verwenden
-4. Sonst Fallback wie bisher (1800)
-
-Damit landen Buchungen aus Auszug IBAN-A automatisch auf 1811, aus IBAN-B auf 1812 usw. — sowohl im Review-Mode als auch beim Auto-Booking via Make.
-
-### 4. Anzeige der Zuordnung
-
-- IBAN-Pille zeigt: `IBAN — Bezeichnung (Kontonr.)`
-- In Kontenplan-Übersicht erscheinen die neu angelegten Liegenschafts-spezifischen Bankkonten korrekt sortiert in der Sektion „Bankkonten".
-
-## Technische Details
-
-Migration:
-```sql
-CREATE TABLE public.building_bank_accounts (
-  id uuid pk default gen_random_uuid(),
-  building_id uuid not null references buildings(id) on delete cascade,
-  iban text not null,
-  display_name text,
-  coa_account_id uuid references chart_of_accounts(id) on delete set null,
-  bank_name text,
-  is_active boolean default true,
-  created_at, updated_at,
-  unique (building_id, iban)
-);
--- RLS: SELECT/INSERT/UPDATE/DELETE für authentifizierte Admins der Liegenschaft
-```
-
-Frontend:
-- Neue Komponente `BankAccountMappingDialog.tsx`
-- Neuer Hook `useBuildingBankAccounts(buildingId)`
-- Anpassung `BankStatementsTab.tsx` (Pillen klickbar, Mapping-Anzeige)
-- Anpassung `TransactionReviewMode.tsx` (Helper statt Hardcode)
-- Ggf. Anpassung Make-Webhook-Handler in `supabase/functions/` (gleicher Helper-Port nach Deno).
-
-Keine Änderung an bestehenden Buchungen — Mapping wirkt nur auf neue/künftige Buchungen. Optional späterer „Bestehende Buchungen umbuchen"-Button (nicht in diesem Scope).
+### 3. Optional: Audit-Hinweis im Admin
+Im Eigentümer-Detail/Building-People-Tab eine kleine Quelle-Anzeige ("aus Onboarding übernommen am ...") — nur falls schnell umsetzbar, sonst weglassen.
 
 ## Nicht enthalten
+- Keine Migration für andere Liegenschaften — bitte separat freigeben, wenn gewünscht (kann ich danach für alle Buildings auf einmal laufen lassen)
+- Keine Änderung am Onboarding-UI-Flow selbst (nur Persistenz-Layer)
+- Kein Rückschreiben aus `contact_bank_accounts` nach `onboarding_progress` (Onboarding bleibt Quelle der Wahrheit für den Wizard-State, Stammdaten sind die Quelle für die App)
 
-- Rückwirkendes Umbuchen bereits existierender Buchungen (separater Schritt, auf Wunsch)
-- Multi-IBAN-Mapping zu einem Konto (1:1 reicht für den Use-Case)
+## Technische Details
+- `contact_bank_accounts` Felder: `contact_id`, `iban`, `bic`, `account_holder`, `sepa_mandate_ref` (auto), `sepa_mandate_date`, `is_active`, ggf. `notes`
+- Trigger `generate_sepa_mandate_ref` setzt die Mandatsreferenz automatisch
+- Onboarding-Daten-Pfad: `onboarding_progress.step_data->'step1'` mit Feldern `iban`, `bic`, `account_holder`, `sepa_consent`, `sepa_date`
+
+## Reihenfolge der Umsetzung
+1. Schritt 1 ausführen (5 Datensätze für Neuer Weg 8 migrieren) — Ergebnis im Admin verifizieren
+2. Schritt 2 (Onboarding-Code anpassen) — danach committen
+3. Auf Wunsch: Migration für andere Liegenschaften nachziehen
