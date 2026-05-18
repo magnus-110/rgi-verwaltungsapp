@@ -780,16 +780,28 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         if (s.vat_rate != null) next.vat_rate = String(s.vat_rate);
         if (s.is_35a_relevant) {
           next.is_35a_relevant = true;
-          if (s.amount_35a != null) {
+          const acc = accounts.find((a: any) => a.id === next.counter_account_id);
+          const t35a: "handwerker" | "dienste" = acc?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste";
+          const aiPicked = s.paragraph_35a?.selected_line_items || null;
+          const detail = build35aDetailFromSuggestion(
+            (invoiceDetail as any)?.line_items,
+            Number(s.amount_35a) || 0,
+            t35a,
+            s.vat_rate != null ? Number(s.vat_rate) : (parseAmount(next.vat_rate) || 19),
+            aiPicked,
+          );
+          next.line_items_detail = detail;
+          // Recompute amount_35a from selected positions so the displayed value
+          // matches what the user can verify in the editor (no invented numbers).
+          if (detail.length > 0) {
+            const rate = s.vat_rate != null ? Number(s.vat_rate) : (parseAmount(next.vat_rate) || 19);
+            const netSum = detail.filter(d => d.is_35a).reduce((a, d) => a + (Number(d.amount) || 0), 0);
+            const gross = rate > 0 ? netSum * (1 + rate / 100) : netSum;
+            next.amount_35a = gross.toFixed(2);
+          } else if (s.amount_35a != null) {
             next.amount_35a = String(s.amount_35a);
-            const acc = accounts.find((a: any) => a.id === next.counter_account_id);
-            const t35a: "handwerker" | "dienste" = acc?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste";
-            next.line_items_detail = build35aDetailFromSuggestion(
-              (invoiceDetail as any)?.line_items,
-              Number(s.amount_35a) || 0,
-              t35a,
-              s.vat_rate != null ? Number(s.vat_rate) : (parseAmount(next.vat_rate) || 19),
-            );
+          } else {
+            next.amount_35a = "";
           }
         }
         // Vorzeichen IMMER aus Banktransaktion — KI darf das nicht drehen
