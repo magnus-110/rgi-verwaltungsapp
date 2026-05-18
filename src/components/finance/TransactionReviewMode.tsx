@@ -496,7 +496,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     const fiscalYear = getFiscalYearForDate(txnDate);
     const absAmount = Math.abs(currentTxn.amount);
     const isIncome = currentTxn.amount > 0;
-    const bankAccount = accounts.find(a => a.account_number === "1800") || accounts.find(a => a.account_number === "1200") || accounts.find(a => a.category === "Bankkonto");
+    const resolvedBankId = resolveBankAccountId(currentTxn);
+    const bankAccount = (accounts as any[]).find(a => a.id === resolvedBankId) || accounts.find(a => a.account_number === "1800") || accounts.find(a => a.account_number === "1200") || accounts.find(a => a.category === "Bankkonto");
     const defaultBankAccountId = bankAccount?.id || "";
 
     // Check for AI split suggestion
