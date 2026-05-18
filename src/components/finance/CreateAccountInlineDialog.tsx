@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { useBuildingShareTypes } from "@/hooks/useBuildingShareTypes";
 
 interface Props {
   open: boolean;
