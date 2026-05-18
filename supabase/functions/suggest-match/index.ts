@@ -323,9 +323,18 @@ ABSCHLAGSZAHLUNGEN:
 - Monatliche regelmäßige Beträge an Versorger → IMMER Vorauszahlungskonten 1470-1473.
 - Stichworte: "Abschlag", "Vorauszahlung", "monatliche Abrechnung".
 
-§35a EStG:
+§35a EStG — POSITIONSBASIERT (KEINE PAUSCHALEN!):
 - is_35a_relevant=true bei Arbeitsleistung (Reinigung, Hausmeister, Wartung, Reparatur).
-- amount_35a = Brutto × Arbeitsanteil% / 1.19 (Netto-Arbeitsanteil).
+- Wenn RECHNUNGSPOSITIONEN vorhanden sind: Du MUSST jede Position einzeln prüfen und nur
+  die echten Lohn-/Arbeits-/Anfahrtspositionen in paragraph_35a.selected_line_items
+  per Index angeben. Material, Ersatzteile, Geräte- und Stoffkosten NIEMALS auswählen.
+  Für jede gewählte Position eine kurze reason (z.B. "Arbeitslohn Wartung", "Anfahrt").
+  amount_35a NICHT setzen — der Server berechnet die Summe aus deinen ausgewählten Positionen.
+- Wenn KEINE Rechnungspositionen vorliegen: is_35a_relevant darf true sein, aber lasse
+  paragraph_35a.selected_line_items leer und amount_35a leer/null. Der Nutzer trägt
+  den Lohnanteil dann manuell ein. NIEMALS einen geschätzten Betrag erfinden.
+- Die alten Pauschalsätze (~50%, ~80% etc.) dienen NUR zur Plausibilitätskontrolle deiner
+  Positionsauswahl — nicht als Berechnungsbasis.
 
 ERWEITERTE ANALYSE:
 - Sammelzahlungen: Prüfe ob Betrag = Summe mehrerer Vorlagen (Hausgeld!).
