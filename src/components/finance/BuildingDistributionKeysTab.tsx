@@ -137,7 +137,13 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
   const invalidateAllCoa = () => {
     queryClient.invalidateQueries({ predicate: (q) => {
       const k = q.queryKey[0];
-      return typeof k === "string" && (k.startsWith("chart-of-accounts") || k.startsWith("coa-"));
+      return typeof k === "string" && (
+        k.startsWith("chart-of-accounts") ||
+        k.startsWith("coa-") ||
+        k.startsWith("settlement-accounts") ||
+        k.startsWith("settlement-bookings") ||
+        k === "building-share-types"
+      );
     }});
   };
 
