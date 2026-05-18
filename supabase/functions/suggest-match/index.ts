@@ -423,7 +423,29 @@ ${candidatesSummary || "(keine offenen Rechnungen/Vorlagen)"}${lineItemsContext}
                             related_template_id: { type: "string" },
                             related_invoice_id: { type: "string" },
                             is_35a_relevant: { type: "boolean" },
-                            amount_35a: { type: "number" },
+                            amount_35a: { type: "number", description: "Nur setzen wenn keine Rechnungspositionen vorliegen. Bei vorhandenen Positionen leer lassen — Server berechnet aus paragraph_35a.selected_line_items." },
+                            paragraph_35a: {
+                              type: "object",
+                              description: "Positionsbasierte §35a-Auswahl. Nur befüllen wenn RECHNUNGSPOSITIONEN im Prompt enthalten waren.",
+                              properties: {
+                                selected_line_items: {
+                                  type: "array",
+                                  description: "Indizes der Rechnungspositionen, die ECHTE Arbeits-/Lohn-/Anfahrtsleistung enthalten. Material/Ersatzteile NICHT auswählen.",
+                                  items: {
+                                    type: "object",
+                                    properties: {
+                                      index: { type: "number", description: "0-basierter Index in RECHNUNGSPOSITIONEN" },
+                                      type_35a: { type: "string", enum: ["handwerker", "dienste"] },
+                                      reason: { type: "string", description: "Kurze Begründung warum diese Position §35a-relevant ist" },
+                                    },
+                                    required: ["index", "reason"],
+                                    additionalProperties: false,
+                                  },
+                                },
+                                explanation: { type: "string", description: "Zusammenfassung welche Positionen ausgeschlossen wurden und warum (z.B. Material)" },
+                              },
+                              additionalProperties: false,
+                            },
                             confidence: { type: "number", description: "Eigene Konfidenz 0-1 für DIESEN Buchungsvorschlag" },
                             rag_references: { type: "array", items: { type: "string" }, description: "Kurze Hinweise welche RAG-Treffer diesen Vorschlag stützen" },
                           },
