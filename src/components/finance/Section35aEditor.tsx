@@ -19,6 +19,10 @@ export interface LineItemDetail {
   is_35a: boolean;
   type_35a?: Type35a;
   is_custom?: boolean;
+  /** Set true if this position was picked by AI from invoice line items */
+  ai_picked?: boolean;
+  /** Short justification from the AI, shown as tooltip */
+  ai_reason?: string;
   _vat_meta?: { apply_vat: boolean; rate: number };
 }
 
@@ -214,6 +218,14 @@ export function Section35aEditor({
       >
         <div className="flex items-center gap-2 min-w-0">
           <Checkbox checked={isSelected} onCheckedChange={(v) => toggleSelect(i, item, !!v)} />
+          {detail?.ai_picked && (
+            <span
+              title={detail.ai_reason || "Von KI als §35a-relevant erkannt"}
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700 shrink-0"
+            >
+              <Sparkles className="h-2.5 w-2.5" /> KI
+            </span>
+          )}
           {isSelected ? (
             <Input
               value={description}
@@ -332,9 +344,22 @@ export function Section35aEditor({
           <span className="text-xs font-medium">Lohnanteil gesamt</span>
           <span className="text-base font-bold tabular-nums">{formatCurrency(totals.total)}</span>
         </div>
-        {applyVat && vatRate > 0 && totals.netSum > 0 && (
-          <p className="text-[10px] text-muted-foreground">Netto {formatCurrency(totals.netSum)} + {vatRate}% MwSt.</p>
-        )}
+        {(() => {
+          const selectedCount = items.filter(i => i.is_35a).length;
+          const totalPositions = (invoiceLineItems?.length || 0) + customItems.length;
+          if (selectedCount > 0 && totalPositions > 0) {
+            return (
+              <p className="text-[10px] text-muted-foreground">
+                Aus {selectedCount} von {totalPositions} Position{totalPositions === 1 ? "" : "en"}
+                {applyVat && vatRate > 0 && totals.netSum > 0 ? ` · netto ${formatCurrency(totals.netSum)} + ${vatRate}% MwSt.` : ""}
+              </p>
+            );
+          }
+          if (applyVat && vatRate > 0 && totals.netSum > 0) {
+            return <p className="text-[10px] text-muted-foreground">Netto {formatCurrency(totals.netSum)} + {vatRate}% MwSt.</p>;
+          }
+          return null;
+        })()}
       </div>
     </div>
   );

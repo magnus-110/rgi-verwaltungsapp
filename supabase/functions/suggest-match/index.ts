@@ -88,6 +88,25 @@ Deno.serve(async (req) => {
     const txnName = txnIsExpense ? transaction.creditor_name : transaction.debtor_name;
     const txnIban = txnIsExpense ? transaction.creditor_iban : transaction.debtor_iban;
 
+    // ---------- Load invoice line items for matched invoice (§35a precision) ----------
+    let matchedInvoiceLineItems: any[] | null = null;
+    let matchedInvoiceMeta: { id: string; gross: number; vat_rate: number | null; number: string | null } | null = null;
+    if (transaction.matched_invoice_id) {
+      const { data: inv } = await supabase
+        .from("invoices")
+        .select("id, invoice_number, gross_amount, vat_rate, line_items")
+        .eq("id", transaction.matched_invoice_id)
+        .maybeSingle();
+      if (inv && Array.isArray((inv as any).line_items) && (inv as any).line_items.length > 0) {
+        matchedInvoiceLineItems = (inv as any).line_items;
+        matchedInvoiceMeta = {
+          id: (inv as any).id,
+          gross: Number((inv as any).gross_amount) || 0,
+          vat_rate: (inv as any).vat_rate != null ? Number((inv as any).vat_rate) : null,
+          number: (inv as any).invoice_number || null,
+        };
+      }
+    }
     // ---------- RAG Tier 1+2: Similar bookings ----------
     let ragSimilar: any[] = [];
     let ragOtherBuildings: any[] = [];
@@ -221,6 +240,24 @@ Deno.serve(async (req) => {
       billingPeriodContext = `\n\nAbrechnungszeiträume (Wirtschaftsjahre):\n${lines.join("\n")}`;
     }
 
+    // ---------- Invoice Line Items (für präzise §35a-Auswahl) ----------
+    let lineItemsContext = "";
+    if (matchedInvoiceLineItems && matchedInvoiceMeta) {
+      const fmtAmount = (v: any) => {
+        const n = Number(v) || 0;
+        return n.toFixed(2);
+      };
+      const lines = matchedInvoiceLineItems.map((it: any, idx: number) => {
+        const desc = (it?.description || it?.name || "").toString().replace(/\s+/g, " ").slice(0, 200);
+        const net = fmtAmount(it?.amount ?? it?.total ?? 0);
+        const vat = it?.vat_rate != null ? `${it.vat_rate}%` : "?";
+        return `  [${idx}] "${desc}" — netto ${net} € (USt ${vat})`;
+      });
+      lineItemsContext = `\n\nRECHNUNGSPOSITIONEN (Rechnung ${matchedInvoiceMeta.number || matchedInvoiceMeta.id}, brutto ${matchedInvoiceMeta.gross.toFixed(2)} €):\n${lines.join("\n")}\n\n` +
+        `→ Für §35a MUSST du paragraph_35a.selected_line_items mit den Indizes der Lohn-/Anfahrt-Positionen befüllen. Material/Ersatzteile/Gerätekosten NIEMALS auswählen. Pro Position eine kurze reason.`;
+    }
+
+
     // ---------- System Prompt: Bank-Centric Logic ----------
     const systemPrompt = `Du bist ein hochspezialisierter WEG-Buchhalter (Deutschland) für automatisierte Belegverbuchung. Du arbeitest BANK-ZENTRISCH.
 
@@ -286,9 +323,18 @@ ABSCHLAGSZAHLUNGEN:
 - Monatliche regelmäßige Beträge an Versorger → IMMER Vorauszahlungskonten 1470-1473.
 - Stichworte: "Abschlag", "Vorauszahlung", "monatliche Abrechnung".
 
-§35a EStG:
+§35a EStG — POSITIONSBASIERT (KEINE PAUSCHALEN!):
 - is_35a_relevant=true bei Arbeitsleistung (Reinigung, Hausmeister, Wartung, Reparatur).
-- amount_35a = Brutto × Arbeitsanteil% / 1.19 (Netto-Arbeitsanteil).
+- Wenn RECHNUNGSPOSITIONEN vorhanden sind: Du MUSST jede Position einzeln prüfen und nur
+  die echten Lohn-/Arbeits-/Anfahrtspositionen in paragraph_35a.selected_line_items
+  per Index angeben. Material, Ersatzteile, Geräte- und Stoffkosten NIEMALS auswählen.
+  Für jede gewählte Position eine kurze reason (z.B. "Arbeitslohn Wartung", "Anfahrt").
+  amount_35a NICHT setzen — der Server berechnet die Summe aus deinen ausgewählten Positionen.
+- Wenn KEINE Rechnungspositionen vorliegen: is_35a_relevant darf true sein, aber lasse
+  paragraph_35a.selected_line_items leer und amount_35a leer/null. Der Nutzer trägt
+  den Lohnanteil dann manuell ein. NIEMALS einen geschätzten Betrag erfinden.
+- Die alten Pauschalsätze (~50%, ~80% etc.) dienen NUR zur Plausibilitätskontrolle deiner
+  Positionsauswahl — nicht als Berechnungsbasis.
 
 ERWEITERTE ANALYSE:
 - Sammelzahlungen: Prüfe ob Betrag = Summe mehrerer Vorlagen (Hausgeld!).
@@ -321,7 +367,7 @@ SCORE-VERGABE:
 - Datum: ${transaction.booking_date}
 
 Kandidaten:
-${candidatesSummary || "(keine offenen Rechnungen/Vorlagen)"}${otherTxnContext}${historicalContext}${ragContext}${vendorMemoryContext}${billingPeriodContext}${accountsContext}${instructionsContext}`;
+${candidatesSummary || "(keine offenen Rechnungen/Vorlagen)"}${lineItemsContext}${otherTxnContext}${historicalContext}${ragContext}${vendorMemoryContext}${billingPeriodContext}${accountsContext}${instructionsContext}`;
 
     // ---------- Mistral Call ----------
     const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
@@ -377,7 +423,29 @@ ${candidatesSummary || "(keine offenen Rechnungen/Vorlagen)"}${otherTxnContext}$
                             related_template_id: { type: "string" },
                             related_invoice_id: { type: "string" },
                             is_35a_relevant: { type: "boolean" },
-                            amount_35a: { type: "number" },
+                            amount_35a: { type: "number", description: "Nur setzen wenn keine Rechnungspositionen vorliegen. Bei vorhandenen Positionen leer lassen — Server berechnet aus paragraph_35a.selected_line_items." },
+                            paragraph_35a: {
+                              type: "object",
+                              description: "Positionsbasierte §35a-Auswahl. Nur befüllen wenn RECHNUNGSPOSITIONEN im Prompt enthalten waren.",
+                              properties: {
+                                selected_line_items: {
+                                  type: "array",
+                                  description: "Indizes der Rechnungspositionen, die ECHTE Arbeits-/Lohn-/Anfahrtsleistung enthalten. Material/Ersatzteile NICHT auswählen.",
+                                  items: {
+                                    type: "object",
+                                    properties: {
+                                      index: { type: "number", description: "0-basierter Index in RECHNUNGSPOSITIONEN" },
+                                      type_35a: { type: "string", enum: ["handwerker", "dienste"] },
+                                      reason: { type: "string", description: "Kurze Begründung warum diese Position §35a-relevant ist" },
+                                    },
+                                    required: ["index", "reason"],
+                                    additionalProperties: false,
+                                  },
+                                },
+                                explanation: { type: "string", description: "Zusammenfassung welche Positionen ausgeschlossen wurden und warum (z.B. Material)" },
+                              },
+                              additionalProperties: false,
+                            },
                             confidence: { type: "number", description: "Eigene Konfidenz 0-1 für DIESEN Buchungsvorschlag" },
                             rag_references: { type: "array", items: { type: "string" }, description: "Kurze Hinweise welche RAG-Treffer diesen Vorschlag stützen" },
                           },
@@ -504,7 +572,30 @@ ${candidatesSummary || "(keine offenen Rechnungen/Vorlagen)"}${otherTxnContext}$
           if (sb.amount <= 0) {
             sb.amount = Math.abs(sb.amount);
           }
-          // §35a Plausibilität
+          // §35a — Server-seitige Berechnung aus selected_line_items (anti-Halluzination)
+          if (sb.is_35a_relevant && sb.paragraph_35a?.selected_line_items?.length && matchedInvoiceLineItems) {
+            const sel = sb.paragraph_35a.selected_line_items
+              .filter((x: any) =>
+                Number.isInteger(x?.index) &&
+                x.index >= 0 &&
+                x.index < matchedInvoiceLineItems!.length,
+              );
+            if (sel.length !== sb.paragraph_35a.selected_line_items.length) {
+              validationWarnings.push(`Ungültige Positions-Indizes verworfen: ${sb.description}`);
+            }
+            sb.paragraph_35a.selected_line_items = sel;
+            const invVatRate =
+              matchedInvoiceMeta?.vat_rate != null && matchedInvoiceMeta.vat_rate > 0
+                ? matchedInvoiceMeta.vat_rate
+                : (sb.vat_rate != null ? Number(sb.vat_rate) : 19);
+            const netSum = sel.reduce((acc: number, x: any) => {
+              const raw = matchedInvoiceLineItems![x.index];
+              return acc + (Number(raw?.amount ?? raw?.total ?? 0) || 0);
+            }, 0);
+            const grossSum = invVatRate > 0 ? netSum * (1 + invVatRate / 100) : netSum;
+            sb.amount_35a = parseFloat(grossSum.toFixed(2));
+          }
+          // §35a Plausibilität (Fallback ohne Positionen)
           if (sb.is_35a_relevant && sb.amount_35a && sb.amount_35a > sb.amount) {
             sb.amount_35a = sb.amount;
             validationWarnings.push(`amount_35a > amount korrigiert: ${sb.description}`);
