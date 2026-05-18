@@ -260,11 +260,22 @@ export function ChartOfAccountsTab() {
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {allDistKeys.map(k => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
+                                    {editShareTypeOptions.map(k => (
+                                      <SelectItem key={k.value} value={k.value}>
+                                        {k.label}
+                                      </SelectItem>
+                                    ))}
                                   </SelectContent>
                                 </Select>
                               ) : (
-                                <Badge variant="outline" className="text-xs">{getKeyLabel(account.default_distribution_key)}</Badge>
+                                <div className="flex items-center gap-1">
+                                  <Badge variant="outline" className="text-xs">{getKeyLabel(account.default_distribution_key)}</Badge>
+                                  {(account as any).is_billing_relevant && !(account as any).settlement_section && (
+                                    <span title="Konto ist als abrechnungsrelevant markiert, aber ohne Abrechnungssektion – wird in der Abrechnung nicht angezeigt.">
+                                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                                    </span>
+                                  )}
+                                </div>
                               )}
                             </TableCell>
                             <TableCell className="text-center">
