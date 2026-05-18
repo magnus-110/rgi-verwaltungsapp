@@ -90,15 +90,21 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
 
   const overrideMap = new Map(overrides.map(o => [o.account_id, o]));
 
-  const { data: customShareTypes = [] } = useCustomShareTypes(buildingId);
-
-  const overrideCustomKeys = [...new Set(
+  // Verteilerschlüssel-Optionen aus tatsächlich am Gebäude gepflegten Anteilen
+  // (Standard + Custom, exakt wie im Personen-Tab).
+  const { options: shareTypeOptions } = useBuildingShareTypes(buildingId);
+  // Override-Keys, die bereits in irgendeinem Konto-Override genutzt werden,
+  // aber noch nicht in den Anteilen gepflegt sind, zusätzlich aufnehmen,
+  // damit bestehende Overrides sichtbar bleiben.
+  const overrideExtras = [...new Set(
     overrides
       .map(o => o.distribution_key)
-      .filter(k => k && !DISTRIBUTION_KEYS.some(dk => dk.value === k))
-  )] as string[];
-  const customDistKeys = [...new Set([...overrideCustomKeys, ...customShareTypes])];
-  const allDistKeys = [...DISTRIBUTION_KEYS, ...customDistKeys.map(k => ({ value: k, label: k }))];
+      .filter((k): k is string => !!k && !shareTypeOptions.some(o => o.value === k))
+  )];
+  const allDistKeys = [
+    ...shareTypeOptions,
+    ...overrideExtras.map(k => ({ value: k, label: `${getShareTypeLabel(k)} (nicht im Gebäude gepflegt)` })),
+  ];
   const categories = [...new Set(accounts.map(a => a.category))];
   const overrideCount = overrides.length;
   const buildingAccountCount = accounts.filter(a => (a as any).building_id === buildingId).length;
