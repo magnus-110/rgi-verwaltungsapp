@@ -19,6 +19,10 @@ export interface LineItemDetail {
   is_35a: boolean;
   type_35a?: Type35a;
   is_custom?: boolean;
+  /** Set true if this position was picked by AI from invoice line items */
+  ai_picked?: boolean;
+  /** Short justification from the AI, shown as tooltip */
+  ai_reason?: string;
   _vat_meta?: { apply_vat: boolean; rate: number };
 }
 
