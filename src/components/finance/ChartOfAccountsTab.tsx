@@ -13,10 +13,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AccountSettingsPopover } from "./AccountSettingsPopover";
-import { useCustomShareTypes } from "@/hooks/useCustomShareTypes";
-import { SHARE_TYPES } from "@/lib/shareTypes";
-
-const DISTRIBUTION_KEYS = SHARE_TYPES;
+import { useBuildingShareTypes } from "@/hooks/useBuildingShareTypes";
+import { getShareTypeLabel } from "@/lib/shareTypes";
+import { AlertTriangle } from "lucide-react";
 
 const SETTLEMENT_SECTIONS = [
   { value: "none", label: "– Keine –" },
