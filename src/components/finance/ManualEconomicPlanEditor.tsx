@@ -57,7 +57,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     queryKey: ["building-info-mep", buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("buildings").select("name, address").eq("id", buildingId).single();
+        .from("buildings").select("name, address, manager_name").eq("id", buildingId).single();
       if (error) throw error;
       return data;
     },
