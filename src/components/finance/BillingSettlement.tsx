@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { getEffectiveOpeningBalance, getEffectiveClosingBalance, signedTotalForAccount, sumForAccount } from "./lib/bookingAggregation";
 import { getAccrualDisplaySign } from "./lib/accrualSign";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { BillingTemplatesDialog } from "./BillingTemplatesDialog";
+
 import { buildOverallPayload, buildOwnerPayload, buildAssetReportPayload, type BillingPayloadInputs } from "./lib/buildBillingPayload";
 import { AssetReportItemsCard } from "./AssetReportItemsCard";
 import { AssetReportSection } from "./AssetReportSection";
@@ -91,11 +91,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("total");
   const [busyDownload, setBusyDownload] = useState<string | null>(null); // owner.assignmentId | "overall" | "all"
-  const [templatesOpen, setTemplatesOpen] = useState(false);
-  const [templatesScopeFilter, setTemplatesScopeFilter] = useState<"single" | "overall" | "asset_report" | "paragraph_35a" | undefined>(undefined);
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
-  const [selectedOverallTemplate, setSelectedOverallTemplate] = useState<string | null>(null);
-  const [selectedAssetReportTemplate, setSelectedAssetReportTemplate] = useState<string | null>(null);
+  // Vorlagen-Verwaltung läuft jetzt zentral über den "Dokumente"-Button im Finance-Header
+  // (FinanceDocumentsDialog). Hier nur noch lesender Zugriff auf billing_templates.
   const [selectedOwner, setSelectedOwner] = useState<string | null>(null);
   const [ownerSearch, setOwnerSearch] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(SECTION_ORDER));
@@ -912,14 +909,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const overallTemplates = billingTemplates.filter((t: any) => t.scope === "overall");
   const assetReportTemplates = billingTemplates.filter((t: any) => t.scope === "asset_report");
   const paragraph35aTemplates = billingTemplates.filter((t: any) => t.scope === "paragraph_35a");
-  const effectiveSingleTpl = selectedTemplate || singleTemplates[0]?.id || null;
-  const effectiveOverallTpl = selectedOverallTemplate || overallTemplates[0]?.id || effectiveSingleTpl;
-  const effectiveAssetReportTpl = selectedAssetReportTemplate || assetReportTemplates[0]?.id || null;
+  const effectiveSingleTpl = singleTemplates[0]?.id || null;
+  const effectiveOverallTpl = overallTemplates[0]?.id || effectiveSingleTpl;
+  const effectiveAssetReportTpl = assetReportTemplates[0]?.id || null;
   const effectiveParagraph35aTpl = paragraph35aTemplates[0]?.id || null;
 
-  const openTemplatesFor = (filter?: "single" | "overall" | "asset_report" | "paragraph_35a") => {
-    setTemplatesScopeFilter(filter);
-    setTemplatesOpen(true);
+  // openTemplatesFor entfällt — Vorlagen verwaltet jetzt der globale "Dokumente"-Dialog.
+  const openTemplatesFor = (_filter?: string) => {
+    toast.info("Vorlagen verwaltest du über den Button 'Dokumente' oben rechts.");
   };
 
   const downloadParagraph35a = async (format: "docx" | "pdf") => {
@@ -1330,11 +1327,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             {accounts.filter(a => a.settlement_section).length} Konten in Abrechnungsstruktur
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button size="sm" variant="ghost" onClick={() => openTemplatesFor()}>
-            <Settings2 className="h-4 w-4 mr-1" /> Vorlagen verwalten
-          </Button>
-        </div>
+        {/* Vorlagen und Downloads jetzt im globalen "Dokumente"-Button (Finance-Header). */}
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -1361,7 +1354,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                 <span className="text-muted-foreground">Null-Saldo Konten anzeigen</span>
                 <Switch checked={showZeroBalanceAccounts} onCheckedChange={setShowZeroBalanceAccounts} />
               </div>
-              <TabDownloadMenu target="overall" label="Gesamtabrechnung herunterladen" scope="overall" busyKey="overall" />
+              <span className="text-xs text-muted-foreground">Download via Button "Dokumente" oben</span>
             </div>
             {distributionWarnings.length > 0 && (
               <Alert variant="destructive" className="border-destructive/50 bg-destructive/5 text-foreground">
@@ -1535,9 +1528,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                   {useIstVorschuss ? "Tatsächliche Zahlungen aus Personenkonten" : "Geplante Beträge aus Kostenzuordnung"}
                 </span>
               </div>
-              {ownerResults.length > 0 && !selectedOwnerData && (
-                <TabDownloadMenu target="all" label={`Alle Einzelabrechnungen (${ownerResults.length}) als ZIP`} scope="single" busyKey="all" />
-              )}
+              {/* Bulk-Download alle Einzelabrechnungen → Button "Dokumente" oben rechts. */}
             </div>
             {ownerResults.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
@@ -1762,7 +1753,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               <p className="text-sm text-muted-foreground">
                 Gemäß §28 WEG — Vermögenslage zum Ende des Abrechnungszeitraums {fiscalYear}.
               </p>
-              <TabDownloadMenu target="asset_report" label="Vermögensbericht herunterladen" scope="asset_report" busyKey="asset_report" />
+              <span className="text-xs text-muted-foreground">Download via Button "Dokumente" oben</span>
             </div>
 
             <AssetReportSection buildingId={buildingId} periodId={periodId} fiscalYear={fiscalYear} ownerResults={ownerResults} />
@@ -1795,47 +1786,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               <p className="text-sm text-muted-foreground">
                 Gemäß §35a EStG — Bescheinigung haushaltsnaher Dienstleistungen und Handwerkerleistungen.
               </p>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm" variant="outline" disabled={busyDownload === "paragraph_35a"}>
-                    {busyDownload === "paragraph_35a" ? (
-                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                    ) : (
-                      <Download className="h-4 w-4 mr-1" />
-                    )}
-                    §35a Bescheinigungen herunterladen
-                    <ChevronDown className="h-4 w-4 ml-1" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => downloadParagraph35a("docx")}>
-                    <FileType className="h-4 w-4 mr-2" /> DOCX (ZIP)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => downloadParagraph35a("pdf")}>
-                    <FileText className="h-4 w-4 mr-2" /> PDF (ZIP)
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => openTemplatesFor("paragraph_35a")}>
-                    <Settings2 className="h-4 w-4 mr-2" /> Vorlage wählen / hochladen
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <span className="text-xs text-muted-foreground">Download via Button "Dokumente" oben</span>
             </div>
             <Paragraph35aSection buildingId={buildingId} periodId={periodId} fiscalYear={fiscalYear} />
           </TabsContent>
         </Tabs>
       </CardContent>
-      <BillingTemplatesDialog
-        open={templatesOpen}
-        onOpenChange={(o) => { setTemplatesOpen(o); if (!o) setTemplatesScopeFilter(undefined); }}
-        selectedSingleId={effectiveSingleTpl}
-        selectedOverallId={effectiveOverallTpl}
-        selectedAssetReportId={effectiveAssetReportTpl}
-        onSelectSingle={setSelectedTemplate}
-        onSelectOverall={setSelectedOverallTemplate}
-        onSelectAssetReport={setSelectedAssetReportTemplate}
-        scopeFilter={templatesScopeFilter}
-      />
     </Card>
   );
 }

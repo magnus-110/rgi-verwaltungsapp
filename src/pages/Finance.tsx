@@ -10,7 +10,9 @@ import { BankReconciliationTab } from "@/components/finance/BankReconciliationTa
 import { ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { FinanceDocumentsMenu } from "@/components/finance/FinanceDocumentsMenu";
+import { FinanceDocumentsDialog } from "@/components/finance/FinanceDocumentsDialog";
+import { Button } from "@/components/ui/button";
+import { FileText as FileTextIcon } from "lucide-react";
 
 const NEEDS_PERIOD_TABS = ["abrechnung"];
 const NEEDS_PERIOD_SUB = ["bookings"]; // Sub-tabs under "buchen" that need a period
@@ -49,6 +51,7 @@ export const Finance = () => {
   const [activeTab, setActiveTab] = useState(persisted.activeTab ?? "buchen");
   const [activeSubTab, setActiveSubTab] = useState<SubTab>(persisted.activeSubTab ?? "statements");
   const [buchenHover, setBuchenHover] = useState(false);
+  const [docsOpen, setDocsOpen] = useState(false);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
@@ -133,13 +136,18 @@ export const Finance = () => {
             Kontoauszüge, Buchungen, Abrechnungen und Wirtschaftspläne verwalten
           </p>
         </div>
-        <FinanceDocumentsMenu
-          selectedBuildingId={selectedBuildingId}
-          selectedPeriodId={selectedPeriodId}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-        />
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setDocsOpen(true)}>
+          <FileTextIcon className="h-4 w-4" />
+          Dokumente
+        </Button>
       </div>
+
+      <FinanceDocumentsDialog
+        open={docsOpen}
+        onOpenChange={setDocsOpen}
+        selectedBuildingId={selectedBuildingId}
+        selectedPeriodId={selectedPeriodId}
+      />
 
       <BillingPeriodSelector
         selectedBuildingId={selectedBuildingId}
