@@ -22,6 +22,7 @@ import { AssetReportItemsCard } from "./AssetReportItemsCard";
 import { AssetReportSection } from "./AssetReportSection";
 import { ManualEconomicPlanEditor } from "./ManualEconomicPlanEditor";
 import { Paragraph35aSection } from "./Paragraph35aSection";
+import { FinanceDocumentsDialog } from "./FinanceDocumentsDialog";
 
 interface BillingSettlementProps {
   buildingId: string;
