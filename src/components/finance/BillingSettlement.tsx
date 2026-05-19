@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { BarChart3, ChevronDown, ChevronRight, Users, PiggyBank, AlertTriangle, Check, FileText, Building2, Loader2, Search, Download, Settings2, FileType } from "lucide-react";
+import { BarChart3, ChevronDown, ChevronRight, Users, PiggyBank, AlertTriangle, Check, FileText, Building2, Loader2, Search, Download, Settings2, FileType, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getEffectiveOpeningBalance, getEffectiveClosingBalance, signedTotalForAccount, sumForAccount } from "./lib/bookingAggregation";
@@ -20,6 +20,8 @@ import { BillingTemplatesDialog } from "./BillingTemplatesDialog";
 import { buildOverallPayload, buildOwnerPayload, buildAssetReportPayload, type BillingPayloadInputs } from "./lib/buildBillingPayload";
 import { AssetReportItemsCard } from "./AssetReportItemsCard";
 import { AssetReportSection } from "./AssetReportSection";
+import { EconomicPlanSection } from "./EconomicPlanSection";
+import { Paragraph35aSection } from "./Paragraph35aSection";
 
 interface BillingSettlementProps {
   buildingId: string;
@@ -1281,6 +1283,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             <TabsTrigger variant="underline" value="assets">
               <Building2 className="h-4 w-4 mr-1" /> Vermögensbericht
             </TabsTrigger>
+            <TabsTrigger variant="underline" value="wirtschaftsplan">
+              <FileText className="h-4 w-4 mr-1" /> Wirtschaftsplan
+            </TabsTrigger>
+            <TabsTrigger variant="underline" value="paragraph35a">
+              <Receipt className="h-4 w-4 mr-1" /> §35a Bescheinigung
+            </TabsTrigger>
           </TabsList>
 
           {/* ===== TAB 1: GESAMTABRECHNUNG ===== */}
@@ -1695,6 +1703,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             </div>
 
             <AssetReportSection buildingId={buildingId} periodId={periodId} fiscalYear={fiscalYear} ownerResults={ownerResults} />
+          </TabsContent>
+
+          <TabsContent value="wirtschaftsplan" className="space-y-4">
+            <EconomicPlanSection buildingId={buildingId} periodId={periodId} fiscalYear={fiscalYear} />
+          </TabsContent>
+
+          <TabsContent value="paragraph35a" className="space-y-4">
+            <Paragraph35aSection buildingId={buildingId} periodId={periodId} fiscalYear={fiscalYear} />
           </TabsContent>
         </Tabs>
       </CardContent>
