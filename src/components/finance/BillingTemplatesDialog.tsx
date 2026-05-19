@@ -10,7 +10,7 @@ import { Trash2, Upload, FileText, Check, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
-type Scope = "single" | "overall" | "asset_report" | "paragraph_35a" | "economic_plan";
+type Scope = "single" | "overall" | "asset_report" | "paragraph_35a" | "economic_plan" | "combined_report";
 
 const SCOPE_LABEL: Record<Scope, string> = {
   overall: "Gesamtabrechnung",
@@ -18,6 +18,7 @@ const SCOPE_LABEL: Record<Scope, string> = {
   asset_report: "Vermögensbericht",
   paragraph_35a: "§35a Bescheinigung",
   economic_plan: "Wirtschaftsplan",
+  combined_report: "Sammel-Jahresbericht (Deckblatt + alle)",
 };
 
 interface Props {
@@ -152,9 +153,9 @@ export function BillingTemplatesDialog({
     : templates;
 
   // Nach Scope gruppieren — schöner Überblick, eine Sektion pro Dokumentart.
-  const SCOPE_ORDER: Scope[] = ["overall", "single", "economic_plan", "asset_report", "paragraph_35a"];
+  const SCOPE_ORDER: Scope[] = ["combined_report", "overall", "single", "economic_plan", "asset_report", "paragraph_35a"];
   const grouped: Record<Scope, any[]> = {
-    overall: [], single: [], economic_plan: [], asset_report: [], paragraph_35a: [],
+    combined_report: [], overall: [], single: [], economic_plan: [], asset_report: [], paragraph_35a: [],
   };
   for (const t of filteredTemplates as any[]) {
     if (grouped[t.scope as Scope]) grouped[t.scope as Scope].push(t);
@@ -189,6 +190,7 @@ export function BillingTemplatesDialog({
                   <SelectItem value="overall">Gesamtabrechnung</SelectItem>
                   <SelectItem value="single">Einzelabrechnung</SelectItem>
                   <SelectItem value="economic_plan">Wirtschaftsplan</SelectItem>
+                  <SelectItem value="combined_report">Sammel-Jahresbericht (Deckblatt + alle)</SelectItem>
                   <SelectItem value="asset_report">Vermögensbericht</SelectItem>
                   <SelectItem value="paragraph_35a">§35a Bescheinigung</SelectItem>
                 </SelectContent>
