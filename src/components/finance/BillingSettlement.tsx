@@ -909,14 +909,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const overallTemplates = billingTemplates.filter((t: any) => t.scope === "overall");
   const assetReportTemplates = billingTemplates.filter((t: any) => t.scope === "asset_report");
   const paragraph35aTemplates = billingTemplates.filter((t: any) => t.scope === "paragraph_35a");
-  const effectiveSingleTpl = selectedTemplate || singleTemplates[0]?.id || null;
-  const effectiveOverallTpl = selectedOverallTemplate || overallTemplates[0]?.id || effectiveSingleTpl;
-  const effectiveAssetReportTpl = selectedAssetReportTemplate || assetReportTemplates[0]?.id || null;
+  const effectiveSingleTpl = singleTemplates[0]?.id || null;
+  const effectiveOverallTpl = overallTemplates[0]?.id || effectiveSingleTpl;
+  const effectiveAssetReportTpl = assetReportTemplates[0]?.id || null;
   const effectiveParagraph35aTpl = paragraph35aTemplates[0]?.id || null;
 
-  const openTemplatesFor = (filter?: "single" | "overall" | "asset_report" | "paragraph_35a") => {
-    setTemplatesScopeFilter(filter);
-    setTemplatesOpen(true);
+  // openTemplatesFor entfällt — Vorlagen verwaltet jetzt der globale "Dokumente"-Dialog.
+  const openTemplatesFor = (_filter?: string) => {
+    toast.info("Vorlagen verwaltest du über den Button 'Dokumente' oben rechts.");
   };
 
   const downloadParagraph35a = async (format: "docx" | "pdf") => {
