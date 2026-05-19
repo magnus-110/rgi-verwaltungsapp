@@ -396,6 +396,18 @@ Deno.serve(async (req) => {
       };
     };
 
+    // Payload-only Modus: gibt JSON mit pro Eigentümer-Payloads zurück (für Sammel-Bericht-Aggregator).
+    if (payloadOnly) {
+      const items = targetOwners.map((owner) => ({
+        assignment_id: owner.id,
+        contact_id: owner.contact_id,
+        unit_number: owner.unit_number || "",
+        owner_name: ownerName(owner),
+        payload: buildVarsFor(owner),
+      }));
+      return json({ items });
+    }
+
     if (targetOwners.length === 1) {
       const owner = targetOwners[0];
       const zip = new PizZip(tplBuf);
