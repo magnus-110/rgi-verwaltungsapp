@@ -1528,9 +1528,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                   {useIstVorschuss ? "Tatsächliche Zahlungen aus Personenkonten" : "Geplante Beträge aus Kostenzuordnung"}
                 </span>
               </div>
-              {ownerResults.length > 0 && !selectedOwnerData && (
-                <TabDownloadMenu target="all" label={`Alle Einzelabrechnungen (${ownerResults.length}) als ZIP`} scope="single" busyKey="all" />
-              )}
+              {/* Bulk-Download alle Einzelabrechnungen → Button "Dokumente" oben rechts. */}
             </div>
             {ownerResults.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
