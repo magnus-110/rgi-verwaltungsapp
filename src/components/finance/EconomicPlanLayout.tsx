@@ -406,6 +406,7 @@ export function EconomicPlanLayout({
             })()}
           </TableBody>
         </Table>
+        </div>
       </CardContent>
     </Card>
   );
