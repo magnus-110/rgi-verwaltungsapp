@@ -1328,6 +1328,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           </p>
         </div>
         {/* Vorlagen und Downloads jetzt im globalen "Dokumente"-Button (Finance-Header). */}
+      </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList variant="underline" className="mb-4 flex-wrap h-auto">
