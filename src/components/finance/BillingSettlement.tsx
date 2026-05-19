@@ -1354,7 +1354,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                 <span className="text-muted-foreground">Null-Saldo Konten anzeigen</span>
                 <Switch checked={showZeroBalanceAccounts} onCheckedChange={setShowZeroBalanceAccounts} />
               </div>
-              <TabDownloadMenu target="overall" label="Gesamtabrechnung herunterladen" scope="overall" busyKey="overall" />
+              <span className="text-xs text-muted-foreground">Download via Button "Dokumente" oben</span>
             </div>
             {distributionWarnings.length > 0 && (
               <Alert variant="destructive" className="border-destructive/50 bg-destructive/5 text-foreground">
