@@ -297,7 +297,7 @@ export function EconomicPlanLayout({
               const monthlyTotal = footer.monthlyTotalOverride ?? defaultMonthlyTotal;
               const defaultMonthlyReserve = (footer.ownerReserveTotal ?? 0) / 12;
               const defaultMonthlyAdvance = (footer.ownerAdvanceTotal ?? 0) / 12;
-              const monthlyAdvance = footer.monthlyAdvanceOverride ?? defaultMonthlyAdvance;
+              const monthlyAdvance = footer.monthlyAdvanceOverride ?? monthlyTotal;
               const isTotalOverridden = footer.monthlyTotalOverride != null;
               const isAdvanceOverridden = footer.monthlyAdvanceOverride != null;
               return (
