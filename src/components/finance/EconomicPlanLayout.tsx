@@ -57,6 +57,7 @@ interface EconomicPlanLayoutProps {
   renderAmountCell?: (row: PlanRow) => ReactNode;
   renderActionCell?: (row: PlanRow) => ReactNode;
   renderDistKeyCell?: (row: PlanRow) => ReactNode;
+  onPreviousAmountClick?: (row: PlanRow) => void;
   secondaryColumn?: { label: string; render: (row: PlanRow) => ReactNode };
   groupByCategory?: boolean;
   footer?: FooterExtras;
