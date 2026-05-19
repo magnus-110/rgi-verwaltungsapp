@@ -195,7 +195,19 @@ export function EconomicPlanLayout({
                           </>
                         ) : (
                           <>
-                            <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                            <TableCell
+                              className={cn(
+                                "text-right font-mono text-xs text-muted-foreground",
+                                onPreviousAmountClick && row.previousAmount != null && row.previousAmount !== 0 &&
+                                  "cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors"
+                              )}
+                              title={onPreviousAmountClick && row.previousAmount != null && row.previousAmount !== 0 ? "Klick: Vorjahresbetrag übernehmen" : undefined}
+                              onClick={() => {
+                                if (onPreviousAmountClick && row.previousAmount != null && row.previousAmount !== 0) {
+                                  onPreviousAmountClick(row);
+                                }
+                              }}
+                            >
                               {row.previousAmount != null ? formatCurrency(row.previousAmount) : "–"}
                             </TableCell>
                             <TableCell className="text-right font-mono">
