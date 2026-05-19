@@ -862,7 +862,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                                     size="sm"
                                     className="h-6 w-6 p-0"
                                     onClick={() => {
-                                      const rounded = Math.ceil(Number(row.planned_amount) || 0);
+                                      const v = Number(row.planned_amount) || 0;
+                                      const rounded = Math.sign(v) * Math.ceil(Math.abs(v));
                                       setUnitDrafts((p) => ({ ...p, [`${owner.id}|${row.account_id}`]: rounded }));
                                     }}
                                   >
