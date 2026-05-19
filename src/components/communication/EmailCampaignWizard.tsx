@@ -111,6 +111,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
     const userId = userData?.user?.id;
     if (!userId) throw new Error("Nicht angemeldet");
     const recipientIds = filter.contact_ids.includes("__none__") ? [] : filter.contact_ids;
+    const assignmentIds = (filter.assignment_ids || []).includes("__none__") ? ["__none__"] : (filter.assignment_ids || []);
 
     const { data, error } = await supabase.from("comm_campaigns").insert({
       name: name.trim() || "Rundmail",
@@ -118,7 +119,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
       template_id: template?.id || null,
       building_id: buildingId,
       email_account_id: accountId || null,
-      recipient_filter: { roles: filter.roles, contact_ids: recipientIds },
+      recipient_filter: { roles: filter.roles, contact_ids: recipientIds, assignment_ids: assignmentIds },
       subject_override: subject || null,
       body_html_override: body || null,
       body_format: bodyFormat,
