@@ -10,12 +10,14 @@ import { Trash2, Upload, FileText, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
-type Scope = "single" | "overall" | "asset_report";
+type Scope = "single" | "overall" | "asset_report" | "paragraph_35a" | "economic_plan";
 
 const SCOPE_LABEL: Record<Scope, string> = {
   overall: "Gesamtabrechnung",
   single: "Einzelabrechnung",
   asset_report: "Vermögensbericht",
+  paragraph_35a: "§35a Bescheinigung",
+  economic_plan: "Wirtschaftsplan",
 };
 
 interface Props {
