@@ -26,9 +26,13 @@ interface Props {
   selectedSingleId?: string | null;
   selectedOverallId?: string | null;
   selectedAssetReportId?: string | null;
+  selectedParagraph35aId?: string | null;
+  selectedEconomicPlanId?: string | null;
   onSelectSingle?: (id: string) => void;
   onSelectOverall?: (id: string) => void;
   onSelectAssetReport?: (id: string) => void;
+  onSelectParagraph35a?: (id: string) => void;
+  onSelectEconomicPlan?: (id: string) => void;
   /** Optional Filter, um den Dialog vorgefiltert auf einen Typ zu öffnen */
   scopeFilter?: Scope;
 }
