@@ -91,6 +91,7 @@ const SECTION_ORDER = ["income", "operating_distributable", "operating_non_distr
 export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingSettlementProps) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("total");
+  const [docsOpen, setDocsOpen] = useState(false);
   const [busyDownload, setBusyDownload] = useState<string | null>(null); // owner.assignmentId | "overall" | "all"
   // Vorlagen-Verwaltung läuft jetzt zentral über den "Dokumente"-Button im Finance-Header
   // (FinanceDocumentsDialog). Hier nur noch lesender Zugriff auf billing_templates.
