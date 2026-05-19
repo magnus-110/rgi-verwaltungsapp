@@ -53,7 +53,8 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const qc = useQueryClient();
   const { data: placeholderStats } = usePlaceholderStats(buildingId, filter.contact_ids);
   const { data: placeholderSamples } = usePlaceholderSamples(buildingId, filter.contact_ids);
-  const recipientCount = (filter.contact_ids || []).filter((id) => id !== "__none__").length;
+  const recipientCount = (filter.assignment_ids || []).filter((id) => id !== "__none__").length
+    || (filter.contact_ids || []).filter((id) => id !== "__none__").length;
 
   const insertAtCursor = (placeholder: string) => {
     const target = lastFocused.current === "subject" ? subjectRef.current : bodyRef.current;
