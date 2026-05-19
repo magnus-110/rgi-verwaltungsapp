@@ -116,6 +116,8 @@ export function BillingTemplatesDialog({
   const select = (t: any) => {
     if (t.scope === "overall") onSelectOverall?.(t.id);
     else if (t.scope === "asset_report") onSelectAssetReport?.(t.id);
+    else if (t.scope === "paragraph_35a") onSelectParagraph35a?.(t.id);
+    else if (t.scope === "economic_plan") onSelectEconomicPlan?.(t.id);
     else onSelectSingle?.(t.id);
     toast({ title: "Vorlage aktiviert", description: t.name });
   };
@@ -123,7 +125,9 @@ export function BillingTemplatesDialog({
   const isActive = (t: any) =>
     (t.scope === "overall" && selectedOverallId === t.id) ||
     (t.scope === "single" && selectedSingleId === t.id) ||
-    (t.scope === "asset_report" && selectedAssetReportId === t.id);
+    (t.scope === "asset_report" && selectedAssetReportId === t.id) ||
+    (t.scope === "paragraph_35a" && selectedParagraph35aId === t.id) ||
+    (t.scope === "economic_plan" && selectedEconomicPlanId === t.id);
 
   const filteredTemplates = scopeFilter
     ? templates.filter((t: any) => t.scope === scopeFilter)
