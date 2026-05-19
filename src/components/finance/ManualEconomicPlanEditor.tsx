@@ -626,14 +626,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                 <CheckCircle2 className="h-3 w-3" /> Gespeichert
               </span>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setMode(mode === "edit" ? "preview" : "edit")}
-            >
-              {mode === "edit" ? <Eye className="h-4 w-4 mr-1" /> : <Edit3 className="h-4 w-4 mr-1" />}
-              {mode === "edit" ? "Vorschau" : "Bearbeiten"}
-            </Button>
+            
             {!isActive && (
               <Button
                 size="sm"
