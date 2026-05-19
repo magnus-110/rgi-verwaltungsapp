@@ -37,7 +37,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const [body, setBody] = useState("");
   const [accountId, setAccountId] = useState<string>("");
   const [testEmail, setTestEmail] = useState("");
-  const [filter, setFilter] = useState<RecipientFilterValue>({ roles: [], contact_ids: [], require_email: true });
+  const [filter, setFilter] = useState<RecipientFilterValue>({ roles: [], contact_ids: [], assignment_ids: [], require_email: true });
   const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [resultStats, setResultStats] = useState<{ ok: number; failed: number } | null>(null);
@@ -74,7 +74,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const reset = () => {
     setStep(1); setName(""); setTemplate(null);
     setSubject(""); setBody(""); setAccountId(""); setTestEmail("");
-    setFilter({ roles: [], contact_ids: [], require_email: true });
+    setFilter({ roles: [], contact_ids: [], assignment_ids: [], require_email: true });
     setResultStats(null); setAttachments([]); setScheduledAt("");
     setBodyFormat("plain");
     setConfirmOpen(false);
