@@ -1704,6 +1704,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
             <AssetReportSection buildingId={buildingId} periodId={periodId} fiscalYear={fiscalYear} ownerResults={ownerResults} />
           </TabsContent>
+
+          <TabsContent value="wirtschaftsplan" className="space-y-4">
+            <EconomicPlanSection buildingId={buildingId} periodId={periodId} fiscalYear={fiscalYear} />
+          </TabsContent>
+
+          <TabsContent value="paragraph35a" className="space-y-4">
+            <Paragraph35aSection buildingId={buildingId} periodId={periodId} fiscalYear={fiscalYear} />
+          </TabsContent>
         </Tabs>
       </CardContent>
       <BillingTemplatesDialog
