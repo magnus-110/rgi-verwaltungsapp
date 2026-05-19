@@ -818,27 +818,32 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                         rows={unitRows}
                         variant="einzel"
                         footer={{ ownerTotal, ownerReserveTotal, ownerAdvanceTotal }}
-                        renderAmountCell={mode === "edit" ? (row) => (
-                          <div className="flex items-center gap-1 justify-end">
-                            <Input
-                              type="number"
-                              step="0.01"
-                              inputMode="decimal"
-                              value={row.planned_amount === 0 ? "" : Number(row.planned_amount.toFixed(2))}
-                              placeholder="0,00"
-                              className={cn(
-                                "h-7 w-28 text-right font-mono text-xs",
-                                !row.manually_overridden && "text-muted-foreground italic",
-                              )}
-                              onChange={(e) => {
-                                const v = parseFloat(e.target.value.replace(",", ".")) || 0;
-                                setUnitDrafts((p) => ({ ...p, [`${owner.id}|${row.account_id}`]: v }));
-                              }}
-                            />
-                            <span className="text-muted-foreground text-xs">€</span>
-                          </div>
-                        ) : undefined}
-                        renderActionCell={mode === "edit" ? (row) => (
+                        renderAmountCell={(row) => {
+                          const key = normalizeKey(row.distribution_key);
+                          const noHeatingData = key === "heizk_abr" && heatingTotal === 0;
+                          return (
+                            <div className="flex items-center gap-1 justify-end">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                inputMode="decimal"
+                                value={row.planned_amount === 0 ? "" : Number(row.planned_amount.toFixed(2))}
+                                placeholder={noHeatingData ? "manuell" : "0,00"}
+                                className={cn(
+                                  "h-7 w-28 text-right font-mono text-xs",
+                                  !row.manually_overridden && !noHeatingData && "text-muted-foreground italic",
+                                  noHeatingData && !row.manually_overridden && "border-amber-300",
+                                )}
+                                onChange={(e) => {
+                                  const v = parseFloat(e.target.value.replace(",", ".")) || 0;
+                                  setUnitDrafts((p) => ({ ...p, [`${owner.id}|${row.account_id}`]: v }));
+                                }}
+                              />
+                              <span className="text-muted-foreground text-xs">€</span>
+                            </div>
+                          );
+                        }}
+                        renderActionCell={(row) => (
                           row.manually_overridden ? (
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -863,7 +868,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                               <TooltipContent>Override entfernen → berechneter Anteil</TooltipContent>
                             </Tooltip>
                           ) : null
-                        ) : undefined}
+                        )}
                       />
                     </div>
                   );
