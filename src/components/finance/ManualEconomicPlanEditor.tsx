@@ -204,6 +204,37 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     qc.invalidateQueries({ queryKey: ["chart-of-accounts"] });
   };
 
+  // Umlageschlüssel pro Konto in dieser Liegenschaft setzen (Override).
+  // Nicht im chart_of_accounts ändern — Default bleibt global.
+  const setDistributionKey = async (accountId: string, key: string) => {
+    const existing = accountOverrides.find((o: any) => o.account_id === accountId);
+    if (existing) {
+      const { error } = await supabase
+        .from("building_account_overrides" as any)
+        .update({ distribution_key: key } as any)
+        .eq("building_id", buildingId)
+        .eq("account_id", accountId);
+      if (error) { toast.error("Fehler: " + error.message); return; }
+    } else {
+      const { error } = await supabase
+        .from("building_account_overrides" as any)
+        .insert({ building_id: buildingId, account_id: accountId, distribution_key: key } as any);
+      if (error) { toast.error("Fehler: " + error.message); return; }
+    }
+    // Bestehende Plan-Items auf den neuen Schlüssel updaten, damit Einzelplan
+    // sofort frisch verteilt — Override ist autoritativ, alte items sind veraltet.
+    if (plan?.id) {
+      await supabase
+        .from("economic_plan_items" as any)
+        .update({ distribution_key: key } as any)
+        .eq("plan_id", plan.id)
+        .eq("account_id", accountId);
+    }
+    qc.invalidateQueries({ queryKey: ["building-account-overrides", buildingId] });
+    qc.invalidateQueries({ queryKey: ["manual-plan", buildingId, fiscalYear] });
+  };
+
+
   const { data: assignmentsRaw = [] } = useQuery({
     queryKey: ["mep-assignments", buildingId],
     queryFn: async () => {
