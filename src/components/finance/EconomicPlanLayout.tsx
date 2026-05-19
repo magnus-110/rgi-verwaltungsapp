@@ -145,7 +145,8 @@ export function EconomicPlanLayout({
           {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
         </div>
 
-        <Table>
+        <div className="-mx-6 px-6 overflow-x-auto print:mx-0 print:px-0 print:overflow-visible">
+        <Table className={cn(isEinzel ? "min-w-[820px]" : "min-w-[760px]")}>
           <TableHeader>
             <TableRow>
               <TableHead className="w-20">Konto</TableHead>
