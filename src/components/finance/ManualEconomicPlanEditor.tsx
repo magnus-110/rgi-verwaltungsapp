@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Loader2, RotateCcw, CheckCircle2, Eye, Edit3, AlertTriangle, Save } from "lucide-react";
+import { Loader2, RotateCcw, CheckCircle2, Eye, Edit3, AlertTriangle, Save, ArrowUp } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { EconomicPlanLayout, PlanRow } from "./EconomicPlanLayout";
