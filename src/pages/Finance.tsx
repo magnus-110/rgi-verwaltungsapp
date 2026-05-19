@@ -5,17 +5,13 @@ import { BookingTemplatesTab } from "@/components/finance/BookingTemplatesTab";
 import { BookingsTab } from "@/components/finance/BookingsTab";
 import { BillingTab } from "@/components/finance/BillingTab";
 import { BillingPeriodSelector } from "@/components/finance/BillingPeriodSelector";
-import { EconomicPlanSection } from "@/components/finance/EconomicPlanSection";
 import { CashAuditTab } from "@/components/finance/CashAuditTab";
 import { BankReconciliationTab } from "@/components/finance/BankReconciliationTab";
-import { AssetReportSection } from "@/components/finance/AssetReportSection";
-import { Paragraph35aSection } from "@/components/finance/Paragraph35aSection";
-import { Card, CardContent } from "@/components/ui/card";
-import { ChevronDown, ChevronRight, FileText, Landmark, Receipt } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-const NEEDS_PERIOD_TABS = ["abrechnung", "planung"];
+const NEEDS_PERIOD_TABS = ["abrechnung"];
 const NEEDS_PERIOD_SUB = ["bookings"]; // Sub-tabs under "buchen" that need a period
 
 const SUB_TABS = [
@@ -34,7 +30,6 @@ type PersistedState = {
   selectedPeriodId: string | null;
   activeTab: string;
   activeSubTab: SubTab;
-  expandedSections: string[];
 };
 
 const loadPersisted = (): Partial<PersistedState> => {
@@ -52,7 +47,6 @@ export const Finance = () => {
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(persisted.selectedPeriodId ?? null);
   const [activeTab, setActiveTab] = useState(persisted.activeTab ?? "buchen");
   const [activeSubTab, setActiveSubTab] = useState<SubTab>(persisted.activeSubTab ?? "statements");
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(persisted.expandedSections ?? ["wirtschaftsplan"]));
   const [buchenHover, setBuchenHover] = useState(false);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout>>();
 
@@ -63,29 +57,15 @@ export const Finance = () => {
         selectedPeriodId,
         activeTab,
         activeSubTab,
-        expandedSections: Array.from(expandedSections),
       }));
     } catch {}
-  }, [selectedBuildingId, selectedPeriodId, activeTab, activeSubTab, expandedSections]);
+  }, [selectedBuildingId, selectedPeriodId, activeTab, activeSubTab]);
+
 
   const showPeriod =
     NEEDS_PERIOD_TABS.includes(activeTab) ||
     (activeTab === "buchen" && NEEDS_PERIOD_SUB.includes(activeSubTab));
 
-  const { data: period } = useQuery({
-    queryKey: ["billing-period-detail", selectedPeriodId],
-    queryFn: async () => {
-      if (!selectedPeriodId) return null;
-      const { data, error } = await supabase
-        .from("billing_periods")
-        .select("*")
-        .eq("id", selectedPeriodId)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!selectedPeriodId,
-  });
 
   // Lade alle Perioden für Auto-Default
   const { data: allPeriods = [] } = useQuery({
@@ -104,7 +84,7 @@ export const Finance = () => {
   });
 
   // Auto-Default Wirtschaftsjahr je nach Tab:
-  // - Abrechnung, Planung & Berichte, Kassenprüfung → Vorjahr (currentYear - 1)
+  // - Abrechnung, Kassenprüfung → Vorjahr (currentYear - 1)
   // - Buchen → aktuelles Jahr
   useEffect(() => {
     if (!selectedBuildingId || !allPeriods.length) return;
@@ -114,7 +94,6 @@ export const Finance = () => {
     const previousYear = currentYear - 1;
     const preferPrevious =
       activeTab === "abrechnung" ||
-      activeTab === "planung" ||
       activeTab === "kassenpruefung";
 
     const targetYear = preferPrevious ? previousYear : currentYear;
@@ -125,14 +104,6 @@ export const Finance = () => {
 
     if (match) setSelectedPeriodId(match.id);
   }, [selectedBuildingId, allPeriods, activeTab, selectedPeriodId]);
-
-  const toggleSection = (id: string) => {
-    setExpandedSections(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
 
   const handleBuchenMouseEnter = () => {
     clearTimeout(hoverTimeout.current);
@@ -151,11 +122,6 @@ export const Finance = () => {
 
   const subLabel = SUB_TABS.find(s => s.value === activeSubTab)?.label ?? "";
 
-  const SECTIONS = [
-    { id: "wirtschaftsplan", label: "Wirtschaftsplan", description: "Gesamt- & Einzelwirtschaftsplan erstellen", icon: FileText },
-    { id: "vermoegensbericht", label: "Vermögensbericht", description: "Vermögensübersicht der WEG", icon: Landmark },
-    { id: "35a", label: "§35a Bescheinigung", description: "Haushaltsnahe Dienstleistungen für Eigentümer", icon: Receipt },
-  ];
 
   return (
     <div className="p-3 md:p-6 space-y-4 md:space-y-6">
@@ -175,7 +141,7 @@ export const Finance = () => {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList variant="segment" className="grid w-full grid-cols-4 h-auto">
+        <TabsList variant="segment" className="grid w-full grid-cols-3 h-auto">
           {/* Custom Buchen trigger with hover dropdown */}
           <div
             className="relative"
@@ -215,7 +181,6 @@ export const Finance = () => {
           </div>
 
           <TabsTrigger variant="segment" value="abrechnung" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3">Abrechnung</TabsTrigger>
-          <TabsTrigger variant="segment" value="planung" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3"><span className="hidden sm:inline">Planung & Berichte</span><span className="sm:hidden">Plan.</span></TabsTrigger>
           <TabsTrigger variant="segment" value="kassenpruefung" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3"><span className="hidden sm:inline">Kassenprüfung</span><span className="sm:hidden">Kasse</span></TabsTrigger>
         </TabsList>
 
@@ -252,80 +217,10 @@ export const Finance = () => {
           />
         </TabsContent>
 
-        <TabsContent value="planung" className="space-y-4">
-          {!selectedBuildingId && (
-            <Card>
-              <CardContent className="py-12 text-center text-muted-foreground">
-                Bitte wähle eine Liegenschaft als Basis.
-              </CardContent>
-            </Card>
-          )}
-
-          {selectedBuildingId && !selectedPeriodId && (
-            <Card>
-              <CardContent className="py-12 text-center text-muted-foreground">
-                Bitte wähle das Abrechnungsjahr.
-              </CardContent>
-            </Card>
-          )}
-
-          {selectedBuildingId && selectedPeriodId && period && (
-            <div className="space-y-2">
-              {SECTIONS.map(section => {
-                const isExpanded = expandedSections.has(section.id);
-                const Icon = section.icon;
-                return (
-                  <Card key={section.id} className="overflow-hidden">
-                    <button
-                      onClick={() => toggleSection(section.id)}
-                      className="w-full flex items-center gap-3 p-4 hover:bg-muted/30 text-left transition-colors"
-                    >
-                      <Icon className="h-5 w-5 text-primary flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <span className="font-medium text-sm">{section.label}</span>
-                        {!isExpanded && (
-                          <span className="text-xs text-muted-foreground ml-2 hidden md:inline">{section.description}</span>
-                        )}
-                      </div>
-                      {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                    </button>
-
-                    {isExpanded && (
-                      <div className="px-4 pb-4 border-t">
-                        <div className="pt-4">
-                          {section.id === "wirtschaftsplan" && (
-                            <EconomicPlanSection
-                              buildingId={selectedBuildingId}
-                              periodId={selectedPeriodId}
-                              fiscalYear={period.fiscal_year}
-                            />
-                          )}
-                          {section.id === "vermoegensbericht" && (
-                            <AssetReportSection
-                              buildingId={selectedBuildingId}
-                              periodId={selectedPeriodId}
-                              fiscalYear={period.fiscal_year}
-                            />
-                          )}
-                          {section.id === "35a" && (
-                            <Paragraph35aSection
-                              buildingId={selectedBuildingId}
-                              periodId={selectedPeriodId}
-                              fiscalYear={period.fiscal_year}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </TabsContent>
         <TabsContent value="kassenpruefung">
           <CashAuditTab />
         </TabsContent>
+
       </Tabs>
     </div>
   );

@@ -56,6 +56,7 @@ interface EconomicPlanLayoutProps {
   variant?: "gesamt" | "einzel";
   renderAmountCell?: (row: PlanRow) => ReactNode;
   renderActionCell?: (row: PlanRow) => ReactNode;
+  renderDistKeyCell?: (row: PlanRow) => ReactNode;
   secondaryColumn?: { label: string; render: (row: PlanRow) => ReactNode };
   groupByCategory?: boolean;
   footer?: FooterExtras;
@@ -94,6 +95,7 @@ export function EconomicPlanLayout({
   variant = "gesamt",
   renderAmountCell,
   renderActionCell,
+  renderDistKeyCell,
   secondaryColumn,
   groupByCategory = true,
   footer,
@@ -179,7 +181,7 @@ export function EconomicPlanLayout({
                           {row.isDistributable && <span className="text-muted-foreground mr-1">*</span>}
                           {row.account_name}
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{formatDistKey(row.distribution_key)}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{renderDistKeyCell ? renderDistKeyCell(row) : formatDistKey(row.distribution_key)}</TableCell>
                         {isEinzel ? (
                           <>
                             <TableCell className="text-right font-mono text-xs">{row.totalShare != null ? formatNumber(row.totalShare, 3) : "–"}</TableCell>

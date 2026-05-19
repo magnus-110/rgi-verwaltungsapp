@@ -25,6 +25,8 @@ import { isReserveContributionAccount } from "@/lib/accountClassification";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SHARE_TYPES } from "@/lib/shareTypes";
 
 interface Props {
   buildingId: string;
@@ -201,6 +203,37 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     qc.invalidateQueries({ queryKey: ["wp-accounts-manual-all", buildingId] });
     qc.invalidateQueries({ queryKey: ["chart-of-accounts"] });
   };
+
+  // Umlageschlüssel pro Konto in dieser Liegenschaft setzen (Override).
+  // Nicht im chart_of_accounts ändern — Default bleibt global.
+  const setDistributionKey = async (accountId: string, key: string) => {
+    const existing = accountOverrides.find((o: any) => o.account_id === accountId);
+    if (existing) {
+      const { error } = await supabase
+        .from("building_account_overrides" as any)
+        .update({ distribution_key: key } as any)
+        .eq("building_id", buildingId)
+        .eq("account_id", accountId);
+      if (error) { toast.error("Fehler: " + error.message); return; }
+    } else {
+      const { error } = await supabase
+        .from("building_account_overrides" as any)
+        .insert({ building_id: buildingId, account_id: accountId, distribution_key: key } as any);
+      if (error) { toast.error("Fehler: " + error.message); return; }
+    }
+    // Bestehende Plan-Items auf den neuen Schlüssel updaten, damit Einzelplan
+    // sofort frisch verteilt — Override ist autoritativ, alte items sind veraltet.
+    if (plan?.id) {
+      await supabase
+        .from("economic_plan_items" as any)
+        .update({ distribution_key: key } as any)
+        .eq("plan_id", plan.id)
+        .eq("account_id", accountId);
+    }
+    qc.invalidateQueries({ queryKey: ["building-account-overrides", buildingId] });
+    qc.invalidateQueries({ queryKey: ["manual-plan", buildingId, fiscalYear] });
+  };
+
 
   const { data: assignmentsRaw = [] } = useQuery({
     queryKey: ["mep-assignments", buildingId],
@@ -649,6 +682,21 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                   />
                   <span className="text-muted-foreground text-xs">€</span>
                 </div>
+              ) : undefined}
+              renderDistKeyCell={mode === "edit" ? (row) => (
+                <Select
+                  value={String(row.distribution_key || "mea")}
+                  onValueChange={(v) => setDistributionKey(row.account_id, v)}
+                >
+                  <SelectTrigger className="h-7 text-xs w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SHARE_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value} className="text-xs">{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               ) : undefined}
               secondaryColumn={mode === "edit" ? {
                 label: "WP-relevant",
