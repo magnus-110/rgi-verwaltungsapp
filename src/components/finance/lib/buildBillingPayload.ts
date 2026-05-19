@@ -572,12 +572,12 @@ export function buildAssetReportPayload(inp: BillingPayloadInputs) {
   //   = AUFLÖSUNG der Abgrenzungen aus dem Vorjahr im lfd. Jahr
   //     (Konten 4100–4139), also tatsächlich vereinnahmte/verausgabte
   //     Beträge, die das Vorjahr betrafen.
-  //   HV-Office Vorzeichen:
-  //     4100 (ARA-Auflösung Ausgaben)  → −  (Vorjahres-Ausgabe ins lfd. Jahr)
-  //     4120 (PRA-Auflösung Einnahmen) → +  (Vorjahres-Einnahme ins lfd. Jahr)
+  //   HV-Office Vorzeichen (Vermögensbericht-Sicht):
+  //     4100 (ARA-Auflösung Ausgaben)  → +  (Forderung der WEG gegen Eigentümer aus Vorjahr = Vermögen)
+  //     4120 (PRA-Auflösung Einnahmen) → +  (Vorjahres-Einnahme ins lfd. Jahr = Vermögen)
   // ============================================================
-  const ford_ausg_lfd_vorjahr = -sumRange(4100, 4119);
-  const ford_einn_lfd_vorjahr =  sumRange(4120, 4139);
+  const ford_ausg_lfd_vorjahr = Math.abs(sumRange(4100, 4119));
+  const ford_einn_lfd_vorjahr = Math.abs(sumRange(4120, 4139));
   const forderungenRowsAll = [
     { bezeichnung: "Ausg. im lfd. J. für Vorjahr", betrag_raw: ford_ausg_lfd_vorjahr },
     { bezeichnung: "Einn. im lfd. J. für Vorjahr", betrag_raw: ford_einn_lfd_vorjahr },
