@@ -50,6 +50,13 @@ interface FooterExtras {
   ownerReserveTotal?: number;
   /** Vorschuss-Anteil (Rest) */
   ownerAdvanceTotal?: number;
+  /** Optional: Override für monatliche Belastung (gesamt) */
+  monthlyTotalOverride?: number | null;
+  onMonthlyTotalRoundUp?: () => void;
+  onMonthlyTotalReset?: () => void;
+  /** Optional: Override für monatlichen Vorschuss (Hausgeld) */
+  monthlyAdvanceOverride?: number | null;
+  onMonthlyAdvanceChange?: (value: number | null) => void;
 }
 
 interface EconomicPlanLayoutProps {
