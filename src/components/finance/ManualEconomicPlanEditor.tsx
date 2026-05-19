@@ -851,7 +851,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                                   noHeatingData && !row.manually_overridden && "border-amber-300",
                                 )}
                                 onChange={(e) => {
-                                  const v = parseFloat(e.target.value.replace(",", ".")) || 0;
+                                  const raw = parseFloat(e.target.value.replace(",", ".")) || 0;
+                                  const v = -Math.abs(raw);
                                   setUnitDrafts((p) => ({ ...p, [`${owner.id}|${row.account_id}`]: v }));
                                 }}
                               />
