@@ -5741,53 +5741,6 @@ export type Database = {
           },
         ]
       }
-      paragraph_35a_templates: {
-        Row: {
-          building_id: string | null
-          created_at: string
-          created_by: string | null
-          description: string | null
-          id: string
-          is_default: boolean
-          name: string
-          original_filename: string | null
-          storage_path: string
-          updated_at: string
-        }
-        Insert: {
-          building_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          is_default?: boolean
-          name: string
-          original_filename?: string | null
-          storage_path: string
-          updated_at?: string
-        }
-        Update: {
-          building_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          is_default?: boolean
-          name?: string
-          original_filename?: string | null
-          storage_path?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "paragraph_35a_templates_building_id_fkey"
-            columns: ["building_id"]
-            isOneToOne: false
-            referencedRelation: "buildings"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       process_instance_steps: {
         Row: {
           assignee_user_id: string | null

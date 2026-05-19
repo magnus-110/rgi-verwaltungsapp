@@ -10,12 +10,14 @@ import { Trash2, Upload, FileText, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
-type Scope = "single" | "overall" | "asset_report";
+type Scope = "single" | "overall" | "asset_report" | "paragraph_35a" | "economic_plan";
 
 const SCOPE_LABEL: Record<Scope, string> = {
   overall: "Gesamtabrechnung",
   single: "Einzelabrechnung",
   asset_report: "Vermögensbericht",
+  paragraph_35a: "§35a Bescheinigung",
+  economic_plan: "Wirtschaftsplan",
 };
 
 interface Props {
@@ -24,9 +26,13 @@ interface Props {
   selectedSingleId?: string | null;
   selectedOverallId?: string | null;
   selectedAssetReportId?: string | null;
+  selectedParagraph35aId?: string | null;
+  selectedEconomicPlanId?: string | null;
   onSelectSingle?: (id: string) => void;
   onSelectOverall?: (id: string) => void;
   onSelectAssetReport?: (id: string) => void;
+  onSelectParagraph35a?: (id: string) => void;
+  onSelectEconomicPlan?: (id: string) => void;
   /** Optional Filter, um den Dialog vorgefiltert auf einen Typ zu öffnen */
   scopeFilter?: Scope;
 }
@@ -37,9 +43,13 @@ export function BillingTemplatesDialog({
   selectedSingleId,
   selectedOverallId,
   selectedAssetReportId,
+  selectedParagraph35aId,
+  selectedEconomicPlanId,
   onSelectSingle,
   onSelectOverall,
   onSelectAssetReport,
+  onSelectParagraph35a,
+  onSelectEconomicPlan,
   scopeFilter,
 }: Props) {
   const { toast } = useToast();
@@ -106,6 +116,8 @@ export function BillingTemplatesDialog({
   const select = (t: any) => {
     if (t.scope === "overall") onSelectOverall?.(t.id);
     else if (t.scope === "asset_report") onSelectAssetReport?.(t.id);
+    else if (t.scope === "paragraph_35a") onSelectParagraph35a?.(t.id);
+    else if (t.scope === "economic_plan") onSelectEconomicPlan?.(t.id);
     else onSelectSingle?.(t.id);
     toast({ title: "Vorlage aktiviert", description: t.name });
   };
@@ -113,7 +125,9 @@ export function BillingTemplatesDialog({
   const isActive = (t: any) =>
     (t.scope === "overall" && selectedOverallId === t.id) ||
     (t.scope === "single" && selectedSingleId === t.id) ||
-    (t.scope === "asset_report" && selectedAssetReportId === t.id);
+    (t.scope === "asset_report" && selectedAssetReportId === t.id) ||
+    (t.scope === "paragraph_35a" && selectedParagraph35aId === t.id) ||
+    (t.scope === "economic_plan" && selectedEconomicPlanId === t.id);
 
   const filteredTemplates = scopeFilter
     ? templates.filter((t: any) => t.scope === scopeFilter)
@@ -146,6 +160,8 @@ export function BillingTemplatesDialog({
                   <SelectItem value="overall">Gesamtabrechnung</SelectItem>
                   <SelectItem value="single">Einzelabrechnung</SelectItem>
                   <SelectItem value="asset_report">Vermögensbericht</SelectItem>
+                  <SelectItem value="paragraph_35a">§35a Bescheinigung</SelectItem>
+                  <SelectItem value="economic_plan">Wirtschaftsplan</SelectItem>
                 </SelectContent>
               </Select>
             </div>

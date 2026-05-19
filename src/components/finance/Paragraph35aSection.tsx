@@ -69,7 +69,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
       const safeName = file.name.normalize("NFKD").replace(/[^\w.\-]+/g, "_").replace(/_+/g, "_");
       const path = `${crypto.randomUUID()}_${safeName}`;
       const { error: upErr } = await supabase.storage
-        .from("paragraph-35a-templates")
+        .from("billing-templates")
         .upload(path, file, {
           contentType: file.type || "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           upsert: false,
@@ -77,17 +77,17 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
       if (upErr) throw upErr;
       const displayName = file.name.replace(/\.docx$/i, "");
       const { data: inserted, error: insErr } = await supabase
-        .from("paragraph_35a_templates")
+        .from("billing_templates")
         .insert({
           name: displayName,
           storage_path: path,
-          original_filename: file.name,
-          building_id: buildingId || null,
+          scope: "paragraph_35a",
         })
         .select("id")
         .single();
       if (insErr) throw insErr;
       await queryClient.invalidateQueries({ queryKey: ["35a-templates-select"] });
+      await queryClient.invalidateQueries({ queryKey: ["billing-templates"] });
       if (inserted?.id) setTemplateId(inserted.id);
       toast({ title: "Vorlage hochgeladen" });
     } catch (err) {
@@ -139,7 +139,11 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   const { data: templates = [] } = useQuery({
     queryKey: ["35a-templates-select"],
     queryFn: async () => {
-      const { data } = await supabase.from("paragraph_35a_templates").select("id, name, storage_path").order("name");
+      const { data } = await supabase
+        .from("billing_templates")
+        .select("id, name, storage_path")
+        .eq("scope", "paragraph_35a")
+        .order("name");
       return data || [];
     },
   });
@@ -147,11 +151,12 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   const deleteTemplate = async (t: { id: string; name: string; storage_path: string }) => {
     if (!confirm(`Vorlage "${t.name}" löschen?`)) return;
     try {
-      if (t.storage_path) await supabase.storage.from("paragraph-35a-templates").remove([t.storage_path]);
-      const { error } = await supabase.from("paragraph_35a_templates").delete().eq("id", t.id);
+      if (t.storage_path) await supabase.storage.from("billing-templates").remove([t.storage_path]);
+      const { error } = await supabase.from("billing_templates").delete().eq("id", t.id);
       if (error) throw error;
       if (templateId === t.id) setTemplateId("");
       await queryClient.invalidateQueries({ queryKey: ["35a-templates-select"] });
+      await queryClient.invalidateQueries({ queryKey: ["billing-templates"] });
       toast({ title: "Vorlage gelöscht" });
     } catch (e) {
       toast({ title: "Löschen fehlgeschlagen", description: String((e as Error).message), variant: "destructive" });
