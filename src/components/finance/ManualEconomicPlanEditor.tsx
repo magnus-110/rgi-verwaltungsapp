@@ -683,6 +683,11 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                   <span className="text-muted-foreground text-xs">€</span>
                 </div>
               ) : undefined}
+              onPreviousAmountClick={mode === "edit" ? (row) => {
+                const prev = Number(row.previousAmount || 0);
+                if (!prev) return;
+                setDrafts((p) => ({ ...p, [row.account_id]: prev }));
+              } : undefined}
               renderDistKeyCell={mode === "edit" ? (row) => (
                 <Select
                   value={String(row.distribution_key || "mea")}
