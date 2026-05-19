@@ -95,6 +95,7 @@ export function EconomicPlanLayout({
   variant = "gesamt",
   renderAmountCell,
   renderActionCell,
+  renderDistKeyCell,
   secondaryColumn,
   groupByCategory = true,
   footer,
