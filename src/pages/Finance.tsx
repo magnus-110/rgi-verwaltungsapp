@@ -155,7 +155,7 @@ export const Finance = () => {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList variant="segment" className="grid w-full grid-cols-4 h-auto">
+        <TabsList variant="segment" className="grid w-full grid-cols-3 h-auto">
           {/* Custom Buchen trigger with hover dropdown */}
           <div
             className="relative"
