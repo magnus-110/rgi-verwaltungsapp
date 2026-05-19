@@ -1751,6 +1751,36 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           </TabsContent>
 
           <TabsContent value="paragraph35a" className="space-y-4">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <p className="text-sm text-muted-foreground">
+                Gemäß §35a EStG — Bescheinigung haushaltsnaher Dienstleistungen und Handwerkerleistungen.
+              </p>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" disabled={busyDownload === "paragraph_35a"}>
+                    {busyDownload === "paragraph_35a" ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4 mr-1" />
+                    )}
+                    §35a Bescheinigungen herunterladen
+                    <ChevronDown className="h-4 w-4 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => downloadParagraph35a("docx")}>
+                    <FileType className="h-4 w-4 mr-2" /> DOCX (ZIP)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => downloadParagraph35a("pdf")}>
+                    <FileText className="h-4 w-4 mr-2" /> PDF (ZIP)
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => openTemplatesFor("paragraph_35a")}>
+                    <Settings2 className="h-4 w-4 mr-2" /> Vorlage wählen / hochladen
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <Paragraph35aSection buildingId={buildingId} periodId={periodId} fiscalYear={fiscalYear} />
           </TabsContent>
         </Tabs>
