@@ -5,17 +5,13 @@ import { BookingTemplatesTab } from "@/components/finance/BookingTemplatesTab";
 import { BookingsTab } from "@/components/finance/BookingsTab";
 import { BillingTab } from "@/components/finance/BillingTab";
 import { BillingPeriodSelector } from "@/components/finance/BillingPeriodSelector";
-import { EconomicPlanSection } from "@/components/finance/EconomicPlanSection";
 import { CashAuditTab } from "@/components/finance/CashAuditTab";
 import { BankReconciliationTab } from "@/components/finance/BankReconciliationTab";
-import { AssetReportSection } from "@/components/finance/AssetReportSection";
-import { Paragraph35aSection } from "@/components/finance/Paragraph35aSection";
-import { Card, CardContent } from "@/components/ui/card";
-import { ChevronDown, ChevronRight, FileText, Landmark, Receipt } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-const NEEDS_PERIOD_TABS = ["abrechnung", "planung"];
+const NEEDS_PERIOD_TABS = ["abrechnung"];
 const NEEDS_PERIOD_SUB = ["bookings"]; // Sub-tabs under "buchen" that need a period
 
 const SUB_TABS = [
