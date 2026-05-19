@@ -193,10 +193,10 @@ Deno.serve(async (req) => {
       return json({ error: "template_id, building_id, fiscal_year required" }, 400);
     }
 
-    // Template
-    const { data: tpl } = await admin.from("paragraph_35a_templates").select("*").eq("id", template_id).maybeSingle();
+    // Template (zentral: billing_templates, scope=paragraph_35a)
+    const { data: tpl } = await admin.from("billing_templates").select("*").eq("id", template_id).maybeSingle();
     if (!tpl) return json({ error: "Vorlage nicht gefunden" }, 404);
-    const { data: tplFile, error: dlErr } = await admin.storage.from("paragraph-35a-templates").download(tpl.storage_path);
+    const { data: tplFile, error: dlErr } = await admin.storage.from("billing-templates").download(tpl.storage_path);
     if (dlErr || !tplFile) return json({ error: dlErr?.message || "Vorlage konnte nicht geladen werden" }, 500);
     const tplBuf = new Uint8Array(await tplFile.arrayBuffer());
 
