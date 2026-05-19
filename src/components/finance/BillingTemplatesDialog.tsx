@@ -160,6 +160,8 @@ export function BillingTemplatesDialog({
                   <SelectItem value="overall">Gesamtabrechnung</SelectItem>
                   <SelectItem value="single">Einzelabrechnung</SelectItem>
                   <SelectItem value="asset_report">Vermögensbericht</SelectItem>
+                  <SelectItem value="paragraph_35a">§35a Bescheinigung</SelectItem>
+                  <SelectItem value="economic_plan">Wirtschaftsplan</SelectItem>
                 </SelectContent>
               </Select>
             </div>
