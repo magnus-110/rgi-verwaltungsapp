@@ -669,18 +669,33 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
               renderAmountCell={mode === "edit" ? (row) => (
                 <div className="flex items-center gap-1 justify-end">
                   <Input
-                    type="number"
-                    step="0.01"
+                    type="text"
                     inputMode="decimal"
                     value={row.planned_amount === 0 ? "" : row.planned_amount}
                     placeholder="0,00"
-                    className="h-7 w-28 text-right font-mono text-xs"
+                    className="h-7 w-28 text-right font-mono text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     onChange={(e) => {
                       const v = parseFloat(e.target.value.replace(",", ".")) || 0;
                       setDrafts((p) => ({ ...p, [row.account_id]: v }));
                     }}
                   />
                   <span className="text-muted-foreground text-xs">€</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={() => {
+                          const rounded = Math.ceil(Number(row.planned_amount) || 0);
+                          setDrafts((p) => ({ ...p, [row.account_id]: rounded }));
+                        }}
+                      >
+                        <ArrowUp className="h-3 w-3" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Aufrunden auf ganze €</TooltipContent>
+                  </Tooltip>
                 </div>
               ) : undefined}
               onPreviousAmountClick={mode === "edit" ? (row) => {
