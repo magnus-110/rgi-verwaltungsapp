@@ -43,9 +43,13 @@ export function BillingTemplatesDialog({
   selectedSingleId,
   selectedOverallId,
   selectedAssetReportId,
+  selectedParagraph35aId,
+  selectedEconomicPlanId,
   onSelectSingle,
   onSelectOverall,
   onSelectAssetReport,
+  onSelectParagraph35a,
+  onSelectEconomicPlan,
   scopeFilter,
 }: Props) {
   const { toast } = useToast();
