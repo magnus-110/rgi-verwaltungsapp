@@ -1822,17 +1822,6 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           </TabsContent>
         </Tabs>
       </CardContent>
-      <BillingTemplatesDialog
-        open={templatesOpen}
-        onOpenChange={(o) => { setTemplatesOpen(o); if (!o) setTemplatesScopeFilter(undefined); }}
-        selectedSingleId={effectiveSingleTpl}
-        selectedOverallId={effectiveOverallTpl}
-        selectedAssetReportId={effectiveAssetReportTpl}
-        onSelectSingle={setSelectedTemplate}
-        onSelectOverall={setSelectedOverallTemplate}
-        onSelectAssetReport={setSelectedAssetReportTemplate}
-        scopeFilter={templatesScopeFilter}
-      />
     </Card>
   );
 }
