@@ -90,8 +90,6 @@ verify_jwt = false
 [functions.generate-billing-docx]
 verify_jwt = false
 
-[functions.generate-economic-plan]
-verify_jwt = false
 
 [functions.import-contacts-csv]
 verify_jwt = false
