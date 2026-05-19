@@ -66,20 +66,6 @@ export const Finance = () => {
     NEEDS_PERIOD_TABS.includes(activeTab) ||
     (activeTab === "buchen" && NEEDS_PERIOD_SUB.includes(activeSubTab));
 
-  const { data: period } = useQuery({
-    queryKey: ["billing-period-detail", selectedPeriodId],
-    queryFn: async () => {
-      if (!selectedPeriodId) return null;
-      const { data, error } = await supabase
-        .from("billing_periods")
-        .select("*")
-        .eq("id", selectedPeriodId)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!selectedPeriodId,
-  });
 
   // Lade alle Perioden für Auto-Default
   const { data: allPeriods = [] } = useQuery({
