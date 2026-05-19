@@ -186,16 +186,12 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     }, 0);
   };
 
-  // Effektive Konten: Default = WP-relevant ODER Vorjahres-Saldo ≠ 0.
-  // "Alle anzeigen" zeigt sämtliche Konten der Liegenschaft.
+  // Effektive Konten: Default = NUR WP-relevant markierte Konten.
+  // "Alle anzeigen" zeigt sämtliche Konten der Liegenschaft (z. B. um Personenkonten auszuschließen/einzuschließen).
   const accounts = useMemo(() => {
     if (showAllAccounts) return allAccounts as any[];
-    return (allAccounts as any[]).filter((a) => {
-      if (a.is_wirtschaftsplan_relevant) return true;
-      return Math.abs(sumForAccount(a.id)) > 0.005;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allAccounts, showAllAccounts, prevYearBookings]);
+    return (allAccounts as any[]).filter((a) => !!a.is_wirtschaftsplan_relevant);
+  }, [allAccounts, showAllAccounts]);
 
   // Toggle: Konto WP-relevant ja/nein (persistiert global)
   const toggleWpRelevance = async (accountId: string, value: boolean) => {
