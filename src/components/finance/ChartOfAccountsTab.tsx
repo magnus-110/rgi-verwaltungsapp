@@ -79,7 +79,9 @@ export function ChartOfAccountsTab() {
     queryFn: async () => {
       let query = supabase.from("chart_of_accounts").select("*");
       if (selectedBuilding && selectedBuilding !== "global") {
-        query = query.eq("building_id", selectedBuilding);
+        // Im Liegenschafts-View beide Quellen zeigen: globale Standardkonten
+        // PLUS gebäudespezifische Konten (z. B. zusätzliche Rücklagen-"Töpfe" 1811–1814).
+        query = query.or(`building_id.is.null,building_id.eq.${selectedBuilding}`);
       } else {
         query = query.is("building_id", null);
       }
