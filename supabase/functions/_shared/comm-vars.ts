@@ -4,7 +4,8 @@ import { firstValidEmail, extractEmails } from "./sanitize-email.ts";
 
 export type RecipientFilter = {
   roles?: string[]; // e.g. ["eigentuemer","mieter"]
-  contact_ids?: string[]; // explicit contact selection
+  contact_ids?: string[]; // explicit contact selection (legacy)
+  assignment_ids?: string[]; // explicit assignment selection (preferred — allows multi-unit owners to be deselected individually)
   unit_numbers?: string[];
   require_email?: boolean;
 };
