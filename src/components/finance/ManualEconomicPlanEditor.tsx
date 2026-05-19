@@ -839,13 +839,12 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                           return (
                             <div className="flex items-center gap-1 justify-end">
                               <Input
-                                type="number"
-                                step="0.01"
+                                type="text"
                                 inputMode="decimal"
                                 value={row.planned_amount === 0 ? "" : Number(row.planned_amount.toFixed(2))}
                                 placeholder={noHeatingData ? "manuell" : "0,00"}
                                 className={cn(
-                                  "h-7 w-28 text-right font-mono text-xs",
+                                  "h-7 w-28 text-right font-mono text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
                                   !row.manually_overridden && !noHeatingData && "text-muted-foreground italic",
                                   noHeatingData && !row.manually_overridden && "border-amber-300",
                                 )}
@@ -855,6 +854,22 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                                 }}
                               />
                               <span className="text-muted-foreground text-xs">€</span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0"
+                                    onClick={() => {
+                                      const rounded = Math.ceil(Number(row.planned_amount) || 0);
+                                      setUnitDrafts((p) => ({ ...p, [`${owner.id}|${row.account_id}`]: rounded }));
+                                    }}
+                                  >
+                                    <ArrowUp className="h-3 w-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Aufrunden auf ganze €</TooltipContent>
+                              </Tooltip>
                             </div>
                           );
                         }}
