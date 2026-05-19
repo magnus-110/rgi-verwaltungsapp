@@ -1750,7 +1750,25 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           </TabsContent>
 
           <TabsContent value="wirtschaftsplan" className="space-y-4">
-            <EconomicPlanSection buildingId={buildingId} periodId={periodId} fiscalYear={fiscalYear} />
+            <div className="flex items-center justify-between gap-2 flex-wrap rounded-md border bg-muted/30 px-3 py-2">
+              <p className="text-sm text-muted-foreground">
+                Geplante Kosten pro Konto für das gewählte Wirtschaftsjahr. Auto-Save beim Bearbeiten.
+              </p>
+              <div className="flex items-center gap-2">
+                <label htmlFor="wp-year" className="text-xs text-muted-foreground">Wirtschaftsjahr</label>
+                <Input
+                  id="wp-year"
+                  type="number"
+                  value={wpYear}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (!isNaN(v) && v > 2000 && v < 2100) setWpYear(v);
+                  }}
+                  className="h-8 w-24 text-sm"
+                />
+              </div>
+            </div>
+            <ManualEconomicPlanEditor buildingId={buildingId} fiscalYear={wpYear} />
           </TabsContent>
 
           <TabsContent value="paragraph35a" className="space-y-4">
