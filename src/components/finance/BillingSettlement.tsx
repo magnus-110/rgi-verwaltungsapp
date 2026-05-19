@@ -92,7 +92,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const [activeTab, setActiveTab] = useState("total");
   const [busyDownload, setBusyDownload] = useState<string | null>(null); // owner.assignmentId | "overall" | "all"
   const [templatesOpen, setTemplatesOpen] = useState(false);
-  const [templatesScopeFilter, setTemplatesScopeFilter] = useState<"single" | "overall" | "asset_report" | undefined>(undefined);
+  const [templatesScopeFilter, setTemplatesScopeFilter] = useState<"single" | "overall" | "asset_report" | "paragraph_35a" | undefined>(undefined);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [selectedOverallTemplate, setSelectedOverallTemplate] = useState<string | null>(null);
   const [selectedAssetReportTemplate, setSelectedAssetReportTemplate] = useState<string | null>(null);
@@ -908,13 +908,54 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const singleTemplates = billingTemplates.filter((t: any) => t.scope === "single");
   const overallTemplates = billingTemplates.filter((t: any) => t.scope === "overall");
   const assetReportTemplates = billingTemplates.filter((t: any) => t.scope === "asset_report");
+  const paragraph35aTemplates = billingTemplates.filter((t: any) => t.scope === "paragraph_35a");
   const effectiveSingleTpl = selectedTemplate || singleTemplates[0]?.id || null;
   const effectiveOverallTpl = selectedOverallTemplate || overallTemplates[0]?.id || effectiveSingleTpl;
   const effectiveAssetReportTpl = selectedAssetReportTemplate || assetReportTemplates[0]?.id || null;
+  const effectiveParagraph35aTpl = paragraph35aTemplates[0]?.id || null;
 
-  const openTemplatesFor = (filter?: "single" | "overall" | "asset_report") => {
+  const openTemplatesFor = (filter?: "single" | "overall" | "asset_report" | "paragraph_35a") => {
     setTemplatesScopeFilter(filter);
     setTemplatesOpen(true);
+  };
+
+  const downloadParagraph35a = async (format: "docx" | "pdf") => {
+    if (!effectiveParagraph35aTpl) {
+      toast.error("Bitte zuerst eine §35a-Vorlage hochladen.");
+      openTemplatesFor("paragraph_35a");
+      return;
+    }
+    setBusyDownload("paragraph_35a");
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("Bitte erneut anmelden.");
+      const resp = await fetch(
+        `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({
+            template_id: effectiveParagraph35aTpl,
+            building_id: buildingId,
+            fiscal_year: fiscalYear,
+            period_id: periodId,
+            format,
+          }),
+        },
+      );
+      if (!resp.ok) throw new Error(await resp.text());
+      const blob = await resp.blob();
+      const cd = resp.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename="?([^"]+)"?/);
+      const fname = m?.[1] || `35a_${fiscalYear}.zip`;
+      triggerDownload(blob, fname, blob.type || "application/zip");
+      toast.success("Download bereit");
+    } catch (e: any) {
+      toast.error("Fehler: " + (e?.message || "Unbekannt"));
+    } finally {
+      setBusyDownload(null);
+    }
   };
 
   const sanitizeFilename = (s: string) =>
@@ -1710,6 +1751,36 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           </TabsContent>
 
           <TabsContent value="paragraph35a" className="space-y-4">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <p className="text-sm text-muted-foreground">
+                Gemäß §35a EStG — Bescheinigung haushaltsnaher Dienstleistungen und Handwerkerleistungen.
+              </p>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" disabled={busyDownload === "paragraph_35a"}>
+                    {busyDownload === "paragraph_35a" ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4 mr-1" />
+                    )}
+                    §35a Bescheinigungen herunterladen
+                    <ChevronDown className="h-4 w-4 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => downloadParagraph35a("docx")}>
+                    <FileType className="h-4 w-4 mr-2" /> DOCX (ZIP)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => downloadParagraph35a("pdf")}>
+                    <FileText className="h-4 w-4 mr-2" /> PDF (ZIP)
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => openTemplatesFor("paragraph_35a")}>
+                    <Settings2 className="h-4 w-4 mr-2" /> Vorlage wählen / hochladen
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <Paragraph35aSection buildingId={buildingId} periodId={periodId} fiscalYear={fiscalYear} />
           </TabsContent>
         </Tabs>
