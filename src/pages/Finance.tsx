@@ -136,13 +136,18 @@ export const Finance = () => {
             Kontoauszüge, Buchungen, Abrechnungen und Wirtschaftspläne verwalten
           </p>
         </div>
-        <FinanceDocumentsMenu
-          selectedBuildingId={selectedBuildingId}
-          selectedPeriodId={selectedPeriodId}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-        />
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setDocsOpen(true)}>
+          <FileTextIcon className="h-4 w-4" />
+          Dokumente
+        </Button>
       </div>
+
+      <FinanceDocumentsDialog
+        open={docsOpen}
+        onOpenChange={setDocsOpen}
+        selectedBuildingId={selectedBuildingId}
+        selectedPeriodId={selectedPeriodId}
+      />
 
       <BillingPeriodSelector
         selectedBuildingId={selectedBuildingId}
