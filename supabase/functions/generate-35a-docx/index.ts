@@ -187,18 +187,25 @@ Deno.serve(async (req) => {
     );
 
     const body = await req.json();
-    const { template_id, building_id, fiscal_year, period_id, assignment_ids, format } = body || {};
+    const { template_id, building_id, fiscal_year, period_id, assignment_ids, format, mode } = body || {};
     const wantPdf = format === "pdf";
-    if (!template_id || !building_id || !fiscal_year) {
-      return json({ error: "template_id, building_id, fiscal_year required" }, 400);
+    const payloadOnly = mode === "payloads_only";
+    if (!building_id || !fiscal_year) {
+      return json({ error: "building_id, fiscal_year required" }, 400);
+    }
+    if (!payloadOnly && !template_id) {
+      return json({ error: "template_id required" }, 400);
     }
 
-    // Template (zentral: billing_templates, scope=paragraph_35a)
-    const { data: tpl } = await admin.from("billing_templates").select("*").eq("id", template_id).maybeSingle();
-    if (!tpl) return json({ error: "Vorlage nicht gefunden" }, 404);
-    const { data: tplFile, error: dlErr } = await admin.storage.from("billing-templates").download(tpl.storage_path);
-    if (dlErr || !tplFile) return json({ error: dlErr?.message || "Vorlage konnte nicht geladen werden" }, 500);
-    const tplBuf = new Uint8Array(await tplFile.arrayBuffer());
+    // Template (zentral: billing_templates, scope=paragraph_35a) — nur wenn nicht payload-only
+    let tplBuf: Uint8Array | null = null;
+    if (!payloadOnly) {
+      const { data: tpl } = await admin.from("billing_templates").select("*").eq("id", template_id).maybeSingle();
+      if (!tpl) return json({ error: "Vorlage nicht gefunden" }, 404);
+      const { data: tplFile, error: dlErr } = await admin.storage.from("billing-templates").download(tpl.storage_path);
+      if (dlErr || !tplFile) return json({ error: dlErr?.message || "Vorlage konnte nicht geladen werden" }, 500);
+      tplBuf = new Uint8Array(await tplFile.arrayBuffer());
+    }
 
     // Building + period
     const { data: building } = await admin.from("buildings").select("id, name, address").eq("id", building_id).maybeSingle();
