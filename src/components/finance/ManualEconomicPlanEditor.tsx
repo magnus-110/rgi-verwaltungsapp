@@ -816,17 +816,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
 
                   return (
                     <div className="space-y-3">
-                      {Math.abs(deviation) > 0.01 && (
-                        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
-                          <CardContent className="py-2 px-3 flex items-center gap-2 text-xs">
-                            <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-                            <span className="text-amber-900 dark:text-amber-200">
-                              Σ Einzelplan ({formatCurrency(ownerTotal)}) weicht von linearer MEA-Quote
-                              ({formatCurrency(calculatedTotal)}) um {formatCurrency(deviation)} ab — i.d.R. korrekt, weil je Konto unterschiedliche Schlüssel angewendet werden.
-                            </span>
-                          </CardContent>
-                        </Card>
-                      )}
+                      {/* gelbe Abweichungswarnung entfernt */}
 
                       <EconomicPlanLayout
                         title={`Einzelwirtschaftsplan – ${owner.name}`}
