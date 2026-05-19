@@ -718,6 +718,13 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       ruecklage: r.isReserve ? "ja" : "nein",
     }));
     const ownerAdvanceTotal = monthlyAdvance * 12;
+    const ownerDistributableYear = sumAbs(distributable);
+    const ownerReserveYear = sumAbs(reserve);
+    const ownerHausgeldYear = Math.max(ownerAdvanceTotal - ownerReserveYear, 0);
+    // Monatliche Werte (Jahreswerte / 12) für den Abschnitt "Monatliche Vorschüsse"
+    const monthlyOwnerTotal = ownerDistributableYear / 12;
+    const monthlyReserve = ownerReserveYear / 12;
+    const monthlyHausgeld = ownerHausgeldYear / 12;
     return {
       ...buildBaseContext(),
       // englisch
@@ -727,22 +734,31 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       accounts: accountsList,
       positions: accountsList, // Alias für Vorlagen mit {#positions}
       total_planned: fmtEUR(sumAbs(unitRows)),
-      total_distributable: fmtEUR(sumAbs(distributable)),
-      owner_total: fmtEUR(sumAbs(distributable)),
-      owner_reserve_total: fmtEUR(sumAbs(reserve)),
+      total_distributable: fmtEUR(ownerDistributableYear),
+      owner_total: fmtEUR(ownerDistributableYear),
+      owner_reserve_total: fmtEUR(ownerReserveYear),
       owner_advance_total: fmtEUR(ownerAdvanceTotal),
       monthly_advance: fmtEUR(monthlyAdvance),
       monthly_total: fmtEUR(monthlyTotal),
+      // Monatliche Vorschüsse — Jahreswerte/12
+      owner_total_monthly: fmtEUR(monthlyOwnerTotal),
+      owner_reserve_monthly: fmtEUR(monthlyReserve),
+      owner_advance_monthly: fmtEUR(monthlyAdvance),
+      owner_hausgeld_monthly: fmtEUR(monthlyHausgeld),
       // deutsch
       eigentuemer_name: o?.name || "",
       einheit_nr: o?.unitNumber || "",
       konten: accountsList,
       summe_gesamt: fmtEUR(sumAbs(unitRows)),
-      summe_umlagefaehig: fmtEUR(sumAbs(distributable)),
-      summe_ruecklage: fmtEUR(sumAbs(reserve)),
+      summe_umlagefaehig: fmtEUR(ownerDistributableYear),
+      summe_ruecklage: fmtEUR(ownerReserveYear),
       summe_vorschuss_jahr: fmtEUR(ownerAdvanceTotal),
       monatlicher_vorschuss: fmtEUR(monthlyAdvance),
       monatliche_gesamtbelastung: fmtEUR(monthlyTotal),
+      // Monatliche Aliase (Jahreswerte/12) — für Abschnitt "Monatliche Vorschüsse"
+      summe_umlegbar_monat: fmtEUR(monthlyOwnerTotal),
+      davon_ruecklage_monat: fmtEUR(monthlyReserve),
+      davon_hausgeld_monat: fmtEUR(monthlyHausgeld),
     };
   };
 
