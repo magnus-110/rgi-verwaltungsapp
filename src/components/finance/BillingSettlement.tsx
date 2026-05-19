@@ -20,7 +20,7 @@ import { BillingTemplatesDialog } from "./BillingTemplatesDialog";
 import { buildOverallPayload, buildOwnerPayload, buildAssetReportPayload, type BillingPayloadInputs } from "./lib/buildBillingPayload";
 import { AssetReportItemsCard } from "./AssetReportItemsCard";
 import { AssetReportSection } from "./AssetReportSection";
-import { EconomicPlanSection } from "./EconomicPlanSection";
+import { ManualEconomicPlanEditor } from "./ManualEconomicPlanEditor";
 import { Paragraph35aSection } from "./Paragraph35aSection";
 
 interface BillingSettlementProps {
