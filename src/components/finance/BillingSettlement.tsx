@@ -22,6 +22,7 @@ import { AssetReportItemsCard } from "./AssetReportItemsCard";
 import { AssetReportSection } from "./AssetReportSection";
 import { ManualEconomicPlanEditor } from "./ManualEconomicPlanEditor";
 import { Paragraph35aSection } from "./Paragraph35aSection";
+import { FinanceDocumentsDialog } from "./FinanceDocumentsDialog";
 
 interface BillingSettlementProps {
   buildingId: string;
@@ -90,6 +91,7 @@ const SECTION_ORDER = ["income", "operating_distributable", "operating_non_distr
 export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingSettlementProps) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("total");
+  const [docsOpen, setDocsOpen] = useState(false);
   const [busyDownload, setBusyDownload] = useState<string | null>(null); // owner.assignmentId | "overall" | "all"
   // Vorlagen-Verwaltung läuft jetzt zentral über den "Dokumente"-Button im Finance-Header
   // (FinanceDocumentsDialog). Hier nur noch lesender Zugriff auf billing_templates.
@@ -1331,21 +1333,34 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList variant="underline" className="mb-4 flex-wrap h-auto">
-            <TabsTrigger variant="underline" value="total">Gesamtabrechnung</TabsTrigger>
-            <TabsTrigger variant="underline" value="owners">
-              <Users className="h-4 w-4 mr-1" /> Einzelabrechnungen ({ownerResults.length})
-            </TabsTrigger>
-            <TabsTrigger variant="underline" value="assets">
-              <Building2 className="h-4 w-4 mr-1" /> Vermögensbericht
-            </TabsTrigger>
-            <TabsTrigger variant="underline" value="wirtschaftsplan">
-              <FileText className="h-4 w-4 mr-1" /> Wirtschaftsplan
-            </TabsTrigger>
-            <TabsTrigger variant="underline" value="paragraph35a">
-              <Receipt className="h-4 w-4 mr-1" /> §35a Bescheinigung
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+            <TabsList variant="underline" className="flex-wrap h-auto">
+              <TabsTrigger variant="underline" value="total">Gesamtabrechnung</TabsTrigger>
+              <TabsTrigger variant="underline" value="owners">
+                <Users className="h-4 w-4 mr-1" /> Einzelabrechnungen ({ownerResults.length})
+              </TabsTrigger>
+              <TabsTrigger variant="underline" value="assets">
+                <Building2 className="h-4 w-4 mr-1" /> Vermögensbericht
+              </TabsTrigger>
+              <TabsTrigger variant="underline" value="wirtschaftsplan">
+                <FileText className="h-4 w-4 mr-1" /> Wirtschaftsplan
+              </TabsTrigger>
+              <TabsTrigger variant="underline" value="paragraph35a">
+                <Receipt className="h-4 w-4 mr-1" /> §35a Bescheinigung
+              </TabsTrigger>
+            </TabsList>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setDocsOpen(true)}>
+              <FileText className="h-4 w-4" />
+              Dokumente
+            </Button>
+          </div>
+          <FinanceDocumentsDialog
+            open={docsOpen}
+            onOpenChange={setDocsOpen}
+            selectedBuildingId={buildingId}
+            selectedPeriodId={periodId}
+          />
+
 
           {/* ===== TAB 1: GESAMTABRECHNUNG ===== */}
           <TabsContent value="total" className="space-y-3">

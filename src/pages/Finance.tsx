@@ -10,9 +10,7 @@ import { BankReconciliationTab } from "@/components/finance/BankReconciliationTa
 import { ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { FinanceDocumentsDialog } from "@/components/finance/FinanceDocumentsDialog";
-import { Button } from "@/components/ui/button";
-import { FileText as FileTextIcon } from "lucide-react";
+
 
 const NEEDS_PERIOD_TABS = ["abrechnung"];
 const NEEDS_PERIOD_SUB = ["bookings"]; // Sub-tabs under "buchen" that need a period
@@ -51,7 +49,6 @@ export const Finance = () => {
   const [activeTab, setActiveTab] = useState(persisted.activeTab ?? "buchen");
   const [activeSubTab, setActiveSubTab] = useState<SubTab>(persisted.activeSubTab ?? "statements");
   const [buchenHover, setBuchenHover] = useState(false);
-  const [docsOpen, setDocsOpen] = useState(false);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
@@ -129,25 +126,14 @@ export const Finance = () => {
 
   return (
     <div className="p-3 md:p-6 space-y-4 md:space-y-6">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold">Buchhaltung</h1>
-          <p className="text-muted-foreground text-xs md:text-sm mt-1">
-            Kontoauszüge, Buchungen, Abrechnungen und Wirtschaftspläne verwalten
-          </p>
-        </div>
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setDocsOpen(true)}>
-          <FileTextIcon className="h-4 w-4" />
-          Dokumente
-        </Button>
+      <div>
+        <h1 className="text-xl md:text-2xl font-bold">Buchhaltung</h1>
+        <p className="text-muted-foreground text-xs md:text-sm mt-1">
+          Kontoauszüge, Buchungen, Abrechnungen und Wirtschaftspläne verwalten
+        </p>
       </div>
 
-      <FinanceDocumentsDialog
-        open={docsOpen}
-        onOpenChange={setDocsOpen}
-        selectedBuildingId={selectedBuildingId}
-        selectedPeriodId={selectedPeriodId}
-      />
+
 
       <BillingPeriodSelector
         selectedBuildingId={selectedBuildingId}
