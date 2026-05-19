@@ -683,6 +683,21 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                   <span className="text-muted-foreground text-xs">€</span>
                 </div>
               ) : undefined}
+              renderDistKeyCell={mode === "edit" ? (row) => (
+                <Select
+                  value={String(row.distribution_key || "mea")}
+                  onValueChange={(v) => setDistributionKey(row.account_id, v)}
+                >
+                  <SelectTrigger className="h-7 text-xs w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SHARE_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value} className="text-xs">{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : undefined}
               secondaryColumn={mode === "edit" ? {
                 label: "WP-relevant",
                 render: (row) => {
