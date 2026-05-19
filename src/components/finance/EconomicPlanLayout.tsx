@@ -28,6 +28,7 @@ export interface PlanRow {
   manually_overridden?: boolean;
   isReserve?: boolean;
   isDistributable?: boolean;
+  isWpRelevant?: boolean;
   previousAmount?: number | null;
   // Einzelplan-spezifisch
   totalShare?: number | null;   // Ges Anteil (z.B. 1000.000)
