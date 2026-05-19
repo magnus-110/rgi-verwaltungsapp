@@ -57,7 +57,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     queryKey: ["building-info-mep", buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("buildings").select("name, address").eq("id", buildingId).single();
+        .from("buildings").select("name, address, manager_name").eq("id", buildingId).single();
       if (error) throw error;
       return data;
     },
@@ -604,27 +604,88 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     URL.revokeObjectURL(url);
   };
 
+  // ── Helpers für Template-Felder (englische Aliase) ────────────────
+  const DISTRIBUTION_KEY_LABELS: Record<string, string> = {
+    mea: "MEA",
+    einheit: "pro Einheit",
+    qm: "pro m²",
+    stellplaetze: "pro Stellplatz",
+    personen: "pro Person",
+    heizk_abr: "Heizkostenabrechnung",
+  };
+  const distLabel = (k: string) => DISTRIBUTION_KEY_LABELS[k] || k || "—";
+
+  const splitAddress = (addr: string): { street: string; zipCity: string } => {
+    const parts = (addr || "").split(",").map((s) => s.trim());
+    if (parts.length >= 2) return { street: parts[0], zipCity: parts.slice(1).join(", ") };
+    return { street: addr || "", zipCity: "" };
+  };
+
+  const pctChange = (cur: number, prev: number): string => {
+    if (!prev) return "—";
+    return `${(((cur - prev) / Math.abs(prev)) * 100).toFixed(1)} %`;
+  };
+
+  const todayDe = () =>
+    new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date());
+
+  const buildBaseContext = () => {
+    const { street, zipCity } = splitAddress(building?.address || "");
+    return {
+      fiscal_year: fiscalYear,
+      period_from: `01.01.${fiscalYear}`,
+      period_to: `31.12.${fiscalYear}`,
+      periode: periodLabel,
+      building_name: building?.name || "",
+      building_address: street,
+      building_zip_city: zipCity,
+      gebaeude_name: building?.name || "",
+      gebaeude_adresse: building?.address || "",
+      plan_status: (plan?.status === "active" ? "Aktiv" : "Entwurf"),
+      manager_name: building?.manager_name || "RGI Immobilien",
+      manager_phone: "08363 960656",
+      manager_email: "info@rgi-immobilien.de",
+      created_at: todayDe(),
+    };
+  };
+
   const buildOverallPlanPayload = () => {
     const distributable = rows.filter((r) => r.isDistributable);
     const reserve = rows.filter((r) => r.isReserve);
     const sumAbs = (xs: PlanRow[]) => xs.reduce((s, r) => s + Math.abs(r.planned_amount), 0);
+    const accountsList = rows.map((r) => ({
+      // englische Keys (Vorlage)
+      account_number: r.account_number,
+      account_name: r.account_name,
+      distribution_key_label: distLabel(r.distribution_key),
+      previous_amount: fmtEUR(Math.abs(r.previousAmount || 0)),
+      planned_amount: fmtEUR(Math.abs(r.planned_amount)),
+      change_percent: pctChange(Math.abs(r.planned_amount), Math.abs(r.previousAmount || 0)),
+      is_distributable: r.isDistributable ? "ja" : "nein",
+      is_reserve: r.isReserve ? "ja" : "nein",
+      // deutsche Aliase (Abwärtskompatibilität)
+      konto_nr: r.account_number,
+      konto_name: r.account_name,
+      kategorie: r.category,
+      verteilerschluessel: distLabel(r.distribution_key),
+      betrag: fmtEUR(Math.abs(r.planned_amount)),
+      umlagefaehig: r.isDistributable ? "ja" : "nein",
+      ruecklage: r.isReserve ? "ja" : "nein",
+    }));
     return {
-      fiscal_year: fiscalYear,
-      periode: periodLabel,
-      gebaeude_name: building?.name || "",
-      gebaeude_adresse: building?.address || "",
+      ...buildBaseContext(),
+      // englisch
+      accounts: accountsList,
+      total_planned: fmtEUR(sumAbs(rows)),
+      total_distributable: fmtEUR(sumAbs(distributable)),
+      total_reserve: fmtEUR(sumAbs(reserve)),
+      total_area_sqm: "—",
+      eur_per_sqm_month: "—",
+      // deutsch
+      konten: accountsList,
       summe_gesamt: fmtEUR(sumAbs(rows)),
       summe_umlagefaehig: fmtEUR(sumAbs(distributable)),
       summe_ruecklage: fmtEUR(sumAbs(reserve)),
-      konten: rows.map((r) => ({
-        konto_nr: r.account_number,
-        konto_name: r.account_name,
-        kategorie: r.category,
-        verteilerschluessel: r.distribution_key,
-        betrag: fmtEUR(Math.abs(r.planned_amount)),
-        umlagefaehig: r.isDistributable ? "ja" : "nein",
-        ruecklage: r.isReserve ? "ja" : "nein",
-      })),
     };
   };
 
@@ -635,32 +696,49 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     const distributable = unitRows.filter((r) => r.isDistributable);
     const monthlyTotal = monthlyTotalOverrides[ownerId] ?? Math.ceil(sumAbs(distributable) / 12);
     const monthlyAdvance = monthlyAdvanceOverrides[ownerId] ?? monthlyTotal;
+    const accountsList = unitRows.map((r) => ({
+      account_number: r.account_number,
+      account_name: r.account_name,
+      distribution_key_label: distLabel(r.distribution_key),
+      total_amount: fmtEUR(Math.abs((r as any).totalAmount ?? r.planned_amount)),
+      owner_amount: fmtEUR(Math.abs(r.planned_amount)),
+      owner_share: (r as any).yourShare ?? "",
+      total_share: (r as any).totalShare ?? "",
+      is_distributable: r.isDistributable ? "ja" : "nein",
+      // deutsche Aliase
+      konto_nr: r.account_number,
+      konto_name: r.account_name,
+      kategorie: r.category,
+      verteilerschluessel: distLabel(r.distribution_key),
+      gesamt_betrag: fmtEUR(Math.abs((r as any).totalAmount ?? r.planned_amount)),
+      ihr_anteil: fmtEUR(Math.abs(r.planned_amount)),
+      ihr_share: (r as any).yourShare ?? "",
+      gesamt_share: (r as any).totalShare ?? "",
+      umlagefaehig: r.isDistributable ? "ja" : "nein",
+      ruecklage: r.isReserve ? "ja" : "nein",
+    }));
     return {
-      fiscal_year: fiscalYear,
-      periode: periodLabel,
-      gebaeude_name: building?.name || "",
-      gebaeude_adresse: building?.address || "",
+      ...buildBaseContext(),
+      // englisch
+      owner_name: o?.name || "",
+      unit_number: o?.unitNumber || "",
+      mea: o?.meaValue ?? "",
+      accounts: accountsList,
+      total_planned: fmtEUR(sumAbs(unitRows)),
+      total_distributable: fmtEUR(sumAbs(distributable)),
+      monthly_advance: fmtEUR(monthlyAdvance),
+      monthly_total: fmtEUR(monthlyTotal),
+      // deutsch
       eigentuemer_name: o?.name || "",
       einheit_nr: o?.unitNumber || "",
-      mea: o?.meaValue ?? "",
+      konten: accountsList,
       summe_gesamt: fmtEUR(sumAbs(unitRows)),
       summe_umlagefaehig: fmtEUR(sumAbs(distributable)),
       monatlicher_vorschuss: fmtEUR(monthlyAdvance),
       monatliche_gesamtbelastung: fmtEUR(monthlyTotal),
-      konten: unitRows.map((r) => ({
-        konto_nr: r.account_number,
-        konto_name: r.account_name,
-        kategorie: r.category,
-        verteilerschluessel: r.distribution_key,
-        gesamt_betrag: fmtEUR(Math.abs((r as any).totalAmount ?? r.planned_amount)),
-        ihr_anteil: fmtEUR(Math.abs(r.planned_amount)),
-        ihr_share: (r as any).yourShare ?? "",
-        gesamt_share: (r as any).totalShare ?? "",
-        umlagefaehig: r.isDistributable ? "ja" : "nein",
-        ruecklage: r.isReserve ? "ja" : "nein",
-      })),
     };
   };
+
 
   useEffect(() => {
     const handler = async (e: Event) => {
