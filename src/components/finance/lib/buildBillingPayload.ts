@@ -548,29 +548,46 @@ export function buildAssetReportPayload(inp: BillingPayloadInputs) {
       })
       .reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
 
-  // Sektion 3: Abgrenzung — Folgejahr-Bezug (HV-Office Vorzeichen aus Vermögenssicht)
-  const abg_einn_lfd_folge   = -sumRange(4180, 4199); // PRA-Bildung Einnahmen → Verbindlichkeit
-  const abg_ausg_lfd_folge   =  sumRange(4160, 4179); // ARA-Bildung Ausgaben  → Forderung
-  const abg_einn_folge_lfd   =  sumRange(4120, 4139); // PRA-Auflösung
-  const abg_ausg_folge_lfd   = -sumRange(4100, 4119); // ARA-Auflösung
-  const abgrenzungRows = [
-    { bezeichnung: "Einn. im lfd. J. für Folgejahr",  betrag: fmtEUR(abg_einn_lfd_folge),  betrag_raw: abg_einn_lfd_folge  },
-    { bezeichnung: "Ausg. im lfd. J. für Folgejahr",  betrag: fmtEUR(abg_ausg_lfd_folge),  betrag_raw: abg_ausg_lfd_folge  },
-    { bezeichnung: "Einn. im Folgejahr für lfd. J.",  betrag: fmtEUR(abg_einn_folge_lfd),  betrag_raw: abg_einn_folge_lfd  },
-    { bezeichnung: "Ausg. im Folgejahr für lfd. J.",  betrag: fmtEUR(abg_ausg_folge_lfd),  betrag_raw: abg_ausg_folge_lfd  },
+  // ============================================================
+  // Sektion 3: Zu- und Abflüsse aus Jahresabgrenzung
+  //   = NEUE Abgrenzungen, die im lfd. Jahr gebildet werden
+  //     für das Folgejahr (Konten 4140–4199).
+  //   HV-Office Vorzeichen aus Vermögenssicht:
+  //     4160 (ARA-Bildung Ausgaben)  → Forderung an Folgejahr → +
+  //     4180 (PRA-Bildung Einnahmen) → Verbindlichkeit ggü. Folgejahr → −
+  // ============================================================
+  const abg_ausg_lfd_folge =  sumRange(4160, 4179); // ARA: Ausg. im lfd. J. für Folgejahr
+  const abg_einn_lfd_folge = -sumRange(4180, 4199); // PRA: Einn. im lfd. J. für Folgejahr
+  const abgrenzungRowsAll = [
+    { bezeichnung: "Ausg. im lfd. J. für Folgejahr", betrag_raw: abg_ausg_lfd_folge },
+    { bezeichnung: "Einn. im lfd. J. für Folgejahr", betrag_raw: abg_einn_lfd_folge },
   ];
+  const abgrenzungRows = abgrenzungRowsAll
+    .filter(r => Math.abs(r.betrag_raw) >= 0.005)
+    .map(r => ({ bezeichnung: r.bezeichnung, betrag: fmtEUR(r.betrag_raw), betrag_raw: r.betrag_raw }));
   const sumAbgrenzung = abgrenzungRows.reduce((s, r) => s + r.betrag_raw, 0);
 
-  // Sektion 4: Forderungen zum Jahresende (Vorjahr-Bezug; aktuell strukturell mit 0,00)
-  const forderungenRows = [
-    { bezeichnung: "Ausg. im lfd. J. für Vorjahr",   betrag: fmtEUR(0), betrag_raw: 0 },
-    { bezeichnung: "Einn. im lfd. J. für Vorjahr",   betrag: fmtEUR(0), betrag_raw: 0 },
-    { bezeichnung: "Ausg. im Vorjahr für lfd. J.",   betrag: fmtEUR(0), betrag_raw: 0 },
-    { bezeichnung: "Einn. im Vorjahr für lfd. J.",   betrag: fmtEUR(0), betrag_raw: 0 },
+  // ============================================================
+  // Sektion 4: Forderungen zum Jahresende
+  //   = AUFLÖSUNG der Abgrenzungen aus dem Vorjahr im lfd. Jahr
+  //     (Konten 4100–4139), also tatsächlich vereinnahmte/verausgabte
+  //     Beträge, die das Vorjahr betrafen.
+  //   HV-Office Vorzeichen:
+  //     4100 (ARA-Auflösung Ausgaben)  → −  (Vorjahres-Ausgabe ins lfd. Jahr)
+  //     4120 (PRA-Auflösung Einnahmen) → +  (Vorjahres-Einnahme ins lfd. Jahr)
+  // ============================================================
+  const ford_ausg_lfd_vorjahr = -sumRange(4100, 4119);
+  const ford_einn_lfd_vorjahr =  sumRange(4120, 4139);
+  const forderungenRowsAll = [
+    { bezeichnung: "Ausg. im lfd. J. für Vorjahr", betrag_raw: ford_ausg_lfd_vorjahr },
+    { bezeichnung: "Einn. im lfd. J. für Vorjahr", betrag_raw: ford_einn_lfd_vorjahr },
   ];
-  const sumForderungen = 0;
+  const forderungenRows = forderungenRowsAll
+    .filter(r => Math.abs(r.betrag_raw) >= 0.005)
+    .map(r => ({ bezeichnung: r.bezeichnung, betrag: fmtEUR(r.betrag_raw), betrag_raw: r.betrag_raw }));
+  const sumForderungen = forderungenRows.reduce((s, r) => s + r.betrag_raw, 0);
 
-  // Sektion 5: Verbindlichkeiten zum Jahresende (aktuell leer)
+  // Sektion 5: Verbindlichkeiten zum Jahresende (aktuell leer — strukturell vorhanden)
   const verbindlichkeitenRows: Array<{ bezeichnung: string; betrag: string; betrag_raw: number }> = [];
   const sumVerbindlichkeiten = 0;
 
