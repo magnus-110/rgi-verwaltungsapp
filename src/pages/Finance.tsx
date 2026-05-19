@@ -100,7 +100,7 @@ export const Finance = () => {
   });
 
   // Auto-Default Wirtschaftsjahr je nach Tab:
-  // - Abrechnung, Planung & Berichte, Kassenprüfung → Vorjahr (currentYear - 1)
+  // - Abrechnung, Kassenprüfung → Vorjahr (currentYear - 1)
   // - Buchen → aktuelles Jahr
   useEffect(() => {
     if (!selectedBuildingId || !allPeriods.length) return;
@@ -110,7 +110,6 @@ export const Finance = () => {
     const previousYear = currentYear - 1;
     const preferPrevious =
       activeTab === "abrechnung" ||
-      activeTab === "planung" ||
       activeTab === "kassenpruefung";
 
     const targetYear = preferPrevious ? previousYear : currentYear;
@@ -121,14 +120,6 @@ export const Finance = () => {
 
     if (match) setSelectedPeriodId(match.id);
   }, [selectedBuildingId, allPeriods, activeTab, selectedPeriodId]);
-
-  const toggleSection = (id: string) => {
-    setExpandedSections(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
 
   const handleBuchenMouseEnter = () => {
     clearTimeout(hoverTimeout.current);
@@ -147,11 +138,6 @@ export const Finance = () => {
 
   const subLabel = SUB_TABS.find(s => s.value === activeSubTab)?.label ?? "";
 
-  const SECTIONS = [
-    { id: "wirtschaftsplan", label: "Wirtschaftsplan", description: "Gesamt- & Einzelwirtschaftsplan erstellen", icon: FileText },
-    { id: "vermoegensbericht", label: "Vermögensbericht", description: "Vermögensübersicht der WEG", icon: Landmark },
-    { id: "35a", label: "§35a Bescheinigung", description: "Haushaltsnahe Dienstleistungen für Eigentümer", icon: Receipt },
-  ];
 
   return (
     <div className="p-3 md:p-6 space-y-4 md:space-y-6">
