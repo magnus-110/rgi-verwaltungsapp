@@ -111,20 +111,32 @@ export function FinanceDocumentsDialog({
       toast.error("Für diese Dokumentart ist keine Vorlage hinterlegt.");
       return;
     }
-    if (scope === "economic_plan_overall" || scope === "economic_plan_single") {
-      toast.info("Wirtschaftsplan-Export wird derzeit eingerichtet.", {
-        description: "Die Vorlage ist gespeichert. Der automatische Export folgt in einem nächsten Schritt.",
-      });
-      return;
+
+    // Wirtschaftsplan: erst auf den richtigen Tab umschalten, damit der Editor
+    // gemountet ist und den Download-Event empfangen kann.
+    const needsWp = scope === "economic_plan_overall" || scope === "economic_plan_single";
+    if (needsWp) {
+      window.dispatchEvent(
+        new CustomEvent("finance:switch-settlement-tab", { detail: { tab: "wirtschaftsplan" } }),
+      );
     }
-    window.dispatchEvent(
-      new CustomEvent("finance:request-download", {
-        detail: { target: SCOPE_TO_TARGET[scope], format, template_id: tpl.id },
-      }),
-    );
+
+    const dispatch = () =>
+      window.dispatchEvent(
+        new CustomEvent("finance:request-download", {
+          detail: { target: SCOPE_TO_TARGET[scope], format, template_id: tpl.id },
+        }),
+      );
+    if (needsWp) {
+      // kleine Verzögerung, bis ManualEconomicPlanEditor gemountet & Listener registriert ist
+      setTimeout(dispatch, 1500);
+    } else {
+      dispatch();
+    }
     toast.message("Download wird vorbereitet…");
     onOpenChange(false);
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
