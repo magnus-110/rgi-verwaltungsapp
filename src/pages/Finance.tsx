@@ -197,7 +197,6 @@ export const Finance = () => {
           </div>
 
           <TabsTrigger variant="segment" value="abrechnung" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3">Abrechnung</TabsTrigger>
-          <TabsTrigger variant="segment" value="planung" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3"><span className="hidden sm:inline">Planung & Berichte</span><span className="sm:hidden">Plan.</span></TabsTrigger>
           <TabsTrigger variant="segment" value="kassenpruefung" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3"><span className="hidden sm:inline">Kassenprüfung</span><span className="sm:hidden">Kasse</span></TabsTrigger>
         </TabsList>
 
@@ -234,80 +233,10 @@ export const Finance = () => {
           />
         </TabsContent>
 
-        <TabsContent value="planung" className="space-y-4">
-          {!selectedBuildingId && (
-            <Card>
-              <CardContent className="py-12 text-center text-muted-foreground">
-                Bitte wähle eine Liegenschaft als Basis.
-              </CardContent>
-            </Card>
-          )}
-
-          {selectedBuildingId && !selectedPeriodId && (
-            <Card>
-              <CardContent className="py-12 text-center text-muted-foreground">
-                Bitte wähle das Abrechnungsjahr.
-              </CardContent>
-            </Card>
-          )}
-
-          {selectedBuildingId && selectedPeriodId && period && (
-            <div className="space-y-2">
-              {SECTIONS.map(section => {
-                const isExpanded = expandedSections.has(section.id);
-                const Icon = section.icon;
-                return (
-                  <Card key={section.id} className="overflow-hidden">
-                    <button
-                      onClick={() => toggleSection(section.id)}
-                      className="w-full flex items-center gap-3 p-4 hover:bg-muted/30 text-left transition-colors"
-                    >
-                      <Icon className="h-5 w-5 text-primary flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <span className="font-medium text-sm">{section.label}</span>
-                        {!isExpanded && (
-                          <span className="text-xs text-muted-foreground ml-2 hidden md:inline">{section.description}</span>
-                        )}
-                      </div>
-                      {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                    </button>
-
-                    {isExpanded && (
-                      <div className="px-4 pb-4 border-t">
-                        <div className="pt-4">
-                          {section.id === "wirtschaftsplan" && (
-                            <EconomicPlanSection
-                              buildingId={selectedBuildingId}
-                              periodId={selectedPeriodId}
-                              fiscalYear={period.fiscal_year}
-                            />
-                          )}
-                          {section.id === "vermoegensbericht" && (
-                            <AssetReportSection
-                              buildingId={selectedBuildingId}
-                              periodId={selectedPeriodId}
-                              fiscalYear={period.fiscal_year}
-                            />
-                          )}
-                          {section.id === "35a" && (
-                            <Paragraph35aSection
-                              buildingId={selectedBuildingId}
-                              periodId={selectedPeriodId}
-                              fiscalYear={period.fiscal_year}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </TabsContent>
         <TabsContent value="kassenpruefung">
           <CashAuditTab />
         </TabsContent>
+
       </Tabs>
     </div>
   );
