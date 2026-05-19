@@ -30,7 +30,6 @@ type PersistedState = {
   selectedPeriodId: string | null;
   activeTab: string;
   activeSubTab: SubTab;
-  expandedSections: string[];
 };
 
 const loadPersisted = (): Partial<PersistedState> => {
@@ -48,7 +47,6 @@ export const Finance = () => {
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(persisted.selectedPeriodId ?? null);
   const [activeTab, setActiveTab] = useState(persisted.activeTab ?? "buchen");
   const [activeSubTab, setActiveSubTab] = useState<SubTab>(persisted.activeSubTab ?? "statements");
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(persisted.expandedSections ?? ["wirtschaftsplan"]));
   const [buchenHover, setBuchenHover] = useState(false);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout>>();
 
@@ -59,10 +57,10 @@ export const Finance = () => {
         selectedPeriodId,
         activeTab,
         activeSubTab,
-        expandedSections: Array.from(expandedSections),
       }));
     } catch {}
-  }, [selectedBuildingId, selectedPeriodId, activeTab, activeSubTab, expandedSections]);
+  }, [selectedBuildingId, selectedPeriodId, activeTab, activeSubTab]);
+
 
   const showPeriod =
     NEEDS_PERIOD_TABS.includes(activeTab) ||
