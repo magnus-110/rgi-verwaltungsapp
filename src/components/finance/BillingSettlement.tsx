@@ -91,11 +91,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("total");
   const [busyDownload, setBusyDownload] = useState<string | null>(null); // owner.assignmentId | "overall" | "all"
-  const [templatesOpen, setTemplatesOpen] = useState(false);
-  const [templatesScopeFilter, setTemplatesScopeFilter] = useState<"single" | "overall" | "asset_report" | "paragraph_35a" | undefined>(undefined);
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
-  const [selectedOverallTemplate, setSelectedOverallTemplate] = useState<string | null>(null);
-  const [selectedAssetReportTemplate, setSelectedAssetReportTemplate] = useState<string | null>(null);
+  // Vorlagen-Verwaltung läuft jetzt zentral über den "Dokumente"-Button im Finance-Header
+  // (FinanceDocumentsDialog). Hier nur noch lesender Zugriff auf billing_templates.
   const [selectedOwner, setSelectedOwner] = useState<string | null>(null);
   const [ownerSearch, setOwnerSearch] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(SECTION_ORDER));
