@@ -908,13 +908,54 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const singleTemplates = billingTemplates.filter((t: any) => t.scope === "single");
   const overallTemplates = billingTemplates.filter((t: any) => t.scope === "overall");
   const assetReportTemplates = billingTemplates.filter((t: any) => t.scope === "asset_report");
+  const paragraph35aTemplates = billingTemplates.filter((t: any) => t.scope === "paragraph_35a");
   const effectiveSingleTpl = selectedTemplate || singleTemplates[0]?.id || null;
   const effectiveOverallTpl = selectedOverallTemplate || overallTemplates[0]?.id || effectiveSingleTpl;
   const effectiveAssetReportTpl = selectedAssetReportTemplate || assetReportTemplates[0]?.id || null;
+  const effectiveParagraph35aTpl = paragraph35aTemplates[0]?.id || null;
 
-  const openTemplatesFor = (filter?: "single" | "overall" | "asset_report") => {
+  const openTemplatesFor = (filter?: "single" | "overall" | "asset_report" | "paragraph_35a") => {
     setTemplatesScopeFilter(filter);
     setTemplatesOpen(true);
+  };
+
+  const downloadParagraph35a = async (format: "docx" | "pdf") => {
+    if (!effectiveParagraph35aTpl) {
+      toast.error("Bitte zuerst eine §35a-Vorlage hochladen.");
+      openTemplatesFor("paragraph_35a");
+      return;
+    }
+    setBusyDownload("paragraph_35a");
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("Bitte erneut anmelden.");
+      const resp = await fetch(
+        `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({
+            template_id: effectiveParagraph35aTpl,
+            building_id: buildingId,
+            fiscal_year: fiscalYear,
+            period_id: periodId,
+            format,
+          }),
+        },
+      );
+      if (!resp.ok) throw new Error(await resp.text());
+      const blob = await resp.blob();
+      const cd = resp.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename="?([^"]+)"?/);
+      const fname = m?.[1] || `35a_${fiscalYear}.zip`;
+      triggerDownload(blob, fname, blob.type || "application/zip");
+      toast.success("Download bereit");
+    } catch (e: any) {
+      toast.error("Fehler: " + (e?.message || "Unbekannt"));
+    } finally {
+      setBusyDownload(null);
+    }
   };
 
   const sanitizeFilename = (s: string) =>
