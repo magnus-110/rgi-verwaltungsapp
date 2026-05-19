@@ -1753,7 +1753,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               <p className="text-sm text-muted-foreground">
                 Gemäß §28 WEG — Vermögenslage zum Ende des Abrechnungszeitraums {fiscalYear}.
               </p>
-              <TabDownloadMenu target="asset_report" label="Vermögensbericht herunterladen" scope="asset_report" busyKey="asset_report" />
+              <span className="text-xs text-muted-foreground">Download via Button "Dokumente" oben</span>
             </div>
 
             <AssetReportSection buildingId={buildingId} periodId={periodId} fiscalYear={fiscalYear} ownerResults={ownerResults} />
