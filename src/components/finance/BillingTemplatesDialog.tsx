@@ -65,6 +65,7 @@ export function BillingTemplatesDialog({
       const { data, error } = await supabase
         .from("billing_templates")
         .select("*")
+        .order("is_default", { ascending: false })
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
@@ -90,11 +91,15 @@ export function BillingTemplatesDialog({
           upsert: false,
         });
       if (upErr) throw upErr;
+      // Erste Vorlage in einem Scope automatisch als Standard markieren.
+      const existingForScope = (templates as any[]).filter((t) => t.scope === scope);
+      const makeDefault = existingForScope.length === 0;
       const { error: insErr } = await supabase.from("billing_templates").insert({
         name: name.trim(),
         storage_path: path,
         scope,
-      });
+        is_default: makeDefault,
+      } as any);
       if (insErr) throw insErr;
       setName(""); setFile(null);
       qc.invalidateQueries({ queryKey: ["billing-templates"] });
@@ -111,6 +116,19 @@ export function BillingTemplatesDialog({
     await supabase.storage.from("billing-templates").remove([t.storage_path]);
     await supabase.from("billing_templates").delete().eq("id", t.id);
     qc.invalidateQueries({ queryKey: ["billing-templates"] });
+  };
+
+  const setAsDefault = async (t: any) => {
+    const { error } = await supabase
+      .from("billing_templates")
+      .update({ is_default: true } as any)
+      .eq("id", t.id);
+    if (error) {
+      toast({ title: "Konnte nicht als Standard setzen", description: error.message, variant: "destructive" });
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["billing-templates"] });
+    toast({ title: "Als Standard gesetzt", description: `${SCOPE_LABEL[t.scope as Scope] || t.scope}: ${t.name}` });
   };
 
   const select = (t: any) => {
