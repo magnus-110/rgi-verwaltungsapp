@@ -122,14 +122,24 @@ Deno.serve(async (req) => {
       return json({ error: "Keine Empfänger ausgewählt" }, 400);
     }
 
+    // Lookup Gesendet-Folder (für Eintrag im Postfach)
+    const { data: sentFolder } = await admin
+      .from("email_folders")
+      .select("id")
+      .eq("name", "Gesendet")
+      .maybeSingle();
+
     let ok = 0, fail = 0;
     for (const r of recipients) {
+      const renderedSubject = renderString(subject, r.vars);
+      const renderedBody = renderString(bodyHtml, r.vars);
+      const isHtml = bodyFormat !== "plain";
       try {
         await transporter.sendMail({
           from: `${account.display_name} <${account.email_address}>`,
           to: r.email!,
-          subject: renderString(subject, r.vars),
-          ...buildBody(renderString(bodyHtml, r.vars)),
+          subject: renderedSubject,
+          ...buildBody(renderedBody),
           attachments,
         });
         await admin.from("comm_recipients").insert({
@@ -137,6 +147,25 @@ Deno.serve(async (req) => {
           display_name: r.display_name, email: r.email, resolved_vars: r.vars,
           status: "sent", sent_at: new Date().toISOString(),
         });
+        // Eintrag in Gesendet-Postfach (analog send-email)
+        try {
+          await admin.from("emails").insert({
+            account_id: account.id,
+            folder_id: sentFolder?.id ?? null,
+            subject: renderedSubject || null,
+            from_address: account.email_address,
+            from_name: account.display_name,
+            to_addresses: [r.email!],
+            body_text: isHtml ? null : renderedBody,
+            body_html: isHtml ? renderedBody : null,
+            date: new Date().toISOString(),
+            is_read: true,
+            has_attachments: attachments.length > 0,
+            message_id: `bulk-${campaign_id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          });
+        } catch (saveErr: any) {
+          console.warn("[comm-send-bulk-email] save-to-sent failed:", saveErr?.message || saveErr);
+        }
         ok++;
       } catch (e: any) {
         await admin.from("comm_recipients").insert({
@@ -148,6 +177,7 @@ Deno.serve(async (req) => {
       }
       await new Promise((res) => setTimeout(res, 1000));
     }
+
 
     // For retries, accumulate counts on the campaign instead of overwriting
     const updates: any = {

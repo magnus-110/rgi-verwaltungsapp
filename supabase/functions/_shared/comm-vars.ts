@@ -4,7 +4,8 @@ import { firstValidEmail, extractEmails } from "./sanitize-email.ts";
 
 export type RecipientFilter = {
   roles?: string[]; // e.g. ["eigentuemer","mieter"]
-  contact_ids?: string[]; // explicit contact selection
+  contact_ids?: string[]; // explicit contact selection (legacy)
+  assignment_ids?: string[]; // explicit assignment selection (preferred — allows multi-unit owners to be deselected individually)
   unit_numbers?: string[];
   require_email?: boolean;
 };
@@ -96,7 +97,16 @@ export async function loadRecipients(
   if (filter.unit_numbers && filter.unit_numbers.length > 0) {
     assignments = assignments.filter((a: any) => a.unit_number && filter.unit_numbers!.includes(a.unit_number));
   }
-  if (filter.contact_ids && filter.contact_ids.length > 0) {
+  // Bevorzugt: pro Zuordnung filtern (erlaubt das Abwählen einzelner Einheiten
+  // bei Eigentümern, die mehrfach im Gebäude vorkommen).
+  const explicitAssignmentIds = (filter.assignment_ids || []).filter((x) => x !== "__none__");
+  const wantsNone = (filter.assignment_ids || []).includes("__none__");
+  if (wantsNone) {
+    assignments = [];
+  } else if (explicitAssignmentIds.length > 0) {
+    assignments = assignments.filter((a: any) => explicitAssignmentIds.includes(a.id));
+  } else if (filter.contact_ids && filter.contact_ids.length > 0) {
+    // Legacy-Fallback: contact-basierte Filterung
     assignments = assignments.filter((a: any) => filter.contact_ids!.includes(a.contact_id));
   }
 

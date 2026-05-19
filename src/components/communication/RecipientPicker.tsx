@@ -9,9 +9,20 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Mail, MailX, Search, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
+/**
+ * Selection ist assignment-basiert (pro Zuordnung Gebäude↔Kontakt↔Einheit),
+ * NICHT contact-basiert. Damit lassen sich Eigentümer, die mehrfach im
+ * Gebäude vorkommen (mehrere Einheiten/Rollen), einzeln abwählen.
+ *
+ * contact_ids wird zusätzlich abgeleitet (für Placeholder-Stats), damit
+ * Bestands-Code (z. B. usePlaceholderStats) unverändert weiterläuft.
+ *
+ * Sentinel "__none__" in assignment_ids bedeutet: Empfängerliste leer.
+ */
 export type RecipientFilterValue = {
   roles: string[];
-  contact_ids: string[];
+  contact_ids: string[];      // abgeleitet aus assignment_ids
+  assignment_ids: string[];   // primäre Auswahl
   require_email: boolean;
 };
 
@@ -36,6 +47,8 @@ type AssignmentRow = {
   } | null;
 };
 
+const NONE = "__none__";
+
 export const RecipientPicker = ({ buildingId, requireEmail, value, onChange }: Props) => {
   const [search, setSearch] = useState("");
 
@@ -52,7 +65,6 @@ export const RecipientPicker = ({ buildingId, requireEmail, value, onChange }: P
     },
   });
 
-  // Email lookup per contact (for the badge "hat E-Mail")
   const contactIds = useMemo(() => Array.from(new Set(assignments.map((a) => a.contact_id))), [assignments]);
   const { data: emailMap = new Map<string, boolean>() } = useQuery({
     queryKey: ["comm-recipient-emails", buildingId, contactIds.join(",")],
@@ -67,14 +79,12 @@ export const RecipientPicker = ({ buildingId, requireEmail, value, onChange }: P
     },
   });
 
-  // Available roles in this building
   const availableRoles = useMemo(() => {
     const set = new Set<string>();
     assignments.forEach((a) => { if (a.role_in_building) set.add(a.role_in_building); });
     return Array.from(set).sort();
   }, [assignments]);
 
-  // Filtered list
   const filtered = useMemo(() => {
     let rows = assignments;
     if (value.roles.length > 0) rows = rows.filter((a) => a.role_in_building && value.roles.includes(a.role_in_building));
@@ -91,24 +101,51 @@ export const RecipientPicker = ({ buildingId, requireEmail, value, onChange }: P
     return rows;
   }, [assignments, value.roles, requireEmail, emailMap, search]);
 
-  // Auto-select all visible when contact_ids is empty (means "alle nach Filter")
-  const useExplicit = value.contact_ids.length > 0;
-  const effectiveSelectedIds = useExplicit
-    ? new Set(value.contact_ids)
-    : new Set(filtered.map((a) => a.contact_id));
+  // Explizit ausgewählt? (assignment_ids enthält reale Werte, nicht nur NONE)
+  const explicitIds = (value.assignment_ids || []).filter((x) => x !== NONE);
+  const isNone = (value.assignment_ids || []).includes(NONE);
+  const useExplicit = explicitIds.length > 0;
 
-  const toggleContact = (contactId: string) => {
-    const set = new Set(useExplicit ? value.contact_ids : filtered.map((a) => a.contact_id));
-    if (set.has(contactId)) set.delete(contactId); else set.add(contactId);
-    onChange({ ...value, contact_ids: Array.from(set) });
+  const effectiveSelectedIds = isNone
+    ? new Set<string>()
+    : useExplicit
+      ? new Set(explicitIds)
+      : new Set(filtered.map((a) => a.id));
+
+  const emit = (assignmentIds: string[]) => {
+    // Ableiten: welche contact_ids gehören dazu?
+    const sel = new Set(assignmentIds);
+    const cIds = Array.from(
+      new Set(
+        assignments
+          .filter((a) => sel.has(a.id))
+          .map((a) => a.contact_id),
+      ),
+    );
+    onChange({
+      ...value,
+      assignment_ids: assignmentIds,
+      contact_ids: cIds,
+    });
   };
 
-  const selectAll = () => onChange({ ...value, contact_ids: [] });
-  const selectNone = () => onChange({ ...value, contact_ids: ["__none__"] });
+  const toggleAssignment = (assignmentId: string) => {
+    // Wenn vorher implizit "alle", expandiere zuerst auf konkrete Liste
+    const current = useExplicit
+      ? new Set(explicitIds)
+      : isNone
+        ? new Set<string>()
+        : new Set(filtered.map((a) => a.id));
+    if (current.has(assignmentId)) current.delete(assignmentId);
+    else current.add(assignmentId);
+    emit(Array.from(current));
+  };
 
-  const totalSelected = filtered.filter((a) => effectiveSelectedIds.has(a.contact_id) && a.contact_id !== "__none__").length;
+  const selectAll = () => onChange({ ...value, assignment_ids: [], contact_ids: [] });
+  const selectNone = () => onChange({ ...value, assignment_ids: [NONE], contact_ids: [] });
 
-  // Notify on filter change
+  const totalSelected = filtered.filter((a) => effectiveSelectedIds.has(a.id)).length;
+
   useEffect(() => {
     onChange({ ...value, require_email: requireEmail });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -120,7 +157,7 @@ export const RecipientPicker = ({ buildingId, requireEmail, value, onChange }: P
         <ToggleGroup
           type="multiple"
           value={value.roles}
-          onValueChange={(roles) => onChange({ ...value, roles, contact_ids: [] })}
+          onValueChange={(roles) => onChange({ ...value, roles, assignment_ids: [], contact_ids: [] })}
           className="flex-wrap"
         >
           {availableRoles.map((r) => (
@@ -154,11 +191,11 @@ export const RecipientPicker = ({ buildingId, requireEmail, value, onChange }: P
             {filtered.map((a) => {
               const c = a.contacts;
               const name = c?.company_name || `${c?.first_name || ""} ${c?.last_name || ""}`.trim() || "(ohne Name)";
-              const checked = effectiveSelectedIds.has(a.contact_id);
+              const checked = effectiveSelectedIds.has(a.id);
               const hasEmail = emailMap.get(a.contact_id);
               return (
                 <label key={a.id} className="flex items-center gap-3 p-2 rounded hover:bg-muted/50 cursor-pointer">
-                  <Checkbox checked={checked} onCheckedChange={() => toggleContact(a.contact_id)} />
+                  <Checkbox checked={checked} onCheckedChange={() => toggleAssignment(a.id)} />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm truncate">{name}</div>
                     <div className="text-xs text-muted-foreground flex gap-2">

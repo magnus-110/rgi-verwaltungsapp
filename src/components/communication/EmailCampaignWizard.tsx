@@ -37,7 +37,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const [body, setBody] = useState("");
   const [accountId, setAccountId] = useState<string>("");
   const [testEmail, setTestEmail] = useState("");
-  const [filter, setFilter] = useState<RecipientFilterValue>({ roles: [], contact_ids: [], require_email: true });
+  const [filter, setFilter] = useState<RecipientFilterValue>({ roles: [], contact_ids: [], assignment_ids: [], require_email: true });
   const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [resultStats, setResultStats] = useState<{ ok: number; failed: number } | null>(null);
@@ -53,7 +53,8 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const qc = useQueryClient();
   const { data: placeholderStats } = usePlaceholderStats(buildingId, filter.contact_ids);
   const { data: placeholderSamples } = usePlaceholderSamples(buildingId, filter.contact_ids);
-  const recipientCount = (filter.contact_ids || []).filter((id) => id !== "__none__").length;
+  const recipientCount = (filter.assignment_ids || []).filter((id) => id !== "__none__").length
+    || (filter.contact_ids || []).filter((id) => id !== "__none__").length;
 
   const insertAtCursor = (placeholder: string) => {
     const target = lastFocused.current === "subject" ? subjectRef.current : bodyRef.current;
@@ -74,7 +75,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const reset = () => {
     setStep(1); setName(""); setTemplate(null);
     setSubject(""); setBody(""); setAccountId(""); setTestEmail("");
-    setFilter({ roles: [], contact_ids: [], require_email: true });
+    setFilter({ roles: [], contact_ids: [], assignment_ids: [], require_email: true });
     setResultStats(null); setAttachments([]); setScheduledAt("");
     setBodyFormat("plain");
     setConfirmOpen(false);
@@ -110,6 +111,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
     const userId = userData?.user?.id;
     if (!userId) throw new Error("Nicht angemeldet");
     const recipientIds = filter.contact_ids.includes("__none__") ? [] : filter.contact_ids;
+    const assignmentIds = (filter.assignment_ids || []).includes("__none__") ? ["__none__"] : (filter.assignment_ids || []);
 
     const { data, error } = await supabase.from("comm_campaigns").insert({
       name: name.trim() || "Rundmail",
@@ -117,7 +119,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
       template_id: template?.id || null,
       building_id: buildingId,
       email_account_id: accountId || null,
-      recipient_filter: { roles: filter.roles, contact_ids: recipientIds },
+      recipient_filter: { roles: filter.roles, contact_ids: recipientIds, assignment_ids: assignmentIds },
       subject_override: subject || null,
       body_html_override: body || null,
       body_format: bodyFormat,
