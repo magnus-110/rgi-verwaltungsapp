@@ -314,6 +314,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
         manually_overridden: draft !== undefined || !!item?.manually_overridden,
         isDistributable: !!acc.is_distributable,
         isReserve: isReserveContributionAccount(acc),
+        isWpRelevant: !!acc.is_wirtschaftsplan_relevant,
         previousAmount: sumForAccount(acc.id),
       } as PlanRow;
     });
@@ -807,7 +808,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                 {(() => {
                   const owner = ownerData.find((o) => o.id === selectedUnitId) || ownerData[0];
                   if (!owner) return null;
-                  const unitRows = buildUnitRows(owner.id);
+                  const unitRows = buildUnitRows(owner.id).filter((r) => r.isWpRelevant);
                   const ownerTotal = unitRows.reduce((s, r) => s + r.planned_amount, 0);
                   const ownerReserveTotal = unitRows.filter((r) => r.isReserve).reduce((s, r) => s + r.planned_amount, 0);
                   const ownerAdvanceTotal = ownerTotal - ownerReserveTotal;
