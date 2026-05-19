@@ -101,6 +101,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(SECTION_ORDER));
   const [useIstVorschuss, setUseIstVorschuss] = useState(false);
   const [showZeroBalanceAccounts, setShowZeroBalanceAccounts] = useState(false);
+  // Wirtschaftsplan-Jahr (Default: Folgejahr des aktuellen Abrechnungsjahrs).
+  const [wpYear, setWpYear] = useState<number>(fiscalYear + 1);
+  useEffect(() => { setWpYear(fiscalYear + 1); }, [fiscalYear]);
 
   // Period
   const { data: period } = useQuery({
