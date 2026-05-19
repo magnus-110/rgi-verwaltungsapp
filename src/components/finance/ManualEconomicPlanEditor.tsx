@@ -587,6 +587,155 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     });
   };
 
+  // ── Download-Handler (vom globalen "Dokumente"-Dialog ausgelöst) ──
+  const fmtEUR = (n: number) =>
+    new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+
+  const sanitizeFilename = (s: string) =>
+    (s || "").normalize("NFKD").replace(/[^\w.\-]+/g, "_").replace(/_+/g, "_").slice(0, 80);
+
+  const triggerDownload = (bytes: Blob, filename: string, mime: string) => {
+    const blob = bytes instanceof Blob ? bytes : new Blob([bytes], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const buildOverallPlanPayload = () => {
+    const distributable = rows.filter((r) => r.isDistributable);
+    const reserve = rows.filter((r) => r.isReserve);
+    const sumAbs = (xs: PlanRow[]) => xs.reduce((s, r) => s + Math.abs(r.planned_amount), 0);
+    return {
+      fiscal_year: fiscalYear,
+      periode: periodLabel,
+      gebaeude_name: building?.name || "",
+      gebaeude_adresse: building?.address || "",
+      summe_gesamt: fmtEUR(sumAbs(rows)),
+      summe_umlagefaehig: fmtEUR(sumAbs(distributable)),
+      summe_ruecklage: fmtEUR(sumAbs(reserve)),
+      konten: rows.map((r) => ({
+        konto_nr: r.account_number,
+        konto_name: r.account_name,
+        kategorie: r.category,
+        verteilerschluessel: r.distribution_key,
+        betrag: fmtEUR(Math.abs(r.planned_amount)),
+        umlagefaehig: r.isDistributable ? "ja" : "nein",
+        ruecklage: r.isReserve ? "ja" : "nein",
+      })),
+    };
+  };
+
+  const buildOwnerPlanPayload = (ownerId: string) => {
+    const o = ownerData.find((x) => x.id === ownerId);
+    const unitRows = buildUnitRows(ownerId);
+    const sumAbs = (xs: PlanRow[]) => xs.reduce((s, r) => s + Math.abs(r.planned_amount), 0);
+    const distributable = unitRows.filter((r) => r.isDistributable);
+    const monthlyTotal = monthlyTotalOverrides[ownerId] ?? Math.ceil(sumAbs(distributable) / 12);
+    const monthlyAdvance = monthlyAdvanceOverrides[ownerId] ?? monthlyTotal;
+    return {
+      fiscal_year: fiscalYear,
+      periode: periodLabel,
+      gebaeude_name: building?.name || "",
+      gebaeude_adresse: building?.address || "",
+      eigentuemer_name: o?.name || "",
+      einheit_nr: o?.unitNumber || "",
+      mea: o?.meaValue ?? "",
+      summe_gesamt: fmtEUR(sumAbs(unitRows)),
+      summe_umlagefaehig: fmtEUR(sumAbs(distributable)),
+      monatlicher_vorschuss: fmtEUR(monthlyAdvance),
+      monatliche_gesamtbelastung: fmtEUR(monthlyTotal),
+      konten: unitRows.map((r) => ({
+        konto_nr: r.account_number,
+        konto_name: r.account_name,
+        kategorie: r.category,
+        verteilerschluessel: r.distribution_key,
+        gesamt_betrag: fmtEUR(Math.abs((r as any).totalAmount ?? r.planned_amount)),
+        ihr_anteil: fmtEUR(Math.abs(r.planned_amount)),
+        ihr_share: (r as any).yourShare ?? "",
+        gesamt_share: (r as any).totalShare ?? "",
+        umlagefaehig: r.isDistributable ? "ja" : "nein",
+        ruecklage: r.isReserve ? "ja" : "nein",
+      })),
+    };
+  };
+
+  useEffect(() => {
+    const handler = async (e: Event) => {
+      const detail = (e as CustomEvent).detail as {
+        target: string;
+        format: "docx" | "pdf";
+        template_id: string;
+      };
+      if (!detail) return;
+      if (detail.target !== "economic_plan_overall" && detail.target !== "economic_plan_single") return;
+
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        if (!accessToken) throw new Error("Bitte erneut anmelden.");
+
+        const isSingle = detail.target === "economic_plan_single";
+        const items = isSingle
+          ? ownerData.map((o) => ({
+              kind: "owner" as const,
+              ownerId: o.id,
+              ownerName: o.name,
+              payload: buildOwnerPlanPayload(o.id),
+            }))
+          : [{ kind: "overall" as const, payload: buildOverallPlanPayload() }];
+
+        if (isSingle && items.length === 0) {
+          toast.error("Keine Eigentümer für Einzelpläne gefunden.");
+          return;
+        }
+
+        const filePrefix = isSingle ? `Einzelwirtschaftsplan_${fiscalYear}` : `Gesamtwirtschaftsplan_${fiscalYear}`;
+        toast.message("Wirtschaftsplan wird erzeugt…");
+
+        const resp = await fetch(
+          `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-billing-document`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              template_id: detail.template_id,
+              fiscal_year: fiscalYear,
+              mode: isSingle ? "all" : "single",
+              format: detail.format,
+              file_prefix: filePrefix,
+              items,
+            }),
+          },
+        );
+        if (!resp.ok) {
+          const msg = await resp.text();
+          throw new Error(msg || `Export fehlgeschlagen (${resp.status})`);
+        }
+        const bytes = await resp.blob();
+        const ext = isSingle ? "zip" : detail.format;
+        const mime = isSingle
+          ? "application/zip"
+          : detail.format === "pdf"
+            ? "application/pdf"
+            : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        triggerDownload(bytes, `${filePrefix}.${ext}`, mime);
+        toast.success("Download bereit");
+      } catch (err: any) {
+        toast.error("Fehler: " + (err?.message || "Unbekannt"));
+      }
+    };
+    window.addEventListener("finance:request-download", handler as EventListener);
+    return () => window.removeEventListener("finance:request-download", handler as EventListener);
+  });
+
+
+
   // ── Render ────────────────────────────────────────────────────────
   if (loadingPlan || !plan) {
     return (
