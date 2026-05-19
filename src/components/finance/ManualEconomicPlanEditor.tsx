@@ -25,6 +25,8 @@ import { isReserveContributionAccount } from "@/lib/accountClassification";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SHARE_TYPES } from "@/lib/shareTypes";
 
 interface Props {
   buildingId: string;
