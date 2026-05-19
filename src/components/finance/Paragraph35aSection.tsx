@@ -148,6 +148,11 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     },
   });
 
+  // Auto-Select: erste verfügbare §35a-Vorlage (verwaltet im globalen "Dokumente"-Dialog).
+  useEffect(() => {
+    if (!templateId && templates.length > 0) setTemplateId(templates[0].id);
+  }, [templates, templateId]);
+
   const deleteTemplate = async (t: { id: string; name: string; storage_path: string }) => {
     if (!confirm(`Vorlage "${t.name}" löschen?`)) return;
     try {
