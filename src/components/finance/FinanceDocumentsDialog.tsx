@@ -111,12 +111,7 @@ export function FinanceDocumentsDialog({
       toast.error("Für diese Dokumentart ist keine Vorlage hinterlegt.");
       return;
     }
-    if (scope === "economic_plan_overall" || scope === "economic_plan_single") {
-      toast.info("Wirtschaftsplan-Export wird derzeit eingerichtet.", {
-        description: "Die Vorlage ist gespeichert. Der automatische Export folgt in einem nächsten Schritt.",
-      });
-      return;
-    }
+
     window.dispatchEvent(
       new CustomEvent("finance:request-download", {
         detail: { target: SCOPE_TO_TARGET[scope], format, template_id: tpl.id },
