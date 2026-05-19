@@ -615,74 +615,12 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
       {/* Owner overview */}
       {owners.length > 0 && blocks.length > 0 && (
         <Card>
-          <CardHeader className="py-3 flex flex-row items-center justify-between gap-2 flex-wrap">
+          <CardHeader className="py-3">
             <CardTitle className="text-sm">Bescheinigungen je Eigentümer</CardTitle>
-            <div className="flex items-center gap-2 flex-wrap">
-              <Select value={templateId} onValueChange={setTemplateId}>
-                <SelectTrigger className="h-8 w-[220px] text-xs">
-                  <SelectValue placeholder="Word-Vorlage wählen…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {templates.length === 0 && (
-                    <div className="px-2 py-1.5 text-xs text-muted-foreground">Noch keine Vorlagen</div>
-                  )}
-                  {templates.map((t: any) => (
-                    <div key={t.id} className="relative flex items-center pr-1 group">
-                      <SelectItem value={t.id} className="flex-1 pr-8">{t.name}</SelectItem>
-                      <button
-                        type="button"
-                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteTemplate(t); }}
-                        className="absolute right-1 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-60 hover:opacity-100"
-                        title="Vorlage löschen"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                  <SelectSeparator />
-                  <button
-                    type="button"
-                    onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); tplFileInputRef.current?.click(); }}
-                    disabled={uploadingTpl}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 text-xs hover:bg-accent rounded-sm text-left"
-                  >
-                    {uploadingTpl ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                    Neue Vorlage hochladen…
-                  </button>
-                </SelectContent>
-              </Select>
-              <input
-                ref={tplFileInputRef}
-                type="file"
-                accept=".docx"
-                className="hidden"
-                onChange={handleTplFileChange}
-              />
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={!templateId || !!docxBusy || !!pdfBusy}
-                    title={templateId ? "Alle herunterladen (ZIP)" : "Bitte zuerst eine Word-Vorlage wählen"}
-                  >
-                    {docxBusy === "zip" || pdfBusy === "zip"
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
-                      : <Download className="h-4 w-4" />}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => downloadDocx()}>
-                    <FileType className="h-4 w-4 mr-2" /> DOCX (ZIP)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => downloadWordPdf()}>
-                    <FileText className="h-4 w-4 mr-2" /> PDF (ZIP)
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Vorlage und Bulk-Download über den Button „Dokumente" oben rechts.
+              Einzeldownloads direkt in der Zeile.
+            </p>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
