@@ -837,7 +837,6 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                                 placeholder={noHeatingData ? "manuell" : "0,00"}
                                 className={cn(
                                   "h-7 w-28 text-right font-mono text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-                                  !row.manually_overridden && !noHeatingData && "text-muted-foreground italic",
                                   noHeatingData && !row.manually_overridden && "border-amber-300",
                                 )}
                                 onChange={(e) => {
