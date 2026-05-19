@@ -820,7 +820,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                   const deviation = ownerTotal - calculatedTotal;
 
                   return (
-                    <div className="space-y-3">
+                    <div className="space-y-3 min-w-0">
                       {/* gelbe Abweichungswarnung entfernt */}
 
                       <EconomicPlanLayout
