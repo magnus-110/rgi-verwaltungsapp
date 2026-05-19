@@ -292,28 +292,117 @@ export function EconomicPlanLayout({
             )}
 
             {/* Footer-Zeilen Einzelplan */}
-            {isEinzel && footer?.ownerTotal != null && (
-              <>
-                <TableRow className="text-xs">
-                  <TableCell />
-                  <TableCell className="italic text-muted-foreground">Monatliche Belastung</TableCell>
-                  <TableCell colSpan={colSpan - 3} />
-                  <TableCell className="text-right font-mono italic font-semibold">
-                    {formatCurrency(footer.ownerTotal / 12)}
-                  </TableCell>
-                  {renderActionCell && <TableCell />}
-                </TableRow>
-                {footer.ownerReserveTotal != null && footer.ownerAdvanceTotal != null && (
+            {isEinzel && footer?.ownerTotal != null && (() => {
+              const defaultMonthlyTotal = footer.ownerTotal / 12;
+              const monthlyTotal = footer.monthlyTotalOverride ?? defaultMonthlyTotal;
+              const defaultMonthlyReserve = (footer.ownerReserveTotal ?? 0) / 12;
+              const defaultMonthlyAdvance = (footer.ownerAdvanceTotal ?? 0) / 12;
+              const monthlyAdvance = footer.monthlyAdvanceOverride ?? defaultMonthlyAdvance;
+              const isTotalOverridden = footer.monthlyTotalOverride != null;
+              const isAdvanceOverridden = footer.monthlyAdvanceOverride != null;
+              return (
+                <>
                   <TableRow className="text-xs">
                     <TableCell />
-                    <TableCell colSpan={colSpan - 1} className="italic text-muted-foreground">
-                      davon {formatCurrency(footer.ownerReserveTotal / 12)}/Mon. für Erhaltungsrücklage und {formatCurrency(footer.ownerAdvanceTotal / 12)}/Mon. für Vorschüsse zur Kostendeckung
+                    <TableCell className="italic text-muted-foreground">Monatliche Belastung</TableCell>
+                    <TableCell colSpan={colSpan - 4} />
+                    <TableCell className="text-right font-mono italic font-semibold">
+                      {formatCurrency(monthlyTotal)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {footer.onMonthlyTotalRoundUp && (
+                        <div className="flex items-center gap-1 justify-end">
+                          {isTotalOverridden && footer.onMonthlyTotalReset && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-1 text-[10px] text-muted-foreground"
+                              onClick={footer.onMonthlyTotalReset}
+                              title="Aufrundung zurücksetzen"
+                            >
+                              ×
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={footer.onMonthlyTotalRoundUp}
+                            title="Aufrunden auf ganze €"
+                          >
+                            <ArrowUp className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                     {renderActionCell && <TableCell />}
                   </TableRow>
-                )}
-              </>
-            )}
+                  {footer.ownerReserveTotal != null && footer.ownerAdvanceTotal != null && (
+                    <TableRow className="text-xs">
+                      <TableCell />
+                      <TableCell colSpan={colSpan - 1} className="italic text-muted-foreground">
+                        davon {formatCurrency(defaultMonthlyReserve)}/Mon. für Erhaltungsrücklage und {formatCurrency(defaultMonthlyAdvance)}/Mon. für Vorschüsse zur Kostendeckung
+                      </TableCell>
+                      {renderActionCell && <TableCell />}
+                    </TableRow>
+                  )}
+                  {footer.onMonthlyAdvanceChange && (
+                    <TableRow className="text-xs">
+                      <TableCell />
+                      <TableCell className="italic text-muted-foreground">Vorschuss monatlich (Hausgeld)</TableCell>
+                      <TableCell colSpan={colSpan - 4} />
+                      <TableCell className="text-right">
+                        <div className="flex items-center gap-1 justify-end">
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            value={Number(monthlyAdvance.toFixed(2))}
+                            className={cn(
+                              "h-7 w-28 text-right font-mono text-xs",
+                              isAdvanceOverridden && "border-amber-300",
+                            )}
+                            onChange={(e) => {
+                              const raw = parseFloat(e.target.value.replace(",", ".")) || 0;
+                              footer.onMonthlyAdvanceChange!(-Math.abs(raw));
+                            }}
+                          />
+                          <span className="text-muted-foreground text-xs">€</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center gap-1 justify-end">
+                          {isAdvanceOverridden && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-1 text-[10px] text-muted-foreground"
+                              onClick={() => footer.onMonthlyAdvanceChange!(null)}
+                              title="Override entfernen"
+                            >
+                              ×
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => {
+                              const v = Math.abs(monthlyAdvance);
+                              const rounded = -Math.ceil(v);
+                              footer.onMonthlyAdvanceChange!(rounded);
+                            }}
+                            title="Aufrunden auf ganze €"
+                          >
+                            <ArrowUp className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                      {renderActionCell && <TableCell />}
+                    </TableRow>
+                  )}
+                </>
+              );
+            })()}
           </TableBody>
         </Table>
       </CardContent>
