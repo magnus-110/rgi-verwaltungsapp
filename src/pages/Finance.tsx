@@ -51,6 +51,7 @@ export const Finance = () => {
   const [activeTab, setActiveTab] = useState(persisted.activeTab ?? "buchen");
   const [activeSubTab, setActiveSubTab] = useState<SubTab>(persisted.activeSubTab ?? "statements");
   const [buchenHover, setBuchenHover] = useState(false);
+  const [docsOpen, setDocsOpen] = useState(false);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
