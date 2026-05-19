@@ -675,7 +675,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                     placeholder="0,00"
                     className="h-7 w-28 text-right font-mono text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     onChange={(e) => {
-                      const v = parseFloat(e.target.value.replace(",", ".")) || 0;
+                      const raw = parseFloat(e.target.value.replace(",", ".")) || 0;
+                      const v = -Math.abs(raw);
                       setDrafts((p) => ({ ...p, [row.account_id]: v }));
                     }}
                   />
