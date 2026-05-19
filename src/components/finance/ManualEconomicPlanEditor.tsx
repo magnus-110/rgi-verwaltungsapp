@@ -39,7 +39,7 @@ const formatCurrency = (n: number) =>
 export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const mode = "edit" as const;
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [showAllAccounts, setShowAllAccounts] = useState(false);
 
