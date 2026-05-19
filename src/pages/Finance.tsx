@@ -10,6 +10,7 @@ import { BankReconciliationTab } from "@/components/finance/BankReconciliationTa
 import { ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { FinanceDocumentsMenu } from "@/components/finance/FinanceDocumentsMenu";
 
 const NEEDS_PERIOD_TABS = ["abrechnung"];
 const NEEDS_PERIOD_SUB = ["bookings"]; // Sub-tabs under "buchen" that need a period
