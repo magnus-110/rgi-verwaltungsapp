@@ -602,6 +602,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          is_default: boolean
           management_mode: string
           name: string
           scope: string
@@ -611,6 +612,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          is_default?: boolean
           management_mode?: string
           name: string
           scope?: string
@@ -620,6 +622,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          is_default?: boolean
           management_mode?: string
           name?: string
           scope?: string
