@@ -1283,6 +1283,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             <TabsTrigger variant="underline" value="assets">
               <Building2 className="h-4 w-4 mr-1" /> Vermögensbericht
             </TabsTrigger>
+            <TabsTrigger variant="underline" value="wirtschaftsplan">
+              <FileText className="h-4 w-4 mr-1" /> Wirtschaftsplan
+            </TabsTrigger>
+            <TabsTrigger variant="underline" value="paragraph35a">
+              <Receipt className="h-4 w-4 mr-1" /> §35a Bescheinigung
+            </TabsTrigger>
           </TabsList>
 
           {/* ===== TAB 1: GESAMTABRECHNUNG ===== */}
