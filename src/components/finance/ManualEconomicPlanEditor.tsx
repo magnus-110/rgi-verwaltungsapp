@@ -47,6 +47,10 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
   const [drafts, setDrafts] = useState<Record<string, number>>({});
   // Local edit cache for unit overrides ("unit:account" → amount)
   const [unitDrafts, setUnitDrafts] = useState<Record<string, number>>({});
+  // Per-Owner Override: monatliche Gesamt-Belastung (aufgerundet)
+  const [monthlyTotalOverrides, setMonthlyTotalOverrides] = useState<Record<string, number>>({});
+  // Per-Owner Override: monatlicher Vorschuss (Hausgeld)
+  const [monthlyAdvanceOverrides, setMonthlyAdvanceOverrides] = useState<Record<string, number>>({});
 
   // ── Building info ─────────────────────────────────────────────────
   const { data: building } = useQuery({
