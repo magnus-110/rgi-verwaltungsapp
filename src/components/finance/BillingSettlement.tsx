@@ -92,7 +92,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const [activeTab, setActiveTab] = useState("total");
   const [busyDownload, setBusyDownload] = useState<string | null>(null); // owner.assignmentId | "overall" | "all"
   const [templatesOpen, setTemplatesOpen] = useState(false);
-  const [templatesScopeFilter, setTemplatesScopeFilter] = useState<"single" | "overall" | "asset_report" | undefined>(undefined);
+  const [templatesScopeFilter, setTemplatesScopeFilter] = useState<"single" | "overall" | "asset_report" | "paragraph_35a" | undefined>(undefined);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [selectedOverallTemplate, setSelectedOverallTemplate] = useState<string | null>(null);
   const [selectedAssetReportTemplate, setSelectedAssetReportTemplate] = useState<string | null>(null);
