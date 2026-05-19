@@ -47,6 +47,10 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
   const [drafts, setDrafts] = useState<Record<string, number>>({});
   // Local edit cache for unit overrides ("unit:account" → amount)
   const [unitDrafts, setUnitDrafts] = useState<Record<string, number>>({});
+  // Per-Owner Override: monatliche Gesamt-Belastung (aufgerundet)
+  const [monthlyTotalOverrides, setMonthlyTotalOverrides] = useState<Record<string, number>>({});
+  // Per-Owner Override: monatlicher Vorschuss (Hausgeld)
+  const [monthlyAdvanceOverrides, setMonthlyAdvanceOverrides] = useState<Record<string, number>>({});
 
   // ── Building info ─────────────────────────────────────────────────
   const { data: building } = useQuery({
@@ -825,7 +829,31 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                         buildingName={building?.name}
                         rows={unitRows}
                         variant="einzel"
-                        footer={{ ownerTotal, ownerReserveTotal, ownerAdvanceTotal }}
+                        footer={{
+                          ownerTotal,
+                          ownerReserveTotal,
+                          ownerAdvanceTotal,
+                          monthlyTotalOverride: monthlyTotalOverrides[owner.id] ?? null,
+                          onMonthlyTotalRoundUp: () => {
+                            const base = monthlyTotalOverrides[owner.id] ?? ownerTotal / 12;
+                            const rounded = -Math.ceil(Math.abs(base));
+                            setMonthlyTotalOverrides((p) => ({ ...p, [owner.id]: rounded }));
+                          },
+                          onMonthlyTotalReset: () => {
+                            setMonthlyTotalOverrides((p) => {
+                              const n = { ...p }; delete n[owner.id]; return n;
+                            });
+                          },
+                          monthlyAdvanceOverride: monthlyAdvanceOverrides[owner.id] ?? null,
+                          onMonthlyAdvanceChange: (v) => {
+                            setMonthlyAdvanceOverrides((p) => {
+                              const n = { ...p };
+                              if (v == null) delete n[owner.id];
+                              else n[owner.id] = v;
+                              return n;
+                            });
+                          },
+                        }}
                         renderAmountCell={(row) => {
                           const key = normalizeKey(row.distribution_key);
                           const noHeatingData = key === "heizk_abr" && heatingTotal === 0;
