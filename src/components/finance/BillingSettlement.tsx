@@ -1090,9 +1090,18 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         // economic_plan_* wird vom ManualEconomicPlanEditor selbst behandelt
       }
     };
+    const switchTab = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { tab: string };
+      if (detail?.tab) setActiveTab(detail.tab);
+    };
     window.addEventListener("finance:request-download", handler as EventListener);
-    return () => window.removeEventListener("finance:request-download", handler as EventListener);
+    window.addEventListener("finance:switch-settlement-tab", switchTab as EventListener);
+    return () => {
+      window.removeEventListener("finance:request-download", handler as EventListener);
+      window.removeEventListener("finance:switch-settlement-tab", switchTab as EventListener);
+    };
   });
+
 
 
 
