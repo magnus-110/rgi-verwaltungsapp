@@ -690,6 +690,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     const unitRows = buildUnitRows(ownerId);
     const sumAbs = (xs: PlanRow[]) => xs.reduce((s, r) => s + Math.abs(r.planned_amount), 0);
     const distributable = unitRows.filter((r) => r.isDistributable);
+    const reserve = unitRows.filter((r) => r.isReserve);
     const monthlyTotal = monthlyTotalOverrides[ownerId] ?? Math.ceil(sumAbs(distributable) / 12);
     const monthlyAdvance = monthlyAdvanceOverrides[ownerId] ?? monthlyTotal;
     const accountsList = unitRows.map((r) => ({
@@ -700,6 +701,9 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       owner_amount: fmtEUR(Math.abs(r.planned_amount)),
       owner_share: (r as any).yourShare ?? "",
       total_share: (r as any).totalShare ?? "",
+      // Aliase für Vorlagen, die "your_*" verwenden
+      your_amount: fmtEUR(Math.abs(r.planned_amount)),
+      your_share: (r as any).yourShare ?? "",
       is_distributable: r.isDistributable ? "ja" : "nein",
       // deutsche Aliase
       konto_nr: r.account_number,
@@ -713,6 +717,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       umlagefaehig: r.isDistributable ? "ja" : "nein",
       ruecklage: r.isReserve ? "ja" : "nein",
     }));
+    const ownerAdvanceTotal = monthlyAdvance * 12;
     return {
       ...buildBaseContext(),
       // englisch
@@ -720,8 +725,12 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       unit_number: o?.unitNumber || "",
       mea: o?.meaValue ?? "",
       accounts: accountsList,
+      positions: accountsList, // Alias für Vorlagen mit {#positions}
       total_planned: fmtEUR(sumAbs(unitRows)),
       total_distributable: fmtEUR(sumAbs(distributable)),
+      owner_total: fmtEUR(sumAbs(distributable)),
+      owner_reserve_total: fmtEUR(sumAbs(reserve)),
+      owner_advance_total: fmtEUR(ownerAdvanceTotal),
       monthly_advance: fmtEUR(monthlyAdvance),
       monthly_total: fmtEUR(monthlyTotal),
       // deutsch
@@ -730,6 +739,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       konten: accountsList,
       summe_gesamt: fmtEUR(sumAbs(unitRows)),
       summe_umlagefaehig: fmtEUR(sumAbs(distributable)),
+      summe_ruecklage: fmtEUR(sumAbs(reserve)),
+      summe_vorschuss_jahr: fmtEUR(ownerAdvanceTotal),
       monatlicher_vorschuss: fmtEUR(monthlyAdvance),
       monatliche_gesamtbelastung: fmtEUR(monthlyTotal),
     };
