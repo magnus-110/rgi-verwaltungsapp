@@ -314,6 +314,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
         manually_overridden: draft !== undefined || !!item?.manually_overridden,
         isDistributable: !!acc.is_distributable,
         isReserve: isReserveContributionAccount(acc),
+        isWpRelevant: !!acc.is_wirtschaftsplan_relevant,
         previousAmount: sumForAccount(acc.id),
       } as PlanRow;
     });
