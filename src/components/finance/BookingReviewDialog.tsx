@@ -234,9 +234,12 @@ export function BookingReviewDialog({
             </div>
 
             {(() => {
-              const accLike = acc ? { ...acc, category: (acc as any).category } : null;
-              const counterLike = counter ? { ...counter, category: (counter as any).category } : null;
-              const showSoll = isPersonenkonto(accLike as any) || isPersonenkonto(counterLike as any);
+              const isPK = (n?: string | null) => !!n && /^0\d{3}$/.test(n) && n !== "0000";
+              const accNo = acc?.account_number || null;
+              const counterNo = counter?.account_number || null;
+              const accLike = acc ? { id: booking.account_id || "", account_number: acc.account_number, account_name: acc.account_name, category: isPK(accNo) ? "0. Personenkonten" : null } : null;
+              const counterLike = counter ? { id: booking.counter_account_id || "", account_number: counter.account_number, account_name: counter.account_name, category: isPK(counterNo) ? "0. Personenkonten" : null } : null;
+              const showSoll = isPK(accNo) || isPK(counterNo);
               const showIhr = isReserveAccount(accLike as any) || isReserveAccount(counterLike as any);
               if (!showSoll && !showIhr) return null;
               const accId = booking.account_id || null;
