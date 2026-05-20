@@ -8,7 +8,7 @@ import { Check, AlertTriangle, FileText, LayoutTemplate, X, ChevronLeft, Chevron
 import { cn } from "@/lib/utils";
 import { SollstellenQuickButton } from "./SollstellenQuickButton";
 import { IhrZufuehrungQuickButton } from "./IhrZufuehrungQuickButton";
-import { isPersonenkonto } from "./lib/sollstellung";
+
 import { isReserveAccount } from "./lib/ihrZufuehrung";
 
 export interface AuditBookingRow {
