@@ -117,7 +117,7 @@ export function FinanceDocumentsDialog({
 
     // Wirtschaftsplan: erst auf den richtigen Tab umschalten, damit der Editor
     // gemountet ist und den Download-Event empfangen kann.
-    const needsWp = scope === "economic_plan_overall" || scope === "economic_plan_single";
+    const needsWp = scope === "economic_plan_overall" || scope === "economic_plan_single" || scope === "combined_report";
     if (needsWp) {
       window.dispatchEvent(
         new CustomEvent("finance:switch-settlement-tab", { detail: { tab: "wirtschaftsplan" } }),
