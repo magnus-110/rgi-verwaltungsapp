@@ -237,6 +237,19 @@ export function UploadDocumentDialog({
           )}
 
           <div>
+            <Label>Zuordnung</Label>
+            <Select value={fiscalYear} onValueChange={setFiscalYear}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="general">Allgemein (kein Wirtschaftsjahr)</SelectItem>
+                {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() + 1 - i).map(y => (
+                  <SelectItem key={y} value={String(y)}>Wirtschaftsjahr {y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
             <Label>Ablaufdatum (optional)</Label>
             <Input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
           </div>
