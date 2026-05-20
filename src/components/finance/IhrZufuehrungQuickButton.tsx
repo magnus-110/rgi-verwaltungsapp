@@ -164,6 +164,7 @@ export function IhrZufuehrungQuickButton({
         className="w-80 space-y-3"
         align="start"
         onClick={(e) => e.stopPropagation()}
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <div className="space-y-1">
           <div className="text-sm font-semibold">IHR-Zuführung erzeugen</div>
@@ -176,9 +177,12 @@ export function IhrZufuehrungQuickButton({
           <div className="space-y-1">
             <Label className="text-xs">Wirtschaftsjahr</Label>
             <Input
-              type="number"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={fiscalYear}
-              onChange={(e) => setFiscalYear(e.target.value)}
+              onChange={(e) => syncedFromYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              onWheel={(e) => (e.target as HTMLInputElement).blur()}
               className="h-8 text-xs"
             />
             <div className="text-[10px] text-muted-foreground">Buchungsdatum 31.12.</div>
@@ -195,11 +199,10 @@ export function IhrZufuehrungQuickButton({
         </div>
 
         <div className="space-y-1">
-          <Label className="text-xs">Zusatz-Text (optional)</Label>
+          <Label className="text-xs">Buchungstext</Label>
           <Input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder='leer = nur "Rücklagenbildung JJJJ"'
             className="h-8 text-xs"
           />
         </div>
