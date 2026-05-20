@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Check, AlertTriangle, FileText, LayoutTemplate, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SollstellenQuickButton } from "./SollstellenQuickButton";
+import { IhrZufuehrungQuickButton } from "./IhrZufuehrungQuickButton";
+import { isPersonenkonto } from "./lib/sollstellung";
+import { isReserveAccount } from "./lib/ihrZufuehrung";
 
 export interface AuditBookingRow {
   id: string;
