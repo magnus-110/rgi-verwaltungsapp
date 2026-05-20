@@ -27,6 +27,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SHARE_TYPES } from "@/lib/shareTypes";
+import { useDmsJobs, type DmsJobItem } from "@/contexts/DmsJobsProvider";
 
 interface Props {
   buildingId: string;
@@ -39,6 +40,7 @@ const formatCurrency = (n: number) =>
 export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const { enqueue: enqueueDms } = useDmsJobs();
   const mode = "edit" as const;
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [showAllAccounts, setShowAllAccounts] = useState(false);
