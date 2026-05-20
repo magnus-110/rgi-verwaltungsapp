@@ -38,7 +38,8 @@ type Scope =
   | "economic_plan_overall"
   | "economic_plan_single"
   | "asset_report"
-  | "paragraph_35a";
+  | "paragraph_35a"
+  | "combined_report";
 
 const SLOTS: { scope: Scope; title: string; desc: string }[] = [
   { scope: "overall", title: "Gesamtabrechnung", desc: "Eine Datei für die gesamte Liegenschaft" },
@@ -47,6 +48,7 @@ const SLOTS: { scope: Scope; title: string; desc: string }[] = [
   { scope: "economic_plan_single", title: "Einzelwirtschaftsplan", desc: "Pro Eigentümer (ZIP-Export)" },
   { scope: "asset_report", title: "Vermögensbericht", desc: "Gemäß §28 WEG" },
   { scope: "paragraph_35a", title: "§35a Bescheinigung", desc: "Haushaltsnahe Dienstleistungen (ZIP)" },
+  { scope: "combined_report", title: "Sammelbericht", desc: "Alle Berichte (Abrechnung + Wirtschaftsplan + Vermögen + §35a) pro Eigentümer (ZIP)" },
 ];
 
 const SCOPE_TO_TARGET: Record<Scope, string> = {
@@ -56,6 +58,7 @@ const SCOPE_TO_TARGET: Record<Scope, string> = {
   economic_plan_single: "economic_plan_single",
   asset_report: "asset_report",
   paragraph_35a: "paragraph_35a",
+  combined_report: "combined_report",
 };
 
 interface Props {
@@ -114,7 +117,7 @@ export function FinanceDocumentsDialog({
 
     // Wirtschaftsplan: erst auf den richtigen Tab umschalten, damit der Editor
     // gemountet ist und den Download-Event empfangen kann.
-    const needsWp = scope === "economic_plan_overall" || scope === "economic_plan_single";
+    const needsWp = scope === "economic_plan_overall" || scope === "economic_plan_single" || scope === "combined_report";
     if (needsWp) {
       window.dispatchEvent(
         new CustomEvent("finance:switch-settlement-tab", { detail: { tab: "wirtschaftsplan" } }),
