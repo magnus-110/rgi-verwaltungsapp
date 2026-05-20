@@ -835,6 +835,30 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     return () => window.removeEventListener("finance:request-download", handler as EventListener);
   });
 
+  // Synchroner Payload-Collector für den Sammelbericht-Trigger im BillingSettlement.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { payloads: Record<string, any>; errors?: string[] };
+      if (!detail?.payloads) return;
+      if (loadingPlan || !plan) {
+        (detail.errors ||= []).push("Wirtschaftsplan noch nicht geladen — Tab kurz öffnen und erneut versuchen.");
+        return;
+      }
+      try {
+        detail.payloads.economic_plan_overall = buildOverallPlanPayload();
+        detail.payloads.economic_plan_owners = ownerData.map((o) => ({
+          ownerId: o.id,
+          name: o.name,
+          payload: buildOwnerPlanPayload(o.id),
+        }));
+      } catch (err: any) {
+        (detail.errors ||= []).push(`Wirtschaftsplan: ${err?.message || err}`);
+      }
+    };
+    window.addEventListener("finance:collect-combined-payload", handler as EventListener);
+    return () => window.removeEventListener("finance:collect-combined-payload", handler as EventListener);
+  });
+
 
 
   // ── Render ────────────────────────────────────────────────────────
