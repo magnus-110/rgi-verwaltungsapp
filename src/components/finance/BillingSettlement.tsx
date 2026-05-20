@@ -945,51 +945,35 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       if (!accessToken) throw new Error("Bitte erneut anmelden.");
 
       if (format === "dms") {
-        // Pro Eigentümer einzeln aufrufen → PDF → DMS pro Person.
         const owners = ownerResults;
         if (owners.length === 0) { toast.error("Keine Eigentümer gefunden."); return; }
-        let ok = 0; const errs: string[] = [];
-        for (let i = 0; i < owners.length; i++) {
-          const o = owners[i];
-          toast.message(`§35a ${i + 1}/${owners.length}: ${o.name}`);
-          try {
-            const resp = await fetch(
-              `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-                body: JSON.stringify({
-                  template_id: effectiveParagraph35aTpl,
-                  building_id: buildingId,
-                  fiscal_year: fiscalYear,
-                  period_id: periodId,
-                  assignment_ids: [o.assignmentId],
-                  format: "pdf",
-                }),
-              },
-            );
-            if (!resp.ok) throw new Error(await resp.text());
-            const bytes = await resp.blob();
-            const a = (assignments as any[]).find((x) => x.id === o.assignmentId);
-            await uploadGeneratedPdfToDms({
-              bytes,
-              displayName: `§35a_${fiscalYear}_${o.name}`,
-              buildingId,
-              periodId,
-              contactId: a?.contact_id || null,
-              visibility: "eigentuemer",
-              managementMode: "weg",
-            });
-            ok++;
-          } catch (e: any) {
-            errs.push(`${o.name}: ${e?.message || e}`);
-          }
-        }
-        if (errs.length) toast.error(`${ok}/${owners.length} abgelegt. Fehler: ${errs.join(" | ")}`);
-        else toast.success(`${ok} §35a-Bescheinigungen ins DMS abgelegt`);
-        window.dispatchEvent(new CustomEvent("dms:refresh"));
+        const items: DmsJobItem[] = owners.map((o) => {
+          const a = (assignments as any[]).find((x) => x.id === o.assignmentId);
+          return {
+            title: o.name,
+            edgeFn: "generate-35a-docx",
+            body: {
+              template_id: effectiveParagraph35aTpl,
+              building_id: buildingId,
+              fiscal_year: fiscalYear,
+              period_id: periodId,
+              assignment_ids: [o.assignmentId],
+              format: "pdf",
+            },
+            displayName: `§35a_${fiscalYear}_${o.name}`,
+            folderKey: "paragraph_35a",
+            visibility: "eigentuemer_only",
+            contactId: a?.contact_id || null,
+            buildingId,
+            periodId,
+            managementMode: "weg",
+          };
+        });
+        enqueueDms(`§35a-Bescheinigungen ${fiscalYear}`, items);
         return;
       }
+
+
 
       const resp = await fetch(
         `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`,
