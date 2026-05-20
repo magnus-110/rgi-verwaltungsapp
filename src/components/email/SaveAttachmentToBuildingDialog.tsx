@@ -158,6 +158,7 @@ export function SaveAttachmentToBuildingDialog({
             management_mode: building.management_mode,
             visibility_role: visibility,
             visible_to_users: visibility !== 'intern',
+            fiscal_year: fiscalYear === "general" ? null : parseInt(fiscalYear, 10),
             rag_enabled: autoRag,
             source: 'email',
             source_email_id: emailId,
