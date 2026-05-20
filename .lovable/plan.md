@@ -1,145 +1,71 @@
-
 ## Ziel
 
-Die neue Sammelbericht-Vorlage (`RGI_WEG_Jahresbericht_v2_template.docx`) verwendet andere Platzhalter-Namen als die bisherigen Einzel-Vorlagen. Wir passen **nur** den im Sammelbericht-Renderer zusammengebauten Payload an, **ohne** die bestehenden Einzel-Templates (Gesamt-/Einzelabrechnung, §35a, Wirtschaftsplan, Vermögensbericht) zu brechen.
+In `FinanceDocumentsDialog` (Abrechnung → Dokumente) bekommt jeder der 7 Dokument-Slots zusätzlich zu **DOCX** und **PDF** einen dritten Button **„Im DMS ablegen"**. Beim Klick wird das PDF über die vorhandene PDF-Generierung erzeugt und automatisch ins DMS (`building_files`) gespeichert – bei pro-Eigentümer-Dokumenten als eine eigene Datei pro Eigentümer mit Sichtbarkeits-Restriktion, sodass jeder nur seine eigenen Dokumente sieht.
 
-## Hintergrund
+## UI-Änderungen
 
-`BillingSettlement.tsx → downloadCombined()` sammelt 6 Sub-Payloads:
+`src/components/finance/FinanceDocumentsDialog.tsx`
+- In `SlotCard` einen neuen Button „DMS" (Icon `FolderUp`) neben PDF.
+- Neuer Aufruf `requestDownload(scope, "dms")` – wir erweitern den bestehenden `format`-Typ um `"dms"`.
+- Toast „Wird ins DMS abgelegt…" statt „Download wird vorbereitet…".
 
-```
-{
-  ...common (Top-Level fürs Deckblatt),
-  abrechnung_gesamt:      buildOverallPayload(...),
-  abrechnung_einzel:      buildOwnerPayload(...),
-  vermoegen:              buildAssetReportPayload(...),
-  wirtschaftsplan_gesamt: buildOverallPlanPayload(...),
-  wirtschaftsplan_einzel: buildOwnerPlanPayload(...),
-  p35a:                   generate-35a-docx (payloads_only),
-}
-```
+## Eventfluss (unverändert, neuer Modus)
 
-Docxtemplater löst Variablen innerhalb eines Scopes automatisch nach oben auf (parent-scope-fallback ist eingebaut), d. h. `{wirtschaftsjahr}` funktioniert sowohl im Top-Level als auch innerhalb `{#abrechnung_gesamt}…{/}`. Wir müssen lediglich die Feldnamen vereinheitlichen.
+`finance:request-download` → detail `{ target, format: "docx" | "pdf" | "dms", template_id }`.
 
-## Was gemacht wird
+Die bestehenden Handler in `BillingSettlement.tsx` und `ManualEconomicPlanEditor.tsx` werden so erweitert, dass bei `format === "dms"`:
 
-### 1. Neue Helper-Datei `src/components/finance/lib/remapCombinedPayload.ts`
+1. PDF-Bytes werden wie bisher per Edge-Function generiert (`generate-billing-document`, `generate-35a-docx`, Sammelbericht-Pfad). Bei ZIP-Scopes (`single`, `economic_plan_single`, `paragraph_35a`, `combined_report`) wird **kein** ZIP gebaut, sondern stattdessen **pro Eigentümer ein einzelnes PDF** angefordert (Edge-Function wird im Loop per Eigentümer mit `mode: "owner"` aufgerufen – das ist der bereits verwendete Pfad für die Einzeldownloads).
+2. Die Bytes werden via neuer Helper-Funktion `uploadGeneratedPdfToDms(...)` in den Storage-Bucket `building-files` hochgeladen und ein Eintrag in `building_files` angelegt.
 
-Reine Mapping-Funktionen — werden ausschließlich vom Sammelbericht-Aggregator aufgerufen, die ursprünglichen `buildOverallPayload` / `buildOwnerPayload` / `buildAssetReportPayload` / `buildOverallPlanPayload` / `buildOwnerPlanPayload` bleiben unverändert (Einzel-Downloads weiter funktionsfähig).
+## DMS-Ablage-Regeln
 
-Funktionen:
-- `remapCommon(src)` — Deckblatt-Felder
-- `remapAbrechnungGesamt(src)`
-- `remapAbrechnungEinzel(src)`
-- `remapVermoegen(src)`
-- `remapP35a(src)`
-- `remapWirtschaftsplanGesamt(src)`
-- `remapWirtschaftsplanEinzel(src)`
+Gemeinsamer Helper (neu, z.B. `src/components/finance/lib/uploadGeneratedPdfToDms.ts`):
 
-Jede Funktion erhält das bestehende Sub-Payload und ergänzt die neuen Aliase, **ohne** die alten Felder zu entfernen — so bleibt die Vorlage rückwärtskompatibel.
+| Scope | Datei(en) | building_files Felder |
+|-------|-----------|------------------------|
+| `overall` | 1 Datei für die Liegenschaft | `building_id`, `linked_billing_period_id`, `assigned_user_id=null`, `linked_contact_id=null`, `visible_to_users=false` (intern) |
+| `asset_report` | 1 Datei | wie oben |
+| `economic_plan_overall` | 1 Datei | wie oben |
+| `single` (Einzelabrechnung) | 1 Datei je Eigentümer | `building_id`, `linked_billing_period_id`, `linked_contact_id = ownerContactId`, `assigned_user_id = contacts.user_id` (falls vorhanden), `visible_to_users=true` |
+| `economic_plan_single` | 1 Datei je Eigentümer | wie oben |
+| `paragraph_35a` | 1 Datei je Eigentümer | wie oben |
+| `combined_report` | 1 Datei je Eigentümer (Sammelbericht) | wie oben |
 
-### 2. Konkrete Renames / Aliase
+- `display_name` z.B. `Einzelabrechnung 2024 – Müller`, `Wirtschaftsplan 2025`, etc.
+- `file_path`: `${buildingId}/abrechnungen/${periodId}/${uuid}.pdf`.
+- `category_id`: Falls Kategorie „Abrechnungen" existiert, wird sie verwendet; ansonsten `null` (keine Migration nötig).
+- `mime_type`: `application/pdf`, `source`: `'system'` (oder vorhandenen Enum-Wert; wir lesen den Enum aus den Types und fallen auf `'upload'` zurück).
+- `management_mode`: aus dem aktuellen Finance-Kontext (`weg` für Abrechnungen).
+- `uploaded_by`: aktueller `auth.user.id`.
 
-**Deckblatt (Top-Level + in jeden Sub-Payload injiziert)**
+## Sichtbarkeitslogik (kein DB-Schema-Change nötig)
 
-| Neu | Quelle (alt) |
-|---|---|
-| `gebaeude_name` | `building_name` ∥ `gebaeude_name` (existiert schon) |
-| `gebaeude_adresse` | `building_address` ∥ `gebaeude_adresse` |
-| `datum_heute` | `erstell_datum` ∥ `erstellt_am` ∥ `created_at` |
-| `abrechnungszeitraum_von` | `periode_von` ∥ `period_from` |
-| `abrechnungszeitraum_bis` | `periode_bis` ∥ `period_to` |
-| `wirtschaftsjahr` | `fiscal_year` ∥ `wirtschaftsjahr` |
+- Owner-Auflösung pro Eigentümer: aus `ownerResults` haben wir `contact_id`. Über `contacts.user_id` mappen wir auf den eingeladenen Portal-User. Existiert noch kein User, wird das File trotzdem angelegt (mit `linked_contact_id`), `assigned_user_id` bleibt `null` – Verwalter sieht es weiterhin, der Eigentümer sieht es automatisch, sobald er per `invite-contact-user` mit dem Contact verknüpft wird.
+- Die bestehende RLS für `building_files` (siehe DMS-Architektur Memory) filtert Endnutzer-Sichten bereits auf `assigned_user_id = auth.uid()` / `linked_contact_id` ihrer eigenen Contacts, daher reicht das korrekte Setzen dieser zwei Felder.
 
-**Vermögensbericht (`{#vermoegen}`)**
+## Edge-Function-Aufrufe
 
-In `carry_accounts` / `liquide_mittel`-Items zusätzlich:
-- `konto_name` ← bereits vorhanden (keine Änderung nötig)
-- `endbestand` ← Alias zu `betrag` (Items)
+- Wiederverwendung der bestehenden Funktionen, **keine** neue Edge Function:
+  - `generate-billing-document` (overall, owner, asset_report, economic_plan_*)
+  - `generate-35a-docx` (per owner)
+  - Sammelbericht-Pipeline aus `BillingSettlement.tsx` (Payloads sammeln + `generate-billing-document` mit `combined_report`-Vorlage).
+- Für die DMS-Variante zwingend `format: "pdf"` an die Edge Functions schicken.
 
-Plus Top-Level:
-- `bestaende_ende` ← Alias zu `sum_liquide_mittel`
+## Fortschritt & Fehlerhandling
 
-**Einzelabrechnung (`{#abrechnung_einzel}`)**
+- Toast „X von N abgelegt…" während der Schleife pro Eigentümer.
+- Bei Fehler einzelner Eigentümer: weiterlaufen, fehlerhafte Namen am Ende in einem Error-Toast listen.
+- Nach Erfolg: `qc.invalidateQueries({ queryKey: ["building-files"] })` triggern (Event `dms:refresh`), damit DMS-Listen aktualisieren.
 
-In `sektionen[]`:
-- `bezeichnung` ← Alias zu `sektion`
+## Betroffene Dateien
 
-In `sektionen[].zeilen[]`:
-- `verteiler` ← bereits vorhanden (keine Änderung nötig)
-- (HINWEIS: das frühere `verteilungsrelevant` bleibt als zusätzliches Feld erhalten — Vorlage verwendet jetzt `verteiler`, beide existieren parallel)
+- `src/components/finance/FinanceDocumentsDialog.tsx` – neuer DMS-Button + Toast-Text.
+- `src/components/finance/BillingSettlement.tsx` – `format === "dms"` Branch in den 4 Downloads (`overall`, `all` / per-owner, `asset_report`, `combined`).
+- `src/components/finance/ManualEconomicPlanEditor.tsx` – `format === "dms"` Branch für `economic_plan_overall` + `economic_plan_single`.
+- `src/components/finance/lib/uploadGeneratedPdfToDms.ts` (neu) – wiederverwendbarer Upload-Helper.
+- Kein DB-Migration und keine neue Edge Function nötig.
 
-**§35a (`{#p35a}`)**
+## Offene Annahmen
 
-In `positionen_dienste[]` und `positionen_handwerker[]`:
-- `ihre_kosten` ist bereits korrekt belegt (siehe `generate-35a-docx/index.ts` Zeilen 345/352) — keine Änderung nötig.
-
-Top-Level:
-- `datum_heute` ← Alias zu `erstell_datum`
-
-**Wirtschaftsplan Gesamt + Einzel (`{#wirtschaftsplan_gesamt|einzel}`)**
-
-Top-Level Aliase ergänzen:
-- `wirtschaftsjahr` ← `fiscal_year`
-- `abrechnungszeitraum_von` ← `period_from`
-- `abrechnungszeitraum_bis` ← `period_to`
-- `gebaeude_name` ← `building_name` (existiert schon, nur sicherstellen)
-- `summe_plan` ← `total_planned`
-
-### 3. Offene Punkte aus Claudes Liste — Mapping
-
-Wir füllen die noch fehlenden Variablen aus bereits berechneten UI-Werten:
-
-**Gesamtabrechnung-Scope:**
-- `bank_anfangsbestand`, `bank_endbestand`, `ruecklage_*`, `brennstoff_*`, `bestaende_anfang_gesamt`, `bestaende_ende_gesamt` — **sind bereits in `buildOverallPayload`** (Zeilen 342–353), gehören damit in `abrechnung_gesamt.*`. Wir spiegeln sie zusätzlich nach `vermoegen.*`, damit sie in beiden Scopes funktionieren.
-- `sum_einnahmen_inkl_vorschuss` — bereits vorhanden (Z. 282).
-- `sum_bewirtschaftung_plan` etc. — bereits vorhanden (Z. 291–302).
-- `sum_vorschuss` — bereits vorhanden (Z. 328).
-
-**Einzelabrechnung-Scope:** alle aufgelisteten Variablen (`abrechnungssaldo_*`, `sum_abrechnung_gesamt/ihre`, `sum_vorschuss_wp_gesamt/ihre`, `has_ueberzahlung`, `ueberzahlung_wpl_*`, `zwischensumme_gesamt/ihre_kosten`) sind in `buildOwnerPayload` (Z. 470–500, 422–423) bereits vorhanden — kein Mapping nötig.
-
-**Vermögensbericht-Scope:** `sum_guthaben_nachzahlung`, `sum_abgrenzung`, `sum_forderungen`, `sum_verbindlichkeiten`, `vermoegensstand_gesamt` — alle bereits in `buildAssetReportPayload` (Z. 621–627). `bestaende_ende` ergänzen wir als Alias auf `sum_liquide_mittel`.
-
-**§35a-Scope:** `summe_dienste`, `summe_handwerker`, `bescheinigung_nr`, `tage`, `einheit_lage`, `empfaenger_strasse/plz/ort` — alle bereits in `generate-35a-docx → buildVarsFor` (Z. 374–391).
-
-**Wirtschaftsplan-Scope:** `owner_total`, `owner_reserve_monthly`, `owner_hausgeld_monthly` — bereits in `buildOwnerPlanPayload` (Z. 738, 745, 747). `total_amount/your_amount/total_share/your_share/change_percent` — bereits in `accountsList`-Items (Z. 700–706, 659).
-
-### 4. Wiring in `BillingSettlement.tsx → downloadCombined()` (≈ Z. 1196–1217)
-
-Statt der rohen Sub-Payloads laufen sie durch die Remap-Funktionen, Common wird in jeden Sub-Payload injiziert:
-
-```ts
-const common = remapCommon({ ...pickCommon(o.payload), ...pickCommon(p.overall) });
-
-return {
-  kind: "owner",
-  ownerId: o.assignmentId,
-  ownerName: o.name,
-  payload: {
-    ...common,
-    abrechnung_gesamt:      { ...common, ...remapAbrechnungGesamt(p.overall) },
-    abrechnung_einzel:      { ...common, ...remapAbrechnungEinzel(o.payload) },
-    vermoegen:              { ...common, ...remapVermoegen(p.asset_report) },
-    wirtschaftsplan_gesamt: { ...common, ...remapWirtschaftsplanGesamt(p.economic_plan_overall) },
-    wirtschaftsplan_einzel: { ...common, ...remapWirtschaftsplanEinzel(ep?.payload) },
-    p35a:                   { ...common, ...remapP35a(p35?.payload) },
-  },
-};
-```
-
-### 5. Was NICHT geändert wird
-
-- Renderer (`generate-billing-document/index.ts`) bleibt unverändert — er rendert generisch.
-- `buildOverallPayload`, `buildOwnerPayload`, `buildAssetReportPayload`, `buildOverallPlanPayload`, `buildOwnerPlanPayload`, `generate-35a-docx/buildVarsFor` bleiben unverändert — alte Einzel-Vorlagen funktionieren weiter.
-- Keine DB-Änderung, keine neue Edge Function.
-
-### 6. Hinweise an User aus Claudes Liste, die wir nicht im Code lösen
-
-- **Einzelabrechnung-Detail-Tabelle 5-spaltig vs. Payload 2-spaltig:** Strukturelle Anpassung muss in der Word-Vorlage selbst erfolgen — das Payload liefert pro Sektion bereits `zeilen[]` mit `konto_nr`, `konto_name`, `verteiler`, `gesamt_anteil`, `ihr_anteil`, `ihre_kosten` (Z. 414–420). Die 5 Spalten lassen sich daraus mappen.
-- **Vermögensbericht 5 Sektionen → 1 `{#carry_accounts}`:** Die ursprünglichen 5 Listen (`liquide_mittel`, `guthaben_nachzahlung`, `abgrenzung`, `forderungen`, `verbindlichkeiten`) liegen weiterhin im Payload — falls Claude die 5 Header behalten will, kann er die einzelnen Loops weiter nutzen.
-
-## Technische Details
-
-- **Datei neu:** `src/components/finance/lib/remapCombinedPayload.ts` (~150 Zeilen)
-- **Datei geändert:** `src/components/finance/BillingSettlement.tsx` (Block Z. 1185–1217: Items-Map durch Remap-Pipeline ersetzen)
-- **Keine** Änderung an `buildBillingPayload.ts`, `ManualEconomicPlanEditor.tsx`, `generate-35a-docx`, `generate-billing-document`.
+- Wir gehen davon aus, dass die bestehende Edge-Function `generate-billing-document` einen einzelnen Owner-PDF-Aufruf unterstützt (Pfad `target: "owner"` ist im Code bereits vorhanden). Falls nicht, holen wir das ZIP und entpacken es client-seitig nicht, sondern nutzen die vorhandene Per-Owner-Schleife aus `BillingSettlement` (Zeile 1033).
