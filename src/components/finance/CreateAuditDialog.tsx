@@ -254,6 +254,30 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
         });
       }
 
+      // DMS-Anhänge: aus building-files herunterladen und ins audit-Bucket kopieren
+      for (let i = 0; i < dmsAttachments.length; i++) {
+        const att = dmsAttachments[i];
+        const srcPath = att.file_path.replace(/^\/+/, "").replace(/^building-files\//, "");
+        const { data: blob, error: dlErr } = await supabase.storage.from("building-files").download(srcPath);
+        if (dlErr || !blob) {
+          toast.error(`DMS-Datei "${att.display_name}" konnte nicht geladen werden`);
+          continue;
+        }
+        const safeName = att.display_name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `cash-audits/${targetAuditId}/${crypto.randomUUID()}-${safeName}`;
+        const { error: upErr } = await supabase.storage.from("building-documents").upload(path, blob, { contentType: "application/pdf" });
+        if (upErr) {
+          toast.error(`Upload von "${att.display_name}" fehlgeschlagen: ${upErr.message}`);
+          continue;
+        }
+        await supabase.from("cash_audit_statements").insert({
+          cash_audit_id: targetAuditId,
+          file_name: att.display_name,
+          file_path: path,
+          sort_order: baseSort + pdfFiles.length + i,
+        });
+      }
+
       // Remove deleted notes
       if (removedNoteIds.length) {
         await supabase.from("cash_audit_notes").delete().in("id", removedNoteIds);
