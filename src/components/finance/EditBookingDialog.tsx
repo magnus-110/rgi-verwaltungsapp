@@ -913,6 +913,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                       />
                     </>
                   )}
+                </div>
 
                 {/* Save button */}
                 <Button data-edit-booking-save onClick={handleSave} disabled={saving || !form.account_id} className="w-full h-9 text-sm">
