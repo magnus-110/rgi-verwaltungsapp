@@ -1,39 +1,34 @@
-# Plan: Eigentümer-Freigabe & Jahres-Filter im DMS
+## Ziel
 
-## Problem 1 – „Spezifische Eigentümer" bleibt leer
+Im Prüfmodus (Buchhaltung → Kontoauszüge → "Prüfen & buchen") sollen die Transaktionen strikt chronologisch ab dem 01.01. des Wirtschaftsjahres angezeigt werden. Nicht zugeordnete Transaktionen (`unmatched`, `invoice_pending`) werden **nicht** mehr in die Prüf-Reihenfolge aufgenommen, damit die Reihenfolge nicht „wild durcheinander" wirkt.
 
-Beim automatischen DMS-Upload (`uploadGeneratedPdfToDms.ts`) wird nur `visibility_role = 'personen'` und `linked_contact_id` gesetzt. Die UI "Freigegeben für" liest aber aus der Tabelle **`building_file_visibility`** (siehe `DocumentDetailPanel.tsx` → `togglePersonVisibility`). Deshalb steht im Edit-Panel „0 ausgewählt", obwohl das Dokument den richtigen Namen hat.
+## Aktueller Zustand
 
-### Fix
-In `uploadGeneratedPdfToDms` nach dem Insert in `building_files` zusätzlich einen Eintrag in `building_file_visibility` anlegen, sobald `visibility === "eigentuemer_only"` und `contactId` vorhanden ist:
+`src/components/finance/BankStatementsTab.tsx` Zeilen 277–293:
 
+```ts
+const allUnbookedForReview = useMemo(() => {
+  const sortByDateThenId = ...;
+  const matched   = allBuildingTxns.filter(matched-status).sort(sortByDateThenId);
+  const unmatched = allBuildingTxns.filter(unmatched-status).sort(sortByDateThenId);
+  return [...matched, ...unmatched];
+}, [allBuildingTxns]);
 ```
-insert into building_file_visibility (file_id, contact_id) values (<neu>, <contactId>)
-```
 
-Damit erscheint der Eigentümer im „Freigegeben für"-Picker als angehakt und die RLS-Filterung greift sauber.
+Effekt: zugeordnete Buchungen chronologisch, danach unzugeordnete chronologisch — dadurch springt der Prüfmodus nach der letzten zugeordneten Buchung zurück zu Januar und mischt unzugeordnete optisch in die Folge.
 
-## Problem 2 – Zuordnung Wirtschaftsjahr vs. allgemein + Filter im DMS
+## Änderung
 
-### Datenmodell (Migration)
-- Spalte `fiscal_year integer null` auf `public.building_files`.
-- Index `idx_building_files_fiscal_year (building_id, fiscal_year)`.
-- Keine RLS-Änderung nötig.
+Nur eine Datei: `src/components/finance/BankStatementsTab.tsx`
 
-### Schreibseite
-- `uploadGeneratedPdfToDms` / `DmsUploadParams` um optionales `fiscalYear?: number | null` erweitern und beim Insert mitschreiben.
-- Aufrufe in `BillingSettlement.tsx` (Abrechnungen, §35a, Vermögensbericht, kombiniert) und `ManualEconomicPlanEditor.tsx` (Gesamt/Einzel-Wirtschaftsplan) übergeben das vorhandene `fiscalYear` bzw. `wpYear`.
-- Manueller Upload (`UploadDocumentDialog.tsx`): neues optionales Feld „Wirtschaftsjahr" (Select mit „Allgemein" + Jahresliste). Im `DocumentDetailPanel` analoges Feld zum Nachpflegen.
+1. `allUnbookedForReview` so anpassen, dass es **ausschließlich** die zugeordneten Transaktionen enthält (`matched_invoice`, `matched_template`, `manually_matched`), sortiert nach `booking_date` aufsteigend (sekundär nach `id` für Stabilität bei gleichem Datum).
+2. Kein Anhängen der unmatched/invoice_pending mehr.
+3. Der bestehende Tab/Block für unzugeordnete Transaktionen in der Listenansicht bleibt unverändert — Nutzer können diese dort weiterhin manuell zuordnen.
 
-### Anzeige / Filter
-- In `BuildingFilesTab.tsx` neuen State `selectedYear: 'all' | 'general' | number` plus Select neben der Kategorie-Auswahl. Optionen werden aus den vorhandenen `files[].fiscal_year` Werten generiert (distinct desc) plus „Allgemein (ohne Jahr)" und „Alle".
-- Filterung im Memo der Datei-Liste vor Übergabe an `FileList`. `FileList` bekommt eine kleine Badge „Jahr 2026" bzw. „Allgemein" in der Tabellenzeile (neben Kategorie).
+## Technische Details
 
-## Betroffene Dateien
-- DB-Migration (1 ALTER TABLE + Index).
-- `src/components/finance/lib/uploadGeneratedPdfToDms.ts` (Visibility-Insert + fiscalYear).
-- `src/contexts/DmsJobsProvider.tsx` (Feld `fiscalYear` durchschleifen).
-- `src/components/finance/BillingSettlement.tsx`, `src/components/finance/ManualEconomicPlanEditor.tsx` (fiscalYear bei `enqueueDms` mitgeben).
-- `src/components/buildings/BuildingFilesTab.tsx` (Year-Filter UI + Filter-Logik).
-- `src/components/files/FileList.tsx` (Jahres-Badge).
-- `src/components/buildings/documents/UploadDocumentDialog.tsx` + `DocumentDetailPanel.tsx` (manuelles Feld „Wirtschaftsjahr").
+- Datei: `src/components/finance/BankStatementsTab.tsx`
+- Funktion: `allUnbookedForReview` (Zeilen 277–293)
+- Prop-Konsumenten: `TransactionReviewMode transactions={allUnbookedForReview}` (Zeile 1251) — keine Signatur-Änderung
+- `globalBookableCount` (Zeile 295–299) bleibt wie er ist (zählt bereits nur matched)
+- Keine DB-, Edge-Function- oder Typ-Änderungen
