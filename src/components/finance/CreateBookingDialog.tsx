@@ -507,7 +507,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Wirtschaftsjahr</label>
-                <Input className="h-8 text-xs font-mono" type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} onKeyDown={handleEnterToNext} />
+                <Input className="h-8 text-xs font-mono" type="text" inputMode="numeric" pattern="[0-9]*" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value.replace(/[^0-9]/g, ""))} onKeyDown={handleEnterToNext} />
               </div>
               <div>
                 {(() => {
