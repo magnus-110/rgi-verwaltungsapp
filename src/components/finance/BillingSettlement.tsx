@@ -967,6 +967,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             buildingId,
             periodId,
             managementMode: "weg",
+            fiscalYear,
           };
         });
         enqueueDms(`§35a-Bescheinigungen ${fiscalYear}`, items);
