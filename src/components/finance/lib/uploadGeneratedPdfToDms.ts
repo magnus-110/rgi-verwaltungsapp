@@ -20,6 +20,7 @@ export interface DmsUploadParams {
   folderKey: DmsFolderKey;
   visibility: "alle" | "eigentuemer_only";
   managementMode: "weg" | "rent";
+  fiscalYear?: number | null;
 }
 
 const sanitize = (s: string) =>
@@ -85,12 +86,25 @@ export async function uploadGeneratedPdfToDms(
       source: "manual",
       visibility_role: isOwnerOnly ? "personen" : "alle",
       visible_to_users: true,
+      fiscal_year: p.fiscalYear ?? null,
     } as any)
     .select("id")
     .single();
   if (insErr) {
     await supabase.storage.from("building-files").remove([path]).catch(() => {});
     throw new Error(`DMS-Eintrag fehlgeschlagen: ${insErr.message}`);
+  }
+
+  // 4) Bei Eigentümer-Sichtbarkeit auch in building_file_visibility eintragen,
+  //    damit der "Freigegeben für"-Picker im DMS den Eigentümer angehakt zeigt
+  //    und RLS-Filterung greift.
+  if (isOwnerOnly && p.contactId) {
+    const { error: visErr } = await supabase
+      .from("building_file_visibility")
+      .insert({ file_id: (inserted as any).id, contact_id: p.contactId } as any);
+    if (visErr) {
+      console.warn("[uploadGeneratedPdfToDms] building_file_visibility insert fehlgeschlagen:", visErr.message);
+    }
   }
 
   return { id: (inserted as any).id, path };

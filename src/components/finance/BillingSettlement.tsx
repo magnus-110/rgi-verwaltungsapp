@@ -967,6 +967,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             buildingId,
             periodId,
             managementMode: "weg",
+            fiscalYear,
           };
         });
         enqueueDms(`§35a-Bescheinigungen ${fiscalYear}`, items);
@@ -1087,7 +1088,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             displayName: `Gesamtabrechnung_${fiscalYear}`,
             folderKey: "gesamtabrechnung",
             visibility: "alle",
-            buildingId, periodId, managementMode: "weg",
+            buildingId, periodId, managementMode: "weg", fiscalYear,
           }]);
         } else if (target === "asset_report") {
           enqueueDms(`Vermögensbericht ${fiscalYear}`, [{
@@ -1102,7 +1103,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             displayName: `Vermoegensbericht_${fiscalYear}`,
             folderKey: "vermoegensbericht",
             visibility: "alle",
-            buildingId, periodId, managementMode: "weg",
+            buildingId, periodId, managementMode: "weg", fiscalYear,
           }]);
         } else {
           const targetOwners = target === "owner"
@@ -1124,7 +1125,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               folderKey: "einzelabrechnung",
               visibility: "eigentuemer_only",
               contactId: a?.contact_id || null,
-              buildingId, periodId, managementMode: "weg",
+              buildingId, periodId, managementMode: "weg", fiscalYear,
             };
           });
           enqueueDms(`Einzelabrechnungen ${fiscalYear}`, jobItems);
@@ -1345,7 +1346,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             folderKey: "sammelbericht",
             visibility: "eigentuemer_only",
             contactId: a?.contact_id || null,
-            buildingId, periodId, managementMode: "weg",
+            buildingId, periodId, managementMode: "weg", fiscalYear,
           };
         });
         enqueueDms(`Sammelberichte ${fiscalYear}`, jobItems);

@@ -234,6 +234,25 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
         )}
 
         <div className="space-y-1">
+          <Label className="text-xs">Wirtschaftsjahr</Label>
+          <Select
+            value={current.fiscal_year != null ? String(current.fiscal_year) : "general"}
+            onValueChange={(v) =>
+              setEditing(s => ({ ...s, fiscal_year: v === "general" ? null : parseInt(v, 10) }))
+            }
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="general">Allgemein (kein Jahr)</SelectItem>
+              {Array.from({ length: 8 }).map((_, i) => {
+                const y = new Date().getFullYear() + 1 - i;
+                return <SelectItem key={y} value={String(y)}>{y}</SelectItem>;
+              })}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1">
           <Label className="text-xs">Ablaufdatum (optional)</Label>
           <Input
             type="date"

@@ -42,6 +42,7 @@ export const BuildingFilesTab = ({ buildingId, managementMode }: BuildingFilesTa
   const [persons, setPersons] = useState<PersonProfile[]>([]);
 
   const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [selectedYear, setSelectedYear] = useState<string>("all"); // "all" | "general" | "2026" ...
   const [visibleToUsers, setVisibleToUsers] = useState(true);
   const [description, setDescription] = useState("");
   const [showDescription, setShowDescription] = useState(false);
@@ -179,8 +180,19 @@ export const BuildingFilesTab = ({ buildingId, managementMode }: BuildingFilesTa
     }
   };
 
-  const buildingFiles = files.filter((f) => !f.assigned_user_id);
-  const getPersonFiles = (contactId: string) => files.filter((f) => f.assigned_user_id === contactId);
+  // Year-Filter
+  const availableYears = Array.from(
+    new Set(files.map((f) => f.fiscal_year).filter((y) => y != null)),
+  ).sort((a: number, b: number) => b - a);
+
+  const filteredByYear = files.filter((f) => {
+    if (selectedYear === "all") return true;
+    if (selectedYear === "general") return f.fiscal_year == null;
+    return String(f.fiscal_year) === selectedYear;
+  });
+
+  const buildingFiles = filteredByYear.filter((f) => !f.assigned_user_id);
+  const getPersonFiles = (contactId: string) => filteredByYear.filter((f) => f.assigned_user_id === contactId);
 
   const getPersonName = (p: PersonProfile) => {
     return [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email || "Unbenannt";
@@ -235,6 +247,19 @@ export const BuildingFilesTab = ({ buildingId, managementMode }: BuildingFilesTa
               </Button>
             </PopoverContent>
           </Popover>
+
+          <Select value={selectedYear} onValueChange={setSelectedYear}>
+            <SelectTrigger className="w-[170px]">
+              <SelectValue placeholder="Wirtschaftsjahr" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Jahre</SelectItem>
+              <SelectItem value="general">Allgemein (ohne Jahr)</SelectItem>
+              {availableYears.map((y) => (
+                <SelectItem key={y} value={String(y)}>Jahr {y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           <div className="flex items-center gap-2 ml-auto">
             <Label htmlFor="vis-toggle-building" className="text-sm text-muted-foreground">Sichtbar</Label>

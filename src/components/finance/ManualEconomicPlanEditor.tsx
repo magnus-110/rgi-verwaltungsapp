@@ -797,7 +797,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
               displayName: `Gesamtwirtschaftsplan_${fiscalYear}`,
               folderKey: "wirtschaftsplan_gesamt",
               visibility: "alle",
-              buildingId, periodId: null, managementMode: "weg",
+              buildingId, periodId: null, managementMode: "weg", fiscalYear,
             }]);
           } else {
             if (ownerData.length === 0) { toast.error("Keine Eigentümer gefunden."); return; }
@@ -814,7 +814,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
               folderKey: "wirtschaftsplan_einzel",
               visibility: "eigentuemer_only",
               contactId: (o as any).raw?.contact_id || null,
-              buildingId, periodId: null, managementMode: "weg",
+              buildingId, periodId: null, managementMode: "weg", fiscalYear,
             }));
             enqueueDms(`Einzelwirtschaftspläne ${fiscalYear}`, jobItems);
           }

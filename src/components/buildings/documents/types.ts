@@ -42,6 +42,7 @@ export interface DocFile {
   updated_at: string;
   uploaded_by: string;
   extracted_text: string | null;
+  fiscal_year: number | null;
 }
 
 export const VISIBILITY_LABELS: Record<VisibilityRole, string> = {
