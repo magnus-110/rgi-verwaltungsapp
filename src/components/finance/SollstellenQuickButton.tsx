@@ -34,6 +34,8 @@ interface Props {
   defaultDate?: string | null;
   /** Default-Beschreibung aus der Maske */
   defaultDescription?: string | null;
+  /** Wenn true: Button immer sichtbar, Personenkonto wird per Picker gewählt */
+  allowAccountPicker?: boolean;
   onCreated?: () => void;
   className?: string;
 }
