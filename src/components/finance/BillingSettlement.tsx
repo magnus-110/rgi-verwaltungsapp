@@ -32,6 +32,7 @@ import { AssetReportSection } from "./AssetReportSection";
 import { ManualEconomicPlanEditor } from "./ManualEconomicPlanEditor";
 import { Paragraph35aSection } from "./Paragraph35aSection";
 import { FinanceDocumentsDialog } from "./FinanceDocumentsDialog";
+import { uploadGeneratedPdfToDms } from "./lib/uploadGeneratedPdfToDms";
 
 interface BillingSettlementProps {
   buildingId: string;
@@ -930,7 +931,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     toast.info("Vorlagen verwaltest du über den Button 'Dokumente' oben rechts.");
   };
 
-  const downloadParagraph35a = async (format: "docx" | "pdf") => {
+  const downloadParagraph35a = async (format: "docx" | "pdf" | "dms") => {
     if (!effectiveParagraph35aTpl) {
       toast.error("Bitte zuerst eine §35a-Vorlage hochladen.");
       openTemplatesFor("paragraph_35a");
@@ -941,6 +942,54 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
       if (!accessToken) throw new Error("Bitte erneut anmelden.");
+
+      if (format === "dms") {
+        // Pro Eigentümer einzeln aufrufen → PDF → DMS pro Person.
+        const owners = ownerResults;
+        if (owners.length === 0) { toast.error("Keine Eigentümer gefunden."); return; }
+        let ok = 0; const errs: string[] = [];
+        for (let i = 0; i < owners.length; i++) {
+          const o = owners[i];
+          toast.message(`§35a ${i + 1}/${owners.length}: ${o.name}`);
+          try {
+            const resp = await fetch(
+              `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+                body: JSON.stringify({
+                  template_id: effectiveParagraph35aTpl,
+                  building_id: buildingId,
+                  fiscal_year: fiscalYear,
+                  period_id: periodId,
+                  assignment_ids: [o.assignmentId],
+                  format: "pdf",
+                }),
+              },
+            );
+            if (!resp.ok) throw new Error(await resp.text());
+            const bytes = await resp.blob();
+            const a = (assignments as any[]).find((x) => x.id === o.assignmentId);
+            await uploadGeneratedPdfToDms({
+              bytes,
+              displayName: `§35a_${fiscalYear}_${o.name}`,
+              buildingId,
+              periodId,
+              contactId: a?.contact_id || null,
+              visibility: "eigentuemer",
+              managementMode: "weg",
+            });
+            ok++;
+          } catch (e: any) {
+            errs.push(`${o.name}: ${e?.message || e}`);
+          }
+        }
+        if (errs.length) toast.error(`${ok}/${owners.length} abgelegt. Fehler: ${errs.join(" | ")}`);
+        else toast.success(`${ok} §35a-Bescheinigungen ins DMS abgelegt`);
+        window.dispatchEvent(new CustomEvent("dms:refresh"));
+        return;
+      }
+
       const resp = await fetch(
         `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`,
         {
@@ -1003,7 +1052,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
   const downloadBilling = async (
     target: "overall" | "owner" | "all" | "asset_report",
-    format: "docx" | "pdf",
+    format: "docx" | "pdf" | "dms",
     owner?: { assignmentId: string; name: string },
   ) => {
     const tplId =
@@ -1019,11 +1068,95 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     setBusyDownload(busyKey);
     try {
       const inp = buildPayloadInputs();
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("Bitte erneut anmelden, um die Abrechnung herunterzuladen.");
+
+      const callOnce = async (
+        body: any,
+      ): Promise<Blob> => {
+        const resp = await fetch(
+          `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-billing-document`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify(body),
+          },
+        );
+        if (!resp.ok) throw new Error((await resp.text()) || `Export fehlgeschlagen (${resp.status})`);
+        return await resp.blob();
+      };
+
+      // DMS-Modus: PDF generieren + pro Eigentümer / einmalig im DMS ablegen.
+      if (format === "dms") {
+        if (target === "overall") {
+          const bytes = await callOnce({
+            template_id: tplId, overall_template_id: effectiveOverallTpl,
+            fiscal_year: fiscalYear, mode: "single", format: "pdf",
+            file_prefix: `Gesamtabrechnung_${fiscalYear}`,
+            items: [{ kind: "overall", payload: buildOverallPayload(inp) }],
+          });
+          await uploadGeneratedPdfToDms({
+            bytes, displayName: `Gesamtabrechnung_${fiscalYear}`,
+            buildingId, periodId, contactId: null,
+            visibility: "intern", managementMode: "weg",
+          });
+          toast.success("Gesamtabrechnung ins DMS abgelegt");
+        } else if (target === "asset_report") {
+          const bytes = await callOnce({
+            template_id: tplId, overall_template_id: effectiveOverallTpl,
+            fiscal_year: fiscalYear, mode: "single", format: "pdf",
+            file_prefix: `Vermoegensbericht_${fiscalYear}`,
+            items: [{ kind: "asset_report", payload: buildAssetReportPayload(inp) }],
+          });
+          await uploadGeneratedPdfToDms({
+            bytes, displayName: `Vermoegensbericht_${fiscalYear}`,
+            buildingId, periodId, contactId: null,
+            visibility: "intern", managementMode: "weg",
+          });
+          toast.success("Vermögensbericht ins DMS abgelegt");
+        } else {
+          // owner oder all → pro Eigentümer ein PDF im DMS
+          const targetOwners = target === "owner"
+            ? [{ assignmentId: owner!.assignmentId, name: owner!.name }]
+            : ownerResults.map((o) => ({ assignmentId: o.assignmentId, name: o.name }));
+          if (targetOwners.length === 0) { toast.error("Keine Eigentümer gefunden."); return; }
+          let ok = 0; const errs: string[] = [];
+          for (let i = 0; i < targetOwners.length; i++) {
+            const o = targetOwners[i];
+            toast.message(`Einzelabrechnung ${i + 1}/${targetOwners.length}: ${o.name}`);
+            try {
+              const bytes = await callOnce({
+                template_id: tplId, overall_template_id: effectiveOverallTpl,
+                fiscal_year: fiscalYear, mode: "single", format: "pdf",
+                file_prefix: `Einzelabrechnung_${fiscalYear}`,
+                items: [{ kind: "owner", ownerId: o.assignmentId, ownerName: o.name, payload: buildOwnerPayload(inp, o.assignmentId) }],
+              });
+              const a = (assignments as any[]).find((x) => x.id === o.assignmentId);
+              await uploadGeneratedPdfToDms({
+                bytes,
+                displayName: `Einzelabrechnung_${fiscalYear}_${o.name}`,
+                buildingId, periodId,
+                contactId: a?.contact_id || null,
+                visibility: "eigentuemer", managementMode: "weg",
+              });
+              ok++;
+            } catch (e: any) {
+              errs.push(`${o.name}: ${e?.message || e}`);
+            }
+          }
+          if (errs.length) toast.error(`${ok}/${targetOwners.length} abgelegt. Fehler: ${errs.join(" | ")}`);
+          else toast.success(`${ok} Einzelabrechnungen ins DMS abgelegt`);
+        }
+        window.dispatchEvent(new CustomEvent("dms:refresh"));
+        return;
+      }
+
+      // Regulärer Download (DOCX/PDF/ZIP) — alter Pfad.
       let items: Array<{ kind: "owner" | "overall" | "asset_report"; ownerId?: string; ownerName?: string; payload: any }> = [];
       if (target === "overall") {
         items = [{ kind: "overall", payload: buildOverallPayload(inp) }];
       } else if (target === "asset_report") {
-        // Vermögensbericht: dedizierter Payload mit 5 HV-Office-Sektionen
         items = [{ kind: "asset_report", payload: buildAssetReportPayload(inp) }];
       } else if (target === "owner") {
         items = [{ kind: "owner", ownerId: owner!.assignmentId, ownerName: owner!.name, payload: buildOwnerPayload(inp, owner!.assignmentId) }];
@@ -1034,34 +1167,17 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         ];
       }
       const mode = target === "all" ? "all" : "single";
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) throw new Error("Bitte erneut anmelden, um die Abrechnung herunterzuladen.");
-
-      // Wichtig: nicht supabase.functions.invoke() für DOCX/ZIP nutzen.
       const filePrefix =
         target === "asset_report" ? `Vermoegensbericht_${fiscalYear}` : `Abrechnung_${fiscalYear}`;
-      const resp = await fetch(`https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-billing-document`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          template_id: tplId,
-          overall_template_id: effectiveOverallTpl,
-          fiscal_year: fiscalYear,
-          mode,
-          format,
-          file_prefix: filePrefix,
-          items,
-        }),
+      const bytes = await callOnce({
+        template_id: tplId,
+        overall_template_id: effectiveOverallTpl,
+        fiscal_year: fiscalYear,
+        mode,
+        format,
+        file_prefix: filePrefix,
+        items,
       });
-      if (!resp.ok) {
-        const msg = await resp.text();
-        throw new Error(msg || `Export fehlgeschlagen (${resp.status})`);
-      }
-      const bytes = await resp.blob();
       const ext = target === "all" ? "zip" : format;
       const mime =
         target === "all"
@@ -1089,7 +1205,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   // Globaler Dokumente-Button (Finance-Header) → existierende Download-Funktionen aufrufen.
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { target: string; format: "docx" | "pdf" };
+      const detail = (e as CustomEvent).detail as { target: string; format: "docx" | "pdf" | "dms" };
       if (!detail) return;
       switch (detail.target) {
         case "overall": downloadBilling("overall", detail.format); break;
@@ -1139,7 +1255,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   // Sammelbericht-Trigger: sammelt Payloads aller Tabs (Abrechnung + Wirtschaftsplan + §35a),
   // mergt sie pro Eigentümer und ruft generate-billing-document mit der combined_report-Vorlage auf.
   // Es gibt nur Einzel-Sammelberichte (pro Eigentümer), da jeder Sammelbericht die Gesamtdaten enthält.
-  const downloadCombined = async (format: "docx" | "pdf") => {
+  const downloadCombined = async (format: "docx" | "pdf" | "dms") => {
     const combinedTpls = billingTemplates.filter((t: any) => t.scope === "combined_report");
     const tplId = combinedTpls[0]?.id;
     if (!tplId) {
@@ -1231,25 +1347,65 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       if (!items.length) { toast.error("Keine Eigentümer gefunden."); setBusyDownload(null); return; }
 
       const prefix = `Sammelberichte_${fiscalYear}`;
-      const resp = await fetch(
-        `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-billing-document`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-          body: JSON.stringify({
-            template_id: tplId,
-            fiscal_year: fiscalYear,
-            mode: "all",
-            format,
-            file_prefix: prefix,
-            items,
-          }),
-        },
-      );
-      if (!resp.ok) throw new Error(await resp.text());
-      const bytes = await resp.blob();
-      triggerDownload(bytes, `${prefix}.zip`, "application/zip");
-      toast.success("Sammelberichte bereit");
+
+      if (format === "dms") {
+        // Pro Eigentümer ein PDF erzeugen und im DMS ablegen.
+        let ok = 0; const errs: string[] = [];
+        for (let i = 0; i < items.length; i++) {
+          const it = items[i];
+          toast.message(`Sammelbericht ${i + 1}/${items.length}: ${it.ownerName}`);
+          try {
+            const resp = await fetch(
+              `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-billing-document`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+                body: JSON.stringify({
+                  template_id: tplId, fiscal_year: fiscalYear,
+                  mode: "single", format: "pdf", file_prefix: prefix,
+                  items: [it],
+                }),
+              },
+            );
+            if (!resp.ok) throw new Error(await resp.text());
+            const bytes = await resp.blob();
+            const a = (assignments as any[]).find((x) => x.id === it.ownerId);
+            await uploadGeneratedPdfToDms({
+              bytes,
+              displayName: `Sammelbericht_${fiscalYear}_${it.ownerName}`,
+              buildingId, periodId,
+              contactId: a?.contact_id || null,
+              visibility: "eigentuemer", managementMode: "weg",
+            });
+            ok++;
+          } catch (e: any) {
+            errs.push(`${it.ownerName}: ${e?.message || e}`);
+          }
+        }
+        if (errs.length) toast.error(`${ok}/${items.length} abgelegt. Fehler: ${errs.join(" | ")}`);
+        else toast.success(`${ok} Sammelberichte ins DMS abgelegt`);
+        window.dispatchEvent(new CustomEvent("dms:refresh"));
+      } else {
+        const resp = await fetch(
+          `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-billing-document`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify({
+              template_id: tplId,
+              fiscal_year: fiscalYear,
+              mode: "all",
+              format,
+              file_prefix: prefix,
+              items,
+            }),
+          },
+        );
+        if (!resp.ok) throw new Error(await resp.text());
+        const bytes = await resp.blob();
+        triggerDownload(bytes, `${prefix}.zip`, "application/zip");
+        toast.success("Sammelberichte bereit");
+      }
     } catch (e: any) {
       toast.error("Fehler: " + (e?.message || "Unbekannt"));
     } finally {

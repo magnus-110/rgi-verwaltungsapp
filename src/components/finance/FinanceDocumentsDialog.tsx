@@ -29,8 +29,11 @@ import {
   CheckCircle2,
   CloudUpload,
   Loader2,
+  FolderUp,
 } from "lucide-react";
 import { toast } from "sonner";
+
+type Format = "docx" | "pdf" | "dms";
 
 type Scope =
   | "overall"
@@ -100,7 +103,7 @@ export function FinanceDocumentsDialog({
     return m;
   }, [templates]);
 
-  const requestDownload = (scope: Scope, format: "docx" | "pdf") => {
+  const requestDownload = (scope: Scope, format: Format) => {
     if (!selectedBuildingId) {
       toast.error("Bitte zuerst eine Liegenschaft auswählen.");
       return;
@@ -131,12 +134,11 @@ export function FinanceDocumentsDialog({
         }),
       );
     if (needsWp) {
-      // kleine Verzögerung, bis ManualEconomicPlanEditor gemountet & Listener registriert ist
       setTimeout(dispatch, 1500);
     } else {
       dispatch();
     }
-    toast.message("Download wird vorbereitet…");
+    toast.message(format === "dms" ? "Wird ins DMS abgelegt…" : "Download wird vorbereitet…");
     onOpenChange(false);
   };
 
@@ -185,7 +187,7 @@ function SlotCard({
   description: string;
   template?: { id: string; name: string; storage_path: string } | null;
   onChanged: () => void;
-  onDownload: (fmt: "docx" | "pdf") => void;
+  onDownload: (fmt: Format) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -357,6 +359,16 @@ function SlotCard({
           >
             <FileText className="h-4 w-4 mr-1" />
             PDF
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!template}
+            onClick={() => onDownload("dms")}
+            title="PDF erzeugen und im DMS ablegen (pro Eigentümer, falls Einzeldokument)"
+          >
+            <FolderUp className="h-4 w-4 mr-1" />
+            DMS
           </Button>
         </div>
       </div>
