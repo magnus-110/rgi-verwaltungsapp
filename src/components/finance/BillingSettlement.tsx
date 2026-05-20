@@ -1102,6 +1102,114 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     };
   });
 
+  // Synchroner Payload-Collector für den Sammelbericht.
+  // Wird vom Sammelbericht-Button dispatched; alle Tab-Editoren schreiben
+  // ihre Payloads (UI = Source of Truth) inline ins detail.payloads-Objekt.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { payloads: Record<string, any>; errors?: string[] };
+      if (!detail?.payloads) return;
+      try {
+        const inp = buildPayloadInputs();
+        detail.payloads.overall = buildOverallPayload(inp);
+        detail.payloads.asset_report = buildAssetReportPayload(inp);
+        detail.payloads.owners = ownerResults.map((o) => ({
+          assignmentId: o.assignmentId,
+          name: o.name,
+          payload: buildOwnerPayload(inp, o.assignmentId),
+        }));
+      } catch (err: any) {
+        (detail.errors ||= []).push(`Abrechnung: ${err?.message || err}`);
+      }
+    };
+    window.addEventListener("finance:collect-combined-payload", handler as EventListener);
+    return () => window.removeEventListener("finance:collect-combined-payload", handler as EventListener);
+  });
+
+  // Sammelbericht-Trigger: sammelt Payloads aller Tabs, mergt sie und ruft
+  // die bestehende generate-billing-document Edge Function mit der combined_report-Vorlage auf.
+  const downloadCombined = async (mode: "overall" | "owners", format: "docx" | "pdf") => {
+    const combinedTpls = billingTemplates.filter((t: any) => t.scope === "combined_report");
+    const tplId = combinedTpls[0]?.id;
+    if (!tplId) {
+      toast.error("Bitte zuerst eine Sammelbericht-Vorlage (Scope 'combined_report') hochladen.");
+      setDocsOpen(true);
+      return;
+    }
+    const detail: any = { payloads: {}, errors: [] };
+    window.dispatchEvent(new CustomEvent("finance:collect-combined-payload", { detail }));
+    if (detail.errors?.length) { toast.error(detail.errors.join(" | ")); return; }
+    const p = detail.payloads;
+    if (!p.overall) { toast.error("Abrechnungs-Daten fehlen."); return; }
+    if (!p.economic_plan_overall) {
+      toast.error("Wirtschaftsplan-Daten fehlen — bitte den Wirtschaftsplan-Tab öffnen, damit er lädt, und erneut versuchen.");
+      return;
+    }
+
+    setBusyDownload(`combined_${mode}`);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("Bitte erneut anmelden.");
+
+      let items: Array<{ kind: string; ownerId?: string; ownerName?: string; payload: any }> = [];
+      if (mode === "overall") {
+        const merged = { ...p.overall, ...(p.asset_report || {}), ...(p.economic_plan_overall || {}) };
+        items = [{ kind: "overall", payload: merged }];
+      } else {
+        const epOwners: any[] = p.economic_plan_owners || [];
+        items = (p.owners || []).map((o: any) => {
+          const ep = epOwners.find((e) => e.ownerId === o.assignmentId) || epOwners.find((e) => e.name === o.name);
+          return {
+            kind: "owner",
+            ownerId: o.assignmentId,
+            ownerName: o.name,
+            payload: {
+              ...p.overall,
+              ...(p.asset_report || {}),
+              ...(p.economic_plan_overall || {}),
+              ...o.payload,
+              ...(ep?.payload || {}),
+            },
+          };
+        });
+        if (!items.length) { toast.error("Keine Eigentümer gefunden."); setBusyDownload(null); return; }
+      }
+
+      const prefix = mode === "overall" ? `Sammelbericht_${fiscalYear}` : `Sammelberichte_Einzel_${fiscalYear}`;
+      const resp = await fetch(
+        `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-billing-document`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({
+            template_id: tplId,
+            fiscal_year: fiscalYear,
+            mode: mode === "owners" ? "all" : "single",
+            format,
+            file_prefix: prefix,
+            items,
+          }),
+        },
+      );
+      if (!resp.ok) throw new Error(await resp.text());
+      const bytes = await resp.blob();
+      const ext = mode === "owners" ? "zip" : format;
+      const mime =
+        mode === "owners"
+          ? "application/zip"
+          : format === "pdf"
+            ? "application/pdf"
+            : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      triggerDownload(bytes, `${prefix}.${ext}`, mime);
+      toast.success("Sammelbericht bereit");
+    } catch (e: any) {
+      toast.error("Fehler: " + (e?.message || "Unbekannt"));
+    } finally {
+      setBusyDownload(null);
+    }
+  };
+
 
 
 
