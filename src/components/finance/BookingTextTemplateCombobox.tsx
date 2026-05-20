@@ -79,19 +79,29 @@ export function BookingTextTemplateCombobox({
       counterAccountName,
     });
     // Wenn der Nutzer ein Kürzel wählt, wollen wir den RGI-Standard-Text:
-    // [Zeitraum] [Re. Nr.] [Lieferant] [Gegenkonto].
-    // Nur falls der bisherige Text vom Generator abweicht UND zusätzliche
-    // Information enthält, hängen wir ihn als Zusatz an.
+    // [Zeitraum] [Gegenkonto] [Lieferant], Re. Nr. <Nr.>
+    // Vorhandenen Auto-/Generator-Text ERSETZEN (inkl. alter Zeitraum-Präfixe),
+    // nur echte User-Zusätze (z.B. handschriftliche Notiz) anhängen.
     const existing = preserveExistingText ? (existingText || "").trim() : "";
     let finalText = generated;
-    if (existing && !generated.toLowerCase().includes(existing.toLowerCase())) {
-      // Wenn der existierende Text mit dem Period-Präfix beginnt, schneide es ab
-      const stripped = period && existing.toLowerCase().startsWith(period.toLowerCase())
-        ? existing.slice(period.length).trim()
-        : existing;
-      // Hänge nur an, wenn er nicht bereits Bestandteil des generierten Texts ist
-      if (stripped && !generated.toLowerCase().includes(stripped.toLowerCase())) {
-        finalText = `${generated} ${stripped}`.replace(/\s+/g, " ").trim();
+    if (existing) {
+      // 1) Führendes Zeitraum-Token entfernen (alt: "09/25", "2. Q/25", "Jahresrechnung")
+      let rest = existing
+        .replace(/^\s*(?:Jahresrechnung|[1-4]\.\s*Q\/\d{2}|\d{2}\/\d{2})\s*/i, "")
+        .trim();
+      // 2) Erwarteten Body (ohne Period) des bisherigen Generator-Outputs entfernen
+      const expectedBodyOld = buildBookingText({
+        period: null,
+        invoiceNumber: invoice?.invoice_number,
+        vendorName: invoice?.vendor_name,
+        counterAccountName,
+      });
+      if (expectedBodyOld && rest.toLowerCase().startsWith(expectedBodyOld.toLowerCase())) {
+        rest = rest.slice(expectedBodyOld.length).replace(/^[\s,;-]+/, "").trim();
+      }
+      // 3) Doppelung mit neuem Output vermeiden
+      if (rest && !generated.toLowerCase().includes(rest.toLowerCase())) {
+        finalText = `${generated} ${rest}`.replace(/\s+/g, " ").trim();
       }
     }
     onApply(finalText);
