@@ -91,6 +91,32 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
   });
 
   const selectedPeriod = periods.find((p) => p.id === selectedPeriodId);
+  const targetFiscalYear = selectedPeriod?.fiscal_year;
+
+  // DMS-Kandidaten: Finanzdokumente der Liegenschaft für das Abrechnungsjahr
+  const { data: dmsCandidates = [] } = useQuery({
+    queryKey: ["audit-dms-candidates", selectedBuildingId, targetFiscalYear],
+    queryFn: async () => {
+      if (!selectedBuildingId || !targetFiscalYear) return [] as DmsCandidate[];
+      const { data } = await supabase
+        .from("building_files")
+        .select("id, display_name, file_path, fiscal_year, building_file_categories(name)")
+        .eq("building_id", selectedBuildingId)
+        .eq("fiscal_year", targetFiscalYear)
+        .is("deleted_at", null)
+        .order("display_name");
+      const relevant = /Gesamtabrechnung|Einzelabrechnung|Verm.gensbericht|§?35a|Paragraph 35a/i;
+      return (data || [])
+        .map((r: any) => ({
+          id: r.id,
+          display_name: r.display_name,
+          file_path: r.file_path,
+          category: r.building_file_categories?.name || "Sonstiges",
+        }))
+        .filter((r: DmsCandidate) => relevant.test(r.category) || relevant.test(r.display_name));
+    },
+    enabled: !!selectedBuildingId && !!targetFiscalYear,
+  });
 
   // Pre-fill in edit mode
   useEffect(() => {
