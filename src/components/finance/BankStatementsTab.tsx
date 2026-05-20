@@ -21,6 +21,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { AssignmentDialog } from "./AssignmentDialog";
 import { TransactionDetailSheet } from "./TransactionDetailSheet";
 import { CreateBookingDialog } from "./CreateBookingDialog";
+import { EditBookingDialog } from "./EditBookingDialog";
 import { TransactionReviewMode } from "./TransactionReviewMode";
 import { useTransactionAiPrefetch } from "@/hooks/useTransactionAiPrefetch";
 import { PdfViewerModal } from "@/components/documents/PdfViewerModal";
@@ -58,6 +59,8 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   const [statementPdf, setStatementPdf] = useState<{ url: string; name: string } | null>(null);
   const [showIgnored, setShowIgnored] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null);
+  const [editBooking, setEditBooking] = useState<any | null>(null);
+  const [editBuildingName, setEditBuildingName] = useState<string>("");
   const [manualAssignTxn, setManualAssignTxn] = useState<any | null>(null);
   const [manualAssignType, setManualAssignType] = useState<"invoice" | "template">("invoice");
   const [manualAssignId, setManualAssignId] = useState<string>("");
@@ -605,7 +608,20 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     const name = txn.amount < 0 ? txn.creditor_name : txn.debtor_name;
     const isMatchedUnbooked = ["matched_invoice", "matched_template", "manually_matched"].includes(txn.match_status) && !txn.booked_at;
     return (
-      <TableRow key={txn.id} className="cursor-pointer hover:bg-accent/50" onClick={() => {
+      <TableRow key={txn.id} className="cursor-pointer hover:bg-accent/50" onClick={async () => {
+        if (txn.booked_at && txn.bookings?.id) {
+          // Direkt in Buchungs-Bearbeitung springen statt Detail-Sheet
+          const { data: full, error } = await supabase
+            .from("bookings")
+            .select("*, invoices(id, file_path, file_name, vendor_name)")
+            .eq("id", txn.bookings.id)
+            .maybeSingle();
+          if (error || !full) { toast.error("Buchung nicht gefunden"); return; }
+          const bName = buildings.find((b: any) => b.id === full.building_id)?.name || "";
+          setEditBuildingName(bName);
+          setEditBooking(full);
+          return;
+        }
         if (isMatchedUnbooked) {
           openReviewAtTransaction(txn);
         } else if ((txn.match_status === "unmatched" || txn.match_status === "invoice_pending") && !txn.booked_at) {
@@ -1082,6 +1098,17 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       </Card>
 
       <TransactionDetailSheet transactionId={selectedTransaction} onClose={() => setSelectedTransaction(null)} />
+
+      <EditBookingDialog
+        open={!!editBooking}
+        onOpenChange={(o) => { if (!o) setEditBooking(null); }}
+        booking={editBooking}
+        buildingName={editBuildingName}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["bank-transactions-building", selectedBuilding] });
+          queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("bookings") });
+        }}
+      />
 
       <AssignmentDialog
         transaction={manualAssignTxn}

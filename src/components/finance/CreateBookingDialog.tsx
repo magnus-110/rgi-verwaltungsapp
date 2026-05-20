@@ -16,6 +16,7 @@ import { BookingTextTemplateCombobox } from "./BookingTextTemplateCombobox";
 import { signedTotalForAccount } from "./lib/bookingAggregation";
 import { rebuildBookingTextIfAuto } from "./lib/bookingTextBuilder";
 import { SollstellenQuickButton } from "./SollstellenQuickButton";
+import { BankPurposePanel } from "./BankPurposePanel";
 
 interface BookingPrefill {
   account_id?: string;
@@ -157,6 +158,27 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     enabled: open && !!form.building_id && !!form.account_id && !!form.fiscal_year,
   });
 
+  // Bank-Transaction für Kontoauszug-bezogene neue Buchungen
+  const { data: bankTxn } = useQuery({
+    queryKey: ["create-booking-bank-txn", linkedTransactionId],
+    queryFn: async () => {
+      if (!linkedTransactionId) return null;
+      const { data } = await supabase
+        .from("bank_transactions")
+        .select("id, purpose, debtor_name, creditor_name, booking_date, amount")
+        .eq("id", linkedTransactionId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: open && !!linkedTransactionId,
+  });
+
+  // Flag-State (wird beim Speichern in needs_review/review_note geschrieben)
+  const [pendingFlag, setPendingFlag] = useState<{ flagged: boolean; note?: string }>({ flagged: false });
+  useEffect(() => { if (!open) setPendingFlag({ flagged: false }); }, [open]);
+
+
+
   const selectedAccountObj = accounts.find((a: any) => a.id === form.account_id);
 
 
@@ -198,6 +220,9 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       vat_amount: parseFloat(computedVat),
       is_35a_relevant: form.is_35a_relevant,
       matched_template_id: form.matched_template_id || null,
+      bank_transaction_id: linkedTransactionId || null,
+      needs_review: pendingFlag.flagged,
+      review_note: pendingFlag.flagged ? (pendingFlag.note || null) : null,
     } as any).select("id").single();
     setSaving(false);
     if (error) { toast.error("Fehler: " + error.message); return; }
@@ -285,6 +310,20 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                 KI-vorausgefüllt – bitte prüfen.
               </div>
             )}
+
+            {/* Verwendungszweck Kontoauszug + Prüfungs-Flag (für neue Buchungen) */}
+            {(linkedTransactionId || true) && (
+              <BankPurposePanel
+                data={bankTxn || null}
+                needsReview={pendingFlag.flagged}
+                reviewNote={pendingFlag.note}
+                onToggleReview={(next, note) => {
+                  setPendingFlag({ flagged: next, note: next ? note : undefined });
+                }}
+              />
+            )}
+
+
 
             {/* Konto */}
             <div>

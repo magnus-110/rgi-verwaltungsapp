@@ -27,6 +27,7 @@ import { buildBookingText, rebuildBookingTextIfAuto } from "./lib/bookingTextBui
 import { VendorAliasDialog } from "./VendorAliasDialog";
 import { parseAmount } from "./lib/parseAmount";
 import { SollstellenQuickButton } from "./SollstellenQuickButton";
+import { BankPurposePanel } from "./BankPurposePanel";
 
 interface Booking {
   id: string;
@@ -289,6 +290,23 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     },
     enabled: open && !!matchedTemplateId,
   });
+
+  // Bank-Transaction (Verwendungszweck) für Kontoauszug-bezogene Buchungen
+  const bankTxnId = (booking as any)?.bank_transaction_id || null;
+  const { data: bankTxn } = useQuery({
+    queryKey: ["edit-booking-bank-txn", bankTxnId],
+    queryFn: async () => {
+      if (!bankTxnId) return null;
+      const { data } = await supabase
+        .from("bank_transactions")
+        .select("id, purpose, debtor_name, creditor_name, booking_date, amount")
+        .eq("id", bankTxnId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: open && !!bankTxnId,
+  });
+
 
   // Searchable list of booking templates for the same building
   const { data: pickableTemplates = [] } = useQuery({
@@ -618,35 +636,25 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                   </div>
                 )}
 
-                {/* Review flag */}
-                {(booking as any).needs_review && (
-                  <div className="flex items-center gap-2 p-2 rounded-md bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800">
-                    <Flag className="h-3.5 w-3.5 text-orange-500 shrink-0" />
-                    <p className="text-xs font-medium text-orange-800 dark:text-orange-200">Zur Prüfung markiert</p>
-                    {(booking as any).review_note && (
-                      <p className="text-xs text-orange-700 dark:text-orange-300 ml-1">{(booking as any).review_note}</p>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="ml-auto h-7 text-xs gap-1 border-orange-300 text-orange-700 hover:bg-orange-100 dark:border-orange-700 dark:text-orange-300 dark:hover:bg-orange-900"
-                      onClick={async () => {
-                        if (!booking) return;
-                        const { error } = await supabase
-                          .from("bookings")
-                          .update({ needs_review: false })
-                          .eq("id", booking.id);
-                        if (error) { toast.error("Fehler: " + error.message); return; }
-                        toast.success("Prüfung erledigt");
-                        queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("bookings") });
-                        onOpenChange(false);
-                      }}
-                    >
-                      <CheckCircle className="h-3.5 w-3.5" />
-                      Prüfung erledigt
-                    </Button>
-                  </div>
-                )}
+                {/* Verwendungszweck Kontoauszug + Prüfungs-Flag */}
+                <BankPurposePanel
+                  data={bankTxn || null}
+                  needsReview={!!(booking as any).needs_review}
+                  reviewNote={(booking as any).review_note}
+                  onToggleReview={async (next, note) => {
+                    if (!booking) return;
+                    const update: any = { needs_review: next };
+                    if (next) update.review_note = note || null;
+                    else update.review_note = null;
+                    const { error } = await supabase.from("bookings").update(update).eq("id", booking.id);
+                    if (error) { toast.error("Fehler: " + error.message); return; }
+                    toast.success(next ? "Zur Prüfung markiert" : "Prüfung erledigt");
+                    queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("bookings") });
+                    (booking as any).needs_review = next;
+                    (booking as any).review_note = next ? (note || null) : null;
+                  }}
+                />
+
 
                 {/* Konto */}
                 <div>
