@@ -100,6 +100,7 @@ const SECTION_ORDER = ["income", "operating_distributable", "operating_non_distr
 
 export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingSettlementProps) {
   const queryClient = useQueryClient();
+  const { enqueue: enqueueDms } = useDmsJobs();
   const [activeTab, setActiveTab] = useState("total");
   const [docsOpen, setDocsOpen] = useState(false);
   const [busyDownload, setBusyDownload] = useState<string | null>(null); // owner.assignmentId | "overall" | "all"
