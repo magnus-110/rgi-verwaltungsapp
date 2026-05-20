@@ -18,6 +18,15 @@ import { getAccrualDisplaySign } from "./lib/accrualSign";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 import { buildOverallPayload, buildOwnerPayload, buildAssetReportPayload, type BillingPayloadInputs } from "./lib/buildBillingPayload";
+import {
+  remapCommon,
+  remapAbrechnungGesamt,
+  remapAbrechnungEinzel,
+  remapVermoegen,
+  remapWirtschaftsplanGesamt,
+  remapWirtschaftsplanEinzel,
+  remapP35a,
+} from "./lib/remapCombinedPayload";
 import { AssetReportItemsCard } from "./AssetReportItemsCard";
 import { AssetReportSection } from "./AssetReportSection";
 import { ManualEconomicPlanEditor } from "./ManualEconomicPlanEditor";
