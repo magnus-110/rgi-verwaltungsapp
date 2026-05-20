@@ -576,6 +576,14 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                 defaultDate={form.booking_date}
                 defaultDescription={form.description}
               />
+              <IhrZufuehrungQuickButton
+                buildingId={form.building_id}
+                account={selectedAccountObj as any}
+                counterAccount={counterAccount as any}
+                defaultAmount={form.amount}
+                defaultDate={form.booking_date}
+                defaultDescription={form.description}
+              />
             </div>
 
             {/* Save button */}
