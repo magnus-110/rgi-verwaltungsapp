@@ -56,7 +56,7 @@ const fmt = (n?: number | null) =>
 
 export function BookingReviewDialog({
   open, onOpenChange, bookings, selectedId, setSelectedId,
-  flag, setFlag, note, setNote, readOnly,
+  flag, setFlag, note, setNote, readOnly, buildingId,
 }: Props) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
