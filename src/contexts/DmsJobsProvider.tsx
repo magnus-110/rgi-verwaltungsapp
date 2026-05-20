@@ -24,6 +24,7 @@ export interface DmsJobItem {
   buildingId: string;
   periodId?: string | null;
   managementMode: "weg" | "rent";
+  fiscalYear?: number | null;
 }
 
 export interface DmsJob {
