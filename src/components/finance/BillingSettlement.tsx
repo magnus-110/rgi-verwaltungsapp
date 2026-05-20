@@ -1907,7 +1907,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             <AssetReportSection buildingId={buildingId} periodId={periodId} fiscalYear={fiscalYear} ownerResults={ownerResults} />
           </TabsContent>
 
-          <TabsContent value="wirtschaftsplan" className="space-y-4">
+          <TabsContent value="wirtschaftsplan" forceMount className="space-y-4 data-[state=inactive]:hidden">
             <div className="flex items-center justify-between gap-2 flex-wrap rounded-md border bg-muted/30 px-3 py-2">
               <p className="text-sm text-muted-foreground">
                 Geplante Kosten pro Konto für das gewählte Wirtschaftsjahr. Auto-Save beim Bearbeiten.
