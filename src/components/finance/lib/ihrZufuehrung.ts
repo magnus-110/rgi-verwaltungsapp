@@ -105,10 +105,9 @@ export async function createIhrZufuehrungBooking(params: {
   const durchlaufAccountId = await ensureDurchlaufAccount(params.buildingId);
 
   const bookingDate = `${params.fiscalYear}-12-31`;
-  const baseText = `Rücklagenbildung ${params.fiscalYear}`;
   const description = params.description?.trim()
-    ? `${baseText} – ${params.description.trim()}`
-    : baseText;
+    ? params.description.trim()
+    : `Rücklagenbildung ${params.fiscalYear}`;
 
   const { data, error } = await supabase
     .from("bookings")
