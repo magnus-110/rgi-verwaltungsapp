@@ -61,12 +61,13 @@ interface Props {
   buildingName: string;
   onInvoiceClick?: (booking: any) => void;
   onSaved?: (bookingId: string) => void;
+  hideQuickActions?: boolean;
 }
 
 const formatCurrency = (amount: number | null) =>
   amount != null ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(amount) : "–";
 
-export function EditBookingDialog({ open, onOpenChange, booking, buildingName, onSaved }: Props) {
+export function EditBookingDialog({ open, onOpenChange, booking, buildingName, onSaved, hideQuickActions }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
