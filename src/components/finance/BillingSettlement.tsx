@@ -1255,7 +1255,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   // Sammelbericht-Trigger: sammelt Payloads aller Tabs (Abrechnung + Wirtschaftsplan + §35a),
   // mergt sie pro Eigentümer und ruft generate-billing-document mit der combined_report-Vorlage auf.
   // Es gibt nur Einzel-Sammelberichte (pro Eigentümer), da jeder Sammelbericht die Gesamtdaten enthält.
-  const downloadCombined = async (format: "docx" | "pdf") => {
+  const downloadCombined = async (format: "docx" | "pdf" | "dms") => {
     const combinedTpls = billingTemplates.filter((t: any) => t.scope === "combined_report");
     const tplId = combinedTpls[0]?.id;
     if (!tplId) {
