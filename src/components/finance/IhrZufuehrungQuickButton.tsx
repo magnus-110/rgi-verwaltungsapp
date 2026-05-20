@@ -82,9 +82,18 @@ export function IhrZufuehrungQuickButton({
         defaultFiscalYear ??
         (defaultDate ? new Date(defaultDate).getFullYear() : new Date().getFullYear());
       setFiscalYear(String(yr));
-      setDescription(defaultDescription ?? "");
+      setDescription(`Rücklagenbildung ${yr}`);
     }
     setOpen(next);
+  };
+
+  // Buchungstext mit aktuellem Jahr synchronisieren, solange Nutzer nicht abweicht
+  const syncedFromYear = (y: string) => {
+    const prevDefault = `Rücklagenbildung ${fiscalYear}`;
+    if (description === prevDefault || !description.trim()) {
+      setDescription(`Rücklagenbildung ${y}`);
+    }
+    setFiscalYear(y);
   };
 
   const handleSave = async () => {
