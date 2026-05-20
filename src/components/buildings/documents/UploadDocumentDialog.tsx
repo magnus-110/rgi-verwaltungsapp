@@ -28,6 +28,7 @@ export function UploadDocumentDialog({
   const [categoryId, setCategoryId] = useState<string>("");
   const [visibility, setVisibility] = useState<VisibilityRole>('intern');
   const [validUntil, setValidUntil] = useState<string>("");
+  const [fiscalYear, setFiscalYear] = useState<string>("general");
   const [uploading, setUploading] = useState(false);
   const [categories, setCategories] = useState<DocCategory[]>([]);
   const [owners, setOwners] = useState<Array<{ id: string; first_name?: string | null; last_name?: string | null; company_name?: string | null }>>([]);
@@ -39,6 +40,7 @@ export function UploadDocumentDialog({
       setCategoryId(initialCategoryId || "");
       setVisibility('intern');
       setValidUntil("");
+      setFiscalYear("general");
       setSelectedContactIds([]);
       supabase
         .from('building_file_categories')
@@ -129,6 +131,7 @@ export function UploadDocumentDialog({
             visibility_role: visibility,
             visible_to_users: visibility !== 'intern',
             valid_until: validUntil || null,
+            fiscal_year: fiscalYear === "general" ? null : parseInt(fiscalYear, 10),
             rag_enabled: autoRag,
             source: 'manual',
           })
@@ -232,6 +235,19 @@ export function UploadDocumentDialog({
               />
             </div>
           )}
+
+          <div>
+            <Label>Zuordnung</Label>
+            <Select value={fiscalYear} onValueChange={setFiscalYear}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="general">Allgemein (kein Wirtschaftsjahr)</SelectItem>
+                {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() + 1 - i).map(y => (
+                  <SelectItem key={y} value={String(y)}>Wirtschaftsjahr {y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <div>
             <Label>Ablaufdatum (optional)</Label>

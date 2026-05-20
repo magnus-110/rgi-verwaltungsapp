@@ -31,6 +31,7 @@ export function SaveAttachmentToBuildingDialog({
   const [buildingId, setBuildingId] = useState<string>(defaultBuildingId || "");
   const [categoryId, setCategoryId] = useState<string>("");
   const [visibility, setVisibility] = useState<VisibilityRole>('intern');
+  const [fiscalYear, setFiscalYear] = useState<string>("general");
   const [buildings, setBuildings] = useState<{ id: string; name: string; management_mode: string }[]>([]);
   const [categories, setCategories] = useState<DocCategory[]>([]);
   const [saving, setSaving] = useState(false);
@@ -46,6 +47,7 @@ export function SaveAttachmentToBuildingDialog({
       setBuildingId(defaultBuildingId || "");
       setCategoryId("");
       setVisibility('intern');
+      setFiscalYear("general");
     }
   }, [open, defaultBuildingId]);
 
@@ -156,6 +158,7 @@ export function SaveAttachmentToBuildingDialog({
             management_mode: building.management_mode,
             visibility_role: visibility,
             visible_to_users: visibility !== 'intern',
+            fiscal_year: fiscalYear === "general" ? null : parseInt(fiscalYear, 10),
             rag_enabled: autoRag,
             source: 'email',
             source_email_id: emailId,
@@ -265,6 +268,18 @@ export function SaveAttachmentToBuildingDialog({
               <SelectContent>
                 {Object.entries(VISIBILITY_LABELS).map(([k, v]) => (
                   <SelectItem key={k} value={k}>{v}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Zuordnung</Label>
+            <Select value={fiscalYear} onValueChange={setFiscalYear}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="general">Allgemein (kein Wirtschaftsjahr)</SelectItem>
+                {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() + 1 - i).map(y => (
+                  <SelectItem key={y} value={String(y)}>Wirtschaftsjahr {y}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
