@@ -311,6 +311,20 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
               </div>
             )}
 
+            {/* Verwendungszweck Kontoauszug + Prüfungs-Flag (für neue Buchungen) */}
+            {(linkedTransactionId || true) && (
+              <BankPurposePanel
+                data={bankTxn || null}
+                needsReview={pendingFlag.flagged}
+                reviewNote={pendingFlag.note}
+                onToggleReview={(next, note) => {
+                  setPendingFlag({ flagged: next, note: next ? note : undefined });
+                }}
+              />
+            )}
+
+
+
             {/* Konto */}
             <div>
               <label className="text-xs font-bold text-primary mb-1 block">Konto *</label>
