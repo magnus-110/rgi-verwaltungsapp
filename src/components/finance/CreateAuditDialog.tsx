@@ -25,6 +25,7 @@ interface CreateAuditDialogProps {
 
 interface NoteDraft { id?: string; title: string; body: string; }
 interface ExistingStatement { id: string; file_name: string; file_path: string; }
+interface DmsCandidate { id: string; display_name: string; file_path: string; category: string; }
 
 export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDialogProps) {
   const queryClient = useQueryClient();
