@@ -29,8 +29,11 @@ import {
   CheckCircle2,
   CloudUpload,
   Loader2,
+  FolderUp,
 } from "lucide-react";
 import { toast } from "sonner";
+
+type Format = "docx" | "pdf" | "dms";
 
 type Scope =
   | "overall"
