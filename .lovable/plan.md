@@ -1,71 +1,126 @@
 ## Ziel
 
-In `FinanceDocumentsDialog` (Abrechnung → Dokumente) bekommt jeder der 7 Dokument-Slots zusätzlich zu **DOCX** und **PDF** einen dritten Button **„Im DMS ablegen"**. Beim Klick wird das PDF über die vorhandene PDF-Generierung erzeugt und automatisch ins DMS (`building_files`) gespeichert – bei pro-Eigentümer-Dokumenten als eine eigene Datei pro Eigentümer mit Sichtbarkeits-Restriktion, sodass jeder nur seine eigenen Dokumente sieht.
+1. **Hintergrund-Generierung**: Wenn der Nutzer auf „DMS" klickt und die Seite/Tab verlässt, läuft die Generierung weiter und die Dokumente landen trotzdem im DMS.
+2. **Richtige Ordner im DMS**: Jedes erzeugte Dokument wird automatisch in den passenden `building_file_categories`-Ordner einer Liegenschaft abgelegt (Finanzen → Gesamtabrechnungen / Einzelabrechnungen / Wirtschaftspläne / §35a / Sammelberichte / Vermögensberichte).
+3. **Sichtbarkeit**:
+   - **Alle Eigentümer** sehen: Gesamtabrechnung, Wirtschaftsplan (Gesamt), Sammelbericht (overall), Vermögensbericht.
+   - **Nur ein einzelner Eigentümer** sieht: Einzelabrechnung, Einzelwirtschaftsplan, §35a-Bescheinigung – und zwar **immer der Eigentümer, dessen Name im Dokument steht** (Match über `contact_id` aus dem `ownerResults`-Loop, nicht über Dateiname).
 
-## UI-Änderungen
+## Problem mit dem aktuellen Stand
 
-`src/components/finance/FinanceDocumentsDialog.tsx`
-- In `SlotCard` einen neuen Button „DMS" (Icon `FolderUp`) neben PDF.
-- Neuer Aufruf `requestDownload(scope, "dms")` – wir erweitern den bestehenden `format`-Typ um `"dms"`.
-- Toast „Wird ins DMS abgelegt…" statt „Download wird vorbereitet…".
+- Generierung und Upload laufen in den Event-Handlern von `BillingSettlement.tsx` und `ManualEconomicPlanEditor.tsx`. Sobald der Nutzer die Abrechnungs-/Wirtschaftsplan-Seite verlässt, werden die Komponenten unmounted und der `for`-Loop bricht ab.
+- `uploadGeneratedPdfToDms` setzt aktuell **kein** `category_id` (alle Dokumente landen im Root „Alle Dokumente" – wie im Screenshot sichtbar).
+- `visible_to_users` wird heute auf `isOwnerDoc` gesetzt – also **umgekehrt** wie gewünscht: Gesamtdokumente sind aktuell `false` (nur Verwaltung), Eigentümerdokumente sind `true`. Logik muss invertiert + verfeinert werden.
 
-## Eventfluss (unverändert, neuer Modus)
+## Lösungs-Architektur
 
-`finance:request-download` → detail `{ target, format: "docx" | "pdf" | "dms", template_id }`.
+### A) Globaler DMS-Job-Provider (Hintergrund)
 
-Die bestehenden Handler in `BillingSettlement.tsx` und `ManualEconomicPlanEditor.tsx` werden so erweitert, dass bei `format === "dms"`:
+Neuer Provider `DmsJobsProvider` (mountet einmal in `AdminLayout` ganz oben, **außerhalb** der Routen-Outlets), damit die Jobs Routenwechsel überleben.
 
-1. PDF-Bytes werden wie bisher per Edge-Function generiert (`generate-billing-document`, `generate-35a-docx`, Sammelbericht-Pfad). Bei ZIP-Scopes (`single`, `economic_plan_single`, `paragraph_35a`, `combined_report`) wird **kein** ZIP gebaut, sondern stattdessen **pro Eigentümer ein einzelnes PDF** angefordert (Edge-Function wird im Loop per Eigentümer mit `mode: "owner"` aufgerufen – das ist der bereits verwendete Pfad für die Einzeldownloads).
-2. Die Bytes werden via neuer Helper-Funktion `uploadGeneratedPdfToDms(...)` in den Storage-Bucket `building-files` hochgeladen und ein Eintrag in `building_files` angelegt.
+```text
+src/contexts/DmsJobsProvider.tsx        // Context + Queue
+src/hooks/useDmsJobs.ts                 // enqueue(job), jobs[], cancel(id)
+src/components/finance/DmsJobsTray.tsx  // kleines Floating-Widget (rechts unten),
+                                        // zeigt laufende/erledigte Jobs + Fehler
+```
 
-## DMS-Ablage-Regeln
+Job-Typen:
 
-Gemeinsamer Helper (neu, z.B. `src/components/finance/lib/uploadGeneratedPdfToDms.ts`):
+```ts
+type DmsJob =
+  | { kind: "billing_overall"; periodId; buildingId; payload; templateId; fileName }
+  | { kind: "billing_single"; periodId; buildingId; owners: OwnerPayload[]; templateId }
+  | { kind: "asset_report"; ... }
+  | { kind: "combined_report_overall"; ... }
+  | { kind: "combined_report_per_owner"; owners: [...] }
+  | { kind: "paragraph_35a_per_owner"; owners: [...] }
+  | { kind: "economic_plan_overall"; ... }
+  | { kind: "economic_plan_single"; owners: [...] };
+```
 
-| Scope | Datei(en) | building_files Felder |
-|-------|-----------|------------------------|
-| `overall` | 1 Datei für die Liegenschaft | `building_id`, `linked_billing_period_id`, `assigned_user_id=null`, `linked_contact_id=null`, `visible_to_users=false` (intern) |
-| `asset_report` | 1 Datei | wie oben |
-| `economic_plan_overall` | 1 Datei | wie oben |
-| `single` (Einzelabrechnung) | 1 Datei je Eigentümer | `building_id`, `linked_billing_period_id`, `linked_contact_id = ownerContactId`, `assigned_user_id = contacts.user_id` (falls vorhanden), `visible_to_users=true` |
-| `economic_plan_single` | 1 Datei je Eigentümer | wie oben |
-| `paragraph_35a` | 1 Datei je Eigentümer | wie oben |
-| `combined_report` | 1 Datei je Eigentümer (Sammelbericht) | wie oben |
+Der Provider arbeitet die Queue sequenziell ab (max. 2 parallel), ruft die bestehenden Edge Functions (`generate-billing-document`, `generate-35a-docx`) auf und benutzt einen neuen Helper `uploadGeneratedPdfToDms` (s.u.). Beim Verlassen der Tab-Seite läuft alles weiter, weil der Provider im `AdminLayout` lebt. `beforeunload` warnt den Nutzer nur, wenn noch Jobs offen sind.
 
-- `display_name` z.B. `Einzelabrechnung 2024 – Müller`, `Wirtschaftsplan 2025`, etc.
-- `file_path`: `${buildingId}/abrechnungen/${periodId}/${uuid}.pdf`.
-- `category_id`: Falls Kategorie „Abrechnungen" existiert, wird sie verwendet; ansonsten `null` (keine Migration nötig).
-- `mime_type`: `application/pdf`, `source`: `'system'` (oder vorhandenen Enum-Wert; wir lesen den Enum aus den Types und fallen auf `'upload'` zurück).
-- `management_mode`: aus dem aktuellen Finance-Kontext (`weg` für Abrechnungen).
-- `uploaded_by`: aktueller `auth.user.id`.
+Toast/Tray:
+- Pro Job: Fortschritt „X von N Eigentümern abgelegt".
+- Bei Fehler einzelner Eigentümer: weiterlaufen, Fehlerliste am Ende.
+- Nach Abschluss: `qc.invalidateQueries({ queryKey: ["building-files"] })`.
 
-## Sichtbarkeitslogik (kein DB-Schema-Change nötig)
+### B) BillingSettlement / ManualEconomicPlanEditor
 
-- Owner-Auflösung pro Eigentümer: aus `ownerResults` haben wir `contact_id`. Über `contacts.user_id` mappen wir auf den eingeladenen Portal-User. Existiert noch kein User, wird das File trotzdem angelegt (mit `linked_contact_id`), `assigned_user_id` bleibt `null` – Verwalter sieht es weiterhin, der Eigentümer sieht es automatisch, sobald er per `invite-contact-user` mit dem Contact verknüpft wird.
-- Die bestehende RLS für `building_files` (siehe DMS-Architektur Memory) filtert Endnutzer-Sichten bereits auf `assigned_user_id = auth.uid()` / `linked_contact_id` ihrer eigenen Contacts, daher reicht das korrekte Setzen dieser zwei Felder.
+Die heutigen `format === "dms"`-Branches werden **nicht mehr selbst hochladen**, sondern bauen nur den Payload (denselben wie heute) und rufen `enqueueDmsJob({...})` auf. Damit kann die Seite sofort verlassen werden.
 
-## Edge-Function-Aufrufe
+`FinanceDocumentsDialog` bleibt unverändert (Event `finance:request-download` mit `format: "dms"`).
 
-- Wiederverwendung der bestehenden Funktionen, **keine** neue Edge Function:
-  - `generate-billing-document` (overall, owner, asset_report, economic_plan_*)
-  - `generate-35a-docx` (per owner)
-  - Sammelbericht-Pipeline aus `BillingSettlement.tsx` (Payloads sammeln + `generate-billing-document` mit `combined_report`-Vorlage).
-- Für die DMS-Variante zwingend `format: "pdf"` an die Edge Functions schicken.
+### C) Ordner-Auflösung (`building_file_categories`)
 
-## Fortschritt & Fehlerhandling
+Neuer Helper `src/components/finance/lib/resolveDmsFolder.ts`:
 
-- Toast „X von N abgelegt…" während der Schleife pro Eigentümer.
-- Bei Fehler einzelner Eigentümer: weiterlaufen, fehlerhafte Namen am Ende in einem Error-Toast listen.
-- Nach Erfolg: `qc.invalidateQueries({ queryKey: ["building-files"] })` triggern (Event `dms:refresh`), damit DMS-Listen aktualisieren.
+```ts
+type DmsFolderKey =
+  | "gesamtabrechnung" | "einzelabrechnung"
+  | "wirtschaftsplan_gesamt" | "wirtschaftsplan_einzel"
+  | "paragraph_35a" | "sammelbericht" | "vermoegensbericht";
+
+async function resolveDmsFolder(buildingId, key): Promise<string /*category_id*/>
+```
+
+- Sucht die Liegenschaft nach Parent „Finanzen" (case-insensitive) und einem Kind mit passendem Namen.
+- Mapping (Kind-Ordnername, wird angelegt falls fehlend):
+  - `gesamtabrechnung` → „Gesamtabrechnungen"
+  - `einzelabrechnung` → „Einzelabrechnungen"
+  - `wirtschaftsplan_gesamt` → „Wirtschaftspläne"
+  - `wirtschaftsplan_einzel` → „Wirtschaftspläne / Einzel" (Unter-Ordner)
+  - `paragraph_35a` → „§35a Bescheinigungen"
+  - `sammelbericht` → „Sammelberichte"
+  - `vermoegensbericht` → „Vermögensberichte"
+- Fehlende Parents/Kinder werden lazy via `building_file_categories.insert(...)` angelegt (Idempotent über `building_id + name + parent_id`-Lookup).
+
+### D) `uploadGeneratedPdfToDms` – Korrekturen
+
+```ts
+export interface DmsUploadParams {
+  bytes; displayName; buildingId; periodId?;
+  contactId?: string | null;          // gesetzt nur bei eigentümerspezifisch
+  folderKey: DmsFolderKey;            // ersetzt freies "category"
+  visibility: "alle" | "eigentuemer_only";
+  managementMode: "weg" | "rent";
+}
+```
+
+Änderungen:
+1. `category_id` über `resolveDmsFolder(buildingId, folderKey)` setzen.
+2. Sichtbarkeits-Logik **invertieren / präzisieren**:
+   - `visibility === "alle"` → `visible_to_users = true`, `assigned_user_id = null`, `linked_contact_id = null`, `visibility_role = 'alle'`.
+   - `visibility === "eigentuemer_only"` → `visible_to_users = true` (sonst sieht der Eigentümer es ja nicht), aber zusätzlich gefiltert über `linked_contact_id = contactId` + `assigned_user_id = contacts.user_id`, `visibility_role = 'personen'`. RLS filtert dann auf den passenden User/Contact.
+3. Dateiname enthält weiterhin den Eigentümernamen (`Einzelabrechnung_2025_Andrea_Busia.pdf`), aber der **Match Eigentümer ↔ Dokument** läuft über die übergebene `contactId` aus dem Owner-Loop (nicht über Namens-Parsing). Das ist robuster und entspricht dem Wunsch „immer für den Eigentümer zu dem der Name passt".
+
+### E) Mapping pro Dokument-Slot
+
+| Slot | folderKey | visibility | contactId |
+|---|---|---|---|
+| Gesamtabrechnung | gesamtabrechnung | alle | null |
+| Einzelabrechnung (je Owner) | einzelabrechnung | eigentuemer_only | owner.contact_id |
+| Sammelbericht (Gesamt) | sammelbericht | alle | null |
+| Sammelbericht (je Owner) | sammelbericht | eigentuemer_only | owner.contact_id |
+| Vermögensbericht | vermoegensbericht | alle | null |
+| Wirtschaftsplan Gesamt | wirtschaftsplan_gesamt | alle | null |
+| Einzelwirtschaftsplan (je Owner) | wirtschaftsplan_einzel | eigentuemer_only | owner.contact_id |
+| §35a Bescheinigung (je Owner) | paragraph_35a | eigentuemer_only | owner.contact_id |
 
 ## Betroffene Dateien
 
-- `src/components/finance/FinanceDocumentsDialog.tsx` – neuer DMS-Button + Toast-Text.
-- `src/components/finance/BillingSettlement.tsx` – `format === "dms"` Branch in den 4 Downloads (`overall`, `all` / per-owner, `asset_report`, `combined`).
-- `src/components/finance/ManualEconomicPlanEditor.tsx` – `format === "dms"` Branch für `economic_plan_overall` + `economic_plan_single`.
-- `src/components/finance/lib/uploadGeneratedPdfToDms.ts` (neu) – wiederverwendbarer Upload-Helper.
-- Kein DB-Migration und keine neue Edge Function nötig.
+- **Neu**: `src/contexts/DmsJobsProvider.tsx`, `src/hooks/useDmsJobs.ts`, `src/components/finance/DmsJobsTray.tsx`, `src/components/finance/lib/resolveDmsFolder.ts`.
+- **Geändert**:
+  - `src/components/AdminLayout.tsx` – Provider + Tray einhängen.
+  - `src/components/finance/lib/uploadGeneratedPdfToDms.ts` – neue Signatur (folderKey, visibility), Sichtbarkeits-Logik gefixt, `category_id` gesetzt.
+  - `src/components/finance/BillingSettlement.tsx` – `format === "dms"`-Branches rufen nur noch `enqueueDmsJob`, kein direkter Upload mehr im Komponenten-Loop.
+  - `src/components/finance/ManualEconomicPlanEditor.tsx` – analog.
+- **Keine DB-Migration nötig** (Ordner werden zur Laufzeit lazy angelegt).
+- **Keine neue Edge Function** nötig.
 
-## Offene Annahmen
+## Offene Punkte / Annahmen
 
-- Wir gehen davon aus, dass die bestehende Edge-Function `generate-billing-document` einen einzelnen Owner-PDF-Aufruf unterstützt (Pfad `target: "owner"` ist im Code bereits vorhanden). Falls nicht, holen wir das ZIP und entpacken es client-seitig nicht, sondern nutzen die vorhandene Per-Owner-Schleife aus `BillingSettlement` (Zeile 1033).
+- Wenn ein eigentümerspezifisches Dokument auf einen Contact ohne Portal-User trifft, wird die Datei trotzdem angelegt (`linked_contact_id` gesetzt, `assigned_user_id` bleibt `null`). Sobald der Eigentümer via `invite-contact-user` einen User bekommt, sieht er die Datei automatisch (bestehende RLS).
+- Der Tray zeigt nur die Jobs der aktuellen Browser-Session; läuft der Tab komplett zu, brechen offene Jobs ab (echte Server-Queue wäre ein größerer Folge-Schritt und nicht Teil dieses Plans).
+- Falls der Nutzer beim Verlassen des Tabs noch offene Jobs hat, kommt ein `beforeunload`-Hinweis („Es werden noch Dokumente erzeugt – wirklich schließen?").

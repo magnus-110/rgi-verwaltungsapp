@@ -32,7 +32,7 @@ import { AssetReportSection } from "./AssetReportSection";
 import { ManualEconomicPlanEditor } from "./ManualEconomicPlanEditor";
 import { Paragraph35aSection } from "./Paragraph35aSection";
 import { FinanceDocumentsDialog } from "./FinanceDocumentsDialog";
-import { uploadGeneratedPdfToDms } from "./lib/uploadGeneratedPdfToDms";
+import { useDmsJobs, type DmsJobItem } from "@/contexts/DmsJobsProvider";
 
 interface BillingSettlementProps {
   buildingId: string;
@@ -100,6 +100,7 @@ const SECTION_ORDER = ["income", "operating_distributable", "operating_non_distr
 
 export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingSettlementProps) {
   const queryClient = useQueryClient();
+  const { enqueue: enqueueDms } = useDmsJobs();
   const [activeTab, setActiveTab] = useState("total");
   const [docsOpen, setDocsOpen] = useState(false);
   const [busyDownload, setBusyDownload] = useState<string | null>(null); // owner.assignmentId | "overall" | "all"
@@ -944,51 +945,35 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       if (!accessToken) throw new Error("Bitte erneut anmelden.");
 
       if (format === "dms") {
-        // Pro Eigentümer einzeln aufrufen → PDF → DMS pro Person.
         const owners = ownerResults;
         if (owners.length === 0) { toast.error("Keine Eigentümer gefunden."); return; }
-        let ok = 0; const errs: string[] = [];
-        for (let i = 0; i < owners.length; i++) {
-          const o = owners[i];
-          toast.message(`§35a ${i + 1}/${owners.length}: ${o.name}`);
-          try {
-            const resp = await fetch(
-              `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-                body: JSON.stringify({
-                  template_id: effectiveParagraph35aTpl,
-                  building_id: buildingId,
-                  fiscal_year: fiscalYear,
-                  period_id: periodId,
-                  assignment_ids: [o.assignmentId],
-                  format: "pdf",
-                }),
-              },
-            );
-            if (!resp.ok) throw new Error(await resp.text());
-            const bytes = await resp.blob();
-            const a = (assignments as any[]).find((x) => x.id === o.assignmentId);
-            await uploadGeneratedPdfToDms({
-              bytes,
-              displayName: `§35a_${fiscalYear}_${o.name}`,
-              buildingId,
-              periodId,
-              contactId: a?.contact_id || null,
-              visibility: "eigentuemer",
-              managementMode: "weg",
-            });
-            ok++;
-          } catch (e: any) {
-            errs.push(`${o.name}: ${e?.message || e}`);
-          }
-        }
-        if (errs.length) toast.error(`${ok}/${owners.length} abgelegt. Fehler: ${errs.join(" | ")}`);
-        else toast.success(`${ok} §35a-Bescheinigungen ins DMS abgelegt`);
-        window.dispatchEvent(new CustomEvent("dms:refresh"));
+        const items: DmsJobItem[] = owners.map((o) => {
+          const a = (assignments as any[]).find((x) => x.id === o.assignmentId);
+          return {
+            title: o.name,
+            edgeFn: "generate-35a-docx",
+            body: {
+              template_id: effectiveParagraph35aTpl,
+              building_id: buildingId,
+              fiscal_year: fiscalYear,
+              period_id: periodId,
+              assignment_ids: [o.assignmentId],
+              format: "pdf",
+            },
+            displayName: `§35a_${fiscalYear}_${o.name}`,
+            folderKey: "paragraph_35a",
+            visibility: "eigentuemer_only",
+            contactId: a?.contact_id || null,
+            buildingId,
+            periodId,
+            managementMode: "weg",
+          };
+        });
+        enqueueDms(`§35a-Bescheinigungen ${fiscalYear}`, items);
         return;
       }
+
+
 
       const resp = await fetch(
         `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`,
@@ -1087,70 +1072,67 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         return await resp.blob();
       };
 
-      // DMS-Modus: PDF generieren + pro Eigentümer / einmalig im DMS ablegen.
+      // DMS-Modus: in Hintergrund-Queue einreihen (überlebt Seitenwechsel).
       if (format === "dms") {
         if (target === "overall") {
-          const bytes = await callOnce({
-            template_id: tplId, overall_template_id: effectiveOverallTpl,
-            fiscal_year: fiscalYear, mode: "single", format: "pdf",
-            file_prefix: `Gesamtabrechnung_${fiscalYear}`,
-            items: [{ kind: "overall", payload: buildOverallPayload(inp) }],
-          });
-          await uploadGeneratedPdfToDms({
-            bytes, displayName: `Gesamtabrechnung_${fiscalYear}`,
-            buildingId, periodId, contactId: null,
-            visibility: "intern", managementMode: "weg",
-          });
-          toast.success("Gesamtabrechnung ins DMS abgelegt");
+          enqueueDms(`Gesamtabrechnung ${fiscalYear}`, [{
+            title: `Gesamtabrechnung ${fiscalYear}`,
+            edgeFn: "generate-billing-document",
+            body: {
+              template_id: tplId, overall_template_id: effectiveOverallTpl,
+              fiscal_year: fiscalYear, mode: "single", format: "pdf",
+              file_prefix: `Gesamtabrechnung_${fiscalYear}`,
+              items: [{ kind: "overall", payload: buildOverallPayload(inp) }],
+            },
+            displayName: `Gesamtabrechnung_${fiscalYear}`,
+            folderKey: "gesamtabrechnung",
+            visibility: "alle",
+            buildingId, periodId, managementMode: "weg",
+          }]);
         } else if (target === "asset_report") {
-          const bytes = await callOnce({
-            template_id: tplId, overall_template_id: effectiveOverallTpl,
-            fiscal_year: fiscalYear, mode: "single", format: "pdf",
-            file_prefix: `Vermoegensbericht_${fiscalYear}`,
-            items: [{ kind: "asset_report", payload: buildAssetReportPayload(inp) }],
-          });
-          await uploadGeneratedPdfToDms({
-            bytes, displayName: `Vermoegensbericht_${fiscalYear}`,
-            buildingId, periodId, contactId: null,
-            visibility: "intern", managementMode: "weg",
-          });
-          toast.success("Vermögensbericht ins DMS abgelegt");
+          enqueueDms(`Vermögensbericht ${fiscalYear}`, [{
+            title: `Vermögensbericht ${fiscalYear}`,
+            edgeFn: "generate-billing-document",
+            body: {
+              template_id: tplId, overall_template_id: effectiveOverallTpl,
+              fiscal_year: fiscalYear, mode: "single", format: "pdf",
+              file_prefix: `Vermoegensbericht_${fiscalYear}`,
+              items: [{ kind: "asset_report", payload: buildAssetReportPayload(inp) }],
+            },
+            displayName: `Vermoegensbericht_${fiscalYear}`,
+            folderKey: "vermoegensbericht",
+            visibility: "alle",
+            buildingId, periodId, managementMode: "weg",
+          }]);
         } else {
-          // owner oder all → pro Eigentümer ein PDF im DMS
           const targetOwners = target === "owner"
             ? [{ assignmentId: owner!.assignmentId, name: owner!.name }]
             : ownerResults.map((o) => ({ assignmentId: o.assignmentId, name: o.name }));
           if (targetOwners.length === 0) { toast.error("Keine Eigentümer gefunden."); return; }
-          let ok = 0; const errs: string[] = [];
-          for (let i = 0; i < targetOwners.length; i++) {
-            const o = targetOwners[i];
-            toast.message(`Einzelabrechnung ${i + 1}/${targetOwners.length}: ${o.name}`);
-            try {
-              const bytes = await callOnce({
+          const jobItems: DmsJobItem[] = targetOwners.map((o) => {
+            const a = (assignments as any[]).find((x) => x.id === o.assignmentId);
+            return {
+              title: o.name,
+              edgeFn: "generate-billing-document",
+              body: {
                 template_id: tplId, overall_template_id: effectiveOverallTpl,
                 fiscal_year: fiscalYear, mode: "single", format: "pdf",
                 file_prefix: `Einzelabrechnung_${fiscalYear}`,
                 items: [{ kind: "owner", ownerId: o.assignmentId, ownerName: o.name, payload: buildOwnerPayload(inp, o.assignmentId) }],
-              });
-              const a = (assignments as any[]).find((x) => x.id === o.assignmentId);
-              await uploadGeneratedPdfToDms({
-                bytes,
-                displayName: `Einzelabrechnung_${fiscalYear}_${o.name}`,
-                buildingId, periodId,
-                contactId: a?.contact_id || null,
-                visibility: "eigentuemer", managementMode: "weg",
-              });
-              ok++;
-            } catch (e: any) {
-              errs.push(`${o.name}: ${e?.message || e}`);
-            }
-          }
-          if (errs.length) toast.error(`${ok}/${targetOwners.length} abgelegt. Fehler: ${errs.join(" | ")}`);
-          else toast.success(`${ok} Einzelabrechnungen ins DMS abgelegt`);
+              },
+              displayName: `Einzelabrechnung_${fiscalYear}_${o.name}`,
+              folderKey: "einzelabrechnung",
+              visibility: "eigentuemer_only",
+              contactId: a?.contact_id || null,
+              buildingId, periodId, managementMode: "weg",
+            };
+          });
+          enqueueDms(`Einzelabrechnungen ${fiscalYear}`, jobItems);
         }
-        window.dispatchEvent(new CustomEvent("dms:refresh"));
         return;
       }
+
+
 
       // Regulärer Download (DOCX/PDF/ZIP) — alter Pfad.
       let items: Array<{ kind: "owner" | "overall" | "asset_report"; ownerId?: string; ownerName?: string; payload: any }> = [];
@@ -1349,42 +1331,24 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       const prefix = `Sammelberichte_${fiscalYear}`;
 
       if (format === "dms") {
-        // Pro Eigentümer ein PDF erzeugen und im DMS ablegen.
-        let ok = 0; const errs: string[] = [];
-        for (let i = 0; i < items.length; i++) {
-          const it = items[i];
-          toast.message(`Sammelbericht ${i + 1}/${items.length}: ${it.ownerName}`);
-          try {
-            const resp = await fetch(
-              `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-billing-document`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-                body: JSON.stringify({
-                  template_id: tplId, fiscal_year: fiscalYear,
-                  mode: "single", format: "pdf", file_prefix: prefix,
-                  items: [it],
-                }),
-              },
-            );
-            if (!resp.ok) throw new Error(await resp.text());
-            const bytes = await resp.blob();
-            const a = (assignments as any[]).find((x) => x.id === it.ownerId);
-            await uploadGeneratedPdfToDms({
-              bytes,
-              displayName: `Sammelbericht_${fiscalYear}_${it.ownerName}`,
-              buildingId, periodId,
-              contactId: a?.contact_id || null,
-              visibility: "eigentuemer", managementMode: "weg",
-            });
-            ok++;
-          } catch (e: any) {
-            errs.push(`${it.ownerName}: ${e?.message || e}`);
-          }
-        }
-        if (errs.length) toast.error(`${ok}/${items.length} abgelegt. Fehler: ${errs.join(" | ")}`);
-        else toast.success(`${ok} Sammelberichte ins DMS abgelegt`);
-        window.dispatchEvent(new CustomEvent("dms:refresh"));
+        const jobItems: DmsJobItem[] = items.map((it: any) => {
+          const a = (assignments as any[]).find((x) => x.id === it.ownerId);
+          return {
+            title: it.ownerName,
+            edgeFn: "generate-billing-document",
+            body: {
+              template_id: tplId, fiscal_year: fiscalYear,
+              mode: "single", format: "pdf", file_prefix: prefix,
+              items: [it],
+            },
+            displayName: `Sammelbericht_${fiscalYear}_${it.ownerName}`,
+            folderKey: "sammelbericht",
+            visibility: "eigentuemer_only",
+            contactId: a?.contact_id || null,
+            buildingId, periodId, managementMode: "weg",
+          };
+        });
+        enqueueDms(`Sammelberichte ${fiscalYear}`, jobItems);
       } else {
         const resp = await fetch(
           `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-billing-document`,

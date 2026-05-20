@@ -7,6 +7,8 @@ import { MobileHeader } from "./MobileHeader";
 import { UploadProvider } from "@/contexts/UploadContext";
 import { UploadProgressWidget } from "./documents/UploadProgressWidget";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { DmsJobsProvider } from "@/contexts/DmsJobsProvider";
+import { DmsJobsTray } from "./finance/DmsJobsTray";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -82,10 +84,13 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
 export const AdminLayout = ({ children }: AdminLayoutProps) => {
   return (
     <UploadProvider>
-      <ManagementModeProvider>
-        <AdminLayoutContent>{children}</AdminLayoutContent>
-        <UploadProgressWidget />
-      </ManagementModeProvider>
+      <DmsJobsProvider>
+        <ManagementModeProvider>
+          <AdminLayoutContent>{children}</AdminLayoutContent>
+          <UploadProgressWidget />
+          <DmsJobsTray />
+        </ManagementModeProvider>
+      </DmsJobsProvider>
     </UploadProvider>
   );
 };

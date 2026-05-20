@@ -2,11 +2,14 @@
  * uploadGeneratedPdfToDms
  *
  * Lädt ein generiertes PDF in den `building-files` Storage-Bucket und legt
- * einen Eintrag in `building_files` an. Für pro-Eigentümer-Dokumente werden
- * `linked_contact_id` und `assigned_user_id` gesetzt, sodass via RLS jeder
- * Eigentümer nur seine eigenen Dokumente sieht.
+ * einen Eintrag in `building_files` an.
+ *
+ * - visibility "alle": sichtbar für alle (Verwaltung + Eigentümer/Mieter).
+ * - visibility "eigentuemer_only": sichtbar nur für den verlinkten Eigentümer
+ *   (über linked_contact_id + ggf. assigned_user_id, RLS sortiert).
  */
 import { supabase } from "@/integrations/supabase/client";
+import { resolveDmsFolder, type DmsFolderKey } from "./resolveDmsFolder";
 
 export interface DmsUploadParams {
   bytes: Blob | ArrayBuffer | Uint8Array;
@@ -14,14 +17,17 @@ export interface DmsUploadParams {
   buildingId: string;
   periodId?: string | null;
   contactId?: string | null;
-  visibility: "intern" | "alle" | "eigentuemer" | "mieter" | "personen";
+  folderKey: DmsFolderKey;
+  visibility: "alle" | "eigentuemer_only";
   managementMode: "weg" | "rent";
 }
 
 const sanitize = (s: string) =>
   s.replace(/[^a-zA-Z0-9äöüÄÖÜß_\-. ]+/g, "_").replace(/\s+/g, "_").slice(0, 120);
 
-export async function uploadGeneratedPdfToDms(p: DmsUploadParams): Promise<{ id: string; path: string }> {
+export async function uploadGeneratedPdfToDms(
+  p: DmsUploadParams,
+): Promise<{ id: string; path: string }> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Nicht angemeldet.");
 
@@ -33,14 +39,23 @@ export async function uploadGeneratedPdfToDms(p: DmsUploadParams): Promise<{ id:
   const id = crypto.randomUUID();
   const path = `${p.buildingId}/abrechnungen/${p.periodId || "general"}/${id}.pdf`;
 
+  // 1) Ordner (Kategorie) auflösen / anlegen
+  let categoryId: string | null = null;
+  try {
+    categoryId = await resolveDmsFolder(p.buildingId, p.folderKey, p.managementMode);
+  } catch (e) {
+    console.warn("[uploadGeneratedPdfToDms] Ordnerauflösung fehlgeschlagen, lege ohne Kategorie ab:", e);
+  }
+
+  // 2) Storage-Upload
   const { error: upErr } = await supabase.storage
     .from("building-files")
     .upload(path, blob, { contentType: "application/pdf", upsert: false });
   if (upErr) throw new Error(`Storage-Upload fehlgeschlagen: ${upErr.message}`);
 
-  // Falls Eigentümer einen verknüpften Portal-User hat, assigned_user_id setzen.
+  // 3) ggf. Eigentümer → Portal-User auflösen
   let assignedUserId: string | null = null;
-  if (p.contactId) {
+  if (p.visibility === "eigentuemer_only" && p.contactId) {
     const { data: contact } = await supabase
       .from("contacts")
       .select("user_id")
@@ -49,29 +64,31 @@ export async function uploadGeneratedPdfToDms(p: DmsUploadParams): Promise<{ id:
     assignedUserId = (contact as any)?.user_id || null;
   }
 
-  const isOwnerDoc = !!p.contactId;
+  const isOwnerOnly = p.visibility === "eigentuemer_only";
 
   const { data: inserted, error: insErr } = await supabase
     .from("building_files")
     .insert({
-      display_name: sanitize(p.displayName) + (p.displayName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"),
+      display_name:
+        sanitize(p.displayName) +
+        (p.displayName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"),
       file_path: path,
       file_size: blob.size,
       mime_type: "application/pdf",
       building_id: p.buildingId,
+      category_id: categoryId,
       linked_billing_period_id: p.periodId || null,
-      linked_contact_id: p.contactId || null,
-      assigned_user_id: assignedUserId,
+      linked_contact_id: isOwnerOnly ? p.contactId || null : null,
+      assigned_user_id: isOwnerOnly ? assignedUserId : null,
       uploaded_by: user.id,
       management_mode: p.managementMode,
       source: "manual",
-      visibility_role: p.visibility,
-      visible_to_users: isOwnerDoc, // intern für Gesamtdokumente, sichtbar für Eigentümerdokumente
+      visibility_role: isOwnerOnly ? "personen" : "alle",
+      visible_to_users: true,
     } as any)
     .select("id")
     .single();
   if (insErr) {
-    // Cleanup, damit kein verwaister Storage-Eintrag zurückbleibt
     await supabase.storage.from("building-files").remove([path]).catch(() => {});
     throw new Error(`DMS-Eintrag fehlgeschlagen: ${insErr.message}`);
   }
