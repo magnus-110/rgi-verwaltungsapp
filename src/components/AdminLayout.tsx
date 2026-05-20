@@ -6,6 +6,7 @@ import { ManagementModeProvider, useManagementMode } from "@/hooks/useManagement
 import { MobileHeader } from "./MobileHeader";
 import { UploadProvider } from "@/contexts/UploadContext";
 import { UploadProgressWidget } from "./documents/UploadProgressWidget";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -66,7 +67,9 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
               style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
             >
               <div className="max-w-full min-w-0">
-                {children}
+                <ErrorBoundary fallbackTitle="Diese Seite konnte nicht geladen werden">
+                  {children}
+                </ErrorBoundary>
               </div>
             </div>
           </main>
