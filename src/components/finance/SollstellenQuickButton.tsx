@@ -191,13 +191,33 @@ export function SollstellenQuickButton({
           Sollstellen
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 space-y-3" align="start">
+      <PopoverContent className="w-80 space-y-3" align="start" onClick={(e) => e.stopPropagation()}>
         <div className="space-y-1">
           <div className="text-sm font-semibold">Sollstellung erzeugen</div>
           <div className="text-xs text-muted-foreground">
-            {personenkonto?.account_number} – {personenkonto?.account_name} ↔ 4020
+            {personenkonto
+              ? `${personenkonto.account_number} – ${personenkonto.account_name} ↔ 4020`
+              : "Personenkonto wählen ↔ 4020"}
           </div>
         </div>
+
+        {allowAccountPicker && !derivedPersonenkonto && (
+          <div className="space-y-1">
+            <Label className="text-xs">Personenkonto</Label>
+            <select
+              value={pickedPersonenkontoId}
+              onChange={(e) => setPickedPersonenkontoId(e.target.value)}
+              className="w-full h-8 text-xs border rounded-md px-2 bg-background"
+            >
+              <option value="">– bitte wählen –</option>
+              {personenkontenList.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.account_number} – {p.account_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="space-y-1.5">
           <Label className="text-xs">Art</Label>
