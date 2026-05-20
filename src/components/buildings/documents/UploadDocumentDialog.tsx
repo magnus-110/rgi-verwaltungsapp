@@ -131,6 +131,7 @@ export function UploadDocumentDialog({
             visibility_role: visibility,
             visible_to_users: visibility !== 'intern',
             valid_until: validUntil || null,
+            fiscal_year: fiscalYear === "general" ? null : parseInt(fiscalYear, 10),
             rag_enabled: autoRag,
             source: 'manual',
           })
