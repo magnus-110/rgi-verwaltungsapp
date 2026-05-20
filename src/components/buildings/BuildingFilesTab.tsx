@@ -248,6 +248,19 @@ export const BuildingFilesTab = ({ buildingId, managementMode }: BuildingFilesTa
             </PopoverContent>
           </Popover>
 
+          <Select value={selectedYear} onValueChange={setSelectedYear}>
+            <SelectTrigger className="w-[170px]">
+              <SelectValue placeholder="Wirtschaftsjahr" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Jahre</SelectItem>
+              <SelectItem value="general">Allgemein (ohne Jahr)</SelectItem>
+              {availableYears.map((y) => (
+                <SelectItem key={y} value={String(y)}>Jahr {y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <div className="flex items-center gap-2 ml-auto">
             <Label htmlFor="vis-toggle-building" className="text-sm text-muted-foreground">Sichtbar</Label>
             <Switch id="vis-toggle-building" checked={visibleToUsers} onCheckedChange={setVisibleToUsers} />
