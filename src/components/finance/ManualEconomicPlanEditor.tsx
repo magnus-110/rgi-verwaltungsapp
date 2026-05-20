@@ -782,66 +782,45 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
 
         const isSingle = detail.target === "economic_plan_single";
 
-        // DMS-Modus: PDF generieren und im DMS ablegen.
+        // DMS-Modus: Job in globale Hintergrund-Queue einreihen.
         if (detail.format === "dms") {
-          const { uploadGeneratedPdfToDms } = await import("./lib/uploadGeneratedPdfToDms");
-          const callOnce = async (body: any): Promise<Blob> => {
-            const resp = await fetch(
-              `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-billing-document`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-                body: JSON.stringify(body),
-              },
-            );
-            if (!resp.ok) throw new Error((await resp.text()) || `Export fehlgeschlagen (${resp.status})`);
-            return await resp.blob();
-          };
-
           if (!isSingle) {
-            const bytes = await callOnce({
-              template_id: detail.template_id, fiscal_year: fiscalYear,
-              mode: "single", format: "pdf",
-              file_prefix: `Gesamtwirtschaftsplan_${fiscalYear}`,
-              items: [{ kind: "overall", payload: buildOverallPlanPayload() }],
-            });
-            await uploadGeneratedPdfToDms({
-              bytes, displayName: `Gesamtwirtschaftsplan_${fiscalYear}`,
-              buildingId, periodId: null,
-              contactId: null, visibility: "intern", managementMode: "weg",
-            });
-            toast.success("Gesamtwirtschaftsplan ins DMS abgelegt");
+            enqueueDms(`Wirtschaftsplan ${fiscalYear}`, [{
+              title: `Gesamtwirtschaftsplan ${fiscalYear}`,
+              edgeFn: "generate-billing-document",
+              body: {
+                template_id: detail.template_id, fiscal_year: fiscalYear,
+                mode: "single", format: "pdf",
+                file_prefix: `Gesamtwirtschaftsplan_${fiscalYear}`,
+                items: [{ kind: "overall", payload: buildOverallPlanPayload() }],
+              },
+              displayName: `Gesamtwirtschaftsplan_${fiscalYear}`,
+              folderKey: "wirtschaftsplan_gesamt",
+              visibility: "alle",
+              buildingId, periodId: null, managementMode: "weg",
+            }]);
           } else {
             if (ownerData.length === 0) { toast.error("Keine Eigentümer gefunden."); return; }
-            let ok = 0; const errs: string[] = [];
-            for (let i = 0; i < ownerData.length; i++) {
-              const o = ownerData[i];
-              toast.message(`Wirtschaftsplan ${i + 1}/${ownerData.length}: ${o.name}`);
-              try {
-                const bytes = await callOnce({
-                  template_id: detail.template_id, fiscal_year: fiscalYear,
-                  mode: "single", format: "pdf",
-                  file_prefix: `Einzelwirtschaftsplan_${fiscalYear}`,
-                  items: [{ kind: "owner", ownerId: o.id, ownerName: o.name, payload: buildOwnerPlanPayload(o.id) }],
-                });
-                await uploadGeneratedPdfToDms({
-                  bytes,
-                  displayName: `Einzelwirtschaftsplan_${fiscalYear}_${o.name}`,
-                  buildingId, periodId: null,
-                  contactId: (o as any).raw?.contact_id || null,
-                  visibility: "eigentuemer", managementMode: "weg",
-                });
-                ok++;
-              } catch (err: any) {
-                errs.push(`${o.name}: ${err?.message || err}`);
-              }
-            }
-            if (errs.length) toast.error(`${ok}/${ownerData.length} abgelegt. Fehler: ${errs.join(" | ")}`);
-            else toast.success(`${ok} Einzelwirtschaftspläne ins DMS abgelegt`);
+            const jobItems: DmsJobItem[] = ownerData.map((o) => ({
+              title: o.name,
+              edgeFn: "generate-billing-document",
+              body: {
+                template_id: detail.template_id, fiscal_year: fiscalYear,
+                mode: "single", format: "pdf",
+                file_prefix: `Einzelwirtschaftsplan_${fiscalYear}`,
+                items: [{ kind: "owner", ownerId: o.id, ownerName: o.name, payload: buildOwnerPlanPayload(o.id) }],
+              },
+              displayName: `Einzelwirtschaftsplan_${fiscalYear}_${o.name}`,
+              folderKey: "wirtschaftsplan_einzel",
+              visibility: "eigentuemer_only",
+              contactId: (o as any).raw?.contact_id || null,
+              buildingId, periodId: null, managementMode: "weg",
+            }));
+            enqueueDms(`Einzelwirtschaftspläne ${fiscalYear}`, jobItems);
           }
-          window.dispatchEvent(new CustomEvent("dms:refresh"));
           return;
         }
+
 
         const items = isSingle
           ? ownerData.map((o) => ({
