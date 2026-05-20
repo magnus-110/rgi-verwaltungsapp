@@ -608,7 +608,20 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     const name = txn.amount < 0 ? txn.creditor_name : txn.debtor_name;
     const isMatchedUnbooked = ["matched_invoice", "matched_template", "manually_matched"].includes(txn.match_status) && !txn.booked_at;
     return (
-      <TableRow key={txn.id} className="cursor-pointer hover:bg-accent/50" onClick={() => {
+      <TableRow key={txn.id} className="cursor-pointer hover:bg-accent/50" onClick={async () => {
+        if (txn.booked_at && txn.bookings?.id) {
+          // Direkt in Buchungs-Bearbeitung springen statt Detail-Sheet
+          const { data: full, error } = await supabase
+            .from("bookings")
+            .select("*, invoices(id, file_path, file_name, vendor_name)")
+            .eq("id", txn.bookings.id)
+            .maybeSingle();
+          if (error || !full) { toast.error("Buchung nicht gefunden"); return; }
+          const bName = buildings.find((b: any) => b.id === full.building_id)?.name || "";
+          setEditBuildingName(bName);
+          setEditBooking(full);
+          return;
+        }
         if (isMatchedUnbooked) {
           openReviewAtTransaction(txn);
         } else if ((txn.match_status === "unmatched" || txn.match_status === "invoice_pending") && !txn.booked_at) {
