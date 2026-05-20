@@ -27,6 +27,7 @@ import { buildBookingText, rebuildBookingTextIfAuto } from "./lib/bookingTextBui
 import { VendorAliasDialog } from "./VendorAliasDialog";
 import { parseAmount } from "./lib/parseAmount";
 import { SollstellenQuickButton } from "./SollstellenQuickButton";
+import { IhrZufuehrungQuickButton } from "./IhrZufuehrungQuickButton";
 import { BankPurposePanel } from "./BankPurposePanel";
 
 interface Booking {
