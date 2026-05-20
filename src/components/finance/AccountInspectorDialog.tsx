@@ -573,6 +573,7 @@ export function AccountInspectorDialog({
         onOpenChange={(o) => !o && setEditingFull(null)}
         booking={editingFull}
         buildingName={""}
+        hideQuickActions={hideQuickActions}
         onSaved={(id) => {
           onBookingChanged?.(id);
           refetchBookings();
