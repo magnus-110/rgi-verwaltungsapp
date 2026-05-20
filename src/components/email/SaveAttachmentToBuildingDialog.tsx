@@ -31,6 +31,7 @@ export function SaveAttachmentToBuildingDialog({
   const [buildingId, setBuildingId] = useState<string>(defaultBuildingId || "");
   const [categoryId, setCategoryId] = useState<string>("");
   const [visibility, setVisibility] = useState<VisibilityRole>('intern');
+  const [fiscalYear, setFiscalYear] = useState<string>("general");
   const [buildings, setBuildings] = useState<{ id: string; name: string; management_mode: string }[]>([]);
   const [categories, setCategories] = useState<DocCategory[]>([]);
   const [saving, setSaving] = useState(false);
