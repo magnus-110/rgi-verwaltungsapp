@@ -290,6 +290,23 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     enabled: open && !!matchedTemplateId,
   });
 
+  // Bank-Transaction (Verwendungszweck) für Kontoauszug-bezogene Buchungen
+  const bankTxnId = (booking as any)?.bank_transaction_id || null;
+  const { data: bankTxn } = useQuery({
+    queryKey: ["edit-booking-bank-txn", bankTxnId],
+    queryFn: async () => {
+      if (!bankTxnId) return null;
+      const { data } = await supabase
+        .from("bank_transactions")
+        .select("id, purpose, debtor_name, creditor_name, booking_date, amount")
+        .eq("id", bankTxnId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: open && !!bankTxnId,
+  });
+
+
   // Searchable list of booking templates for the same building
   const { data: pickableTemplates = [] } = useQuery({
     queryKey: ["edit-booking-pickable-templates", buildingId, templateSearch],
