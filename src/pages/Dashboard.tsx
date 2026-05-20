@@ -265,7 +265,7 @@ export const Dashboard = () => {
                         "text-xs flex-shrink-0",
                         t.is_overdue ? "text-destructive font-medium" : "text-muted-foreground"
                       )}>
-                        {format(new Date(t.due_date), "d. MMM", { locale: de })}
+                        {safeFormat(t.due_date, "d. MMM")}
                       </span>
                     </li>
                   ))}
@@ -293,7 +293,7 @@ export const Dashboard = () => {
                         <span className="truncate">{t.title}</span>
                       </div>
                       <span className="text-xs text-muted-foreground flex-shrink-0">
-                        {format(new Date(t.due_date), "d. MMM", { locale: de })}
+                        {safeFormat(t.due_date, "d. MMM")}
                       </span>
                     </li>
                   ))}
@@ -348,7 +348,7 @@ export const Dashboard = () => {
                         "text-xs flex-shrink-0",
                         m.is_overdue ? "text-destructive font-medium" : "text-muted-foreground"
                       )}>
-                        {format(new Date(m.next_due_date), "d. MMM", { locale: de })}
+                        {safeFormat(m.next_due_date, "d. MMM")}
                       </span>
                     </li>
                   ))}
@@ -379,7 +379,7 @@ export const Dashboard = () => {
                         </div>
                       </div>
                       <span className="text-xs text-muted-foreground flex-shrink-0">
-                        {format(new Date(m.next_due_date), "d. MMM", { locale: de })}
+                        {safeFormat(m.next_due_date, "d. MMM")}
                       </span>
                     </li>
                   ))}
