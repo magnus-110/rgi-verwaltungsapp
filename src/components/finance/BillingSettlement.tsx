@@ -1087,6 +1087,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         case "all": downloadBilling("all", detail.format); break;
         case "asset_report": downloadBilling("asset_report", detail.format); break;
         case "paragraph_35a": downloadParagraph35a(detail.format); break;
+        case "combined_report": downloadCombined(detail.format); break;
         // economic_plan_* wird vom ManualEconomicPlanEditor selbst behandelt
       }
     };
