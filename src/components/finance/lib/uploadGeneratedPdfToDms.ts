@@ -20,6 +20,7 @@ export interface DmsUploadParams {
   folderKey: DmsFolderKey;
   visibility: "alle" | "eigentuemer_only";
   managementMode: "weg" | "rent";
+  fiscalYear?: number | null;
 }
 
 const sanitize = (s: string) =>
