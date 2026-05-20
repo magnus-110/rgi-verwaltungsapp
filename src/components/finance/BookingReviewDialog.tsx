@@ -48,6 +48,7 @@ interface Props {
   note?: string;
   setNote?: (id: string, note: string) => void;
   readOnly?: boolean;
+  buildingId?: string | null;
 }
 
 const fmt = (n?: number | null) =>
