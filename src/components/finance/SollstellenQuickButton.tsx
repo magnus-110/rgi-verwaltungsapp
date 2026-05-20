@@ -187,6 +187,7 @@ export function SollstellenQuickButton({
             className,
           )}
           title="Interne Sollstellungs-Buchung Personenkonto ↔ 4020 erzeugen"
+          onClick={(e) => e.stopPropagation()}
         >
           Sollstellen
         </button>
