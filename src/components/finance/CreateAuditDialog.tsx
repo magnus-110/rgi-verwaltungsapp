@@ -191,6 +191,7 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
     setNotes([]);
     setRemovedNoteIds([]);
     setRemovedStatementIds([]);
+    setDmsAttachments([]);
   };
 
   const openExistingStatement = async (path: string) => {
