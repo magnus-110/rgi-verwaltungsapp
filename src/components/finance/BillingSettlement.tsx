@@ -1197,24 +1197,28 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         const ep = epOwners.find((e) => e.ownerId === o.assignmentId) || epOwners.find((e) => e.name === o.name);
         const p35 = p35aItems.find((x: any) => x.assignment_id === o.assignmentId)
           || p35aItems.find((x: any) => x.owner_name === o.name);
+        // Common (Deckblatt) aus reichstem Owner-Payload + overall ziehen und auf neue
+        // Sammelbericht-Konvention normalisieren (datum_heute, abrechnungszeitraum_*, …).
+        const common = remapCommon({ ...pickCommon(o.payload), ...pickCommon(p.overall) });
         return {
           kind: "owner",
           ownerId: o.assignmentId,
           ownerName: o.name,
           payload: {
             // Top-Level Common (Deckblatt-Variablen ohne Prefix)
-            ...pickCommon(o.payload),
-            ...pickCommon(p.overall),
-            // 5 vollständige, unveränderte Sub-Payloads — identisch zu den Einzeldownloads
-            abrechnung_gesamt: p.overall || {},
-            abrechnung_einzel: o.payload || {},
-            vermoegen: p.asset_report || {},
-            wirtschaftsplan_gesamt: p.economic_plan_overall || {},
-            wirtschaftsplan_einzel: ep?.payload || {},
-            p35a: p35?.payload || {},
+            ...common,
+            // 6 vollständige Sub-Payloads, jeweils mit Common-Fallback gemerged und
+            // auf die Platzhalter-Namen der v2-Vorlage gemappt.
+            abrechnung_gesamt:      { ...common, ...remapAbrechnungGesamt(p.overall) },
+            abrechnung_einzel:      { ...common, ...remapAbrechnungEinzel(o.payload) },
+            vermoegen:              { ...common, ...remapVermoegen(p.asset_report) },
+            wirtschaftsplan_gesamt: { ...common, ...remapWirtschaftsplanGesamt(p.economic_plan_overall) },
+            wirtschaftsplan_einzel: { ...common, ...remapWirtschaftsplanEinzel(ep?.payload) },
+            p35a:                   { ...common, ...remapP35a(p35?.payload) },
           },
         };
       });
+
       if (!items.length) { toast.error("Keine Eigentümer gefunden."); setBusyDownload(null); return; }
 
       const prefix = `Sammelberichte_${fiscalYear}`;
