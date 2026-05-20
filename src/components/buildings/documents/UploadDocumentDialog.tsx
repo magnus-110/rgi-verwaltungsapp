@@ -28,6 +28,7 @@ export function UploadDocumentDialog({
   const [categoryId, setCategoryId] = useState<string>("");
   const [visibility, setVisibility] = useState<VisibilityRole>('intern');
   const [validUntil, setValidUntil] = useState<string>("");
+  const [fiscalYear, setFiscalYear] = useState<string>("general");
   const [uploading, setUploading] = useState(false);
   const [categories, setCategories] = useState<DocCategory[]>([]);
   const [owners, setOwners] = useState<Array<{ id: string; first_name?: string | null; last_name?: string | null; company_name?: string | null }>>([]);
@@ -39,6 +40,7 @@ export function UploadDocumentDialog({
       setCategoryId(initialCategoryId || "");
       setVisibility('intern');
       setValidUntil("");
+      setFiscalYear("general");
       setSelectedContactIds([]);
       supabase
         .from('building_file_categories')
