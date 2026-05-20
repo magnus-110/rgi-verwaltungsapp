@@ -22,6 +22,8 @@ import { AssignmentDialog } from "./AssignmentDialog";
 import { TransactionDetailSheet } from "./TransactionDetailSheet";
 import { CreateBookingDialog } from "./CreateBookingDialog";
 import { EditBookingDialog } from "./EditBookingDialog";
+import { SollstellenQuickButton } from "./SollstellenQuickButton";
+import { IhrZufuehrungQuickButton } from "./IhrZufuehrungQuickButton";
 import { TransactionReviewMode } from "./TransactionReviewMode";
 import { useTransactionAiPrefetch } from "@/hooks/useTransactionAiPrefetch";
 import { PdfViewerModal } from "@/components/documents/PdfViewerModal";
