@@ -190,7 +190,7 @@ export function IhrZufuehrungQuickButton({
           <Input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="leer = nur „Rücklagenbildung JJJJ""
+            placeholder='leer = nur "Rücklagenbildung JJJJ"'
             className="h-8 text-xs"
           />
         </div>
