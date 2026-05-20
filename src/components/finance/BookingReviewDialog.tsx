@@ -233,6 +233,41 @@ export function BookingReviewDialog({
               </div>
             </div>
 
+            {(() => {
+              const accLike = acc ? { ...acc, category: (acc as any).category } : null;
+              const counterLike = counter ? { ...counter, category: (counter as any).category } : null;
+              const showSoll = isPersonenkonto(accLike as any) || isPersonenkonto(counterLike as any);
+              const showIhr = isReserveAccount(accLike as any) || isReserveAccount(counterLike as any);
+              if (!showSoll && !showIhr) return null;
+              const accId = booking.account_id || null;
+              const counterId = booking.counter_account_id || null;
+              return (
+                <div className="flex flex-wrap items-center gap-2 pt-3 border-t">
+                  <span className="text-xs text-muted-foreground">Folgebuchung:</span>
+                  {showSoll && (
+                    <SollstellenQuickButton
+                      buildingId={buildingId || null}
+                      account={accLike ? { id: accId || "", ...accLike } as any : null}
+                      counterAccount={counterLike ? { id: counterId || "", ...counterLike } as any : null}
+                      defaultAmount={booking.amount}
+                      defaultDate={booking.booking_date}
+                      defaultDescription={booking.description}
+                    />
+                  )}
+                  {showIhr && (
+                    <IhrZufuehrungQuickButton
+                      buildingId={buildingId || null}
+                      account={accLike ? { id: accId || "", ...accLike } as any : null}
+                      counterAccount={counterLike ? { id: counterId || "", ...counterLike } as any : null}
+                      defaultAmount={booking.amount}
+                      defaultDate={booking.booking_date}
+                      defaultDescription={booking.description}
+                    />
+                  )}
+                </div>
+              );
+            })()}
+
             {!readOnly && setFlag && (
               <div className="space-y-3 pt-3 border-t">
                 <div className="flex gap-2">
