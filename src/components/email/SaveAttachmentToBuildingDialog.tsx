@@ -47,6 +47,7 @@ export function SaveAttachmentToBuildingDialog({
       setBuildingId(defaultBuildingId || "");
       setCategoryId("");
       setVisibility('intern');
+      setFiscalYear("general");
     }
   }, [open, defaultBuildingId]);
 
