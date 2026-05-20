@@ -272,6 +272,18 @@ export function SaveAttachmentToBuildingDialog({
               </SelectContent>
             </Select>
           </div>
+          <div>
+            <Label>Zuordnung</Label>
+            <Select value={fiscalYear} onValueChange={setFiscalYear}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="general">Allgemein (kein Wirtschaftsjahr)</SelectItem>
+                {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() + 1 - i).map(y => (
+                  <SelectItem key={y} value={String(y)}>Wirtschaftsjahr {y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>
