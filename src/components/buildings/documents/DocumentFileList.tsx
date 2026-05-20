@@ -190,7 +190,7 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
                   <div className="flex items-start gap-3">
                     <div
                       className="flex items-center pt-1"
-                      onClick={(e) => { e.stopPropagation(); toggleOne(f.id); }}
+                      onClick={(e) => e.stopPropagation()}
                     >
                       <Checkbox
                         checked={isChecked}
