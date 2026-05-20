@@ -1183,6 +1183,16 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       }
 
       const epOwners: any[] = p.economic_plan_owners || [];
+      // Common-Felder fürs Deckblatt aus dem reichsten Owner-Payload ziehen.
+      const pickCommon = (src: any) => {
+        if (!src) return {};
+        const keys = ["wirtschaftsjahr", "gebaeude_name", "gebaeude_adresse", "empfaenger_name",
+          "empfaenger_anschrift", "stichtag", "abrechnungszeitraum", "abrechnungszeitraum_von",
+          "abrechnungszeitraum_bis", "verwalter_name", "verwalter_anschrift", "datum_heute"];
+        const out: any = {};
+        for (const k of keys) if (src[k] !== undefined) out[k] = src[k];
+        return out;
+      };
       const items = (p.owners || []).map((o: any) => {
         const ep = epOwners.find((e) => e.ownerId === o.assignmentId) || epOwners.find((e) => e.name === o.name);
         const p35 = p35aItems.find((x: any) => x.assignment_id === o.assignmentId)
@@ -1192,12 +1202,16 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           ownerId: o.assignmentId,
           ownerName: o.name,
           payload: {
-            ...p.overall,
-            ...(p.asset_report || {}),
-            ...(p.economic_plan_overall || {}),
-            ...o.payload,
-            ...(ep?.payload || {}),
-            ...(p35?.payload || {}),
+            // Top-Level Common (Deckblatt-Variablen ohne Prefix)
+            ...pickCommon(o.payload),
+            ...pickCommon(p.overall),
+            // 5 vollständige, unveränderte Sub-Payloads — identisch zu den Einzeldownloads
+            abrechnung_gesamt: p.overall || {},
+            abrechnung_einzel: o.payload || {},
+            vermoegen: p.asset_report || {},
+            wirtschaftsplan_gesamt: p.economic_plan_overall || {},
+            wirtschaftsplan_einzel: ep?.payload || {},
+            p35a: p35?.payload || {},
           },
         };
       });
