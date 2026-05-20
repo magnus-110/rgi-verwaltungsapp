@@ -387,6 +387,89 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
               <input type="file" multiple accept="application/pdf" onChange={handleFileSelect} className="hidden" />
             </label>
 
+            {/* Aus DMS hinzufügen */}
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <p className="text-xs text-muted-foreground">
+                Oder Dokumente aus dem DMS (Gesamt-/Einzelabrechnung, Vermögensbericht, §35a) anhängen:
+              </p>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button size="sm" variant="outline" className="gap-1.5" disabled={!targetFiscalYear}>
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    Aus DMS ({dmsCandidates.length})
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-96 p-0" align="end">
+                  <div className="p-3 border-b">
+                    <p className="text-sm font-medium">DMS-Dokumente {targetFiscalYear}</p>
+                    <p className="text-xs text-muted-foreground">Auswählen zum Anhängen an die Kassenprüfung</p>
+                  </div>
+                  <ScrollArea className="max-h-80">
+                    {dmsCandidates.length === 0 ? (
+                      <p className="p-4 text-sm text-muted-foreground text-center">
+                        Keine passenden DMS-Dokumente für {targetFiscalYear} gefunden
+                      </p>
+                    ) : (
+                      <div className="p-1">
+                        {dmsCandidates.map((c) => {
+                          const selected = dmsAttachments.some((a) => a.id === c.id);
+                          return (
+                            <button
+                              key={c.id}
+                              onClick={() =>
+                                setDmsAttachments((prev) =>
+                                  selected ? prev.filter((a) => a.id !== c.id) : [...prev, c],
+                                )
+                              }
+                              className={cn(
+                                "w-full flex items-start gap-2 p-2 rounded text-left text-sm hover:bg-muted",
+                                selected && "bg-primary/5",
+                              )}
+                            >
+                              <div className={cn(
+                                "mt-0.5 h-4 w-4 rounded border flex items-center justify-center flex-shrink-0",
+                                selected ? "bg-primary border-primary" : "border-muted-foreground/40",
+                              )}>
+                                {selected && <Check className="h-3 w-3 text-primary-foreground" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="truncate font-medium">{c.display_name}</p>
+                                <p className="text-xs text-muted-foreground truncate">{c.category}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {dmsAttachments.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Aus DMS angehängt</p>
+                {dmsAttachments.map((a) => (
+                  <div key={a.id} className="flex items-center gap-2 text-sm bg-primary/5 p-2 rounded">
+                    <FolderOpen className="h-4 w-4 text-primary" />
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate">{a.display_name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{a.category}</p>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6"
+                      onClick={() => setDmsAttachments((prev) => prev.filter((x) => x.id !== a.id))}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+
             {/* Existing statements (edit mode) */}
             {existingStatements.filter(s => !removedStatementIds.includes(s.id)).length > 0 && (
               <div className="space-y-1">
