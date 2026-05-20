@@ -1,13 +1,19 @@
-import { useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { supabase } from "@/integrations/supabase/client";
-import { FileText, Eye, Users, Lock, Calendar, Sparkles, Receipt, Mail, ExternalLink } from "lucide-react";
+import { FileText, Eye, Users, Lock, Calendar, Sparkles, Receipt, Mail, ExternalLink, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { toast } from "sonner";
 import { DocFile, VISIBILITY_LABELS } from "./types";
 
 interface DocumentFileListProps {
@@ -37,6 +43,11 @@ const visIcon = (role: string) => {
 
 export function DocumentFileList({ buildingId, categoryId, searchQuery, selectedFileId, onSelect }: DocumentFileListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   const { data: files = [], isLoading } = useQuery({
     queryKey: ['stammakte-files', buildingId, categoryId, searchQuery],
     queryFn: async () => {
@@ -67,6 +78,46 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
     overscan: 8,
   });
 
+  const toggleOne = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const allSelected = files.length > 0 && files.every(f => selectedIds.has(f.id));
+  const someSelected = selectedIds.size > 0;
+
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(files.map(f => f.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const { error } = await supabase
+        .from('building_files')
+        .update({ deleted_at: new Date().toISOString() } as any)
+        .in('id', ids);
+      if (error) throw error;
+      toast.success(`${ids.length} Dokument(e) in Papierkorb verschoben`);
+      setSelectedIds(new Set());
+      setConfirmOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['stammakte-files'] });
+    } catch (e: any) {
+      toast.error("Löschen fehlgeschlagen: " + e.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (isLoading) {
     return <div className="p-4 text-sm text-muted-foreground">Laden...</div>;
   }
@@ -82,93 +133,152 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
   }
 
   return (
-    <div ref={parentRef} className="h-full overflow-y-auto">
-      <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
-        {virtualizer.getVirtualItems().map((vi) => {
-          const f = files[vi.index];
-          const isExpiringSoon = f.valid_until && new Date(f.valid_until) <= new Date(Date.now() + 90 * 86400000);
-          const isExpired = f.valid_until && new Date(f.valid_until) < new Date();
-          return (
-            <div
-              key={f.id}
-              data-index={vi.index}
-              ref={virtualizer.measureElement}
-              className="absolute top-0 left-0 w-full"
-              style={{ transform: `translateY(${vi.start}px)` }}
-            >
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30 gap-2">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            checked={allSelected}
+            onCheckedChange={toggleAll}
+            aria-label="Alle auswählen"
+          />
+          <span className="text-xs text-muted-foreground">
+            {someSelected ? `${selectedIds.size} ausgewählt` : `${files.length} Dokument(e)`}
+          </span>
+        </div>
+        {someSelected && (
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-7 gap-1.5"
+            onClick={() => setConfirmOpen(true)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Löschen
+          </Button>
+        )}
+      </div>
+
+      <div ref={parentRef} className="flex-1 overflow-y-auto">
+        <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
+          {virtualizer.getVirtualItems().map((vi) => {
+            const f = files[vi.index];
+            const isExpiringSoon = f.valid_until && new Date(f.valid_until) <= new Date(Date.now() + 90 * 86400000);
+            const isExpired = f.valid_until && new Date(f.valid_until) < new Date();
+            const isChecked = selectedIds.has(f.id);
+            return (
               <div
-                onClick={() => onSelect(f)}
-                onDoubleClick={async () => {
-                  const { data, error } = await supabase.storage
-                    .from('building-files')
-                    .createSignedUrl(f.file_path, 60);
-                  if (!error && data) window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
-                }}
-                className={cn(
-                  "w-full text-left p-3 hover:bg-accent transition-colors cursor-pointer border-b",
-                  selectedFileId === f.id && "bg-accent"
-                )}
+                key={f.id}
+                data-index={vi.index}
+                ref={virtualizer.measureElement}
+                className="absolute top-0 left-0 w-full"
+                style={{ transform: `translateY(${vi.start}px)` }}
               >
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded bg-muted flex-shrink-0">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-sm truncate flex-1">{f.display_name}</p>
-                      {f.version > 1 && <Badge variant="outline" className="text-[10px] h-4 px-1">v{f.version}</Badge>}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 flex-shrink-0"
-                        title="In neuem Tab öffnen"
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          const { data, error } = await supabase.storage
-                            .from('building-files')
-                            .createSignedUrl(f.file_path, 60);
-                          if (!error && data) window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
-                        }}
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </Button>
+                <div
+                  onClick={() => onSelect(f)}
+                  onDoubleClick={async () => {
+                    const { data, error } = await supabase.storage
+                      .from('building-files')
+                      .createSignedUrl(f.file_path, 60);
+                    if (!error && data) window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+                  }}
+                  className={cn(
+                    "w-full text-left p-3 hover:bg-accent transition-colors cursor-pointer border-b",
+                    selectedFileId === f.id && "bg-accent",
+                    isChecked && "bg-accent/60"
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="flex items-center pt-1"
+                      onClick={(e) => { e.stopPropagation(); toggleOne(f.id); }}
+                    >
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={() => toggleOne(f.id)}
+                        aria-label="Dokument auswählen"
+                      />
                     </div>
-                    {f.description && (
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">{f.description}</p>
-                    )}
-                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      <Badge variant="secondary" className="text-[10px] h-4 px-1.5 gap-1">
-                        {visIcon(f.visibility_role)}
-                        {VISIBILITY_LABELS[f.visibility_role]}
-                      </Badge>
-                      {f.source !== 'manual' && (
-                        <Badge variant="outline" className="text-[10px] h-4 px-1.5 gap-1">
-                          {sourceIcon(f.source)}
-                          {f.source}
-                        </Badge>
-                      )}
-                      {f.rag_enabled && (
-                        <Badge variant="outline" className="text-[10px] h-4 px-1.5 gap-1">
-                          <Sparkles className="h-3 w-3" /> KI
-                        </Badge>
-                      )}
-                      {f.valid_until && (
-                        <Badge
-                          variant={isExpired ? "destructive" : isExpiringSoon ? "default" : "outline"}
-                          className="text-[10px] h-4 px-1.5 gap-1"
+                    <div className="p-2 rounded bg-muted flex-shrink-0">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm truncate flex-1">{f.display_name}</p>
+                        {f.version > 1 && <Badge variant="outline" className="text-[10px] h-4 px-1">v{f.version}</Badge>}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 flex-shrink-0"
+                          title="In neuem Tab öffnen"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const { data, error } = await supabase.storage
+                              .from('building-files')
+                              .createSignedUrl(f.file_path, 60);
+                            if (!error && data) window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+                          }}
                         >
-                          <Calendar className="h-3 w-3" />
-                          {format(new Date(f.valid_until), 'dd.MM.yyyy', { locale: de })}
-                        </Badge>
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      {f.description && (
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">{f.description}</p>
                       )}
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        <Badge variant="secondary" className="text-[10px] h-4 px-1.5 gap-1">
+                          {visIcon(f.visibility_role)}
+                          {VISIBILITY_LABELS[f.visibility_role]}
+                        </Badge>
+                        {f.source !== 'manual' && (
+                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 gap-1">
+                            {sourceIcon(f.source)}
+                            {f.source}
+                          </Badge>
+                        )}
+                        {f.rag_enabled && (
+                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 gap-1">
+                            <Sparkles className="h-3 w-3" /> KI
+                          </Badge>
+                        )}
+                        {f.valid_until && (
+                          <Badge
+                            variant={isExpired ? "destructive" : isExpiringSoon ? "default" : "outline"}
+                            className="text-[10px] h-4 px-1.5 gap-1"
+                          >
+                            <Calendar className="h-3 w-3" />
+                            {format(new Date(f.valid_until), 'dd.MM.yyyy', { locale: de })}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{selectedIds.size} Dokument(e) löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Die ausgewählten Dokumente werden in den Papierkorb verschoben und sind nicht mehr sichtbar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleBulkDelete(); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Lösche...</> : "Löschen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
