@@ -220,6 +220,9 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       vat_amount: parseFloat(computedVat),
       is_35a_relevant: form.is_35a_relevant,
       matched_template_id: form.matched_template_id || null,
+      bank_transaction_id: linkedTransactionId || null,
+      needs_review: pendingFlag.flagged,
+      review_note: pendingFlag.flagged ? (pendingFlag.note || null) : null,
     } as any).select("id").single();
     setSaving(false);
     if (error) { toast.error("Fehler: " + error.message); return; }
