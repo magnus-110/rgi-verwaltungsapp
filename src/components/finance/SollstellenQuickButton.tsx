@@ -67,6 +67,7 @@ export function SollstellenQuickButton({
   defaultAmount,
   defaultDate,
   defaultDescription,
+  allowAccountPicker,
   onCreated,
   className,
 }: Props) {
@@ -75,14 +76,37 @@ export function SollstellenQuickButton({
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Personenkonto suchen (entweder Haupt- oder Gegenkonto)
-  const personenkonto = useMemo<AccountLike | null>(() => {
+  // Personenkonto aus Maske ableiten
+  const derivedPersonenkonto = useMemo<AccountLike | null>(() => {
     if (isPersonenkonto(account)) return account!;
     if (isPersonenkonto(counterAccount)) return counterAccount!;
     return null;
   }, [account, counterAccount]);
 
-  const visible = !!personenkonto;
+  const [pickedPersonenkontoId, setPickedPersonenkontoId] = useState<string>("");
+  const [personenkontenList, setPersonenkontenList] = useState<AccountLike[]>([]);
+
+  // Personenkonten nachladen wenn Picker aktiv und kein automatisches Konto vorhanden
+  useEffect(() => {
+    if (!allowAccountPicker || derivedPersonenkonto || !buildingId || !open) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("chart_of_accounts")
+        .select("id, account_number, account_name, category")
+        .eq("building_id", buildingId)
+        .ilike("category", "0. Personenkonten%")
+        .order("account_number");
+      if (!cancelled) setPersonenkontenList((data as any) || []);
+    })();
+    return () => { cancelled = true; };
+  }, [allowAccountPicker, derivedPersonenkonto, buildingId, open]);
+
+  const personenkonto = derivedPersonenkonto
+    || personenkontenList.find((p) => p.id === pickedPersonenkontoId)
+    || null;
+
+  const visible = !!derivedPersonenkonto || !!allowAccountPicker;
 
   const [direction, setDirection] = useState<SollstellungDirection>("guthaben");
   const [amount, setAmount] = useState<string>("");
