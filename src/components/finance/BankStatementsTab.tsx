@@ -59,6 +59,8 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   const [statementPdf, setStatementPdf] = useState<{ url: string; name: string } | null>(null);
   const [showIgnored, setShowIgnored] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null);
+  const [editBooking, setEditBooking] = useState<any | null>(null);
+  const [editBuildingName, setEditBuildingName] = useState<string>("");
   const [manualAssignTxn, setManualAssignTxn] = useState<any | null>(null);
   const [manualAssignType, setManualAssignType] = useState<"invoice" | "template">("invoice");
   const [manualAssignId, setManualAssignId] = useState<string>("");
