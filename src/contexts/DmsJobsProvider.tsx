@@ -113,6 +113,7 @@ export function DmsJobsProvider({ children }: { children: React.ReactNode }) {
           folderKey: it.folderKey,
           visibility: it.visibility,
           managementMode: it.managementMode,
+          fiscalYear: it.fiscalYear ?? null,
         });
         completed++;
       } catch (e: any) {
