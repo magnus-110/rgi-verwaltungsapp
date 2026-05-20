@@ -6,6 +6,7 @@ import { ManagementModeProvider, useManagementMode } from "@/hooks/useManagement
 import { MobileHeader } from "./MobileHeader";
 import { UploadProvider } from "@/contexts/UploadContext";
 import { UploadProgressWidget } from "./documents/UploadProgressWidget";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
