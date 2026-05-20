@@ -423,7 +423,7 @@ export const Dashboard = () => {
                         </div>
                         {a.building_name && (
                           <div className="text-xs text-muted-foreground truncate mt-0.5">
-                            {a.building_name} · {formatDistanceToNow(new Date(a.ts), { addSuffix: true, locale: de })}
+                            {a.building_name} · {a.ts && isValid(new Date(a.ts)) ? formatDistanceToNow(new Date(a.ts), { addSuffix: true, locale: de }) : ""}
                           </div>
                         )}
                       </div>
