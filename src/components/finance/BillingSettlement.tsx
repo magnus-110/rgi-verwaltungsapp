@@ -1205,7 +1205,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   // Globaler Dokumente-Button (Finance-Header) → existierende Download-Funktionen aufrufen.
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { target: string; format: "docx" | "pdf" };
+      const detail = (e as CustomEvent).detail as { target: string; format: "docx" | "pdf" | "dms" };
       if (!detail) return;
       switch (detail.target) {
         case "overall": downloadBilling("overall", detail.format); break;
