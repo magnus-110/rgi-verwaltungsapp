@@ -1466,10 +1466,26 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                 <Receipt className="h-4 w-4 mr-1" /> §35a Bescheinigung
               </TabsTrigger>
             </TabsList>
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setDocsOpen(true)}>
-              <FileText className="h-4 w-4" />
-              Dokumente
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" className="gap-1.5" disabled={busyDownload?.startsWith("combined_") ?? false}>
+                    <FileText className="h-4 w-4" />
+                    {busyDownload?.startsWith("combined_") ? "Erzeuge…" : "Sammelbericht"}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => downloadCombined("overall", "docx")}>Gesamt-Sammelbericht (DOCX)</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => downloadCombined("overall", "pdf")}>Gesamt-Sammelbericht (PDF)</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => downloadCombined("owners", "docx")}>Einzel-Sammelberichte (ZIP / DOCX)</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => downloadCombined("owners", "pdf")}>Einzel-Sammelberichte (ZIP / PDF)</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setDocsOpen(true)}>
+                <FileText className="h-4 w-4" />
+                Dokumente
+              </Button>
+            </div>
           </div>
           <FinanceDocumentsDialog
             open={docsOpen}
