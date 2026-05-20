@@ -10,8 +10,14 @@ import {
   AlertCircle, Briefcase, FileText, Mail, ListTodo, Wrench,
   ChevronRight, Building2, Activity, CalendarClock, Home,
 } from "lucide-react";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow, format, isValid } from "date-fns";
 import { de } from "date-fns/locale";
+
+const safeFormat = (value: any, fmt: string) => {
+  if (!value) return "—";
+  const d = new Date(value);
+  return isValid(d) ? format(d, fmt, { locale: de }) : "—";
+};
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { AnnualCycleDashboardWidget } from "@/components/dashboard/AnnualCycleDashboardWidget";
@@ -259,7 +265,7 @@ export const Dashboard = () => {
                         "text-xs flex-shrink-0",
                         t.is_overdue ? "text-destructive font-medium" : "text-muted-foreground"
                       )}>
-                        {format(new Date(t.due_date), "d. MMM", { locale: de })}
+                        {safeFormat(t.due_date, "d. MMM")}
                       </span>
                     </li>
                   ))}
@@ -287,7 +293,7 @@ export const Dashboard = () => {
                         <span className="truncate">{t.title}</span>
                       </div>
                       <span className="text-xs text-muted-foreground flex-shrink-0">
-                        {format(new Date(t.due_date), "d. MMM", { locale: de })}
+                        {safeFormat(t.due_date, "d. MMM")}
                       </span>
                     </li>
                   ))}
@@ -342,7 +348,7 @@ export const Dashboard = () => {
                         "text-xs flex-shrink-0",
                         m.is_overdue ? "text-destructive font-medium" : "text-muted-foreground"
                       )}>
-                        {format(new Date(m.next_due_date), "d. MMM", { locale: de })}
+                        {safeFormat(m.next_due_date, "d. MMM")}
                       </span>
                     </li>
                   ))}
@@ -373,7 +379,7 @@ export const Dashboard = () => {
                         </div>
                       </div>
                       <span className="text-xs text-muted-foreground flex-shrink-0">
-                        {format(new Date(m.next_due_date), "d. MMM", { locale: de })}
+                        {safeFormat(m.next_due_date, "d. MMM")}
                       </span>
                     </li>
                   ))}
@@ -417,7 +423,7 @@ export const Dashboard = () => {
                         </div>
                         {a.building_name && (
                           <div className="text-xs text-muted-foreground truncate mt-0.5">
-                            {a.building_name} · {formatDistanceToNow(new Date(a.ts), { addSuffix: true, locale: de })}
+                            {a.building_name} · {a.ts && isValid(new Date(a.ts)) ? formatDistanceToNow(new Date(a.ts), { addSuffix: true, locale: de }) : ""}
                           </div>
                         )}
                       </div>
