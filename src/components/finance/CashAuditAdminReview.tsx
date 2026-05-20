@@ -494,6 +494,7 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
         booking={editingBooking}
         buildingName={building?.name || ""}
         onSaved={handleSavedBooking}
+        hideQuickActions
       />
 
       <AccountInspectorDialog
