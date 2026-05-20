@@ -103,7 +103,7 @@ export function FinanceDocumentsDialog({
     return m;
   }, [templates]);
 
-  const requestDownload = (scope: Scope, format: "docx" | "pdf") => {
+  const requestDownload = (scope: Scope, format: Format) => {
     if (!selectedBuildingId) {
       toast.error("Bitte zuerst eine Liegenschaft auswählen.");
       return;
@@ -134,12 +134,11 @@ export function FinanceDocumentsDialog({
         }),
       );
     if (needsWp) {
-      // kleine Verzögerung, bis ManualEconomicPlanEditor gemountet & Listener registriert ist
       setTimeout(dispatch, 1500);
     } else {
       dispatch();
     }
-    toast.message("Download wird vorbereitet…");
+    toast.message(format === "dms" ? "Wird ins DMS abgelegt…" : "Download wird vorbereitet…");
     onOpenChange(false);
   };
 
