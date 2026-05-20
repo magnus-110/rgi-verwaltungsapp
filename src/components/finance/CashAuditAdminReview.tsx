@@ -504,6 +504,7 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
         buildingId={buildingId || ""}
         fiscalYear={Number(fiscalYear) || new Date().getFullYear()}
         onBookingChanged={handleSavedBooking}
+        hideQuickActions
       />
     </div>
   );
