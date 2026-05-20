@@ -187,7 +187,7 @@ function SlotCard({
   description: string;
   template?: { id: string; name: string; storage_path: string } | null;
   onChanged: () => void;
-  onDownload: (fmt: "docx" | "pdf") => void;
+  onDownload: (fmt: Format) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
