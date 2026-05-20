@@ -194,6 +194,7 @@ export function CashAuditJournal({ buildingId, fiscalYear, progress, onProgressC
         note={selectedBookingId ? bookingNotes[selectedBookingId] : ""}
         setNote={setNote}
         readOnly={readOnly}
+        buildingId={buildingId}
       />
     </div>
   );

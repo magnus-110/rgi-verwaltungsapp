@@ -424,6 +424,7 @@ export function CashAuditAccountSheet({ buildingId, fiscalYear, progress, onProg
         note={reviewBookingId ? bookingNotes[reviewBookingId] : ""}
         setNote={setBookingNote}
         readOnly={readOnly}
+        buildingId={buildingId}
       />
     </div>
   );

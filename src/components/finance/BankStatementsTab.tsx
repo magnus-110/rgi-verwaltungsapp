@@ -22,6 +22,8 @@ import { AssignmentDialog } from "./AssignmentDialog";
 import { TransactionDetailSheet } from "./TransactionDetailSheet";
 import { CreateBookingDialog } from "./CreateBookingDialog";
 import { EditBookingDialog } from "./EditBookingDialog";
+import { SollstellenQuickButton } from "./SollstellenQuickButton";
+import { IhrZufuehrungQuickButton } from "./IhrZufuehrungQuickButton";
 import { TransactionReviewMode } from "./TransactionReviewMode";
 import { useTransactionAiPrefetch } from "@/hooks/useTransactionAiPrefetch";
 import { PdfViewerModal } from "@/components/documents/PdfViewerModal";
@@ -670,6 +672,24 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                 </Tooltip>
               </TooltipProvider>
             )}
+            <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 ml-1">
+              <SollstellenQuickButton
+                buildingId={selectedBuilding && selectedBuilding !== "all" ? selectedBuilding : (txn.building_id || null)}
+                defaultAmount={Math.abs(Number(txn.amount) || 0)}
+                defaultDate={txn.booking_date}
+                defaultDescription={txn.purpose || ""}
+                allowAccountPicker
+                className="!px-2 !py-0.5 !text-[10px]"
+              />
+              <IhrZufuehrungQuickButton
+                buildingId={selectedBuilding && selectedBuilding !== "all" ? selectedBuilding : (txn.building_id || null)}
+                defaultAmount={Math.abs(Number(txn.amount) || 0)}
+                defaultDate={txn.booking_date}
+                defaultDescription={txn.purpose || ""}
+                alwaysVisible
+                className="!px-2 !py-0.5 !text-[10px]"
+              />
+            </div>
           </div>
         </TableCell>
       </TableRow>

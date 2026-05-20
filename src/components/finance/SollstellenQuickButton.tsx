@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   createSollstellungBooking,
   isPersonenkonto,
@@ -33,6 +34,8 @@ interface Props {
   defaultDate?: string | null;
   /** Default-Beschreibung aus der Maske */
   defaultDescription?: string | null;
+  /** Wenn true: Button immer sichtbar, Personenkonto wird per Picker gewählt */
+  allowAccountPicker?: boolean;
   onCreated?: () => void;
   className?: string;
 }
@@ -64,6 +67,7 @@ export function SollstellenQuickButton({
   defaultAmount,
   defaultDate,
   defaultDescription,
+  allowAccountPicker,
   onCreated,
   className,
 }: Props) {
@@ -72,14 +76,37 @@ export function SollstellenQuickButton({
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Personenkonto suchen (entweder Haupt- oder Gegenkonto)
-  const personenkonto = useMemo<AccountLike | null>(() => {
+  // Personenkonto aus Maske ableiten
+  const derivedPersonenkonto = useMemo<AccountLike | null>(() => {
     if (isPersonenkonto(account)) return account!;
     if (isPersonenkonto(counterAccount)) return counterAccount!;
     return null;
   }, [account, counterAccount]);
 
-  const visible = !!personenkonto;
+  const [pickedPersonenkontoId, setPickedPersonenkontoId] = useState<string>("");
+  const [personenkontenList, setPersonenkontenList] = useState<AccountLike[]>([]);
+
+  // Personenkonten nachladen wenn Picker aktiv und kein automatisches Konto vorhanden
+  useEffect(() => {
+    if (!allowAccountPicker || derivedPersonenkonto || !buildingId || !open) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("chart_of_accounts")
+        .select("id, account_number, account_name, category")
+        .eq("building_id", buildingId)
+        .ilike("category", "0. Personenkonten%")
+        .order("account_number");
+      if (!cancelled) setPersonenkontenList((data as any) || []);
+    })();
+    return () => { cancelled = true; };
+  }, [allowAccountPicker, derivedPersonenkonto, buildingId, open]);
+
+  const personenkonto = derivedPersonenkonto
+    || personenkontenList.find((p) => p.id === pickedPersonenkontoId)
+    || null;
+
+  const visible = !!derivedPersonenkonto || !!allowAccountPicker;
 
   const [direction, setDirection] = useState<SollstellungDirection>("guthaben");
   const [amount, setAmount] = useState<string>("");
@@ -160,17 +187,38 @@ export function SollstellenQuickButton({
             className,
           )}
           title="Interne Sollstellungs-Buchung Personenkonto ↔ 4020 erzeugen"
+          onClick={(e) => e.stopPropagation()}
         >
           Sollstellen
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 space-y-3" align="start">
+      <PopoverContent className="w-80 space-y-3" align="start" onClick={(e) => e.stopPropagation()}>
         <div className="space-y-1">
           <div className="text-sm font-semibold">Sollstellung erzeugen</div>
           <div className="text-xs text-muted-foreground">
-            {personenkonto?.account_number} – {personenkonto?.account_name} ↔ 4020
+            {personenkonto
+              ? `${personenkonto.account_number} – ${personenkonto.account_name} ↔ 4020`
+              : "Personenkonto wählen ↔ 4020"}
           </div>
         </div>
+
+        {allowAccountPicker && !derivedPersonenkonto && (
+          <div className="space-y-1">
+            <Label className="text-xs">Personenkonto</Label>
+            <select
+              value={pickedPersonenkontoId}
+              onChange={(e) => setPickedPersonenkontoId(e.target.value)}
+              className="w-full h-8 text-xs border rounded-md px-2 bg-background"
+            >
+              <option value="">– bitte wählen –</option>
+              {personenkontenList.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.account_number} – {p.account_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="space-y-1.5">
           <Label className="text-xs">Art</Label>

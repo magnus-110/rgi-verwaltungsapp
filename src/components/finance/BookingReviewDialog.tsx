@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Check, AlertTriangle, FileText, LayoutTemplate, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SollstellenQuickButton } from "./SollstellenQuickButton";
+import { IhrZufuehrungQuickButton } from "./IhrZufuehrungQuickButton";
+
+import { isReserveAccount } from "./lib/ihrZufuehrung";
 
 export interface AuditBookingRow {
   id: string;
@@ -48,6 +52,7 @@ interface Props {
   note?: string;
   setNote?: (id: string, note: string) => void;
   readOnly?: boolean;
+  buildingId?: string | null;
 }
 
 const fmt = (n?: number | null) =>
@@ -55,7 +60,7 @@ const fmt = (n?: number | null) =>
 
 export function BookingReviewDialog({
   open, onOpenChange, bookings, selectedId, setSelectedId,
-  flag, setFlag, note, setNote, readOnly,
+  flag, setFlag, note, setNote, readOnly, buildingId,
 }: Props) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -227,6 +232,44 @@ export function BookingReviewDialog({
                 )}
               </div>
             </div>
+
+            {(() => {
+              const isPK = (n?: string | null) => !!n && /^0\d{3}$/.test(n) && n !== "0000";
+              const accNo = acc?.account_number || null;
+              const counterNo = counter?.account_number || null;
+              const accLike = acc ? { id: booking.account_id || "", account_number: acc.account_number, account_name: acc.account_name, category: isPK(accNo) ? "0. Personenkonten" : null } : null;
+              const counterLike = counter ? { id: booking.counter_account_id || "", account_number: counter.account_number, account_name: counter.account_name, category: isPK(counterNo) ? "0. Personenkonten" : null } : null;
+              const showSoll = isPK(accNo) || isPK(counterNo);
+              const showIhr = isReserveAccount(accLike as any) || isReserveAccount(counterLike as any);
+              if (!showSoll && !showIhr) return null;
+              const accId = booking.account_id || null;
+              const counterId = booking.counter_account_id || null;
+              return (
+                <div className="flex flex-wrap items-center gap-2 pt-3 border-t">
+                  <span className="text-xs text-muted-foreground">Folgebuchung:</span>
+                  {showSoll && (
+                    <SollstellenQuickButton
+                      buildingId={buildingId || null}
+                      account={accLike ? { id: accId || "", ...accLike } as any : null}
+                      counterAccount={counterLike ? { id: counterId || "", ...counterLike } as any : null}
+                      defaultAmount={booking.amount}
+                      defaultDate={booking.booking_date}
+                      defaultDescription={booking.description}
+                    />
+                  )}
+                  {showIhr && (
+                    <IhrZufuehrungQuickButton
+                      buildingId={buildingId || null}
+                      account={accLike ? { id: accId || "", ...accLike } as any : null}
+                      counterAccount={counterLike ? { id: counterId || "", ...counterLike } as any : null}
+                      defaultAmount={booking.amount}
+                      defaultDate={booking.booking_date}
+                      defaultDescription={booking.description}
+                    />
+                  )}
+                </div>
+              );
+            })()}
 
             {!readOnly && setFlag && (
               <div className="space-y-3 pt-3 border-t">

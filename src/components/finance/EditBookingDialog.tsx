@@ -27,6 +27,7 @@ import { buildBookingText, rebuildBookingTextIfAuto } from "./lib/bookingTextBui
 import { VendorAliasDialog } from "./VendorAliasDialog";
 import { parseAmount } from "./lib/parseAmount";
 import { SollstellenQuickButton } from "./SollstellenQuickButton";
+import { IhrZufuehrungQuickButton } from "./IhrZufuehrungQuickButton";
 import { BankPurposePanel } from "./BankPurposePanel";
 
 interface Booking {
@@ -892,6 +893,14 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                     )}
                   </button>
                   <SollstellenQuickButton
+                    buildingId={buildingId}
+                    account={accounts.find((a: any) => a.id === form.account_id) as any}
+                    counterAccount={counterAccount as any}
+                    defaultAmount={form.amount}
+                    defaultDate={form.booking_date}
+                    defaultDescription={form.description}
+                  />
+                  <IhrZufuehrungQuickButton
                     buildingId={buildingId}
                     account={accounts.find((a: any) => a.id === form.account_id) as any}
                     counterAccount={counterAccount as any}
