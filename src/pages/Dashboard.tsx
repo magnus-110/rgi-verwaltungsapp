@@ -10,8 +10,14 @@ import {
   AlertCircle, Briefcase, FileText, Mail, ListTodo, Wrench,
   ChevronRight, Building2, Activity, CalendarClock, Home,
 } from "lucide-react";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow, format, isValid } from "date-fns";
 import { de } from "date-fns/locale";
+
+const safeFormat = (value: any, fmt: string) => {
+  if (!value) return "—";
+  const d = new Date(value);
+  return isValid(d) ? format(d, fmt, { locale: de }) : "—";
+};
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { AnnualCycleDashboardWidget } from "@/components/dashboard/AnnualCycleDashboardWidget";
