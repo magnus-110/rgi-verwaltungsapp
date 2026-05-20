@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { Plus, Trash2, FileText, Upload, ExternalLink } from "lucide-react";
+import { Plus, Trash2, FileText, Upload, ExternalLink, FolderOpen, Check } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { format, addDays } from "date-fns";
 import { useManagementMode } from "@/hooks/useManagementMode";
@@ -23,6 +25,7 @@ interface CreateAuditDialogProps {
 
 interface NoteDraft { id?: string; title: string; body: string; }
 interface ExistingStatement { id: string; file_name: string; file_path: string; }
+interface DmsCandidate { id: string; display_name: string; file_path: string; category: string; }
 
 export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDialogProps) {
   const queryClient = useQueryClient();
@@ -35,6 +38,7 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
   const [portalUntil, setPortalUntil] = useState(format(addDays(new Date(), 30), "yyyy-MM-dd"));
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const [existingStatements, setExistingStatements] = useState<ExistingStatement[]>([]);
+  const [dmsAttachments, setDmsAttachments] = useState<DmsCandidate[]>([]);
   const [notes, setNotes] = useState<NoteDraft[]>([]);
   const [removedNoteIds, setRemovedNoteIds] = useState<string[]>([]);
   const [removedStatementIds, setRemovedStatementIds] = useState<string[]>([]);
@@ -87,6 +91,32 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
   });
 
   const selectedPeriod = periods.find((p) => p.id === selectedPeriodId);
+  const targetFiscalYear = selectedPeriod?.fiscal_year;
+
+  // DMS-Kandidaten: Finanzdokumente der Liegenschaft für das Abrechnungsjahr
+  const { data: dmsCandidates = [] } = useQuery({
+    queryKey: ["audit-dms-candidates", selectedBuildingId, targetFiscalYear],
+    queryFn: async () => {
+      if (!selectedBuildingId || !targetFiscalYear) return [] as DmsCandidate[];
+      const { data } = await supabase
+        .from("building_files")
+        .select("id, display_name, file_path, fiscal_year, building_file_categories(name)")
+        .eq("building_id", selectedBuildingId)
+        .eq("fiscal_year", targetFiscalYear)
+        .is("deleted_at", null)
+        .order("display_name");
+      const relevant = /Gesamtabrechnung|Einzelabrechnung|Verm.gensbericht|§?35a|Paragraph 35a/i;
+      return (data || [])
+        .map((r: any) => ({
+          id: r.id,
+          display_name: r.display_name,
+          file_path: r.file_path,
+          category: r.building_file_categories?.name || "Sonstiges",
+        }))
+        .filter((r: DmsCandidate) => relevant.test(r.category) || relevant.test(r.display_name));
+    },
+    enabled: !!selectedBuildingId && !!targetFiscalYear,
+  });
 
   // Pre-fill in edit mode
   useEffect(() => {
@@ -161,6 +191,7 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
     setNotes([]);
     setRemovedNoteIds([]);
     setRemovedStatementIds([]);
+    setDmsAttachments([]);
   };
 
   const openExistingStatement = async (path: string) => {
@@ -220,6 +251,30 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
           file_name: file.name,
           file_path: path,
           sort_order: baseSort + i,
+        });
+      }
+
+      // DMS-Anhänge: aus building-files herunterladen und ins audit-Bucket kopieren
+      for (let i = 0; i < dmsAttachments.length; i++) {
+        const att = dmsAttachments[i];
+        const srcPath = att.file_path.replace(/^\/+/, "").replace(/^building-files\//, "");
+        const { data: blob, error: dlErr } = await supabase.storage.from("building-files").download(srcPath);
+        if (dlErr || !blob) {
+          toast.error(`DMS-Datei "${att.display_name}" konnte nicht geladen werden`);
+          continue;
+        }
+        const safeName = att.display_name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `cash-audits/${targetAuditId}/${crypto.randomUUID()}-${safeName}`;
+        const { error: upErr } = await supabase.storage.from("building-documents").upload(path, blob, { contentType: "application/pdf" });
+        if (upErr) {
+          toast.error(`Upload von "${att.display_name}" fehlgeschlagen: ${upErr.message}`);
+          continue;
+        }
+        await supabase.from("cash_audit_statements").insert({
+          cash_audit_id: targetAuditId,
+          file_name: att.display_name,
+          file_path: path,
+          sort_order: baseSort + pdfFiles.length + i,
         });
       }
 
@@ -331,6 +386,89 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
               </p>
               <input type="file" multiple accept="application/pdf" onChange={handleFileSelect} className="hidden" />
             </label>
+
+            {/* Aus DMS hinzufügen */}
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <p className="text-xs text-muted-foreground">
+                Oder Dokumente aus dem DMS (Gesamt-/Einzelabrechnung, Vermögensbericht, §35a) anhängen:
+              </p>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button size="sm" variant="outline" className="gap-1.5" disabled={!targetFiscalYear}>
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    Aus DMS ({dmsCandidates.length})
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-96 p-0" align="end">
+                  <div className="p-3 border-b">
+                    <p className="text-sm font-medium">DMS-Dokumente {targetFiscalYear}</p>
+                    <p className="text-xs text-muted-foreground">Auswählen zum Anhängen an die Kassenprüfung</p>
+                  </div>
+                  <ScrollArea className="max-h-80">
+                    {dmsCandidates.length === 0 ? (
+                      <p className="p-4 text-sm text-muted-foreground text-center">
+                        Keine passenden DMS-Dokumente für {targetFiscalYear} gefunden
+                      </p>
+                    ) : (
+                      <div className="p-1">
+                        {dmsCandidates.map((c) => {
+                          const selected = dmsAttachments.some((a) => a.id === c.id);
+                          return (
+                            <button
+                              key={c.id}
+                              onClick={() =>
+                                setDmsAttachments((prev) =>
+                                  selected ? prev.filter((a) => a.id !== c.id) : [...prev, c],
+                                )
+                              }
+                              className={cn(
+                                "w-full flex items-start gap-2 p-2 rounded text-left text-sm hover:bg-muted",
+                                selected && "bg-primary/5",
+                              )}
+                            >
+                              <div className={cn(
+                                "mt-0.5 h-4 w-4 rounded border flex items-center justify-center flex-shrink-0",
+                                selected ? "bg-primary border-primary" : "border-muted-foreground/40",
+                              )}>
+                                {selected && <Check className="h-3 w-3 text-primary-foreground" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="truncate font-medium">{c.display_name}</p>
+                                <p className="text-xs text-muted-foreground truncate">{c.category}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {dmsAttachments.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Aus DMS angehängt</p>
+                {dmsAttachments.map((a) => (
+                  <div key={a.id} className="flex items-center gap-2 text-sm bg-primary/5 p-2 rounded">
+                    <FolderOpen className="h-4 w-4 text-primary" />
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate">{a.display_name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{a.category}</p>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6"
+                      onClick={() => setDmsAttachments((prev) => prev.filter((x) => x.id !== a.id))}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
 
             {/* Existing statements (edit mode) */}
             {existingStatements.filter(s => !removedStatementIds.includes(s.id)).length > 0 && (
