@@ -360,6 +360,16 @@ function SlotCard({
             <FileText className="h-4 w-4 mr-1" />
             PDF
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!template}
+            onClick={() => onDownload("dms")}
+            title="PDF erzeugen und im DMS ablegen (pro Eigentümer, falls Einzeldokument)"
+          >
+            <FolderUp className="h-4 w-4 mr-1" />
+            DMS
+          </Button>
         </div>
       </div>
 
