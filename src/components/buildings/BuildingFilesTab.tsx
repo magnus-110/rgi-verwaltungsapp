@@ -42,6 +42,7 @@ export const BuildingFilesTab = ({ buildingId, managementMode }: BuildingFilesTa
   const [persons, setPersons] = useState<PersonProfile[]>([]);
 
   const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [selectedYear, setSelectedYear] = useState<string>("all"); // "all" | "general" | "2026" ...
   const [visibleToUsers, setVisibleToUsers] = useState(true);
   const [description, setDescription] = useState("");
   const [showDescription, setShowDescription] = useState(false);
