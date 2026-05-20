@@ -108,30 +108,37 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
 
   const fmt = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 
+  // DMS-Dokumente (Gesamt-/Einzelabrechnung, Vermögensbericht, §35a) separat ausweisen
+  const dmsRegex = /Gesamtabrechnung|Einzelabrechnung|Verm.egensbericht|Verm.gensbericht|§?35a|_35a/i;
+  const planDocs = (statements as any[]).filter((s) => dmsRegex.test(s.file_name || ""));
+  const bankStatements = (statements as any[]).filter((s) => !dmsRegex.test(s.file_name || ""));
+
+  const renderDocList = (list: any[], emptyText: string) => (
+    <div className="space-y-1">
+      {list.map((s: any) => (
+        <button
+          key={s.id}
+          onClick={() => openStatement(s)}
+          className="w-full flex items-center gap-3 p-2 rounded hover:bg-muted/50 text-left text-sm"
+        >
+          <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <span className="flex-1 truncate">{s.file_name}</span>
+          <span className="text-xs text-muted-foreground">
+            {s.uploaded_at && new Date(s.uploaded_at).toLocaleDateString("de-DE")}
+          </span>
+        </button>
+      ))}
+      {list.length === 0 && <p className="text-sm text-muted-foreground py-4 text-center">{emptyText}</p>}
+    </div>
+  );
+
   const sections = [
     {
       id: "statements",
       label: "Kontoauszüge",
       icon: Landmark,
-      count: statements.length,
-      content: (
-        <div className="space-y-1">
-          {statements.map((s: any) => (
-            <button
-              key={s.id}
-              onClick={() => openStatement(s)}
-              className="w-full flex items-center gap-3 p-2 rounded hover:bg-muted/50 text-left text-sm"
-            >
-              <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <span className="flex-1 truncate">{s.file_name}</span>
-              <span className="text-xs text-muted-foreground">
-                {s.uploaded_at && new Date(s.uploaded_at).toLocaleDateString("de-DE")}
-              </span>
-            </button>
-          ))}
-          {statements.length === 0 && <p className="text-sm text-muted-foreground py-4 text-center">Keine Kontoauszüge hochgeladen</p>}
-        </div>
-      ),
+      count: bankStatements.length,
+      content: renderDocList(bankStatements, "Keine Kontoauszüge hochgeladen"),
     },
     {
       id: "invoices",
@@ -164,12 +171,15 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
       id: "plans",
       label: "Abrechnungen & Pläne",
       icon: BarChart3,
-      count: null,
-      content: (
-        <div className="py-4 text-center text-sm text-muted-foreground">
-          Die Abrechnungs- und Wirtschaftsplan-PDFs werden über den Abrechnungs-Tab erstellt und können dort eingesehen werden.
-        </div>
-      ),
+      count: planDocs.length,
+      content:
+        planDocs.length > 0 ? (
+          renderDocList(planDocs, "Keine Abrechnungs-Dokumente angehängt")
+        ) : (
+          <div className="py-4 text-center text-sm text-muted-foreground">
+            Die Abrechnungs- und Wirtschaftsplan-PDFs werden über den Abrechnungs-Tab erstellt und können dort eingesehen werden.
+          </div>
+        ),
     },
   ];
 
