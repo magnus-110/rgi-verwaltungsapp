@@ -158,6 +158,27 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     enabled: open && !!form.building_id && !!form.account_id && !!form.fiscal_year,
   });
 
+  // Bank-Transaction für Kontoauszug-bezogene neue Buchungen
+  const { data: bankTxn } = useQuery({
+    queryKey: ["create-booking-bank-txn", linkedTransactionId],
+    queryFn: async () => {
+      if (!linkedTransactionId) return null;
+      const { data } = await supabase
+        .from("bank_transactions")
+        .select("id, purpose, debtor_name, creditor_name, booking_date, amount")
+        .eq("id", linkedTransactionId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: open && !!linkedTransactionId,
+  });
+
+  // Flag-State (wird beim Speichern in needs_review/review_note geschrieben)
+  const [pendingFlag, setPendingFlag] = useState<{ flagged: boolean; note?: string }>({ flagged: false });
+  useEffect(() => { if (!open) setPendingFlag({ flagged: false }); }, [open]);
+
+
+
   const selectedAccountObj = accounts.find((a: any) => a.id === form.account_id);
 
 
