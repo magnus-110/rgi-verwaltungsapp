@@ -1126,57 +1126,83 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     return () => window.removeEventListener("finance:collect-combined-payload", handler as EventListener);
   });
 
-  // Sammelbericht-Trigger: sammelt Payloads aller Tabs, mergt sie und ruft
-  // die bestehende generate-billing-document Edge Function mit der combined_report-Vorlage auf.
-  const downloadCombined = async (mode: "overall" | "owners", format: "docx" | "pdf") => {
+  // Sammelbericht-Trigger: sammelt Payloads aller Tabs (Abrechnung + Wirtschaftsplan + §35a),
+  // mergt sie pro Eigentümer und ruft generate-billing-document mit der combined_report-Vorlage auf.
+  // Es gibt nur Einzel-Sammelberichte (pro Eigentümer), da jeder Sammelbericht die Gesamtdaten enthält.
+  const downloadCombined = async (format: "docx" | "pdf") => {
     const combinedTpls = billingTemplates.filter((t: any) => t.scope === "combined_report");
     const tplId = combinedTpls[0]?.id;
     if (!tplId) {
-      toast.error("Bitte zuerst eine Sammelbericht-Vorlage (Scope 'combined_report') hochladen.");
+      toast.error("Bitte zuerst eine Sammelbericht-Vorlage hochladen.");
       setDocsOpen(true);
       return;
     }
+    // Sicherstellen, dass Wirtschaftsplan-Tab schon einmal aktiv war (forceMount sollte das erledigen,
+    // aber zur Sicherheit kurz darauf umschalten, falls noch kein Mount erfolgt ist).
     const detail: any = { payloads: {}, errors: [] };
     window.dispatchEvent(new CustomEvent("finance:collect-combined-payload", { detail }));
     if (detail.errors?.length) { toast.error(detail.errors.join(" | ")); return; }
     const p = detail.payloads;
     if (!p.overall) { toast.error("Abrechnungs-Daten fehlen."); return; }
     if (!p.economic_plan_overall) {
-      toast.error("Wirtschaftsplan-Daten fehlen — bitte den Wirtschaftsplan-Tab öffnen, damit er lädt, und erneut versuchen.");
+      toast.error("Wirtschaftsplan-Daten fehlen — bitte den Wirtschaftsplan-Tab kurz öffnen und erneut versuchen.");
       return;
     }
 
-    setBusyDownload(`combined_${mode}`);
+    setBusyDownload("combined_owners");
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
       if (!accessToken) throw new Error("Bitte erneut anmelden.");
 
-      let items: Array<{ kind: string; ownerId?: string; ownerName?: string; payload: any }> = [];
-      if (mode === "overall") {
-        const merged = { ...p.overall, ...(p.asset_report || {}), ...(p.economic_plan_overall || {}) };
-        items = [{ kind: "overall", payload: merged }];
-      } else {
-        const epOwners: any[] = p.economic_plan_owners || [];
-        items = (p.owners || []).map((o: any) => {
-          const ep = epOwners.find((e) => e.ownerId === o.assignmentId) || epOwners.find((e) => e.name === o.name);
-          return {
-            kind: "owner",
-            ownerId: o.assignmentId,
-            ownerName: o.name,
-            payload: {
-              ...p.overall,
-              ...(p.asset_report || {}),
-              ...(p.economic_plan_overall || {}),
-              ...o.payload,
-              ...(ep?.payload || {}),
-            },
-          };
-        });
-        if (!items.length) { toast.error("Keine Eigentümer gefunden."); setBusyDownload(null); return; }
+      // §35a-Payloads parallel von Edge Function abholen (payloads_only Modus).
+      let p35aItems: any[] = [];
+      try {
+        const r35 = await fetch(
+          `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify({
+              building_id: buildingId,
+              fiscal_year: fiscalYear,
+              period_id: periodId,
+              mode: "payloads_only",
+            }),
+          },
+        );
+        if (r35.ok) {
+          const j = await r35.json();
+          p35aItems = j.items || [];
+        } else {
+          console.warn("§35a payloads konnten nicht geladen werden:", await r35.text());
+        }
+      } catch (e) {
+        console.warn("§35a Aufruf fehlgeschlagen", e);
       }
 
-      const prefix = mode === "overall" ? `Sammelbericht_${fiscalYear}` : `Sammelberichte_Einzel_${fiscalYear}`;
+      const epOwners: any[] = p.economic_plan_owners || [];
+      const items = (p.owners || []).map((o: any) => {
+        const ep = epOwners.find((e) => e.ownerId === o.assignmentId) || epOwners.find((e) => e.name === o.name);
+        const p35 = p35aItems.find((x: any) => x.assignment_id === o.assignmentId)
+          || p35aItems.find((x: any) => x.owner_name === o.name);
+        return {
+          kind: "owner",
+          ownerId: o.assignmentId,
+          ownerName: o.name,
+          payload: {
+            ...p.overall,
+            ...(p.asset_report || {}),
+            ...(p.economic_plan_overall || {}),
+            ...o.payload,
+            ...(ep?.payload || {}),
+            ...(p35?.payload || {}),
+          },
+        };
+      });
+      if (!items.length) { toast.error("Keine Eigentümer gefunden."); setBusyDownload(null); return; }
+
+      const prefix = `Sammelberichte_${fiscalYear}`;
       const resp = await fetch(
         `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-billing-document`,
         {
@@ -1185,7 +1211,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           body: JSON.stringify({
             template_id: tplId,
             fiscal_year: fiscalYear,
-            mode: mode === "owners" ? "all" : "single",
+            mode: "all",
             format,
             file_prefix: prefix,
             items,
@@ -1194,15 +1220,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       );
       if (!resp.ok) throw new Error(await resp.text());
       const bytes = await resp.blob();
-      const ext = mode === "owners" ? "zip" : format;
-      const mime =
-        mode === "owners"
-          ? "application/zip"
-          : format === "pdf"
-            ? "application/pdf"
-            : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-      triggerDownload(bytes, `${prefix}.${ext}`, mime);
-      toast.success("Sammelbericht bereit");
+      triggerDownload(bytes, `${prefix}.zip`, "application/zip");
+      toast.success("Sammelberichte bereit");
     } catch (e: any) {
       toast.error("Fehler: " + (e?.message || "Unbekannt"));
     } finally {
