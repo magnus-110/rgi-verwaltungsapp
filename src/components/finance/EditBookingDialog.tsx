@@ -893,23 +893,26 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                       </Badge>
                     )}
                   </button>
-                  <SollstellenQuickButton
-                    buildingId={buildingId}
-                    account={accounts.find((a: any) => a.id === form.account_id) as any}
-                    counterAccount={counterAccount as any}
-                    defaultAmount={form.amount}
-                    defaultDate={form.booking_date}
-                    defaultDescription={form.description}
-                  />
-                  <IhrZufuehrungQuickButton
-                    buildingId={buildingId}
-                    account={accounts.find((a: any) => a.id === form.account_id) as any}
-                    counterAccount={counterAccount as any}
-                    defaultAmount={form.amount}
-                    defaultDate={form.booking_date}
-                    defaultDescription={form.description}
-                  />
-                </div>
+                  {!hideQuickActions && (
+                    <>
+                      <SollstellenQuickButton
+                        buildingId={buildingId}
+                        account={accounts.find((a: any) => a.id === form.account_id) as any}
+                        counterAccount={counterAccount as any}
+                        defaultAmount={form.amount}
+                        defaultDate={form.booking_date}
+                        defaultDescription={form.description}
+                      />
+                      <IhrZufuehrungQuickButton
+                        buildingId={buildingId}
+                        account={accounts.find((a: any) => a.id === form.account_id) as any}
+                        counterAccount={counterAccount as any}
+                        defaultAmount={form.amount}
+                        defaultDate={form.booking_date}
+                        defaultDescription={form.description}
+                      />
+                    </>
+                  )}
 
                 {/* Save button */}
                 <Button data-edit-booking-save onClick={handleSave} disabled={saving || !form.account_id} className="w-full h-9 text-sm">
