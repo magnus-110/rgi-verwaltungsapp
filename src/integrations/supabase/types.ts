@@ -1446,6 +1446,7 @@ export type Database = {
           extracted_text: string | null
           file_path: string
           file_size: number
+          fiscal_year: number | null
           id: string
           is_current_version: boolean
           linked_billing_period_id: string | null
@@ -1477,6 +1478,7 @@ export type Database = {
           extracted_text?: string | null
           file_path: string
           file_size?: number
+          fiscal_year?: number | null
           id?: string
           is_current_version?: boolean
           linked_billing_period_id?: string | null
@@ -1508,6 +1510,7 @@ export type Database = {
           extracted_text?: string | null
           file_path?: string
           file_size?: number
+          fiscal_year?: number | null
           id?: string
           is_current_version?: boolean
           linked_billing_period_id?: string | null
