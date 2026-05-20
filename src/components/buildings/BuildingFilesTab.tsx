@@ -180,8 +180,19 @@ export const BuildingFilesTab = ({ buildingId, managementMode }: BuildingFilesTa
     }
   };
 
-  const buildingFiles = files.filter((f) => !f.assigned_user_id);
-  const getPersonFiles = (contactId: string) => files.filter((f) => f.assigned_user_id === contactId);
+  // Year-Filter
+  const availableYears = Array.from(
+    new Set(files.map((f) => f.fiscal_year).filter((y) => y != null)),
+  ).sort((a: number, b: number) => b - a);
+
+  const filteredByYear = files.filter((f) => {
+    if (selectedYear === "all") return true;
+    if (selectedYear === "general") return f.fiscal_year == null;
+    return String(f.fiscal_year) === selectedYear;
+  });
+
+  const buildingFiles = filteredByYear.filter((f) => !f.assigned_user_id);
+  const getPersonFiles = (contactId: string) => filteredByYear.filter((f) => f.assigned_user_id === contactId);
 
   const getPersonName = (p: PersonProfile) => {
     return [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email || "Unbenannt";
