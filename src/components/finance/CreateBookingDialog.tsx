@@ -16,6 +16,7 @@ import { BookingTextTemplateCombobox } from "./BookingTextTemplateCombobox";
 import { signedTotalForAccount } from "./lib/bookingAggregation";
 import { rebuildBookingTextIfAuto } from "./lib/bookingTextBuilder";
 import { SollstellenQuickButton } from "./SollstellenQuickButton";
+import { IhrZufuehrungQuickButton } from "./IhrZufuehrungQuickButton";
 import { BankPurposePanel } from "./BankPurposePanel";
 
 interface BookingPrefill {
