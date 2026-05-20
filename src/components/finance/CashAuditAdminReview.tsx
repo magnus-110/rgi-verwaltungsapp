@@ -494,6 +494,7 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
         booking={editingBooking}
         buildingName={building?.name || ""}
         onSaved={handleSavedBooking}
+        hideQuickActions
       />
 
       <AccountInspectorDialog
@@ -503,6 +504,7 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
         buildingId={buildingId || ""}
         fiscalYear={Number(fiscalYear) || new Date().getFullYear()}
         onBookingChanged={handleSavedBooking}
+        hideQuickActions
       />
     </div>
   );

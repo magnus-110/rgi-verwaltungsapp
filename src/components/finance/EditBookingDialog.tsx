@@ -61,12 +61,13 @@ interface Props {
   buildingName: string;
   onInvoiceClick?: (booking: any) => void;
   onSaved?: (bookingId: string) => void;
+  hideQuickActions?: boolean;
 }
 
 const formatCurrency = (amount: number | null) =>
   amount != null ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(amount) : "–";
 
-export function EditBookingDialog({ open, onOpenChange, booking, buildingName, onSaved }: Props) {
+export function EditBookingDialog({ open, onOpenChange, booking, buildingName, onSaved, hideQuickActions }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
@@ -892,22 +893,26 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                       </Badge>
                     )}
                   </button>
-                  <SollstellenQuickButton
-                    buildingId={buildingId}
-                    account={accounts.find((a: any) => a.id === form.account_id) as any}
-                    counterAccount={counterAccount as any}
-                    defaultAmount={form.amount}
-                    defaultDate={form.booking_date}
-                    defaultDescription={form.description}
-                  />
-                  <IhrZufuehrungQuickButton
-                    buildingId={buildingId}
-                    account={accounts.find((a: any) => a.id === form.account_id) as any}
-                    counterAccount={counterAccount as any}
-                    defaultAmount={form.amount}
-                    defaultDate={form.booking_date}
-                    defaultDescription={form.description}
-                  />
+                  {!hideQuickActions && (
+                    <>
+                      <SollstellenQuickButton
+                        buildingId={buildingId}
+                        account={accounts.find((a: any) => a.id === form.account_id) as any}
+                        counterAccount={counterAccount as any}
+                        defaultAmount={form.amount}
+                        defaultDate={form.booking_date}
+                        defaultDescription={form.description}
+                      />
+                      <IhrZufuehrungQuickButton
+                        buildingId={buildingId}
+                        account={accounts.find((a: any) => a.id === form.account_id) as any}
+                        counterAccount={counterAccount as any}
+                        defaultAmount={form.amount}
+                        defaultDate={form.booking_date}
+                        defaultDescription={form.description}
+                      />
+                    </>
+                  )}
                 </div>
 
                 {/* Save button */}

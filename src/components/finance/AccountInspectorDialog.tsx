@@ -95,13 +95,14 @@ interface Props {
   buildingId: string;
   fiscalYear: number;
   onBookingChanged?: (bookingId: string) => void;
+  hideQuickActions?: boolean;
 }
 
 const fmt = (n?: number | null) =>
   n == null ? "–" : n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 
 export function AccountInspectorDialog({
-  open, onOpenChange, accountId, buildingId, fiscalYear, onBookingChanged,
+  open, onOpenChange, accountId, buildingId, fiscalYear, onBookingChanged, hideQuickActions,
 }: Props) {
   const queryClient = useQueryClient();
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
@@ -572,6 +573,7 @@ export function AccountInspectorDialog({
         onOpenChange={(o) => !o && setEditingFull(null)}
         booking={editingFull}
         buildingName={""}
+        hideQuickActions={hideQuickActions}
         onSaved={(id) => {
           onBookingChanged?.(id);
           refetchBookings();
