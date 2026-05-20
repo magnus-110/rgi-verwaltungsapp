@@ -94,19 +94,27 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
   const targetFiscalYear = selectedPeriod?.fiscal_year;
 
   // DMS-Kandidaten: Finanzdokumente der Liegenschaft für das Abrechnungsjahr
+  // Filter: allgemeine Dokumente (kein linked_contact_id) + nur die personenbezogenen
+  // Dokumente, die dem ausgewählten Kassenprüfer zugeordnet sind.
   const { data: dmsCandidates = [] } = useQuery({
-    queryKey: ["audit-dms-candidates", selectedBuildingId, targetFiscalYear],
+    queryKey: ["audit-dms-candidates", selectedBuildingId, targetFiscalYear, selectedContactId],
     queryFn: async () => {
       if (!selectedBuildingId || !targetFiscalYear) return [] as DmsCandidate[];
       const { data } = await supabase
         .from("building_files")
-        .select("id, display_name, file_path, fiscal_year, building_file_categories(name)")
+        .select("id, display_name, file_path, fiscal_year, linked_contact_id, visibility_role, building_file_categories(name)")
         .eq("building_id", selectedBuildingId)
         .eq("fiscal_year", targetFiscalYear)
         .is("deleted_at", null)
         .order("display_name");
       const relevant = /Gesamtabrechnung|Einzelabrechnung|Verm.gensbericht|§?35a|Paragraph 35a/i;
       return (data || [])
+        .filter((r: any) => {
+          // Allgemein: kein Personenbezug
+          if (!r.linked_contact_id) return true;
+          // Personenbezogen: nur wenn es zum gewählten Kassenprüfer passt
+          return selectedContactId && r.linked_contact_id === selectedContactId;
+        })
         .map((r: any) => ({
           id: r.id,
           display_name: r.display_name,
