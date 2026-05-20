@@ -1099,6 +1099,17 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
 
       <TransactionDetailSheet transactionId={selectedTransaction} onClose={() => setSelectedTransaction(null)} />
 
+      <EditBookingDialog
+        open={!!editBooking}
+        onOpenChange={(o) => { if (!o) setEditBooking(null); }}
+        booking={editBooking}
+        buildingName={editBuildingName}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["bank-transactions-building", selectedBuilding] });
+          queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("bookings") });
+        }}
+      />
+
       <AssignmentDialog
         transaction={manualAssignTxn}
         onClose={() => setManualAssignTxn(null)}
