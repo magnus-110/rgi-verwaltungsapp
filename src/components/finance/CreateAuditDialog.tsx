@@ -38,6 +38,7 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
   const [portalUntil, setPortalUntil] = useState(format(addDays(new Date(), 30), "yyyy-MM-dd"));
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const [existingStatements, setExistingStatements] = useState<ExistingStatement[]>([]);
+  const [dmsAttachments, setDmsAttachments] = useState<DmsCandidate[]>([]);
   const [notes, setNotes] = useState<NoteDraft[]>([]);
   const [removedNoteIds, setRemovedNoteIds] = useState<string[]>([]);
   const [removedStatementIds, setRemovedStatementIds] = useState<string[]>([]);
