@@ -2,10 +2,11 @@ import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { supabase } from "@/integrations/supabase/client";
-import { FileText, Eye, Users, Lock, Calendar, Sparkles, Receipt, Mail, ExternalLink, Trash2, Loader2 } from "lucide-react";
+import { FileText, Eye, Users, Lock, Calendar, Sparkles, Receipt, Mail, ExternalLink, Trash2, Loader2, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
