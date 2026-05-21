@@ -68,7 +68,10 @@ export interface BillingPayloadInputs {
     hausgeld: number;
     reserve: number;
     totalPaid: number;
+    actualPaid?: number;
+    ownerUeberzahlung?: number;
     result: number;
+
     timeProp: number;
     owner35aDienste: number;
     owner35aHandwerker: number;
