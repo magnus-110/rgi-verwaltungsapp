@@ -1,0 +1,2 @@
+ALTER TABLE public.cash_audit_statements ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'statement';
+COMMENT ON COLUMN public.cash_audit_statements.category IS 'statement = Bankauszug, plan = Abrechnung/Wirtschaftsplan (extern hochgeladen oder aus DMS kopiert)';
