@@ -69,8 +69,15 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { campaign_id } = await req.json();
+    const body = await req.json();
+    const campaign_id = body?.campaign_id;
+    const outputFormat: "docx" | "pdf" = body?.output_format === "pdf" ? "pdf" : "docx";
     if (!campaign_id) return json({ error: "campaign_id required" }, 400);
+
+    const cloudConvertKey = Deno.env.get("CLOUDCONVERT_API_KEY");
+    if (outputFormat === "pdf" && !cloudConvertKey) {
+      return json({ error: "CLOUDCONVERT_API_KEY nicht konfiguriert" }, 500);
+    }
 
     const { data: campaign, error: cErr } = await admin
       .from("comm_campaigns").select("*").eq("id", campaign_id).single();
