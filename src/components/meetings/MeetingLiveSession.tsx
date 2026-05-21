@@ -1017,7 +1017,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                 >
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     <span className="text-sm font-medium truncate">{getContactName(contact)}</span>
-                    {cba?.unit_number && <Badge variant="outline" className="text-[10px] shrink-0 px-1.5 py-0">E{cba.unit_number}</Badge>}
+                    {cba?.unit_number && <Badge variant="outline" className="text-[10px] shrink-0 px-1.5 py-0">{cba.unit_number}</Badge>}
                     {a.proxy_type && (
                       <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-[10px] shrink-0">
                         v.d. {a.proxy_type === "manager" ? "Verwalter" : a.proxy_type === "owner" ? (() => {
