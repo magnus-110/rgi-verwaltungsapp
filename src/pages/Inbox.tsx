@@ -209,15 +209,17 @@ export const Inbox = () => {
     return folder?.name === "Papierkorb";
   }, [selectedFolderId, folders]);
 
-  // Unread counts per folder (auto-refresh every 30s)
+  // Unread counts per folder (auto-refresh every 30s) — nur abonnierte Postfächer
   const { data: folderCountsRaw = {} } = useQuery({
-    queryKey: ["email-folder-counts"],
+    queryKey: ["email-folder-counts", myAccountIds],
     queryFn: async () => {
+      if (!myAccountIds || myAccountIds.length === 0) return {};
       const { data, error } = await supabase
         .from("emails")
-        .select("folder_id, is_read")
+        .select("folder_id, is_read, account_id")
         .eq("is_read", false)
-        .eq("is_archived", false);
+        .eq("is_archived", false)
+        .in("account_id", myAccountIds);
       if (error) throw error;
       const counts: Record<string, number> = {};
       data?.forEach(e => {
@@ -227,6 +229,7 @@ export const Inbox = () => {
       });
       return counts;
     },
+    enabled: myAccountIds.length > 0,
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
