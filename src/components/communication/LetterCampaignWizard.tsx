@@ -25,6 +25,7 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) 
   const [filter, setFilter] = useState<RecipientFilterValue>({ roles: [], contact_ids: [], assignment_ids: [], require_email: false });
   const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [outputFormat, setOutputFormat] = useState<"docx" | "pdf">("docx");
   const [resultPath, setResultPath] = useState<string | null>(null);
   const [resultStats, setResultStats] = useState<{ ok: number; failed: number } | null>(null);
   const { toast } = useToast();
@@ -33,6 +34,7 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) 
   const reset = () => {
     setStep(1); setName(""); setTemplate(null);
     setFilter({ roles: [], contact_ids: [], assignment_ids: [], require_email: false });
+    setOutputFormat("docx");
     setResultPath(null); setResultStats(null);
   };
 
