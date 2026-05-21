@@ -25,6 +25,24 @@ interface DocumentFileListProps {
   onSelect: (file: DocFile) => void;
 }
 
+function HighlightText({ text, search }: { text: string; search: string }) {
+  if (!search.trim()) return <>{text}</>;
+  const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`(${escaped})`, 'gi');
+  const parts = text.split(regex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === search.toLowerCase() ? (
+          <span key={i} className="bg-yellow-200 text-yellow-900 px-0.5 rounded">{part}</span>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
+}
+
 const sourceIcon = (source: string) => {
   switch (source) {
     case 'email': return <Mail className="h-3 w-3" />;
