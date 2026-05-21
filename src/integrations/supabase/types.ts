@@ -2158,6 +2158,7 @@ export type Database = {
       cash_audit_statements: {
         Row: {
           cash_audit_id: string
+          category: string
           file_name: string
           file_path: string
           id: string
@@ -2166,6 +2167,7 @@ export type Database = {
         }
         Insert: {
           cash_audit_id: string
+          category?: string
           file_name: string
           file_path: string
           id?: string
@@ -2174,6 +2176,7 @@ export type Database = {
         }
         Update: {
           cash_audit_id?: string
+          category?: string
           file_name?: string
           file_path?: string
           id?: string
