@@ -55,7 +55,7 @@ export const EtvProxy = () => {
       }
       if ((res.data as any)?.error) throw new Error((res.data as any).error);
       toast({ title: "Vollmacht übernommen", description: "Sie wurden ins Owner-Portal weitergeleitet." });
-      navigate("/owner/meetings");
+      navigate("/weg-owner/meetings");
     } catch (err: any) {
       toast({ title: "Fehler", description: err.message, variant: "destructive" });
     } finally {
