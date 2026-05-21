@@ -26,7 +26,7 @@ export const VotingPopup = () => {
   const [meetingId, setMeetingId] = useState<string | null>(null);
   const [isSecretBallot, setIsSecretBallot] = useState(true);
 
-  // Live vote counts after voting done
+  // Live vote counts — active throughout the entire voting (not only after allDone)
   const { data: liveVotes = [] } = useQuery({
     queryKey: ["voting-popup-live-votes", votingItem?.id],
     queryFn: async () => {
@@ -38,12 +38,12 @@ export const VotingPopup = () => {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!votingItem && allDone,
+    enabled: !!votingItem,
   });
 
-  // Realtime for votes when showing results
+  // Realtime for votes during the entire voting
   useEffect(() => {
-    if (!votingItem?.id || !allDone) return;
+    if (!votingItem?.id) return;
     const channel = supabase
       .channel(`popup-votes-${votingItem.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "etv_votes", filter: `agenda_item_id=eq.${votingItem.id}` }, () => {
@@ -51,7 +51,7 @@ export const VotingPopup = () => {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [votingItem?.id, allDone, queryClient]);
+  }, [votingItem?.id, queryClient]);
 
   const checkVotingForItem = useCallback(async (agendaItem: any) => {
     if (!profile?.user_id) return;
