@@ -114,20 +114,6 @@ const ContactRow = memo(function ContactRow({
           <p className="text-xs text-muted-foreground truncate">{comm.name}</p>
         )}
 
-        {cats.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1">
-            {cats.map((id) => (
-              <span key={id} className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary truncate max-w-[140px]">
-                {getCategoryLabel(id)}
-              </span>
-            ))}
-            {(contact.service_provider_categories?.length ?? 0) > cats.length && (
-              <span className="text-[10px] text-muted-foreground">
-                +{(contact.service_provider_categories?.length ?? 0) - cats.length}
-              </span>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
