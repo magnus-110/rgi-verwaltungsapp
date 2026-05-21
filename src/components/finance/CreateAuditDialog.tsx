@@ -37,12 +37,14 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
   const [selectedContactId, setSelectedContactId] = useState<string>("");
   const [portalUntil, setPortalUntil] = useState(format(addDays(new Date(), 30), "yyyy-MM-dd"));
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
-  const [existingStatements, setExistingStatements] = useState<ExistingStatement[]>([]);
+  const [planFiles, setPlanFiles] = useState<File[]>([]);
+  const [existingStatements, setExistingStatements] = useState<(ExistingStatement & { category?: string })[]>([]);
   const [dmsAttachments, setDmsAttachments] = useState<DmsCandidate[]>([]);
   const [notes, setNotes] = useState<NoteDraft[]>([]);
   const [removedNoteIds, setRemovedNoteIds] = useState<string[]>([]);
   const [removedStatementIds, setRemovedStatementIds] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingPlan, setIsDraggingPlan] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const { data: buildings = [] } = useQuery({
