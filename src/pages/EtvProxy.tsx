@@ -9,10 +9,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Shield, Calendar, MapPin, Building2, CheckCircle2, AlertTriangle,
-  Vote, XCircle, MinusCircle, ChevronDown, Users, BarChart3,
+  Vote, XCircle, MinusCircle, ChevronDown, Users, BarChart3, UserCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+
 
 export const EtvProxy = () => {
   const { token } = useParams<{ token: string }>();
