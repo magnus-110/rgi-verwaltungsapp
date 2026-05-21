@@ -380,6 +380,41 @@ export const WegOwnerMeetings = () => {
   // 1h-Sperre entfernt: Vollmachten können bis zur letzten Sekunde erteilt werden
   const isProxyLocked = (_meetingDate: string) => false;
 
+  // Redeem external proxy token into this user's account
+  const redeemProxyMutation = useMutation({
+    mutationFn: async (rawToken: string) => {
+      const res = await supabase.functions.invoke("redeem-proxy-token", {
+        body: { token: rawToken },
+      });
+      if (res.error) {
+        // Try to extract server error message
+        let msg = res.error.message || "Einlösen fehlgeschlagen";
+        try {
+          const ctx: any = (res.error as any).context;
+          if (ctx?.body) {
+            const parsed = typeof ctx.body === "string" ? JSON.parse(ctx.body) : ctx.body;
+            if (parsed?.error) msg = parsed.error;
+          }
+        } catch { /* ignore */ }
+        throw new Error(msg);
+      }
+      if ((res.data as any)?.error) throw new Error((res.data as any).error);
+      return res.data;
+    },
+    onSuccess: () => {
+      toast({ title: "Vollmacht übernommen", description: "Die Vollmacht ist jetzt in Ihrem Konto verfügbar." });
+      setRedeemDialogOpen(false);
+      setRedeemInput("");
+      queryClient.invalidateQueries({ queryKey: ["received-proxies"] });
+      refetchAttendees();
+    },
+    onError: (err: any) => {
+      toast({ title: "Vollmacht konnte nicht eingelöst werden", description: err.message, variant: "destructive" });
+    },
+  });
+
+
+
 
   const submitTopMutation = useMutation({
     mutationFn: async () => {
