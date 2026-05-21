@@ -64,6 +64,8 @@ export const WegOwnerMeetings = () => {
   const [createdProxyToken, setCreatedProxyToken] = useState<string | null>(null);
   const [proxyStep, setProxyStep] = useState(1);
   const [expandedTopIds, setExpandedTopIds] = useState<Set<string>>(new Set());
+  const [redeemDialogOpen, setRedeemDialogOpen] = useState(false);
+  const [redeemInput, setRedeemInput] = useState("");
 
   // TOP submission form
   const [topTitle, setTopTitle] = useState("");
@@ -377,6 +379,41 @@ export const WegOwnerMeetings = () => {
 
   // 1h-Sperre entfernt: Vollmachten können bis zur letzten Sekunde erteilt werden
   const isProxyLocked = (_meetingDate: string) => false;
+
+  // Redeem external proxy token into this user's account
+  const redeemProxyMutation = useMutation({
+    mutationFn: async (rawToken: string) => {
+      const res = await supabase.functions.invoke("redeem-proxy-token", {
+        body: { token: rawToken },
+      });
+      if (res.error) {
+        // Try to extract server error message
+        let msg = res.error.message || "Einlösen fehlgeschlagen";
+        try {
+          const ctx: any = (res.error as any).context;
+          if (ctx?.body) {
+            const parsed = typeof ctx.body === "string" ? JSON.parse(ctx.body) : ctx.body;
+            if (parsed?.error) msg = parsed.error;
+          }
+        } catch { /* ignore */ }
+        throw new Error(msg);
+      }
+      if ((res.data as any)?.error) throw new Error((res.data as any).error);
+      return res.data;
+    },
+    onSuccess: () => {
+      toast({ title: "Vollmacht übernommen", description: "Die Vollmacht ist jetzt in Ihrem Konto verfügbar." });
+      setRedeemDialogOpen(false);
+      setRedeemInput("");
+      queryClient.invalidateQueries({ queryKey: ["received-proxies"] });
+      refetchAttendees();
+    },
+    onError: (err: any) => {
+      toast({ title: "Vollmacht konnte nicht eingelöst werden", description: err.message, variant: "destructive" });
+    },
+  });
+
+
 
 
   const submitTopMutation = useMutation({
@@ -835,8 +872,31 @@ export const WegOwnerMeetings = () => {
                 </div>
               )}
 
+              {/* Externe Vollmacht einlösen */}
+              {["published", "in_progress"].includes(selectedMeeting.status) && myAssignments.length > 0 && (
+                <div className="border-t pt-4">
+                  <Card className="border-dashed">
+                    <CardContent className="p-4 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium flex items-center gap-2">
+                          <Link2 className="h-4 w-4 text-primary" />
+                          Externe Vollmacht einlösen
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Sie haben per Link eine Vollmacht erhalten? Fügen Sie den Link oder Token hier ein, um direkt in der App abzustimmen.
+                        </p>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => { setRedeemInput(""); setRedeemDialogOpen(true); }}>
+                        Einlösen
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
               {/* Received Proxies Section */}
               {receivedProxies.length > 0 && ["published", "in_progress"].includes(selectedMeeting.status) && (
+
                 <div className="border-t pt-4 space-y-3">
                   <h3 className="font-semibold text-foreground flex items-center gap-2">
                     <Shield className="h-4 w-4 text-blue-500" />
@@ -1368,7 +1428,44 @@ export const WegOwnerMeetings = () => {
       </Dialog>
 
       {/* Proxy Dialog — Progressive Steps: Type → Person → Instructions → Create */}
+      {/* Redeem external proxy dialog */}
+      <Dialog open={redeemDialogOpen} onOpenChange={(open) => { if (!open) { setRedeemDialogOpen(false); setRedeemInput(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link2 className="h-5 w-5 text-primary" />
+              Externe Vollmacht einlösen
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Fügen Sie den vollständigen Vollmacht-Link oder den Token ein, den Sie vom Vollmachtgeber erhalten haben. Die Vollmacht wird Ihrem Konto zugeordnet und der externe Link verliert anschließend seine Gültigkeit.
+            </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="redeem-input">Link oder Token</Label>
+              <Input
+                id="redeem-input"
+                value={redeemInput}
+                onChange={(e) => setRedeemInput(e.target.value)}
+                placeholder="https://… /etv-proxy/<token>"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRedeemDialogOpen(false)}>Abbrechen</Button>
+            <Button
+              onClick={() => redeemProxyMutation.mutate(redeemInput.trim())}
+              disabled={!redeemInput.trim() || redeemProxyMutation.isPending}
+            >
+              {redeemProxyMutation.isPending ? "Wird übernommen…" : "Vollmacht übernehmen"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showProxyDialog} onOpenChange={(open) => { if (!open) { setShowProxyDialog(false); setProxyAssignmentId(null); setCreatedProxyToken(null); setProxyStep(1); setExpandedTopIds(new Set()); } }}>
+
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">

@@ -9,20 +9,62 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Shield, Calendar, MapPin, Building2, CheckCircle2, AlertTriangle,
-  Vote, XCircle, MinusCircle, ChevronDown, Users, BarChart3,
+  Vote, XCircle, MinusCircle, ChevronDown, Users, BarChart3, UserCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+
 
 export const EtvProxy = () => {
   const { token } = useParams<{ token: string }>();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [votingItem, setVotingItem] = useState<any>(null);
   const [selectedVote, setSelectedVote] = useState<string | null>(null);
   const [hasVoted, setHasVoted] = useState(false);
   const [descOpen, setDescOpen] = useState(false);
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+  const [redeeming, setRedeeming] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSessionUserId(data.session?.user?.id ?? null);
+    });
+  }, []);
+
+  const handleRedeem = async () => {
+    if (!token) return;
+    setRedeeming(true);
+    try {
+      const res = await supabase.functions.invoke("redeem-proxy-token", {
+        body: { token },
+      });
+      if (res.error) {
+        let msg = res.error.message || "Einlösen fehlgeschlagen";
+        try {
+          const ctx: any = (res.error as any).context;
+          if (ctx?.body) {
+            const parsed = typeof ctx.body === "string" ? JSON.parse(ctx.body) : ctx.body;
+            if (parsed?.error) msg = parsed.error;
+          }
+        } catch { /* ignore */ }
+        throw new Error(msg);
+      }
+      if ((res.data as any)?.error) throw new Error((res.data as any).error);
+      toast({ title: "Vollmacht übernommen", description: "Sie wurden ins Owner-Portal weitergeleitet." });
+      navigate("/weg-owner/meetings");
+    } catch (err: any) {
+      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+    } finally {
+      setRedeeming(false);
+    }
+  };
 
   const { data, isLoading, error } = useQuery({
+
     queryKey: ["etv-proxy", token],
     queryFn: async () => {
       if (!token) throw new Error("Kein Token angegeben");
@@ -232,6 +274,25 @@ export const EtvProxy = () => {
   const meetingDate = new Date(meeting.meeting_date);
   const isCompleted = meeting.status === "completed";
   const isActive = meeting.status === "in_progress";
+  const tokenUsed = (data as any).proxy_token_used === true;
+
+  // Token bereits eingelöst → klare Sackgasse
+  if (tokenUsed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="py-12 text-center space-y-3">
+            <UserCheck className="h-12 w-12 text-primary mx-auto" />
+            <h1 className="text-xl font-bold text-foreground">Vollmacht bereits übernommen</h1>
+            <p className="text-sm text-muted-foreground">
+              Diese Vollmacht wurde bereits in das Konto eines anderen Eigentümers übernommen und kann über diesen Link nicht mehr genutzt werden. Bitte beim Vollmachtgeber einen neuen Link anfordern, falls erforderlich.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
 
   const voteButtons = [
     { value: "yes", label: "Ja", icon: CheckCircle2, className: "bg-green-600 hover:bg-green-700 text-white" },
@@ -391,6 +452,26 @@ export const EtvProxy = () => {
             </p>
           )}
         </div>
+
+        {sessionUserId && !isCompleted && (
+          <Card className="border-primary/40 bg-primary/5">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-start gap-2">
+                <UserCheck className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-foreground">In Ihr Konto übernehmen?</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Sie sind bereits angemeldet. Übernehmen Sie diese Vollmacht direkt in Ihr Owner-Portal – dann müssen Sie nicht zwischen Link und App wechseln.
+                  </p>
+                </div>
+              </div>
+              <Button className="w-full" onClick={handleRedeem} disabled={redeeming}>
+                {redeeming ? "Wird übernommen…" : "Vollmacht in mein Konto übernehmen"}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
 
         <Card>
           <CardContent className="p-4 space-y-3">
