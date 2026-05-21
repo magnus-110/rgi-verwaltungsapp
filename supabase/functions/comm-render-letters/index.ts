@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
           linebreaks: true,
           delimiters: { start: "{{", end: "}}" },
         });
-        doc.render(r.vars);
+        doc.render({ ...r.vars, ...meetingVars });
         const docxBuf: Uint8Array = doc.getZip().generate({ type: "uint8array" });
 
         const baseName = sanitize(r.display_name) || `empfaenger_${i + 1}`;
