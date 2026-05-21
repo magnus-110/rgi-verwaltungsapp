@@ -20,11 +20,11 @@ interface Props {
   titlePrefix?: string;
 }
 
-export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) => {
+export const LetterCampaignWizard = ({ open, onOpenChange, buildingId, meetingId, titlePrefix }: Props) => {
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [template, setTemplate] = useState<any>(null);
-  const [filter, setFilter] = useState<RecipientFilterValue>({ roles: [], contact_ids: [], assignment_ids: [], require_email: false });
+  const [filter, setFilter] = useState<RecipientFilterValue>({ roles: meetingId ? ["eigentuemer"] : [], contact_ids: [], assignment_ids: [], require_email: false });
   const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [outputFormat, setOutputFormat] = useState<"docx" | "pdf">("docx");
