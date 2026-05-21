@@ -83,7 +83,7 @@ export async function loadRecipients(
   // Building -> contact assignments
   let q = admin
     .from("contact_building_assignments")
-    .select("id, contact_id, unit_number, role_in_building, is_active")
+    .select("id, contact_id, unit_number, role_in_building, is_active, contact_building_shares(share_type, share_value)")
     .eq("building_id", buildingId)
     .or("is_active.is.null,is_active.eq.true");
 
