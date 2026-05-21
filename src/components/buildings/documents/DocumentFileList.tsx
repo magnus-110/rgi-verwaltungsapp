@@ -247,7 +247,9 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium text-sm truncate flex-1">{f.display_name}</p>
+                        <p className="font-medium text-sm truncate flex-1">
+                          <HighlightText text={f.display_name} search={effectiveSearch} />
+                        </p>
                         {f.version > 1 && <Badge variant="outline" className="text-[10px] h-4 px-1">v{f.version}</Badge>}
                         <Button
                           variant="ghost"
