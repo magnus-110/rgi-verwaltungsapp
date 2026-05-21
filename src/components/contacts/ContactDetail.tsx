@@ -234,6 +234,12 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
         service_provider_categories: form.is_service_provider_pool
           ? (form.service_provider_categories ?? [])
           : [],
+        trade_notes: (form as any).trade_notes ?? null,
+        rating: (form as any).rating ?? null,
+        last_hired_at: (form as any).last_hired_at ?? null,
+        is_emergency_service: !!(form as any).is_emergency_service,
+        address_lat: (form as any).address_lat ?? null,
+        address_lon: (form as any).address_lon ?? null,
       } as any).eq("id", contact.id);
       if (contactError) throw contactError;
 
