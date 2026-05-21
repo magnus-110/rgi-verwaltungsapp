@@ -22,8 +22,23 @@ export interface Contact {
   contact_type: string | null;
   is_service_provider_pool?: boolean | null;
   service_provider_categories?: string[] | null;
+  trade_notes?: string | null;
+  rating?: number | null;
+  last_hired_at?: string | null;
+  is_emergency_service?: boolean | null;
+  address_lat?: number | null;
+  address_lon?: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ContactFilters {
+  categories: string[];
+  cities: string[];
+  zipPrefix: string;
+  emergencyOnly: boolean;
+  poolOnly: boolean;
+  sortByRating: boolean;
 }
 
 const PAGE_SIZE = 100;
