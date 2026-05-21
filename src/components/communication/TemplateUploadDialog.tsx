@@ -161,10 +161,13 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
 
 
         <Tabs value={type} onValueChange={(v) => setType(v as any)}>
-          <TabsList>
-            <TabsTrigger value="letter"><FileText className="h-4 w-4 mr-1" /> Serienbrief</TabsTrigger>
-            <TabsTrigger value="email"><Mail className="h-4 w-4 mr-1" /> Rundmail</TabsTrigger>
-          </TabsList>
+          {templateKind !== "etv_invitation" && (
+            <TabsList>
+              <TabsTrigger value="letter"><FileText className="h-4 w-4 mr-1" /> Serienbrief</TabsTrigger>
+              <TabsTrigger value="email"><Mail className="h-4 w-4 mr-1" /> Rundmail</TabsTrigger>
+            </TabsList>
+          )}
+
 
           <div className="space-y-4 mt-4">
             <div>
