@@ -252,8 +252,9 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
         await supabase.from("cash_audit_statements").delete().in("id", removedStatementIds);
       }
 
-      // Upload new PDFs
+      // Upload new PDFs (Kontoauszüge)
       const baseSort = existingStatements.filter(s => !removedStatementIds.includes(s.id)).length;
+      let sortCursor = baseSort;
       for (let i = 0; i < pdfFiles.length; i++) {
         const file = pdfFiles[i];
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -264,11 +265,28 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
           cash_audit_id: targetAuditId,
           file_name: file.name,
           file_path: path,
-          sort_order: baseSort + i,
+          sort_order: sortCursor++,
+          category: "statement",
         });
       }
 
-      // DMS-Anhänge: aus building-files herunterladen und ins audit-Bucket kopieren
+      // Upload new PDFs (Abrechnungen & Berichte)
+      for (let i = 0; i < planFiles.length; i++) {
+        const file = planFiles[i];
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `cash-audits/${targetAuditId}/${crypto.randomUUID()}-${safeName}`;
+        const { error: upErr } = await supabase.storage.from("building-documents").upload(path, file, { contentType: "application/pdf" });
+        if (upErr) throw upErr;
+        await supabase.from("cash_audit_statements").insert({
+          cash_audit_id: targetAuditId,
+          file_name: file.name,
+          file_path: path,
+          sort_order: sortCursor++,
+          category: "plan",
+        });
+      }
+
+      // DMS-Anhänge: aus building-files herunterladen und ins audit-Bucket kopieren (category=plan)
       for (let i = 0; i < dmsAttachments.length; i++) {
         const att = dmsAttachments[i];
         const srcPath = att.file_path.replace(/^\/+/, "").replace(/^building-files\//, "");
@@ -288,9 +306,11 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
           cash_audit_id: targetAuditId,
           file_name: att.display_name,
           file_path: path,
-          sort_order: baseSort + pdfFiles.length + i,
+          sort_order: sortCursor++,
+          category: "plan",
         });
       }
+
 
       // Remove deleted notes
       if (removedNoteIds.length) {
