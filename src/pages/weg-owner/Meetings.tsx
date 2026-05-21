@@ -725,7 +725,7 @@ export const WegOwnerMeetings = () => {
 
       {/* Meeting Detail Dialog */}
       <Dialog open={!!selectedMeetingId} onOpenChange={() => setSelectedMeetingId(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{selectedMeeting?.title}</DialogTitle>
           </DialogHeader>
@@ -1043,7 +1043,7 @@ export const WegOwnerMeetings = () => {
 
       {/* Agenda Item Detail Dialog */}
       <Dialog open={!!selectedAgendaItemId} onOpenChange={() => setSelectedAgendaItemId(null)}>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[85dvh] overflow-y-auto">
           {(() => {
             const item = agendaItems.find((a: any) => a.id === selectedAgendaItemId);
             if (!item) return null;
@@ -1466,7 +1466,7 @@ export const WegOwnerMeetings = () => {
 
       <Dialog open={showProxyDialog} onOpenChange={(open) => { if (!open) { setShowProxyDialog(false); setProxyAssignmentId(null); setCreatedProxyToken(null); setProxyStep(1); setExpandedTopIds(new Set()); } }}>
 
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-primary" />
@@ -1884,7 +1884,7 @@ export const WegOwnerMeetings = () => {
 
       {/* Voting Instructions Dialog */}
       <Dialog open={showInstructionsDialog} onOpenChange={(open) => { if (!open) { setShowInstructionsDialog(false); setInstructionsAttendeeId(null); } }}>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Vote className="h-5 w-5 text-primary" />

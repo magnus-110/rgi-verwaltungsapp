@@ -984,7 +984,7 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
       </Collapsible>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingId ? "Vorlage bearbeiten" : "Neue TOP-Vorlage"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">

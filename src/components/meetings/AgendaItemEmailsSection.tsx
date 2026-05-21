@@ -83,7 +83,7 @@ export const AgendaItemEmailsSection = ({ agendaItemId }: Props) => {
       </Collapsible>
 
       <Dialog open={!!detailEmailId} onOpenChange={(o) => { if (!o) setDetailEmailId(null); }}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[85dvh] overflow-y-auto">
           {detailEmail && (
             <>
               <DialogHeader>
