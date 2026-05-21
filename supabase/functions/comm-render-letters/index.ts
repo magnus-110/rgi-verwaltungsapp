@@ -3,7 +3,36 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import PizZip from "https://esm.sh/pizzip@3.1.7";
 import Docxtemplater from "https://esm.sh/docxtemplater@3.50.0";
-import { loadRecipients, RecipientFilter } from "../_shared/comm-vars.ts";
+import { loadRecipients, RecipientFilter, formatDateLong, formatDateShort } from "../_shared/comm-vars.ts";
+
+const weekdaysDe = ["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
+
+async function loadMeetingVars(admin: any, meetingId: string): Promise<Record<string,string>> {
+  const { data: meeting } = await admin.from("etv_meetings").select("*").eq("id", meetingId).maybeSingle();
+  if (!meeting) return {};
+  const { data: tops } = await admin.from("etv_agenda_items")
+    .select("title, description, sort_order").eq("meeting_id", meetingId).order("sort_order");
+  const items = (tops || []) as any[];
+  const agendaList = items.map((t, i) => {
+    const head = `TOP ${i + 1}: ${t.title || ""}`;
+    return t.description ? `${head}\n${t.description}` : head;
+  }).join("\n\n");
+  const agendaTitles = items.map((t, i) => `TOP ${i + 1}: ${t.title || ""}`).join("\n");
+  const md = meeting.meeting_date ? new Date(meeting.meeting_date) : null;
+  return {
+    meeting_title: meeting.title || "",
+    meeting_date: md ? formatDateLong(md) : "",
+    meeting_date_short: md ? formatDateShort(md) : "",
+    meeting_weekday: md ? weekdaysDe[md.getDay()] : "",
+    meeting_time: md ? `${String(md.getHours()).padStart(2,"0")}:${String(md.getMinutes()).padStart(2,"0")}` : "",
+    meeting_location: meeting.location || "",
+    meeting_chair: meeting.meeting_chair || "",
+    minutes_taker: meeting.minutes_taker || "",
+    agenda_list: agendaList,
+    agenda_titles: agendaTitles,
+    top_count: String(items.length),
+  };
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,6 +101,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const campaign_id = body?.campaign_id;
     const outputFormat: "docx" | "pdf" = body?.output_format === "pdf" ? "pdf" : "docx";
+    const meeting_id: string | null = body?.meeting_id || null;
     if (!campaign_id) return json({ error: "campaign_id required" }, 400);
 
     const cloudConvertKey = Deno.env.get("CLOUDCONVERT_API_KEY");
@@ -82,6 +112,8 @@ Deno.serve(async (req) => {
     const { data: campaign, error: cErr } = await admin
       .from("comm_campaigns").select("*").eq("id", campaign_id).single();
     if (cErr || !campaign) return json({ error: "Campaign not found" }, 404);
+
+    const meetingVars = meeting_id ? await loadMeetingVars(admin, meeting_id) : {};
 
     // Resolve docx path: override on campaign or template
     let docxPath = campaign.docx_path_override as string | null;
@@ -128,7 +160,7 @@ Deno.serve(async (req) => {
           linebreaks: true,
           delimiters: { start: "{{", end: "}}" },
         });
-        doc.render(r.vars);
+        doc.render({ ...r.vars, ...meetingVars });
         const docxBuf: Uint8Array = doc.getZip().generate({ type: "uint8array" });
 
         const baseName = sanitize(r.display_name) || `empfaenger_${i + 1}`;

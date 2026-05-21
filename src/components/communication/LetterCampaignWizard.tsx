@@ -16,13 +16,15 @@ interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   buildingId: string;
+  meetingId?: string;
+  titlePrefix?: string;
 }
 
-export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) => {
+export const LetterCampaignWizard = ({ open, onOpenChange, buildingId, meetingId, titlePrefix }: Props) => {
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [template, setTemplate] = useState<any>(null);
-  const [filter, setFilter] = useState<RecipientFilterValue>({ roles: [], contact_ids: [], assignment_ids: [], require_email: false });
+  const [filter, setFilter] = useState<RecipientFilterValue>({ roles: meetingId ? ["eigentuemer"] : [], contact_ids: [], assignment_ids: [], require_email: false });
   const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [outputFormat, setOutputFormat] = useState<"docx" | "pdf">("docx");
@@ -33,7 +35,7 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) 
 
   const reset = () => {
     setStep(1); setName(""); setTemplate(null);
-    setFilter({ roles: [], contact_ids: [], assignment_ids: [], require_email: false });
+    setFilter({ roles: meetingId ? ["eigentuemer"] : [], contact_ids: [], assignment_ids: [], require_email: false });
     setOutputFormat("docx");
     setResultPath(null); setResultStats(null);
   };
@@ -49,18 +51,18 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) 
       const recipientIds = filter.contact_ids.includes("__none__") ? [] : filter.contact_ids;
 
       const { data: campaign, error: cErr } = await supabase.from("comm_campaigns").insert({
-        name: name.trim() || `Serienbrief ${template.name}`,
+        name: name.trim() || `${titlePrefix || "Serienbrief"} ${template.name}`,
         type: "letter",
         template_id: template.id,
         building_id: buildingId,
-        recipient_filter: { roles: filter.roles, contact_ids: recipientIds },
+        recipient_filter: { roles: filter.roles, contact_ids: recipientIds, assignment_ids: filter.assignment_ids },
         status: "draft",
         created_by: userId,
       }).select().single();
       if (cErr) throw cErr;
 
       const { data: result, error: rErr } = await supabase.functions.invoke("comm-render-letters", {
-        body: { campaign_id: campaign.id, output_format: outputFormat },
+        body: { campaign_id: campaign.id, output_format: outputFormat, meeting_id: meetingId },
       });
       if (rErr) throw rErr;
       const r = result as any;
@@ -94,8 +96,12 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) 
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Neuer Serienbrief</DialogTitle>
-          <DialogDescription>Schritt {step} von 3 — Vorlage wählen, Empfänger filtern, Briefe generieren.</DialogDescription>
+          <DialogTitle>{meetingId ? "Einladung als Serienbrief" : "Neuer Serienbrief"}</DialogTitle>
+          <DialogDescription>
+            {meetingId
+              ? "Word-Vorlage wählen → Empfänger bestätigen → DOCX/PDF herunterladen. ETV-Platzhalter wie {{meeting_date}}, {{meeting_time}}, {{meeting_location}}, {{agenda_list}} werden automatisch befüllt."
+              : "Schritt " + step + " von 3 — Vorlage wählen, Empfänger filtern, Briefe generieren."}
+          </DialogDescription>
         </DialogHeader>
 
         {step === 1 && (
@@ -106,7 +112,7 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) 
                 <HelpCircle className="h-4 w-4 mr-1" /> Platzhalter-Hilfe
               </Button>
             </div>
-            <TemplateList buildingId={buildingId} type="letter" onUse={(t) => { setTemplate(t); setName(`Serienbrief: ${t.name}`); setStep(2); }} />
+            <TemplateList buildingId={buildingId} type="letter" onUse={(t) => { setTemplate(t); setName(`${titlePrefix || "Serienbrief"}: ${t.name}`); setStep(2); }} />
           </div>
         )}
 
