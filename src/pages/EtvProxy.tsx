@@ -314,12 +314,14 @@ export const EtvProxy = () => {
   // Fullscreen voting overlay
   if (votingItem) {
     return (
-      <div className="min-h-screen bg-background p-4 flex items-center justify-center">
-        <div className="w-full max-w-lg space-y-5">
-          <div className="flex items-center gap-2 justify-center">
-            <Vote className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold">Abstimmung</h1>
-          </div>
+      <div className="min-h-screen bg-background overflow-y-auto">
+        <div className="min-h-screen flex items-start sm:items-center justify-center p-4 py-6">
+          <div className="w-full max-w-lg space-y-4 sm:space-y-5">
+            <div className="flex items-center gap-2 justify-center">
+              <Vote className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
+              <h1 className="text-xl sm:text-2xl font-bold">Abstimmung</h1>
+            </div>
+
 
           {hasVoted ? (
             <div className="space-y-5">
