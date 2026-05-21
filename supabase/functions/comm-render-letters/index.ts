@@ -101,6 +101,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const campaign_id = body?.campaign_id;
     const outputFormat: "docx" | "pdf" = body?.output_format === "pdf" ? "pdf" : "docx";
+    const meeting_id: string | null = body?.meeting_id || null;
     if (!campaign_id) return json({ error: "campaign_id required" }, 400);
 
     const cloudConvertKey = Deno.env.get("CLOUDCONVERT_API_KEY");
@@ -111,6 +112,8 @@ Deno.serve(async (req) => {
     const { data: campaign, error: cErr } = await admin
       .from("comm_campaigns").select("*").eq("id", campaign_id).single();
     if (cErr || !campaign) return json({ error: "Campaign not found" }, 404);
+
+    const meetingVars = meeting_id ? await loadMeetingVars(admin, meeting_id) : {};
 
     // Resolve docx path: override on campaign or template
     let docxPath = campaign.docx_path_override as string | null;
