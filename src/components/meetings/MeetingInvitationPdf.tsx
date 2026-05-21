@@ -59,18 +59,20 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
   });
 
   const { data: templates = [], isLoading } = useQuery({
-    queryKey: ["comm-templates", buildingId, "letter"],
+    queryKey: ["comm-templates", buildingId, "letter", "etv_invitation"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("comm_templates")
         .select("*")
         .eq("type", "letter")
+        .eq("template_kind", "etv_invitation")
         .or(`building_id.eq.${buildingId},is_global.eq.true`)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
   });
+
 
   const handleDelete = async (t: any) => {
     if (!confirm(`Vorlage "${t.name}" löschen?`)) return;
