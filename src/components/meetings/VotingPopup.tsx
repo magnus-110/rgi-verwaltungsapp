@@ -278,13 +278,15 @@ export const VotingPopup = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-xl space-y-6">
-        {/* Header */}
-        <div className="text-center">
-          <Vote className="h-10 w-10 text-primary mx-auto mb-2" />
-          <h1 className="text-2xl font-bold text-foreground">Abstimmung</h1>
-        </div>
+    <div className="fixed inset-0 z-[100] bg-background overflow-y-auto">
+      <div className="min-h-full flex items-start sm:items-center justify-center p-4 py-6 sm:p-6">
+        <div className="w-full max-w-xl space-y-4 sm:space-y-6">
+          {/* Header */}
+          <div className="text-center">
+            <Vote className="h-8 w-8 sm:h-10 sm:w-10 text-primary mx-auto mb-2" />
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Abstimmung</h1>
+          </div>
+
 
         {allDone ? (
           <div className="space-y-6">
@@ -394,13 +396,13 @@ export const VotingPopup = () => {
             </Badge>
 
             {/* Vote selection buttons */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
               {voteButtons.map(({ value, label, icon: Icon, className }) => (
                 <Button
                   key={value}
                   size="lg"
                   variant={value === "abstain" ? "outline" : "default"}
-                  className={`h-28 flex-col gap-2 text-lg transition-all ${
+                  className={`h-20 sm:h-28 flex-col gap-1.5 sm:gap-2 text-sm sm:text-lg transition-all ${
                     value !== "abstain" ? className : ""
                   } ${
                     selectedVote === value
@@ -410,7 +412,7 @@ export const VotingPopup = () => {
                   onClick={() => setSelectedVote(value)}
                   disabled={castVoteMutation.isPending}
                 >
-                  <Icon className="h-10 w-10" />
+                  <Icon className="h-7 w-7 sm:h-10 sm:w-10" />
                   <span>{label}</span>
                 </Button>
               ))}
@@ -420,16 +422,19 @@ export const VotingPopup = () => {
             {selectedVote && (
               <Button
                 size="lg"
-                className="w-full h-16 text-xl font-semibold"
+                className="w-full h-14 sm:h-16 text-base sm:text-xl font-semibold"
                 onClick={() => castVoteMutation.mutate(selectedVote)}
                 disabled={castVoteMutation.isPending}
               >
                 {castVoteMutation.isPending ? "Wird gespeichert…" : "Stimme bestätigen"}
               </Button>
             )}
+
           </div>
         )}
+        </div>
       </div>
     </div>
   );
 };
+

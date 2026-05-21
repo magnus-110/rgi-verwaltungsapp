@@ -302,7 +302,7 @@ export const SubmittedTopsManager = ({ buildingFilter: externalBuildingFilter }:
 
       {/* Detail dialog */}
       <Dialog open={!!detailTopId} onOpenChange={() => setDetailTopId(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl">Antragsdetails</DialogTitle>
           </DialogHeader>

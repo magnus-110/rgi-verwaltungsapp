@@ -314,12 +314,14 @@ export const EtvProxy = () => {
   // Fullscreen voting overlay
   if (votingItem) {
     return (
-      <div className="min-h-screen bg-background p-4 flex items-center justify-center">
-        <div className="w-full max-w-lg space-y-5">
-          <div className="flex items-center gap-2 justify-center">
-            <Vote className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold">Abstimmung</h1>
-          </div>
+      <div className="min-h-screen bg-background overflow-y-auto">
+        <div className="min-h-screen flex items-start sm:items-center justify-center p-4 py-6">
+          <div className="w-full max-w-lg space-y-4 sm:space-y-5">
+            <div className="flex items-center gap-2 justify-center">
+              <Vote className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
+              <h1 className="text-xl sm:text-2xl font-bold">Abstimmung</h1>
+            </div>
+
 
           {hasVoted ? (
             <div className="space-y-5">
@@ -401,13 +403,13 @@ export const EtvProxy = () => {
                 Abstimmung läuft
               </Badge>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 {voteButtons.map(({ value, label, icon: Icon, className }) => (
                   <Button
                     key={value}
                     size="lg"
                     variant={value === "abstain" ? "outline" : "default"}
-                    className={`h-24 flex-col gap-1.5 text-base transition-all ${
+                    className={`h-20 sm:h-24 flex-col gap-1 sm:gap-1.5 text-xs sm:text-base transition-all ${
                       value !== "abstain" ? className : ""
                     } ${
                       selectedVote === value
@@ -417,7 +419,7 @@ export const EtvProxy = () => {
                     onClick={() => setSelectedVote(value)}
                     disabled={castVoteMutation.isPending}
                   >
-                    <Icon className="h-8 w-8" />
+                    <Icon className="h-6 w-6 sm:h-8 sm:w-8" />
                     <span>{label}</span>
                   </Button>
                 ))}
@@ -426,19 +428,22 @@ export const EtvProxy = () => {
               {selectedVote && (
                 <Button
                   size="lg"
-                  className="w-full h-14 text-lg font-semibold"
+                  className="w-full h-12 sm:h-14 text-base sm:text-lg font-semibold"
                   onClick={() => castVoteMutation.mutate(selectedVote)}
                   disabled={castVoteMutation.isPending}
                 >
                   {castVoteMutation.isPending ? "Wird gespeichert…" : "Stimme bestätigen"}
                 </Button>
               )}
-            </>
-          )}
+
+              </>
+            )}
+          </div>
         </div>
       </div>
     );
   }
+
 
   return (
     <div className="min-h-screen bg-background p-4 flex items-start justify-center pt-12">
