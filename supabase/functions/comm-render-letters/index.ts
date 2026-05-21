@@ -129,10 +129,18 @@ Deno.serve(async (req) => {
           delimiters: { start: "{{", end: "}}" },
         });
         doc.render(r.vars);
-        const outBuf: Uint8Array = doc.getZip().generate({ type: "uint8array" });
+        const docxBuf: Uint8Array = doc.getZip().generate({ type: "uint8array" });
 
         const baseName = sanitize(r.display_name) || `empfaenger_${i + 1}`;
-        const fileName = `${String(i + 1).padStart(3, "0")}_${baseName}.docx`;
+        const prefix = `${String(i + 1).padStart(3, "0")}_${baseName}`;
+
+        let outBuf: Uint8Array = docxBuf;
+        let ext = "docx";
+        if (outputFormat === "pdf") {
+          outBuf = await convertDocxToPdf(docxBuf, `${prefix}.docx`, cloudConvertKey!);
+          ext = "pdf";
+        }
+        const fileName = `${prefix}.${ext}`;
         bundle.file(fileName, outBuf);
 
         await admin.from("comm_recipients").insert({
@@ -164,7 +172,8 @@ Deno.serve(async (req) => {
     }
 
     const zipBytes = bundle.generate({ type: "uint8array" });
-    const zipFileName = `Serienbrief_${(campaign.name || "Kampagne").replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 60)}_${new Date().toISOString().slice(0, 10)}.zip`;
+    const formatSuffix = outputFormat === "pdf" ? "_PDF" : "";
+    const zipFileName = `Serienbrief_${(campaign.name || "Kampagne").replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 60)}${formatSuffix}_${new Date().toISOString().slice(0, 10)}.zip`;
     const zipPath = `campaigns/${campaign_id}/${zipFileName}`;
     const { error: upErr } = await admin.storage.from("comm-assets").upload(zipPath, zipBytes, {
       contentType: "application/zip",
