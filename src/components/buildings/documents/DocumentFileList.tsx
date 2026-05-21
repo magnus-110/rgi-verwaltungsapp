@@ -2,10 +2,11 @@ import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { supabase } from "@/integrations/supabase/client";
-import { FileText, Eye, Users, Lock, Calendar, Sparkles, Receipt, Mail, ExternalLink, Trash2, Loader2 } from "lucide-react";
+import { FileText, Eye, Users, Lock, Calendar, Sparkles, Receipt, Mail, ExternalLink, Trash2, Loader2, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -22,6 +23,24 @@ interface DocumentFileListProps {
   searchQuery: string;
   selectedFileId: string | null;
   onSelect: (file: DocFile) => void;
+}
+
+function HighlightText({ text, search }: { text: string; search: string }) {
+  if (!search.trim()) return <>{text}</>;
+  const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`(${escaped})`, 'gi');
+  const parts = text.split(regex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === search.toLowerCase() ? (
+          <span key={i} className="bg-yellow-200 text-yellow-900 px-0.5 rounded">{part}</span>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
 }
 
 const sourceIcon = (source: string) => {
@@ -47,23 +66,28 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [localSearch, setLocalSearch] = useState("");
+
+  const effectiveSearch = (localSearch || searchQuery).trim();
 
   const { data: files = [], isLoading } = useQuery({
-    queryKey: ['stammakte-files', buildingId, categoryId, searchQuery],
+    queryKey: ['stammakte-files', buildingId, categoryId, effectiveSearch],
     queryFn: async () => {
       let q = supabase
         .from('building_files')
-        .select('*')
-        .eq('building_id', buildingId)
-        .eq('is_current_version', true)
-        .is('deleted_at', null)
-        .order('updated_at', { ascending: false });
+        .select('*');
 
-      if (categoryId) q = q.eq('category_id', categoryId);
-      if (searchQuery.trim()) {
-        const term = `%${searchQuery.trim()}%`;
+      if (effectiveSearch) {
+        const term = `%${effectiveSearch}%`;
         q = q.or(`display_name.ilike.${term},description.ilike.${term},extracted_text.ilike.${term}`);
       }
+
+      q = q.eq('building_id', buildingId)
+        .eq('is_current_version', true)
+        .is('deleted_at', null);
+
+      if (categoryId) q = q.eq('category_id', categoryId);
+      q = q.order('updated_at', { ascending: false });
 
       const { data, error } = await q;
       if (error) throw error;
@@ -126,14 +150,38 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
     return (
       <div className="p-8 text-center text-sm text-muted-foreground">
         <FileText className="h-10 w-10 mx-auto mb-2 opacity-30" />
-        Keine Dokumente in diesem Ordner.
-        <p className="text-xs mt-1">Dateien per Drag & Drop hochladen.</p>
+        {effectiveSearch ? (
+          <>Keine Dokumente für „{effectiveSearch}" gefunden.</>
+        ) : (
+          <>Keine Dokumente in diesem Ordner.<p className="text-xs mt-1">Dateien per Drag & Drop hochladen.</p></>
+        )}
       </div>
     );
   }
 
   return (
     <div className="flex flex-col h-full">
+      {/* Search bar */}
+      <div className="px-3 py-2 border-b bg-muted/30">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Nach Name oder Titel suchen..."
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
+            className="pl-8 h-8 text-sm"
+          />
+          {localSearch && (
+            <button
+              onClick={() => setLocalSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30 gap-2">
         <div className="flex items-center gap-2">
           <Checkbox
@@ -203,7 +251,9 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium text-sm truncate flex-1">{f.display_name}</p>
+                        <p className="font-medium text-sm truncate flex-1">
+                          <HighlightText text={f.display_name} search={effectiveSearch} />
+                        </p>
                         {f.version > 1 && <Badge variant="outline" className="text-[10px] h-4 px-1">v{f.version}</Badge>}
                         <Button
                           variant="ghost"
