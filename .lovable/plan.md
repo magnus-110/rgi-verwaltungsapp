@@ -1,54 +1,37 @@
-# Externe Vollmacht in App übernehmen
+## Problem
 
-Ein Eigentümer, der von einem anderen Eigentümer einen externen Vollmacht-Link erhalten hat, soll diesen direkt in seinem Owner-Portal "einlösen" können – kein Wechsel zwischen App und anonymem Token-Link mehr. Der Vollmachtgeber bleibt jederzeit Herr über seine Vollmacht und kann sie zurückziehen; der Verwalter greift bewusst nicht ein.
+Im externen Token-Link (`EtvProxy`) erscheint der Abstimmungsdialog sofort, sobald der Admin eine Abstimmung freischaltet. Im eingeloggten Owner-Portal (`/weg-owner/...`) passiert dagegen nichts in Echtzeit — der Nutzer muss die Seite neu laden, damit der `VotingPopup` erscheint oder der Agenda-Status auf „Abstimmung läuft" springt.
 
-## Was gebaut wird
+## Ursachenanalyse
 
-### 1. Neue Edge Function `redeem-proxy-token`
-- Input: `token` (UUID) + JWT des eingeloggten Eigentümers
-- Validiert: Token existiert, `proxy_token_used = false`, Meeting nicht abgeschlossen
-- Ermittelt `contact_id` des eingeloggten Users (über `auth.uid()` → `profiles.contact_id`)
-- Update auf `etv_attendees`:
-  - `proxy_type = 'owner'`
-  - `proxy_contact_id = <eingeloggter Eigentümer>`
-  - `proxy_token_used = true` (entwertet den Link → externer Zugriff ab jetzt gesperrt)
-  - `checked_in_at = now()`, falls der einlösende Eigentümer selbst bereits anwesend/present ist
-- Antwort: Meeting-ID + Anzahl jetzt erhaltener Vollmachten, damit das Frontend direkt zur Versammlung navigieren kann
+- `etv_agenda_items` ist korrekt in `supabase_realtime` publiziert und hat `REPLICA IDENTITY FULL`. Realtime ist serverseitig also bereit.
+- `VotingPopup` (global in `WegOwnerLayout` gemountet) abonniert zwar `postgres_changes` auf `etv_agenda_items`, hat aber drei Schwachstellen:
+  1. Das Subscription-`useEffect` hat `votingItem?.id` und `checkVotingForItem` (das wiederum von `profile?.user_id` abhängt) als Dependencies → der Channel wird bei jeder Zustandsänderung neu auf-/abgebaut, dabei können UPDATE-Events verloren gehen.
+  2. Es gibt keinen expliziten `supabase.realtime.setAuth(accessToken)`-Aufruf nach Login. Bei RLS-gefilterten `postgres_changes` für authentifizierte Nutzer ist das in vielen Setups nötig, sonst werden Events serverseitig verworfen (genau das erklärt, warum der unauth. Proxy-Link funktioniert, der eingeloggte Owner aber nicht).
+  3. Es existiert kein Fallback-Polling. Wenn der WebSocket aus irgendeinem Grund kurz disconnected, bleibt der Popup für immer aus.
+- Die Detailansicht in `src/pages/weg-owner/Meetings.tsx` abonniert nur `etv_attendees`, nicht `etv_agenda_items` und nicht `etv_votes`. Selbst wenn der Popup erscheint, aktualisiert sich der Status „Abstimmung läuft" / „Geschlossen" sowie die Live-Ergebnisse in der geöffneten Versammlungs-Detailansicht nicht ohne Reload.
 
-### 2. Owner-Portal: Button "Externe Vollmacht einlösen"
-- Im Versammlungs-Bereich des Owner-Portals (Karte je Meeting) ein neuer Button
-- Dialog mit Textfeld: Token ODER kompletter Link einfügbar (Frontend extrahiert UUID per Regex aus `/etv-proxy/<uuid>`)
-- Ruft `redeem-proxy-token` auf, zeigt Toast "Vollmacht übernommen" und invalidiert die Queries für erhaltene Vollmachten
-- Die bestehende "Erhaltene Vollmachten"-Sektion (siehe Memory *Owner Portal Received Proxies*) zeigt die übernommene Stimme dann automatisch mit – inkl. evtl. vorhandener `pre_vote_instructions`
+## Lösung
 
-### 3. Auto-Erkennung auf `/etv-proxy/:token`
-- `EtvProxy.tsx` prüft beim Mount, ob eine aktive Supabase-Session existiert
-- Wenn ja: Banner oben einblenden – "Du bist als <Name> eingeloggt. Möchtest du diese Vollmacht direkt in dein Konto übernehmen?" → Button ruft dieselbe Edge Function und leitet danach auf das Owner-Portal-Meeting weiter
-- Wenn nein: bisheriger anonymer Token-Flow bleibt unverändert
+### 1. Realtime-Auth zentral setzen
+- In `src/integrations/supabase/client.ts` (bzw. `src/hooks/useAuth.tsx`) nach jedem `onAuthStateChange` / `getSession` `supabase.realtime.setAuth(session?.access_token ?? null)` aufrufen, damit RLS-gefilterte Postgres-Changes für eingeloggte Nutzer geliefert werden.
 
-### 4. Rückziehen durch den Vollmachtgeber
-- Im Owner-Portal existiert bereits die Übersicht "Erteilte Vollmachten" pro Versammlung. Dort wird ein Button "Vollmacht zurückziehen" ergänzt – auch dann verfügbar, wenn die Vollmacht bereits eingelöst wurde (solange das Meeting noch nicht abgeschlossen ist)
-- Neue Edge Function `revoke-proxy` (oder direkter Update via RLS, je nach bestehender Policy-Lage): setzt `proxy_type`, `proxy_contact_id`, `proxy_token`, `proxy_token_used` zurück und `attendance_type = 'absent'`; löscht ggf. bereits abgegebene Stimmen des Bevollmächtigten für diesen Geber, falls Wahlgänge noch nicht abgeschlossen sind
-- Verwalter-UI (`AttendeeManager`) bekommt **bewusst keine** Rückziehen-Funktion – Read-only-Anzeige des Status genügt
+### 2. `VotingPopup` stabilisieren
+- Subscription-`useEffect` so umbauen, dass es nur von `profile?.user_id` und `profile?.role` abhängt — Channel bleibt während der gesamten Session offen.
+- Dazu `votingItem`/`checkVotingForItem` via `useRef` referenzieren, damit der Handler immer die aktuelle Funktion aufruft, ohne dass die Subscription neu aufgebaut wird.
+- Beim WebSocket-Reconnect (`SUBSCRIBED`-Event) einmalig `checkActiveVotes()` ausführen, um verpasste Statuswechsel nachzuholen.
+- Zusätzlich leichter Fallback-Polling-Interval (z. B. alle 15 s) auf „gibt es offene Agenda-Items mit status='voting' in meinen Buildings" — als Sicherheitsnetz.
 
-## Technische Details
+### 3. Live-Update in der Versammlungs-Detailansicht
+- In `src/pages/weg-owner/Meetings.tsx` einen zweiten Realtime-Channel `owner-agenda-${selectedMeetingId}` einrichten, der `etv_agenda_items` (filter `meeting_id=eq.…`) und `etv_votes` abonniert und die jeweiligen React-Query-Caches (`weg-owner-agenda`, ggf. Live-Vote-Queries) invalidiert.
 
-**Geänderte/neue Dateien:**
-- `supabase/functions/redeem-proxy-token/index.ts` (neu) – CORS, JWT-Validierung, Token-Einlösung
-- `supabase/functions/revoke-proxy/index.ts` (neu) – Rückziehen durch Geber
-- `src/components/owner/...` – neuer Dialog "Vollmacht einlösen" + Erweiterung der "Erteilte Vollmachten"-Karte um Rückziehen-Button
-- `src/pages/EtvProxy.tsx` – Session-Check + "In Konto übernehmen"-Banner
-- Optional: kleine SQL-Migration für eine RLS-Policy "Vollmachtgeber darf eigenes attendee-Record zurücksetzen", falls nicht via Edge Function gelöst
+### 4. Verifizierung
+- In zwei Browser-Sessions testen: Admin schaltet TOP auf „voting" → Owner-Portal soll den `VotingPopup` ohne Reload zeigen. Admin schließt Abstimmung → Popup verschwindet und Detailansicht zeigt Ergebnis live.
+- Edge-Function-Logs / Console auf eventuelle Realtime-Errors prüfen.
 
-**Sicherheitslogik:**
-- Token = Berechtigungsnachweis fürs Einlösen (wie heute beim externen Voten)
-- Nach Einlösung: `proxy_token_used = true` → `EtvProxy.tsx` zeigt der externen Link-Variante "Diese Vollmacht wurde bereits übernommen"
-- Rückziehen prüft serverseitig, dass `auth.uid()` zum `contact_id` des ursprünglichen Vollmachtgebers (`assignment_id → contact`) gehört
+## Betroffene Dateien
+- `src/hooks/useAuth.tsx` (oder `src/integrations/supabase/client.ts`) — `realtime.setAuth` setzen
+- `src/components/meetings/VotingPopup.tsx` — Subscription-Refactor + Fallback-Polling
+- `src/pages/weg-owner/Meetings.tsx` — zusätzlicher Realtime-Channel für Agenda/Votes
 
-**Edge Cases:**
-- Token gehört zu Meeting, an dem der Einlösende nicht teilnahmeberechtigt ist → Fehler "Du bist kein Eigentümer dieser Versammlung"
-- Token bereits eingelöst → Fehler mit Hinweis "Bitte beim Vollmachtgeber neuen Link anfordern"
-- Meeting im Status `completed`/`closed` → kein Einlösen/Rückziehen mehr möglich
-
-## Aufwand-Einschätzung
-Klein bis mittel: 2 Edge Functions, 1 Dialog, kleine Anpassung an `EtvProxy.tsx` und der "Erteilte Vollmachten"-UI. Datenmodell bleibt unverändert.
+Keine DB- oder Edge-Function-Änderungen nötig.
