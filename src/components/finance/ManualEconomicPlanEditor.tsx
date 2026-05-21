@@ -610,6 +610,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     stellplaetze: "pro Stellplatz",
     personen: "pro Person",
     heizk_abr: "Heizkostenabrechnung",
+    heizkostenverordnung: "Heizkostenverordnung",
+    heating_individual: "Heizkostenverordnung",
   };
   const distLabel = (k: string) => DISTRIBUTION_KEY_LABELS[k] || k || "—";
 
