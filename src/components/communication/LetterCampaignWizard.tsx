@@ -25,6 +25,7 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) 
   const [filter, setFilter] = useState<RecipientFilterValue>({ roles: [], contact_ids: [], assignment_ids: [], require_email: false });
   const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [outputFormat, setOutputFormat] = useState<"docx" | "pdf">("docx");
   const [resultPath, setResultPath] = useState<string | null>(null);
   const [resultStats, setResultStats] = useState<{ ok: number; failed: number } | null>(null);
   const { toast } = useToast();
@@ -33,6 +34,7 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) 
   const reset = () => {
     setStep(1); setName(""); setTemplate(null);
     setFilter({ roles: [], contact_ids: [], assignment_ids: [], require_email: false });
+    setOutputFormat("docx");
     setResultPath(null); setResultStats(null);
   };
 
@@ -58,7 +60,7 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) 
       if (cErr) throw cErr;
 
       const { data: result, error: rErr } = await supabase.functions.invoke("comm-render-letters", {
-        body: { campaign_id: campaign.id },
+        body: { campaign_id: campaign.id, output_format: outputFormat },
       });
       if (rErr) throw rErr;
       const r = result as any;
@@ -128,6 +130,33 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) 
             <div>
               <Label className="mb-2 block">Empfänger</Label>
               <RecipientPicker buildingId={buildingId} requireEmail={false} value={filter} onChange={setFilter} />
+            </div>
+
+            <div>
+              <Label className="mb-2 block">Ausgabeformat</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={outputFormat === "docx" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setOutputFormat("docx")}
+                >
+                  DOCX (Word)
+                </Button>
+                <Button
+                  type="button"
+                  variant={outputFormat === "pdf" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setOutputFormat("pdf")}
+                >
+                  PDF (via CloudConvert)
+                </Button>
+              </div>
+              {outputFormat === "pdf" && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Konvertierung kann je nach Empfängeranzahl etwas dauern.
+                </p>
+              )}
             </div>
           </div>
         )}

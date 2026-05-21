@@ -14,6 +14,49 @@ function sanitize(name: string): string {
   return name.replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 80);
 }
 
+async function convertDocxToPdf(docxBytes: Uint8Array, filename: string, apiKey: string): Promise<Uint8Array> {
+  // Base64-encode docx (chunked to avoid call stack issues on large files)
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < docxBytes.length; i += chunk) {
+    binary += String.fromCharCode(...docxBytes.subarray(i, i + chunk));
+  }
+  const b64 = btoa(binary);
+
+  // Create job (sync wait via /v2/jobs?... is not always reliable; we poll instead)
+  const jobRes = await fetch("https://api.cloudconvert.com/v2/jobs", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      tasks: {
+        "import-1": { operation: "import/base64", file: b64, filename },
+        "convert-1": { operation: "convert", input: "import-1", input_format: "docx", output_format: "pdf" },
+        "export-1": { operation: "export/url", input: "convert-1" },
+      },
+    }),
+  });
+  if (!jobRes.ok) throw new Error(`CloudConvert job create failed: ${jobRes.status} ${await jobRes.text()}`);
+  const job = await jobRes.json();
+  const jobId = job?.data?.id;
+  if (!jobId) throw new Error("CloudConvert: no job id");
+
+  // Wait for job completion (sync endpoint)
+  const waitRes = await fetch(`https://sync.api.cloudconvert.com/v2/jobs/${jobId}`, {
+    headers: { "Authorization": `Bearer ${apiKey}` },
+  });
+  if (!waitRes.ok) throw new Error(`CloudConvert wait failed: ${waitRes.status} ${await waitRes.text()}`);
+  const waited = await waitRes.json();
+  if (waited?.data?.status !== "finished") {
+    throw new Error(`CloudConvert job not finished: ${waited?.data?.status} – ${JSON.stringify(waited?.data?.tasks?.map((t: any) => ({ n: t.name, s: t.status, m: t.message })) || [])}`);
+  }
+  const exportTask = waited.data.tasks.find((t: any) => t.name === "export-1");
+  const url = exportTask?.result?.files?.[0]?.url;
+  if (!url) throw new Error("CloudConvert: no export url");
+  const pdfRes = await fetch(url);
+  if (!pdfRes.ok) throw new Error(`CloudConvert export download failed: ${pdfRes.status}`);
+  return new Uint8Array(await pdfRes.arrayBuffer());
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -26,8 +69,15 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { campaign_id } = await req.json();
+    const body = await req.json();
+    const campaign_id = body?.campaign_id;
+    const outputFormat: "docx" | "pdf" = body?.output_format === "pdf" ? "pdf" : "docx";
     if (!campaign_id) return json({ error: "campaign_id required" }, 400);
+
+    const cloudConvertKey = Deno.env.get("CLOUDCONVERT_API_KEY");
+    if (outputFormat === "pdf" && !cloudConvertKey) {
+      return json({ error: "CLOUDCONVERT_API_KEY nicht konfiguriert" }, 500);
+    }
 
     const { data: campaign, error: cErr } = await admin
       .from("comm_campaigns").select("*").eq("id", campaign_id).single();
@@ -79,10 +129,18 @@ Deno.serve(async (req) => {
           delimiters: { start: "{{", end: "}}" },
         });
         doc.render(r.vars);
-        const outBuf: Uint8Array = doc.getZip().generate({ type: "uint8array" });
+        const docxBuf: Uint8Array = doc.getZip().generate({ type: "uint8array" });
 
         const baseName = sanitize(r.display_name) || `empfaenger_${i + 1}`;
-        const fileName = `${String(i + 1).padStart(3, "0")}_${baseName}.docx`;
+        const prefix = `${String(i + 1).padStart(3, "0")}_${baseName}`;
+
+        let outBuf: Uint8Array = docxBuf;
+        let ext = "docx";
+        if (outputFormat === "pdf") {
+          outBuf = await convertDocxToPdf(docxBuf, `${prefix}.docx`, cloudConvertKey!);
+          ext = "pdf";
+        }
+        const fileName = `${prefix}.${ext}`;
         bundle.file(fileName, outBuf);
 
         await admin.from("comm_recipients").insert({
@@ -114,7 +172,8 @@ Deno.serve(async (req) => {
     }
 
     const zipBytes = bundle.generate({ type: "uint8array" });
-    const zipFileName = `Serienbrief_${(campaign.name || "Kampagne").replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 60)}_${new Date().toISOString().slice(0, 10)}.zip`;
+    const formatSuffix = outputFormat === "pdf" ? "_PDF" : "";
+    const zipFileName = `Serienbrief_${(campaign.name || "Kampagne").replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 60)}${formatSuffix}_${new Date().toISOString().slice(0, 10)}.zip`;
     const zipPath = `campaigns/${campaign_id}/${zipFileName}`;
     const { error: upErr } = await admin.storage.from("comm-assets").upload(zipPath, zipBytes, {
       contentType: "application/zip",
