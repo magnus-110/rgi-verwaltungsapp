@@ -37,12 +37,14 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
   const [selectedContactId, setSelectedContactId] = useState<string>("");
   const [portalUntil, setPortalUntil] = useState(format(addDays(new Date(), 30), "yyyy-MM-dd"));
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
-  const [existingStatements, setExistingStatements] = useState<ExistingStatement[]>([]);
+  const [planFiles, setPlanFiles] = useState<File[]>([]);
+  const [existingStatements, setExistingStatements] = useState<(ExistingStatement & { category?: string })[]>([]);
   const [dmsAttachments, setDmsAttachments] = useState<DmsCandidate[]>([]);
   const [notes, setNotes] = useState<NoteDraft[]>([]);
   const [removedNoteIds, setRemovedNoteIds] = useState<string[]>([]);
   const [removedStatementIds, setRemovedStatementIds] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingPlan, setIsDraggingPlan] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const { data: buildings = [] } = useQuery({
@@ -147,11 +149,11 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
       setPortalUntil(audit.visible_in_portal_until ? format(new Date(audit.visible_in_portal_until), "yyyy-MM-dd") : "");
 
       const [{ data: stmts }, { data: nts }] = await Promise.all([
-        supabase.from("cash_audit_statements").select("id, file_name, file_path").eq("cash_audit_id", auditId!).order("sort_order"),
+        supabase.from("cash_audit_statements").select("id, file_name, file_path, category").eq("cash_audit_id", auditId!).order("sort_order"),
         supabase.from("cash_audit_notes").select("id, title, body").eq("cash_audit_id", auditId!).order("sort_order"),
       ]);
       if (cancelled) return;
-      setExistingStatements(stmts || []);
+      setExistingStatements((stmts || []) as any);
       setNotes((nts || []).map((n: any) => ({ id: n.id, title: n.title, body: n.body })));
     })();
     return () => { cancelled = true; };
@@ -170,23 +172,26 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
     if (match) setSelectedPeriodId(match.id);
   }, [periods, selectedPeriodId, isEdit]);
 
-  const addFiles = useCallback((files: File[]) => {
+  const addFiles = useCallback((files: File[], target: "statement" | "plan") => {
     const pdfs = files.filter((f) => f.type === "application/pdf");
     if (pdfs.length !== files.length) {
       toast.warning("Nur PDF-Dateien werden akzeptiert");
     }
-    if (pdfs.length) setPdfFiles((prev) => [...prev, ...pdfs]);
+    if (!pdfs.length) return;
+    if (target === "plan") setPlanFiles((prev) => [...prev, ...pdfs]);
+    else setPdfFiles((prev) => [...prev, ...pdfs]);
   }, []);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    addFiles(Array.from(e.target.files || []));
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, target: "statement" | "plan") => {
+    addFiles(Array.from(e.target.files || []), target);
     e.target.value = "";
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent, target: "statement" | "plan") => {
     e.preventDefault();
-    setIsDragging(false);
-    addFiles(Array.from(e.dataTransfer.files || []));
+    if (target === "plan") setIsDraggingPlan(false);
+    else setIsDragging(false);
+    addFiles(Array.from(e.dataTransfer.files || []), target);
   };
 
   const reset = () => {
@@ -195,6 +200,7 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
     setSelectedContactId("");
     setPortalUntil(format(addDays(new Date(), 30), "yyyy-MM-dd"));
     setPdfFiles([]);
+    setPlanFiles([]);
     setExistingStatements([]);
     setNotes([]);
     setRemovedNoteIds([]);
@@ -246,8 +252,9 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
         await supabase.from("cash_audit_statements").delete().in("id", removedStatementIds);
       }
 
-      // Upload new PDFs
+      // Upload new PDFs (Kontoauszüge)
       const baseSort = existingStatements.filter(s => !removedStatementIds.includes(s.id)).length;
+      let sortCursor = baseSort;
       for (let i = 0; i < pdfFiles.length; i++) {
         const file = pdfFiles[i];
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -258,11 +265,28 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
           cash_audit_id: targetAuditId,
           file_name: file.name,
           file_path: path,
-          sort_order: baseSort + i,
+          sort_order: sortCursor++,
+          category: "statement",
         });
       }
 
-      // DMS-Anhänge: aus building-files herunterladen und ins audit-Bucket kopieren
+      // Upload new PDFs (Abrechnungen & Berichte)
+      for (let i = 0; i < planFiles.length; i++) {
+        const file = planFiles[i];
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `cash-audits/${targetAuditId}/${crypto.randomUUID()}-${safeName}`;
+        const { error: upErr } = await supabase.storage.from("building-documents").upload(path, file, { contentType: "application/pdf" });
+        if (upErr) throw upErr;
+        await supabase.from("cash_audit_statements").insert({
+          cash_audit_id: targetAuditId,
+          file_name: file.name,
+          file_path: path,
+          sort_order: sortCursor++,
+          category: "plan",
+        });
+      }
+
+      // DMS-Anhänge: aus building-files herunterladen und ins audit-Bucket kopieren (category=plan)
       for (let i = 0; i < dmsAttachments.length; i++) {
         const att = dmsAttachments[i];
         const srcPath = att.file_path.replace(/^\/+/, "").replace(/^building-files\//, "");
@@ -282,9 +306,11 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
           cash_audit_id: targetAuditId,
           file_name: att.display_name,
           file_path: path,
-          sort_order: baseSort + pdfFiles.length + i,
+          sort_order: sortCursor++,
+          category: "plan",
         });
       }
+
 
       // Remove deleted notes
       if (removedNoteIds.length) {
@@ -382,7 +408,7 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
             <label
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
+              onDrop={(e) => handleDrop(e, "statement")}
               className={cn(
                 "flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors",
                 isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30"
@@ -392,7 +418,7 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
               <p className="text-sm text-muted-foreground">
                 PDFs hierher ziehen oder <span className="text-primary font-medium">durchsuchen</span>
               </p>
-              <input type="file" multiple accept="application/pdf" onChange={handleFileSelect} className="hidden" />
+              <input type="file" multiple accept="application/pdf" onChange={(e) => handleFileSelect(e, "statement")} className="hidden" />
             </label>
 
             {/* Aus DMS hinzufügen */}
@@ -513,6 +539,47 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
               </div>
             )}
           </div>
+
+          {/* Abrechnungen & Berichte (externe PDFs) */}
+          <div className="space-y-2 pt-2 border-t">
+            <Label className="flex items-center gap-2">
+              <Upload className="h-4 w-4" /> Abrechnungen & Berichte (PDF)
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Gesamt-/Einzelabrechnung, Wirtschaftsplan, Vermögensbericht, §35a-Bescheinigung – externe PDFs zusätzlich zu den DMS-Anhängen.
+            </p>
+            <label
+              onDragOver={(e) => { e.preventDefault(); setIsDraggingPlan(true); }}
+              onDragLeave={() => setIsDraggingPlan(false)}
+              onDrop={(e) => handleDrop(e, "plan")}
+              className={cn(
+                "flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors",
+                isDraggingPlan ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30"
+              )}
+            >
+              <Upload className="h-6 w-6 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                PDFs hierher ziehen oder <span className="text-primary font-medium">durchsuchen</span>
+              </p>
+              <input type="file" multiple accept="application/pdf" onChange={(e) => handleFileSelect(e, "plan")} className="hidden" />
+            </label>
+
+            {planFiles.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Neu hinzugefügt</p>
+                {planFiles.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm bg-primary/5 p-2 rounded">
+                    <FileText className="h-4 w-4 text-primary" />
+                    <span className="flex-1 truncate">{f.name}</span>
+                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setPlanFiles((prev) => prev.filter((_, idx) => idx !== i))}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
 
           {/* Hinweise */}
           <div className="space-y-2 pt-2 border-t">
