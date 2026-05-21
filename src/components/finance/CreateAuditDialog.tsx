@@ -520,6 +520,47 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
             )}
           </div>
 
+          {/* Abrechnungen & Berichte (externe PDFs) */}
+          <div className="space-y-2 pt-2 border-t">
+            <Label className="flex items-center gap-2">
+              <Upload className="h-4 w-4" /> Abrechnungen & Berichte (PDF)
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Gesamt-/Einzelabrechnung, Wirtschaftsplan, Vermögensbericht, §35a-Bescheinigung – externe PDFs zusätzlich zu den DMS-Anhängen.
+            </p>
+            <label
+              onDragOver={(e) => { e.preventDefault(); setIsDraggingPlan(true); }}
+              onDragLeave={() => setIsDraggingPlan(false)}
+              onDrop={(e) => handleDrop(e, "plan")}
+              className={cn(
+                "flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors",
+                isDraggingPlan ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30"
+              )}
+            >
+              <Upload className="h-6 w-6 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                PDFs hierher ziehen oder <span className="text-primary font-medium">durchsuchen</span>
+              </p>
+              <input type="file" multiple accept="application/pdf" onChange={(e) => handleFileSelect(e, "plan")} className="hidden" />
+            </label>
+
+            {planFiles.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Neu hinzugefügt</p>
+                {planFiles.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm bg-primary/5 p-2 rounded">
+                    <FileText className="h-4 w-4 text-primary" />
+                    <span className="flex-1 truncate">{f.name}</span>
+                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setPlanFiles((prev) => prev.filter((_, idx) => idx !== i))}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+
           {/* Hinweise */}
           <div className="space-y-2 pt-2 border-t">
             <div className="flex items-center justify-between">
