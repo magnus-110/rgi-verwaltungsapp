@@ -68,12 +68,18 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { contact_id, building_id, management_mode, send_email = true } = await req.json()
+    const { contact_id, building_id, management_mode, send_email = true, force_reset_password } = await req.json()
     if (!contact_id || !building_id || !management_mode) {
       return new Response(JSON.stringify({ error: 'Missing contact_id, building_id, or management_mode' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
+    // Safety: only rotate the password of an EXISTING auth user when the new
+    // credentials will actually be sent out. Otherwise Supabase invalidates
+    // refresh tokens and the user gets silently logged out (e.g. mid-vote in
+    // an ETV) and locked out of their account.
+    const shouldResetExistingPassword =
+      typeof force_reset_password === 'boolean' ? force_reset_password : !!send_email
 
     // Get contact
     const { data: contact, error: contactError } = await supabaseAdmin
