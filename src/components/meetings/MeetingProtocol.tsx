@@ -299,17 +299,17 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
 
       {/* Preview Dialog */}
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-4xl h-[85vh]">
+        <DialogContent className="max-w-4xl h-[85dvh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>Protokoll-Vorschau</DialogTitle>
           </DialogHeader>
           <iframe
             srcDoc={generateProtocolHtml()}
-            className="w-full flex-1 border rounded-md"
-            style={{ height: "calc(85vh - 80px)" }}
+            className="w-full flex-1 min-h-0 border rounded-md"
             title="Protokollvorschau"
           />
         </DialogContent>
+
       </Dialog>
     </div>
   );
