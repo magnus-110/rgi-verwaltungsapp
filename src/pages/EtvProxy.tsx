@@ -403,13 +403,13 @@ export const EtvProxy = () => {
                 Abstimmung läuft
               </Badge>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 {voteButtons.map(({ value, label, icon: Icon, className }) => (
                   <Button
                     key={value}
                     size="lg"
                     variant={value === "abstain" ? "outline" : "default"}
-                    className={`h-24 flex-col gap-1.5 text-base transition-all ${
+                    className={`h-20 sm:h-24 flex-col gap-1 sm:gap-1.5 text-xs sm:text-base transition-all ${
                       value !== "abstain" ? className : ""
                     } ${
                       selectedVote === value
@@ -419,7 +419,7 @@ export const EtvProxy = () => {
                     onClick={() => setSelectedVote(value)}
                     disabled={castVoteMutation.isPending}
                   >
-                    <Icon className="h-8 w-8" />
+                    <Icon className="h-6 w-6 sm:h-8 sm:w-8" />
                     <span>{label}</span>
                   </Button>
                 ))}
@@ -428,13 +428,14 @@ export const EtvProxy = () => {
               {selectedVote && (
                 <Button
                   size="lg"
-                  className="w-full h-14 text-lg font-semibold"
+                  className="w-full h-12 sm:h-14 text-base sm:text-lg font-semibold"
                   onClick={() => castVoteMutation.mutate(selectedVote)}
                   disabled={castVoteMutation.isPending}
                 >
                   {castVoteMutation.isPending ? "Wird gespeichert…" : "Stimme bestätigen"}
                 </Button>
               )}
+
               </>
             )}
           </div>
