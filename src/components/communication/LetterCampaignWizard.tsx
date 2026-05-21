@@ -96,8 +96,12 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId, meetingId
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Neuer Serienbrief</DialogTitle>
-          <DialogDescription>Schritt {step} von 3 — Vorlage wählen, Empfänger filtern, Briefe generieren.</DialogDescription>
+          <DialogTitle>{meetingId ? "Einladung als Serienbrief" : "Neuer Serienbrief"}</DialogTitle>
+          <DialogDescription>
+            {meetingId
+              ? "Word-Vorlage wählen → Empfänger bestätigen → DOCX/PDF herunterladen. ETV-Platzhalter wie {{meeting_date}}, {{meeting_time}}, {{meeting_location}}, {{agenda_list}} werden automatisch befüllt."
+              : "Schritt " + step + " von 3 — Vorlage wählen, Empfänger filtern, Briefe generieren."}
+          </DialogDescription>
         </DialogHeader>
 
         {step === 1 && (
@@ -108,7 +112,7 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId, meetingId
                 <HelpCircle className="h-4 w-4 mr-1" /> Platzhalter-Hilfe
               </Button>
             </div>
-            <TemplateList buildingId={buildingId} type="letter" onUse={(t) => { setTemplate(t); setName(`Serienbrief: ${t.name}`); setStep(2); }} />
+            <TemplateList buildingId={buildingId} type="letter" onUse={(t) => { setTemplate(t); setName(`${titlePrefix || "Serienbrief"}: ${t.name}`); setStep(2); }} />
           </div>
         )}
 
