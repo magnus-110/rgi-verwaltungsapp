@@ -161,28 +161,8 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
 
   return (
     <div className="flex flex-col h-full">
-      {/* Search bar */}
-      <div className="px-3 py-2 border-b bg-muted/30">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Nach Name oder Titel suchen..."
-            value={localSearch}
-            onChange={(e) => setLocalSearch(e.target.value)}
-            className="pl-8 h-8 text-sm"
-          />
-          {localSearch && (
-            <button
-              onClick={() => setLocalSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
-
       <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30 gap-2">
+
         <div className="flex items-center gap-2">
           <Checkbox
             checked={allSelected}
