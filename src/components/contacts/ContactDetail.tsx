@@ -18,7 +18,12 @@ import { ContactBuildingAssignments } from "./ContactBuildingAssignments";
 import { ContactDocumentsSection } from "./ContactDocumentsSection";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { SERVICE_PROVIDER_CATEGORIES } from "@/lib/serviceProviderCategories";
+import {
+  SERVICE_PROVIDER_CATEGORIES,
+  SERVICE_PROVIDER_GROUPS,
+  type ServiceProviderGroup,
+} from "@/lib/serviceProviderCategories";
+import { Star, Siren, MapPin, Loader2 } from "lucide-react";
 import type { Contact } from "@/pages/Contacts";
 
 const SALUTATIONS = [
