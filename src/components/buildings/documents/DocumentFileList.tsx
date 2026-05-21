@@ -75,21 +75,24 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
     queryFn: async () => {
       let q = supabase
         .from('building_files')
-        .select('*')
-        .eq('building_id', buildingId)
-        .eq('is_current_version', true)
-        .is('deleted_at', null);
+        .select('*');
 
-      if (categoryId) q = q.eq('category_id', categoryId);
       if (effectiveSearch) {
         const term = `%${effectiveSearch}%`;
         q = q.or(`display_name.ilike.${term},description.ilike.${term},extracted_text.ilike.${term}`);
       }
 
+      q = q.eq('building_id', buildingId)
+        .eq('is_current_version', true)
+        .is('deleted_at', null);
+
+      if (categoryId) q = q.eq('category_id', categoryId);
       q = q.order('updated_at', { ascending: false });
 
       const { data, error } = await q;
       if (error) throw error;
+      return (data || []) as unknown as DocFile[];
+    },
       return (data || []) as unknown as DocFile[];
     },
   });
