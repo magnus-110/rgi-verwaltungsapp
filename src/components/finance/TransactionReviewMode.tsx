@@ -870,17 +870,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
   /**
    * Apply a set of selected invoice line-item indices to a booking row:
-   * sets amount = sum of selected items. Buchungstext folgt strikt RGI-Schema
-   * (Periode + Re.Nr. + Lieferant + Gegenkonto), wird aber nur überschrieben,
-   * wenn der User den Text nicht manuell editiert hat.
+   * aktualisiert NUR Buchungstext + Positionsauswahl. Der Buchungsbetrag wird
+   * NICHT mehr automatisch überschrieben (sonst stimmt er nicht mehr mit der
+   * Bankposition überein). Wer die Positionssumme als Betrag will, muss
+   * sie manuell ins Betragsfeld eintragen.
    */
   const applySelectionToRow = useCallback((rowId: string, indices: number[], items: any[]) => {
     setFormRows(rows => rows.map(r => {
       if (r.id !== rowId) return r;
-      const sum = indices.reduce((s, idx) => {
-        const it = items[idx];
-        return s + getLineItemGross(it, fallbackVatRate);
-      }, 0);
       const ca = accounts.find((a: any) => a.id === r.counter_account_id);
       const rebuilt = rebuildBookingTextIfAuto(r.description, r.__autoTextSignature, {
         period: null,
@@ -890,7 +887,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       });
       return {
         ...r,
-        amount: sum > 0 ? sum.toFixed(2) : r.amount,
         description: rebuilt.text,
         __autoTextSignature: rebuilt.signature,
       } as BookingRowData;
