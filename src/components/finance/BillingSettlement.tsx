@@ -875,11 +875,24 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     // Persönliche IST-Zahlung dieses Eigentümers (GJ-only, ohne Eröffnungsbestand)
     // wird IMMER ermittelt — unabhängig vom SOLL/IST-Toggle — damit eine private
     // Überbezahlung im Ihr-Anteil-Saldo verrechnet werden kann.
-    const personAcc = personenkontenAccounts.find((a: any) =>
-      a.account_number === assignment.unit_number?.padStart(5, "0")
-      || (assignment.unit_number && a.account_name?.includes(assignment.unit_number))
-      || (name && a.account_name?.toLowerCase().includes(name.toLowerCase().split(" ")[0])),
-    );
+    const unitRaw = String(assignment.unit_number || "").trim();
+    const unitDigits = unitRaw.replace(/^0+/, "");
+    const normTok = (s?: string) => (s || "").toLowerCase().replace(/[^a-zäöüß0-9 ]/g, " ").trim();
+    const contactTokens = [
+      contact?.last_name,
+      (contact as any)?.short_name,
+      contact?.company_name,
+      contact?.first_name,
+    ]
+      .filter(Boolean)
+      .flatMap((s) => normTok(s as string).split(/\s+/))
+      .filter((t) => t && t.length >= 3);
+    const personAcc = personenkontenAccounts.find((a: any) => {
+      const accNumDigits = String(a.account_number || "").trim().replace(/^0+/, "");
+      if (unitDigits && accNumDigits === unitDigits) return true;
+      const accNameNorm = normTok(a.account_name);
+      return contactTokens.some((tok) => accNameNorm.includes(tok));
+    });
     const ownerActualPaid = personAcc
       ? -signedTotalForAccount(personAcc.id, bookings as any)
       : totalPaid;
