@@ -274,6 +274,25 @@ export const EtvProxy = () => {
   const meetingDate = new Date(meeting.meeting_date);
   const isCompleted = meeting.status === "completed";
   const isActive = meeting.status === "in_progress";
+  const tokenUsed = (data as any).proxy_token_used === true;
+
+  // Token bereits eingelöst → klare Sackgasse
+  if (tokenUsed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="py-12 text-center space-y-3">
+            <UserCheck className="h-12 w-12 text-primary mx-auto" />
+            <h1 className="text-xl font-bold text-foreground">Vollmacht bereits übernommen</h1>
+            <p className="text-sm text-muted-foreground">
+              Diese Vollmacht wurde bereits in das Konto eines anderen Eigentümers übernommen und kann über diesen Link nicht mehr genutzt werden. Bitte beim Vollmachtgeber einen neuen Link anfordern, falls erforderlich.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
 
   const voteButtons = [
     { value: "yes", label: "Ja", icon: CheckCircle2, className: "bg-green-600 hover:bg-green-700 text-white" },
