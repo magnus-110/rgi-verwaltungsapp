@@ -108,7 +108,7 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
   const fmt = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 
   // Sektionierung nach category (Altdaten ohne category-Wert: nach Dateinamen erkennen).
-  const dmsRegex = /Gesamtabrechnung|Einzelabrechnung|Verm.egensbericht|Verm.gensbericht|§?35a|_35a|Wirtschaftsplan/i;
+  const dmsRegex = /Gesamtabrechnung|Einzelabrechnung|Verm.egensbericht|Verm.gensbericht|§?35a|_35a|Wirtschaftsplan|^Abrechnung[_ ]/i;
   const isPlanRow = (s: any) => s.category === "plan" || (!s.category && dmsRegex.test(s.file_name || ""));
   const planDocs = (statements as any[]).filter(isPlanRow);
   const bankStatements = (statements as any[]).filter((s) => !isPlanRow(s));
