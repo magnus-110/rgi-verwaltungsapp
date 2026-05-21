@@ -579,16 +579,17 @@ export function buildAssetReportPayload(inp: BillingPayloadInputs) {
   // Sektion 3: Zu- und Abflüsse aus Jahresabgrenzung
   //   = NEUE Abgrenzungen, die im lfd. Jahr gebildet werden
   //     für das Folgejahr (Konten 4140–4199).
-  //   HV-Office Vorzeichen aus Vermögenssicht (via getAccrualDisplaySign):
-  //     4160 (ARA-Bildung Ausgaben)  → +
-  //     4180 (PRA-Bildung Einnahmen) → −
+  //   Vorzeichen aus Vermögenssicht (umgekehrt zur Abrechnungssicht):
+  //     4160 (Ausg. im Folgejahr für lfd. J., PRA-Bildung) → Verbindlichkeit → −
+  //     4180 (Einn. im Folgejahr für lfd. J., ARA-Bildung) → Forderung      → +
   //   Eine Zeile PRO Konto mit dem echten account_name aus dem COA,
   //   damit die Vorlage exakt die UI-Bezeichnungen zeigt.
   // ============================================================
   const abgFolgeAccs = accsInRange(4140, 4199);
   const abgrenzungRows = abgFolgeAccs
     .map((a: any) => {
-      const raw = Math.abs(a.totalAbs || 0) * getAccrualDisplaySign(a.account_number);
+      // Vermögensbericht-Vorzeichen = − Abrechnungs-Vorzeichen
+      const raw = Math.abs(a.totalAbs || 0) * (-getAccrualDisplaySign(a.account_number));
       return {
         konto_nr: a.account_number,
         bezeichnung: a.account_name,
