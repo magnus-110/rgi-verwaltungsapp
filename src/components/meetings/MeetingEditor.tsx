@@ -331,8 +331,25 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
                     </div>
                   )}
                   {existingMeeting?.status === "published" && (
-                    <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 border-t pt-4">
-                      <CheckCircle2 className="h-4 w-4" /> Versammlung ist für Eigentümer freigeschaltet.
+                    <div className="flex items-center justify-between border-t pt-4 gap-3 flex-wrap">
+                      <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                        <CheckCircle2 className="h-4 w-4" /> Versammlung ist für Eigentümer freigeschaltet.
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={async () => {
+                          if (!confirm("Freischaltung zurückziehen? Die Versammlung ist dann im Eigentümer-Portal nicht mehr sichtbar.")) return;
+                          const { error } = await supabase.from("etv_meetings").update({ status: "draft" }).eq("id", savedMeetingId);
+                          if (error) { toast({ title: "Fehler", description: error.message, variant: "destructive" }); return; }
+                          toast({ title: "Freischaltung zurückgezogen" });
+                          queryClient.invalidateQueries({ queryKey: ["etv-meeting", savedMeetingId] });
+                          queryClient.invalidateQueries({ queryKey: ["etv-meetings"] });
+                        }}
+                      >
+                        Freischaltung zurückziehen
+                      </Button>
                     </div>
                   )}
                 </CardContent>
