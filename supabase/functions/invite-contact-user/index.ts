@@ -172,7 +172,9 @@ Deno.serve(async (req) => {
       }
       if (existingUser) {
         authUserId = existingUser.id
-        await supabaseAdmin.auth.admin.updateUserById(authUserId, { password })
+        if (shouldResetExistingPassword) {
+          await supabaseAdmin.auth.admin.updateUserById(authUserId, { password })
+        }
         // Update profile
         await supabaseAdmin.from('profiles').upsert({
           user_id: authUserId,
