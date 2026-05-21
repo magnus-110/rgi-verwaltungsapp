@@ -425,6 +425,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       account_id: bankAccount?.id || "",
       counter_account_id: "",
       amount: absAmount.toFixed(2),
+      original_txn_amount: absAmount,
       vat_rate: "19",
       vat_amount: "",
       description: "",
