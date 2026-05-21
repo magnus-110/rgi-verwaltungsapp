@@ -128,6 +128,22 @@ export const EtvProxy = () => {
     enabled: !!meetingId,
   });
 
+  // Unit number for this assignment
+  const { data: assignmentInfo } = useQuery({
+    queryKey: ["proxy-assignment-info", assignmentId],
+    queryFn: async () => {
+      if (!assignmentId) return null;
+      const { data, error } = await supabase
+        .from("contact_building_assignments")
+        .select("unit_number")
+        .eq("id", assignmentId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!assignmentId,
+  });
+
   // Check for active vote on load
   useEffect(() => {
     if (!meetingId) return;
