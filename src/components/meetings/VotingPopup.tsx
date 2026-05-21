@@ -278,13 +278,15 @@ export const VotingPopup = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-xl space-y-6">
-        {/* Header */}
-        <div className="text-center">
-          <Vote className="h-10 w-10 text-primary mx-auto mb-2" />
-          <h1 className="text-2xl font-bold text-foreground">Abstimmung</h1>
-        </div>
+    <div className="fixed inset-0 z-[100] bg-background overflow-y-auto">
+      <div className="min-h-full flex items-start sm:items-center justify-center p-4 py-6 sm:p-6">
+        <div className="w-full max-w-xl space-y-4 sm:space-y-6">
+          {/* Header */}
+          <div className="text-center">
+            <Vote className="h-8 w-8 sm:h-10 sm:w-10 text-primary mx-auto mb-2" />
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Abstimmung</h1>
+          </div>
+
 
         {allDone ? (
           <div className="space-y-6">
