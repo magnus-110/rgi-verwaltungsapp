@@ -131,6 +131,33 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) 
               <Label className="mb-2 block">Empfänger</Label>
               <RecipientPicker buildingId={buildingId} requireEmail={false} value={filter} onChange={setFilter} />
             </div>
+
+            <div>
+              <Label className="mb-2 block">Ausgabeformat</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={outputFormat === "docx" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setOutputFormat("docx")}
+                >
+                  DOCX (Word)
+                </Button>
+                <Button
+                  type="button"
+                  variant={outputFormat === "pdf" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setOutputFormat("pdf")}
+                >
+                  PDF (via CloudConvert)
+                </Button>
+              </div>
+              {outputFormat === "pdf" && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Konvertierung kann je nach Empfängeranzahl etwas dauern.
+                </p>
+              )}
+            </div>
           </div>
         )}
 
