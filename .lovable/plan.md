@@ -1,47 +1,64 @@
-# Fix: Ungewollter Logout/Lockout beim Abstimmen
+# Fix: Personenkonto-Matching für Einzelabrechnungs-Überzahlung
 
-## Ursache (bestätigt)
+## Problem
 
-`supabase/functions/invite-contact-user/index.ts` rotiert für **bereits existierende** Nutzer immer das Passwort (Zeile 134 und 167) — auch wenn der Aufrufer `send_email: false` setzt. Folge:
+`computeOwnerResult` in `BillingSettlement.tsx` matcht für viele Eigentümer das passende Personenkonto (`00xx Hausgeld …`) nicht und fällt auf SOLL zurück. Dadurch bleibt `ownerUeberzahlung = 0` und die im letzten Fix eingeführte Verrechnung wirkt nicht.
 
-- Supabase invalidiert beim Passwort-Wechsel serverseitig alle Refresh-Tokens.
-- Beim nächsten Token-Refresh fliegt der Nutzer in der App raus (`SIGNED_OUT` Event → unser `useAuth` löscht Session/Profile).
-- Sein bekanntes Passwort gilt nicht mehr → Login schlägt fehl, bis Admin „Passwort zurücksetzen" klickt.
+Beispiel AHW 3 / 2025, Unit 0001:
+- Assignment: Vorname `Tobias`, Nachname `Johannes Baraniak`, unit_number `0001`
+- Personenkonto: account_number `0001`, account_name `Hausgeld Johannes Baraniak`
+- Aktuelles Match:
+  - `padStart(5, "0")` → `"00001"` ≠ `"0001"` ❌
+  - `account_name.includes("0001")` ❌
+  - `account_name.includes("tobias")` ❌ (Konto enthält „Johannes")
 
-Trigger im konkreten Fall: vermutlich ein paralleler Re-Invite/Re-Assignment durch den Admin, während der Eigentümer in der Abstimmung war.
+## Fix — `src/components/finance/BillingSettlement.tsx`
 
-## Lösung (minimal-invasiv, ohne Verhaltensänderung bei „echtem" Einladen)
+Matching robuster machen. In `computeOwnerResult` (Zeilen ~877) den Block ersetzen:
 
-In `supabase/functions/invite-contact-user/index.ts`:
+```ts
+// Vergleichbare Helfer
+const unitRaw = String(assignment.unit_number || "").trim();
+const unitDigits = unitRaw.replace(/^0+/, ""); // "0001" -> "1"
+const norm = (s?: string) => (s || "").toLowerCase().replace(/[^a-zäöüß0-9 ]/g, " ").trim();
 
-1. Body-Parameter `force_reset_password?: boolean` einführen.
-2. Neue Regel: Passwort eines **bestehenden** Auth-Users wird **nur** rotiert, wenn
-   - `force_reset_password === true`, oder
-   - der Parameter fehlt und `send_email === true` (also nur wenn die neuen Zugangsdaten via Make-Webhook auch tatsächlich versendet werden).
-3. Bei `send_email === false` und keinem expliziten `force_reset_password`: kein `updateUserById({ password })`, keine Webhook-Auslösung. Profil/Rolle/Building-Verknüpfung wird trotzdem aktualisiert.
-4. Neuanlage (`createUser`) bleibt unverändert — dort ist ein Passwort technisch erforderlich.
+const contactTokens = [
+  contact?.last_name,
+  contact?.short_name,
+  contact?.company_name,
+  contact?.first_name,
+]
+  .filter(Boolean)
+  .flatMap((s) => norm(s as string).split(/\s+/))
+  .filter((t) => t && t.length >= 3); // Stop-Tokens wie "dr" raus
 
-## Was sich für bestehende Aufrufe ändert
+const personAcc = personenkontenAccounts.find((a: any) => {
+  const accNum = String(a.account_number || "").trim();
+  const accNumDigits = accNum.replace(/^0+/, "");
+  // 1) Match per Unit-Nummer in beliebiger Zero-Padding-Variante
+  if (unitDigits && accNumDigits === unitDigits) return true;
+  // 2) Match per Namensbestandteil (Nachname/Short/Company priorisiert)
+  const accNameNorm = norm(a.account_name);
+  return contactTokens.some((tok) => accNameNorm.includes(tok));
+});
+```
 
-| Aufrufer | bisher | nachher |
-|---|---|---|
-| `AssignContactDialog` Edit + „Einladung senden" angehakt (`send_email=true`) | rotiert + Mail | **unverändert** (rotiert + Mail) |
-| `AssignContactDialog` Neuanlage mit Haken (`send_email=true`) | rotiert + Mail | **unverändert** |
-| `AssignContactDialog` Neuanlage ohne Haken (`send_email=false`) | rotierte still (Bug) | **nur Account-Verknüpfung, kein Passwort-Wechsel** |
-| Andere Auto-Invokes (z. B. Meeting-Publish, falls vorhanden) mit `send_email=true` | rotierte | rotiert weiterhin (Verhalten erhalten) |
-| Beliebiger Aufrufer mit `send_email=false` | rotierte | **rotiert nicht mehr** |
+Damit greift für Tobias (Unit 0001) sofort Regel (1); für historische Einträge mit abweichender Nummerierung greift Regel (2) über den Nachnamen `baraniak` bzw. `johannes`.
 
-Damit ist garantiert: **kein Nutzer wird mehr unbemerkt ausgeloggt**, weil die Zugangsdaten nur dann ungültig werden, wenn er sie auch per E-Mail bekommt.
+`signedTotalForAccount` und der Rest des Blocks bleiben unverändert. `ownerActualPaid`, `ownerUeberzahlung`, `result = ownerSpitze + ownerUeberzahlung` ebenfalls wie gehabt.
 
-## Geänderte Datei
+## Verifikation an AHW 3 / 2025
 
-- `supabase/functions/invite-contact-user/index.ts` (3 kleine Stellen: Body-Parsing + zwei `if`-Bedingungen vor `updateUserById` + Webhook-Bedingung)
+- Tobias (Unit 0001): `personAcc` = Konto 0001 „Hausgeld Johannes Baraniak", `ownerActualPaid = 4.440 €`, `ownerUeberzahlung = 210 €`, `result = 335,21 + 210 = 545,21 €`.
+- Andere Eigentümer ohne Überbezahlung: `ownerUeberzahlung = 0`, Saldo unverändert.
+- Gesamt-Saldo bleibt bei `2.029,10 €` (im letzten Fix bereits korrekt gestellt).
 
-Keine Frontend-Änderungen, keine DB-Migration, keine Auswirkung auf RLS, Realtime, Meetings, Voting, Finance.
+## Keine Änderungen nötig an
 
-## Verifikation
+- `buildBillingPayload.ts` (Payload-Logik vom letzten Fix bleibt)
+- DOCX-Vorlage `Einzelabrechnung_Vorlage_II.docx` (Felder `ueberzahlung_wpl_ihre`, `abrechnungssaldo_ihre`, `has_ueberzahlung` werden bereits korrekt befüllt — sie waren nur leer, weil das Match fehlte)
+- DB-Schema
 
-1. Deploy der Edge Function.
-2. Test A (Regression): Im Admin „Kontakt zuordnen" → Haken bei „Einladung senden" → existierender Nutzer bekommt wie bisher eine Mail mit neuem Passwort, alte Session läuft aus.
-3. Test B (Fix): Im Admin „Kontakt zuordnen" → Haken **nicht** setzen → existierender Nutzer bleibt eingeloggt, Passwort bleibt gültig.
-4. Test C: Eigentümer stimmt in der App ab, Admin macht parallel eine harmlose Re-Assignment-Operation ohne „Einladung senden" → kein Logout.
+## Bonus-Hinweis (optional)
+
+Wenn Du den Konten­namen ändern möchtest („Hausgeld Tobias Baraniak" statt „Johannes Baraniak"), funktioniert das ohne Code-Änderung dank Regel (1) (Unit-Nummer) trotzdem weiter. Empfehlung: Konten­bezeichnungen mit aktuellem Eigentümer-Nachnamen führen, das hilft auch der Bank-Abgleich-KI.
