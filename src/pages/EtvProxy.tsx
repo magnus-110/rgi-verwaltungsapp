@@ -337,6 +337,14 @@ export const EtvProxy = () => {
               <Vote className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
               <h1 className="text-xl sm:text-2xl font-bold">Abstimmung</h1>
             </div>
+            {assignmentInfo?.unit_number && (
+              <div className="text-center">
+                <Badge variant="outline" className="text-sm px-3 py-1 border-primary/30">
+                  Einheit {assignmentInfo.unit_number}
+                </Badge>
+              </div>
+            )}
+
 
 
           {hasVoted ? (
