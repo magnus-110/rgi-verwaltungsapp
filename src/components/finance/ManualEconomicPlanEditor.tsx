@@ -738,6 +738,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       accounts: accountsList,
       positions: accountsList, // Alias für Vorlagen mit {#positions}
       total_planned: fmtEUR(sumAbs(unitRows)),
+      total_amount_sum: fmtEUR(unitRows.reduce((s, r) => s + Math.abs((r as any).totalAmount ?? r.planned_amount), 0)),
+      summe_gesamt_kosten: fmtEUR(unitRows.reduce((s, r) => s + Math.abs((r as any).totalAmount ?? r.planned_amount), 0)),
       total_distributable: fmtEUR(ownerDistributableYear),
       owner_total: fmtEUR(ownerDistributableYear),
       owner_reserve_total: fmtEUR(ownerReserveYear),
