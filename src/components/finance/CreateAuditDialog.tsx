@@ -149,11 +149,11 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
       setPortalUntil(audit.visible_in_portal_until ? format(new Date(audit.visible_in_portal_until), "yyyy-MM-dd") : "");
 
       const [{ data: stmts }, { data: nts }] = await Promise.all([
-        supabase.from("cash_audit_statements").select("id, file_name, file_path").eq("cash_audit_id", auditId!).order("sort_order"),
+        supabase.from("cash_audit_statements").select("id, file_name, file_path, category").eq("cash_audit_id", auditId!).order("sort_order"),
         supabase.from("cash_audit_notes").select("id, title, body").eq("cash_audit_id", auditId!).order("sort_order"),
       ]);
       if (cancelled) return;
-      setExistingStatements(stmts || []);
+      setExistingStatements((stmts || []) as any);
       setNotes((nts || []).map((n: any) => ({ id: n.id, title: n.title, body: n.body })));
     })();
     return () => { cancelled = true; };
