@@ -231,6 +231,9 @@ export function Contacts() {
             pageSize={PAGE_SIZE}
             total={total}
             onPageChange={setPage}
+            filters={filters}
+            onFiltersChange={setFilters}
+            cityOptions={cityOptions}
           />
         </ResizablePanel>
         <ResizableHandle withHandle />
