@@ -55,6 +55,22 @@ const GROUPS: { title: string; vars: { key: string; desc: string }[] }[] = [
     ],
   },
   {
+    title: "Eigentümerversammlung (nur bei ETV-Einladung)",
+    vars: [
+      { key: "meeting_title", desc: "Titel der Versammlung" },
+      { key: "meeting_date", desc: "z. B. 15. März 2026" },
+      { key: "meeting_date_short", desc: "z. B. 15.03.2026" },
+      { key: "meeting_weekday", desc: "z. B. Mittwoch" },
+      { key: "meeting_time", desc: "z. B. 18:00" },
+      { key: "meeting_location", desc: "Versammlungsort" },
+      { key: "meeting_chair", desc: "Versammlungsleiter" },
+      { key: "minutes_taker", desc: "Protokollführer" },
+      { key: "agenda_list", desc: "Komplette TOP-Liste mit Beschreibungen (mehrzeilig)" },
+      { key: "agenda_titles", desc: "Nur die TOP-Titel (mehrzeilig)" },
+      { key: "top_count", desc: "Anzahl der TOPs" },
+    ],
+  },
+  {
     title: "Frei (vor Versand befüllbar)",
     vars: [
       { key: "betreff", desc: "Eigener Betreff" },
