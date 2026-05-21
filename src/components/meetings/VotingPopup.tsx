@@ -26,7 +26,7 @@ export const VotingPopup = () => {
   const [meetingId, setMeetingId] = useState<string | null>(null);
   const [isSecretBallot, setIsSecretBallot] = useState(true);
 
-  // Live vote counts after voting done
+  // Live vote counts — active throughout the entire voting (not only after allDone)
   const { data: liveVotes = [] } = useQuery({
     queryKey: ["voting-popup-live-votes", votingItem?.id],
     queryFn: async () => {
@@ -38,12 +38,12 @@ export const VotingPopup = () => {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!votingItem && allDone,
+    enabled: !!votingItem,
   });
 
-  // Realtime for votes when showing results
+  // Realtime for votes during the entire voting
   useEffect(() => {
-    if (!votingItem?.id || !allDone) return;
+    if (!votingItem?.id) return;
     const channel = supabase
       .channel(`popup-votes-${votingItem.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "etv_votes", filter: `agenda_item_id=eq.${votingItem.id}` }, () => {
@@ -51,7 +51,7 @@ export const VotingPopup = () => {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [votingItem?.id, allDone, queryClient]);
+  }, [votingItem?.id, queryClient]);
 
   const checkVotingForItem = useCallback(async (agendaItem: any) => {
     if (!profile?.user_id) return;
@@ -413,6 +413,22 @@ export const VotingPopup = () => {
             <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 text-sm px-4 py-1.5">
               Abstimmung läuft
             </Badge>
+
+            {/* Live results during voting */}
+            {!isSecretBallot ? (
+              <div className="bg-muted rounded-lg p-4 space-y-3">
+                <h3 className="font-semibold text-sm text-foreground text-center">Live-Ergebnis</h3>
+                <div className="flex justify-center gap-4 sm:gap-6 text-base">
+                  <span className="text-green-600 font-bold">Ja: {yesCount}</span>
+                  <span className="text-red-600 font-bold">Nein: {noCount}</span>
+                  <span className="text-muted-foreground font-semibold">Enth.: {abstainCount}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-muted rounded-lg p-3 text-center text-sm text-muted-foreground">
+                Geheime Abstimmung — bisher {liveVotes.length} Stimme{liveVotes.length === 1 ? "" : "n"} eingegangen
+              </div>
+            )}
 
             {/* Vote selection buttons */}
             <div className="grid grid-cols-3 gap-2 sm:gap-4">
