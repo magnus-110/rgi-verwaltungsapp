@@ -206,7 +206,13 @@ export async function loadRecipients(
       gebaeude_plz: "",
       gebaeude_ort: "",
       einheit: a.unit_number || "",
-      mea: "",
+      mea: (() => {
+        const shares = (a as any).contact_building_shares || [];
+        const m = shares.find((s: any) => s.share_type === "mea");
+        if (!m || m.share_value == null) return "";
+        const v = Number(m.share_value);
+        return Number.isFinite(v) ? v.toLocaleString("de-DE", { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : String(m.share_value);
+      })(),
       rolle: a.role_in_building || "",
       // Verwaltung
       verwalter_name: managerDisplayName || building.manager_name || "",
