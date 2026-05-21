@@ -414,6 +414,22 @@ export const VotingPopup = () => {
               Abstimmung läuft
             </Badge>
 
+            {/* Live results during voting */}
+            {!isSecretBallot ? (
+              <div className="bg-muted rounded-lg p-4 space-y-3">
+                <h3 className="font-semibold text-sm text-foreground text-center">Live-Ergebnis</h3>
+                <div className="flex justify-center gap-4 sm:gap-6 text-base">
+                  <span className="text-green-600 font-bold">Ja: {yesCount}</span>
+                  <span className="text-red-600 font-bold">Nein: {noCount}</span>
+                  <span className="text-muted-foreground font-semibold">Enth.: {abstainCount}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-muted rounded-lg p-3 text-center text-sm text-muted-foreground">
+                Geheime Abstimmung — bisher {liveVotes.length} Stimme{liveVotes.length === 1 ? "" : "n"} eingegangen
+              </div>
+            )}
+
             {/* Vote selection buttons */}
             <div className="grid grid-cols-3 gap-2 sm:gap-4">
               {voteButtons.map(({ value, label, icon: Icon, className }) => (
