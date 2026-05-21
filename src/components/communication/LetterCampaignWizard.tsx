@@ -35,7 +35,7 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId, meetingId
 
   const reset = () => {
     setStep(1); setName(""); setTemplate(null);
-    setFilter({ roles: [], contact_ids: [], assignment_ids: [], require_email: false });
+    setFilter({ roles: meetingId ? ["eigentuemer"] : [], contact_ids: [], assignment_ids: [], require_email: false });
     setOutputFormat("docx");
     setResultPath(null); setResultStats(null);
   };
