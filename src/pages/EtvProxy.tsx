@@ -435,12 +435,14 @@ export const EtvProxy = () => {
                   {castVoteMutation.isPending ? "Wird gespeichert…" : "Stimme bestätigen"}
                 </Button>
               )}
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </div>
     );
   }
+
 
   return (
     <div className="min-h-screen bg-background p-4 flex items-start justify-center pt-12">
