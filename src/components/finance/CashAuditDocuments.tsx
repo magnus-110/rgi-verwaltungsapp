@@ -1,10 +1,10 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, FileText, Receipt, Landmark, BarChart3 } from "lucide-react";
-import { PdfViewerModal } from "@/components/documents/PdfViewerModal";
+import { Button } from "@/components/ui/button";
+import { ChevronDown, ChevronRight, FileText, Receipt, Landmark, BarChart3, Upload, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface CashAuditDocumentsProps {
@@ -18,6 +18,10 @@ interface CashAuditDocumentsProps {
 
 export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, auditId, tokenMode, token }: CashAuditDocumentsProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["statements"]));
+  const [uploadingSection, setUploadingSection] = useState<string | null>(null);
+  const planInputRef = useRef<HTMLInputElement>(null);
+  const stmtInputRef = useRef<HTMLInputElement>(null);
+  const qc = useQueryClient();
 
   // PDF-Kontoauszüge (vom Admin hochgeladen)
   const { data: statements = [] } = useQuery({
@@ -29,7 +33,7 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
       }
       const { data } = await supabase
         .from("cash_audit_statements")
-        .select("id, file_name, file_path, uploaded_at, sort_order")
+        .select("id, file_name, file_path, uploaded_at, sort_order, category")
         .eq("cash_audit_id", auditId)
         .order("sort_order")
         .order("uploaded_at");
@@ -108,29 +112,131 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
 
   const fmt = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 
-  // DMS-Dokumente (Gesamt-/Einzelabrechnung, Vermögensbericht, §35a) separat ausweisen
-  const dmsRegex = /Gesamtabrechnung|Einzelabrechnung|Verm.egensbericht|Verm.gensbericht|§?35a|_35a/i;
-  const planDocs = (statements as any[]).filter((s) => dmsRegex.test(s.file_name || ""));
-  const bankStatements = (statements as any[]).filter((s) => !dmsRegex.test(s.file_name || ""));
+  // Sektionierung:
+  //   - category='plan'      → Abrechnungen & Pläne
+  //   - category='statement' → Kontoauszüge
+  //   - Altdaten ohne category-Wert: nach Dateinamen erkennen (back-compat)
+  const dmsRegex = /Gesamtabrechnung|Einzelabrechnung|Verm.egensbericht|Verm.gensbericht|§?35a|_35a|Wirtschaftsplan/i;
+  const isPlanRow = (s: any) => s.category === "plan" || (!s.category && dmsRegex.test(s.file_name || ""));
+  const planDocs = (statements as any[]).filter(isPlanRow);
+  const bankStatements = (statements as any[]).filter((s) => !isPlanRow(s));
+
+  // Upload-Handler (nur Admin-Modus, nicht Token-Modus)
+  const handleUpload = async (files: FileList | null, category: "statement" | "plan") => {
+    if (!files || files.length === 0) return;
+    setUploadingSection(category);
+    try {
+      const baseSort = (statements as any[]).length;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.type !== "application/pdf" && !/\.pdf$/i.test(file.name)) {
+          toast.error(`"${file.name}" ist keine PDF — übersprungen`);
+          continue;
+        }
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `cash-audits/${auditId}/${crypto.randomUUID()}-${safeName}`;
+        const { error: upErr } = await supabase.storage
+          .from("building-documents")
+          .upload(path, file, { contentType: "application/pdf" });
+        if (upErr) {
+          toast.error(`Upload von "${file.name}" fehlgeschlagen: ${upErr.message}`);
+          continue;
+        }
+        const { error: insErr } = await supabase.from("cash_audit_statements").insert({
+          cash_audit_id: auditId,
+          file_name: file.name,
+          file_path: path,
+          sort_order: baseSort + i,
+          category,
+        });
+        if (insErr) {
+          toast.error(`Speichern fehlgeschlagen: ${insErr.message}`);
+          continue;
+        }
+      }
+      toast.success(`${files.length} Datei(en) hochgeladen`);
+      qc.invalidateQueries({ queryKey: ["audit-pdf-statements", auditId] });
+    } finally {
+      setUploadingSection(null);
+      if (planInputRef.current) planInputRef.current.value = "";
+      if (stmtInputRef.current) stmtInputRef.current.value = "";
+    }
+  };
+
+  const handleDelete = async (s: any) => {
+    if (!confirm(`"${s.file_name}" wirklich löschen?`)) return;
+    try {
+      const cleanPath = String(s.file_path || "")
+        .replace(/^\/+/, "")
+        .replace(/^building-documents\//, "");
+      if (cleanPath) await supabase.storage.from("building-documents").remove([cleanPath]);
+      const { error } = await supabase.from("cash_audit_statements").delete().eq("id", s.id);
+      if (error) throw error;
+      toast.success("Datei gelöscht");
+      qc.invalidateQueries({ queryKey: ["audit-pdf-statements", auditId] });
+    } catch (e: any) {
+      toast.error(e.message || "Löschen fehlgeschlagen");
+    }
+  };
 
   const renderDocList = (list: any[], emptyText: string) => (
     <div className="space-y-1">
       {list.map((s: any) => (
-        <button
-          key={s.id}
-          onClick={() => openStatement(s)}
-          className="w-full flex items-center gap-3 p-2 rounded hover:bg-muted/50 text-left text-sm"
-        >
-          <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-          <span className="flex-1 truncate">{s.file_name}</span>
-          <span className="text-xs text-muted-foreground">
-            {s.uploaded_at && new Date(s.uploaded_at).toLocaleDateString("de-DE")}
-          </span>
-        </button>
+        <div key={s.id} className="flex items-center gap-1 group">
+          <button
+            onClick={() => openStatement(s)}
+            className="flex-1 flex items-center gap-3 p-2 rounded hover:bg-muted/50 text-left text-sm"
+          >
+            <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <span className="flex-1 truncate">{s.file_name}</span>
+            <span className="text-xs text-muted-foreground">
+              {s.uploaded_at && new Date(s.uploaded_at).toLocaleDateString("de-DE")}
+            </span>
+          </button>
+          {!tokenMode && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={() => handleDelete(s)}
+              title="Datei löschen"
+            >
+              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+            </Button>
+          )}
+        </div>
       ))}
       {list.length === 0 && <p className="text-sm text-muted-foreground py-4 text-center">{emptyText}</p>}
     </div>
   );
+
+  const uploadButton = (category: "statement" | "plan", inputRef: React.RefObject<HTMLInputElement>) =>
+    !tokenMode && (
+      <div className="pt-2 mt-2 border-t border-dashed">
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf"
+          multiple
+          className="hidden"
+          onChange={(e) => handleUpload(e.target.files, category)}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploadingSection === category}
+        >
+          {uploadingSection === category ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Upload className="h-4 w-4 mr-2" />
+          )}
+          Externe PDF hochladen
+        </Button>
+      </div>
+    );
 
   const sections = [
     {
@@ -138,7 +244,12 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
       label: "Kontoauszüge",
       icon: Landmark,
       count: bankStatements.length,
-      content: renderDocList(bankStatements, "Keine Kontoauszüge hochgeladen"),
+      content: (
+        <>
+          {renderDocList(bankStatements, "Keine Kontoauszüge hochgeladen")}
+          {uploadButton("statement", stmtInputRef)}
+        </>
+      ),
     },
     {
       id: "invoices",
@@ -172,14 +283,19 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
       label: "Abrechnungen & Pläne",
       icon: BarChart3,
       count: planDocs.length,
-      content:
-        planDocs.length > 0 ? (
-          renderDocList(planDocs, "Keine Abrechnungs-Dokumente angehängt")
-        ) : (
-          <div className="py-4 text-center text-sm text-muted-foreground">
-            Die Abrechnungs- und Wirtschaftsplan-PDFs werden über den Abrechnungs-Tab erstellt und können dort eingesehen werden.
-          </div>
-        ),
+      content: (
+        <>
+          {planDocs.length > 0
+            ? renderDocList(planDocs, "Keine Abrechnungs-Dokumente angehängt")
+            : (
+              <div className="py-4 text-center text-sm text-muted-foreground">
+                Hier können Sie Gesamt-/Einzelabrechnungen, Wirtschaftspläne, §35a-Bescheinigungen oder
+                Vermögensberichte als externe PDF hochladen (oder aus dem DMS übernehmen).
+              </div>
+            )}
+          {uploadButton("plan", planInputRef)}
+        </>
+      ),
     },
   ];
 
@@ -210,8 +326,6 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
           </Card>
         );
       })}
-
-      
     </div>
   );
 }
