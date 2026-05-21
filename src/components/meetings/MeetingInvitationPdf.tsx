@@ -36,13 +36,14 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
     queryFn: async () => {
       const { data, error } = await supabase
         .from("etv_meetings")
-        .select("title, meeting_date, meeting_time, location")
+        .select("title, meeting_date, location")
         .eq("id", meetingId)
         .maybeSingle();
       if (error) throw error;
       return data;
     },
   });
+
 
   const { data: ownerCount = 0 } = useQuery({
     queryKey: ["etv-owner-count", buildingId],
@@ -145,7 +146,7 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
             </div>
             <div className="flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5" />
-              {meeting?.meeting_time?.slice(0, 5) || "—"}
+              {meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "—"}
             </div>
             <div className="flex items-center gap-1.5 truncate">
               <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
@@ -156,6 +157,7 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
               {ownerCount} Eigentümer
             </div>
           </div>
+
         </CardContent>
       </Card>
 
@@ -245,8 +247,9 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
                 </div>
                 <p className="text-xs text-muted-foreground pl-6">
                   ETV-Daten ({meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString("de-DE") : "—"},{" "}
-                  {meeting?.meeting_time?.slice(0, 5)}, {meeting?.location}) werden automatisch eingesetzt.
+                  {meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "—"}, {meeting?.location}) werden automatisch eingesetzt.
                 </p>
+
               </div>
 
               <div>
