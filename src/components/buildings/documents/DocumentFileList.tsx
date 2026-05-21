@@ -48,23 +48,27 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [localSearch, setLocalSearch] = useState("");
+
+  const effectiveSearch = (localSearch || searchQuery).trim();
 
   const { data: files = [], isLoading } = useQuery({
-    queryKey: ['stammakte-files', buildingId, categoryId, searchQuery],
+    queryKey: ['stammakte-files', buildingId, categoryId, effectiveSearch],
     queryFn: async () => {
       let q = supabase
         .from('building_files')
         .select('*')
         .eq('building_id', buildingId)
         .eq('is_current_version', true)
-        .is('deleted_at', null)
-        .order('updated_at', { ascending: false });
+        .is('deleted_at', null);
 
       if (categoryId) q = q.eq('category_id', categoryId);
-      if (searchQuery.trim()) {
-        const term = `%${searchQuery.trim()}%`;
+      if (effectiveSearch) {
+        const term = `%${effectiveSearch}%`;
         q = q.or(`display_name.ilike.${term},description.ilike.${term},extracted_text.ilike.${term}`);
       }
+
+      q = q.order('updated_at', { ascending: false });
 
       const { data, error } = await q;
       if (error) throw error;
