@@ -713,7 +713,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       const vendorName = resolveVendor((invoiceDetail as any)?.vendor_name || vendorFromTxn || null);
       const rows: BookingRowData[] = sb.map((s: any) => {
         const counterAccountId = resolveCounterAccount(s);
-        const rowAmount = s.amount != null ? Math.abs(s.amount) : absAmount / sb.length;
+        // WICHTIG: Betrag NIE automatisch verteilen. Nur wenn die KI einen
+        // konkreten Betrag pro Split-Position liefert, übernehmen wir ihn.
+        // Sonst bleibt das Feld 0.00 und der Nutzer muss es bewusst füllen.
+        const rowAmount = s.amount != null ? Math.abs(Number(s.amount) || 0) : 0;
         const counterAcc = accounts.find(a => a.id === counterAccountId);
         const receiptNo = s.receipt_number || invoiceNumber || "";
         const splitDescription = buildBookingText({
@@ -727,6 +730,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           account_id: defaultBankAccountId,
           counter_account_id: counterAccountId,
           amount: rowAmount.toFixed(2),
+          original_txn_amount: absAmount,
           vat_rate: s.vat_rate != null ? String(s.vat_rate) : "19",
           vat_amount: "",
           description: splitDescription,
