@@ -364,13 +364,6 @@ export const VotingPopup = () => {
               </div>
             )}
 
-            {/* Unit label */}
-            {currentAssignment?.unit_number && (
-              <Badge className="bg-primary/10 text-primary border-primary/20 text-lg px-5 py-2">
-                Einheit {currentAssignment.unit_number}
-              </Badge>
-            )}
-
             {/* TOP info */}
             <div>
               <p className="text-sm text-muted-foreground mb-1">Tagesordnungspunkt</p>
