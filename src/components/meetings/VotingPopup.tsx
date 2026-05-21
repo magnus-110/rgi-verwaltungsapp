@@ -282,9 +282,14 @@ export const VotingPopup = () => {
       <div className="min-h-full flex items-start sm:items-center justify-center p-4 py-6 sm:p-6">
         <div className="w-full max-w-xl space-y-4 sm:space-y-6">
           {/* Header */}
-          <div className="text-center">
+          <div className="text-center space-y-2">
             <Vote className="h-8 w-8 sm:h-10 sm:w-10 text-primary mx-auto mb-2" />
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">Abstimmung</h1>
+            {!allDone && currentAssignment?.unit_number && (
+              <Badge variant="outline" className="text-base px-4 py-1.5 border-primary/30">
+                Einheit {currentAssignment.unit_number}
+              </Badge>
+            )}
           </div>
 
 
@@ -357,13 +362,6 @@ export const VotingPopup = () => {
                   ))}
                 </div>
               </div>
-            )}
-
-            {/* Unit label */}
-            {currentAssignment?.unit_number && (
-              <Badge className="bg-primary/10 text-primary border-primary/20 text-lg px-5 py-2">
-                Einheit {currentAssignment.unit_number}
-              </Badge>
             )}
 
             {/* TOP info */}

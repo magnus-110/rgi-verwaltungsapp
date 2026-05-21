@@ -128,6 +128,22 @@ export const EtvProxy = () => {
     enabled: !!meetingId,
   });
 
+  // Unit number for this assignment
+  const { data: assignmentInfo } = useQuery({
+    queryKey: ["proxy-assignment-info", assignmentId],
+    queryFn: async () => {
+      if (!assignmentId) return null;
+      const { data, error } = await supabase
+        .from("contact_building_assignments")
+        .select("unit_number")
+        .eq("id", assignmentId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!assignmentId,
+  });
+
   // Check for active vote on load
   useEffect(() => {
     if (!meetingId) return;
@@ -321,6 +337,14 @@ export const EtvProxy = () => {
               <Vote className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
               <h1 className="text-xl sm:text-2xl font-bold">Abstimmung</h1>
             </div>
+            {assignmentInfo?.unit_number && (
+              <div className="text-center">
+                <Badge variant="outline" className="text-sm px-3 py-1 border-primary/30">
+                  Einheit {assignmentInfo.unit_number}
+                </Badge>
+              </div>
+            )}
+
 
 
           {hasVoted ? (
