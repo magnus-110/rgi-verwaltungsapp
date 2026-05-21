@@ -13,10 +13,7 @@ async function loadMeetingVars(admin: any, meetingId: string): Promise<Record<st
   const { data: tops } = await admin.from("etv_agenda_items")
     .select("title, description, sort_order").eq("meeting_id", meetingId).order("sort_order");
   const items = (tops || []) as any[];
-  const agendaList = items.map((t, i) => {
-    const head = `TOP ${i + 1}: ${t.title || ""}`;
-    return t.description ? `${head}\n${t.description}` : head;
-  }).join("\n\n");
+  const agendaList = items.map((t, i) => `TOP ${i + 1}: ${t.title || ""}`).join("\n");
   const agendaTitles = items.map((t, i) => `TOP ${i + 1}: ${t.title || ""}`).join("\n");
   const md = meeting.meeting_date ? new Date(meeting.meeting_date) : null;
   return {
