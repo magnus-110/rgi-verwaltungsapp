@@ -147,11 +147,26 @@ export const Meetings = () => {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="meetings" className="mt-4">
-          <MeetingList
-            meetings={meetings}
-            isLoading={isLoading}
-            onSelect={(id) => setSelectedMeetingId(id)}
-          />
+          <Tabs defaultValue="active">
+            <TabsList>
+              <TabsTrigger value="active">Aktuelle</TabsTrigger>
+              <TabsTrigger value="past">Vergangene</TabsTrigger>
+            </TabsList>
+            <TabsContent value="active" className="mt-4">
+              <MeetingList
+                meetings={meetings.filter((m: any) => !["completed", "cancelled"].includes(m.status))}
+                isLoading={isLoading}
+                onSelect={(id) => setSelectedMeetingId(id)}
+              />
+            </TabsContent>
+            <TabsContent value="past" className="mt-4">
+              <MeetingList
+                meetings={meetings.filter((m: any) => ["completed", "cancelled"].includes(m.status))}
+                isLoading={isLoading}
+                onSelect={(id) => setSelectedMeetingId(id)}
+              />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
         <TabsContent value="submissions" className="mt-4">
           <SubmittedTopsManager buildingFilter={selectedBuildingId} />

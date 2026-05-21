@@ -615,34 +615,57 @@ export const WegOwnerMeetings = () => {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-3">
-              {meetings.map((meeting: any) => (
-                <Card
-                  key={meeting.id}
-                  className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => setSelectedMeetingId(meeting.id)}
-                >
-                  <CardContent className="p-4 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold">{meeting.title}</h3>
-                      <Badge variant="secondary">{statusLabels[meeting.status] || meeting.status}</Badge>
-                    </div>
-                    <div className="flex gap-4 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {formatDate(new Date(meeting.meeting_date), "dd.MM.yyyy 'um' HH:mm 'Uhr'", { locale: de })}
-                      </span>
-                      {meeting.location && (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          {meeting.location}
-                        </span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <Tabs defaultValue="active">
+              <TabsList>
+                <TabsTrigger value="active">Aktuelle</TabsTrigger>
+                <TabsTrigger value="past">Vergangene</TabsTrigger>
+              </TabsList>
+              {(["active", "past"] as const).map((tab) => {
+                const filtered = meetings.filter((m: any) =>
+                  tab === "past" ? m.status === "completed" : m.status !== "completed"
+                );
+                return (
+                  <TabsContent key={tab} value={tab} className="mt-4">
+                    {filtered.length === 0 ? (
+                      <Card>
+                        <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                          {tab === "past" ? "Keine vergangenen Versammlungen." : "Keine aktuellen Versammlungen."}
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <div className="space-y-3">
+                        {filtered.map((meeting: any) => (
+                          <Card
+                            key={meeting.id}
+                            className="cursor-pointer hover:shadow-md transition-shadow"
+                            onClick={() => setSelectedMeetingId(meeting.id)}
+                          >
+                            <CardContent className="p-4 space-y-1">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold">{meeting.title}</h3>
+                                <Badge variant="secondary">{statusLabels[meeting.status] || meeting.status}</Badge>
+                              </div>
+                              <div className="flex gap-4 text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {formatDate(new Date(meeting.meeting_date), "dd.MM.yyyy 'um' HH:mm 'Uhr'", { locale: de })}
+                                </span>
+                                {meeting.location && (
+                                  <span className="flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    {meeting.location}
+                                  </span>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+                  </TabsContent>
+                );
+              })}
+            </Tabs>
           )}
         </TabsContent>
 
