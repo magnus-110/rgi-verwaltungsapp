@@ -1428,7 +1428,44 @@ export const WegOwnerMeetings = () => {
       </Dialog>
 
       {/* Proxy Dialog — Progressive Steps: Type → Person → Instructions → Create */}
+      {/* Redeem external proxy dialog */}
+      <Dialog open={redeemDialogOpen} onOpenChange={(open) => { if (!open) { setRedeemDialogOpen(false); setRedeemInput(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link2 className="h-5 w-5 text-primary" />
+              Externe Vollmacht einlösen
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Fügen Sie den vollständigen Vollmacht-Link oder den Token ein, den Sie vom Vollmachtgeber erhalten haben. Die Vollmacht wird Ihrem Konto zugeordnet und der externe Link verliert anschließend seine Gültigkeit.
+            </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="redeem-input">Link oder Token</Label>
+              <Input
+                id="redeem-input"
+                value={redeemInput}
+                onChange={(e) => setRedeemInput(e.target.value)}
+                placeholder="https://… /etv-proxy/<token>"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRedeemDialogOpen(false)}>Abbrechen</Button>
+            <Button
+              onClick={() => redeemProxyMutation.mutate(redeemInput.trim())}
+              disabled={!redeemInput.trim() || redeemProxyMutation.isPending}
+            >
+              {redeemProxyMutation.isPending ? "Wird übernommen…" : "Vollmacht übernehmen"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showProxyDialog} onOpenChange={(open) => { if (!open) { setShowProxyDialog(false); setProxyAssignmentId(null); setCreatedProxyToken(null); setProxyStep(1); setExpandedTopIds(new Set()); } }}>
+
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
