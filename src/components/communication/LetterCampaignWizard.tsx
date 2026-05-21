@@ -51,18 +51,18 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId, meetingId
       const recipientIds = filter.contact_ids.includes("__none__") ? [] : filter.contact_ids;
 
       const { data: campaign, error: cErr } = await supabase.from("comm_campaigns").insert({
-        name: name.trim() || `Serienbrief ${template.name}`,
+        name: name.trim() || `${titlePrefix || "Serienbrief"} ${template.name}`,
         type: "letter",
         template_id: template.id,
         building_id: buildingId,
-        recipient_filter: { roles: filter.roles, contact_ids: recipientIds },
+        recipient_filter: { roles: filter.roles, contact_ids: recipientIds, assignment_ids: filter.assignment_ids },
         status: "draft",
         created_by: userId,
       }).select().single();
       if (cErr) throw cErr;
 
       const { data: result, error: rErr } = await supabase.functions.invoke("comm-render-letters", {
-        body: { campaign_id: campaign.id, output_format: outputFormat },
+        body: { campaign_id: campaign.id, output_format: outputFormat, meeting_id: meetingId },
       });
       if (rErr) throw rErr;
       const r = result as any;
