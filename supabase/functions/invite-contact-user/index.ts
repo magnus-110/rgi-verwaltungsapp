@@ -136,8 +136,10 @@ Deno.serve(async (req) => {
     const password = generateNumericPassword()
 
     if (authUserId) {
-      // User already exists - update password and reset terms
-      await supabaseAdmin.auth.admin.updateUserById(authUserId, { password })
+      // Existing user — only rotate password if credentials will be sent out.
+      if (shouldResetExistingPassword) {
+        await supabaseAdmin.auth.admin.updateUserById(authUserId, { password })
+      }
       await supabaseAdmin.from('profiles').update({
         force_password_change: false,
         terms_accepted_at: null,
