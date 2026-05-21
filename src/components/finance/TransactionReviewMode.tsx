@@ -2,6 +2,10 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -53,6 +57,9 @@ interface BookingRowData {
   account_id: string;
   counter_account_id: string;
   amount: string;
+  /** Originalbetrag der Banktransaktion (|txn.amount|). Wird NIE überschrieben
+   *  und dient als Referenz im UI + harter Buchen-Validierung. */
+  original_txn_amount: number;
   vat_rate: string;
   vat_amount: string;
   description: string;
@@ -418,6 +425,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       account_id: bankAccount?.id || "",
       counter_account_id: "",
       amount: absAmount.toFixed(2),
+      original_txn_amount: absAmount,
       vat_rate: "19",
       vat_amount: "",
       description: "",
@@ -705,7 +713,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       const vendorName = resolveVendor((invoiceDetail as any)?.vendor_name || vendorFromTxn || null);
       const rows: BookingRowData[] = sb.map((s: any) => {
         const counterAccountId = resolveCounterAccount(s);
-        const rowAmount = s.amount != null ? Math.abs(s.amount) : absAmount / sb.length;
+        // WICHTIG: Betrag NIE automatisch verteilen. Nur wenn die KI einen
+        // konkreten Betrag pro Split-Position liefert, übernehmen wir ihn.
+        // Sonst bleibt das Feld 0.00 und der Nutzer muss es bewusst füllen.
+        const rowAmount = s.amount != null ? Math.abs(Number(s.amount) || 0) : 0;
         const counterAcc = accounts.find(a => a.id === counterAccountId);
         const receiptNo = s.receipt_number || invoiceNumber || "";
         const splitDescription = buildBookingText({
@@ -719,6 +730,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           account_id: defaultBankAccountId,
           counter_account_id: counterAccountId,
           amount: rowAmount.toFixed(2),
+          original_txn_amount: absAmount,
           vat_rate: s.vat_rate != null ? String(s.vat_rate) : "19",
           vat_amount: "",
           description: splitDescription,
@@ -858,17 +870,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
   /**
    * Apply a set of selected invoice line-item indices to a booking row:
-   * sets amount = sum of selected items. Buchungstext folgt strikt RGI-Schema
-   * (Periode + Re.Nr. + Lieferant + Gegenkonto), wird aber nur überschrieben,
-   * wenn der User den Text nicht manuell editiert hat.
+   * aktualisiert NUR Buchungstext + Positionsauswahl. Der Buchungsbetrag wird
+   * NICHT mehr automatisch überschrieben (sonst stimmt er nicht mehr mit der
+   * Bankposition überein). Wer die Positionssumme als Betrag will, muss
+   * sie manuell ins Betragsfeld eintragen.
    */
   const applySelectionToRow = useCallback((rowId: string, indices: number[], items: any[]) => {
     setFormRows(rows => rows.map(r => {
       if (r.id !== rowId) return r;
-      const sum = indices.reduce((s, idx) => {
-        const it = items[idx];
-        return s + getLineItemGross(it, fallbackVatRate);
-      }, 0);
       const ca = accounts.find((a: any) => a.id === r.counter_account_id);
       const rebuilt = rebuildBookingTextIfAuto(r.description, r.__autoTextSignature, {
         period: null,
@@ -878,7 +887,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       });
       return {
         ...r,
-        amount: sum > 0 ? sum.toFixed(2) : r.amount,
         description: rebuilt.text,
         __autoTextSignature: rebuilt.signature,
       } as BookingRowData;
@@ -978,7 +986,16 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     }
   };
 
-  const handleBookRow = useCallback(async (rowId: string) => {
+  // Blockierender Hinweis, wenn die Buchungssumme nicht zur Bankposition passt.
+  const [mismatchDialog, setMismatchDialog] = useState<{
+    rowId: string;
+    txnAbs: number;
+    rowSum: number;
+    diff: number;
+    rows: { idx: number; amount: number; booked: boolean }[];
+  } | null>(null);
+
+  const handleBookRow = useCallback(async (rowId: string, force = false) => {
     if (!currentTxn || bookingSingle || !user) return;
 
     const row = formRows.find(r => r.id === rowId);
@@ -995,6 +1012,39 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       toast.error("Bei Abgrenzungskonten (4000er) muss der MwSt-Satz angegeben werden");
       return;
     }
+
+    // ─── Pflichtprüfung: Buchungssumme muss zur Bankposition passen ───
+    // Für Single-Row: immer prüfen. Für Splits: erst beim letzten Klick
+    // (wenn dieser Klick alle restlichen Zeilen flusht), denn vorher ist die
+    // Summe naturgemäß unvollständig.
+    if (!force) {
+      const isSplitTxn = formRows.length > 1;
+      const wouldFlushAll = !isSplitTxn ||
+        formRows.every(r => r.id === rowId || r.booked);
+      if (wouldFlushAll) {
+        const txnAbs = Math.abs(currentTxn.amount || 0);
+        const rowSum = formRows.reduce(
+          (s, r) => s + (parseAmount(r.amount) || 0),
+          0,
+        );
+        const diff = +(rowSum - txnAbs).toFixed(2);
+        if (Math.abs(diff) > 0.01) {
+          setMismatchDialog({
+            rowId,
+            txnAbs,
+            rowSum,
+            diff,
+            rows: formRows.map((r, i) => ({
+              idx: i + 1,
+              amount: parseAmount(r.amount) || 0,
+              booked: r.booked,
+            })),
+          });
+          return;
+        }
+      }
+    }
+
 
     setBookingSingle(rowId);
     try {
@@ -2225,7 +2275,68 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         rawVendorName={(invoiceDetail as any)?.vendor_name || ""}
         buildingId={buildingId}
       />
+      <AlertDialog
+        open={!!mismatchDialog}
+        onOpenChange={(o) => { if (!o) setMismatchDialog(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Betrag weicht von der Bankposition ab
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm">
+                <div>
+                  Die Summe deiner Buchung(en) stimmt nicht mit dem Betrag der
+                  Bankposition überein. Bitte prüfe das nochmal.
+                </div>
+                {mismatchDialog && (
+                  <div className="rounded-md border bg-muted/40 p-3 space-y-1 font-mono text-xs">
+                    <div className="flex justify-between">
+                      <span>Bankposition:</span>
+                      <span className="font-semibold">{formatCurrency(mismatchDialog.txnAbs)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Buchungssumme:</span>
+                      <span className="font-semibold">{formatCurrency(mismatchDialog.rowSum)}</span>
+                    </div>
+                    <div className="flex justify-between text-destructive font-bold border-t pt-1 mt-1">
+                      <span>Differenz:</span>
+                      <span>{(mismatchDialog.diff > 0 ? "+" : "")}{formatCurrency(mismatchDialog.diff)}</span>
+                    </div>
+                    {mismatchDialog.rows.length > 1 && (
+                      <div className="pt-2 border-t mt-2 space-y-0.5">
+                        {mismatchDialog.rows.map(r => (
+                          <div key={r.idx} className="flex justify-between">
+                            <span>Zeile {r.idx}{r.booked ? " (vorgemerkt)" : ""}:</span>
+                            <span>{formatCurrency(r.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel autoFocus>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                const id = mismatchDialog?.rowId;
+                setMismatchDialog(null);
+                if (id) void handleBookRow(id, true);
+              }}
+            >
+              Trotzdem buchen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
+
   );
 }
 
@@ -2379,8 +2490,38 @@ function BookingRowCard({
               />
             </div>
 
+            {/* Originalbetrag aus Bankposition — Referenz, immer sichtbar wenn abweichend */}
+            {(() => {
+              const orig = row.original_txn_amount || 0;
+              const current = parseAmount(row.amount) || 0;
+              const deviates = Math.abs(current - orig) > 0.01;
+              if (!orig) return null;
+              return (
+                <div className={cn(
+                  "text-xs flex items-center justify-between -mb-1",
+                  deviates ? "text-destructive font-medium" : "text-muted-foreground"
+                )}>
+                  <span>Bankposition: {row.booking_type === "income" ? "+" : "−"}{formatCurrency(orig)}</span>
+                  {deviates && (
+                    <span title="Abweichung zur Bankposition">
+                      ⚠ Δ {(current - orig > 0 ? "+" : "−")}{formatCurrency(Math.abs(current - orig))}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Betrag + Typ inline */}
-            <div className="flex items-center gap-1">
+            <div className={cn(
+              "flex items-center gap-1",
+              (() => {
+                const orig = row.original_txn_amount || 0;
+                const current = parseAmount(row.amount) || 0;
+                return orig && Math.abs(current - orig) > 0.01
+                  ? "rounded-md ring-1 ring-destructive/40 px-1"
+                  : "";
+              })()
+            )}>
               <Input ref={el => fieldRefs.current["amount"] = el}
                 type="text" inputMode="decimal"
                 className={cn("h-14 text-4xl md:text-4xl font-bold flex-1 border-none shadow-none px-0 focus-visible:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none", row.booking_type === "income" ? "text-green-600" : "text-destructive")}
