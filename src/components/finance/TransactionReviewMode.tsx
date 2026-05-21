@@ -2275,7 +2275,68 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         rawVendorName={(invoiceDetail as any)?.vendor_name || ""}
         buildingId={buildingId}
       />
+      <AlertDialog
+        open={!!mismatchDialog}
+        onOpenChange={(o) => { if (!o) setMismatchDialog(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Betrag weicht von der Bankposition ab
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm">
+                <div>
+                  Die Summe deiner Buchung(en) stimmt nicht mit dem Betrag der
+                  Bankposition überein. Bitte prüfe das nochmal.
+                </div>
+                {mismatchDialog && (
+                  <div className="rounded-md border bg-muted/40 p-3 space-y-1 font-mono text-xs">
+                    <div className="flex justify-between">
+                      <span>Bankposition:</span>
+                      <span className="font-semibold">{formatCurrency(mismatchDialog.txnAbs)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Buchungssumme:</span>
+                      <span className="font-semibold">{formatCurrency(mismatchDialog.rowSum)}</span>
+                    </div>
+                    <div className="flex justify-between text-destructive font-bold border-t pt-1 mt-1">
+                      <span>Differenz:</span>
+                      <span>{(mismatchDialog.diff > 0 ? "+" : "")}{formatCurrency(mismatchDialog.diff)}</span>
+                    </div>
+                    {mismatchDialog.rows.length > 1 && (
+                      <div className="pt-2 border-t mt-2 space-y-0.5">
+                        {mismatchDialog.rows.map(r => (
+                          <div key={r.idx} className="flex justify-between">
+                            <span>Zeile {r.idx}{r.booked ? " (vorgemerkt)" : ""}:</span>
+                            <span>{formatCurrency(r.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel autoFocus>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                const id = mismatchDialog?.rowId;
+                setMismatchDialog(null);
+                if (id) void handleBookRow(id, true);
+              }}
+            >
+              Trotzdem buchen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
+
   );
 }
 
