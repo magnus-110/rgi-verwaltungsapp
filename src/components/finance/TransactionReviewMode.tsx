@@ -986,7 +986,16 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     }
   };
 
-  const handleBookRow = useCallback(async (rowId: string) => {
+  // Blockierender Hinweis, wenn die Buchungssumme nicht zur Bankposition passt.
+  const [mismatchDialog, setMismatchDialog] = useState<{
+    rowId: string;
+    txnAbs: number;
+    rowSum: number;
+    diff: number;
+    rows: { idx: number; amount: number; booked: boolean }[];
+  } | null>(null);
+
+  const handleBookRow = useCallback(async (rowId: string, force = false) => {
     if (!currentTxn || bookingSingle || !user) return;
 
     const row = formRows.find(r => r.id === rowId);
@@ -1003,6 +1012,39 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       toast.error("Bei Abgrenzungskonten (4000er) muss der MwSt-Satz angegeben werden");
       return;
     }
+
+    // ─── Pflichtprüfung: Buchungssumme muss zur Bankposition passen ───
+    // Für Single-Row: immer prüfen. Für Splits: erst beim letzten Klick
+    // (wenn dieser Klick alle restlichen Zeilen flusht), denn vorher ist die
+    // Summe naturgemäß unvollständig.
+    if (!force) {
+      const isSplitTxn = formRows.length > 1;
+      const wouldFlushAll = !isSplitTxn ||
+        formRows.every(r => r.id === rowId || r.booked);
+      if (wouldFlushAll) {
+        const txnAbs = Math.abs(currentTxn.amount || 0);
+        const rowSum = formRows.reduce(
+          (s, r) => s + (parseAmount(r.amount) || 0),
+          0,
+        );
+        const diff = +(rowSum - txnAbs).toFixed(2);
+        if (Math.abs(diff) > 0.01) {
+          setMismatchDialog({
+            rowId,
+            txnAbs,
+            rowSum,
+            diff,
+            rows: formRows.map((r, i) => ({
+              idx: i + 1,
+              amount: parseAmount(r.amount) || 0,
+              booked: r.booked,
+            })),
+          });
+          return;
+        }
+      }
+    }
+
 
     setBookingSingle(rowId);
     try {
