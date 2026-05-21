@@ -60,7 +60,7 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) 
       if (cErr) throw cErr;
 
       const { data: result, error: rErr } = await supabase.functions.invoke("comm-render-letters", {
-        body: { campaign_id: campaign.id },
+        body: { campaign_id: campaign.id, output_format: outputFormat },
       });
       if (rErr) throw rErr;
       const r = result as any;
