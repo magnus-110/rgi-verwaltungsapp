@@ -3,7 +3,36 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import PizZip from "https://esm.sh/pizzip@3.1.7";
 import Docxtemplater from "https://esm.sh/docxtemplater@3.50.0";
-import { loadRecipients, RecipientFilter } from "../_shared/comm-vars.ts";
+import { loadRecipients, RecipientFilter, formatDateLong, formatDateShort } from "../_shared/comm-vars.ts";
+
+const weekdaysDe = ["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
+
+async function loadMeetingVars(admin: any, meetingId: string): Promise<Record<string,string>> {
+  const { data: meeting } = await admin.from("etv_meetings").select("*").eq("id", meetingId).maybeSingle();
+  if (!meeting) return {};
+  const { data: tops } = await admin.from("etv_agenda_items")
+    .select("title, description, sort_order").eq("meeting_id", meetingId).order("sort_order");
+  const items = (tops || []) as any[];
+  const agendaList = items.map((t, i) => {
+    const head = `TOP ${i + 1}: ${t.title || ""}`;
+    return t.description ? `${head}\n${t.description}` : head;
+  }).join("\n\n");
+  const agendaTitles = items.map((t, i) => `TOP ${i + 1}: ${t.title || ""}`).join("\n");
+  const md = meeting.meeting_date ? new Date(meeting.meeting_date) : null;
+  return {
+    meeting_title: meeting.title || "",
+    meeting_date: md ? formatDateLong(md) : "",
+    meeting_date_short: md ? formatDateShort(md) : "",
+    meeting_weekday: md ? weekdaysDe[md.getDay()] : "",
+    meeting_time: md ? `${String(md.getHours()).padStart(2,"0")}:${String(md.getMinutes()).padStart(2,"0")}` : "",
+    meeting_location: meeting.location || "",
+    meeting_chair: meeting.meeting_chair || "",
+    minutes_taker: meeting.minutes_taker || "",
+    agenda_list: agendaList,
+    agenda_titles: agendaTitles,
+    top_count: String(items.length),
+  };
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
