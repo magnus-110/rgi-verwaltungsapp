@@ -872,8 +872,31 @@ export const WegOwnerMeetings = () => {
                 </div>
               )}
 
+              {/* Externe Vollmacht einlösen */}
+              {["published", "in_progress"].includes(selectedMeeting.status) && myAssignments.length > 0 && (
+                <div className="border-t pt-4">
+                  <Card className="border-dashed">
+                    <CardContent className="p-4 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium flex items-center gap-2">
+                          <Link2 className="h-4 w-4 text-primary" />
+                          Externe Vollmacht einlösen
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Sie haben per Link eine Vollmacht erhalten? Fügen Sie den Link oder Token hier ein, um direkt in der App abzustimmen.
+                        </p>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => { setRedeemInput(""); setRedeemDialogOpen(true); }}>
+                        Einlösen
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
               {/* Received Proxies Section */}
               {receivedProxies.length > 0 && ["published", "in_progress"].includes(selectedMeeting.status) && (
+
                 <div className="border-t pt-4 space-y-3">
                   <h3 className="font-semibold text-foreground flex items-center gap-2">
                     <Shield className="h-4 w-4 text-blue-500" />
