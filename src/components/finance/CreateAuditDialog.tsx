@@ -172,23 +172,26 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
     if (match) setSelectedPeriodId(match.id);
   }, [periods, selectedPeriodId, isEdit]);
 
-  const addFiles = useCallback((files: File[]) => {
+  const addFiles = useCallback((files: File[], target: "statement" | "plan") => {
     const pdfs = files.filter((f) => f.type === "application/pdf");
     if (pdfs.length !== files.length) {
       toast.warning("Nur PDF-Dateien werden akzeptiert");
     }
-    if (pdfs.length) setPdfFiles((prev) => [...prev, ...pdfs]);
+    if (!pdfs.length) return;
+    if (target === "plan") setPlanFiles((prev) => [...prev, ...pdfs]);
+    else setPdfFiles((prev) => [...prev, ...pdfs]);
   }, []);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    addFiles(Array.from(e.target.files || []));
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, target: "statement" | "plan") => {
+    addFiles(Array.from(e.target.files || []), target);
     e.target.value = "";
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent, target: "statement" | "plan") => {
     e.preventDefault();
-    setIsDragging(false);
-    addFiles(Array.from(e.dataTransfer.files || []));
+    if (target === "plan") setIsDraggingPlan(false);
+    else setIsDragging(false);
+    addFiles(Array.from(e.dataTransfer.files || []), target);
   };
 
   const reset = () => {
