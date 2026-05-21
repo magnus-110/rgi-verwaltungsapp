@@ -1,64 +1,50 @@
-# Fix: Personenkonto-Matching für Einzelabrechnungs-Überzahlung
-
 ## Problem
 
-`computeOwnerResult` in `BillingSettlement.tsx` matcht für viele Eigentümer das passende Personenkonto (`00xx Hausgeld …`) nicht und fällt auf SOLL zurück. Dadurch bleibt `ownerUeberzahlung = 0` und die im letzten Fix eingeführte Verrechnung wirkt nicht.
+Im Vermögensbericht (PDF/Vorlage) erscheinen die Abgrenzungs-/Forderungspositionen mit abgekürzten, **hartkodierten** Bezeichnungen wie:
 
-Beispiel AHW 3 / 2025, Unit 0001:
-- Assignment: Vorname `Tobias`, Nachname `Johannes Baraniak`, unit_number `0001`
-- Personenkonto: account_number `0001`, account_name `Hausgeld Johannes Baraniak`
-- Aktuelles Match:
-  - `padStart(5, "0")` → `"00001"` ≠ `"0001"` ❌
-  - `account_name.includes("0001")` ❌
-  - `account_name.includes("tobias")` ❌ (Konto enthält „Johannes")
+- "Ausg. im lfd. J. für Folgejahr"
+- "Einn. im lfd. J. für Folgejahr"
+- "Ausg. im lfd. J. für Vorjahr"
+- "Einn. im lfd. J. für Vorjahr"
 
-## Fix — `src/components/finance/BillingSettlement.tsx`
+In der UI (Kontenplan / Buchhaltung) heißen dieselben Konten aber ausgeschrieben, z. B.:
 
-Matching robuster machen. In `computeOwnerResult` (Zeilen ~877) den Block ersetzen:
+- 4160 "Ausgaben im Folgejahr für lfd. Jahr"
+- 4180 "Einnahmen im Folgejahr für lfd. Jahr"
+- 4110 "Ausgaben im lfd. Jahr für Vorjahr"
+- 4120 "Einnahmen im lfd. Jahr für Vorjahr"
 
-```ts
-// Vergleichbare Helfer
-const unitRaw = String(assignment.unit_number || "").trim();
-const unitDigits = unitRaw.replace(/^0+/, ""); // "0001" -> "1"
-const norm = (s?: string) => (s || "").toLowerCase().replace(/[^a-zäöüß0-9 ]/g, " ").trim();
+Ursache: In `buildBillingPayload.ts` (Z. 577–602) werden die Bereiche 4100–4199 pauschal per `sumRange()` zu zwei Zeilen aggregiert, mit fest eingetragenen Kurztexten. Der echte `account_name` aus `chart_of_accounts` wird hier ignoriert. Dasselbe Muster steht zusätzlich in `AssetReportSection.tsx` (Z. 153–157) für die UI-Vorschau.
 
-const contactTokens = [
-  contact?.last_name,
-  contact?.short_name,
-  contact?.company_name,
-  contact?.first_name,
-]
-  .filter(Boolean)
-  .flatMap((s) => norm(s as string).split(/\s+/))
-  .filter((t) => t && t.length >= 3); // Stop-Tokens wie "dr" raus
+## Lösung
 
-const personAcc = personenkontenAccounts.find((a: any) => {
-  const accNum = String(a.account_number || "").trim();
-  const accNumDigits = accNum.replace(/^0+/, "");
-  // 1) Match per Unit-Nummer in beliebiger Zero-Padding-Variante
-  if (unitDigits && accNumDigits === unitDigits) return true;
-  // 2) Match per Namensbestandteil (Nachname/Short/Company priorisiert)
-  const accNameNorm = norm(a.account_name);
-  return contactTokens.some((tok) => accNameNorm.includes(tok));
-});
-```
+Statt zwei festen Aggregat-Zeilen pro Sektion **pro tatsächlich bebuchtem Konto eine Zeile** mit dessen echtem `account_name` ausgeben.
 
-Damit greift für Tobias (Unit 0001) sofort Regel (1); für historische Einträge mit abweichender Nummerierung greift Regel (2) über den Nachnamen `baraniak` bzw. `johannes`.
+### Änderungen in `src/components/finance/lib/buildBillingPayload.ts`
 
-`signedTotalForAccount` und der Rest des Blocks bleiben unverändert. `ownerActualPaid`, `ownerUeberzahlung`, `result = ownerSpitze + ownerUeberzahlung` ebenfalls wie gehabt.
+1. Sektion 3 (Z. 569–586, "Zu- und Abflüsse aus Jahresabgrenzung", Ranges 4140–4199):
+   - Über `accrualAccs.filter(n in [4140..4199])` iterieren
+   - Pro Konto Zeile bauen: `{ konto_nr, bezeichnung: a.account_name, betrag, betrag_raw }`
+   - Vorzeichenlogik aus `accrualSign.ts` (4160 +, 4180 −, 4140 +) pro Konto anwenden — heute identisch, nur jetzt korrekt zugeordnet
+   - `sumAbgrenzung` weiterhin als Summe der Zeilen
+   - Zeilen mit |betrag| < 0,005 weiterhin ausfiltern
 
-## Verifikation an AHW 3 / 2025
+2. Sektion 4 (Z. 588–606, "Forderungen zum Jahresende", Ranges 4100–4139):
+   - Analog: pro Konto eine Zeile mit echtem `account_name`
+   - Vorzeichen wie bisher (4100 +, 4120 +)
 
-- Tobias (Unit 0001): `personAcc` = Konto 0001 „Hausgeld Johannes Baraniak", `ownerActualPaid = 4.440 €`, `ownerUeberzahlung = 210 €`, `result = 335,21 + 210 = 545,21 €`.
-- Andere Eigentümer ohne Überbezahlung: `ownerUeberzahlung = 0`, Saldo unverändert.
-- Gesamt-Saldo bleibt bei `2.029,10 €` (im letzten Fix bereits korrekt gestellt).
+3. Sektion 5 (Z. 608–610, "Verbindlichkeiten"): unverändert.
 
-## Keine Änderungen nötig an
+Optional zusätzlich pro Zeile `konto_nr` mit ausgeben, damit die Vorlage künftig "{konto_nr} {bezeichnung}" rendern kann (rein additiv, bestehende Vorlagen brechen nicht).
 
-- `buildBillingPayload.ts` (Payload-Logik vom letzten Fix bleibt)
-- DOCX-Vorlage `Einzelabrechnung_Vorlage_II.docx` (Felder `ueberzahlung_wpl_ihre`, `abrechnungssaldo_ihre`, `has_ueberzahlung` werden bereits korrekt befüllt — sie waren nur leer, weil das Match fehlte)
-- DB-Schema
+### Änderungen in `src/components/finance/AssetReportSection.tsx`
 
-## Bonus-Hinweis (optional)
+- Den Hardcoded-Mapper `inRange(...) → "Ausg. im lfd. J. ..."` (Z. 153–157) entfernen bzw. nur noch als Fallback verwenden, falls `account_name` leer ist. Primär den COA-Namen anzeigen, damit UI-Vorschau und PDF deckungsgleich sind.
 
-Wenn Du den Konten­namen ändern möchtest („Hausgeld Tobias Baraniak" statt „Johannes Baraniak"), funktioniert das ohne Code-Änderung dank Regel (1) (Unit-Nummer) trotzdem weiter. Empfehlung: Konten­bezeichnungen mit aktuellem Eigentümer-Nachnamen führen, das hilft auch der Bank-Abgleich-KI.
+## Auswirkungen
+
+- Vorlagen-Loops `{#abgrenzung}{bezeichnung}` / `{#forderungen}{bezeichnung}` funktionieren unverändert — sie bekommen jetzt nur die echten, vollen Namen.
+- Mehrere Konten im selben Range (z. B. 4160 + 4170) erscheinen jetzt als separate Zeilen statt zu einer Summe verschmolzen — das ist genauer und entspricht der UI.
+- Summen-Platzhalter `{sum_abgrenzung}` / `{sum_forderungen}` bleiben numerisch identisch.
+
+Kein Migrations- oder Datenbankaufwand, rein Frontend/Payload-seitig.

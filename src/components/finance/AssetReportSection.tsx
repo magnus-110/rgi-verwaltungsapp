@@ -148,14 +148,18 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear, ownerResu
     return inRange(n, 4140, 4159) || inRange(n, 4160, 4179) || inRange(n, 4180, 4199);
   };
 
+  // Primär den echten account_name aus dem COA verwenden — damit UI und
+  // generierte Vorlage exakt dieselben Bezeichnungen zeigen. Nur als
+  // Fallback (z. B. fehlender Name) eine generische Beschreibung.
   const accrualLabel = (a: any): string => {
+    if (a.account_name && String(a.account_name).trim()) return a.account_name;
     const n = accNum(a);
-    if (inRange(n, 4100, 4119)) return "Ausg. im lfd. J. für Vorjahr";
-    if (inRange(n, 4120, 4139)) return "Einn. im lfd. J. für Vorjahr";
-    if (inRange(n, 4140, 4159)) return "Einn. im lfd. J. für Folgejahr";
-    if (inRange(n, 4160, 4179)) return "Ausg. im Folgejahr für lfd. J.";
-    if (inRange(n, 4180, 4199)) return "Einn. im Folgejahr für lfd. J.";
-    return a.account_name;
+    if (inRange(n, 4100, 4119)) return "Ausgaben im lfd. Jahr für Vorjahr";
+    if (inRange(n, 4120, 4139)) return "Einnahmen im lfd. Jahr für Vorjahr";
+    if (inRange(n, 4140, 4159)) return "Einnahmen im lfd. Jahr für Folgejahr";
+    if (inRange(n, 4160, 4179)) return "Ausgaben im Folgejahr für lfd. Jahr";
+    if (inRange(n, 4180, 4199)) return "Einnahmen im Folgejahr für lfd. Jahr";
+    return a.account_name || "";
   };
 
   // ============================================================

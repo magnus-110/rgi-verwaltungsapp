@@ -566,43 +566,58 @@ export function buildAssetReportPayload(inp: BillingPayloadInputs) {
       })
       .reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
 
+  // Helper: Konten in Range filtern + nach Kontonummer sortieren
+  const accsInRange = (lo: number, hi: number) =>
+    accrualAccs
+      .filter((a) => {
+        const n = parseInt(String(a.account_number), 10);
+        return !Number.isNaN(n) && n >= lo && n <= hi;
+      })
+      .sort((a: any, b: any) => String(a.account_number).localeCompare(String(b.account_number)));
+
   // ============================================================
   // Sektion 3: Zu- und Abflüsse aus Jahresabgrenzung
   //   = NEUE Abgrenzungen, die im lfd. Jahr gebildet werden
   //     für das Folgejahr (Konten 4140–4199).
-  //   HV-Office Vorzeichen aus Vermögenssicht:
-  //     4160 (ARA-Bildung Ausgaben)  → Forderung an Folgejahr → +
-  //     4180 (PRA-Bildung Einnahmen) → Verbindlichkeit ggü. Folgejahr → −
+  //   HV-Office Vorzeichen aus Vermögenssicht (via getAccrualDisplaySign):
+  //     4160 (ARA-Bildung Ausgaben)  → +
+  //     4180 (PRA-Bildung Einnahmen) → −
+  //   Eine Zeile PRO Konto mit dem echten account_name aus dem COA,
+  //   damit die Vorlage exakt die UI-Bezeichnungen zeigt.
   // ============================================================
-  const abg_ausg_lfd_folge =  sumRange(4160, 4179); // ARA: Ausg. im lfd. J. für Folgejahr
-  const abg_einn_lfd_folge = -sumRange(4180, 4199); // PRA: Einn. im lfd. J. für Folgejahr
-  const abgrenzungRowsAll = [
-    { bezeichnung: "Ausg. im lfd. J. für Folgejahr", betrag_raw: abg_ausg_lfd_folge },
-    { bezeichnung: "Einn. im lfd. J. für Folgejahr", betrag_raw: abg_einn_lfd_folge },
-  ];
-  const abgrenzungRows = abgrenzungRowsAll
-    .filter(r => Math.abs(r.betrag_raw) >= 0.005)
-    .map(r => ({ bezeichnung: r.bezeichnung, betrag: fmtEUR(r.betrag_raw), betrag_raw: r.betrag_raw }));
+  const abgFolgeAccs = accsInRange(4140, 4199);
+  const abgrenzungRows = abgFolgeAccs
+    .map((a: any) => {
+      const raw = Math.abs(a.totalAbs || 0) * getAccrualDisplaySign(a.account_number);
+      return {
+        konto_nr: a.account_number,
+        bezeichnung: a.account_name,
+        betrag: fmtEUR(raw),
+        betrag_raw: raw,
+      };
+    })
+    .filter(r => Math.abs(r.betrag_raw) >= 0.005);
   const sumAbgrenzung = abgrenzungRows.reduce((s, r) => s + r.betrag_raw, 0);
 
   // ============================================================
   // Sektion 4: Forderungen zum Jahresende
   //   = AUFLÖSUNG der Abgrenzungen aus dem Vorjahr im lfd. Jahr
-  //     (Konten 4100–4139), also tatsächlich vereinnahmte/verausgabte
-  //     Beträge, die das Vorjahr betrafen.
-  //   HV-Office Vorzeichen (Vermögensbericht-Sicht):
-  //     4100 (ARA-Auflösung Ausgaben)  → +  (Forderung der WEG gegen Eigentümer aus Vorjahr = Vermögen)
-  //     4120 (PRA-Auflösung Einnahmen) → +  (Vorjahres-Einnahme ins lfd. Jahr = Vermögen)
+  //     (Konten 4100–4139). Im Vermögensbericht stets positiv dargestellt
+  //     (Forderung der WEG gegen Eigentümer aus Vorjahr = Vermögen).
+  //   Eine Zeile PRO Konto mit echtem account_name.
   // ============================================================
-  const ford_ausg_lfd_vorjahr = Math.abs(sumRange(4100, 4119));
-  const ford_einn_lfd_vorjahr = Math.abs(sumRange(4120, 4139));
-  const forderungenRowsAll = [
-    { bezeichnung: "Ausg. im lfd. J. für Vorjahr", betrag_raw: ford_ausg_lfd_vorjahr },
-    { bezeichnung: "Einn. im lfd. J. für Vorjahr", betrag_raw: ford_einn_lfd_vorjahr },
-  ];
-  const forderungenRows = forderungenRowsAll
-    .filter(r => Math.abs(r.betrag_raw) >= 0.005)
-    .map(r => ({ bezeichnung: r.bezeichnung, betrag: fmtEUR(r.betrag_raw), betrag_raw: r.betrag_raw }));
+  const forderungAccs = accsInRange(4100, 4139);
+  const forderungenRows = forderungAccs
+    .map((a: any) => {
+      const raw = Math.abs(a.totalAbs || 0);
+      return {
+        konto_nr: a.account_number,
+        bezeichnung: a.account_name,
+        betrag: fmtEUR(raw),
+        betrag_raw: raw,
+      };
+    })
+    .filter(r => Math.abs(r.betrag_raw) >= 0.005);
   const sumForderungen = forderungenRows.reduce((s, r) => s + r.betrag_raw, 0);
 
   // Sektion 5: Verbindlichkeiten zum Jahresende (aktuell leer — strukturell vorhanden)
