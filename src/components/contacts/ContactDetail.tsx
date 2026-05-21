@@ -451,59 +451,12 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
               <Textarea value={form.notes || ""} onChange={(e) => { setForm({ ...form, notes: e.target.value }); markDirty(); }} rows={4} />
             </div>
 
-            <div className="border-t border-border pt-4 mt-4">
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  id="sp-pool"
-                  checked={!!form.is_service_provider_pool}
-                  onCheckedChange={(v) => {
-                    setForm({ ...form, is_service_provider_pool: !!v });
-                    markDirty();
-                  }}
-                />
-                <div className="flex-1">
-                  <Label htmlFor="sp-pool" className="flex items-center gap-2 cursor-pointer">
-                    <Wrench className="h-4 w-4 text-primary" />
-                    Im Onboarding als Dienstleister vorschlagen
-                  </Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Wenn aktiviert, erscheint dieser Kontakt Eigentümern im Onboarding-Wizard als Vorschlag.
-                  </p>
-                </div>
-              </div>
-
-              {form.is_service_provider_pool && (
-                <div className="mt-3 ml-7 space-y-2">
-                  <Label className="text-xs text-muted-foreground">Kategorien (mind. eine)</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {SERVICE_PROVIDER_CATEGORIES.map((cat) => {
-                      const selected = (form.service_provider_categories ?? []).includes(cat.id);
-                      return (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={() => {
-                            const current = form.service_provider_categories ?? [];
-                            const next = selected
-                              ? current.filter((c) => c !== cat.id)
-                              : [...current, cat.id];
-                            setForm({ ...form, service_provider_categories: next });
-                            markDirty();
-                          }}
-                          className={`px-3 py-1.5 rounded-full border text-xs transition ${
-                            selected
-                              ? "border-primary bg-primary/10 text-primary"
-                              : "border-border text-muted-foreground hover:border-primary/50"
-                          }`}
-                        >
-                          {cat.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
+            <ServiceProviderSection
+              form={form}
+              setForm={setForm}
+              markDirty={markDirty}
+              toast={toast}
+            />
           </TabsContent>
 
           {/* Personen Tab */}
