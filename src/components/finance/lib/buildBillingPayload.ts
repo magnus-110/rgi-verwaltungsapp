@@ -68,7 +68,10 @@ export interface BillingPayloadInputs {
     hausgeld: number;
     reserve: number;
     totalPaid: number;
+    actualPaid?: number;
+    ownerUeberzahlung?: number;
     result: number;
+
     timeProp: number;
     owner35aDienste: number;
     owner35aHandwerker: number;
@@ -434,13 +437,24 @@ export function buildOwnerPayload(inp: BillingPayloadInputs, ownerId: string) {
   // Spitze (nur Soll-Vorschuss vs. Kosten) — analog Gesamtabrechnung-Logik
   const ownerSollVorschuss = owner.hausgeld + owner.reserve;
   const ownerSpitze = ownerSollVorschuss - owner.totalOwnerCost;
-  const ownerUeberzahlung = Math.max(0, owner.totalPaid - ownerSollVorschuss);
-  const ownerSaldo = owner.result; // = totalPaid − totalOwnerCost
+  // Persönliche Überzahlung: ausschließlich aus dem IST-Saldo des
+  // eigenen Personenkontos dieses Eigentümers (in BillingSettlement
+  // berechnet als owner.ownerUeberzahlung). Fällt zurück auf 0, wenn
+  // kein Personenkonto gematcht werden konnte.
+  const ownerActualPaid = typeof owner.actualPaid === "number" ? owner.actualPaid : owner.totalPaid;
+  const ownerUeberzahlung = typeof owner.ownerUeberzahlung === "number"
+    ? owner.ownerUeberzahlung
+    : Math.max(0, ownerActualPaid - ownerSollVorschuss);
+  // Saldo = Spitze + eigene Überzahlung. Die persönliche Überbezahlung
+  // verbleibt damit beim Verursacher und wird nicht in die WEG-Gesamt-
+  // sicht eingerechnet.
+  const ownerSaldo = ownerSpitze + ownerUeberzahlung;
 
+  // WEG-Gesamt-Saldo zeigt ausschließlich die Spitze (Kosten vs. Soll-
+  // Hausgeld) — KEINE persönlichen Überzahlungen einzelner Eigentümer.
   const wegSollVorschuss = totals.totalSollKostendeckung + totals.totalSollEHR;
   const wegVorschussIst = totals.totalSollKostendeckung + totals.totalSollEHR + Math.max(0, totals.totalUeberzahlung);
-  const wegUeberzahlung = Math.max(0, totals.totalUeberzahlung);
-  const wegSaldo = totals.abrechnungsspitze + wegUeberzahlung;
+  const wegSaldo = totals.abrechnungsspitze;
 
   const ghnz = (v: number) => (v >= 0 ? "GH" : "NZ");
 
@@ -483,15 +497,19 @@ export function buildOwnerPayload(inp: BillingPayloadInputs, ownerId: string) {
 
     // Block "zusätzliche Informationen"
     vorschuss_ist_gesamt: fmtEUR(wegVorschussIst),
-    vorschuss_ist_ihre: fmtEUR(owner.totalPaid),
-    has_ueberzahlung: wegUeberzahlung > 0.005 || ownerUeberzahlung > 0.005,
-    ueberzahlung_wpl_gesamt: fmtEUR(wegUeberzahlung),
+    vorschuss_ist_ihre: fmtEUR(ownerActualPaid),
+    // Überzahlung nur in der Ihr-Anteil-Spalte (persönlich), Gesamt = 0.
+    // has_ueberzahlung steuert die Anzeige der Zeile in der Vorlage —
+    // sie erscheint nur, wenn DIESER Eigentümer überzahlt hat.
+    has_ueberzahlung: ownerUeberzahlung > 0.005,
+    ueberzahlung_wpl_gesamt: fmtEUR(0),
     ueberzahlung_wpl_ihre: fmtEUR(ownerUeberzahlung),
     abrechnungssaldo_gesamt: fmtEUR(Math.abs(wegSaldo)),
     abrechnungssaldo_ihre: fmtEUR(Math.abs(ownerSaldo)),
     abrechnungssaldo_label: ghnz(ownerSaldo),
     abrechnungssaldo_guthaben: ownerSaldo >= 0,
     abrechnungssaldo_nachzahlung: ownerSaldo < 0,
+
 
     // Aliase (Rückwärtskompatibilität)
     sum_abrechnung: fmtEUR(owner.totalOwnerCost),

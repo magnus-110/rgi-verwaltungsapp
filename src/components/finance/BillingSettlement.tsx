@@ -871,7 +871,23 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     }
 
     const totalPaid = hausgeld + reserve;
-    const result = totalPaid - totalOwnerCost;
+
+    // Persönliche IST-Zahlung dieses Eigentümers (GJ-only, ohne Eröffnungsbestand)
+    // wird IMMER ermittelt — unabhängig vom SOLL/IST-Toggle — damit eine private
+    // Überbezahlung im Ihr-Anteil-Saldo verrechnet werden kann.
+    const personAcc = personenkontenAccounts.find((a: any) =>
+      a.account_number === assignment.unit_number?.padStart(5, "0")
+      || (assignment.unit_number && a.account_name?.includes(assignment.unit_number))
+      || (name && a.account_name?.toLowerCase().includes(name.toLowerCase().split(" ")[0])),
+    );
+    const ownerActualPaid = personAcc
+      ? -signedTotalForAccount(personAcc.id, bookings as any)
+      : totalPaid;
+    const ownerSollVorschuss = totalPaid;
+    const ownerUeberzahlung = Math.max(0, ownerActualPaid - ownerSollVorschuss);
+    const ownerSpitze = ownerSollVorschuss - totalOwnerCost;
+    // Persönliche Überzahlung wird im Ihr-Anteil-Saldo verrechnet
+    const result = ownerSpitze + ownerUeberzahlung;
 
     return {
       assignmentId: assignment.id,
@@ -882,12 +898,15 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       hausgeld,
       reserve,
       totalPaid,
+      actualPaid: ownerActualPaid,
+      ownerUeberzahlung,
       result,
       timeProp,
       owner35aDienste,
       owner35aHandwerker,
       accountBreakdown,
     };
+
   };
 
   const ownerResults = assignments.map(computeOwnerResult);
