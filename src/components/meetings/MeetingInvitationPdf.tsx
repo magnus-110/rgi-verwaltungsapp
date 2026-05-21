@@ -78,7 +78,7 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
     if (!confirm(`Vorlage "${t.name}" löschen?`)) return;
     if (t.docx_path) await supabase.storage.from("comm-assets").remove([t.docx_path]);
     await supabase.from("comm_templates").delete().eq("id", t.id);
-    qc.invalidateQueries({ queryKey: ["comm-templates", buildingId, "letter"] });
+    qc.invalidateQueries({ queryKey: ["comm-templates", buildingId, "letter", "etv_invitation"] });
     toast({ title: "Vorlage gelöscht" });
   };
 
