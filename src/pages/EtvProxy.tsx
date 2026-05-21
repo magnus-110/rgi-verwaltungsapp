@@ -453,6 +453,26 @@ export const EtvProxy = () => {
           )}
         </div>
 
+        {sessionUserId && !isCompleted && (
+          <Card className="border-primary/40 bg-primary/5">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-start gap-2">
+                <UserCheck className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-foreground">In Ihr Konto übernehmen?</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Sie sind bereits angemeldet. Übernehmen Sie diese Vollmacht direkt in Ihr Owner-Portal – dann müssen Sie nicht zwischen Link und App wechseln.
+                  </p>
+                </div>
+              </div>
+              <Button className="w-full" onClick={handleRedeem} disabled={redeeming}>
+                {redeeming ? "Wird übernommen…" : "Vollmacht in mein Konto übernehmen"}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+
         <Card>
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center gap-2">
