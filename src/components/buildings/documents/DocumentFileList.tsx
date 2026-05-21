@@ -149,8 +149,11 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
     return (
       <div className="p-8 text-center text-sm text-muted-foreground">
         <FileText className="h-10 w-10 mx-auto mb-2 opacity-30" />
-        Keine Dokumente in diesem Ordner.
-        <p className="text-xs mt-1">Dateien per Drag & Drop hochladen.</p>
+        {effectiveSearch ? (
+          <>Keine Dokumente für „{effectiveSearch}" gefunden.</>
+        ) : (
+          <>Keine Dokumente in diesem Ordner.<p className="text-xs mt-1">Dateien per Drag & Drop hochladen.</p></>
+        )}
       </div>
     );
   }
