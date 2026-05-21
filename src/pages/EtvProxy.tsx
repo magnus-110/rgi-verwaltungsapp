@@ -20,12 +20,51 @@ import { useToast } from "@/hooks/use-toast";
 export const EtvProxy = () => {
   const { token } = useParams<{ token: string }>();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [votingItem, setVotingItem] = useState<any>(null);
   const [selectedVote, setSelectedVote] = useState<string | null>(null);
   const [hasVoted, setHasVoted] = useState(false);
   const [descOpen, setDescOpen] = useState(false);
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+  const [redeeming, setRedeeming] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSessionUserId(data.session?.user?.id ?? null);
+    });
+  }, []);
+
+  const handleRedeem = async () => {
+    if (!token) return;
+    setRedeeming(true);
+    try {
+      const res = await supabase.functions.invoke("redeem-proxy-token", {
+        body: { token },
+      });
+      if (res.error) {
+        let msg = res.error.message || "Einlösen fehlgeschlagen";
+        try {
+          const ctx: any = (res.error as any).context;
+          if (ctx?.body) {
+            const parsed = typeof ctx.body === "string" ? JSON.parse(ctx.body) : ctx.body;
+            if (parsed?.error) msg = parsed.error;
+          }
+        } catch { /* ignore */ }
+        throw new Error(msg);
+      }
+      if ((res.data as any)?.error) throw new Error((res.data as any).error);
+      toast({ title: "Vollmacht übernommen", description: "Sie wurden ins Owner-Portal weitergeleitet." });
+      navigate("/owner/meetings");
+    } catch (err: any) {
+      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+    } finally {
+      setRedeeming(false);
+    }
+  };
 
   const { data, isLoading, error } = useQuery({
+
     queryKey: ["etv-proxy", token],
     queryFn: async () => {
       if (!token) throw new Error("Kein Token angegeben");
