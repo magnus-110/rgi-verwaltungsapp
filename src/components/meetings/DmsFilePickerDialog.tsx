@@ -57,7 +57,7 @@ export const DmsFilePickerDialog = ({ open, onOpenChange, buildingId, excludePat
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[85dvh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Aus DMS auswählen</DialogTitle>
         </DialogHeader>
