@@ -16,6 +16,8 @@ interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   buildingId: string;
+  meetingId?: string;
+  titlePrefix?: string;
 }
 
 export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) => {
