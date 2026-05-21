@@ -328,7 +328,10 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
         onOpenChange={setUploadOpen}
         buildingId={buildingId}
         defaultType="letter"
+        templateKind="etv_invitation"
+        title="Neue ETV-Einladungsvorlage"
       />
+
 
       <VariableHelpSheet open={helpOpen} onOpenChange={setHelpOpen} />
     </div>
