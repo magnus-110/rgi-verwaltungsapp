@@ -64,6 +64,8 @@ export const WegOwnerMeetings = () => {
   const [createdProxyToken, setCreatedProxyToken] = useState<string | null>(null);
   const [proxyStep, setProxyStep] = useState(1);
   const [expandedTopIds, setExpandedTopIds] = useState<Set<string>>(new Set());
+  const [redeemDialogOpen, setRedeemDialogOpen] = useState(false);
+  const [redeemInput, setRedeemInput] = useState("");
 
   // TOP submission form
   const [topTitle, setTopTitle] = useState("");
