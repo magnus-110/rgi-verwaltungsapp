@@ -57,6 +57,9 @@ interface BookingRowData {
   account_id: string;
   counter_account_id: string;
   amount: string;
+  /** Originalbetrag der Banktransaktion (|txn.amount|). Wird NIE überschrieben
+   *  und dient als Referenz im UI + harter Buchen-Validierung. */
+  original_txn_amount: number;
   vat_rate: string;
   vat_amount: string;
   description: string;
