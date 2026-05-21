@@ -82,7 +82,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       (event, session) => {
         if (!mounted) return;
         
-        
+        // Keep realtime auth in sync so RLS-filtered postgres_changes are delivered
+        try {
+          supabase.realtime.setAuth(session?.access_token ?? null);
+        } catch (e) {
+          console.warn("realtime.setAuth failed", e);
+        }
+
         // Handle different auth events
         if (event === 'SIGNED_OUT') {
           setSession(null);
@@ -108,6 +114,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return;
       
+      try {
+        supabase.realtime.setAuth(session?.access_token ?? null);
+      } catch (e) {
+        console.warn("realtime.setAuth failed", e);
+      }
+
       setSession(session);
       setUser(session?.user ?? null);
       

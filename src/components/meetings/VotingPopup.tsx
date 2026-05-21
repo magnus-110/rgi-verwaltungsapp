@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -183,24 +183,32 @@ export const VotingPopup = () => {
     setDescOpen(false);
   }, [profile?.user_id]);
 
+  // Keep latest refs so the realtime handler/polling can use them without re-subscribing
+  const checkVotingForItemRef = useRef(checkVotingForItem);
+  const votingItemIdRef = useRef<string | null>(null);
+  useEffect(() => { checkVotingForItemRef.current = checkVotingForItem; }, [checkVotingForItem]);
+  useEffect(() => { votingItemIdRef.current = votingItem?.id ?? null; }, [votingItem?.id]);
+
+  const checkActiveVotes = useCallback(async () => {
+    const { data: activeItems } = await supabase
+      .from("etv_agenda_items")
+      .select("*")
+      .eq("status", "voting");
+    if (activeItems && activeItems.length > 0 && !votingItemIdRef.current) {
+      await checkVotingForItemRef.current(activeItems[0]);
+    }
+  }, []);
+
   // Initial load
   useEffect(() => {
     if (!profile?.user_id || profile?.role !== "weg_owner") return;
-    const checkActiveVotes = async () => {
-      const { data: activeItems } = await supabase
-        .from("etv_agenda_items")
-        .select("*")
-        .eq("status", "voting");
-      if (activeItems && activeItems.length > 0) {
-        await checkVotingForItem(activeItems[0]);
-      }
-    };
     checkActiveVotes();
-  }, [profile?.user_id, profile?.role, checkVotingForItem]);
+  }, [profile?.user_id, profile?.role, checkActiveVotes]);
 
-  // Realtime for agenda item status changes
+  // Realtime + reconnect-resync + fallback polling
   useEffect(() => {
     if (!profile?.user_id || profile?.role !== "weg_owner") return;
+
     const channel = supabase
       .channel("global-voting-popup")
       .on(
@@ -208,14 +216,13 @@ export const VotingPopup = () => {
         { event: "UPDATE", schema: "public", table: "etv_agenda_items" },
         async (payload) => {
           const newItem = payload.new as any;
+          const oldItem = payload.old as any;
           if (newItem.status === "voting") {
-            await checkVotingForItem(newItem);
-          } else if (
-            payload.old &&
-            (payload.old as any).status === "voting" &&
-            newItem.status !== "voting"
-          ) {
-            if (votingItem?.id === newItem.id) {
+            if (votingItemIdRef.current !== newItem.id) {
+              await checkVotingForItemRef.current(newItem);
+            }
+          } else if (oldItem?.status === "voting" && newItem.status !== "voting") {
+            if (votingItemIdRef.current === newItem.id) {
               setVotingItem(null);
               setMyVotingAssignments([]);
               setAllDone(false);
@@ -223,9 +230,23 @@ export const VotingPopup = () => {
           }
         }
       )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [profile?.user_id, profile?.role, checkVotingForItem, votingItem?.id]);
+      .subscribe((status) => {
+        // Re-sync on (re)connect to catch any missed events
+        if (status === "SUBSCRIBED") {
+          checkActiveVotes();
+        }
+      });
+
+    // Safety-net polling every 15s in case realtime drops silently
+    const pollId = window.setInterval(() => {
+      if (!votingItemIdRef.current) checkActiveVotes();
+    }, 15000);
+
+    return () => {
+      window.clearInterval(pollId);
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.user_id, profile?.role, checkActiveVotes]);
 
   const castVoteMutation = useMutation({
     mutationFn: async (vote: string) => {

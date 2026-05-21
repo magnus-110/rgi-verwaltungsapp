@@ -211,6 +211,17 @@ export const WegOwnerMeetings = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'etv_attendees', filter: `meeting_id=eq.${selectedMeetingId}` },
         () => queryClient.invalidateQueries({ queryKey: ["my-attendees"] })
       )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'etv_agenda_items', filter: `meeting_id=eq.${selectedMeetingId}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["weg-owner-agenda", selectedMeetingId] });
+          queryClient.invalidateQueries({ queryKey: ["weg-owner-meetings"] });
+        }
+      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'etv_votes' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["weg-owner-agenda", selectedMeetingId] });
+        }
+      )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [selectedMeetingId, queryClient]);
