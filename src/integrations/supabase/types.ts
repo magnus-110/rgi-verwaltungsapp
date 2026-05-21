@@ -2695,6 +2695,7 @@ export type Database = {
           is_global: boolean
           name: string
           subject: string | null
+          template_kind: string
           type: string
           updated_at: string
           variables: Json
@@ -2711,6 +2712,7 @@ export type Database = {
           is_global?: boolean
           name: string
           subject?: string | null
+          template_kind?: string
           type: string
           updated_at?: string
           variables?: Json
@@ -2727,6 +2729,7 @@ export type Database = {
           is_global?: boolean
           name?: string
           subject?: string | null
+          template_kind?: string
           type?: string
           updated_at?: string
           variables?: Json

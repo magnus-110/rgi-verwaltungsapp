@@ -20,10 +20,11 @@ export const TemplateList = ({ buildingId, type, onUse }: Props) => {
   const [editing, setEditing] = useState<any | null>(null);
 
   const { data: templates = [], isLoading } = useQuery({
-    queryKey: ["comm-templates", buildingId, type],
+    queryKey: ["comm-templates", buildingId, type, "general"],
     queryFn: async () => {
       let q = supabase.from("comm_templates").select("*")
         .or(`building_id.eq.${buildingId},is_global.eq.true`)
+        .or("template_kind.eq.general,template_kind.is.null")
         .order("created_at", { ascending: false });
       if (type) q = q.eq("type", type);
       const { data, error } = await q;
@@ -31,6 +32,7 @@ export const TemplateList = ({ buildingId, type, onUse }: Props) => {
       return data || [];
     },
   });
+
 
   const handleDelete = async (id: string, docxPath: string | null) => {
     if (!confirm("Vorlage wirklich löschen?")) return;

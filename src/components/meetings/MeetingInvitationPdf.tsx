@@ -59,12 +59,13 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
   });
 
   const { data: templates = [], isLoading } = useQuery({
-    queryKey: ["comm-templates", buildingId, "letter"],
+    queryKey: ["comm-templates", buildingId, "letter", "etv_invitation"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("comm_templates")
         .select("*")
         .eq("type", "letter")
+        .eq("template_kind", "etv_invitation")
         .or(`building_id.eq.${buildingId},is_global.eq.true`)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -72,11 +73,12 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
     },
   });
 
+
   const handleDelete = async (t: any) => {
     if (!confirm(`Vorlage "${t.name}" löschen?`)) return;
     if (t.docx_path) await supabase.storage.from("comm-assets").remove([t.docx_path]);
     await supabase.from("comm_templates").delete().eq("id", t.id);
-    qc.invalidateQueries({ queryKey: ["comm-templates", buildingId, "letter"] });
+    qc.invalidateQueries({ queryKey: ["comm-templates", buildingId, "letter", "etv_invitation"] });
     toast({ title: "Vorlage gelöscht" });
   };
 
@@ -326,7 +328,10 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
         onOpenChange={setUploadOpen}
         buildingId={buildingId}
         defaultType="letter"
+        templateKind="etv_invitation"
+        title="Neue ETV-Einladungsvorlage"
       />
+
 
       <VariableHelpSheet open={helpOpen} onOpenChange={setHelpOpen} />
     </div>

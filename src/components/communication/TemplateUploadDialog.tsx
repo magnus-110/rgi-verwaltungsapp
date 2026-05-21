@@ -21,9 +21,12 @@ interface Props {
   onOpenChange: (o: boolean) => void;
   buildingId: string;
   defaultType?: "letter" | "email";
+  templateKind?: "general" | "etv_invitation";
+  title?: string;
 }
 
-export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultType = "letter" }: Props) => {
+export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultType = "letter", templateKind = "general", title }: Props) => {
+
   const [type, setType] = useState<"letter" | "email">(defaultType);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -131,8 +134,10 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
         body_html: type === "email" ? bodyHtml : null,
         body_format: type === "email" ? bodyFormat : "html",
         variables,
+        template_kind: templateKind,
         created_by: userId,
       });
+
       if (insErr) throw insErr;
 
       toast({ title: "Vorlage gespeichert", description: variables.length > 0 ? `${variables.length} Platzhalter erkannt` : undefined });
@@ -150,15 +155,19 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Neue Vorlage</DialogTitle>
-          <DialogDescription>Erstellen Sie eine wiederverwendbare Brief- oder E-Mail-Vorlage mit Platzhaltern.</DialogDescription>
+          <DialogTitle>{title || "Neue Vorlage"}</DialogTitle>
+          <DialogDescription>Erstellen Sie eine wiederverwendbare {templateKind === "etv_invitation" ? "ETV-Einladungsvorlage" : "Brief- oder E-Mail-Vorlage"} mit Platzhaltern.</DialogDescription>
         </DialogHeader>
 
+
         <Tabs value={type} onValueChange={(v) => setType(v as any)}>
-          <TabsList>
-            <TabsTrigger value="letter"><FileText className="h-4 w-4 mr-1" /> Serienbrief</TabsTrigger>
-            <TabsTrigger value="email"><Mail className="h-4 w-4 mr-1" /> Rundmail</TabsTrigger>
-          </TabsList>
+          {templateKind !== "etv_invitation" && (
+            <TabsList>
+              <TabsTrigger value="letter"><FileText className="h-4 w-4 mr-1" /> Serienbrief</TabsTrigger>
+              <TabsTrigger value="email"><Mail className="h-4 w-4 mr-1" /> Rundmail</TabsTrigger>
+            </TabsList>
+          )}
+
 
           <div className="space-y-4 mt-4">
             <div>
