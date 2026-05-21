@@ -388,7 +388,7 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
             <label
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
+              onDrop={(e) => handleDrop(e, "statement")}
               className={cn(
                 "flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors",
                 isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30"
@@ -398,7 +398,7 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
               <p className="text-sm text-muted-foreground">
                 PDFs hierher ziehen oder <span className="text-primary font-medium">durchsuchen</span>
               </p>
-              <input type="file" multiple accept="application/pdf" onChange={handleFileSelect} className="hidden" />
+              <input type="file" multiple accept="application/pdf" onChange={(e) => handleFileSelect(e, "statement")} className="hidden" />
             </label>
 
             {/* Aus DMS hinzufügen */}
