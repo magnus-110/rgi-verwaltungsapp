@@ -885,10 +885,18 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         vendorName: resolveVendor((invoiceDetail as any)?.vendor_name || null),
         counterAccountName: ca?.account_name || null,
       });
+      // Positions-Klick darf den Betrag aktualisieren (Summe der gewählten Positionen).
+      // Eine Abweichung zur Bankposition (inkl. Vorzeichen) wird beim Buchen geprüft.
+      const sum = indices.reduce((acc, i) => {
+        const it = items[i];
+        const v = Number(it?.gross_amount ?? it?.amount ?? 0) || 0;
+        return acc + Math.abs(v);
+      }, 0);
       return {
         ...r,
         description: rebuilt.text,
         __autoTextSignature: rebuilt.signature,
+        amount: sum > 0 ? sum.toFixed(2) : r.amount,
       } as BookingRowData;
     }));
   }, [invoiceDetail, fallbackVatRate, accounts, vendorAliases, buildingId]);
