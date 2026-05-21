@@ -721,3 +721,197 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
     </div>
   );
 }
+
+function ServiceProviderSection({
+  form, setForm, markDirty, toast,
+}: {
+  form: any;
+  setForm: (v: any) => void;
+  markDirty: () => void;
+  toast: ReturnType<typeof useToast>["toast"];
+}) {
+  const [catSearch, setCatSearch] = useState("");
+  const [geocoding, setGeocoding] = useState(false);
+
+  const grouped = (() => {
+    const term = catSearch.trim().toLowerCase();
+    const out: Record<ServiceProviderGroup, typeof SERVICE_PROVIDER_CATEGORIES> = {} as any;
+    SERVICE_PROVIDER_CATEGORIES.forEach((c) => {
+      if (term && !c.label.toLowerCase().includes(term)) return;
+      (out[c.group] ||= []).push(c);
+    });
+    return out;
+  })();
+
+  const toggleCat = (id: string) => {
+    const current: string[] = form.service_provider_categories ?? [];
+    const next = current.includes(id) ? current.filter((c) => c !== id) : [...current, id];
+    setForm({ ...form, service_provider_categories: next });
+    markDirty();
+  };
+
+  const geocode = async () => {
+    const parts = [form.address_street, form.address_zip, form.address_city, "Germany"]
+      .filter(Boolean).join(", ");
+    if (!parts) {
+      toast({ title: "Keine Adresse", description: "Bitte erst Straße/PLZ/Ort eintragen.", variant: "destructive" });
+      return;
+    }
+    setGeocoding(true);
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(parts)}`;
+      const res = await fetch(url, { headers: { "Accept-Language": "de" } });
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) {
+        toast({ title: "Nicht gefunden", description: "Adresse konnte nicht geokodiert werden.", variant: "destructive" });
+        return;
+      }
+      const lat = parseFloat(data[0].lat);
+      const lon = parseFloat(data[0].lon);
+      setForm({ ...form, address_lat: lat, address_lon: lon });
+      markDirty();
+      toast({ title: "Geokodiert", description: `${lat.toFixed(5)}, ${lon.toFixed(5)}` });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e?.message || "Geocoding fehlgeschlagen", variant: "destructive" });
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
+  return (
+    <div className="border-t border-border pt-4 mt-4 space-y-4">
+      <div className="flex items-start gap-3">
+        <Checkbox
+          id="sp-pool"
+          checked={!!form.is_service_provider_pool}
+          onCheckedChange={(v) => {
+            setForm({ ...form, is_service_provider_pool: !!v });
+            markDirty();
+          }}
+        />
+        <div className="flex-1">
+          <Label htmlFor="sp-pool" className="flex items-center gap-2 cursor-pointer">
+            <Wrench className="h-4 w-4 text-primary" />
+            Firma / Dienstleister
+          </Label>
+          <p className="text-xs text-muted-foreground mt-1">
+            Aktivieren, um Gewerke zuzuordnen und in der Adresssuche zu finden.
+          </p>
+        </div>
+      </div>
+
+      {form.is_service_provider_pool && (
+        <div className="ml-7 space-y-4">
+          <div>
+            <Label className="text-xs text-muted-foreground">Gewerke (Mehrfachauswahl)</Label>
+            <Input
+              placeholder="Gewerk suchen…"
+              value={catSearch}
+              onChange={(e) => setCatSearch(e.target.value)}
+              className="h-8 text-xs mt-1 mb-2"
+            />
+            <div className="space-y-2">
+              {(Object.keys(SERVICE_PROVIDER_GROUPS) as ServiceProviderGroup[]).map((g) => {
+                const items = grouped[g];
+                if (!items || items.length === 0) return null;
+                return (
+                  <div key={g}>
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                      {SERVICE_PROVIDER_GROUPS[g]}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {items.map((cat) => {
+                        const selected = (form.service_provider_categories ?? []).includes(cat.id);
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => toggleCat(cat.id)}
+                            className={`px-2.5 py-1 rounded-full border text-xs transition ${
+                              selected
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-border text-muted-foreground hover:border-primary/50"
+                            }`}
+                          >
+                            {cat.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <Label>Notizen zu Gewerken / Spezialitäten</Label>
+            <Textarea
+              value={form.trade_notes || ""}
+              onChange={(e) => { setForm({ ...form, trade_notes: e.target.value }); markDirty(); }}
+              rows={3}
+              placeholder="z. B. macht auch Notdienst, faire Preise, spricht Italienisch…"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Wird in der KI-Suche und Volltextsuche berücksichtigt.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Bewertung</Label>
+              <div className="flex items-center gap-1 mt-1">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => { setForm({ ...form, rating: form.rating === n ? null : n }); markDirty(); }}
+                    className="p-1"
+                  >
+                    <Star className={`h-5 w-5 ${form.rating && n <= form.rating ? "fill-amber-500 text-amber-500" : "text-muted-foreground/40"}`} />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Zuletzt beauftragt am</Label>
+              <Input
+                type="date"
+                value={form.last_hired_at || ""}
+                onChange={(e) => { setForm({ ...form, last_hired_at: e.target.value || null }); markDirty(); }}
+                className="mt-1"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between rounded-md border border-border p-3">
+            <Label htmlFor="sp-emergency" className="flex items-center gap-2 cursor-pointer text-sm">
+              <Siren className="h-4 w-4 text-destructive" />
+              Notdienst / 24h-Verfügbarkeit
+            </Label>
+            <Switch
+              id="sp-emergency"
+              checked={!!form.is_emergency_service}
+              onCheckedChange={(v) => { setForm({ ...form, is_emergency_service: !!v }); markDirty(); }}
+            />
+          </div>
+
+          <div className="flex items-center justify-between rounded-md border border-dashed border-border p-3">
+            <div className="text-xs">
+              <p className="font-medium flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Geo-Koordinaten</p>
+              <p className="text-muted-foreground">
+                {form.address_lat && form.address_lon
+                  ? `${Number(form.address_lat).toFixed(5)}, ${Number(form.address_lon).toFixed(5)}`
+                  : "Noch nicht geokodiert"}
+              </p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={geocode} disabled={geocoding}>
+              {geocoding ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <MapPin className="h-3.5 w-3.5 mr-1" />}
+              Adresse geokodieren
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
