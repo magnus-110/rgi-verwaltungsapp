@@ -2490,8 +2490,38 @@ function BookingRowCard({
               />
             </div>
 
+            {/* Originalbetrag aus Bankposition — Referenz, immer sichtbar wenn abweichend */}
+            {(() => {
+              const orig = row.original_txn_amount || 0;
+              const current = parseAmount(row.amount) || 0;
+              const deviates = Math.abs(current - orig) > 0.01;
+              if (!orig) return null;
+              return (
+                <div className={cn(
+                  "text-xs flex items-center justify-between -mb-1",
+                  deviates ? "text-destructive font-medium" : "text-muted-foreground"
+                )}>
+                  <span>Bankposition: {row.booking_type === "income" ? "+" : "−"}{formatCurrency(orig)}</span>
+                  {deviates && (
+                    <span title="Abweichung zur Bankposition">
+                      ⚠ Δ {(current - orig > 0 ? "+" : "−")}{formatCurrency(Math.abs(current - orig))}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Betrag + Typ inline */}
-            <div className="flex items-center gap-1">
+            <div className={cn(
+              "flex items-center gap-1",
+              (() => {
+                const orig = row.original_txn_amount || 0;
+                const current = parseAmount(row.amount) || 0;
+                return orig && Math.abs(current - orig) > 0.01
+                  ? "rounded-md ring-1 ring-destructive/40 px-1"
+                  : "";
+              })()
+            )}>
               <Input ref={el => fieldRefs.current["amount"] = el}
                 type="text" inputMode="decimal"
                 className={cn("h-14 text-4xl md:text-4xl font-bold flex-1 border-none shadow-none px-0 focus-visible:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none", row.booking_type === "income" ? "text-green-600" : "text-destructive")}
