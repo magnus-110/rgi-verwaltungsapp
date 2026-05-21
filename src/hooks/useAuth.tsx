@@ -114,6 +114,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return;
       
+      try {
+        supabase.realtime.setAuth(session?.access_token ?? null);
+      } catch (e) {
+        console.warn("realtime.setAuth failed", e);
+      }
+
       setSession(session);
       setUser(session?.user ?? null);
       
