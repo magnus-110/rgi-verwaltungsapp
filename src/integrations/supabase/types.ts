@@ -3259,6 +3259,8 @@ export type Database = {
       contacts: {
         Row: {
           address_city: string | null
+          address_lat: number | null
+          address_lon: number | null
           address_street: string | null
           address_zip: string | null
           company_name: string | null
@@ -3266,19 +3268,25 @@ export type Database = {
           created_at: string
           first_name: string | null
           id: string
+          is_emergency_service: boolean
           is_service_provider_pool: boolean
+          last_hired_at: string | null
           last_name: string | null
           notes: string | null
           onboarding_category: string | null
+          rating: number | null
           salutation: string | null
           service_provider_categories: string[]
           short_name: string | null
           suggest_in_onboarding: boolean | null
+          trade_notes: string | null
           updated_at: string
           user_id: string | null
         }
         Insert: {
           address_city?: string | null
+          address_lat?: number | null
+          address_lon?: number | null
           address_street?: string | null
           address_zip?: string | null
           company_name?: string | null
@@ -3286,19 +3294,25 @@ export type Database = {
           created_at?: string
           first_name?: string | null
           id?: string
+          is_emergency_service?: boolean
           is_service_provider_pool?: boolean
+          last_hired_at?: string | null
           last_name?: string | null
           notes?: string | null
           onboarding_category?: string | null
+          rating?: number | null
           salutation?: string | null
           service_provider_categories?: string[]
           short_name?: string | null
           suggest_in_onboarding?: boolean | null
+          trade_notes?: string | null
           updated_at?: string
           user_id?: string | null
         }
         Update: {
           address_city?: string | null
+          address_lat?: number | null
+          address_lon?: number | null
           address_street?: string | null
           address_zip?: string | null
           company_name?: string | null
@@ -3306,14 +3320,18 @@ export type Database = {
           created_at?: string
           first_name?: string | null
           id?: string
+          is_emergency_service?: boolean
           is_service_provider_pool?: boolean
+          last_hired_at?: string | null
           last_name?: string | null
           notes?: string | null
           onboarding_category?: string | null
+          rating?: number | null
           salutation?: string | null
           service_provider_categories?: string[]
           short_name?: string | null
           suggest_in_onboarding?: boolean | null
+          trade_notes?: string | null
           updated_at?: string
           user_id?: string | null
         }
