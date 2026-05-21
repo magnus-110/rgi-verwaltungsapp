@@ -93,8 +93,6 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
       if (error) throw error;
       return (data || []) as unknown as DocFile[];
     },
-      return (data || []) as unknown as DocFile[];
-    },
   });
 
   const virtualizer = useVirtualizer({
