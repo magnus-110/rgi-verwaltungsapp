@@ -128,36 +128,7 @@ const ContactRow = memo(function ContactRow({
             )}
           </div>
         )}
-
-        {(contact.address_city || contact.address_zip) && (
-          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-            {[contact.address_zip, contact.address_city].filter(Boolean).join(" ")}
-          </p>
-        )}
       </div>
-
-      {(telHref || mailHref || waHref) && (
-        <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {telHref && (
-            <a href={telHref} onClick={stop} title="Anrufen"
-              className="h-7 w-7 rounded flex items-center justify-center hover:bg-primary/10 text-primary">
-              <Phone className="h-3.5 w-3.5" />
-            </a>
-          )}
-          {waHref && (
-            <a href={waHref} target="_blank" rel="noreferrer" onClick={stop} title="WhatsApp"
-              className="h-7 w-7 rounded flex items-center justify-center hover:bg-green-500/10 text-green-600 dark:text-green-400">
-              <MessageCircle className="h-3.5 w-3.5" />
-            </a>
-          )}
-          {mailHref && (
-            <a href={mailHref} onClick={stop} title="E-Mail"
-              className="h-7 w-7 rounded flex items-center justify-center hover:bg-primary/10 text-primary">
-              <Mail className="h-3.5 w-3.5" />
-            </a>
-          )}
-        </div>
-      )}
     </div>
   );
 });
