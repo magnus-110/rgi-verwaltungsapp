@@ -204,11 +204,13 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear, ownerResu
 
   // ============================================================
   //  Sektion 4: Zu- und Abflüsse aus Jahresabgrenzung (Folgejahr-Bezug)
-  //  Echter signierter Saldo, KEINE künstliche Vorzeichendrehung.
+  //  Vorzeichendrehung aus Vermögenssicht:
+  //    4160 (Ausg. im Folgejahr für lfd. J., PRA-Bildung) → Verbindlichkeit ggü. Folgejahr → −
+  //    4180 (Einn. im Folgejahr für lfd. J., ARA-Bildung) → Forderung an Folgejahr → +
   // ============================================================
   const abgFolgeAccs = relevantAccs.filter(isAbgrenzungFolgejahr).sort((a, b) => a.account_number.localeCompare(b.account_number));
   const abgFolgeLines: SectionLine[] = abgFolgeAccs.map(a => ({
-    key: a.id, label: accrualLabel(a), account_number: a.account_number, amount: closingFor(a),
+    key: a.id, label: accrualLabel(a), account_number: a.account_number, amount: -closingFor(a),
   }));
 
   // ============================================================
