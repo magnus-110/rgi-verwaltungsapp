@@ -16,6 +16,8 @@ export interface ComposeState {
   scheduledAt?: string | null; // ISO string when set
   /** When editing an existing scheduled email row, its id. */
   editingScheduledId?: string | null;
+  /** When editing an existing draft, its id. */
+  editingDraftId?: string | null;
   /** Existing attachments from a scheduled email being edited (already base64 in DB). */
   existingAttachments?: any[];
   replyTo?: {
@@ -52,6 +54,16 @@ interface OpenOpts {
     bodyText: string;
     bodyHtml?: string | null;
     scheduledAt: string;
+    attachments?: any[];
+  };
+  editDraft?: {
+    id: string;
+    accountId: string;
+    to: string;
+    cc?: string;
+    bcc?: string;
+    subject: string;
+    bodyText: string;
     attachments?: any[];
   };
 }
