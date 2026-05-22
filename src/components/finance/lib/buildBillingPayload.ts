@@ -135,6 +135,10 @@ function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccr
     const verteilbar = opts.asExpense ? -Math.abs(verteilbarBase)
       : opts.asIncome ? Math.abs(verteilbarBase)
       : verteilbarBase;
+    // Verteilbar nur ausgeben, wenn das Konto tatsächlich verteilungsrelevant ist.
+    // Nicht-distributable Konten (z. B. Kapitalertragsteuer, Soli) würden sonst
+    // einen Wert in der Verteilbar-Spalte zeigen, obwohl sie nicht summiert werden.
+    const isDist = a.is_distributable === true;
     return {
       konto_nr: a.account_number,
       konto_name: a.account_name,
@@ -142,7 +146,7 @@ function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccr
       betrag: fmtEUR(signed),
       betrag_abs: fmtEUR(abs),
       betrag_ist: fmtEUR(signed),
-      betrag_verteilbar: fmtEUR(verteilbar),
+      betrag_verteilbar: isDist ? fmtEUR(verteilbar) : "",
       wirtschaftsplan: wp > 0 ? fmtEUR(wpSigned) : "",
     };
   });
