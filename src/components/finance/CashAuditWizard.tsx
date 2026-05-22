@@ -10,7 +10,7 @@ import { CashAuditAccountSheet } from "./CashAuditAccountSheet";
 import { CashAuditJournal } from "./CashAuditJournal";
 import { CashAuditDocuments } from "./CashAuditDocuments";
 import { CashAuditSignature } from "./CashAuditSignature";
-import { Download, PenLine, ArrowLeft, CheckCircle2, Copy, ExternalLink, Info, HelpCircle } from "lucide-react";
+import { PenLine, ArrowLeft, CheckCircle2, Copy, ExternalLink, Info, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -380,9 +380,6 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
       {/* Footer actions */}
       {!isCompleted && (
         <div className="flex gap-2 pt-2 border-t">
-          <Button variant="outline" className="gap-1.5" onClick={() => toast.info("Export wird in einer zukünftigen Version verfügbar sein.")}>
-            <Download className="h-4 w-4" /> Export
-          </Button>
           <Button className="gap-1.5 ml-auto" onClick={() => setShowSignature(true)}>
             <PenLine className="h-4 w-4" /> Prüfung abschließen
           </Button>
