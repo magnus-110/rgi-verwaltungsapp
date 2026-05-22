@@ -1,10 +1,12 @@
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { Sparkles, LayoutGrid, MousePointerClick, Repeat, FileText, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Sparkles, ArrowLeft, ArrowRight, LayoutGrid, BookOpen, FolderOpen, MessageSquare,
+  MousePointerClick, FileText, Repeat, CheckCircle2, AlertTriangle, ArrowLeftRight,
+} from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -13,107 +15,235 @@ interface Props {
   fiscalYear?: number | string;
 }
 
+const TOTAL_STEPS = 5;
+
 export function CashAuditIntroDialog({ open, onClose, buildingName, fiscalYear }: Props) {
+  const [step, setStep] = useState(1);
   const [dontShow, setDontShow] = useState(true);
 
+  useEffect(() => {
+    if (open) setStep(1);
+  }, [open]);
+
+  const next = () => setStep((s) => Math.min(TOTAL_STEPS, s + 1));
+  const back = () => setStep((s) => Math.max(1, s - 1));
+  const finish = () => onClose(dontShow);
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose(dontShow)}>
-      <DialogContent className="max-w-2xl max-h-[90vh] p-0 overflow-hidden">
-        <DialogHeader className="px-6 pt-6 pb-3">
-          <DialogTitle className="flex items-center gap-2 text-xl">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Willkommen zur digitalen Kassenprüfung
-          </DialogTitle>
-          <p className="text-sm text-muted-foreground mt-1">
-            {buildingName ? <>Sie prüfen die Kasse der <span className="font-medium text-foreground">{buildingName}</span></> : "Sie prüfen die Kasse"}{" "}
-            {fiscalYear && <>für das Wirtschaftsjahr <span className="font-medium text-foreground">{fiscalYear}</span>.</>}
-          </p>
-        </DialogHeader>
+    <Dialog open={open} onOpenChange={(o) => !o && finish()}>
+      <DialogContent className="max-w-md p-0 overflow-hidden bg-background">
+        <DialogTitle className="sr-only">Einführung Kassenprüfung</DialogTitle>
 
-        <ScrollArea className="max-h-[60vh] px-6">
-          <div className="space-y-5 pb-4">
-            {/* Section 1: Ablauf */}
-            <section className="rounded-lg border bg-muted/30 p-4">
-              <p className="text-sm leading-relaxed">
-                Arbeiten Sie sich Schritt für Schritt durch die <strong>vier Tabs</strong>.
-                Ihre Eingaben (Häkchen, Notizen, Markierungen) werden <strong>automatisch gespeichert</strong> –
-                Sie können den Link jederzeit erneut öffnen und dort weitermachen, wo Sie aufgehört haben.
-              </p>
-            </section>
-
-            {/* Section 2: Tabs */}
-            <section>
-              <h3 className="flex items-center gap-2 font-semibold text-sm mb-2">
-                <LayoutGrid className="h-4 w-4 text-primary" /> Die Tabs im Überblick
-              </h3>
-              <ul className="space-y-2 text-sm">
-                <li><strong>Kontenblätter</strong> – Salden und Einzelbuchungen je Konto. Ideal, um systematisch Konto für Konto zu prüfen und abzuhaken.</li>
-                <li><strong>Buchungsjournal</strong> – Chronologische Liste aller Buchungen mit Such- und Monatsfilter. Gut für stichprobenartige Prüfungen.</li>
-                <li><strong>Dokumente</strong> – Bankauszüge, Rechnungen und Verträge zum Quervergleich.</li>
-                <li><strong>Hinweise</strong> – Anmerkungen des Verwalters zu Besonderheiten dieses Jahres.</li>
-              </ul>
-            </section>
-
-            <Separator />
-
-            {/* Section 3: Buchung prüfen */}
-            <section>
-              <h3 className="flex items-center gap-2 font-semibold text-sm mb-2">
-                <MousePointerClick className="h-4 w-4 text-primary" /> So prüfen Sie eine Buchung
-              </h3>
-              <p className="text-sm leading-relaxed">
-                Klicken Sie im Journal oder Kontenblatt auf eine beliebige Buchung. Es öffnet sich eine Detailansicht,
-                in der Sie direkt den dazugehörigen Beleg sehen:
-              </p>
-              <ul className="space-y-1.5 text-sm mt-2 ml-1">
-                <li className="flex gap-2"><FileText className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" /> die <strong>verknüpfte Rechnung</strong> als PDF-Vorschau, oder</li>
-                <li className="flex gap-2"><Repeat className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" /> die <strong>verknüpfte Buchungsvorlage</strong> (siehe nächster Abschnitt).</li>
-              </ul>
-              <p className="text-sm leading-relaxed mt-3">
-                Markieren Sie die Buchung anschließend mit
-                <span className="inline-flex items-center gap-1 mx-1 px-1.5 py-0.5 rounded bg-green-100 text-green-800 text-xs"><CheckCircle2 className="h-3 w-3" /> Geprüft</span>
-                oder
-                <span className="inline-flex items-center gap-1 mx-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-xs"><AlertTriangle className="h-3 w-3" /> Auffällig</span>.
-                Bei Auffälligkeiten können Sie eine kurze Notiz hinterlassen.
-              </p>
-            </section>
-
-            <Separator />
-
-            {/* Section 4: Vorlagen & interne Buchungen */}
-            <section>
-              <h3 className="flex items-center gap-2 font-semibold text-sm mb-2">
-                <Repeat className="h-4 w-4 text-primary" /> Vorlagen & Buchungen ohne Beleg
-              </h3>
-              <div className="space-y-3 text-sm leading-relaxed">
-                <p>
-                  Eine <strong>Buchungsvorlage</strong> steht für eine <strong>wiederkehrende Zahlung</strong> –
-                  z. B. Hausmeister-Pauschale, Versicherungsbeitrag oder Müllgebühr.
-                  Für solche Zahlungen gibt es nicht jeden Monat eine neue Rechnung;
-                  stattdessen dient die Vorlage als „Vertrags-Beleg" und definiert Betrag, Empfänger und Intervall.
-                </p>
-                <p>
-                  <strong>Interne Buchungen</strong> brauchen ebenfalls keinen externen Beleg. Dazu gehören
-                  z. B. Umbuchungen zwischen Konten (Bank ↔ Rücklagen), Heizkostenumlagen,
-                  Rechnungsabgrenzungen oder Eröffnungs- und Schlussbuchungen.
-                </p>
-                <p className="text-muted-foreground">
-                  <strong>Faustregel:</strong> Wirklich auffällig sind nur Buchungen, zu denen weder eine
-                  Rechnung noch eine Vorlage noch eine plausible interne Begründung existiert.
-                </p>
-              </div>
-            </section>
+        <div className="px-6 pt-8 pb-5 min-h-[460px] flex flex-col">
+          {/* Card */}
+          <div className="flex-1 bg-card rounded-[16px] border border-border/50 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+            <div className="h-1 bg-primary" />
+            <div className="px-6 py-7">
+              {step === 1 && <StepWelcome buildingName={buildingName} fiscalYear={fiscalYear} />}
+              {step === 2 && <StepTabs />}
+              {step === 3 && <StepBookings />}
+              {step === 4 && <StepTemplates />}
+              {step === 5 && <StepInternal />}
+            </div>
           </div>
-        </ScrollArea>
 
-        <DialogFooter className="px-6 py-4 border-t bg-muted/20 flex-row items-center justify-between sm:justify-between gap-3">
-          <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-            <Checkbox checked={dontShow} onCheckedChange={(c) => setDontShow(!!c)} />
-            Nicht mehr automatisch anzeigen
-          </label>
-          <Button onClick={() => onClose(dontShow)}>Verstanden, los geht's</Button>
-        </DialogFooter>
+          {/* Dots */}
+          <div className="flex items-center justify-center gap-1.5 mt-5">
+            {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "h-1.5 rounded-full transition-all",
+                  i + 1 === step ? "w-6 bg-primary" : "w-1.5 bg-muted"
+                )}
+              />
+            ))}
+          </div>
+
+          {/* Footer */}
+          <div className="mt-5 space-y-3">
+            {step === TOTAL_STEPS && (
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer justify-center">
+                <Checkbox checked={dontShow} onCheckedChange={(c) => setDontShow(!!c)} />
+                Nicht mehr automatisch anzeigen
+              </label>
+            )}
+            <div className="flex items-center gap-2">
+              {step > 1 ? (
+                <Button variant="ghost" onClick={back} className="gap-1.5">
+                  <ArrowLeft className="h-4 w-4" /> Zurück
+                </Button>
+              ) : <div />}
+              <div className="flex-1" />
+              {step < TOTAL_STEPS ? (
+                <Button onClick={next} className="gap-1.5 h-11 px-6 rounded-[12px]">
+                  {step === 1 ? "Jetzt starten" : "Weiter"} <ArrowRight className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button onClick={finish} className="h-11 px-6 rounded-[12px]">
+                  Verstanden, los geht's
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ----- Steps ----- */
+
+function StepHeader({ icon: Icon, title, lead }: { icon: any; title: string; lead?: string }) {
+  return (
+    <div className="space-y-3 mb-5">
+      <div className="size-11 rounded-full bg-primary/10 grid place-items-center">
+        <Icon className="h-5 w-5 text-primary" />
+      </div>
+      <h2 className="font-display !font-normal text-[24px] leading-[1.2] tracking-[-0.01em] text-foreground">
+        {title}
+      </h2>
+      {lead && <p className="text-[14px] leading-[1.6] text-muted-foreground">{lead}</p>}
+    </div>
+  );
+}
+
+function StepWelcome({ buildingName, fiscalYear }: { buildingName?: string; fiscalYear?: number | string }) {
+  const items = [
+    "Die vier Tabs der Prüfung",
+    "Buchungen prüfen",
+    "Vorlagen verstehen",
+    "Interne Buchungen",
+  ];
+  return (
+    <div>
+      <StepHeader
+        icon={Sparkles}
+        title="Willkommen zur Kassenprüfung"
+        lead={
+          buildingName
+            ? `Sie prüfen die Kasse der ${buildingName}${fiscalYear ? ` für das Wirtschaftsjahr ${fiscalYear}.` : "."}`
+            : "Eine kurze Einführung in vier Schritten."
+        }
+      />
+      <div className="text-[10px] font-semibold tracking-[0.16em] text-muted-foreground/80 uppercase mb-3">
+        Was Sie erwartet
+      </div>
+      <ul className="divide-y divide-border/40">
+        {items.map((t, i) => (
+          <li key={i} className="flex items-center gap-3.5 py-2.5">
+            <span className="size-6 shrink-0 rounded-full border border-border bg-background grid place-items-center text-[11px] font-semibold text-muted-foreground">
+              {i + 1}
+            </span>
+            <span className="text-[14px] text-foreground">{t}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function StepTabs() {
+  const tabs = [
+    { icon: BookOpen, name: "Kontenblätter", desc: "Salden & Buchungen je Konto." },
+    { icon: LayoutGrid, name: "Buchungsjournal", desc: "Alle Buchungen chronologisch." },
+    { icon: FolderOpen, name: "Dokumente", desc: "Bankauszüge, Rechnungen, Verträge." },
+    { icon: MessageSquare, name: "Hinweise", desc: "Anmerkungen des Verwalters." },
+  ];
+  return (
+    <div>
+      <StepHeader icon={LayoutGrid} title="Die vier Tabs" lead="Hier finden Sie alles, was Sie zur Prüfung brauchen." />
+      <ul className="space-y-2.5">
+        {tabs.map((t) => (
+          <li key={t.name} className="flex items-start gap-3 rounded-[12px] border border-border/40 px-3.5 py-3 bg-background">
+            <div className="size-9 shrink-0 rounded-full bg-primary/10 grid place-items-center">
+              <t.icon className="h-4 w-4 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[14px] font-medium text-foreground">{t.name}</div>
+              <div className="text-[12.5px] text-muted-foreground leading-snug">{t.desc}</div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function StepBookings() {
+  return (
+    <div>
+      <StepHeader
+        icon={MousePointerClick}
+        title="Buchungen prüfen"
+        lead="Klicken Sie auf eine Buchung – im Journal oder Kontenblatt – und Sie sehen sofort den passenden Beleg."
+      />
+      <div className="space-y-2.5">
+        <div className="flex items-center gap-3 rounded-[12px] border border-border/40 px-3.5 py-3">
+          <FileText className="h-4 w-4 text-primary shrink-0" />
+          <span className="text-[13.5px]">Verknüpfte <strong>Rechnung</strong> als PDF</span>
+        </div>
+        <div className="flex items-center gap-3 rounded-[12px] border border-border/40 px-3.5 py-3">
+          <Repeat className="h-4 w-4 text-primary shrink-0" />
+          <span className="text-[13.5px]">Oder verknüpfte <strong>Buchungsvorlage</strong></span>
+        </div>
+      </div>
+      <p className="text-[13px] text-muted-foreground mt-4 leading-relaxed">
+        Markieren Sie die Buchung mit
+        <span className="inline-flex items-center gap-1 mx-1 px-2 py-0.5 rounded-full bg-green-100 text-green-800 text-[11px]"><CheckCircle2 className="h-3 w-3" /> Geprüft</span>
+        oder
+        <span className="inline-flex items-center gap-1 mx-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px]"><AlertTriangle className="h-3 w-3" /> Auffällig</span>.
+      </p>
+    </div>
+  );
+}
+
+function StepTemplates() {
+  const examples = ["Hausgeld", "Verwaltergebühr", "Abschlagszahlungen (Strom, Wasser, Heizung)"];
+  return (
+    <div>
+      <StepHeader
+        icon={Repeat}
+        title="Was sind Vorlagen?"
+        lead="Eine Buchungsvorlage steht für eine wiederkehrende Zahlung. Sie ersetzt die monatliche Einzelrechnung."
+      />
+      <div className="text-[10px] font-semibold tracking-[0.16em] text-muted-foreground/80 uppercase mb-3">
+        Typische Beispiele
+      </div>
+      <ul className="space-y-2">
+        {examples.map((e) => (
+          <li key={e} className="flex items-center gap-3 rounded-[12px] bg-muted/40 px-3.5 py-2.5 text-[13.5px]">
+            <span className="size-1.5 rounded-full bg-primary" />
+            {e}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function StepInternal() {
+  const examples = [
+    "Umbuchungen zwischen Konten",
+    "Heizkostenumlagen",
+    "Rechnungsabgrenzungen",
+    "Eröffnungs- und Schlussbuchungen",
+  ];
+  return (
+    <div>
+      <StepHeader
+        icon={ArrowLeftRight}
+        title="Interne Buchungen"
+        lead="Manche Buchungen brauchen keinen externen Beleg – sie entstehen innerhalb der Buchhaltung."
+      />
+      <ul className="space-y-2">
+        {examples.map((e) => (
+          <li key={e} className="flex items-center gap-3 rounded-[12px] bg-muted/40 px-3.5 py-2.5 text-[13.5px]">
+            <span className="size-1.5 rounded-full bg-primary" />
+            {e}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
