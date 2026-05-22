@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { SaveAttachmentToBuildingDialog } from "./SaveAttachmentToBuildingDialog";
+import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
 import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
 
 interface EmailAttachmentsProps {
@@ -47,6 +48,9 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const [importedIds, setImportedIds] = useState<Set<string>>(new Set());
   const [saveToBuildingOpen, setSaveToBuildingOpen] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<{ name: string; path: string; size: number | null; mimeType: string | null }[]>([]);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewMeta, setPreviewMeta] = useState<{ name: string; mimeType: string | null }>({ name: "", mimeType: null });
 
   const { data: attachments = [] } = useQuery({
     queryKey: ["email-attachments", emailId],
@@ -64,15 +68,19 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
 
   if (attachments.length === 0) return null;
 
-  const handleDownload = async (filePath: string, fileName: string) => {
+  const handleOpenPreview = async (filePath: string, fileName: string, mimeType: string | null) => {
+    setPreviewMeta({ name: fileName, mimeType });
+    setPreviewUrl(null);
+    setPreviewOpen(true);
     try {
       const { data, error } = await supabase.storage
         .from("email-attachments")
-        .createSignedUrl(filePath, 60);
+        .createSignedUrl(filePath, 300);
       if (error) throw error;
-      window.open(data.signedUrl, "_blank");
+      setPreviewUrl(data.signedUrl);
     } catch (err: any) {
-      toast.error("Download fehlgeschlagen: " + err.message);
+      toast.error("Vorschau fehlgeschlagen: " + err.message);
+      setPreviewOpen(false);
     }
   };
 
@@ -174,7 +182,7 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
                 variant="outline"
                 size="sm"
                 className="gap-1.5 h-auto py-1.5 px-2.5"
-                onClick={() => att.file_path && handleDownload(att.file_path, att.file_name)}
+                onClick={() => att.file_path && handleOpenPreview(att.file_path, att.file_name, att.mime_type)}
               >
                 <Icon className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate max-w-[150px]">{att.file_name}</span>
