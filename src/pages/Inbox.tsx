@@ -26,6 +26,7 @@ import { AiEmailSearchDialog } from "@/components/email/AiEmailSearchDialog";
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
 import { PrintEmailDialog } from "@/components/email/PrintEmailDialog";
 import { ScheduledMailsPanel } from "@/components/email/ScheduledMailsPanel";
+import { DraftsPanel } from "@/components/email/DraftsPanel";
 import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -88,8 +89,9 @@ export const Inbox = () => {
   const isAdmin = profile?.role === 'admin';
   const isMobile = useIsMobile();
 
-  // Virtual folder ID for the synthetic "Geplant" entry (scheduled single + bulk mails)
+  // Virtual folder IDs
   const SCHEDULED_FOLDER_ID = "__scheduled__";
+  const DRAFTS_FOLDER_ID = "__drafts__";
 
   // Fetch folders (auto-refresh every 60s)
   const { data: dbFolders = [] } = useQuery({
@@ -106,10 +108,19 @@ export const Inbox = () => {
     refetchOnWindowFocus: true,
   });
 
-  // Append a virtual "Geplant" folder for scheduled single mails + scheduled campaigns
+  // Append virtual "Entwürfe" + "Geplant" folders
   const folders = useMemo(() => {
     return [
       ...dbFolders,
+      {
+        id: DRAFTS_FOLDER_ID,
+        name: "Entwürfe",
+        icon: "file-text",
+        sort_order: 998,
+        is_system: true,
+        color: null,
+        created_at: null,
+      } as any,
       {
         id: SCHEDULED_FOLDER_ID,
         name: "Geplant",
