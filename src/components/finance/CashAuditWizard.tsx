@@ -300,7 +300,20 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
           </p>
           <Progress value={progressPercent} className="mt-2 h-1.5" />
         </div>
+        <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => setShowIntro(true)}>
+          <HelpCircle className="h-4 w-4" /> Anleitung
+        </Button>
       </div>
+
+      <CashAuditIntroDialog
+        open={showIntro}
+        onClose={(dontShow) => {
+          setShowIntro(false);
+          if (dontShow) { try { localStorage.setItem(introKey, "1"); } catch {} }
+        }}
+        buildingName={building?.name}
+        fiscalYear={fiscalYear}
+      />
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
