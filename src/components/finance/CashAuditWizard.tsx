@@ -26,7 +26,7 @@ interface CashAuditWizardProps {
 
 export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAuditWizardProps) {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("dokumente");
+  const [activeTab, setActiveTab] = useState("konten");
   const [showSignature, setShowSignature] = useState(false);
   const [saving, setSaving] = useState(false);
   const introKey = `cash-audit-intro-seen-${auditId}`;
