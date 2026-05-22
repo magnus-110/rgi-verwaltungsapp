@@ -1393,13 +1393,19 @@ export const Inbox = () => {
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         {/* Assignment badge - clickable to change */}
-                         {(() => {
+                          {(() => {
+                           const getShortCode = (userId: string) => {
+                             const userAccountIds = accountUsers.filter(au => au.user_id === userId).map(au => au.account_id);
+                             const acct = accounts.find(a => userAccountIds.includes(a.id) && a.short_code);
+                             if (acct?.short_code) return acct.short_code as string;
+                             const p = adminProfiles.find(pp => pp.user_id === userId);
+                             return p ? [p.first_name, p.last_name].filter(Boolean).map(n => n?.[0]).join("") : "";
+                           };
                            const assignedProfile = (email as any).assigned_to 
                              ? adminProfiles.find(p => p.user_id === (email as any).assigned_to) 
                              : null;
-                           const initials = assignedProfile 
-                             ? [assignedProfile.first_name, assignedProfile.last_name].filter(Boolean).map(n => n?.[0]).join("") 
-                             : "";
+                           const initials = (email as any).assigned_to ? getShortCode((email as any).assigned_to) : "";
+
                            if (!initials && !(email as any).assigned_to) {
                              return (
                                <select
@@ -1423,11 +1429,12 @@ export const Inbox = () => {
                                  style={{ WebkitAppearance: 'none', MozAppearance: 'none', textAlignLast: 'center', padding: '0' }}
                                >
                                  <option value="none"> </option>
-                                 {adminProfiles.map(p => (
-                                   <option key={p.user_id} value={p.user_id}>
-                                     {[p.first_name, p.last_name].filter(Boolean).map(n => n?.[0]).join("")}
-                                   </option>
-                                 ))}
+                                  {adminProfiles.map(p => (
+                                    <option key={p.user_id} value={p.user_id}>
+                                      {getShortCode(p.user_id)}
+                                    </option>
+                                  ))}
+
                                </select>
                              );
                            }
@@ -1453,11 +1460,12 @@ export const Inbox = () => {
                                style={{ WebkitAppearance: 'none', MozAppearance: 'none', textAlignLast: 'center', width: `${Math.max(24, initials.length * 9 + 10)}px`, padding: '0 2px' }}
                              >
                                <option value="none">—</option>
-                               {adminProfiles.map(p => (
-                                 <option key={p.user_id} value={p.user_id}>
-                                   {[p.first_name, p.last_name].filter(Boolean).map(n => n?.[0]).join("")}
-                                 </option>
-                               ))}
+                                {adminProfiles.map(p => (
+                                  <option key={p.user_id} value={p.user_id}>
+                                    {getShortCode(p.user_id)}
+                                  </option>
+                                ))}
+
                              </select>
                            );
                          })()}
