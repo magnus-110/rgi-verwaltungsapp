@@ -288,7 +288,7 @@ function StepTemplates() {
       <StepTitle
         kicker="Schritt 3"
         title="Was sind Buchungsvorlagen?"
-        lead="Eine Buchungsvorlage steht für eine wiederkehrende Zahlung. Statt für jede Einzelzahlung eine neue Rechnung anzulegen, verweist die Buchung auf die Vorlage – diese definiert Empfänger, Betrag und Intervall und dient als „Vertrags-Beleg"."
+        lead={`Eine Buchungsvorlage steht für eine wiederkehrende Zahlung. Statt für jede Einzelzahlung eine neue Rechnung anzulegen, verweist die Buchung auf die Vorlage – diese definiert Empfänger, Betrag und Intervall und dient als „Vertrags-Beleg".`}
       />
       <div className="space-y-3">
         {examples.map((e) => (
