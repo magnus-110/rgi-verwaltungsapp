@@ -941,6 +941,8 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
 
         <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
       </div>
+      {closeDialog}
+      </>
     );
   }
 
