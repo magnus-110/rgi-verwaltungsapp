@@ -741,9 +741,37 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     isReply: !!compose.replyTo,
   };
 
+  // Shared dialog rendered alongside both mobile + desktop returns
+  const closeDialog = (
+    <AlertDialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>E-Mail als Entwurf speichern?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Sie haben den Entwurf noch nicht gesendet. Möchten Sie ihn speichern und später weiter bearbeiten?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+          <AlertDialogCancel disabled={isSavingDraft}>Abbrechen</AlertDialogCancel>
+          <Button variant="outline" onClick={discardAndClose} disabled={isSavingDraft}>
+            Verwerfen
+          </Button>
+          <AlertDialogAction
+            onClick={(e) => { e.preventDefault(); saveAsDraft(); }}
+            disabled={isSavingDraft}
+          >
+            {isSavingDraft ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Als Entwurf speichern
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   if (isMobile) {
     const title = compose.replyTo ? "Antworten" : compose.forward ? "Weiterleiten" : "Neue E-Mail";
     return (
+      <>
       <div
         className="fixed inset-0 z-[60] bg-background flex flex-col"
         style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
