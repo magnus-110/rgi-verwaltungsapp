@@ -1,51 +1,29 @@
 ## Ziel
 
-Beim ersten Öffnen des Kassenprüfungs-Links sieht der Prüfer eine kurze, freundliche Einführung, die erklärt, wie die Prüfung abläuft und was sich hinter jeder Unterseite verbirgt. Danach kann er normal weiterarbeiten; die Erklärung lässt sich jederzeit erneut über einen Info-Button öffnen.
+Den bestehenden `CashAuditIntroDialog` in einen **mehrstufigen, ruhig gestalteten Wizard** umbauen — visuell angelehnt an den Onboarding-Flow (`WelcomeScreen` / `OnboardingWizardModal`): viel Whitespace, große Cards mit dünner Primary-Linie oben, wenig Text pro Schritt, klare Buttons.
 
-## Umfang
+## Inhalt der 5 Schritte
 
-- Nur Frontend / UI – keine Änderung an Logik, Daten oder Edge Functions.
-- Wirkt im Token-Modus (`/kassenpruefung/:token`) sowie im Owner-Portal-Modus. In der Admin-Vorschau optional.
+1. **Willkommen** – Begrüßung, Liegenschaft + Wirtschaftsjahr, Übersicht „Was Sie erwartet" (Liste der folgenden Schritte). Button: „Jetzt starten".
+2. **Die vier Tabs** – Kompakte Liste der Tabs (Kontenblätter, Buchungsjournal, Dokumente, Hinweise) je mit einem Satz. Icon + Titel + 1 Zeile.
+3. **Buchungen prüfen** – Erklärt den Klick auf eine Buchung, das Aufpoppen der Detailansicht mit Beleg/Vorlage, und das Markieren mit „✓ Geprüft" / „⚠ Auffällig".
+4. **Vorlagen** – „Eine Buchungsvorlage steht für eine wiederkehrende Zahlung wie **Hausgeld**, **Verwaltergebühr** oder **Abschlagszahlungen** (Strom, Wasser, Heizung). Sie ersetzt die monatliche Einzelrechnung."
+5. **Interne Buchungen** – „Manche Buchungen brauchen keinen externen Beleg, z. B. Umbuchungen zwischen Konten, Heizkostenumlagen, Abgrenzungen oder Eröffnungs-/Schlussbuchungen." Button: „Verstanden, los geht's" + Checkbox „Nicht mehr automatisch anzeigen".
 
-## Neue Komponente
+→ **Faustregel-Absatz entfällt.**
 
-`src/components/finance/CashAuditIntroDialog.tsx`
+## Design
 
-- Modal (Dialog) im RGI-Stil mit Header, scrollbarem Inhalt, „Verstanden, los geht's"-Button.
-- Inhalt in 4 kompakten Abschnitten mit passenden lucide-Icons:
+- Modal-Container schmal (`max-w-md`), zentriert, viel vertikales Padding.
+- Jede Seite = eine Karte im Stil `rounded-[16px] border border-border/50` mit 1 px Primary-Bar oben (wie WelcomeScreen).
+- Headline `font-display`, leichte Spacing, kurzer Lead-Satz, dann Inhalt.
+- Step-Indicator unten als kleine Punkte (5 Dots, aktiver Punkt = Primary, andere = `bg-muted`).
+- Footer: links „Zurück" (ghost, ab Schritt 2 sichtbar), rechts „Weiter" / am Ende „Verstanden, los geht's" (Primary, full-width-Akzent wie im Onboarding).
+- Auf Schritt 5 zusätzlich Checkbox „Nicht mehr automatisch anzeigen" (Default an).
+- Nur semantische Tailwind-Tokens, keine harten Farben.
 
-  1. **Willkommen & Ablauf** – Kurz: „Sie prüfen die Kasse der WEG XY für das Wirtschaftsjahr ZZZZ. Arbeiten Sie sich Schritt für Schritt durch die Tabs. Ihre Eingaben werden automatisch gespeichert."
-  2. **Die Tabs im Überblick**
-     - *Kontenblätter*: Salden + Einzelbuchungen je Konto, zum systematischen Abhaken.
-     - *Buchungsjournal*: Chronologische Liste aller Buchungen mit Such-/Monatsfilter.
-     - *Dokumente*: Bankauszüge, Rechnungen, Verträge zum Quervergleich.
-     - *Hinweise des Verwalters*: Vorab-Notizen zu Besonderheiten des Jahres.
-  3. **So prüfen Sie eine Buchung**
-     - Klick auf eine Buchung (im Journal oder Kontenblatt) öffnet die Detailansicht.
-     - Dort sehen Sie automatisch die **verknüpfte Rechnung** (PDF-Vorschau) oder die **verknüpfte Buchungsvorlage**.
-     - Mit den Buttons „✓ Geprüft" oder „⚠ Auffällig" markieren; Notiz optional.
-  4. **Was sind Vorlagen, und warum gibt es Buchungen ohne Beleg?**
-     - **Buchungsvorlage = wiederkehrende Zahlung** (z. B. Hausmeister, Versicherung, Müllgebühr). Hier gibt es nicht zu jeder Einzelzahlung eine neue Rechnung – die Vorlage dient als „Vertrags-Beleg" und definiert Betrag/Intervall.
-     - **Interne Buchungen ohne Beleg**: Umbuchungen zwischen Konten (z. B. Heizkostenumlage, Abgrenzungen, Eröffnungs-/Schlussbilanz, Bank↔Kasse). Dafür ist kein externer Beleg nötig.
-     - Hinweis: Auffällig sind in der Regel nur Buchungen, bei denen weder Rechnung noch Vorlage noch eine plausible interne Begründung existiert.
+## Datei-Änderungen
 
-- Footer: Checkbox „Beim nächsten Öffnen nicht mehr automatisch anzeigen" (Default an) + Button „Verstanden".
+- **Edit:** `src/components/finance/CashAuditIntroDialog.tsx` — komplettes Re-Design als interner State-Wizard (Step 1…5). Selbe Props (`open`, `onClose(dontShow)`, `buildingName`, `fiscalYear`). Keine Änderung an `CashAuditWizard.tsx` nötig.
 
-## Integration in `CashAuditWizard.tsx`
-
-- Neuer State `showIntro`.
-- Beim Mount: Wenn `localStorage[`cash-audit-intro-seen-${auditId}`]` nicht gesetzt ist → `showIntro = true`. Beim Schließen mit aktiver Checkbox flag setzen.
-- Im Header (neben dem bestehenden Info-Icon) ein Button „Anleitung" (Icon `HelpCircle`) ergänzt, der das Modal jederzeit erneut öffnet.
-- Dialog wird nur gerendert, wenn `tokenMode` ODER Owner-Portal-Modus (nicht in der Admin-Review). Praktisch: anzeigen, wenn nicht `CashAuditAdminReview` aktiv – also im Wizard selbst immer erlauben, aber Auto-Open nur außerhalb der Admin-Vorschau.
-
-## Technische Details
-
-- Verwendet bestehende shadcn-Komponenten: `Dialog`, `Button`, `Checkbox`, `ScrollArea`, `Separator`.
-- Nur semantische Tailwind-Tokens (keine harten Farben).
-- Texte auf Deutsch, kurz, mit fett gesetzten Schlüsselbegriffen.
-- Keine neuen Pakete, keine DB-Änderungen.
-
-## Geänderte / neue Dateien
-
-- **Neu:** `src/components/finance/CashAuditIntroDialog.tsx`
-- **Edit:** `src/components/finance/CashAuditWizard.tsx` (Import, State, Auto-Open-Effect, Header-Button, Render)
+Keine DB-, Routing- oder Logik-Änderungen.
