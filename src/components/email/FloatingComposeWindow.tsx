@@ -878,7 +878,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         {/* Bottom action bar (moved from top) */}
         <div className="h-14 grid grid-cols-3 items-center gap-0.5 px-1 border-t bg-background shrink-0">
           <div className="flex items-center justify-start">
-            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" onClick={() => closeCompose(compose.id)} aria-label="Verwerfen">
+            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" onClick={requestClose} aria-label="Schließen">
               <X className="h-5 w-5" />
             </Button>
           </div>
@@ -1003,7 +1003,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           <Button
             variant="ghost" size="icon"
             className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20"
-            onClick={() => closeCompose(compose.id)}
+            onClick={requestClose}
             title="Schließen"
           >
             <X className="h-3.5 w-3.5" />
