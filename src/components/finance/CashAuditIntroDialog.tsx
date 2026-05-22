@@ -34,11 +34,11 @@ export function CashAuditIntroDialog({ open, onClose, buildingName, fiscalYear }
       <DialogContent className="max-w-3xl p-0 overflow-hidden bg-background">
         <DialogTitle className="sr-only">Einführung Kassenprüfung</DialogTitle>
 
-        <div className="px-10 pt-10 pb-7 min-h-[620px] flex flex-col">
+        <div className="px-10 pt-10 pb-7 h-[720px] flex flex-col">
           {/* Card */}
-          <div className="flex-1 bg-card rounded-[20px] border border-border/50 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-            <div className="h-1 bg-primary" />
-            <div className="px-10 py-10 h-full">
+          <div className="flex-1 min-h-0 bg-card rounded-[20px] border border-border/50 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex flex-col">
+            <div className="h-1 bg-primary shrink-0" />
+            <div className="px-10 py-8 flex-1 min-h-0 overflow-y-auto">
               {step === 1 && <StepWelcome buildingName={buildingName} fiscalYear={fiscalYear} onStart={next} />}
               {step === 2 && <StepTabs />}
               {step === 3 && <StepBookings />}
