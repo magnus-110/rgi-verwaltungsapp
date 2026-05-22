@@ -109,6 +109,7 @@ const buildInitial = (id: string, opts?: OpenOpts): ComposeState => {
   const forward = opts?.forward || null;
   const prefill = opts?.prefill;
   const edit = opts?.editScheduled;
+  const draft = opts?.editDraft;
   if (edit) {
     return {
       id,
@@ -123,7 +124,28 @@ const buildInitial = (id: string, opts?: OpenOpts): ComposeState => {
       attachments: [],
       scheduledAt: edit.scheduledAt,
       editingScheduledId: edit.id,
+      editingDraftId: null,
       existingAttachments: edit.attachments || [],
+      replyTo: null,
+      forward: null,
+    };
+  }
+  if (draft) {
+    return {
+      id,
+      mode: "docked",
+      accountId: draft.accountId,
+      to: draft.to,
+      cc: draft.cc || "",
+      bcc: draft.bcc || "",
+      subject: draft.subject,
+      bodyText: draft.bodyText,
+      forwardHtml: undefined,
+      attachments: [],
+      scheduledAt: null,
+      editingScheduledId: null,
+      editingDraftId: draft.id,
+      existingAttachments: draft.attachments || [],
       replyTo: null,
       forward: null,
     };
