@@ -10,10 +10,11 @@ import { CashAuditAccountSheet } from "./CashAuditAccountSheet";
 import { CashAuditJournal } from "./CashAuditJournal";
 import { CashAuditDocuments } from "./CashAuditDocuments";
 import { CashAuditSignature } from "./CashAuditSignature";
-import { Download, PenLine, ArrowLeft, CheckCircle2, Copy, ExternalLink, Info } from "lucide-react";
+import { Download, PenLine, ArrowLeft, CheckCircle2, Copy, ExternalLink, Info, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { CashAuditIntroDialog } from "./CashAuditIntroDialog";
 
 
 interface CashAuditWizardProps {
@@ -28,6 +29,10 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
   const [activeTab, setActiveTab] = useState("konten");
   const [showSignature, setShowSignature] = useState(false);
   const [saving, setSaving] = useState(false);
+  const introKey = `cash-audit-intro-seen-${auditId}`;
+  const [showIntro, setShowIntro] = useState(() => {
+    try { return !localStorage.getItem(introKey); } catch { return true; }
+  });
 
   const { data: audit, isLoading } = useQuery({
     queryKey: ["cash-audit", auditId],
@@ -295,7 +300,20 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
           </p>
           <Progress value={progressPercent} className="mt-2 h-1.5" />
         </div>
+        <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => setShowIntro(true)}>
+          <HelpCircle className="h-4 w-4" /> Anleitung
+        </Button>
       </div>
+
+      <CashAuditIntroDialog
+        open={showIntro}
+        onClose={(dontShow) => {
+          setShowIntro(false);
+          if (dontShow) { try { localStorage.setItem(introKey, "1"); } catch {} }
+        }}
+        buildingName={building?.name}
+        fiscalYear={fiscalYear}
+      />
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
