@@ -499,6 +499,11 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       });
       if (error) throw error;
       toast.success("E-Mail gesendet!");
+      // If this was a draft being edited, delete it now
+      if (compose.editingDraftId) {
+        await supabase.from("email_drafts").delete().eq("id", compose.editingDraftId);
+        queryClient.invalidateQueries({ queryKey: ["email-drafts"] });
+      }
       // Refresh inbox so the green "replied" arrow appears immediately
       queryClient.invalidateQueries({ queryKey: ["emails"] });
       queryClient.invalidateQueries({ queryKey: ["email-replies"] });
@@ -509,6 +514,121 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     } finally {
       setIsSending(false);
     }
+  };
+
+  // Determine if the user has typed anything worth saving as a draft
+  const hasContent = useCallback(() => {
+    const sigStripped = (compose.bodyText || "").trim();
+    const account = accounts.find((a) => a.id === compose.accountId);
+    const sig = (account?.signature_html || "").trim();
+    const bodyWithoutSig = sig && sigStripped.endsWith(sig)
+      ? sigStripped.slice(0, -sig.length).trim()
+      : sigStripped;
+    return Boolean(
+      compose.to.trim() ||
+        compose.cc.trim() ||
+        compose.bcc.trim() ||
+        compose.subject.trim() ||
+        bodyWithoutSig ||
+        compose.attachments.length > 0 ||
+        (compose.existingAttachments?.length || 0) > 0,
+    );
+  }, [compose, accounts]);
+
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+
+  const requestClose = () => {
+    if (compose.editingScheduledId) {
+      closeCompose(compose.id);
+      return;
+    }
+    if (hasContent()) {
+      setCloseConfirmOpen(true);
+    } else {
+      closeCompose(compose.id);
+    }
+  };
+
+  const saveAsDraft = async () => {
+    setIsSavingDraft(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const userId = u?.user?.id;
+      if (!userId) throw new Error("Nicht angemeldet");
+      const toArr = compose.to.split(",").map((s) => s.trim()).filter(Boolean);
+      const ccArr = compose.cc.split(",").map((s) => s.trim()).filter(Boolean);
+      const bccArr = compose.bcc.split(",").map((s) => s.trim()).filter(Boolean);
+      const newAttachments = await Promise.all(
+        compose.attachments.map(async (att) => {
+          const safeName = att.name.replace(/[^\w.\-]+/g, "_");
+          const storagePath = `outgoing/${crypto.randomUUID()}/${safeName}`;
+          const { error: upErr } = await supabase.storage
+            .from("email-attachments")
+            .upload(storagePath, att.file, {
+              contentType: att.file.type || "application/octet-stream",
+              upsert: false,
+            });
+          if (upErr) throw new Error(`Upload fehlgeschlagen (${att.name}): ${upErr.message}`);
+          return {
+            filename: att.name,
+            storage_path: storagePath,
+            contentType: att.file.type || "application/octet-stream",
+            size: att.size,
+          };
+        }),
+      );
+      const mergedAtts = [
+        ...((compose.existingAttachments as any[]) || []),
+        ...newAttachments,
+      ];
+      const payload = {
+        account_id: compose.accountId || null,
+        to_addresses: toArr,
+        cc_addresses: ccArr.length ? ccArr : null,
+        bcc_addresses: bccArr.length ? bccArr : null,
+        subject: compose.subject || "",
+        body_text: compose.bodyText || "",
+        attachments: mergedAtts,
+        reply_to_email_id: compose.replyTo?.id || null,
+        forward_email_id: compose.forward?.email_id || null,
+      };
+      if (compose.editingDraftId) {
+        const { error } = await supabase
+          .from("email_drafts")
+          .update(payload)
+          .eq("id", compose.editingDraftId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("email_drafts")
+          .insert({ user_id: userId, ...payload });
+        if (error) throw error;
+      }
+      toast.success("Entwurf gespeichert");
+      queryClient.invalidateQueries({ queryKey: ["email-drafts"] });
+      queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+      setCloseConfirmOpen(false);
+      closeCompose(compose.id);
+    } catch (err: any) {
+      toast.error("Entwurf speichern fehlgeschlagen: " + (err.message || ""));
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  const discardAndClose = async () => {
+    if (compose.editingDraftId) {
+      try {
+        await supabase.from("email_drafts").delete().eq("id", compose.editingDraftId);
+        queryClient.invalidateQueries({ queryKey: ["email-drafts"] });
+        queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+      } catch {
+        /* noop */
+      }
+    }
+    setCloseConfirmOpen(false);
+    closeCompose(compose.id);
   };
 
   const handleImproveText = async () => {
