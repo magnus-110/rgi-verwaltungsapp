@@ -135,6 +135,10 @@ function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccr
     const verteilbar = opts.asExpense ? -Math.abs(verteilbarBase)
       : opts.asIncome ? Math.abs(verteilbarBase)
       : verteilbarBase;
+    // Verteilbar nur ausgeben, wenn das Konto tatsächlich verteilungsrelevant ist.
+    // Nicht-distributable Konten (z. B. Kapitalertragsteuer, Soli) würden sonst
+    // einen Wert in der Verteilbar-Spalte zeigen, obwohl sie nicht summiert werden.
+    const isDist = a.is_distributable === true;
     return {
       konto_nr: a.account_number,
       konto_name: a.account_name,
@@ -142,7 +146,7 @@ function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccr
       betrag: fmtEUR(signed),
       betrag_abs: fmtEUR(abs),
       betrag_ist: fmtEUR(signed),
-      betrag_verteilbar: fmtEUR(verteilbar),
+      betrag_verteilbar: isDist ? fmtEUR(verteilbar) : "",
       wirtschaftsplan: wp > 0 ? fmtEUR(wpSigned) : "",
     };
   });
@@ -258,8 +262,19 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     ...(sectionAccounts.heating || []),
     ...(sectionAccounts.reserve || []),
   ].reduce((s: number, a: any) => s + Math.abs(a.wpAmount || 0), 0);
-  const sumVerteilbar = totals.totalOperatingDist +
-    (sectionAccounts.heating || []).reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
+  // Verteilbare Gesamtausgaben — nur is_distributable=true Konten über ALLE
+  // Aufwandssektionen (operating_distributable, operating_non_distributable,
+  // heating, reserve). Damit fließen z. B. Kapitalertragsteuer / Soli
+  // (is_distributable=false) NICHT in die Verteilbar-Summe ein.
+  const sumVerteilbarOf = (accs: any[] = []) =>
+    accs
+      .filter((a: any) => a.is_distributable === true)
+      .reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
+  const sumVerteilbar =
+      sumVerteilbarOf(sectionAccounts.operating_distributable)
+    + sumVerteilbarOf(sectionAccounts.operating_non_distributable)
+    + sumVerteilbarOf(sectionAccounts.heating)
+    + sumVerteilbarOf(sectionAccounts.reserve);
 
   return {
     document_title: "Jahresabrechnung — Gesamt",
@@ -340,6 +355,28 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     abrechnungsspitze_label: totals.abrechnungsspitze >= 0 ? "Guthaben" : "Nachzahlung",
     abrechnungsspitze_guthaben: totals.abrechnungsspitze >= 0,
     abrechnungsspitze_nachzahlung: totals.abrechnungsspitze < 0,
+
+    // === Abrechnungssaldo (HV-Office-konform) ===
+    // Für die Abrechnungssaldo-Zeile in der Gesamtabrechnung MÜSSEN diese
+    // Platzhalter verwendet werden (NICHT sum_einnahmen_inkl_vorschuss, das
+    // Überzahlungen + Zinsen mit einrechnet, was hier nicht erwünscht ist):
+    //   - Einnahmen  = Soll-Vorschüsse (Kostendeckung + EHR), OHNE Überzahlung
+    //   - Ausgaben   = verteilungsrelevante Gesamtausgaben (sum_ausgaben_verteilbar)
+    //   - Saldo      = Soll-Vorschüsse + verteilbare Ausgaben (Ausgaben sind negativ)
+    sum_einnahmen_vorschuss_soll: fmtEUR(totals.totalSollKostendeckung + totals.totalSollEHR),
+    abrechnungssaldo_soll: fmtEUR(
+      (totals.totalSollKostendeckung + totals.totalSollEHR) - sumVerteilbar,
+    ),
+    abrechnungssaldo_soll_abs: fmtEUR(
+      Math.abs((totals.totalSollKostendeckung + totals.totalSollEHR) - sumVerteilbar),
+    ),
+    abrechnungssaldo_soll_label:
+      (totals.totalSollKostendeckung + totals.totalSollEHR) - sumVerteilbar >= 0
+        ? "Guthaben" : "Nachzahlung",
+    abrechnungssaldo_soll_guthaben:
+      (totals.totalSollKostendeckung + totals.totalSollEHR) - sumVerteilbar >= 0,
+    abrechnungssaldo_soll_nachzahlung:
+      (totals.totalSollKostendeckung + totals.totalSollEHR) - sumVerteilbar < 0,
 
     // Vermögensbericht / Kontrollbestände
     bank_anfangsbestand: fmtEUR(Math.abs(totals.openingGiro)),
