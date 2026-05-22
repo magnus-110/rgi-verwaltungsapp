@@ -16,7 +16,7 @@ interface CashAuditDocumentsProps {
 }
 
 export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, auditId, tokenMode, token }: CashAuditDocumentsProps) {
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["statements"]));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   // PDF-Kontoauszüge (vom Admin hochgeladen)
   const { data: statements = [] } = useQuery({
