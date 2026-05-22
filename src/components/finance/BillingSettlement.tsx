@@ -1572,8 +1572,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                     {acc.wpAmount > 0 ? formatCurrency(acc.wpAmount) : "–"}
                   </TableCell>
                   <TableCell className="text-right text-sm">{renderSigned(accountDisplayValue(acc))}</TableCell>
-                  <TableCell className="text-right font-mono text-sm">
-                    {acc.is_distributable ? formatCurrency(acc.totalAbs) : "–"}
+                  <TableCell className="text-right text-sm">
+                    {acc.is_distributable ? renderSigned(accountDisplayValue(acc)) : <span className="font-mono">–</span>}
                   </TableCell>
                 </TableRow>
               ))}
@@ -1585,9 +1585,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                   {wpTotal > 0 ? formatCurrency(wpTotal) : "–"}
                 </TableCell>
                 <TableCell className="text-right text-sm font-semibold">{renderSigned(sectionDisplayTotal)}</TableCell>
-                <TableCell className="text-right font-mono text-sm font-semibold">
-                  {distTotal > 0 ? formatCurrency(distTotal) : "–"}
+                <TableCell className="text-right text-sm font-semibold">
+                  {distTotal > 0 ? renderSigned(accs.filter(a => a.is_distributable).reduce((s, a) => s + accountDisplayValue(a), 0)) : <span className="font-mono">–</span>}
                 </TableCell>
+
               </TableRow>
             </TableBody>
           </Table>
