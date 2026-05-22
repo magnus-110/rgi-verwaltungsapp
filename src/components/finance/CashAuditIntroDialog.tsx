@@ -34,11 +34,11 @@ export function CashAuditIntroDialog({ open, onClose, buildingName, fiscalYear }
       <DialogContent className="max-w-3xl p-0 overflow-hidden bg-background">
         <DialogTitle className="sr-only">Einführung Kassenprüfung</DialogTitle>
 
-        <div className="px-10 pt-10 pb-7 min-h-[620px] flex flex-col">
+        <div className="px-10 pt-10 pb-7 h-[720px] flex flex-col">
           {/* Card */}
-          <div className="flex-1 bg-card rounded-[20px] border border-border/50 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-            <div className="h-1 bg-primary" />
-            <div className="px-10 py-10 h-full">
+          <div className="flex-1 min-h-0 bg-card rounded-[20px] border border-border/50 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex flex-col">
+            <div className="h-1 bg-primary shrink-0" />
+            <div className="px-10 py-8 flex-1 min-h-0 overflow-y-auto">
               {step === 1 && <StepWelcome buildingName={buildingName} fiscalYear={fiscalYear} onStart={next} />}
               {step === 2 && <StepTabs />}
               {step === 3 && <StepBookings />}
@@ -149,15 +149,15 @@ function FakeTabsPreview({ active }: { active: "konten" | "journal" | "dokumente
     { id: "hinweise", label: "Hinweise" },
   ];
   return (
-    <div className="rounded-[12px] border border-border/60 bg-background overflow-hidden">
-      <div className="flex border-b border-border/60 px-2">
+    <div className="rounded-[10px] border border-border/60 bg-background overflow-hidden">
+      <div className="flex border-b border-border/60">
         {tabs.map((t) => {
           const isActive = t.id === active;
           return (
             <div
               key={t.id}
               className={cn(
-                "px-4 py-2.5 text-[13px] font-medium border-b-2 -mb-px",
+                "flex-1 min-w-0 px-1.5 py-2 text-[10px] font-medium border-b-2 -mb-px text-center truncate",
                 isActive
                   ? "border-primary text-foreground"
                   : "border-transparent text-muted-foreground"
@@ -168,7 +168,7 @@ function FakeTabsPreview({ active }: { active: "konten" | "journal" | "dokumente
           );
         })}
       </div>
-      <div className="px-4 py-3 text-[12px] text-muted-foreground bg-muted/20">
+      <div className="px-3 py-2.5 text-[10.5px] text-muted-foreground bg-muted/20">
         Inhalt von <span className="font-medium text-foreground">{tabs.find((t) => t.id === active)?.label}</span>
       </div>
     </div>
