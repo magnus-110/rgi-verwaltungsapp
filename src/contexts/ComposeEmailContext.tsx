@@ -16,6 +16,8 @@ export interface ComposeState {
   scheduledAt?: string | null; // ISO string when set
   /** When editing an existing scheduled email row, its id. */
   editingScheduledId?: string | null;
+  /** When editing an existing draft, its id. */
+  editingDraftId?: string | null;
   /** Existing attachments from a scheduled email being edited (already base64 in DB). */
   existingAttachments?: any[];
   replyTo?: {
@@ -52,6 +54,16 @@ interface OpenOpts {
     bodyText: string;
     bodyHtml?: string | null;
     scheduledAt: string;
+    attachments?: any[];
+  };
+  editDraft?: {
+    id: string;
+    accountId: string;
+    to: string;
+    cc?: string;
+    bcc?: string;
+    subject: string;
+    bodyText: string;
     attachments?: any[];
   };
 }
@@ -97,6 +109,7 @@ const buildInitial = (id: string, opts?: OpenOpts): ComposeState => {
   const forward = opts?.forward || null;
   const prefill = opts?.prefill;
   const edit = opts?.editScheduled;
+  const draft = opts?.editDraft;
   if (edit) {
     return {
       id,
@@ -111,7 +124,28 @@ const buildInitial = (id: string, opts?: OpenOpts): ComposeState => {
       attachments: [],
       scheduledAt: edit.scheduledAt,
       editingScheduledId: edit.id,
+      editingDraftId: null,
       existingAttachments: edit.attachments || [],
+      replyTo: null,
+      forward: null,
+    };
+  }
+  if (draft) {
+    return {
+      id,
+      mode: "docked",
+      accountId: draft.accountId,
+      to: draft.to,
+      cc: draft.cc || "",
+      bcc: draft.bcc || "",
+      subject: draft.subject,
+      bodyText: draft.bodyText,
+      forwardHtml: undefined,
+      attachments: [],
+      scheduledAt: null,
+      editingScheduledId: null,
+      editingDraftId: draft.id,
+      existingAttachments: draft.attachments || [],
       replyTo: null,
       forward: null,
     };
@@ -136,6 +170,7 @@ const buildInitial = (id: string, opts?: OpenOpts): ComposeState => {
     attachments: [],
     scheduledAt: null,
     editingScheduledId: null,
+    editingDraftId: null,
     existingAttachments: [],
     replyTo,
     forward,

@@ -26,6 +26,7 @@ import { AiEmailSearchDialog } from "@/components/email/AiEmailSearchDialog";
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
 import { PrintEmailDialog } from "@/components/email/PrintEmailDialog";
 import { ScheduledMailsPanel } from "@/components/email/ScheduledMailsPanel";
+import { DraftsPanel } from "@/components/email/DraftsPanel";
 import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -88,8 +89,9 @@ export const Inbox = () => {
   const isAdmin = profile?.role === 'admin';
   const isMobile = useIsMobile();
 
-  // Virtual folder ID for the synthetic "Geplant" entry (scheduled single + bulk mails)
+  // Virtual folder IDs
   const SCHEDULED_FOLDER_ID = "__scheduled__";
+  const DRAFTS_FOLDER_ID = "__drafts__";
 
   // Fetch folders (auto-refresh every 60s)
   const { data: dbFolders = [] } = useQuery({
@@ -106,10 +108,19 @@ export const Inbox = () => {
     refetchOnWindowFocus: true,
   });
 
-  // Append a virtual "Geplant" folder for scheduled single mails + scheduled campaigns
+  // Append virtual "Entwürfe" + "Geplant" folders
   const folders = useMemo(() => {
     return [
       ...dbFolders,
+      {
+        id: DRAFTS_FOLDER_ID,
+        name: "Entwürfe",
+        icon: "file-text",
+        sort_order: 998,
+        is_system: true,
+        color: null,
+        created_at: null,
+      } as any,
       {
         id: SCHEDULED_FOLDER_ID,
         name: "Geplant",
@@ -283,15 +294,31 @@ export const Inbox = () => {
     refetchOnWindowFocus: true,
   });
 
-  // Merge counts: real folders + virtual scheduled folder
+  // Drafts query (virtual "Entwürfe" folder)
+  const { data: draftItems = [] } = useQuery({
+    queryKey: ["email-drafts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("email_drafts")
+        .select("id, account_id, to_addresses, cc_addresses, bcc_addresses, subject, body_text, attachments, updated_at")
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    refetchOnWindowFocus: true,
+  });
+
+  // Merge counts: real folders + virtual folders
   const folderCounts = useMemo(() => {
     return {
       ...(folderCountsRaw as Record<string, number>),
       [SCHEDULED_FOLDER_ID]: scheduledItems.length,
+      [DRAFTS_FOLDER_ID]: draftItems.length,
     };
-  }, [folderCountsRaw, scheduledItems.length]);
+  }, [folderCountsRaw, scheduledItems.length, draftItems.length]);
 
   const isScheduledFolder = selectedFolderId === SCHEDULED_FOLDER_ID;
+  const isDraftsFolder = selectedFolderId === DRAFTS_FOLDER_ID;
 
   // Fetch emails for selected folder — slim columns; body wird lazy für Detail geladen
   const { data: emails = [], isLoading: emailsLoading } = useQuery({
@@ -1048,7 +1075,16 @@ export const Inbox = () => {
 
       {/* Main content area with tabs spanning full width */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-        {isScheduledFolder ? (
+        {isDraftsFolder ? (
+          <DraftsPanel
+            items={draftItems as any}
+            accounts={accounts}
+            onChanged={() => {
+              queryClient.invalidateQueries({ queryKey: ["email-drafts"] });
+              queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+            }}
+          />
+        ) : isScheduledFolder ? (
           <ScheduledMailsPanel
             items={scheduledItems}
             accounts={accounts}

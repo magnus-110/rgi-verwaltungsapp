@@ -3931,6 +3931,57 @@ export type Database = {
         }
         Relationships: []
       }
+      email_drafts: {
+        Row: {
+          account_id: string | null
+          attachments: Json
+          bcc_addresses: string[] | null
+          body_html: string | null
+          body_text: string
+          cc_addresses: string[] | null
+          created_at: string
+          forward_email_id: string | null
+          id: string
+          reply_to_email_id: string | null
+          subject: string
+          to_addresses: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          attachments?: Json
+          bcc_addresses?: string[] | null
+          body_html?: string | null
+          body_text?: string
+          cc_addresses?: string[] | null
+          created_at?: string
+          forward_email_id?: string | null
+          id?: string
+          reply_to_email_id?: string | null
+          subject?: string
+          to_addresses?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string | null
+          attachments?: Json
+          bcc_addresses?: string[] | null
+          body_html?: string | null
+          body_text?: string
+          cc_addresses?: string[] | null
+          created_at?: string
+          forward_email_id?: string | null
+          id?: string
+          reply_to_email_id?: string | null
+          subject?: string
+          to_addresses?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       email_folders: {
         Row: {
           color: string | null

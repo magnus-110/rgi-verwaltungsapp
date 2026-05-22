@@ -19,6 +19,10 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EmailTemplatePicker } from "./EmailTemplatePicker";
 import { VoiceDictationButton } from "./VoiceDictationButton";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -499,6 +503,11 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       });
       if (error) throw error;
       toast.success("E-Mail gesendet!");
+      // If this was a draft being edited, delete it now
+      if (compose.editingDraftId) {
+        await supabase.from("email_drafts").delete().eq("id", compose.editingDraftId);
+        queryClient.invalidateQueries({ queryKey: ["email-drafts"] });
+      }
       // Refresh inbox so the green "replied" arrow appears immediately
       queryClient.invalidateQueries({ queryKey: ["emails"] });
       queryClient.invalidateQueries({ queryKey: ["email-replies"] });
@@ -509,6 +518,121 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     } finally {
       setIsSending(false);
     }
+  };
+
+  // Determine if the user has typed anything worth saving as a draft
+  const hasContent = useCallback(() => {
+    const sigStripped = (compose.bodyText || "").trim();
+    const account = accounts.find((a) => a.id === compose.accountId);
+    const sig = (account?.signature_html || "").trim();
+    const bodyWithoutSig = sig && sigStripped.endsWith(sig)
+      ? sigStripped.slice(0, -sig.length).trim()
+      : sigStripped;
+    return Boolean(
+      compose.to.trim() ||
+        compose.cc.trim() ||
+        compose.bcc.trim() ||
+        compose.subject.trim() ||
+        bodyWithoutSig ||
+        compose.attachments.length > 0 ||
+        (compose.existingAttachments?.length || 0) > 0,
+    );
+  }, [compose, accounts]);
+
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+
+  const requestClose = () => {
+    if (compose.editingScheduledId) {
+      closeCompose(compose.id);
+      return;
+    }
+    if (hasContent()) {
+      setCloseConfirmOpen(true);
+    } else {
+      closeCompose(compose.id);
+    }
+  };
+
+  const saveAsDraft = async () => {
+    setIsSavingDraft(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const userId = u?.user?.id;
+      if (!userId) throw new Error("Nicht angemeldet");
+      const toArr = compose.to.split(",").map((s) => s.trim()).filter(Boolean);
+      const ccArr = compose.cc.split(",").map((s) => s.trim()).filter(Boolean);
+      const bccArr = compose.bcc.split(",").map((s) => s.trim()).filter(Boolean);
+      const newAttachments = await Promise.all(
+        compose.attachments.map(async (att) => {
+          const safeName = att.name.replace(/[^\w.\-]+/g, "_");
+          const storagePath = `outgoing/${crypto.randomUUID()}/${safeName}`;
+          const { error: upErr } = await supabase.storage
+            .from("email-attachments")
+            .upload(storagePath, att.file, {
+              contentType: att.file.type || "application/octet-stream",
+              upsert: false,
+            });
+          if (upErr) throw new Error(`Upload fehlgeschlagen (${att.name}): ${upErr.message}`);
+          return {
+            filename: att.name,
+            storage_path: storagePath,
+            contentType: att.file.type || "application/octet-stream",
+            size: att.size,
+          };
+        }),
+      );
+      const mergedAtts = [
+        ...((compose.existingAttachments as any[]) || []),
+        ...newAttachments,
+      ];
+      const payload = {
+        account_id: compose.accountId || null,
+        to_addresses: toArr,
+        cc_addresses: ccArr.length ? ccArr : null,
+        bcc_addresses: bccArr.length ? bccArr : null,
+        subject: compose.subject || "",
+        body_text: compose.bodyText || "",
+        attachments: mergedAtts,
+        reply_to_email_id: compose.replyTo?.id || null,
+        forward_email_id: compose.forward?.email_id || null,
+      };
+      if (compose.editingDraftId) {
+        const { error } = await supabase
+          .from("email_drafts")
+          .update(payload)
+          .eq("id", compose.editingDraftId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("email_drafts")
+          .insert({ user_id: userId, ...payload });
+        if (error) throw error;
+      }
+      toast.success("Entwurf gespeichert");
+      queryClient.invalidateQueries({ queryKey: ["email-drafts"] });
+      queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+      setCloseConfirmOpen(false);
+      closeCompose(compose.id);
+    } catch (err: any) {
+      toast.error("Entwurf speichern fehlgeschlagen: " + (err.message || ""));
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  const discardAndClose = async () => {
+    if (compose.editingDraftId) {
+      try {
+        await supabase.from("email_drafts").delete().eq("id", compose.editingDraftId);
+        queryClient.invalidateQueries({ queryKey: ["email-drafts"] });
+        queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+      } catch {
+        /* noop */
+      }
+    }
+    setCloseConfirmOpen(false);
+    closeCompose(compose.id);
   };
 
   const handleImproveText = async () => {
@@ -617,9 +741,37 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     isReply: !!compose.replyTo,
   };
 
+  // Shared dialog rendered alongside both mobile + desktop returns
+  const closeDialog = (
+    <AlertDialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>E-Mail als Entwurf speichern?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Sie haben den Entwurf noch nicht gesendet. Möchten Sie ihn speichern und später weiter bearbeiten?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+          <AlertDialogCancel disabled={isSavingDraft}>Abbrechen</AlertDialogCancel>
+          <Button variant="outline" onClick={discardAndClose} disabled={isSavingDraft}>
+            Verwerfen
+          </Button>
+          <AlertDialogAction
+            onClick={(e) => { e.preventDefault(); saveAsDraft(); }}
+            disabled={isSavingDraft}
+          >
+            {isSavingDraft ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Als Entwurf speichern
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   if (isMobile) {
     const title = compose.replyTo ? "Antworten" : compose.forward ? "Weiterleiten" : "Neue E-Mail";
     return (
+      <>
       <div
         className="fixed inset-0 z-[60] bg-background flex flex-col"
         style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
@@ -758,7 +910,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         {/* Bottom action bar (moved from top) */}
         <div className="h-14 grid grid-cols-3 items-center gap-0.5 px-1 border-t bg-background shrink-0">
           <div className="flex items-center justify-start">
-            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" onClick={() => closeCompose(compose.id)} aria-label="Verwerfen">
+            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" onClick={requestClose} aria-label="Schließen">
               <X className="h-5 w-5" />
             </Button>
           </div>
@@ -789,6 +941,8 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
 
         <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
       </div>
+      {closeDialog}
+      </>
     );
   }
 
@@ -840,6 +994,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       : { right: 16, bottom: 0, width: WIN_W, height: WIN_H };
 
   return (
+    <>
     <div className={cn("bg-card flex flex-col overflow-hidden", containerClass)} style={containerStyle}>
       {/* Title bar (draggable when docked) */}
       <div
@@ -883,7 +1038,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           <Button
             variant="ghost" size="icon"
             className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20"
-            onClick={() => closeCompose(compose.id)}
+            onClick={requestClose}
             title="Schließen"
           >
             <X className="h-3.5 w-3.5" />
@@ -1106,6 +1261,8 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         </div>
       </div>
     </div>
+    {closeDialog}
+    </>
   );
 };
 
