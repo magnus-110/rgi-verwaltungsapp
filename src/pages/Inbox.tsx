@@ -1075,7 +1075,16 @@ export const Inbox = () => {
 
       {/* Main content area with tabs spanning full width */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-        {isScheduledFolder ? (
+        {isDraftsFolder ? (
+          <DraftsPanel
+            items={draftItems as any}
+            accounts={accounts}
+            onChanged={() => {
+              queryClient.invalidateQueries({ queryKey: ["email-drafts"] });
+              queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+            }}
+          />
+        ) : isScheduledFolder ? (
           <ScheduledMailsPanel
             items={scheduledItems}
             accounts={accounts}
