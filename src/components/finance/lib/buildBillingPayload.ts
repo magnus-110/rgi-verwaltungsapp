@@ -356,6 +356,28 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     abrechnungsspitze_guthaben: totals.abrechnungsspitze >= 0,
     abrechnungsspitze_nachzahlung: totals.abrechnungsspitze < 0,
 
+    // === Abrechnungssaldo (HV-Office-konform) ===
+    // Für die Abrechnungssaldo-Zeile in der Gesamtabrechnung MÜSSEN diese
+    // Platzhalter verwendet werden (NICHT sum_einnahmen_inkl_vorschuss, das
+    // Überzahlungen + Zinsen mit einrechnet, was hier nicht erwünscht ist):
+    //   - Einnahmen  = Soll-Vorschüsse (Kostendeckung + EHR), OHNE Überzahlung
+    //   - Ausgaben   = verteilungsrelevante Gesamtausgaben (sum_ausgaben_verteilbar)
+    //   - Saldo      = Soll-Vorschüsse + verteilbare Ausgaben (Ausgaben sind negativ)
+    sum_einnahmen_vorschuss_soll: fmtEUR(totals.totalSollKostendeckung + totals.totalSollEHR),
+    abrechnungssaldo_soll: fmtEUR(
+      (totals.totalSollKostendeckung + totals.totalSollEHR) - sumVerteilbar,
+    ),
+    abrechnungssaldo_soll_abs: fmtEUR(
+      Math.abs((totals.totalSollKostendeckung + totals.totalSollEHR) - sumVerteilbar),
+    ),
+    abrechnungssaldo_soll_label:
+      (totals.totalSollKostendeckung + totals.totalSollEHR) - sumVerteilbar >= 0
+        ? "Guthaben" : "Nachzahlung",
+    abrechnungssaldo_soll_guthaben:
+      (totals.totalSollKostendeckung + totals.totalSollEHR) - sumVerteilbar >= 0,
+    abrechnungssaldo_soll_nachzahlung:
+      (totals.totalSollKostendeckung + totals.totalSollEHR) - sumVerteilbar < 0,
+
     // Vermögensbericht / Kontrollbestände
     bank_anfangsbestand: fmtEUR(Math.abs(totals.openingGiro)),
     bank_endbestand: fmtEUR(Math.abs(totals.closingGiro)),
