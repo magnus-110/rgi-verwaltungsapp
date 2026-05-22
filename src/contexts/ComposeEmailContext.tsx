@@ -170,6 +170,7 @@ const buildInitial = (id: string, opts?: OpenOpts): ComposeState => {
     attachments: [],
     scheduledAt: null,
     editingScheduledId: null,
+    editingDraftId: null,
     existingAttachments: [],
     replyTo,
     forward,
