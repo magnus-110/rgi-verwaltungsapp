@@ -1799,8 +1799,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                 <span className="font-mono font-medium">{formatCurrency(abrechnungssumme)}</span>
               </div>
               <div className="flex justify-between p-3 rounded-lg bg-muted/30 text-sm">
-                <span>Vorschussverpflichtung (Hausgeld + IHR)</span>
-                <span className="font-mono font-medium">{formatCurrency(totalVorschuss)}</span>
+                <span>Vorschussverpflichtung (Hausgeld + IHR, Soll)</span>
+                <span className="font-mono font-medium">{formatCurrency(vorschussFuerSpitze)}</span>
               </div>
               <div className={`flex justify-between p-3 rounded-lg border-2 text-sm font-semibold ${
                 abrechnungsspitze >= 0 ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"
