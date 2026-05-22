@@ -128,7 +128,7 @@ function StepWelcome({
       <p className="mt-5 text-[15.5px] leading-[1.7] text-muted-foreground max-w-[48ch]">
         Schön, dass Sie sich Zeit für die Prüfung nehmen.
         {buildingName && (
-          <> Sie prüfen die Kasse der <span className="font-medium text-foreground">{buildingName}</span>
+          <> Sie prüfen die Kasse der <span className="font-medium text-foreground">WEG {buildingName}</span>
           {fiscalYear && <> für das Wirtschaftsjahr <span className="font-medium text-foreground">{fiscalYear}</span></>}.</>
         )}{" "}
         In wenigen Schritten erklären wir Ihnen, wie alles funktioniert.
