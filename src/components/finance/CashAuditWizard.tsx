@@ -29,6 +29,10 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
   const [activeTab, setActiveTab] = useState("konten");
   const [showSignature, setShowSignature] = useState(false);
   const [saving, setSaving] = useState(false);
+  const introKey = `cash-audit-intro-seen-${auditId}`;
+  const [showIntro, setShowIntro] = useState(() => {
+    try { return !localStorage.getItem(introKey); } catch { return true; }
+  });
 
   const { data: audit, isLoading } = useQuery({
     queryKey: ["cash-audit", auditId],
