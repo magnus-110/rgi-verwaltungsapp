@@ -793,14 +793,62 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   }
 
   // ===== DESKTOP: docked block bottom-right OR fullscreen =====
+  // Draggable position state (only used when docked, not fullscreen)
+  const [dragPos, setDragPos] = useState<{ left: number; top: number } | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; origLeft: number; origTop: number } | null>(null);
+  const WIN_W = 560;
+  const WIN_H = 760;
+
+  const onDragStart = (e: React.MouseEvent) => {
+    if (isFullscreen) return;
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest("button")) return;
+    e.preventDefault();
+    const rect = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origLeft: rect.left,
+      origTop: rect.top,
+    };
+    const onMove = (ev: MouseEvent) => {
+      if (!dragRef.current) return;
+      const dx = ev.clientX - dragRef.current.startX;
+      const dy = ev.clientY - dragRef.current.startY;
+      const maxLeft = window.innerWidth - WIN_W;
+      const maxTop = window.innerHeight - 40;
+      const left = Math.max(0, Math.min(maxLeft, dragRef.current.origLeft + dx));
+      const top = Math.max(0, Math.min(maxTop, dragRef.current.origTop + dy));
+      setDragPos({ left, top });
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
   const containerClass = isFullscreen
     ? "fixed inset-0 z-50 border-0 rounded-none shadow-none"
-    : "fixed bottom-0 right-4 z-50 border border-border rounded-t-lg shadow-2xl w-[560px] h-[760px]";
+    : "fixed z-50 border border-border rounded-t-lg shadow-2xl";
+  const containerStyle: React.CSSProperties = isFullscreen
+    ? {}
+    : dragPos
+      ? { left: dragPos.left, top: dragPos.top, width: WIN_W, height: WIN_H }
+      : { right: 16, bottom: 0, width: WIN_W, height: WIN_H };
 
   return (
-    <div className={cn("bg-card flex flex-col overflow-hidden", containerClass)}>
-      {/* Title bar */}
-      <div className="flex items-center justify-between px-3 py-2 bg-primary text-primary-foreground select-none shrink-0">
+    <div className={cn("bg-card flex flex-col overflow-hidden", containerClass)} style={containerStyle}>
+      {/* Title bar (draggable when docked) */}
+      <div
+        className={cn(
+          "flex items-center justify-between px-3 py-2 bg-primary text-primary-foreground select-none shrink-0",
+          !isFullscreen && "cursor-move",
+        )}
+        onMouseDown={onDragStart}
+      >
         <span className="text-sm font-medium truncate">
           {compose.replyTo ? "Antworten" : compose.forward ? "Weiterleiten" : "Neue E-Mail"}
           {compose.subject ? ` – ${compose.subject}` : ""}
