@@ -250,6 +250,13 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
         attachments={pendingAttachments}
         emailId={emailId}
       />
+      <AttachmentPreviewDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        url={previewUrl}
+        fileName={previewMeta.name}
+        mimeType={previewMeta.mimeType}
+      />
     </div>
   );
 };
