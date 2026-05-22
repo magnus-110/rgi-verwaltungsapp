@@ -134,11 +134,9 @@ export function CashAuditTab() {
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(`/kassenpruefung/${audit.access_token}`, "_blank")} title="Öffnen">
                       <ExternalLink className="h-3.5 w-3.5" />
                     </Button>
-                    {audit.status !== "completed" && (
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteAudit(audit.id)} title="Löschen">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteAudit(audit.id)} title="Löschen">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
               </button>
