@@ -262,8 +262,19 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     ...(sectionAccounts.heating || []),
     ...(sectionAccounts.reserve || []),
   ].reduce((s: number, a: any) => s + Math.abs(a.wpAmount || 0), 0);
-  const sumVerteilbar = totals.totalOperatingDist +
-    (sectionAccounts.heating || []).reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
+  // Verteilbare Gesamtausgaben — nur is_distributable=true Konten über ALLE
+  // Aufwandssektionen (operating_distributable, operating_non_distributable,
+  // heating, reserve). Damit fließen z. B. Kapitalertragsteuer / Soli
+  // (is_distributable=false) NICHT in die Verteilbar-Summe ein.
+  const sumVerteilbarOf = (accs: any[] = []) =>
+    accs
+      .filter((a: any) => a.is_distributable === true)
+      .reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
+  const sumVerteilbar =
+      sumVerteilbarOf(sectionAccounts.operating_distributable)
+    + sumVerteilbarOf(sectionAccounts.operating_non_distributable)
+    + sumVerteilbarOf(sectionAccounts.heating)
+    + sumVerteilbarOf(sectionAccounts.reserve);
 
   return {
     document_title: "Jahresabrechnung — Gesamt",
