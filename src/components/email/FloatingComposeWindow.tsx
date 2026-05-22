@@ -994,6 +994,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       : { right: 16, bottom: 0, width: WIN_W, height: WIN_H };
 
   return (
+    <>
     <div className={cn("bg-card flex flex-col overflow-hidden", containerClass)} style={containerStyle}>
       {/* Title bar (draggable when docked) */}
       <div
@@ -1260,6 +1261,8 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         </div>
       </div>
     </div>
+    {closeDialog}
+    </>
   );
 };
 
