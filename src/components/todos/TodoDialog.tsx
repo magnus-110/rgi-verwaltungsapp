@@ -532,7 +532,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
                 <InlineAttachmentCreator files={files} onChange={setFiles} />
               )}
             </form>
-          </ScrollArea>
+          </div>
 
           <DialogFooter className="shrink-0">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
