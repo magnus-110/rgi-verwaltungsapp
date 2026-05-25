@@ -19,7 +19,7 @@ import { RecurrenceSettings } from "./RecurrenceSettings";
 import { InlineSubtasksCreator } from "./TodoSubtasks";
 import { InlineAttachmentCreator } from "./TodoAttachments";
 import { supabase } from "@/integrations/supabase/client";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 
 const STORAGE_KEY = 'todo_dialog_draft';
 
@@ -297,15 +297,15 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle>
               {mode === 'create' ? 'Neue Aufgabe erstellen' : 'Aufgabe bearbeiten'}
             </DialogTitle>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 min-h-0">
-            <form onSubmit={handleSubmit} className="space-y-4 pr-4">
+          <div className="flex-1 overflow-y-auto min-h-0 pr-2">
+            <form onSubmit={handleSubmit} className="space-y-4 pr-2">
               {/* Title */}
               <div className="space-y-2">
                 <Label htmlFor="title">Titel *</Label>
@@ -532,7 +532,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
                 <InlineAttachmentCreator files={files} onChange={setFiles} />
               )}
             </form>
-          </ScrollArea>
+          </div>
 
           <DialogFooter className="shrink-0">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
