@@ -19,7 +19,7 @@ import { RecurrenceSettings } from "./RecurrenceSettings";
 import { InlineSubtasksCreator } from "./TodoSubtasks";
 import { InlineAttachmentCreator } from "./TodoAttachments";
 import { supabase } from "@/integrations/supabase/client";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 
 const STORAGE_KEY = 'todo_dialog_draft';
 
