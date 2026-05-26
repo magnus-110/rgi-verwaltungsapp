@@ -252,6 +252,11 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
             </TabsContent>
           )}
 
+          {/* Keys Tab */}
+          <TabsContent value="keys" className="p-3 md:p-6 mt-0">
+            <BuildingKeysTab buildingId={buildingId} />
+          </TabsContent>
+
           {/* Onboarding Tab */}
           <TabsContent value="onboarding" className="p-3 md:p-6 mt-0">
             <BuildingOnboardingTab buildingId={buildingId} />
