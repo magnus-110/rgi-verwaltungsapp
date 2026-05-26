@@ -23,6 +23,7 @@ import { BuildingServiceProvidersTab } from "./BuildingServiceProvidersTab";
 import { BuildingOverviewTab } from "./BuildingOverviewTab";
 import { AnnualCycleBuildingTab } from "./AnnualCycleBuildingTab";
 import { BuildingOnboardingTab } from "./BuildingOnboardingTab";
+import { BuildingKeysTab } from "./keys/BuildingKeysTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -174,6 +175,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "distribution", label: "Kontenrahmen" },
               ...(building.management_mode === 'weg' ? [{ value: "resolutions", label: "Beschlüsse" }] : []),
               { value: "maintenance", label: "Wartung" },
+              { value: "keys", label: "Schlüssel" },
               { value: "onboarding", label: "Onboarding" },
             ].map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} variant="underline"
@@ -249,6 +251,11 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               <BuildingResolutionsTab buildingId={buildingId} />
             </TabsContent>
           )}
+
+          {/* Keys Tab */}
+          <TabsContent value="keys" className="p-3 md:p-6 mt-0">
+            <BuildingKeysTab buildingId={buildingId} />
+          </TabsContent>
 
           {/* Onboarding Tab */}
           <TabsContent value="onboarding" className="p-3 md:p-6 mt-0">

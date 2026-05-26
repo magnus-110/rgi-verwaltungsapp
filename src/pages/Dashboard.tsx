@@ -21,6 +21,7 @@ const safeFormat = (value: any, fmt: string) => {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { AnnualCycleDashboardWidget } from "@/components/dashboard/AnnualCycleDashboardWidget";
+import { OutstandingKeysWidget } from "@/components/dashboard/OutstandingKeysWidget";
 
 interface TaskItem { id: string; title: string; priority: string; due_date: string; status: string; is_overdue?: boolean }
 interface MaintenanceItem { id: string; building_id: string; building_name: string; task_name: string; next_due_date: string; category: string; is_overdue?: boolean }
@@ -221,6 +222,8 @@ export const Dashboard = () => {
 
       {/* Jahreszyklus aller WEGs (ausklappbar) */}
       <AnnualCycleDashboardWidget />
+
+      <OutstandingKeysWidget />
 
       <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-3">
         {/* Aufgaben */}
