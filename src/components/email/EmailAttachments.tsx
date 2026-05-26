@@ -335,11 +335,6 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
         </div>
       )}
 
-      {selectableImageCount >= 2 && selectedIds.length < 2 && (
-        <div className="text-xs text-muted-foreground mb-2">
-          Tipp: Mehrere Bilder ankreuzen, um sie als eine Rechnung an die OCR zu schicken.
-        </div>
-      )}
 
       <div className="flex flex-wrap gap-2">
         {attachments.map((att) => {
