@@ -14,6 +14,8 @@ import { KeyTag, KeyStorageLocation, KeyType, KeyEvent, KeyItem, KeySubjectType,
 import { KeyTagDialog } from "./KeyTagDialog";
 import { KeyLoanDialog } from "./KeyLoanDialog";
 import { DropdownWithAdd } from "./DropdownWithAdd";
+import { HouseIcon } from "./IconPicker";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { format, isPast } from "date-fns";
 import { de } from "date-fns/locale";
@@ -28,6 +30,19 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
   const [loanDialog, setLoanDialog] = useState<{ open: boolean; tag?: KeyTag }>({ open: false });
   const [historyKeyFilter, setHistoryKeyFilter] = useState<string>("all");
   const [historyEventFilter, setHistoryEventFilter] = useState<string>("all");
+  const [stammdatenOpen, setStammdatenOpen] = useState(false);
+  const [planNumber, setPlanNumber] = useState<string>("");
+
+  useEffect(() => {
+    if (settings?.closing_plan_number !== undefined) setPlanNumber(settings?.closing_plan_number ?? "");
+  }, [settings?.closing_plan_number]);
+
+  const savePlanNumber = async (val: string) => {
+    setPlanNumber(val);
+    const { error } = await supabase.from("key_property_settings").update({ closing_plan_number: val || null }).eq("building_id", buildingId);
+    if (error) toast.error(error.message);
+    else qc.invalidateQueries({ queryKey: ["key-settings", buildingId] });
+  };
 
   // Settings (auto-create row on first access → trigger assigns 3-digit number)
   const { data: settings } = useQuery({
