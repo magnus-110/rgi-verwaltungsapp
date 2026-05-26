@@ -1,0 +1,139 @@
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from "@/components/ui/command";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { KeyTag } from "./types";
+import { SignaturePad } from "./SignaturePad";
+import { useAuth } from "@/hooks/useAuth";
+import { ChevronDown } from "lucide-react";
+import { format } from "date-fns";
+
+interface Props { open: boolean; onClose: () => void; tag: KeyTag; buildingId: string; }
+
+export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const [contactId, setContactId] = useState<string | null>(null);
+  const [contactLabel, setContactLabel] = useState<string>("");
+  const [contactSearch, setContactSearch] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [dueDate, setDueDate] = useState(() => format(new Date(Date.now() + 7 * 86400000), "yyyy-MM-dd"));
+  const [requiresSignature, setRequiresSignature] = useState(false);
+  const [sendConfirmation, setSendConfirmation] = useState(false);
+  const [sendOverdueReminder, setSendOverdueReminder] = useState(false);
+  const [signature, setSignature] = useState<string | null>(null);
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { if (open) { setContactId(null); setContactLabel(""); setName(""); setEmail(""); setSignature(null); setNotes(""); setRequiresSignature(false); setSendConfirmation(false); setSendOverdueReminder(false); setDueDate(format(new Date(Date.now() + 7 * 86400000), "yyyy-MM-dd")); }}, [open]);
+
+  const { data: contacts = [] } = useQuery({
+    queryKey: ["contacts-search", contactSearch],
+    queryFn: async () => {
+      const q = supabase.from("contacts").select("id, company_name, contact_persons(first_name, last_name, contact_emails(email))").limit(20);
+      if (contactSearch) q.ilike("company_name", `%${contactSearch}%`);
+      return (await q).data ?? [];
+    },
+    enabled: open,
+  });
+
+  const save = async () => {
+    if (!contactId && !name) { toast.error("Kontakt oder Name angeben"); return; }
+    if (requiresSignature && !signature) { toast.error("Unterschrift fehlt"); return; }
+    setSaving(true);
+    const { error } = await supabase.from("key_loans").insert({
+      tag_id: tag.id,
+      building_id: buildingId,
+      borrower_contact_id: contactId,
+      borrower_name: name || contactLabel || null,
+      borrower_email: email || null,
+      due_at: new Date(dueDate + "T23:59:59").toISOString(),
+      requires_signature: requiresSignature,
+      signature_data: signature,
+      send_confirmation_email: sendConfirmation,
+      send_overdue_reminder: sendOverdueReminder,
+      issued_by_user_id: user?.id,
+      notes: notes || null,
+    });
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["key-loans-active", buildingId] });
+    qc.invalidateQueries({ queryKey: ["key-tags", buildingId] });
+    qc.invalidateQueries({ queryKey: ["key-events", buildingId] });
+    qc.invalidateQueries({ queryKey: ["outstanding-keys"] });
+    toast.success("Schlüssel ausgegeben");
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Schlüssel ausgeben · <span className="font-mono">{tag.tag_number}</span></DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label>Kontakt (optional)</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-between font-normal">
+                  {contactLabel || "Kontakt suchen…"}
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="p-0 w-[--radix-popover-trigger-width]">
+                <Command shouldFilter={false}>
+                  <CommandInput placeholder="Suchen…" value={contactSearch} onValueChange={setContactSearch} />
+                  <CommandList>
+                    <CommandEmpty>Keine Treffer</CommandEmpty>
+                    {contacts.map((c: any) => {
+                      const person = c.contact_persons?.[0];
+                      const label = c.company_name || [person?.first_name, person?.last_name].filter(Boolean).join(" ") || "—";
+                      const mail = person?.contact_emails?.[0]?.email;
+                      return (
+                        <CommandItem key={c.id} value={c.id} onSelect={() => {
+                          setContactId(c.id); setContactLabel(label); if (mail) setEmail(mail); if (!name) setName(label);
+                        }}>
+                          {label} {mail && <span className="text-xs text-muted-foreground ml-2">{mail}</span>}
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div><Label>Name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
+            <div><Label>E-Mail</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+          </div>
+          <div>
+            <Label>Rückgabe bis *</Label>
+            <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            <p className="text-xs text-muted-foreground mt-1">Standard: 1 Woche</p>
+          </div>
+          <div className="space-y-2 pt-2 border-t border-border">
+            <label className="flex items-center gap-2 text-sm"><Checkbox checked={requiresSignature} onCheckedChange={(v) => setRequiresSignature(!!v)} /> Unterschrift erforderlich</label>
+            <label className="flex items-center gap-2 text-sm"><Checkbox checked={sendConfirmation} onCheckedChange={(v) => setSendConfirmation(!!v)} /> Bestätigungs­mail senden</label>
+            <label className="flex items-center gap-2 text-sm"><Checkbox checked={sendOverdueReminder} onCheckedChange={(v) => setSendOverdueReminder(!!v)} /> Mahnmail bei Überfälligkeit</label>
+          </div>
+          {requiresSignature && (
+            <div><Label>Unterschrift</Label><SignaturePad value={signature} onChange={setSignature} /></div>
+          )}
+          <div><Label>Notiz</Label><Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Abbrechen</Button>
+          <Button onClick={save} disabled={saving}>Ausgeben</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
