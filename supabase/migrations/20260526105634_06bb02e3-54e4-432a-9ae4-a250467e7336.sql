@@ -1,0 +1,1 @@
+ALTER TABLE public.key_property_settings ADD COLUMN IF NOT EXISTS closing_plan_number text;

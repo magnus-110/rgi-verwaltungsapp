@@ -5514,6 +5514,7 @@ export type Database = {
         Row: {
           building_id: string
           closing_plan_name: string | null
+          closing_plan_number: string | null
           closing_plan_path: string | null
           closing_plan_uploaded_at: string | null
           closing_plan_uploaded_by: string | null
@@ -5523,6 +5524,7 @@ export type Database = {
         Insert: {
           building_id: string
           closing_plan_name?: string | null
+          closing_plan_number?: string | null
           closing_plan_path?: string | null
           closing_plan_uploaded_at?: string | null
           closing_plan_uploaded_by?: string | null
@@ -5532,6 +5534,7 @@ export type Database = {
         Update: {
           building_id?: string
           closing_plan_name?: string | null
+          closing_plan_number?: string | null
           closing_plan_path?: string | null
           closing_plan_uploaded_at?: string | null
           closing_plan_uploaded_by?: string | null

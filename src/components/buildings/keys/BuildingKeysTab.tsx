@@ -14,6 +14,8 @@ import { KeyTag, KeyStorageLocation, KeyType, KeyEvent, KeyItem, KeySubjectType,
 import { KeyTagDialog } from "./KeyTagDialog";
 import { KeyLoanDialog } from "./KeyLoanDialog";
 import { DropdownWithAdd } from "./DropdownWithAdd";
+import { HouseIcon } from "./IconPicker";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { format, isPast } from "date-fns";
 import { de } from "date-fns/locale";
@@ -28,6 +30,8 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
   const [loanDialog, setLoanDialog] = useState<{ open: boolean; tag?: KeyTag }>({ open: false });
   const [historyKeyFilter, setHistoryKeyFilter] = useState<string>("all");
   const [historyEventFilter, setHistoryEventFilter] = useState<string>("all");
+  const [stammdatenOpen, setStammdatenOpen] = useState(false);
+  const [planNumber, setPlanNumber] = useState<string>("");
 
   // Settings (auto-create row on first access → trigger assigns 3-digit number)
   const { data: settings } = useQuery({
@@ -46,6 +50,17 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
       })();
     }
   }, [settings, buildingId, qc]);
+
+  useEffect(() => {
+    if ((settings as any)?.closing_plan_number !== undefined) setPlanNumber((settings as any)?.closing_plan_number ?? "");
+  }, [(settings as any)?.closing_plan_number]);
+
+  const savePlanNumber = async (val: string) => {
+    setPlanNumber(val);
+    const { error } = await supabase.from("key_property_settings").update({ closing_plan_number: val || null } as any).eq("building_id", buildingId);
+    if (error) toast.error(error.message);
+    else qc.invalidateQueries({ queryKey: ["key-settings", buildingId] });
+  };
 
   const { data: types = [] } = useQuery<KeyType[]>({
     queryKey: ["key-types"],
@@ -138,29 +153,53 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
         </TabsList>
 
         <TabsContent value="tags" className="space-y-4 mt-4">
-          {/* Stammdaten */}
-          <Card>
-            <CardHeader><CardTitle className="text-base flex items-center gap-2"><FileText className="h-4 w-4" /> Stammdaten</CardTitle></CardHeader>
-            <CardContent className="grid md:grid-cols-2 gap-4">
-              <div>
-                <Label>Liegenschaftsnummer</Label>
-                <Input value={settings?.property_number ?? "…"} readOnly className="font-mono bg-muted" />
-                <p className="text-xs text-muted-foreground mt-1">Wird automatisch vergeben.</p>
-              </div>
-              <div>
-                <Label>Schließplan</Label>
-                <div className="flex items-center gap-2">
-                  <Input type="file" accept="application/pdf,image/*" onChange={(e) => e.target.files?.[0] && uploadClosingPlan(e.target.files[0])} />
-                  {settings?.closing_plan_path && (
-                    <Button variant="outline" size="sm" onClick={downloadClosingPlan}>Öffnen</Button>
-                  )}
-                </div>
-                {settings?.closing_plan_name && (
-                  <p className="text-xs text-muted-foreground mt-1">{settings.closing_plan_name}</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Stammdaten (einklappbar) */}
+          <Collapsible open={stammdatenOpen} onOpenChange={setStammdatenOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer hover:bg-muted/40 transition-colors">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    {stammdatenOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    <FileText className="h-4 w-4" /> Stammdaten
+                    {!stammdatenOpen && settings?.property_number && (
+                      <span className="ml-2 text-xs font-mono text-muted-foreground">Nr. {settings.property_number}</span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Liegenschaftsnummer</Label>
+                    <Input value={settings?.property_number ?? "…"} readOnly className="font-mono bg-muted" />
+                    <p className="text-xs text-muted-foreground mt-1">Wird automatisch vergeben.</p>
+                  </div>
+                  <div>
+                    <Label>Schließplannummer</Label>
+                    <Input
+                      value={planNumber}
+                      onChange={(e) => setPlanNumber(e.target.value)}
+                      onBlur={(e) => savePlanNumber(e.target.value)}
+                      placeholder="z.B. SP-2024-001"
+                      className="font-mono"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Schließplan (Datei)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input type="file" accept="application/pdf,image/*" onChange={(e) => e.target.files?.[0] && uploadClosingPlan(e.target.files[0])} />
+                      {settings?.closing_plan_path && (
+                        <Button variant="outline" size="sm" onClick={downloadClosingPlan}>Öffnen</Button>
+                      )}
+                    </div>
+                    {settings?.closing_plan_name && (
+                      <p className="text-xs text-muted-foreground mt-1">{settings.closing_plan_name}</p>
+                    )}
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
 
           {/* Anhängerliste */}
           <Card>
@@ -356,7 +395,13 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
                   options={subjectTypes}
                   table="key_subject_types"
                   label="Schlüsseltyp"
-                  extraFields={[{ label: "Icon (lucide name)", key: "icon", placeholder: "key-round" }]}
+                  extraFields={[{ label: "Icon", key: "icon", type: "icon" }]}
+                  renderOption={(o: any) => (
+                    <span className="flex items-center gap-2">
+                      <HouseIcon name={o.icon} className="h-4 w-4 text-muted-foreground" />
+                      {o.name}
+                    </span>
+                  )}
                   queryKey={["key-subject-types"]}
                 />
               </div>
@@ -391,6 +436,7 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
                 const mf = manufacturers.find(m => m.id === k.manufacturer_id);
                 return (
                   <div key={k.id} className="flex items-center gap-3 px-2 py-1.5 border border-border/60 rounded bg-background">
+                    <HouseIcon name={(st as any)?.icon} className="h-4 w-4 text-muted-foreground shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm">{st?.name ?? "Schlüssel"} {k.key_number && <span className="font-mono text-muted-foreground">· {k.key_number}</span>}</div>
                       <div className="text-xs text-muted-foreground truncate">{mf?.name ?? "—"}{k.notes ? ` · ${k.notes}` : ""}</div>

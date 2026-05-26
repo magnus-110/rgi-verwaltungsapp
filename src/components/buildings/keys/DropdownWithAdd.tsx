@@ -4,12 +4,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { IconPicker } from "./IconPicker";
 
-type Field = { label: string; key: string; required?: boolean; placeholder?: string };
+type Field = { label: string; key: string; required?: boolean; placeholder?: string; type?: "text" | "icon" };
 
 interface Props<T extends { id: string; name: string }> {
   value: string | undefined;
@@ -43,15 +44,37 @@ export function DropdownWithAdd<T extends { id: string; name: string }>({
     setForm({ name: "" });
   };
 
+  const remove = async (e: React.MouseEvent, id: string, name: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`„${name}" wirklich entfernen?`)) return;
+    const { error } = await supabase.from(table as any).update({ is_active: false } as any).eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    await qc.invalidateQueries({ queryKey });
+    if (value === id) onChange("");
+    toast.success("Entfernt");
+  };
+
   return (
     <>
       <Select value={value} onValueChange={(v) => v === "__add__" ? setOpen(true) : onChange(v)}>
         <SelectTrigger><SelectValue placeholder={placeholder ?? `${label} wählen`} /></SelectTrigger>
         <SelectContent>
           {options.map(o => (
-            <SelectItem key={o.id} value={o.id}>
-              {renderOption ? renderOption(o) : o.name}
-            </SelectItem>
+            <div key={o.id} className="flex items-center pr-1 hover:bg-accent rounded-sm">
+              <SelectItem value={o.id} className="flex-1">
+                {renderOption ? renderOption(o) : o.name}
+              </SelectItem>
+              <button
+                type="button"
+                onClick={(e) => remove(e, o.id, o.name)}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="p-1 text-muted-foreground hover:text-destructive shrink-0"
+                title="Entfernen"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
           ))}
           <SelectSeparator />
           <SelectItem value="__add__"><span className="flex items-center gap-1 text-primary"><Plus className="h-3 w-3" /> Neu hinzufügen</span></SelectItem>
@@ -69,11 +92,15 @@ export function DropdownWithAdd<T extends { id: string; name: string }>({
             {extraFields.map(f => (
               <div key={f.key}>
                 <Label>{f.label}{f.required && " *"}</Label>
-                <Input
-                  value={form[f.key] ?? ""}
-                  placeholder={f.placeholder}
-                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                />
+                {f.type === "icon" ? (
+                  <IconPicker value={form[f.key]} onChange={(v) => setForm({ ...form, [f.key]: v })} />
+                ) : (
+                  <Input
+                    value={form[f.key] ?? ""}
+                    placeholder={f.placeholder}
+                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                  />
+                )}
               </div>
             ))}
           </div>
