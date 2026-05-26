@@ -105,6 +105,20 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
     else { qc.invalidateQueries({ queryKey: ["key-settings", buildingId] }); toast.success("Schließplan hochgeladen"); }
   };
 
+  const uploadTagTemplate = async (file: File) => {
+    if (!file.name.toLowerCase().endsWith(".docx")) { toast.error("Bitte eine .docx-Datei hochladen"); return; }
+    const path = `${buildingId}/tag-template-${Date.now()}-${file.name}`;
+    const { error } = await supabase.storage.from("key-files").upload(path, file, { upsert: true });
+    if (error) { toast.error(error.message); return; }
+    const { error: e2 } = await supabase.from("key_property_settings").update({
+      tag_template_path: path,
+      tag_template_name: file.name,
+      tag_template_uploaded_at: new Date().toISOString(),
+    } as any).eq("building_id", buildingId);
+    if (e2) toast.error(e2.message);
+    else { qc.invalidateQueries({ queryKey: ["key-settings", buildingId] }); toast.success("Anhänger-Vorlage hochgeladen"); }
+  };
+
   const downloadClosingPlan = async () => {
     if (!settings?.closing_plan_path) return;
     const { data } = await supabase.storage.from("key-files").createSignedUrl(settings.closing_plan_path, 300);
