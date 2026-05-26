@@ -5330,6 +5330,446 @@ export type Database = {
           },
         ]
       }
+      key_events: {
+        Row: {
+          actor_label: string | null
+          actor_user_id: string | null
+          building_id: string
+          created_at: string
+          event_type: string
+          id: string
+          key_id: string | null
+          loan_id: string | null
+          payload: Json
+          tag_id: string | null
+        }
+        Insert: {
+          actor_label?: string | null
+          actor_user_id?: string | null
+          building_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          key_id?: string | null
+          loan_id?: string | null
+          payload?: Json
+          tag_id?: string | null
+        }
+        Update: {
+          actor_label?: string | null
+          actor_user_id?: string | null
+          building_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          key_id?: string | null
+          loan_id?: string | null
+          payload?: Json
+          tag_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "key_events_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "key_events_key_id_fkey"
+            columns: ["key_id"]
+            isOneToOne: false
+            referencedRelation: "keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "key_events_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "key_loans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "key_events_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "key_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      key_loans: {
+        Row: {
+          borrower_contact_id: string | null
+          borrower_email: string | null
+          borrower_name: string | null
+          building_id: string
+          created_at: string
+          due_at: string
+          id: string
+          issued_at: string
+          issued_by_user_id: string | null
+          notes: string | null
+          requires_signature: boolean
+          returned_at: string | null
+          returned_confirmed_by_user_id: string | null
+          send_confirmation_email: boolean
+          send_overdue_reminder: boolean
+          signature_data: string | null
+          status: Database["public"]["Enums"]["key_loan_status"]
+          tag_id: string
+          webhook_sent_at: string | null
+        }
+        Insert: {
+          borrower_contact_id?: string | null
+          borrower_email?: string | null
+          borrower_name?: string | null
+          building_id: string
+          created_at?: string
+          due_at: string
+          id?: string
+          issued_at?: string
+          issued_by_user_id?: string | null
+          notes?: string | null
+          requires_signature?: boolean
+          returned_at?: string | null
+          returned_confirmed_by_user_id?: string | null
+          send_confirmation_email?: boolean
+          send_overdue_reminder?: boolean
+          signature_data?: string | null
+          status?: Database["public"]["Enums"]["key_loan_status"]
+          tag_id: string
+          webhook_sent_at?: string | null
+        }
+        Update: {
+          borrower_contact_id?: string | null
+          borrower_email?: string | null
+          borrower_name?: string | null
+          building_id?: string
+          created_at?: string
+          due_at?: string
+          id?: string
+          issued_at?: string
+          issued_by_user_id?: string | null
+          notes?: string | null
+          requires_signature?: boolean
+          returned_at?: string | null
+          returned_confirmed_by_user_id?: string | null
+          send_confirmation_email?: boolean
+          send_overdue_reminder?: boolean
+          signature_data?: string | null
+          status?: Database["public"]["Enums"]["key_loan_status"]
+          tag_id?: string
+          webhook_sent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "key_loans_borrower_contact_id_fkey"
+            columns: ["borrower_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "key_loans_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "key_loans_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "key_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      key_manufacturers: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
+      key_property_settings: {
+        Row: {
+          building_id: string
+          closing_plan_name: string | null
+          closing_plan_path: string | null
+          closing_plan_uploaded_at: string | null
+          closing_plan_uploaded_by: string | null
+          property_number: string
+          updated_at: string
+        }
+        Insert: {
+          building_id: string
+          closing_plan_name?: string | null
+          closing_plan_path?: string | null
+          closing_plan_uploaded_at?: string | null
+          closing_plan_uploaded_by?: string | null
+          property_number?: string
+          updated_at?: string
+        }
+        Update: {
+          building_id?: string
+          closing_plan_name?: string | null
+          closing_plan_path?: string | null
+          closing_plan_uploaded_at?: string | null
+          closing_plan_uploaded_by?: string | null
+          property_number?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "key_property_settings_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: true
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      key_storage_locations: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      key_subject_types: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          icon: string | null
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      key_tags: {
+        Row: {
+          building_id: string
+          created_at: string
+          created_by: string | null
+          current_loan_id: string | null
+          id: string
+          key_type_id: string
+          notes: string | null
+          photo_path: string | null
+          sequence_number: number
+          storage_location_id: string
+          tag_number: string
+          updated_at: string
+        }
+        Insert: {
+          building_id: string
+          created_at?: string
+          created_by?: string | null
+          current_loan_id?: string | null
+          id?: string
+          key_type_id: string
+          notes?: string | null
+          photo_path?: string | null
+          sequence_number: number
+          storage_location_id: string
+          tag_number: string
+          updated_at?: string
+        }
+        Update: {
+          building_id?: string
+          created_at?: string
+          created_by?: string | null
+          current_loan_id?: string | null
+          id?: string
+          key_type_id?: string
+          notes?: string | null
+          photo_path?: string | null
+          sequence_number?: number
+          storage_location_id?: string
+          tag_number?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "key_tags_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "key_tags_current_loan_fk"
+            columns: ["current_loan_id"]
+            isOneToOne: false
+            referencedRelation: "key_loans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "key_tags_key_type_id_fkey"
+            columns: ["key_type_id"]
+            isOneToOne: false
+            referencedRelation: "key_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "key_tags_storage_location_id_fkey"
+            columns: ["storage_location_id"]
+            isOneToOne: false
+            referencedRelation: "key_storage_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      key_types: {
+        Row: {
+          code_suffix: string
+          color_hex: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          code_suffix?: string
+          color_hex?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          code_suffix?: string
+          color_hex?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      keys: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          key_number: string | null
+          manufacturer_id: string | null
+          notes: string | null
+          subject_type_id: string | null
+          tag_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          key_number?: string | null
+          manufacturer_id?: string | null
+          notes?: string | null
+          subject_type_id?: string | null
+          tag_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          key_number?: string | null
+          manufacturer_id?: string | null
+          notes?: string | null
+          subject_type_id?: string | null
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "keys_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "key_manufacturers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "keys_subject_type_id_fkey"
+            columns: ["subject_type_id"]
+            isOneToOne: false
+            referencedRelation: "key_subject_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "keys_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "key_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       maintenance_configs: {
         Row: {
           building_id: string
@@ -7657,6 +8097,7 @@ export type Database = {
         | "installment"
         | "annual_settlement"
         | "credit_note"
+      key_loan_status: "open" | "returned" | "lost"
       management_mode: "weg" | "rent"
       unit_kind:
         | "apartment"
@@ -7870,6 +8311,7 @@ export const Constants = {
         "annual_settlement",
         "credit_note",
       ],
+      key_loan_status: ["open", "returned", "lost"],
       management_mode: ["weg", "rent"],
       unit_kind: [
         "apartment",
