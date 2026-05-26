@@ -217,10 +217,10 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                       <Input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => e.target.files?.[0] && uploadTagTemplate(e.target.files[0])} />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Platzhalter in der Vorlage (beliebig formatierbar — Schriftgröße/Schriftart bleibt erhalten):
-                      <br />• <code className="font-mono">{"{dot}"}</code> → farbiger Punkt (Farbe = Schlüsseltyp)
-                      <br />• <code className="font-mono">{"{nummer}"}</code> → formatierte Anhängernummer (z.B. „1 / 0002 - 01")
-                      <br />• <code className="font-mono">{"{anhaenger}"}</code> → Kombi (großer Punkt + fette Nummer)
+                      Zwei Platzhalter in der Vorlage einfügen und nach Wunsch farbig formatieren (Hintergrund/Schrift):
+                      <br />• <code className="font-mono">{"{g}"}</code> → wird mit der Nummer gefüllt, wenn der Schlüsseltyp <b>grün</b> ist (sonst leer)
+                      <br />• <code className="font-mono">{"{r}"}</code> → wird mit der Nummer gefüllt, wenn der Schlüsseltyp <b>rot</b> ist (sonst leer)
+                      <br />Format der Nummer: „1 / 0002 - 01". Formatierung (Größe, Farbe, Hintergrund) übernimmt Word aus der Vorlage.
                       {(settings as any)?.tag_template_name && <> · Aktuell: {(settings as any).tag_template_name}</>}
                     </p>
                   </div>
