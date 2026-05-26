@@ -111,6 +111,33 @@ function isReddish(hex?: string): boolean {
 }
 
 /**
+ * Entfernt im <w:r>, der den gegebenen Platzhalter enthält, die Schattierung
+ * (<w:shd>) und die Schriftfarbe (<w:color>) aus dem <w:rPr>. Dadurch wird
+ * der farbige Hintergrund unsichtbar, wenn der Platzhalter leer bleibt.
+ */
+function stripRunColoring(xml: string, placeholder: string): string {
+  const tagIdx = xml.indexOf(placeholder);
+  if (tagIdx === -1) return xml;
+  // Run-Start vor dem Tag suchen
+  const runRe = /<w:r(?:\s[^>]*)?>/g;
+  let runStart = -1;
+  let m: RegExpExecArray | null;
+  while ((m = runRe.exec(xml)) !== null) {
+    if (m.index > tagIdx) break;
+    runStart = m.index;
+  }
+  if (runStart === -1) return xml;
+  const runEnd = xml.indexOf("</w:r>", tagIdx);
+  if (runEnd === -1) return xml;
+  const runXml = xml.slice(runStart, runEnd + "</w:r>".length);
+  const cleaned = runXml
+    .replace(/<w:shd\b[^/]*\/>/g, "")
+    .replace(/<w:color\b[^/]*\/>/g, "")
+    .replace(/<w:highlight\b[^/]*\/>/g, "");
+  return xml.slice(0, runStart) + cleaned + xml.slice(runEnd + "</w:r>".length);
+}
+
+/**
  * Ersetzt einen Platzhalter im document.xml, auch wenn Word ihn über
  * mehrere <w:r>/<w:t>-Runs gesplittet hat. Es wird NUR Text manipuliert –
  * Formatierung (rPr), Tabellen, Absätze und alle anderen Elemente bleiben
