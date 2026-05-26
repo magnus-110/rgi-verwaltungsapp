@@ -5519,6 +5519,9 @@ export type Database = {
           closing_plan_uploaded_at: string | null
           closing_plan_uploaded_by: string | null
           property_number: string
+          tag_template_name: string | null
+          tag_template_path: string | null
+          tag_template_uploaded_at: string | null
           updated_at: string
         }
         Insert: {
@@ -5529,6 +5532,9 @@ export type Database = {
           closing_plan_uploaded_at?: string | null
           closing_plan_uploaded_by?: string | null
           property_number?: string
+          tag_template_name?: string | null
+          tag_template_path?: string | null
+          tag_template_uploaded_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -5539,6 +5545,9 @@ export type Database = {
           closing_plan_uploaded_at?: string | null
           closing_plan_uploaded_by?: string | null
           property_number?: string
+          tag_template_name?: string | null
+          tag_template_path?: string | null
+          tag_template_uploaded_at?: string | null
           updated_at?: string
         }
         Relationships: [

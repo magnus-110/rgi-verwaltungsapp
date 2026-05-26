@@ -9,12 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, KeyRound, FileText, History, Trash2, Send, RotateCcw, AlertTriangle, Edit, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, KeyRound, FileText, History, Trash2, Send, RotateCcw, AlertTriangle, Edit, ChevronDown, ChevronRight, FileDown } from "lucide-react";
 import { KeyTag, KeyStorageLocation, KeyType, KeyEvent, KeyItem, KeySubjectType, KeyManufacturer } from "./types";
 import { KeyTagDialog } from "./KeyTagDialog";
 import { KeyLoanDialog } from "./KeyLoanDialog";
 import { DropdownWithAdd } from "./DropdownWithAdd";
 import { HouseIcon } from "./IconPicker";
+import { downloadFilledTagTemplate } from "./tagTemplate";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { format, isPast } from "date-fns";
@@ -102,6 +103,20 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
     });
     if (e2) toast.error(e2.message);
     else { qc.invalidateQueries({ queryKey: ["key-settings", buildingId] }); toast.success("Schließplan hochgeladen"); }
+  };
+
+  const uploadTagTemplate = async (file: File) => {
+    if (!file.name.toLowerCase().endsWith(".docx")) { toast.error("Bitte eine .docx-Datei hochladen"); return; }
+    const path = `${buildingId}/tag-template-${Date.now()}-${file.name}`;
+    const { error } = await supabase.storage.from("key-files").upload(path, file, { upsert: true });
+    if (error) { toast.error(error.message); return; }
+    const { error: e2 } = await supabase.from("key_property_settings").update({
+      tag_template_path: path,
+      tag_template_name: file.name,
+      tag_template_uploaded_at: new Date().toISOString(),
+    } as any).eq("building_id", buildingId);
+    if (e2) toast.error(e2.message);
+    else { qc.invalidateQueries({ queryKey: ["key-settings", buildingId] }); toast.success("Anhänger-Vorlage hochgeladen"); }
   };
 
   const downloadClosingPlan = async () => {
@@ -196,6 +211,16 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                       <p className="text-xs text-muted-foreground mt-1">{settings.closing_plan_name}</p>
                     )}
                   </div>
+                  <div className="md:col-span-2">
+                    <Label>Anhänger-Vorlage (Word .docx)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => e.target.files?.[0] && uploadTagTemplate(e.target.files[0])} />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Platzhalter in der Vorlage: <code className="font-mono">{"{@anhaenger}"}</code> — wird beim Download durch Anhängernummer, Typ (mit Farbpunkt) und Schließplannummer ersetzt.
+                      {(settings as any)?.tag_template_name && <> · Aktuell: {(settings as any).tag_template_name}</>}
+                    </p>
+                  </div>
                 </CardContent>
               </CollapsibleContent>
             </Card>
@@ -222,6 +247,26 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                     onLoan={() => setLoanDialog({ open: true, tag })}
                     onReturn={markReturned}
                     onLost={markLost}
+                    onDownloadTemplate={
+                      (settings as any)?.tag_template_path
+                        ? async () => {
+                            try {
+                              await downloadFilledTagTemplate({
+                                templatePath: (settings as any).tag_template_path,
+                                templateName: (settings as any).tag_template_name,
+                                tagNumber: tag.tag_number,
+                                typeName: types.find(t => t.id === tag.key_type_id)?.name,
+                                typeColorHex: types.find(t => t.id === tag.key_type_id)?.color_hex,
+                                closingPlanNumber: (settings as any)?.closing_plan_number,
+                                notes: tag.notes,
+                                propertyNumber: settings?.property_number,
+                              });
+                            } catch (e: any) {
+                              toast.error(e?.message ?? "Fehler beim Erzeugen");
+                            }
+                          }
+                        : undefined
+                    }
                   />
                 ))
               )}
@@ -303,9 +348,10 @@ interface TagRowProps {
   onLoan: () => void;
   onReturn: (id: string) => void;
   onLost: (id: string) => void;
+  onDownloadTemplate?: () => void;
 }
 
-const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLost }: TagRowProps) => {
+const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLost, onDownloadTemplate }: TagRowProps) => {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -370,6 +416,9 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
             </>
           ) : (
             <Button size="sm" variant="outline" onClick={onLoan}><Send className="h-3 w-3 mr-1" /> Ausgeben</Button>
+          )}
+          {onDownloadTemplate && (
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onDownloadTemplate} title="Word-Vorlage herunterladen"><FileDown className="h-3.5 w-3.5" /></Button>
           )}
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onEdit} title="Anhänger bearbeiten"><Edit className="h-3.5 w-3.5" /></Button>
           <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={onDelete} title="Löschen"><Trash2 className="h-3.5 w-3.5" /></Button>
