@@ -59,8 +59,8 @@ export async function downloadFilledTagTemplate(opts: {
   const esc = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-  const greenText = fillGreen ? esc(formattedNumber) : "";
-  const redText = fillRed ? esc(formattedNumber) : "";
+  const greenText = fillGreen ? "G" : "";
+  const redText = fillRed ? "R" : "";
 
   // Wenn {g} oder {r} nicht befüllt wird, soll die farbige Markierung NICHT
   // sichtbar sein → Schattierung (<w:shd>) und Schriftfarbe (<w:color>) aus
