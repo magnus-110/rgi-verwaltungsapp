@@ -12,6 +12,12 @@ export const EmailHtmlBody = ({ html, emailId }: EmailHtmlBodyProps) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(400);
 
+  // Reset when the email changes so stale state from a previous email is dropped
+  useEffect(() => {
+    setResolvedHtml(html);
+    setHeight(400);
+  }, [emailId, html]);
+
   const { data: inlineAttachments = [] } = useQuery({
     queryKey: ["email-inline-attachments", emailId],
     queryFn: async () => {
@@ -79,6 +85,7 @@ export const EmailHtmlBody = ({ html, emailId }: EmailHtmlBodyProps) => {
 
   return (
     <iframe
+      key={emailId}
       ref={iframeRef}
       title="E-Mail-Inhalt"
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"

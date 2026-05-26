@@ -1666,7 +1666,7 @@ export const Inbox = () => {
 
                   <div className="p-4">
                     {selectedEmail.body_html ? (
-                      <EmailHtmlBody html={selectedEmail.body_html} emailId={selectedEmail.id} />
+                      <EmailHtmlBody key={selectedEmail.id} html={selectedEmail.body_html} emailId={selectedEmail.id} />
                     ) : (
                       <pre className="text-sm whitespace-pre-wrap font-sans">{selectedEmail.body_text || "Kein Inhalt"}</pre>
                     )}
