@@ -153,29 +153,53 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
         </TabsList>
 
         <TabsContent value="tags" className="space-y-4 mt-4">
-          {/* Stammdaten */}
-          <Card>
-            <CardHeader><CardTitle className="text-base flex items-center gap-2"><FileText className="h-4 w-4" /> Stammdaten</CardTitle></CardHeader>
-            <CardContent className="grid md:grid-cols-2 gap-4">
-              <div>
-                <Label>Liegenschaftsnummer</Label>
-                <Input value={settings?.property_number ?? "…"} readOnly className="font-mono bg-muted" />
-                <p className="text-xs text-muted-foreground mt-1">Wird automatisch vergeben.</p>
-              </div>
-              <div>
-                <Label>Schließplan</Label>
-                <div className="flex items-center gap-2">
-                  <Input type="file" accept="application/pdf,image/*" onChange={(e) => e.target.files?.[0] && uploadClosingPlan(e.target.files[0])} />
-                  {settings?.closing_plan_path && (
-                    <Button variant="outline" size="sm" onClick={downloadClosingPlan}>Öffnen</Button>
-                  )}
-                </div>
-                {settings?.closing_plan_name && (
-                  <p className="text-xs text-muted-foreground mt-1">{settings.closing_plan_name}</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Stammdaten (einklappbar) */}
+          <Collapsible open={stammdatenOpen} onOpenChange={setStammdatenOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer hover:bg-muted/40 transition-colors">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    {stammdatenOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    <FileText className="h-4 w-4" /> Stammdaten
+                    {!stammdatenOpen && settings?.property_number && (
+                      <span className="ml-2 text-xs font-mono text-muted-foreground">Nr. {settings.property_number}</span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Liegenschaftsnummer</Label>
+                    <Input value={settings?.property_number ?? "…"} readOnly className="font-mono bg-muted" />
+                    <p className="text-xs text-muted-foreground mt-1">Wird automatisch vergeben.</p>
+                  </div>
+                  <div>
+                    <Label>Schließplannummer</Label>
+                    <Input
+                      value={planNumber}
+                      onChange={(e) => setPlanNumber(e.target.value)}
+                      onBlur={(e) => savePlanNumber(e.target.value)}
+                      placeholder="z.B. SP-2024-001"
+                      className="font-mono"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Schließplan (Datei)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input type="file" accept="application/pdf,image/*" onChange={(e) => e.target.files?.[0] && uploadClosingPlan(e.target.files[0])} />
+                      {settings?.closing_plan_path && (
+                        <Button variant="outline" size="sm" onClick={downloadClosingPlan}>Öffnen</Button>
+                      )}
+                    </div>
+                    {settings?.closing_plan_name && (
+                      <p className="text-xs text-muted-foreground mt-1">{settings.closing_plan_name}</p>
+                    )}
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
 
           {/* Anhängerliste */}
           <Card>
