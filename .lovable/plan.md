@@ -1,29 +1,64 @@
-## Ziel
+## Änderungen am Schlüssel-Modul
 
-Den bestehenden `CashAuditIntroDialog` in einen **mehrstufigen, ruhig gestalteten Wizard** umbauen — visuell angelehnt an den Onboarding-Flow (`WelcomeScreen` / `OnboardingWizardModal`): viel Whitespace, große Cards mit dünner Primary-Linie oben, wenig Text pro Schritt, klare Buttons.
+### 1. Bug: „Anhänger bearbeiten" öffnet erst nach Zurück
+**Ursache:** In `BuildingKeysTab.tsx` gibt es bei `detailTag` einen Early-Return (`return <KeyTagDetail … />`). Der `<KeyTagDialog>` wird darunter im Haupt-Render gerendert und ist deshalb nicht im DOM, solange die Detail-Ansicht aktiv ist. `onEdit` setzt zwar `tagDialog.open = true`, aber der Dialog existiert nicht — er erscheint erst, sobald man auf „Zurück" klickt und der Haupt-Render greift.
 
-## Inhalt der 5 Schritte
+**Fix:** Den Early-Return entfernen und die Detail-Ansicht bedingt **innerhalb** des Haupt-Renders zeigen, sodass `<KeyTagDialog>` immer mountet. Alternativ: Edit-Aktion aus der Detail-Ansicht erst `setDetailTag(null)` aufrufen und danach `setTagDialog`. Wir wählen Variante 1 (Dialog immer gemountet) — robuster.
 
-1. **Willkommen** – Begrüßung, Liegenschaft + Wirtschaftsjahr, Übersicht „Was Sie erwartet" (Liste der folgenden Schritte). Button: „Jetzt starten".
-2. **Die vier Tabs** – Kompakte Liste der Tabs (Kontenblätter, Buchungsjournal, Dokumente, Hinweise) je mit einem Satz. Icon + Titel + 1 Zeile.
-3. **Buchungen prüfen** – Erklärt den Klick auf eine Buchung, das Aufpoppen der Detailansicht mit Beleg/Vorlage, und das Markieren mit „✓ Geprüft" / „⚠ Auffällig".
-4. **Vorlagen** – „Eine Buchungsvorlage steht für eine wiederkehrende Zahlung wie **Hausgeld**, **Verwaltergebühr** oder **Abschlagszahlungen** (Strom, Wasser, Heizung). Sie ersetzt die monatliche Einzelrechnung."
-5. **Interne Buchungen** – „Manche Buchungen brauchen keinen externen Beleg, z. B. Umbuchungen zwischen Konten, Heizkostenumlagen, Abgrenzungen oder Eröffnungs-/Schlussbuchungen." Button: „Verstanden, los geht's" + Checkbox „Nicht mehr automatisch anzeigen".
+### 2. Tab-Aufteilung in der BuildingKeysTab
+Statt einer langen Seite mit drei gestapelten Cards (Stammdaten + Anhänger + Verlauf) bekommen wir interne Tabs:
 
-→ **Faustregel-Absatz entfällt.**
+- **Tab „Anhänger"** — Stammdaten-Card (Liegenschaftsnummer + Schließplan) + Anhängerliste
+- **Tab „Verlauf"** — Filter (Anhänger / Event-Typ) + chronologische Event-Liste
 
-## Design
+Implementierung mit dem bestehenden `Tabs`-Component (`@/components/ui/tabs`).
 
-- Modal-Container schmal (`max-w-md`), zentriert, viel vertikales Padding.
-- Jede Seite = eine Karte im Stil `rounded-[16px] border border-border/50` mit 1 px Primary-Bar oben (wie WelcomeScreen).
-- Headline `font-display`, leichte Spacing, kurzer Lead-Satz, dann Inhalt.
-- Step-Indicator unten als kleine Punkte (5 Dots, aktiver Punkt = Primary, andere = `bg-muted`).
-- Footer: links „Zurück" (ghost, ab Schritt 2 sichtbar), rechts „Weiter" / am Ende „Verstanden, los geht's" (Primary, full-width-Akzent wie im Onboarding).
-- Auf Schritt 5 zusätzlich Checkbox „Nicht mehr automatisch anzeigen" (Default an).
-- Nur semantische Tailwind-Tokens, keine harten Farben.
+### 3. Liegenschaftsnummer automatisch generieren (001, 002, …)
+Aktuell ist `property_number` ein manuelles Pflichtfeld. Stattdessen:
 
-## Datei-Änderungen
+- **DB-Migration:** Trigger `BEFORE INSERT` auf `key_property_settings`, der bei leerem `property_number` automatisch die nächste freie 3-stellige Nummer berechnet:
+  ```
+  SELECT lpad((COALESCE(MAX(property_number::int), 0) + 1)::text, 3, '0')
+  FROM key_property_settings
+  WHERE property_number ~ '^[0-9]+$';
+  ```
+- **Auto-Initialisierung im UI:** Beim ersten Öffnen der Schlüssel-Tab eines Gebäudes ohne Settings-Zeile wird automatisch eine Zeile angelegt (Insert mit nur `building_id`) → Trigger vergibt die Nummer.
+- **UI-Feld** wird auf „read-only" gestellt (man sieht die Nummer, kann sie aber nicht mehr editieren). Editieren bei Altbestand-Migration kann später ergänzt werden.
 
-- **Edit:** `src/components/finance/CashAuditIntroDialog.tsx` — komplettes Re-Design als interner State-Wizard (Step 1…5). Selbe Props (`open`, `onClose(dontShow)`, `buildingName`, `fiscalYear`). Keine Änderung an `CashAuditWizard.tsx` nötig.
+### 4. Anhänger als Liste mit Schlüsseln drunter
+Statt 3-Spalten-Card-Grid mit Klick auf Detail-Ansicht:
 
-Keine DB-, Routing- oder Logik-Änderungen.
+- Liste in Reihen (eine Card pro Anhänger), volle Breite.
+- Pro Reihe links: Farbstreifen + Anhängernummer + Typ + Foto-Thumb (klein) + Leih-Badge.
+- Rechts: Aktionen (`Ausgeben` / `Zurück` / `Verloren`, `Bearbeiten`, `Löschen`).
+- **Darunter direkt eingebettet:** Sub-Liste der zugeordneten Schlüssel (Typ, Nummer, Hersteller, Notiz, Löschen) + „+ Schlüssel"-Button.
+- Klick auf den Anhänger ist nicht mehr nötig; die Detail-Seite (`KeyTagDetail.tsx`) wird obsolet und entfernt. Schlüssel-Hinzufügen-Form (die in `KeyTagDetail.tsx` steckt) wandert als kollabierbares Inline-Form in die neue Listen-Card.
+
+```
+┌────────────────────────────────────────────────────────────┐
+│ ▌1/001-01G   Generalschlüssel    [Verliehen bis 30.05.]   │
+│              📷                                            │
+│              [Ausgeben] [Bearbeiten] [Löschen]            │
+│   ─ Schlüssel (2) ───────────────────────  + Schlüssel    │
+│   • Wohnungstür · Nr. 4711 · KESO · "Kopie"        🗑     │
+│   • Briefkasten · Nr. 0815 · BKS                   🗑     │
+└────────────────────────────────────────────────────────────┘
+```
+
+### 5. Aufräumarbeiten
+- `KeyTagDetail.tsx` wird gelöscht.
+- `BuildingKeysTab.tsx` enthält jetzt: Tabs, neue `TagListRow`-Sub-Komponente (inkl. Inline-Schlüssel-Liste + Add-Form), unveränderte Dialoge (`KeyTagDialog`, `KeyLoanDialog`).
+
+---
+
+## Technische Notizen
+
+- Keine neuen Tabellen/Spalten nötig (nur 1 Trigger auf `key_property_settings`).
+- Cache-Invalidation: `["key-tags", buildingId]`, `["keys", tagId]`, `["key-events", buildingId]`, `["key-settings", buildingId]`, `["outstanding-keys"]` (Dashboard-Widget).
+- Bestehende Dialoge (`KeyTagDialog`, `KeyLoanDialog`) bleiben unverändert.
+
+## Betroffene Dateien
+
+- `src/components/buildings/keys/BuildingKeysTab.tsx` (Refactor: Tabs + Listen-Ansicht + Bugfix)
+- `src/components/buildings/keys/KeyTagDetail.tsx` (löschen, Inline-Add-Form übernehmen)
+- Neue Supabase-Migration für `auto_property_number`-Trigger
