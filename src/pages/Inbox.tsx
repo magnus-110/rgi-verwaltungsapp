@@ -1665,11 +1665,16 @@ export const Inbox = () => {
                   <Separator />
 
                   <div className="p-4">
-                    {selectedEmail.body_html ? (
-                      <EmailHtmlBody key={selectedEmail.id} html={selectedEmail.body_html} emailId={selectedEmail.id} />
-                    ) : (
-                      <pre className="text-sm whitespace-pre-wrap font-sans">{selectedEmail.body_text || "Kein Inhalt"}</pre>
-                    )}
+                    {(() => {
+                      const html = selectedEmail.body_html ?? "";
+                      const stripped = html.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim();
+                      if (html && stripped.length > 0) {
+                        return <EmailHtmlBody key={selectedEmail.id} html={html} emailId={selectedEmail.id} />;
+                      }
+                      return (
+                        <pre className="text-sm whitespace-pre-wrap font-sans">{selectedEmail.body_text || "Kein Inhalt"}</pre>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div className="p-3 border-t flex gap-2">
