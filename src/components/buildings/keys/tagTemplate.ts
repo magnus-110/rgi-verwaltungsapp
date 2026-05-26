@@ -68,7 +68,17 @@ export async function downloadFilledTagTemplate(opts: {
     delimiters: { start: "{", end: "}" },
   });
 
-  doc.render({ anhaenger: rawXml });
+  try {
+    doc.render({ anhaenger: rawXml });
+  } catch (err: any) {
+    const props = err?.properties?.errors?.[0]?.properties ?? err?.properties;
+    if (props?.id === "raw_xml_tag_should_be_only_text_in_paragraph") {
+      throw new Error(
+        'Der Platzhalter {@anhaenger} muss alleine in einer eigenen Zeile stehen (keine weiteren Texte oder Leerzeichen in derselben Zeile). Bitte in der Vorlage eine leere Zeile einfügen und dort nur {@anhaenger} schreiben.'
+      );
+    }
+    throw err;
+  }
 
   const out = doc.getZip().generate({
     type: "blob",
