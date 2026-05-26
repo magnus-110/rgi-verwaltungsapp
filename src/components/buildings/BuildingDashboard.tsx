@@ -175,6 +175,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "distribution", label: "Kontenrahmen" },
               ...(building.management_mode === 'weg' ? [{ value: "resolutions", label: "Beschlüsse" }] : []),
               { value: "maintenance", label: "Wartung" },
+              { value: "keys", label: "Schlüssel" },
               { value: "onboarding", label: "Onboarding" },
             ].map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} variant="underline"
