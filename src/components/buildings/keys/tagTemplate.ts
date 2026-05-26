@@ -62,8 +62,15 @@ export async function downloadFilledTagTemplate(opts: {
   const greenText = fillGreen ? esc(formattedNumber) : "";
   const redText = fillRed ? esc(formattedNumber) : "";
 
+  // Wenn {g} oder {r} nicht befüllt wird, soll die farbige Markierung NICHT
+  // sichtbar sein → Schattierung (<w:shd>) und Schriftfarbe (<w:color>) aus
+  // dem zugehörigen Run entfernen, damit der Hintergrund verschwindet.
+  if (!fillGreen) xml = stripRunColoring(xml, "{g}");
+  if (!fillRed) xml = stripRunColoring(xml, "{r}");
+
   xml = replaceSplitPlaceholder(xml, "{g}", greenText);
   xml = replaceSplitPlaceholder(xml, "{r}", redText);
+  xml = replaceSplitPlaceholder(xml, "{nummer}", esc(formattedNumber));
 
   zip.file("word/document.xml", xml);
 
