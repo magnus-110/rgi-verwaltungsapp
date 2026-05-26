@@ -211,6 +211,16 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                       <p className="text-xs text-muted-foreground mt-1">{settings.closing_plan_name}</p>
                     )}
                   </div>
+                  <div className="md:col-span-2">
+                    <Label>Anhänger-Vorlage (Word .docx)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => e.target.files?.[0] && uploadTagTemplate(e.target.files[0])} />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Platzhalter in der Vorlage: <code className="font-mono">{"{@anhaenger}"}</code> — wird beim Download durch Anhängernummer, Typ (mit Farbpunkt) und Schließplannummer ersetzt.
+                      {(settings as any)?.tag_template_name && <> · Aktuell: {(settings as any).tag_template_name}</>}
+                    </p>
+                  </div>
                 </CardContent>
               </CollapsibleContent>
             </Card>
