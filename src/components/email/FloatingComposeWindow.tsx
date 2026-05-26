@@ -171,6 +171,11 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
 
+  // Draggable position state (desktop only, but declared here to keep hook order stable across mobile/desktop switches)
+  const [dragPos, setDragPos] = useState<{ left: number; top: number } | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; origLeft: number; origTop: number } | null>(null);
+
+
   const isFullscreen = compose.mode === "fullscreen";
 
   const update = useCallback(
@@ -947,9 +952,8 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   }
 
   // ===== DESKTOP: docked block bottom-right OR fullscreen =====
-  // Draggable position state (only used when docked, not fullscreen)
-  const [dragPos, setDragPos] = useState<{ left: number; top: number } | null>(null);
-  const dragRef = useRef<{ startX: number; startY: number; origLeft: number; origTop: number } | null>(null);
+  // dragPos/dragRef declared above (hook order must be stable)
+
   const WIN_W = 560;
   const WIN_H = 760;
 
