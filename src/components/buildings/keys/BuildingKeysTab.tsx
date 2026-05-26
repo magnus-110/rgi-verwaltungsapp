@@ -247,6 +247,26 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                     onLoan={() => setLoanDialog({ open: true, tag })}
                     onReturn={markReturned}
                     onLost={markLost}
+                    onDownloadTemplate={
+                      (settings as any)?.tag_template_path
+                        ? async () => {
+                            try {
+                              await downloadFilledTagTemplate({
+                                templatePath: (settings as any).tag_template_path,
+                                templateName: (settings as any).tag_template_name,
+                                tagNumber: tag.tag_number,
+                                typeName: types.find(t => t.id === tag.key_type_id)?.name,
+                                typeColorHex: types.find(t => t.id === tag.key_type_id)?.color_hex,
+                                closingPlanNumber: (settings as any)?.closing_plan_number,
+                                notes: tag.notes,
+                                propertyNumber: settings?.property_number,
+                              });
+                            } catch (e: any) {
+                              toast.error(e?.message ?? "Fehler beim Erzeugen");
+                            }
+                          }
+                        : undefined
+                    }
                   />
                 ))
               )}
