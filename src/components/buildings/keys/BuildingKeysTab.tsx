@@ -395,7 +395,13 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
                   options={subjectTypes}
                   table="key_subject_types"
                   label="Schlüsseltyp"
-                  extraFields={[{ label: "Icon (lucide name)", key: "icon", placeholder: "key-round" }]}
+                  extraFields={[{ label: "Icon", key: "icon", type: "icon" }]}
+                  renderOption={(o: any) => (
+                    <span className="flex items-center gap-2">
+                      <HouseIcon name={o.icon} className="h-4 w-4 text-muted-foreground" />
+                      {o.name}
+                    </span>
+                  )}
                   queryKey={["key-subject-types"]}
                 />
               </div>
