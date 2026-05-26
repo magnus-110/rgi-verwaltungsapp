@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown } from "lucide-react";
+import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { SaveAttachmentToBuildingDialog } from "./SaveAttachmentToBuildingDialog";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
 import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
+import { mergeImagesToPdf } from "./lib/mergeImagesToPdf";
 
 interface EmailAttachmentsProps {
   emailId: string;
@@ -39,8 +41,14 @@ const isXml = (mimeType: string | null, fileName: string) => {
   return fileName.toLowerCase().endsWith(".xml");
 };
 
+const isImage = (mimeType: string | null, fileName: string) => {
+  if (mimeType?.startsWith("image/jpeg") || mimeType?.startsWith("image/png")) return true;
+  const lower = fileName.toLowerCase();
+  return lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png");
+};
+
 const isImportableInvoice = (mimeType: string | null, fileName: string) =>
-  isPdf(mimeType, fileName) || isXml(mimeType, fileName);
+  isPdf(mimeType, fileName) || isXml(mimeType, fileName) || isImage(mimeType, fileName);
 
 export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const navigate = useNavigate();
@@ -51,6 +59,8 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewMeta, setPreviewMeta] = useState<{ name: string; mimeType: string | null }>({ name: "", mimeType: null });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [mergeImporting, setMergeImporting] = useState(false);
 
   const { data: attachments = [] } = useQuery({
     queryKey: ["email-attachments", emailId],
