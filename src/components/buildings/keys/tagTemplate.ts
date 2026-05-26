@@ -180,14 +180,68 @@ function replacePlaceholderInRun(
  * zusammengesetzt den Tag ergeben, und mergt die Runs zu einem einzigen.
  */
 function mergeAdjacentRunsForTag(xml: string, tag: string): string {
-  return xml.replace(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g, (paragraph) => {
-    const textMatches = [...paragraph.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)];
-    const combined = textMatches.map((m) => m[1]).join("");
-    if (!combined.includes(tag)) return paragraph;
-    const newRun = `<w:r><w:t xml:space="preserve">${combined}</w:t></w:r>`;
-    const pPrMatch = paragraph.match(/<w:pPr>[\s\S]*?<\/w:pPr>/);
-    const openTagMatch = paragraph.match(/^<w:p\b[^>]*>/);
-    const openTag = openTagMatch ? openTagMatch[0] : "<w:p>";
-    return `${openTag}${pPrMatch ? pPrMatch[0] : ""}${newRun}</w:p>`;
-  });
+  // Nur eingreifen, wenn der Tag tatsächlich über mehrere Runs gesplittet ist.
+  // Ein einzelnes <w:t>, das den Tag schon enthält, wird NICHT angefasst –
+  // damit bleiben rPr (Farbe/Größe/Font) und andere Runs/Objekte erhalten.
+  const runRegex = /<w:r\b(?:\s[^>]*)?>[\s\S]*?<\/w:r>/g;
+  const runs: { start: number; end: number; text: string; xml: string }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = runRegex.exec(xml)) !== null) {
+    const runXml = m[0];
+    const textParts = [...runXml.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map(
+      (t) => t[1],
+    );
+    runs.push({
+      start: m.index,
+      end: m.index + runXml.length,
+      text: textParts.join(""),
+      xml: runXml,
+    });
+  }
+
+  // Suche aufeinanderfolgende Runs, deren konkateniertes Text den Tag enthält,
+  // wo aber kein einzelner Run ihn enthält.
+  let safety = 0;
+  outer: while (safety++ < 100) {
+    for (let i = 0; i < runs.length; i++) {
+      if (runs[i].text.includes(tag)) continue; // bereits in einem Run komplett
+      let combined = runs[i].text;
+      for (let j = i + 1; j < Math.min(i + 8, runs.length); j++) {
+        combined += runs[j].text;
+        if (combined.includes(tag)) {
+          // Merge runs i..j: rPr vom ersten Run beibehalten, Texte zusammenführen.
+          const first = runs[i];
+          const last = runs[j];
+          const rPrMatch = first.xml.match(/<w:rPr>[\s\S]*?<\/w:rPr>/);
+          const rPr = rPrMatch ? rPrMatch[0] : "";
+          const esc = (s: string) =>
+            s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          // Originaltexte sind bereits XML-escaped → nicht erneut escapen.
+          const mergedText = combined;
+          const newRun = `<w:r>${rPr}<w:t xml:space="preserve">${mergedText}</w:t></w:r>`;
+          xml = xml.slice(0, first.start) + newRun + xml.slice(last.end);
+          // Neu indexieren
+          runs.length = 0;
+          let mm: RegExpExecArray | null;
+          runRegex.lastIndex = 0;
+          while ((mm = runRegex.exec(xml)) !== null) {
+            const rx = mm[0];
+            const tp = [...rx.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map(
+              (t) => t[1],
+            );
+            runs.push({
+              start: mm.index,
+              end: mm.index + rx.length,
+              text: tp.join(""),
+              xml: rx,
+            });
+          }
+          continue outer;
+        }
+      }
+    }
+    break;
+  }
+  return xml;
 }
+
