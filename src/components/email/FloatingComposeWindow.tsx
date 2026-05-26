@@ -952,9 +952,8 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   }
 
   // ===== DESKTOP: docked block bottom-right OR fullscreen =====
-  // Draggable position state (only used when docked, not fullscreen)
-  const [dragPos, setDragPos] = useState<{ left: number; top: number } | null>(null);
-  const dragRef = useRef<{ startX: number; startY: number; origLeft: number; origTop: number } | null>(null);
+  // dragPos/dragRef declared above (hook order must be stable)
+
   const WIN_W = 560;
   const WIN_H = 760;
 
