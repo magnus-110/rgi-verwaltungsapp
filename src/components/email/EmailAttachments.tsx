@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown } from "lucide-react";
+import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { SaveAttachmentToBuildingDialog } from "./SaveAttachmentToBuildingDialog";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
 import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
+import { mergeImagesToPdf } from "./lib/mergeImagesToPdf";
 
 interface EmailAttachmentsProps {
   emailId: string;
@@ -39,6 +41,12 @@ const isXml = (mimeType: string | null, fileName: string) => {
   return fileName.toLowerCase().endsWith(".xml");
 };
 
+const isImage = (mimeType: string | null, fileName: string) => {
+  if (mimeType?.startsWith("image/jpeg") || mimeType?.startsWith("image/png")) return true;
+  const lower = fileName.toLowerCase();
+  return lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png");
+};
+
 const isImportableInvoice = (mimeType: string | null, fileName: string) =>
   isPdf(mimeType, fileName) || isXml(mimeType, fileName);
 
@@ -51,6 +59,8 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewMeta, setPreviewMeta] = useState<{ name: string; mimeType: string | null }>({ name: "", mimeType: null });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [mergeImporting, setMergeImporting] = useState(false);
 
   const { data: attachments = [] } = useQuery({
     queryKey: ["email-attachments", emailId],
@@ -163,21 +173,217 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
     }
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const moveSelected = (id: string, dir: -1 | 1) => {
+    setSelectedIds((prev) => {
+      const idx = prev.indexOf(id);
+      if (idx < 0) return prev;
+      const target = idx + dir;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
+  };
+
+  const handleImportMergedAsInvoice = async (asCreditNote: boolean) => {
+    const selected = selectedIds
+      .map((id) => attachments.find((a) => a.id === id))
+      .filter((a): a is NonNullable<typeof a> => !!a && !!a.file_path);
+    if (selected.length < 2) return;
+    setMergeImporting(true);
+    try {
+      // 1. Download all images
+      const images = await Promise.all(
+        selected.map(async (att) => {
+          const { data: signed, error } = await supabase.storage
+            .from("email-attachments")
+            .createSignedUrl(att.file_path!, 300);
+          if (error || !signed?.signedUrl) throw new Error(`Datei nicht lesbar: ${att.file_name}`);
+          const res = await fetch(signed.signedUrl);
+          if (!res.ok) throw new Error(`Download fehlgeschlagen: ${att.file_name}`);
+          const blob = await res.blob();
+          return { blob, mimeType: att.mime_type, fileName: att.file_name };
+        })
+      );
+
+      // 2. Merge to one PDF
+      const pdfBlob = await mergeImagesToPdf(images);
+
+      // 3. Upload to invoices bucket
+      const timestamp = Date.now();
+      const folder = asCreditNote ? "credit_notes" : "unassigned";
+      const baseName = sanitizeStorageKey(`rechnung_${selected.length}seiten.pdf`);
+      const invoicePath = `${folder}/${timestamp}_${baseName}`;
+      const { error: upErr } = await supabase.storage
+        .from("invoices")
+        .upload(invoicePath, pdfBlob, { contentType: "application/pdf" });
+      if (upErr) throw upErr;
+
+      // 4. Create invoice
+      const insertPayload: any = {
+        file_name: baseName,
+        file_path: invoicePath,
+        status: asCreditNote ? "credit_open" : "open",
+        ocr_status: "pending",
+      };
+      if (asCreditNote) insertPayload.invoice_type = "credit_note";
+
+      const { data: invoice, error: insErr } = await (supabase
+        .from("invoices") as any)
+        .insert(insertPayload)
+        .select("id")
+        .single();
+      if (insErr) throw insErr;
+
+      // 5. Trigger OCR
+      supabase.functions
+        .invoke("extract-invoice", { body: { invoiceId: invoice.id } })
+        .catch((err) => console.error("OCR trigger error:", err));
+
+      if (asCreditNote) {
+        supabase.functions
+          .invoke("match-credit-note", { body: { invoiceId: invoice.id } })
+          .catch((err) => console.error("Credit-note match error:", err));
+      }
+
+      setImportedIds((prev) => {
+        const next = new Set(prev);
+        selected.forEach((s) => next.add(s.id));
+        return next;
+      });
+      setSelectedIds([]);
+      toast.success(
+        `${selected.length} Anhänge zu einer Rechnung zusammengeführt – OCR läuft`,
+        {
+          action: {
+            label: asCreditNote ? "Zu Zahlungen (Eingehend)" : "Zu Zahlungen",
+            onClick: () =>
+              navigate(asCreditNote ? "/zahlungen?direction=incoming" : "/zahlungen?direction=outgoing"),
+          },
+        }
+      );
+    } catch (err: any) {
+      toast.error("Zusammenführen fehlgeschlagen: " + err.message);
+    } finally {
+      setMergeImporting(false);
+    }
+  };
+
+  const selectableImageCount = attachments.filter((a) => isImage(a.mime_type, a.file_name)).length;
+
   return (
     <div className="border-t pt-3 mt-3">
       <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-2">
         <Paperclip className="h-4 w-4" />
         {attachments.length} Anhang{attachments.length > 1 ? "e" : ""}
       </div>
+
+      {selectedIds.length >= 2 && (
+        <div className="flex items-center justify-between gap-2 mb-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+          <div className="flex items-center gap-2 text-sm">
+            <Layers className="h-4 w-4 text-primary" />
+            <span className="font-medium">{selectedIds.length} Bilder ausgewählt</span>
+            <span className="text-muted-foreground">
+              · Reihenfolge:{" "}
+              {selectedIds
+                .map((id) => attachments.find((a) => a.id === id)?.file_name || "?")
+                .join(" → ")}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds([])} disabled={mergeImporting}>
+              <X className="h-3.5 w-3.5 mr-1" /> Auswahl aufheben
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" disabled={mergeImporting}>
+                  {mergeImporting ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                  )}
+                  Als eine Rechnung importieren
+                  <ChevronDown className="h-3 w-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleImportMergedAsInvoice(false)}>
+                  <Sparkles className="h-3.5 w-3.5 mr-2" />
+                  Eingangsrechnung (zu zahlen)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleImportMergedAsInvoice(true)}>
+                  <ArrowDownToLine className="h-3.5 w-3.5 mr-2 text-green-600" />
+                  Beleg für Zahlungseingang
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      )}
+
+      {selectableImageCount >= 2 && selectedIds.length < 2 && (
+        <div className="text-xs text-muted-foreground mb-2">
+          Tipp: Mehrere Bilder ankreuzen, um sie als eine Rechnung an die OCR zu schicken.
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2">
         {attachments.map((att) => {
           const Icon = getFileIcon(att.mime_type);
           const canImport = isImportableInvoice(att.mime_type, att.file_name);
           const isImporting = importingId === att.id;
           const isImported = importedIds.has(att.id);
+          const canSelect = isImage(att.mime_type, att.file_name) && !!att.file_path && !isImported;
+          const selectedIdx = selectedIds.indexOf(att.id);
+          const isSelected = selectedIdx >= 0;
 
           return (
-            <div key={att.id} className="flex items-center gap-1">
+            <div
+              key={att.id}
+              className={`flex items-center gap-1 rounded-md ${isSelected ? "ring-2 ring-primary/40 bg-primary/5 pl-1" : ""}`}
+            >
+              {canSelect && (
+                <div className="flex items-center gap-0.5">
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={() => toggleSelect(att.id)}
+                    aria-label="Für Zusammenführung auswählen"
+                  />
+                  {isSelected && selectedIds.length > 1 && (
+                    <div className="flex flex-col">
+                      <button
+                        type="button"
+                        onClick={() => moveSelected(att.id, -1)}
+                        disabled={selectedIdx === 0}
+                        className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                        title="Nach vorne"
+                      >
+                        <ArrowUp className="h-3 w-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveSelected(att.id, 1)}
+                        disabled={selectedIdx === selectedIds.length - 1}
+                        className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                        title="Nach hinten"
+                      >
+                        <ArrowDown className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                  {isSelected && (
+                    <span className="text-xs font-semibold text-primary w-4 text-center">
+                      {selectedIdx + 1}
+                    </span>
+                  )}
+                </div>
+              )}
               <Button
                 variant="outline"
                 size="sm"
