@@ -436,6 +436,7 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
                 const mf = manufacturers.find(m => m.id === k.manufacturer_id);
                 return (
                   <div key={k.id} className="flex items-center gap-3 px-2 py-1.5 border border-border/60 rounded bg-background">
+                    <HouseIcon name={(st as any)?.icon} className="h-4 w-4 text-muted-foreground shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm">{st?.name ?? "Schlüssel"} {k.key_number && <span className="font-mono text-muted-foreground">· {k.key_number}</span>}</div>
                       <div className="text-xs text-muted-foreground truncate">{mf?.name ?? "—"}{k.notes ? ` · ${k.notes}` : ""}</div>
