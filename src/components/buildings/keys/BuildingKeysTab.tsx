@@ -33,17 +33,6 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
   const [stammdatenOpen, setStammdatenOpen] = useState(false);
   const [planNumber, setPlanNumber] = useState<string>("");
 
-  useEffect(() => {
-    if (settings?.closing_plan_number !== undefined) setPlanNumber(settings?.closing_plan_number ?? "");
-  }, [settings?.closing_plan_number]);
-
-  const savePlanNumber = async (val: string) => {
-    setPlanNumber(val);
-    const { error } = await supabase.from("key_property_settings").update({ closing_plan_number: val || null }).eq("building_id", buildingId);
-    if (error) toast.error(error.message);
-    else qc.invalidateQueries({ queryKey: ["key-settings", buildingId] });
-  };
-
   // Settings (auto-create row on first access → trigger assigns 3-digit number)
   const { data: settings } = useQuery({
     queryKey: ["key-settings", buildingId],
@@ -61,6 +50,17 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
       })();
     }
   }, [settings, buildingId, qc]);
+
+  useEffect(() => {
+    if ((settings as any)?.closing_plan_number !== undefined) setPlanNumber((settings as any)?.closing_plan_number ?? "");
+  }, [(settings as any)?.closing_plan_number]);
+
+  const savePlanNumber = async (val: string) => {
+    setPlanNumber(val);
+    const { error } = await supabase.from("key_property_settings").update({ closing_plan_number: val || null } as any).eq("building_id", buildingId);
+    if (error) toast.error(error.message);
+    else qc.invalidateQueries({ queryKey: ["key-settings", buildingId] });
+  };
 
   const { data: types = [] } = useQuery<KeyType[]>({
     queryKey: ["key-types"],
