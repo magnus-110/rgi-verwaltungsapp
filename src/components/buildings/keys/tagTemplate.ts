@@ -66,17 +66,18 @@ export async function downloadFilledTagTemplate(opts: {
   // einen klaren Hinweis aus.
 
   const findRunWithTag = (xmlStr: string): { start: number; end: number } | null => {
-    // Vereinfachte Suche: finde <w:r ...>...{anhaenger}...</w:r>
-    // Wir müssen aufpassen mit verschachtelten <w:r>, was in OOXML aber nicht vorkommt.
     const tagIdx = xmlStr.indexOf("{anhaenger}");
     if (tagIdx === -1) return null;
-    // rückwärts nach <w:r ...> suchen
-    const runStart = xmlStr.lastIndexOf("<w:r", tagIdx);
-    const runStartSelf = xmlStr.lastIndexOf("<w:r ", tagIdx);
-    const runStartNoAttr = xmlStr.lastIndexOf("<w:r>", tagIdx);
-    const s = Math.max(runStart, runStartSelf, runStartNoAttr);
+    // Rückwärts nach echtem <w:r>-Run-Start suchen (nicht <w:rPr>, <w:rFonts> etc.)
+    // Echter Run-Start ist "<w:r>" oder "<w:r " (mit Leerzeichen).
+    let s = -1;
+    const re = /<w:r(?:\s[^>]*)?>/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(xmlStr)) !== null) {
+      if (m.index > tagIdx) break;
+      s = m.index;
+    }
     if (s === -1) return null;
-    // vorwärts nach </w:r> suchen
     const e = xmlStr.indexOf("</w:r>", tagIdx);
     if (e === -1) return null;
     return { start: s, end: e + "</w:r>".length };
