@@ -23,6 +23,7 @@ import { BuildingServiceProvidersTab } from "./BuildingServiceProvidersTab";
 import { BuildingOverviewTab } from "./BuildingOverviewTab";
 import { AnnualCycleBuildingTab } from "./AnnualCycleBuildingTab";
 import { BuildingOnboardingTab } from "./BuildingOnboardingTab";
+import { BuildingKeysTab } from "./keys/BuildingKeysTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
