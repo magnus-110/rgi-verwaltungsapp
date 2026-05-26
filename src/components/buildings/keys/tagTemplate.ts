@@ -39,24 +39,24 @@ export async function downloadFilledTagTemplate(opts: {
   const esc = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-  // Infotext zusammenbauen
-  const infoParts: string[] = [opts.tagNumber];
-  if (opts.typeName) infoParts.push(opts.typeName);
-  if (opts.closingPlanNumber) infoParts.push(`Schließplan ${opts.closingPlanNumber}`);
-  if (opts.propertyNumber) infoParts.push(`Liegenschaft ${opts.propertyNumber}`);
-  const infoText = infoParts.join("  ·  ");
+  // Tag-Nummer formatieren: "1/002-01G" -> "1 / 0002 - 01"
+  //  - Building-Teil bleibt
+  //  - Mittlerer Teil wird auf 4 Ziffern gepaddet
+  //  - Trailing-Buchstaben (z.B. "G") werden entfernt
+  const formatTagNumber = (raw: string): string => {
+    const m = raw.match(/^\s*([^/]+)\/([^-\s]+)(?:-([^/\s]+))?\s*$/);
+    if (!m) return raw;
+    const a = m[1].trim();
+    const b = m[2].trim().replace(/\D+$/g, "").padStart(4, "0");
+    const c = m[3] ? m[3].trim().replace(/[A-Za-z]+$/g, "") : "";
+    return c ? `${a} / ${b} - ${c}` : `${a} / ${b}`;
+  };
+  const formattedNumber = formatTagNumber(opts.tagNumber);
 
-  // Inline-Runs: farbiger Punkt + fett Tag-Nummer + Rest
-  // Diese Runs ersetzen den Run, der den {anhaenger}-Tag enthält.
+  // Inline-Runs: nur großer farbiger Punkt + fett formatierte Nummer
   const replacementRuns =
-    `<w:r><w:rPr><w:color w:val="${color}"/></w:rPr><w:t xml:space="preserve">● </w:t></w:r>` +
-    `<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${esc(opts.tagNumber)}</w:t></w:r>` +
-    (infoParts.length > 1
-      ? `<w:r><w:t xml:space="preserve">  ·  ${esc(infoParts.slice(1).join("  ·  "))}</w:t></w:r>`
-      : "") +
-    (opts.notes
-      ? `<w:r><w:br/><w:t xml:space="preserve">${esc(opts.notes)}</w:t></w:r>`
-      : "");
+    `<w:r><w:rPr><w:color w:val="${color}"/><w:sz w:val="48"/><w:szCs w:val="48"/></w:rPr><w:t xml:space="preserve">● </w:t></w:r>` +
+    `<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${esc(formattedNumber)}</w:t></w:r>`;
 
   // Word splittet Text manchmal über mehrere <w:t> innerhalb eines <w:r>
   // oder sogar über mehrere <w:r>. Wir normalisieren erst: alle benachbarten
