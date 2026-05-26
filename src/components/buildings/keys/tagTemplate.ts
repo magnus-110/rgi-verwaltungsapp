@@ -56,7 +56,7 @@ export async function downloadFilledTagTemplate(opts: {
 
   // 1) Falls Tags von Word in mehrere <w:t> zerschnitten wurden, mergen
   for (const tag of ["{anhaenger}", "{dot}", "{nummer}"]) {
-    if (xml.indexOf(tag) === -1) xml = mergeAdjacentRunsForTag(xml, tag);
+    xml = mergeAdjacentRunsForTag(xml, tag);
   }
 
   // 2) {anhaenger} → kompletter Run-Block ersetzen (mehrere Runs auf einmal)
