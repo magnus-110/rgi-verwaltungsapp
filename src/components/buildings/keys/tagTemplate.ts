@@ -2,15 +2,15 @@ import PizZip from "pizzip";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Lädt die Word-Vorlage einer Liegenschaft und ersetzt Inline-Platzhalter.
+ * Lädt die Word-Vorlage einer Liegenschaft und ersetzt zwei Platzhalter:
  *
- * Unterstützte Platzhalter (jeweils mit beliebiger Einrückung in der Zeile):
- *   {dot}       → farbiger Punkt "●" in der Farbe des Schlüsseltyps
- *                 (Schriftgröße/Schriftart wird aus der Vorlage übernommen)
- *   {nummer}    → formatierte Nummer, z.B. "1 / 0002 - 01"
- *                 (Formatierung aus der Vorlage übernommen)
- *   {anhaenger} → Kombi-Platzhalter: großer farbiger Punkt + fette Nummer
- *                 (für Rückwärtskompatibilität / Single-Tag-Variante)
+ *   {g} → grüner Anhänger (wird mit der formatierten Nummer gefüllt,
+ *         wenn die Schlüsseltyp-Farbe grün ist – sonst leer)
+ *   {r} → roter Anhänger (wird mit der formatierten Nummer gefüllt,
+ *         wenn die Schlüsseltyp-Farbe rot ist – sonst leer)
+ *
+ * Die Hintergrund-/Schriftfarbe der Platzhalter formatiert der Nutzer
+ * selbst in der Word-Vorlage. Wir ersetzen nur den Text.
  */
 export async function downloadFilledTagTemplate(opts: {
   templatePath: string;
@@ -34,10 +34,6 @@ export async function downloadFilledTagTemplate(opts: {
   if (!docXmlFile) throw new Error("Ungültige Word-Datei: word/document.xml fehlt");
   let xml = docXmlFile.asText();
 
-  const color = (opts.typeColorHex ?? "#999999").replace("#", "").toUpperCase();
-  const esc = (s: string) =>
-    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
   // Tag-Nummer formatieren: "1/002-01G" -> "1 / 0002 - 01"
   const formatTagNumber = (raw: string): string => {
     const m = raw.match(/^\s*([^/]+)\/([^-\s]+)(?:-([^/\s]+))?\s*$/);
@@ -49,44 +45,25 @@ export async function downloadFilledTagTemplate(opts: {
   };
   const formattedNumber = formatTagNumber(opts.tagNumber);
 
-  // Combo-Run für {anhaenger}: Großer farbiger Punkt + fette Nummer
-  const comboRuns =
-    `<w:r><w:rPr><w:color w:val="${color}"/><w:sz w:val="48"/><w:szCs w:val="48"/></w:rPr><w:t xml:space="preserve">● </w:t></w:r>` +
-    `<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${esc(formattedNumber)}</w:t></w:r>`;
+  // Farbe entscheiden: grün vs. rot anhand des Hex-Werts
+  const isGreen = isGreenish(opts.typeColorHex);
+  const isRed = isReddish(opts.typeColorHex);
 
-  // 1) Falls Tags von Word in mehrere <w:t> zerschnitten wurden, mergen
-  for (const tag of ["{anhaenger}", "{dot}", "{nummer}"]) {
-    xml = mergeAdjacentRunsForTag(xml, tag);
-  }
+  // Wenn weder eindeutig grün noch rot, fallback: nach Farbtemperatur entscheiden,
+  // sonst leeren wir beide nicht – wir füllen lieber den näheren.
+  const useGreen = isGreen || (!isRed && !isGreen ? false : false);
+  const useRed = isRed;
+  const fillGreen = isGreen;
+  const fillRed = isRed || (!isGreen && !isRed); // Default zu rot, wenn unklar
 
-  // 2) {anhaenger} → kompletter Run-Block ersetzen (mehrere Runs auf einmal)
-  let safety = 0;
-  while (xml.indexOf("{anhaenger}") !== -1 && safety++ < 50) {
-    const run = findRunContaining(xml, "{anhaenger}");
-    if (!run) break;
-    xml = xml.slice(0, run.start) + comboRuns + xml.slice(run.end);
-  }
+  const esc = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-  // 3) {dot} → Text in "●" ersetzen + Farbe in rPr injizieren,
-  //    Formatierung (Größe/Font) der Vorlage bleibt erhalten
-  safety = 0;
-  while (xml.indexOf("{dot}") !== -1 && safety++ < 50) {
-    const run = findRunContaining(xml, "{dot}");
-    if (!run) break;
-    const runXml = xml.slice(run.start, run.end);
-    const replaced = replacePlaceholderInRun(runXml, "{dot}", "●", color);
-    xml = xml.slice(0, run.start) + replaced + xml.slice(run.end);
-  }
+  const greenText = fillGreen ? esc(formattedNumber) : "";
+  const redText = fillRed ? esc(formattedNumber) : "";
 
-  // 4) {nummer} → nur Text ersetzen, gesamte Formatierung der Vorlage bleibt
-  safety = 0;
-  while (xml.indexOf("{nummer}") !== -1 && safety++ < 50) {
-    const run = findRunContaining(xml, "{nummer}");
-    if (!run) break;
-    const runXml = xml.slice(run.start, run.end);
-    const replaced = replacePlaceholderInRun(runXml, "{nummer}", formattedNumber);
-    xml = xml.slice(0, run.start) + replaced + xml.slice(run.end);
-  }
+  xml = replaceSplitPlaceholder(xml, "{g}", greenText);
+  xml = replaceSplitPlaceholder(xml, "{r}", redText);
 
   zip.file("word/document.xml", xml);
 
@@ -108,140 +85,117 @@ export async function downloadFilledTagTemplate(opts: {
 
 // ---- Helper -----------------------------------------------------------------
 
-function findRunContaining(
+function hexToRgb(hex?: string): { r: number; g: number; b: number } | null {
+  if (!hex) return null;
+  const m = hex.trim().replace("#", "").match(/^([0-9a-fA-F]{6})$/);
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return { r: (n >> 16) & 0xff, g: (n >> 8) & 0xff, b: n & 0xff };
+}
+function isGreenish(hex?: string): boolean {
+  const c = hexToRgb(hex);
+  if (!c) return false;
+  return c.g > c.r + 20 && c.g > c.b + 20;
+}
+function isReddish(hex?: string): boolean {
+  const c = hexToRgb(hex);
+  if (!c) return false;
+  return c.r > c.g + 20 && c.r > c.b + 20;
+}
+
+/**
+ * Ersetzt einen Platzhalter im document.xml, auch wenn Word ihn über
+ * mehrere <w:r>/<w:t>-Runs gesplittet hat. Es wird NUR Text manipuliert –
+ * Formatierung (rPr), Tabellen, Absätze und alle anderen Elemente bleiben
+ * unverändert. So entsteht garantiert valides OOXML.
+ */
+function replaceSplitPlaceholder(
   xml: string,
-  tag: string,
-): { start: number; end: number } | null {
-  const tagIdx = xml.indexOf(tag);
-  if (tagIdx === -1) return null;
-  // Echten <w:r>-Start suchen (nicht <w:rPr>, <w:rFonts>, ...)
-  const re = /<w:r(?:\s[^>]*)?>/g;
-  let s = -1;
+  placeholder: string,
+  newText: string,
+): string {
+  // Wir bauen Text-Knoten aus allen <w:t>-Elementen zusammen und merken
+  // uns ihre Position. Dann ersetzen wir Vorkommen des Platzhalters im
+  // virtuellen "Gesamttext" und verteilen das Ergebnis zurück auf die
+  // ursprünglichen <w:t>-Bereiche.
+  const tNodes: { start: number; end: number; text: string }[] = [];
+  const re = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(xml)) !== null) {
-    if (m.index > tagIdx) break;
-    s = m.index;
+    const innerStart = m.index + m[0].indexOf(">") + 1;
+    const innerEnd = m.index + m[0].length - "</w:t>".length;
+    tNodes.push({ start: innerStart, end: innerEnd, text: m[1] });
   }
-  if (s === -1) return null;
-  const e = xml.indexOf("</w:r>", tagIdx);
-  if (e === -1) return null;
-  return { start: s, end: e + "</w:r>".length };
-}
+  if (tNodes.length === 0) return xml;
 
-/**
- * Ersetzt im gegebenen <w:r>...</w:r>-Block den Platzhalter durch den Text.
- * Optional wird im <w:rPr> die Schriftfarbe gesetzt/überschrieben.
- */
-function replacePlaceholderInRun(
-  runXml: string,
-  tag: string,
-  newText: string,
-  forceColor?: string,
-): string {
-  const esc = (s: string) =>
-    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-  // Text in allen <w:t>-Tags ersetzen
-  let out = runXml.replace(
-    /(<w:t(?:\s[^>]*)?>)([\s\S]*?)(<\/w:t>)/g,
-    (_full, open, inner, close) => {
-      if (!inner.includes(tag)) return _full;
-      const newInner = inner.split(tag).join(esc(newText));
-      // xml:space preserve sicherstellen, falls Whitespace im Text
-      const openEnsured = /xml:space=/.test(open)
-        ? open
-        : open.replace(/<w:t\b/, '<w:t xml:space="preserve"');
-      return `${openEnsured}${newInner}${close}`;
-    },
-  );
-
-  if (forceColor) {
-    // Farbe in <w:rPr> setzen/überschreiben
-    if (/<w:rPr>[\s\S]*?<\/w:rPr>/.test(out)) {
-      out = out.replace(/<w:rPr>([\s\S]*?)<\/w:rPr>/, (_f, inner) => {
-        const cleaned = inner.replace(/<w:color\b[^/]*\/>/g, "");
-        return `<w:rPr><w:color w:val="${forceColor}"/>${cleaned}</w:rPr>`;
-      });
-    } else {
-      // Kein rPr vorhanden → einfügen direkt nach <w:r ...>
-      out = out.replace(
-        /<w:r(\s[^>]*)?>/,
-        (_f, attrs) =>
-          `<w:r${attrs ?? ""}><w:rPr><w:color w:val="${forceColor}"/></w:rPr>`,
-      );
+  // Wenn Platzhalter komplett in einem einzelnen <w:t> liegt → simpler Replace.
+  let touched = false;
+  for (let i = tNodes.length - 1; i >= 0; i--) {
+    const node = tNodes[i];
+    if (node.text.includes(placeholder)) {
+      const replaced = node.text.split(placeholder).join(newText);
+      xml = xml.slice(0, node.start) + replaced + xml.slice(node.end);
+      touched = true;
     }
   }
-  return out;
-}
-
-/**
- * Word splittet Tags wie {anhaenger} oft über mehrere <w:r>-Runs.
- * Diese Funktion sucht innerhalb jedes Paragraphs nach Fragmenten, die
- * zusammengesetzt den Tag ergeben, und mergt die Runs zu einem einzigen.
- */
-function mergeAdjacentRunsForTag(xml: string, tag: string): string {
-  // Nur eingreifen, wenn der Tag tatsächlich über mehrere Runs gesplittet ist.
-  // Ein einzelnes <w:t>, das den Tag schon enthält, wird NICHT angefasst –
-  // damit bleiben rPr (Farbe/Größe/Font) und andere Runs/Objekte erhalten.
-  const runRegex = /<w:r\b(?:\s[^>]*)?>[\s\S]*?<\/w:r>/g;
-  const runs: { start: number; end: number; text: string; xml: string }[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = runRegex.exec(xml)) !== null) {
-    const runXml = m[0];
-    const textParts = [...runXml.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map(
-      (t) => t[1],
-    );
-    runs.push({
-      start: m.index,
-      end: m.index + runXml.length,
-      text: textParts.join(""),
-      xml: runXml,
-    });
+  if (touched) {
+    // Restliche evtl. gesplittete Vorkommen prüfen → erneut indexieren.
+    return replaceSplitPlaceholder(xml, placeholder, newText);
   }
 
-  // Suche aufeinanderfolgende Runs, deren konkateniertes Text den Tag enthält,
-  // wo aber kein einzelner Run ihn enthält.
-  let safety = 0;
-  outer: while (safety++ < 100) {
-    for (let i = 0; i < runs.length; i++) {
-      if (runs[i].text.includes(tag)) continue; // bereits in einem Run komplett
-      let combined = runs[i].text;
-      for (let j = i + 1; j < Math.min(i + 8, runs.length); j++) {
-        combined += runs[j].text;
-        if (combined.includes(tag)) {
-          // Merge runs i..j: rPr vom ersten Run beibehalten, Texte zusammenführen.
-          const first = runs[i];
-          const last = runs[j];
-          const rPrMatch = first.xml.match(/<w:rPr>[\s\S]*?<\/w:rPr>/);
-          const rPr = rPrMatch ? rPrMatch[0] : "";
-          const esc = (s: string) =>
-            s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          // Originaltexte sind bereits XML-escaped → nicht erneut escapen.
-          const mergedText = combined;
-          const newRun = `<w:r>${rPr}<w:t xml:space="preserve">${mergedText}</w:t></w:r>`;
-          xml = xml.slice(0, first.start) + newRun + xml.slice(last.end);
-          // Neu indexieren
-          runs.length = 0;
-          let mm: RegExpExecArray | null;
-          runRegex.lastIndex = 0;
-          while ((mm = runRegex.exec(xml)) !== null) {
-            const rx = mm[0];
-            const tp = [...rx.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map(
-              (t) => t[1],
-            );
-            runs.push({
-              start: mm.index,
-              end: mm.index + rx.length,
-              text: tp.join(""),
-              xml: rx,
-            });
-          }
-          continue outer;
-        }
-      }
+  // Gesplittete Suche: konkateniere Texte und suche Platzhalter.
+  const combined = tNodes.map((n) => n.text).join("");
+  const idx = combined.indexOf(placeholder);
+  if (idx === -1) return xml;
+
+  // Finde, welche tNodes vom Platzhalter überdeckt werden.
+  let cursor = 0;
+  let firstNode = -1;
+  let lastNode = -1;
+  let offsetInFirst = 0;
+  let offsetInLastEnd = 0;
+  for (let i = 0; i < tNodes.length; i++) {
+    const len = tNodes[i].text.length;
+    const nodeStart = cursor;
+    const nodeEnd = cursor + len;
+    if (firstNode === -1 && idx >= nodeStart && idx < nodeEnd) {
+      firstNode = i;
+      offsetInFirst = idx - nodeStart;
     }
-    break;
+    if (
+      idx + placeholder.length > nodeStart &&
+      idx + placeholder.length <= nodeEnd
+    ) {
+      lastNode = i;
+      offsetInLastEnd = idx + placeholder.length - nodeStart;
+      break;
+    }
+    cursor = nodeEnd;
   }
-  return xml;
-}
+  if (firstNode === -1 || lastNode === -1) return xml;
 
+  // Wir lassen die <w:t>-Strukturen intakt:
+  // - first Node: Text vor dem Platzhalter + neuer Ersatztext
+  // - mittlere Nodes: leeren
+  // - last Node: Text nach dem Platzhalter
+  // Damit bleibt sämtliche Run-Formatierung erhalten.
+  for (let i = tNodes.length - 1; i >= 0; i--) {
+    const node = tNodes[i];
+    let newInner: string | null = null;
+    if (i === firstNode && i === lastNode) {
+      newInner = node.text.slice(0, offsetInFirst) + newText + node.text.slice(offsetInLastEnd);
+    } else if (i === firstNode) {
+      newInner = node.text.slice(0, offsetInFirst) + newText;
+    } else if (i > firstNode && i < lastNode) {
+      newInner = "";
+    } else if (i === lastNode) {
+      newInner = node.text.slice(offsetInLastEnd);
+    }
+    if (newInner !== null) {
+      xml = xml.slice(0, node.start) + newInner + xml.slice(node.end);
+    }
+  }
+
+  // Falls weitere Vorkommen existieren → Rekursion.
+  return replaceSplitPlaceholder(xml, placeholder, newText);
+}
