@@ -59,7 +59,8 @@ export async function downloadFilledTagTemplate(opts: {
       `<w:r><w:br/><w:t xml:space="preserve">${esc(opts.notes)}</w:t></w:r>`
     );
   }
-  const rawXml = parts.join("");
+  // docxtemplater raw-xml ersetzt den umschließenden <w:p>; wir liefern selbst einen Absatz
+  const rawXml = `<w:p>${parts.join("")}</w:p>`;
 
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
