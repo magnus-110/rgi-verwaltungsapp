@@ -85,6 +85,7 @@ export const EmailHtmlBody = ({ html, emailId }: EmailHtmlBodyProps) => {
 
   return (
     <iframe
+      key={emailId}
       ref={iframeRef}
       title="E-Mail-Inhalt"
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
