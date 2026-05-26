@@ -417,6 +417,9 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
           ) : (
             <Button size="sm" variant="outline" onClick={onLoan}><Send className="h-3 w-3 mr-1" /> Ausgeben</Button>
           )}
+          {onDownloadTemplate && (
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onDownloadTemplate} title="Word-Vorlage herunterladen"><FileDown className="h-3.5 w-3.5" /></Button>
+          )}
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onEdit} title="Anhänger bearbeiten"><Edit className="h-3.5 w-3.5" /></Button>
           <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={onDelete} title="Löschen"><Trash2 className="h-3.5 w-3.5" /></Button>
         </div>
