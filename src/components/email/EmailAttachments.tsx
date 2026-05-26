@@ -134,7 +134,7 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
 
       // 4. Create invoice record (credit_note → status credit_open, sonst open)
       const insertPayload: any = {
-        file_name: att.file_name,
+        file_name: uploadFileName,
         file_path: invoicePath,
         status: asCreditNote ? "credit_open" : "open",
         ocr_status: "pending",
