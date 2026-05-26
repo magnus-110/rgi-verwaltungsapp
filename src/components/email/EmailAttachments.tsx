@@ -48,7 +48,7 @@ const isImage = (mimeType: string | null, fileName: string) => {
 };
 
 const isImportableInvoice = (mimeType: string | null, fileName: string) =>
-  isPdf(mimeType, fileName) || isXml(mimeType, fileName) || isImage(mimeType, fileName);
+  isPdf(mimeType, fileName) || isXml(mimeType, fileName);
 
 export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const navigate = useNavigate();
