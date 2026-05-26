@@ -48,7 +48,7 @@ const isImage = (mimeType: string | null, fileName: string) => {
 };
 
 const isImportableInvoice = (mimeType: string | null, fileName: string) =>
-  isPdf(mimeType, fileName) || isXml(mimeType, fileName);
+  isPdf(mimeType, fileName) || isXml(mimeType, fileName) || isImage(mimeType, fileName);
 
 export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const navigate = useNavigate();
@@ -95,7 +95,7 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   };
 
   const handleImportAsInvoice = async (
-    att: { id: string; file_path: string | null; file_name: string; file_size: number | null },
+    att: { id: string; file_path: string | null; file_name: string; file_size: number | null; mime_type: string | null },
     asCreditNote: boolean = false
   ) => {
     if (!att.file_path) return;
@@ -111,14 +111,22 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
       // 2. Download the file
       const response = await fetch(signedData.signedUrl);
       if (!response.ok) throw new Error("Download fehlgeschlagen");
-      const blob = await response.blob();
+      let blob = await response.blob();
+      let uploadFileName = att.file_name;
+
+      // 2b. If image: convert to single-page PDF so OCR pipeline can consume it uniformly
+      const isImageFile = isImage(att.mime_type, att.file_name);
+      if (isImageFile) {
+        blob = await mergeImagesToPdf([{ blob, mimeType: att.mime_type, fileName: att.file_name }]);
+        uploadFileName = att.file_name.replace(/\.(jpe?g|png)$/i, "") + ".pdf";
+      }
 
       // 3. Upload to invoices bucket (preserve extension for XML detection)
       const timestamp = Date.now();
       const folder = asCreditNote ? "credit_notes" : "unassigned";
-      const safeName = sanitizeStorageKey(att.file_name);
+      const safeName = sanitizeStorageKey(uploadFileName);
       const invoicePath = `${folder}/${timestamp}_${safeName}`;
-      const isXmlFile = att.file_name.toLowerCase().endsWith(".xml");
+      const isXmlFile = uploadFileName.toLowerCase().endsWith(".xml");
       const { error: uploadErr } = await supabase.storage
         .from("invoices")
         .upload(invoicePath, blob, { contentType: isXmlFile ? "application/xml" : "application/pdf" });
@@ -126,7 +134,7 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
 
       // 4. Create invoice record (credit_note → status credit_open, sonst open)
       const insertPayload: any = {
-        file_name: att.file_name,
+        file_name: uploadFileName,
         file_path: invoicePath,
         status: asCreditNote ? "credit_open" : "open",
         ocr_status: "pending",
@@ -327,11 +335,6 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
         </div>
       )}
 
-      {selectableImageCount >= 2 && selectedIds.length < 2 && (
-        <div className="text-xs text-muted-foreground mb-2">
-          Tipp: Mehrere Bilder ankreuzen, um sie als eine Rechnung an die OCR zu schicken.
-        </div>
-      )}
 
       <div className="flex flex-wrap gap-2">
         {attachments.map((att) => {
