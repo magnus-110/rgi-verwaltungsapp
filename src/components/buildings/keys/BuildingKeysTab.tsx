@@ -217,7 +217,10 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                       <Input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => e.target.files?.[0] && uploadTagTemplate(e.target.files[0])} />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Platzhalter in der Vorlage: <code className="font-mono">{"{anhaenger}"}</code> — darf <b>mitten in einer Zeile</b> stehen, beliebig mit Leerzeichen oder Tabs eingerückt. Wird ersetzt durch farbigen Punkt + Anhängernummer · Typ · Schließplan · Liegenschaft.
+                      Platzhalter in der Vorlage (beliebig formatierbar — Schriftgröße/Schriftart bleibt erhalten):
+                      <br />• <code className="font-mono">{"{dot}"}</code> → farbiger Punkt (Farbe = Schlüsseltyp)
+                      <br />• <code className="font-mono">{"{nummer}"}</code> → formatierte Anhängernummer (z.B. „1 / 0002 - 01")
+                      <br />• <code className="font-mono">{"{anhaenger}"}</code> → Kombi (großer Punkt + fette Nummer)
                       {(settings as any)?.tag_template_name && <> · Aktuell: {(settings as any).tag_template_name}</>}
                     </p>
                   </div>
