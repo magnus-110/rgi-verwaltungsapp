@@ -353,8 +353,18 @@ export const Inbox = () => {
       }
 
       if (searchTerm.trim()) {
-        // Header-Suche serverseitig; body_text-Suche entfällt (zu teuer ohne Volltext-Index)
-        query = query.or(`subject.ilike.%${searchTerm}%,from_name.ilike.%${searchTerm}%,from_address.ilike.%${searchTerm}%`);
+        // Escape PostgREST OR-Sonderzeichen (Komma, Klammern) im Suchbegriff
+        const safe = searchTerm.trim().replace(/([,()])/g, "\\$1");
+        const conds = [
+          `subject.ilike.%${safe}%`,
+          `from_name.ilike.%${safe}%`,
+          `from_address.ilike.%${safe}%`,
+        ];
+        if (isArchiveFolder) {
+          // Im Archiv zusätzlich Volltextsuche im Inhalt
+          conds.push(`body_text.ilike.%${safe}%`);
+        }
+        query = query.or(conds.join(","));
       }
 
       const { data, error } = await query;
