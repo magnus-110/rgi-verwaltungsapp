@@ -401,12 +401,32 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
 
           <div>
             <Label>Kassenprüfer (Eigentümer)</Label>
-            <Select value={selectedContactId} onValueChange={setSelectedContactId} disabled={!selectedBuildingId}>
+            <Select
+              value={selectedContactId}
+              onValueChange={(v) => {
+                setSelectedContactId(v);
+                const picked = contacts.find((c) => c.id === v);
+                if (picked && !auditorNameTouched) setAuditorNameOverride(picked.name);
+              }}
+              disabled={!selectedBuildingId}
+            >
               <SelectTrigger><SelectValue placeholder="Wählen..." /></SelectTrigger>
               <SelectContent>
                 {contacts.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
+          </div>
+
+          <div>
+            <Label>Name des Prüfers (Anzeige)</Label>
+            <Input
+              value={auditorNameOverride}
+              onChange={(e) => { setAuditorNameOverride(e.target.value); setAuditorNameTouched(true); }}
+              placeholder={contacts.find((c) => c.id === selectedContactId)?.name || "z. B. Wilhelm Mickerts"}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Wird im Portal und in Dokumenten angezeigt. Standardmäßig der Name des Eigentümers – kann überschrieben werden (z. B. Ehepartner).
+            </p>
           </div>
 
           <div>
