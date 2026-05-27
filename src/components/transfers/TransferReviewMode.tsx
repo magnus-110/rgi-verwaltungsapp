@@ -573,9 +573,10 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
 
           <div className="space-y-2">
             <label className="text-xs text-muted-foreground font-medium">Liegenschaft</label>
-            <Select
-              value={invoice.is_company_invoice ? "__company__" : (invoice.building_id || "__none__")}
-              onValueChange={async (val) => {
+            <SearchableBuildingSelect
+              buildings={buildings}
+              invoice={invoice}
+              onUpdate={async (val) => {
                 const updates: any = {};
                 if (val === "__company__") {
                   updates.is_company_invoice = true;
@@ -591,20 +592,7 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
                 if (error) toast.error("Fehler beim Speichern");
                 else { toast.success("Liegenschaft aktualisiert"); onRefetch(); }
               }}
-            >
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder="Liegenschaft wählen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">– Keine Zuordnung –</SelectItem>
-                <SelectItem value="__company__">RGI Immobilien GmbH & Co. KG</SelectItem>
-                {buildings.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.building_code} – {b.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
             {isPaid && invoice.paid_at && (
               <InfoRow label="Bezahlt am" value={format(new Date(invoice.paid_at as string), "dd.MM.yyyy")} />
             )}
