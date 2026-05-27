@@ -368,13 +368,16 @@ function AddProviderDialog({
                       <p className="p-3 text-xs text-center text-muted-foreground">Keine Treffer</p>
                     ) : (
                       filteredContacts.map((c) => {
-                        const isAssigned = existingContactIds.includes(c.id);
+                        const assignedCats = existingAssignments
+                          .filter((a) => a.contactId === c.id)
+                          .map((a) => a.category);
+                        const duplicate = !!category && assignedCats.includes(category);
                         return (
                           <div
                             key={c.id}
-                            onClick={() => !isAssigned && selectContact(c.id)}
+                            onClick={() => !duplicate && selectContact(c.id)}
                             className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
-                              isAssigned
+                              duplicate
                                 ? "opacity-50 cursor-not-allowed"
                                 : "hover:bg-muted cursor-pointer"
                             }`}
@@ -384,7 +387,11 @@ function AddProviderDialog({
                             {c.address_city && (
                               <span className="text-xs text-muted-foreground">{c.address_city}</span>
                             )}
-                            {isAssigned && <Badge variant="secondary" className="text-[10px]">Zugeordnet</Badge>}
+                            {assignedCats.length > 0 && (
+                              <Badge variant="secondary" className="text-[10px]" title={assignedCats.join(", ")}>
+                                {duplicate ? "Schon in dieser Kategorie" : `${assignedCats.length}× zugeordnet`}
+                              </Badge>
+                            )}
                           </div>
                         );
                       })
