@@ -51,7 +51,7 @@ type AssignmentRow = {
 
 const NONE = "__none__";
 
-export const RecipientPicker = ({ buildingId, requireEmail, value, onChange }: Props) => {
+export const RecipientPicker = ({ buildingId, requireEmail, value, onChange, excludeRoles }: Props) => {
   const [search, setSearch] = useState("");
 
   const { data: assignments = [], isLoading } = useQuery({
