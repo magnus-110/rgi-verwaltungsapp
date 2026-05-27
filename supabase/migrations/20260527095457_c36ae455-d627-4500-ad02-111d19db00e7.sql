@@ -1,0 +1,1 @@
+ALTER TABLE public.cash_audits ADD COLUMN IF NOT EXISTS auditor_name_override TEXT;

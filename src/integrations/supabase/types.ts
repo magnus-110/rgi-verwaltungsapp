@@ -2197,6 +2197,7 @@ export type Database = {
         Row: {
           access_token: string | null
           auditor_contact_id: string | null
+          auditor_name_override: string | null
           billing_period_id: string
           building_id: string
           completed_at: string | null
@@ -2214,6 +2215,7 @@ export type Database = {
         Insert: {
           access_token?: string | null
           auditor_contact_id?: string | null
+          auditor_name_override?: string | null
           billing_period_id: string
           building_id: string
           completed_at?: string | null
@@ -2231,6 +2233,7 @@ export type Database = {
         Update: {
           access_token?: string | null
           auditor_contact_id?: string | null
+          auditor_name_override?: string | null
           billing_period_id?: string
           building_id?: string
           completed_at?: string | null
