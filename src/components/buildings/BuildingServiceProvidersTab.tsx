@@ -243,13 +243,13 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
 }
 
 function AddProviderDialog({
-  open, onOpenChange, buildingId, categories, existingContactIds, onAdded,
+  open, onOpenChange, buildingId, categories, existingAssignments, onAdded,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   buildingId: string;
   categories: { id: string; name: string }[];
-  existingContactIds: string[];
+  existingAssignments: { contactId: string; category: string }[];
   onAdded: () => void;
 }) {
   const { toast } = useToast();
