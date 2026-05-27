@@ -153,6 +153,8 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
       setSelectedBuildingId(audit.building_id);
       setSelectedPeriodId(audit.billing_period_id || "");
       setSelectedContactId(audit.auditor_contact_id || "");
+      setAuditorNameOverride((audit as any).auditor_name_override || "");
+      setAuditorNameTouched(!!(audit as any).auditor_name_override);
       setPortalUntil(audit.visible_in_portal_until ? format(new Date(audit.visible_in_portal_until), "yyyy-MM-dd") : "");
 
       const [{ data: stmts }, { data: nts }] = await Promise.all([
