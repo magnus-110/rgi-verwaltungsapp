@@ -320,7 +320,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
 
             <div>
               <Label className="mb-2 block">Empfänger (nur mit E-Mail)</Label>
-              <RecipientPicker buildingId={buildingId} requireEmail value={filter} onChange={setFilter} />
+              <RecipientPicker buildingId={buildingId} requireEmail value={filter} onChange={setFilter} excludeRoles={["dienstleister"]} />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
