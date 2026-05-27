@@ -35,6 +35,8 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>("");
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>("");
   const [selectedContactId, setSelectedContactId] = useState<string>("");
+  const [auditorNameOverride, setAuditorNameOverride] = useState<string>("");
+  const [auditorNameTouched, setAuditorNameTouched] = useState(false);
   const [portalUntil, setPortalUntil] = useState(format(addDays(new Date(), 30), "yyyy-MM-dd"));
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const [planFiles, setPlanFiles] = useState<File[]>([]);
