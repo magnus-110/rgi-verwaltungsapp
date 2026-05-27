@@ -220,7 +220,9 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
         onOpenChange={setShowAdd}
         buildingId={buildingId}
         categories={categories}
-        existingContactIds={providers.map((p) => p.contact?.id).filter(Boolean)}
+        existingAssignments={providers
+          .map((p) => ({ contactId: p.contact?.id as string | undefined, category: (p.service_category ?? "Sonstiges") as string }))
+          .filter((a) => !!a.contactId) as { contactId: string; category: string }[]}
         onAdded={() => queryClient.invalidateQueries({ queryKey: ["building-service-providers", buildingId] })}
       />
 
@@ -241,13 +243,13 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
 }
 
 function AddProviderDialog({
-  open, onOpenChange, buildingId, categories, existingContactIds, onAdded,
+  open, onOpenChange, buildingId, categories, existingAssignments, onAdded,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   buildingId: string;
   categories: { id: string; name: string }[];
-  existingContactIds: string[];
+  existingAssignments: { contactId: string; category: string }[];
   onAdded: () => void;
 }) {
   const { toast } = useToast();
@@ -366,13 +368,16 @@ function AddProviderDialog({
                       <p className="p-3 text-xs text-center text-muted-foreground">Keine Treffer</p>
                     ) : (
                       filteredContacts.map((c) => {
-                        const isAssigned = existingContactIds.includes(c.id);
+                        const assignedCats = existingAssignments
+                          .filter((a) => a.contactId === c.id)
+                          .map((a) => a.category);
+                        const duplicate = !!category && assignedCats.includes(category);
                         return (
                           <div
                             key={c.id}
-                            onClick={() => !isAssigned && selectContact(c.id)}
+                            onClick={() => !duplicate && selectContact(c.id)}
                             className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
-                              isAssigned
+                              duplicate
                                 ? "opacity-50 cursor-not-allowed"
                                 : "hover:bg-muted cursor-pointer"
                             }`}
@@ -382,7 +387,11 @@ function AddProviderDialog({
                             {c.address_city && (
                               <span className="text-xs text-muted-foreground">{c.address_city}</span>
                             )}
-                            {isAssigned && <Badge variant="secondary" className="text-[10px]">Zugeordnet</Badge>}
+                            {assignedCats.length > 0 && (
+                              <Badge variant="secondary" className="text-[10px]" title={assignedCats.join(", ")}>
+                                {duplicate ? "Schon in dieser Kategorie" : `${assignedCats.length}× zugeordnet`}
+                              </Badge>
+                            )}
                           </div>
                         );
                       })
