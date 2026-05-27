@@ -207,6 +207,8 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
     setSelectedBuildingId("");
     setSelectedPeriodId("");
     setSelectedContactId("");
+    setAuditorNameOverride("");
+    setAuditorNameTouched(false);
     setPortalUntil(format(addDays(new Date(), 30), "yyyy-MM-dd"));
     setPdfFiles([]);
     setPlanFiles([]);
