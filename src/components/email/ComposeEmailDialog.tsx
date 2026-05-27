@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -15,6 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EmailTemplatePicker } from "./EmailTemplatePicker";
 import { VoiceDictationButton } from "./VoiceDictationButton";
+import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
 
 interface ComposeEmailDialogProps {
   open: boolean;
@@ -64,12 +65,21 @@ export const ComposeEmailDialog = ({
   );
   const [isSending, setIsSending] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewMeta, setPreviewMeta] = useState<{ name: string; mimeType: string | null }>({ name: "", mimeType: null });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
   const [ccContactPickerOpen, setCcContactPickerOpen] = useState(false);
   const [bccContactPickerOpen, setBccContactPickerOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   const [showCcBcc, setShowCcBcc] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["email-accounts-compose"],
@@ -145,6 +155,21 @@ export const ComposeEmailDialog = ({
 
   const removeAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const openAttachment = (att: AttachmentFile) => {
+    const url = URL.createObjectURL(att.file);
+    setPreviewMeta({ name: att.name, mimeType: att.file.type || null });
+    setPreviewUrl(url);
+    setPreviewOpen(true);
+  };
+
+  const handlePreviewOpenChange = (open: boolean) => {
+    if (!open && previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+    setPreviewOpen(open);
   };
 
   const fileToBase64 = (file: File): Promise<string> => {
@@ -435,12 +460,12 @@ export const ComposeEmailDialog = ({
             {attachments.length > 0 && (
               <div className="px-4 py-2 space-y-1.5 border-b bg-muted/30">
                 {attachments.map((att, idx) => (
-                  <div key={idx} className="flex items-center gap-2 text-sm bg-background rounded-md px-2.5 py-2 border">
+                  <div key={idx} className="flex items-center gap-2 text-sm bg-background rounded-md px-2.5 py-2 border cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => openAttachment(att)}>
                     <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <span className="truncate flex-1">{att.name}</span>
                     <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(att.size)}</span>
                     <button
-                      onClick={() => removeAttachment(idx)}
+                      onClick={(e) => { e.stopPropagation(); removeAttachment(idx); }}
                       className="text-muted-foreground hover:text-destructive shrink-0 p-1"
                       aria-label="Anhang entfernen"
                     >
@@ -468,6 +493,13 @@ export const ComposeEmailDialog = ({
             onChange={handleFileSelect}
           />
         </div>
+        <AttachmentPreviewDialog
+          open={previewOpen}
+          onOpenChange={handlePreviewOpenChange}
+          url={previewUrl}
+          fileName={previewMeta.name}
+          mimeType={previewMeta.mimeType}
+        />
       </>
     );
   }
@@ -721,7 +753,8 @@ export const ComposeEmailDialog = ({
                 {attachments.map((att, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center gap-2 text-sm bg-muted rounded-md px-2.5 py-1.5"
+                    className="flex items-center gap-2 text-sm bg-muted rounded-md px-2.5 py-1.5 cursor-pointer hover:bg-muted/80 transition-colors"
+                    onClick={() => openAttachment(att)}
                   >
                     <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <span className="truncate flex-1">{att.name}</span>
@@ -729,7 +762,7 @@ export const ComposeEmailDialog = ({
                       {formatFileSize(att.size)}
                     </span>
                     <button
-                      onClick={() => removeAttachment(idx)}
+                      onClick={(e) => { e.stopPropagation(); removeAttachment(idx); }}
                       className="text-muted-foreground hover:text-destructive shrink-0"
                     >
                       <X className="h-3.5 w-3.5" />
@@ -750,6 +783,13 @@ export const ComposeEmailDialog = ({
             Senden
           </Button>
         </div>
+        <AttachmentPreviewDialog
+          open={previewOpen}
+          onOpenChange={handlePreviewOpenChange}
+          url={previewUrl}
+          fileName={previewMeta.name}
+          mimeType={previewMeta.mimeType}
+        />
       </DialogContent>
     </Dialog>
   );
