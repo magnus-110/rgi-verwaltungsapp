@@ -101,9 +101,10 @@ export function CashAuditTab() {
           const status = STATUS_MAP[audit.status] || STATUS_MAP.draft;
           const StatusIcon = status.icon;
           const contact = audit.contacts;
-          const auditorName = contact?.contact_persons?.filter((p: any) => p.is_primary)?.[0]
+          const contactName = contact?.contact_persons?.filter((p: any) => p.is_primary)?.[0]
             ? `${contact.contact_persons.filter((p: any) => p.is_primary)[0].first_name} ${contact.contact_persons.filter((p: any) => p.is_primary)[0].last_name}`
             : contact?.company_name || "–";
+          const auditorName = audit.auditor_name_override?.trim() || contactName;
 
           return (
             <Card key={audit.id} className="hover:bg-muted/30 transition-colors">
