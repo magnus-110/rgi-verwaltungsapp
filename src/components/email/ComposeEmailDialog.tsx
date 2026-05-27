@@ -777,6 +777,13 @@ export const ComposeEmailDialog = ({
             Senden
           </Button>
         </div>
+        <AttachmentPreviewDialog
+          open={previewOpen}
+          onOpenChange={handlePreviewOpenChange}
+          url={previewUrl}
+          fileName={previewMeta.name}
+          mimeType={previewMeta.mimeType}
+        />
       </DialogContent>
     </Dialog>
   );
