@@ -230,12 +230,27 @@ export const ComposeEmailDialog = ({
       const ccAddresses = cc ? cc.split(",").map((e) => e.trim()).filter(Boolean) : [];
       const bccAddresses = bcc ? bcc.split(",").map((e) => e.trim()).filter(Boolean) : [];
 
+      // Large attachments are uploaded directly to storage to avoid edge
+      // function payload limits (~6MB after base64). Threshold: 1MB raw.
+      const INLINE_LIMIT = 1024 * 1024;
       const attachmentData = await Promise.all(
-        attachments.map(async (att) => ({
-          filename: att.name,
-          content: await fileToBase64(att.file),
-          contentType: att.file.type || "application/octet-stream",
-        }))
+        attachments.map(async (att) => {
+          const contentType = att.file.type || "application/octet-stream";
+          if (att.file.size > INLINE_LIMIT) {
+            const safeName = att.name.replace(/[^\w.\-]+/g, "_");
+            const path = `outgoing/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`;
+            const { error: upErr } = await supabase.storage
+              .from("email-attachments")
+              .upload(path, att.file, { contentType, upsert: false });
+            if (upErr) throw new Error(`Upload fehlgeschlagen (${att.name}): ${upErr.message}`);
+            return { filename: att.name, storage_path: path, contentType };
+          }
+          return {
+            filename: att.name,
+            content: await fileToBase64(att.file),
+            contentType,
+          };
+        })
       );
 
       const { data, error } = await supabase.functions.invoke("send-email", {
