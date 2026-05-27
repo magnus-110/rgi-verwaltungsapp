@@ -234,14 +234,19 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
     setSaving(true);
     try {
       let targetAuditId = auditId || "";
+      const trimmedOverride = auditorNameOverride.trim();
+      const selectedContactName = contacts.find((c) => c.id === selectedContactId)?.name || "";
+      const overrideToSave =
+        trimmedOverride && trimmedOverride !== selectedContactName ? trimmedOverride : null;
       if (isEdit) {
         const { error } = await supabase.from("cash_audits").update({
           building_id: selectedBuildingId,
           billing_period_id: selectedPeriodId,
           fiscal_year: selectedPeriod?.fiscal_year || new Date().getFullYear(),
           auditor_contact_id: selectedContactId,
+          auditor_name_override: overrideToSave,
           visible_in_portal_until: portalUntil ? new Date(portalUntil).toISOString() : null,
-        }).eq("id", auditId!);
+        } as any).eq("id", auditId!);
         if (error) throw error;
       } else {
         const { data: audit, error } = await supabase.from("cash_audits").insert({
@@ -249,8 +254,9 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
           billing_period_id: selectedPeriodId,
           fiscal_year: selectedPeriod?.fiscal_year || new Date().getFullYear(),
           auditor_contact_id: selectedContactId,
+          auditor_name_override: overrideToSave,
           visible_in_portal_until: portalUntil ? new Date(portalUntil).toISOString() : null,
-        }).select("id").single();
+        } as any).select("id").single();
         if (error) throw error;
         targetAuditId = audit.id;
       }
