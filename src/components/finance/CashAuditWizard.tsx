@@ -245,11 +245,12 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
   const building = tokenMode ? audit.building : audit.buildings;
   const period = tokenMode ? audit.billing_period : audit.billing_periods;
   const auditorContact = tokenMode ? audit.auditor : audit.contacts;
-  const auditorName = tokenMode
+  const auditorContactName = tokenMode
     ? (auditorContact?.persons?.[0] ? `${auditorContact.persons[0].first_name} ${auditorContact.persons[0].last_name}` : auditorContact?.company_name)
     : (auditorContact?.contact_persons?.filter((p: any) => p.is_primary)?.[0]
       ? `${auditorContact.contact_persons.filter((p: any) => p.is_primary)[0].first_name} ${auditorContact.contact_persons.filter((p: any) => p.is_primary)[0].last_name}`
       : auditorContact?.company_name || "–");
+  const auditorName = (audit as any).auditor_name_override?.trim() || auditorContactName;
 
   const isCompleted = audit.status === "completed";
   const fiscalYear = period?.fiscal_year || audit.fiscal_year;

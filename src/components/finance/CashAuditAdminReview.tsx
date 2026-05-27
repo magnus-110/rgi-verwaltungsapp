@@ -209,9 +209,10 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
   const period = audit.billing_periods;
   const auditorContact = audit.contacts;
   const primaryPerson = auditorContact?.contact_persons?.find((p: any) => p.is_primary);
-  const auditorName = primaryPerson
+  const auditorContactName = primaryPerson
     ? `${primaryPerson.first_name} ${primaryPerson.last_name}`
     : auditorContact?.company_name || "–";
+  const auditorName = (audit as any).auditor_name_override?.trim() || auditorContactName;
 
   const totalCheckedAccounts = okAccountIds.length;
   const totalIssueAccounts = issueAccountIds.length;

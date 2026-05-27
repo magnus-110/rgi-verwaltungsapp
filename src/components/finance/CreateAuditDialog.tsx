@@ -35,6 +35,8 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>("");
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>("");
   const [selectedContactId, setSelectedContactId] = useState<string>("");
+  const [auditorNameOverride, setAuditorNameOverride] = useState<string>("");
+  const [auditorNameTouched, setAuditorNameTouched] = useState(false);
   const [portalUntil, setPortalUntil] = useState(format(addDays(new Date(), 30), "yyyy-MM-dd"));
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const [planFiles, setPlanFiles] = useState<File[]>([]);
@@ -82,12 +84,17 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
         .select(`contact_id, role_in_building, contacts!inner(id, company_name, contact_persons(first_name, last_name, is_primary))`)
         .eq("building_id", selectedBuildingId)
         .eq("role_in_building", "eigentuemer");
-      return (data || []).map((d: any) => ({
-        id: d.contacts.id,
-        name: d.contacts.contact_persons?.filter((p: any) => p.is_primary)?.[0]
-          ? `${d.contacts.contact_persons.filter((p: any) => p.is_primary)[0].first_name} ${d.contacts.contact_persons.filter((p: any) => p.is_primary)[0].last_name}`
-          : d.contacts.company_name || "Unbekannt",
-      }));
+      return (data || []).map((d: any) => {
+        const persons = (d.contacts.contact_persons || []) as any[];
+        const joined = persons
+          .map((p) => `${p.first_name || ""} ${p.last_name || ""}`.trim())
+          .filter(Boolean)
+          .join(" und ");
+        return {
+          id: d.contacts.id,
+          name: joined || d.contacts.company_name || "Unbekannt",
+        };
+      });
     },
     enabled: !!selectedBuildingId,
   });
@@ -146,6 +153,8 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
       setSelectedBuildingId(audit.building_id);
       setSelectedPeriodId(audit.billing_period_id || "");
       setSelectedContactId(audit.auditor_contact_id || "");
+      setAuditorNameOverride((audit as any).auditor_name_override || "");
+      setAuditorNameTouched(!!(audit as any).auditor_name_override);
       setPortalUntil(audit.visible_in_portal_until ? format(new Date(audit.visible_in_portal_until), "yyyy-MM-dd") : "");
 
       const [{ data: stmts }, { data: nts }] = await Promise.all([
@@ -198,6 +207,8 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
     setSelectedBuildingId("");
     setSelectedPeriodId("");
     setSelectedContactId("");
+    setAuditorNameOverride("");
+    setAuditorNameTouched(false);
     setPortalUntil(format(addDays(new Date(), 30), "yyyy-MM-dd"));
     setPdfFiles([]);
     setPlanFiles([]);
@@ -223,14 +234,19 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
     setSaving(true);
     try {
       let targetAuditId = auditId || "";
+      const trimmedOverride = auditorNameOverride.trim();
+      const selectedContactName = contacts.find((c) => c.id === selectedContactId)?.name || "";
+      const overrideToSave =
+        trimmedOverride && trimmedOverride !== selectedContactName ? trimmedOverride : null;
       if (isEdit) {
         const { error } = await supabase.from("cash_audits").update({
           building_id: selectedBuildingId,
           billing_period_id: selectedPeriodId,
           fiscal_year: selectedPeriod?.fiscal_year || new Date().getFullYear(),
           auditor_contact_id: selectedContactId,
+          auditor_name_override: overrideToSave,
           visible_in_portal_until: portalUntil ? new Date(portalUntil).toISOString() : null,
-        }).eq("id", auditId!);
+        } as any).eq("id", auditId!);
         if (error) throw error;
       } else {
         const { data: audit, error } = await supabase.from("cash_audits").insert({
@@ -238,8 +254,9 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
           billing_period_id: selectedPeriodId,
           fiscal_year: selectedPeriod?.fiscal_year || new Date().getFullYear(),
           auditor_contact_id: selectedContactId,
+          auditor_name_override: overrideToSave,
           visible_in_portal_until: portalUntil ? new Date(portalUntil).toISOString() : null,
-        }).select("id").single();
+        } as any).select("id").single();
         if (error) throw error;
         targetAuditId = audit.id;
       }
@@ -384,12 +401,32 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
 
           <div>
             <Label>Kassenprüfer (Eigentümer)</Label>
-            <Select value={selectedContactId} onValueChange={setSelectedContactId} disabled={!selectedBuildingId}>
+            <Select
+              value={selectedContactId}
+              onValueChange={(v) => {
+                setSelectedContactId(v);
+                const picked = contacts.find((c) => c.id === v);
+                if (picked && !auditorNameTouched) setAuditorNameOverride(picked.name);
+              }}
+              disabled={!selectedBuildingId}
+            >
               <SelectTrigger><SelectValue placeholder="Wählen..." /></SelectTrigger>
               <SelectContent>
                 {contacts.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
+          </div>
+
+          <div>
+            <Label>Name des Prüfers (Anzeige)</Label>
+            <Input
+              value={auditorNameOverride}
+              onChange={(e) => { setAuditorNameOverride(e.target.value); setAuditorNameTouched(true); }}
+              placeholder={contacts.find((c) => c.id === selectedContactId)?.name || "z. B. Wilhelm Mickerts"}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Wird im Portal und in Dokumenten angezeigt. Standardmäßig der Name des Eigentümers – kann überschrieben werden (z. B. Ehepartner).
+            </p>
           </div>
 
           <div>
