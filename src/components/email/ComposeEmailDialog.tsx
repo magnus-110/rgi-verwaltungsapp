@@ -740,7 +740,8 @@ export const ComposeEmailDialog = ({
                 {attachments.map((att, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center gap-2 text-sm bg-muted rounded-md px-2.5 py-1.5"
+                    className="flex items-center gap-2 text-sm bg-muted rounded-md px-2.5 py-1.5 cursor-pointer hover:bg-muted/80 transition-colors"
+                    onClick={() => openAttachment(att)}
                   >
                     <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <span className="truncate flex-1">{att.name}</span>
@@ -748,7 +749,7 @@ export const ComposeEmailDialog = ({
                       {formatFileSize(att.size)}
                     </span>
                     <button
-                      onClick={() => removeAttachment(idx)}
+                      onClick={(e) => { e.stopPropagation(); removeAttachment(idx); }}
                       className="text-muted-foreground hover:text-destructive shrink-0"
                     >
                       <X className="h-3.5 w-3.5" />
