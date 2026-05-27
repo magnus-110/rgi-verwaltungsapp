@@ -359,11 +359,9 @@ export const Inbox = () => {
           `subject.ilike.%${safe}%`,
           `from_name.ilike.%${safe}%`,
           `from_address.ilike.%${safe}%`,
+          `to_addresses.ilike.%${safe}%`,
+          `body_text.ilike.%${safe}%`,
         ];
-        if (isArchiveFolder) {
-          // Im Archiv zusätzlich Volltextsuche im Inhalt
-          conds.push(`body_text.ilike.%${safe}%`);
-        }
         query = query.or(conds.join(","));
       }
 
