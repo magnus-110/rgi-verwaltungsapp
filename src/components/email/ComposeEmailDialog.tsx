@@ -454,12 +454,12 @@ export const ComposeEmailDialog = ({
             {attachments.length > 0 && (
               <div className="px-4 py-2 space-y-1.5 border-b bg-muted/30">
                 {attachments.map((att, idx) => (
-                  <div key={idx} className="flex items-center gap-2 text-sm bg-background rounded-md px-2.5 py-2 border">
+                  <div key={idx} className="flex items-center gap-2 text-sm bg-background rounded-md px-2.5 py-2 border cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => openAttachment(att)}>
                     <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <span className="truncate flex-1">{att.name}</span>
                     <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(att.size)}</span>
                     <button
-                      onClick={() => removeAttachment(idx)}
+                      onClick={(e) => { e.stopPropagation(); removeAttachment(idx); }}
                       className="text-muted-foreground hover:text-destructive shrink-0 p-1"
                       aria-label="Anhang entfernen"
                     >
