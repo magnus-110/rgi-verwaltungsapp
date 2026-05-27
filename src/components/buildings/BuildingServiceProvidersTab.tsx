@@ -220,7 +220,9 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
         onOpenChange={setShowAdd}
         buildingId={buildingId}
         categories={categories}
-        existingContactIds={providers.map((p) => p.contact?.id).filter(Boolean)}
+        existingAssignments={providers
+          .map((p) => ({ contactId: p.contact?.id as string | undefined, category: (p.service_category ?? "Sonstiges") as string }))
+          .filter((a) => !!a.contactId) as { contactId: string; category: string }[]}
         onAdded={() => queryClient.invalidateQueries({ queryKey: ["building-service-providers", buildingId] })}
       />
 
