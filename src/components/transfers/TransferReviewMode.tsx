@@ -1,13 +1,21 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, isPast, isToday } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { toast } from "sonner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -16,7 +24,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   X, ChevronLeft, ChevronRight, Copy, CheckCircle, CreditCard,
-  AlertTriangle, FileText, Loader2, Trash2, Save, Flame
+  AlertTriangle, FileText, Loader2, Trash2, Save, Flame,
+  Check, ChevronsUpDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMobileSplitView, MobileViewSwitcher, MobileBackToListButton } from "@/components/shared/MobileSplitView";
@@ -213,6 +222,82 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <span className="text-muted-foreground">{label}</span>
       <span>{value}</span>
     </div>
+  );
+}
+
+function SearchableBuildingSelect({
+  buildings,
+  invoice,
+  onUpdate,
+}: {
+  buildings: { id: string; name: string; building_code: string }[];
+  invoice: Invoice;
+  onUpdate: (val: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const currentValue = invoice.is_company_invoice
+    ? "__company__"
+    : invoice.building_id || "__none__";
+
+  const selectedLabel = (() => {
+    if (currentValue === "__company__") return "RGI Immobilien GmbH & Co. KG";
+    if (currentValue === "__none__") return "– Keine Zuordnung –";
+    const b = buildings.find((x) => x.id === currentValue);
+    return b ? `${b.building_code} – ${b.name}` : "Liegenschaft wählen";
+  })();
+
+  const allOptions = [
+    { value: "__none__", label: "– Keine Zuordnung –", search: "keine" },
+    { value: "__company__", label: "RGI Immobilien GmbH & Co. KG", search: "rgi immobilien gmbh kg" },
+    ...buildings.map((b) => ({
+      value: b.id,
+      label: `${b.building_code} – ${b.name}`,
+      search: `${b.building_code} ${b.name}`.toLowerCase(),
+    })),
+  ];
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between h-9 text-sm"
+        >
+          <span className="truncate">{selectedLabel}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Liegenschaft suchen…" />
+          <CommandList>
+            <CommandEmpty>Keine Liegenschaft gefunden.</CommandEmpty>
+            <CommandGroup>
+              {allOptions.map((opt) => (
+                <CommandItem
+                  key={opt.value}
+                  value={opt.value}
+                  onSelect={() => {
+                    onUpdate(opt.value);
+                    setOpen(false);
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      currentValue === opt.value ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <span className="truncate">{opt.label}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -564,9 +649,10 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
 
           <div className="space-y-2">
             <label className="text-xs text-muted-foreground font-medium">Liegenschaft</label>
-            <Select
-              value={invoice.is_company_invoice ? "__company__" : (invoice.building_id || "__none__")}
-              onValueChange={async (val) => {
+            <SearchableBuildingSelect
+              buildings={buildings}
+              invoice={invoice}
+              onUpdate={async (val) => {
                 const updates: any = {};
                 if (val === "__company__") {
                   updates.is_company_invoice = true;
@@ -582,20 +668,7 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
                 if (error) toast.error("Fehler beim Speichern");
                 else { toast.success("Liegenschaft aktualisiert"); onRefetch(); }
               }}
-            >
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder="Liegenschaft wählen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">– Keine Zuordnung –</SelectItem>
-                <SelectItem value="__company__">RGI Immobilien GmbH & Co. KG</SelectItem>
-                {buildings.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.building_code} – {b.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
             {isPaid && invoice.paid_at && (
               <InfoRow label="Bezahlt am" value={format(new Date(invoice.paid_at as string), "dd.MM.yyyy")} />
             )}
