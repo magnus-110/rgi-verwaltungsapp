@@ -31,6 +31,8 @@ interface Props {
   requireEmail: boolean;
   value: RecipientFilterValue;
   onChange: (v: RecipientFilterValue) => void;
+  /** Roles to hide entirely (e.g. ["dienstleister"] for Rundmails) */
+  excludeRoles?: string[];
 }
 
 type AssignmentRow = {
