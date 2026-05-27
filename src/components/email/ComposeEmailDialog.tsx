@@ -15,6 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EmailTemplatePicker } from "./EmailTemplatePicker";
 import { VoiceDictationButton } from "./VoiceDictationButton";
+import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
 
 interface ComposeEmailDialogProps {
   open: boolean;
