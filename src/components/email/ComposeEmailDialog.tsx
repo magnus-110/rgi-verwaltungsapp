@@ -65,6 +65,9 @@ export const ComposeEmailDialog = ({
   );
   const [isSending, setIsSending] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewMeta, setPreviewMeta] = useState<{ name: string; mimeType: string | null }>({ name: "", mimeType: null });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
   const [ccContactPickerOpen, setCcContactPickerOpen] = useState(false);
