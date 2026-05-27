@@ -54,7 +54,7 @@ const NONE = "__none__";
 export const RecipientPicker = ({ buildingId, requireEmail, value, onChange, excludeRoles }: Props) => {
   const [search, setSearch] = useState("");
 
-  const { data: assignments = [], isLoading } = useQuery({
+  const { data: allAssignments = [], isLoading } = useQuery({
     queryKey: ["comm-recipient-source", buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -66,6 +66,12 @@ export const RecipientPicker = ({ buildingId, requireEmail, value, onChange, exc
       return (data || []) as unknown as AssignmentRow[];
     },
   });
+
+  const assignments = useMemo(() => {
+    if (!excludeRoles || excludeRoles.length === 0) return allAssignments;
+    const ex = new Set(excludeRoles.map((r) => r.toLowerCase()));
+    return allAssignments.filter((a) => !a.role_in_building || !ex.has(a.role_in_building.toLowerCase()));
+  }, [allAssignments, excludeRoles]);
 
   const contactIds = useMemo(() => Array.from(new Set(assignments.map((a) => a.contact_id))), [assignments]);
   const { data: emailMap = new Map<string, boolean>() } = useQuery({
