@@ -75,6 +75,12 @@ export const ComposeEmailDialog = ({
   const [contactSearch, setContactSearch] = useState("");
   const [showCcBcc, setShowCcBcc] = useState(false);
 
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
   const { data: accounts = [] } = useQuery({
     queryKey: ["email-accounts-compose"],
     queryFn: async () => {
