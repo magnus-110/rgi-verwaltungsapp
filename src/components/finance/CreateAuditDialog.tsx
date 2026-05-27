@@ -84,12 +84,17 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
         .select(`contact_id, role_in_building, contacts!inner(id, company_name, contact_persons(first_name, last_name, is_primary))`)
         .eq("building_id", selectedBuildingId)
         .eq("role_in_building", "eigentuemer");
-      return (data || []).map((d: any) => ({
-        id: d.contacts.id,
-        name: d.contacts.contact_persons?.filter((p: any) => p.is_primary)?.[0]
-          ? `${d.contacts.contact_persons.filter((p: any) => p.is_primary)[0].first_name} ${d.contacts.contact_persons.filter((p: any) => p.is_primary)[0].last_name}`
-          : d.contacts.company_name || "Unbekannt",
-      }));
+      return (data || []).map((d: any) => {
+        const persons = (d.contacts.contact_persons || []) as any[];
+        const joined = persons
+          .map((p) => `${p.first_name || ""} ${p.last_name || ""}`.trim())
+          .filter(Boolean)
+          .join(" und ");
+        return {
+          id: d.contacts.id,
+          name: joined || d.contacts.company_name || "Unbekannt",
+        };
+      });
     },
     enabled: !!selectedBuildingId,
   });
