@@ -151,6 +151,13 @@ export const ComposeEmailDialog = ({
     setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
+  const openAttachment = (att: AttachmentFile) => {
+    const url = URL.createObjectURL(att.file);
+    setPreviewMeta({ name: att.name, mimeType: att.file.type || null });
+    setPreviewUrl(url);
+    setPreviewOpen(true);
+  };
+
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
