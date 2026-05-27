@@ -487,6 +487,13 @@ export const ComposeEmailDialog = ({
             onChange={handleFileSelect}
           />
         </div>
+        <AttachmentPreviewDialog
+          open={previewOpen}
+          onOpenChange={handlePreviewOpenChange}
+          url={previewUrl}
+          fileName={previewMeta.name}
+          mimeType={previewMeta.mimeType}
+        />
       </>
     );
   }
