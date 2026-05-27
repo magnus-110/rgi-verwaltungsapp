@@ -158,6 +158,14 @@ export const ComposeEmailDialog = ({
     setPreviewOpen(true);
   };
 
+  const handlePreviewOpenChange = (open: boolean) => {
+    if (!open && previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+    setPreviewOpen(open);
+  };
+
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
