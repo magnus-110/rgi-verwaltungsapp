@@ -1520,8 +1520,6 @@ export const Inbox = () => {
                   </div>
                 ))
               )}
-                ))
-              )}
               {!emailsLoading && !emailsError && filteredEmails.length > 0 && canLoadMore && (
                 <div className="p-3 flex justify-center">
                   <Button
