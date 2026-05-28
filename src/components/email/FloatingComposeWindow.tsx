@@ -1257,6 +1257,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
             {compose.existingAttachments && compose.existingAttachments.length > 0 && (
               <div className="space-y-0.5">
+                {compose.existingAttachments.map((att: any, idx: number) => (
                   <div key={`ex-${idx}`} className="flex items-center gap-1.5 text-xs bg-muted rounded px-2 py-1 cursor-pointer hover:bg-muted/70 transition-colors" onClick={() => openAttachment(att)} title="Vorschau öffnen">
                     <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
                     <span className="truncate flex-1">{att.filename || att.name}</span>
@@ -1269,11 +1270,10 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
                       <X className="h-3 w-3" />
                     </button>
                   </div>
-
-                  </div>
                 ))}
               </div>
             )}
+
             {compose.attachments.length > 0 && (
               <div className="space-y-0.5">
                 {compose.attachments.map((att, idx) => (
