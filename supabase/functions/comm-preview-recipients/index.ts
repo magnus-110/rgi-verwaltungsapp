@@ -77,31 +77,30 @@ Deno.serve(async (req) => {
       if (!bodyTpl) bodyTpl = t?.body_html || null;
     }
 
-    // Optional: load per-recipient overrides
-    let overrideMap = new Map<string, { subject: string | null; body_html: string | null }>();
-    if (includeBody) {
-      const { data: ov } = await admin
-        .from("comm_recipient_overrides")
-        .select("contact_id, subject, body_html")
-        .eq("campaign_id", campaignId);
-      overrideMap = new Map((ov || []).map((o: any) => [o.contact_id, { subject: o.subject, body_html: o.body_html }]));
-    }
+    // Always load per-recipient overrides (cheap; needed for has_override flag)
+    const { data: ovData } = await admin
+      .from("comm_recipient_overrides")
+      .select("contact_id, subject, body_html")
+      .eq("campaign_id", campaignId);
+    const overrideMap = new Map<string, { subject: string | null; body_html: string | null }>(
+      (ovData || []).map((o: any) => [o.contact_id, { subject: o.subject, body_html: o.body_html }]),
+    );
 
     const recipients = resolved.map((r) => {
+      const ov = overrideMap.get(r.contact_id);
       const base: any = {
         contact_id: r.contact_id,
         person_id: r.person_id,
         display_name: r.display_name,
         email: r.email,
+        has_override: !!ov,
       };
       if (includeBody) {
-        const ov = overrideMap.get(r.contact_id);
         const effSubject = ov?.subject ?? subjectTpl;
         const effBody = ov?.body_html ?? bodyTpl;
         base.rendered_subject = effSubject ? renderString(effSubject, r.vars) : "";
         base.rendered_body = effBody ? renderString(effBody, r.vars) : "";
         base.body_format = bodyFormat;
-        base.has_override = !!ov;
       }
       return base;
     });
