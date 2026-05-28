@@ -992,6 +992,14 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
       </div>
       {closeDialog}
+      <AttachmentPreviewDialog
+        open={previewOpen}
+        onOpenChange={handlePreviewOpenChange}
+        url={previewUrl}
+        fileName={previewMeta.name}
+        mimeType={previewMeta.mimeType}
+      />
+
       </>
     );
   }
