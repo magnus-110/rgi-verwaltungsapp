@@ -23,6 +23,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
