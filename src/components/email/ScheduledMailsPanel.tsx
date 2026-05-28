@@ -15,6 +15,7 @@ export interface ScheduledRecipient {
   contact_id: string;
   display_name: string;
   email: string | null;
+  has_override?: boolean;
 }
 
 export interface ScheduledItem {
