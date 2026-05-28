@@ -1,7 +1,8 @@
 // Resolves the recipients for a planned campaign so the UI can list them
 // individually under the "Geplante E-Mails" group.
+// With include_body=true the rendered subject + body per recipient is returned.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
-import { loadRecipients, RecipientFilter } from "../_shared/comm-vars.ts";
+import { loadRecipients, renderString, RecipientFilter } from "../_shared/comm-vars.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,7 +18,6 @@ Deno.serve(async (req) => {
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Auth check via anon client + caller JWT
     const authHeader = req.headers.get("Authorization") || "";
     const userClient = createClient(SUPABASE_URL, ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
@@ -32,6 +32,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const campaignId = String(body?.campaign_id || "").trim();
+    const includeBody = !!body?.include_body;
     if (!campaignId) {
       return new Response(JSON.stringify({ error: "campaign_id required" }), {
         status: 400,
@@ -42,7 +43,7 @@ Deno.serve(async (req) => {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
     const { data: campaign, error: cErr } = await admin
       .from("comm_campaigns")
-      .select("id, building_id, recipient_filter, free_vars")
+      .select("id, building_id, recipient_filter, free_vars, subject_override, body_html_override, body_format, template_id")
       .eq("id", campaignId)
       .maybeSingle();
     if (cErr || !campaign) {
@@ -62,12 +63,34 @@ Deno.serve(async (req) => {
       freeVars,
     );
 
-    const recipients = resolved.map((r) => ({
-      contact_id: r.contact_id,
-      person_id: r.person_id,
-      display_name: r.display_name,
-      email: r.email,
-    }));
+    // Optional: render rendered subject + body per recipient.
+    let subjectTpl: string | null = campaign.subject_override as string | null;
+    let bodyTpl: string | null = campaign.body_html_override as string | null;
+    const bodyFormat = (campaign.body_format as "html" | "plain") || "html";
+    if (includeBody && (!subjectTpl || !bodyTpl) && campaign.template_id) {
+      const { data: t } = await admin
+        .from("comm_templates")
+        .select("subject, body_html")
+        .eq("id", campaign.template_id)
+        .maybeSingle();
+      if (!subjectTpl) subjectTpl = t?.subject || null;
+      if (!bodyTpl) bodyTpl = t?.body_html || null;
+    }
+
+    const recipients = resolved.map((r) => {
+      const base: any = {
+        contact_id: r.contact_id,
+        person_id: r.person_id,
+        display_name: r.display_name,
+        email: r.email,
+      };
+      if (includeBody) {
+        base.rendered_subject = subjectTpl ? renderString(subjectTpl, r.vars) : "";
+        base.rendered_body = bodyTpl ? renderString(bodyTpl, r.vars) : "";
+        base.body_format = bodyFormat;
+      }
+      return base;
+    });
 
     return new Response(JSON.stringify({ recipients }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

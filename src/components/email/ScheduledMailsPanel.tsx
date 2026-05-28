@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CalendarClock, Mail, Users, Trash2, ExternalLink, AlertTriangle, Loader2, Pencil, X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { CalendarClock, Mail, Users, Trash2, ExternalLink, AlertTriangle, Loader2, Pencil, X, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
@@ -38,7 +39,37 @@ interface Props {
 export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign }: Props) {
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState<string | null>(null);
+  const [preview, setPreview] = useState<
+    | { recipientName: string; recipientEmail: string | null; subject: string; body: string; format: "html" | "plain" }
+    | null
+  >(null);
   const { openCompose } = useComposeEmail();
+
+  const openPreview = async (item: ScheduledItem, r: ScheduledRecipient) => {
+    const key = `${item.id}:${r.contact_id}`;
+    setPreviewLoading(key);
+    try {
+      const { data, error } = await supabase.functions.invoke("comm-preview-recipients", {
+        body: { campaign_id: item.ref_id, include_body: true },
+      });
+      if (error) throw error;
+      const list = (data as any)?.recipients || [];
+      const match = list.find((x: any) => x.contact_id === r.contact_id);
+      if (!match) throw new Error("Empfänger nicht gefunden");
+      setPreview({
+        recipientName: r.display_name,
+        recipientEmail: r.email,
+        subject: match.rendered_subject || "(Kein Betreff)",
+        body: match.rendered_body || "",
+        format: (match.body_format as "html" | "plain") || "html",
+      });
+    } catch (e: any) {
+      toast.error("Vorschau fehlgeschlagen: " + (e.message || ""));
+    } finally {
+      setPreviewLoading(null);
+    }
+  };
 
   const editScheduled = async (item: ScheduledItem) => {
     if (item.kind !== "single") return;
@@ -286,6 +317,20 @@ export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                className="h-6 w-6 opacity-0 group-hover/row:opacity-100"
+                                onClick={() => openPreview(item, r)}
+                                title="E-Mail-Vorschau anzeigen"
+                                disabled={previewLoading === `${item.id}:${r.contact_id}`}
+                              >
+                                {previewLoading === `${item.id}:${r.contact_id}` ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Eye className="h-3 w-3" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 className="h-6 w-6 opacity-0 group-hover/row:opacity-100 hover:text-destructive"
                                 onClick={() => removeRecipient(item, r.contact_id)}
                                 title="Aus Versand entfernen"
@@ -304,6 +349,33 @@ export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign
           </div>
         )}
       </ScrollArea>
+
+      <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="truncate">{preview?.subject}</DialogTitle>
+            <DialogDescription className="flex items-center gap-1.5 text-xs">
+              <Mail className="h-3 w-3" />
+              An: <span className="text-foreground">{preview?.recipientName}</span>
+              {preview?.recipientEmail && (
+                <span className="text-muted-foreground">&lt;{preview.recipientEmail}&gt;</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto border rounded-md bg-background">
+            {preview?.format === "plain" ? (
+              <pre className="text-sm whitespace-pre-wrap p-4 font-sans">{preview.body}</pre>
+            ) : (
+              <iframe
+                title="E-Mail-Vorschau"
+                srcDoc={preview?.body || ""}
+                className="w-full h-[60vh] border-0 bg-white"
+                sandbox=""
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
