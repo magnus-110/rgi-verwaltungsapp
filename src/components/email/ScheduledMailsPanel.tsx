@@ -3,10 +3,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CalendarClock, Mail, Users, Trash2, ExternalLink, AlertTriangle, Loader2, Pencil } from "lucide-react";
+import { CalendarClock, Mail, Users, Trash2, ExternalLink, AlertTriangle, Loader2, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
+
+export interface ScheduledRecipient {
+  contact_id: string;
+  display_name: string;
+  email: string | null;
+}
 
 export interface ScheduledItem {
   id: string;
@@ -19,6 +25,7 @@ export interface ScheduledItem {
   account_id: string | null;
   campaign_type?: string;
   error_message?: string | null;
+  resolved_recipients?: ScheduledRecipient[];
 }
 
 interface Props {
