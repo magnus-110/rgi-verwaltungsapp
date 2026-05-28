@@ -247,6 +247,58 @@ export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign
                     </Button>
                   </div>
                 </div>
+
+                {item.kind === "campaign" && (
+                  <div className="mt-3 ml-12 border-l-2 border-purple-200 dark:border-purple-900/40 pl-3">
+                    {item.resolved_recipients === undefined ? (
+                      <div className="space-y-1.5 py-1">
+                        {[0, 1, 2].map((i) => (
+                          <div key={i} className="h-4 w-2/3 bg-muted/60 rounded animate-pulse" />
+                        ))}
+                      </div>
+                    ) : item.resolved_recipients.length === 0 ? (
+                      <div className="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1.5 py-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        Keine Empfänger aufgelöst — Versand wird fehlschlagen.
+                      </div>
+                    ) : (
+                      <ul className="space-y-0.5 py-0.5">
+                        {item.resolved_recipients.map((r) => {
+                          const hasEmail = !!r.email;
+                          return (
+                            <li
+                              key={r.contact_id}
+                              className="flex items-center gap-2 text-xs group/row py-0.5"
+                            >
+                              <Mail className={cn(
+                                "h-3 w-3 shrink-0",
+                                hasEmail ? "text-muted-foreground" : "text-destructive"
+                              )} />
+                              <span className="truncate flex-1">
+                                <span className="text-foreground">{r.display_name || "(Unbekannt)"}</span>
+                                {" "}
+                                <span className={cn(
+                                  hasEmail ? "text-muted-foreground" : "text-destructive italic"
+                                )}>
+                                  {hasEmail ? `<${r.email}>` : "(keine E-Mail)"}
+                                </span>
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 opacity-0 group-hover/row:opacity-100 hover:text-destructive"
+                                onClick={() => removeRecipient(item, r.contact_id)}
+                                title="Aus Versand entfernen"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
