@@ -322,19 +322,43 @@ export const Inbox = () => {
 
   // Fetch emails for selected folder — slim columns; body wird lazy für Detail geladen
   const isSearching = searchTerm.trim().length >= 2;
-  const { data: emails = [], isLoading: emailsLoading } = useQuery({
-    queryKey: ["emails", selectedFolderId, searchTerm, selectedAccountIds, isArchiveFolder, filterBuildingId, filterContactId, filterAssignedTo],
+  const [pageLimit, setPageLimit] = useState<number>(100);
+  // Reset Pagination wenn sich Ordner / Filter / Suche ändern
+  useEffect(() => {
+    setPageLimit(isSearching ? 200 : 100);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFolderId, searchTerm, selectedAccountIds, isArchiveFolder, filterBuildingId, filterContactId, filterAssignedTo]);
+
+  const EMAIL_COLUMNS = "id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, assigned_to, deleted_at, case_id, message_id, is_etv_relevant, etv_meeting_id";
+
+  const { data: emails = [], isLoading: emailsLoading, error: emailsError } = useQuery({
+    queryKey: ["emails", selectedFolderId, searchTerm, selectedAccountIds, isArchiveFolder, filterBuildingId, filterContactId, filterAssignedTo, pageLimit],
     queryFn: async () => {
+      // Suchmodus: serverseitige RPC (ordnerübergreifend, sucht zuverlässig auch in JSONB-Empfängern)
+      if (isSearching) {
+        const accountIds = selectedAccountIds === null ? null : selectedAccountIds;
+        if (accountIds && accountIds.length === 0) return [] as any[];
+        const assignedFilter =
+          filterAssignedTo === "all" ? "all" : filterAssignedTo === "unassigned" ? "unassigned" : "user";
+        const { data, error } = await supabase.rpc("search_emails" as any, {
+          p_search: searchTerm.trim(),
+          p_account_ids: accountIds,
+          p_assigned_to: assignedFilter === "user" ? filterAssignedTo : null,
+          p_assigned_filter: assignedFilter,
+          p_limit: pageLimit,
+          p_offset: 0,
+        });
+        if (error) throw error;
+        return (data || []) as any[];
+      }
+
       let query = supabase
         .from("emails")
-        .select("id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, assigned_to, deleted_at, case_id, message_id, is_etv_relevant, etv_meeting_id")
+        .select(EMAIL_COLUMNS)
         .order("date", { ascending: false })
-        .limit(isSearching ? 500 : 100);
+        .limit(pageLimit);
 
-      if (isSearching) {
-        // Im Suchmodus ordner-übergreifend suchen (Papierkorb ausgeschlossen)
-        query = query.is("deleted_at", null);
-      } else if (isArchiveFolder) {
+      if (isArchiveFolder) {
         query = query.eq("is_archived", true);
         if (filterBuildingId === "none") query = query.is("building_id", null);
         else if (filterBuildingId !== "all") query = query.eq("building_id", filterBuildingId);
@@ -356,20 +380,6 @@ export const Inbox = () => {
         query = query.eq("assigned_to", filterAssignedTo);
       }
 
-      if (isSearching) {
-        // Escape PostgREST OR-Sonderzeichen (Komma, Klammern) im Suchbegriff
-        const safe = searchTerm.trim().replace(/([,()])/g, "\\$1");
-        const conds = [
-          `subject.ilike.%${safe}%`,
-          `from_name.ilike.%${safe}%`,
-          `from_address.ilike.%${safe}%`,
-          `to_addresses::text.ilike.%${safe}%`,
-          `cc_addresses::text.ilike.%${safe}%`,
-          `body_text.ilike.%${safe}%`,
-        ];
-        query = query.or(conds.join(","));
-      }
-
       const { data, error } = await query;
       if (error) throw error;
       return data;
@@ -378,6 +388,9 @@ export const Inbox = () => {
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
+
+  // "Mehr laden": Anzahl entspricht aktuellem Limit -> wahrscheinlich gibt es mehr Treffer
+  const canLoadMore = emails.length >= pageLimit;
 
   // Map: message_id of inbound email -> id of sent reply (latest)
   const inboundMessageIds = useMemo(
@@ -1286,10 +1299,18 @@ export const Inbox = () => {
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
               {emailsLoading ? (
                 <div className="p-4 text-center text-sm text-muted-foreground">Laden...</div>
+              ) : emailsError ? (
+                <div className="p-8 text-center">
+                  <Mail className="h-12 w-12 mx-auto text-destructive/40 mb-3" />
+                  <p className="text-sm text-destructive">Suche fehlgeschlagen</p>
+                  <p className="text-xs text-muted-foreground mt-1">{(emailsError as any)?.message || "Unbekannter Fehler"}</p>
+                </div>
               ) : filteredEmails.length === 0 ? (
                 <div className="p-8 text-center">
                   <Mail className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
-                  <p className="text-sm text-muted-foreground">Keine E-Mails vorhanden</p>
+                  <p className="text-sm text-muted-foreground">
+                    {isSearching ? "Keine Treffer gefunden" : "Keine E-Mails vorhanden"}
+                  </p>
                 </div>
               ) : (
                 filteredEmails.map(email => (
@@ -1498,6 +1519,17 @@ export const Inbox = () => {
                     </button>
                   </div>
                 ))
+              )}
+              {!emailsLoading && !emailsError && filteredEmails.length > 0 && canLoadMore && (
+                <div className="p-3 flex justify-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPageLimit((n) => n + (isSearching ? 500 : 200))}
+                  >
+                    Mehr laden ({emails.length} geladen)
+                  </Button>
+                </div>
               )}
             </div>
           </div>
