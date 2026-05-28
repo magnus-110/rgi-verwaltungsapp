@@ -169,8 +169,49 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   const [ccContactPickerOpen, setCcContactPickerOpen] = useState(false);
   const [bccContactPickerOpen, setBccContactPickerOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
-  const [showCcBcc, setShowCcBcc] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewMeta, setPreviewMeta] = useState<{ name: string; mimeType: string | null }>({ name: "", mimeType: null });
+  const previewIsBlobRef = useRef(false);
+
+  const openAttachment = useCallback(async (att: { file?: File; name?: string; filename?: string; storage_path?: string; contentType?: string; mime_type?: string }) => {
+    const displayName = att.name || att.filename || "Anhang";
+    try {
+      if (att.file) {
+        if (previewUrl && previewIsBlobRef.current) URL.revokeObjectURL(previewUrl);
+        const url = URL.createObjectURL(att.file);
+        previewIsBlobRef.current = true;
+        setPreviewMeta({ name: displayName, mimeType: att.file.type || null });
+        setPreviewUrl(url);
+        setPreviewOpen(true);
+      } else if (att.storage_path) {
+        const { data, error } = await supabase.storage
+          .from("email-attachments")
+          .createSignedUrl(att.storage_path, 3600);
+        if (error) throw error;
+        if (previewUrl && previewIsBlobRef.current) URL.revokeObjectURL(previewUrl);
+        previewIsBlobRef.current = false;
+        setPreviewMeta({ name: displayName, mimeType: att.contentType || att.mime_type || null });
+        setPreviewUrl(data.signedUrl);
+        setPreviewOpen(true);
+      } else {
+        toast.error("Anhang kann nicht geöffnet werden");
+      }
+    } catch (e: any) {
+      toast.error("Vorschau fehlgeschlagen: " + (e?.message || "unbekannter Fehler"));
+    }
+  }, [previewUrl]);
+
+  const handlePreviewOpenChange = useCallback((open: boolean) => {
+    if (!open && previewUrl && previewIsBlobRef.current) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+    setPreviewOpen(open);
+  }, [previewUrl]);
+
+
 
   // Draggable position state (desktop only, but declared here to keep hook order stable across mobile/desktop switches)
   const [dragPos, setDragPos] = useState<{ left: number; top: number } | null>(null);
