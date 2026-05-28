@@ -8008,6 +8008,66 @@ export type Database = {
           similarity: number
         }[]
       }
+      search_emails: {
+        Args: {
+          p_account_ids?: string[]
+          p_assigned_filter?: string
+          p_assigned_to?: string
+          p_limit?: number
+          p_offset?: number
+          p_search: string
+        }
+        Returns: {
+          account_id: string
+          ai_case_confidence: number | null
+          ai_case_suggestion_id: string | null
+          ai_category: string | null
+          ai_classified_at: string | null
+          ai_priority: string | null
+          ai_summary: string | null
+          assigned_to: string | null
+          bcc_addresses: Json | null
+          body_html: string | null
+          body_text: string | null
+          building_id: string | null
+          case_id: string | null
+          cc_addresses: Json | null
+          contact_id: string | null
+          created_at: string
+          date: string | null
+          deleted_at: string | null
+          etv_agenda_item_id: string | null
+          etv_meeting_id: string | null
+          folder_id: string | null
+          from_address: string | null
+          from_name: string | null
+          has_attachments: boolean
+          id: string
+          imap_uid: string | null
+          in_reply_to: string | null
+          is_archived: boolean
+          is_draft: boolean
+          is_etv_relevant: boolean
+          is_pinned: boolean
+          is_read: boolean
+          is_starred: boolean
+          message_id: string | null
+          message_id_header: string | null
+          pinned_at: string | null
+          process_id: string | null
+          subject: string | null
+          thread_id: string | null
+          to_addresses: Json | null
+          to_names: string[] | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "emails"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       seed_annual_cycle_tasks: {
         Args: {
           p_building_id: string
