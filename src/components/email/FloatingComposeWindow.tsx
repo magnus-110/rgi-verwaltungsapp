@@ -1257,17 +1257,19 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
             {compose.existingAttachments && compose.existingAttachments.length > 0 && (
               <div className="space-y-0.5">
-                {compose.existingAttachments.map((att: any, idx: number) => (
-                  <div key={`ex-${idx}`} className="flex items-center gap-1.5 text-xs bg-muted rounded px-2 py-1">
+                  <div key={`ex-${idx}`} className="flex items-center gap-1.5 text-xs bg-muted rounded px-2 py-1 cursor-pointer hover:bg-muted/70 transition-colors" onClick={() => openAttachment(att)} title="Vorschau öffnen">
                     <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
                     <span className="truncate flex-1">{att.filename || att.name}</span>
                     <span className="text-muted-foreground shrink-0">{att.size ? formatFileSize(att.size) : ""}</span>
                     <button
-                      onClick={() => update({ existingAttachments: (compose.existingAttachments || []).filter((_: any, i: number) => i !== idx) })}
+                      onClick={(e) => { e.stopPropagation(); update({ existingAttachments: (compose.existingAttachments || []).filter((_: any, i: number) => i !== idx) }); }}
                       className="text-muted-foreground hover:text-destructive"
+                      aria-label="Anhang entfernen"
                     >
                       <X className="h-3 w-3" />
                     </button>
+                  </div>
+
                   </div>
                 ))}
               </div>
