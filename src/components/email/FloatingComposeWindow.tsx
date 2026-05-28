@@ -1277,14 +1277,15 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             {compose.attachments.length > 0 && (
               <div className="space-y-0.5">
                 {compose.attachments.map((att, idx) => (
-                  <div key={idx} className="flex items-center gap-1.5 text-xs bg-muted rounded px-2 py-1">
+                  <div key={idx} className="flex items-center gap-1.5 text-xs bg-muted rounded px-2 py-1 cursor-pointer hover:bg-muted/70 transition-colors" onClick={() => openAttachment(att)} title="Vorschau öffnen">
                     <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
                     <span className="truncate flex-1">{att.name}</span>
                     <span className="text-muted-foreground shrink-0">{formatFileSize(att.size)}</span>
-                    <button onClick={() => removeAttachment(idx)} className="text-muted-foreground hover:text-destructive">
+                    <button onClick={(e) => { e.stopPropagation(); removeAttachment(idx); }} className="text-muted-foreground hover:text-destructive" aria-label="Anhang entfernen">
                       <X className="h-3 w-3" />
                     </button>
                   </div>
+
                 ))}
               </div>
             )}
