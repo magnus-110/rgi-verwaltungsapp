@@ -169,6 +169,8 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   const [ccContactPickerOpen, setCcContactPickerOpen] = useState(false);
   const [bccContactPickerOpen, setBccContactPickerOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
+  const [showCcBcc, setShowCcBcc] = useState(false);
+
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
