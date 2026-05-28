@@ -104,6 +104,36 @@ export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign
     }
   };
 
+  const removeRecipient = async (item: ScheduledItem, contactId: string) => {
+    if (item.kind !== "campaign") return;
+    if (!confirm("Empfänger aus dieser Rundmail entfernen?")) return;
+    try {
+      const { data: c, error: gErr } = await supabase
+        .from("comm_campaigns")
+        .select("recipient_filter")
+        .eq("id", item.ref_id)
+        .maybeSingle();
+      if (gErr) throw gErr;
+      const filter = ((c?.recipient_filter as any) || {}) as Record<string, any>;
+      const remaining = (item.resolved_recipients || [])
+        .filter((r) => r.contact_id !== contactId)
+        .map((r) => r.contact_id);
+      // Explicit contact_ids override role-based filter to lock the set after edits.
+      filter.contact_ids = remaining;
+      // Drop assignment_ids if any — explicit contact list takes priority.
+      delete filter.assignment_ids;
+      const { error: uErr } = await supabase
+        .from("comm_campaigns")
+        .update({ recipient_filter: filter, recipient_count: remaining.length })
+        .eq("id", item.ref_id);
+      if (uErr) throw uErr;
+      toast.success("Empfänger entfernt");
+      onChanged();
+    } catch (e: any) {
+      toast.error("Entfernen fehlgeschlagen: " + (e.message || ""));
+    }
+  };
+
   const fmt = (iso: string | null) =>
     iso ? new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }) : "—";
 
