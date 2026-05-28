@@ -157,7 +157,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
       email_account_id: accountId || null,
       recipient_filter: { roles: filter.roles, contact_ids: recipientIds, assignment_ids: assignmentIds },
       subject_override: subject || null,
-      body_html_override: body || null,
+      body_html_override: (body || "").replace(new RegExp(SIG_START, "g"), "").replace(new RegExp(SIG_END, "g"), "") || null,
       body_format: bodyFormat,
       status,
       scheduled_at: status === "scheduled" && scheduledAt ? new Date(scheduledAt).toISOString() : null,
