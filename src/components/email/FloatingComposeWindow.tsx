@@ -1314,6 +1314,14 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       </div>
     </div>
     {closeDialog}
+    <AttachmentPreviewDialog
+      open={previewOpen}
+      onOpenChange={handlePreviewOpenChange}
+      url={previewUrl}
+      fileName={previewMeta.name}
+      mimeType={previewMeta.mimeType}
+    />
+
     </>
   );
 };
