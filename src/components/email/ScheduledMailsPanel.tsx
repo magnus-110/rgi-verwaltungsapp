@@ -41,12 +41,23 @@ export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState<string | null>(null);
   const [preview, setPreview] = useState<
-    | { recipientName: string; recipientEmail: string | null; subject: string; body: string; format: "html" | "plain" }
+    | {
+        campaignId: string;
+        contactId: string;
+        recipientName: string;
+        recipientEmail: string | null;
+        subject: string;
+        body: string;
+        format: "html" | "plain";
+        hasOverride: boolean;
+      }
     | null
   >(null);
+  const [savingPreview, setSavingPreview] = useState(false);
+  const [editMode, setEditMode] = useState(false);
   const { openCompose } = useComposeEmail();
 
-  const openPreview = async (item: ScheduledItem, r: ScheduledRecipient) => {
+  const openPreview = async (item: ScheduledItem, r: ScheduledRecipient, startInEdit = false) => {
     const key = `${item.id}:${r.contact_id}`;
     setPreviewLoading(key);
     try {
@@ -58,18 +69,71 @@ export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign
       const match = list.find((x: any) => x.contact_id === r.contact_id);
       if (!match) throw new Error("Empfänger nicht gefunden");
       setPreview({
+        campaignId: item.ref_id,
+        contactId: r.contact_id,
         recipientName: r.display_name,
         recipientEmail: r.email,
-        subject: match.rendered_subject || "(Kein Betreff)",
+        subject: match.rendered_subject || "",
         body: match.rendered_body || "",
         format: (match.body_format as "html" | "plain") || "html",
+        hasOverride: !!match.has_override,
       });
+      setEditMode(startInEdit);
     } catch (e: any) {
       toast.error("Vorschau fehlgeschlagen: " + (e.message || ""));
     } finally {
       setPreviewLoading(null);
     }
   };
+
+  const savePreviewOverride = async () => {
+    if (!preview) return;
+    setSavingPreview(true);
+    try {
+      const { error } = await supabase
+        .from("comm_recipient_overrides")
+        .upsert(
+          {
+            campaign_id: preview.campaignId,
+            contact_id: preview.contactId,
+            subject: preview.subject,
+            body_html: preview.body,
+          },
+          { onConflict: "campaign_id,contact_id" },
+        );
+      if (error) throw error;
+      toast.success("Empfänger-Mail gespeichert");
+      setPreview({ ...preview, hasOverride: true });
+      setEditMode(false);
+      onChanged();
+    } catch (e: any) {
+      toast.error("Speichern fehlgeschlagen: " + (e.message || ""));
+    } finally {
+      setSavingPreview(false);
+    }
+  };
+
+  const resetPreviewOverride = async () => {
+    if (!preview) return;
+    if (!confirm("Individuelle Änderungen verwerfen und Vorlage verwenden?")) return;
+    setSavingPreview(true);
+    try {
+      const { error } = await supabase
+        .from("comm_recipient_overrides")
+        .delete()
+        .eq("campaign_id", preview.campaignId)
+        .eq("contact_id", preview.contactId);
+      if (error) throw error;
+      toast.success("Auf Vorlage zurückgesetzt");
+      setPreview(null);
+      onChanged();
+    } catch (e: any) {
+      toast.error("Zurücksetzen fehlgeschlagen: " + (e.message || ""));
+    } finally {
+      setSavingPreview(false);
+    }
+  };
+
 
   const editScheduled = async (item: ScheduledItem) => {
     if (item.kind !== "single") return;
