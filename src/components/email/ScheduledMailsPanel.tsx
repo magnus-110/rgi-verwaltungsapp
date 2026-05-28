@@ -3,10 +3,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CalendarClock, Mail, Users, Trash2, ExternalLink, AlertTriangle, Loader2, Pencil } from "lucide-react";
+import { CalendarClock, Mail, Users, Trash2, ExternalLink, AlertTriangle, Loader2, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
+
+export interface ScheduledRecipient {
+  contact_id: string;
+  display_name: string;
+  email: string | null;
+}
 
 export interface ScheduledItem {
   id: string;
@@ -19,6 +25,7 @@ export interface ScheduledItem {
   account_id: string | null;
   campaign_type?: string;
   error_message?: string | null;
+  resolved_recipients?: ScheduledRecipient[];
 }
 
 interface Props {
@@ -94,6 +101,36 @@ export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign
       toast.error("Abbrechen fehlgeschlagen: " + (e.message || ""));
     } finally {
       setCancelingId(null);
+    }
+  };
+
+  const removeRecipient = async (item: ScheduledItem, contactId: string) => {
+    if (item.kind !== "campaign") return;
+    if (!confirm("Empfänger aus dieser Rundmail entfernen?")) return;
+    try {
+      const { data: c, error: gErr } = await supabase
+        .from("comm_campaigns")
+        .select("recipient_filter")
+        .eq("id", item.ref_id)
+        .maybeSingle();
+      if (gErr) throw gErr;
+      const filter = ((c?.recipient_filter as any) || {}) as Record<string, any>;
+      const remaining = (item.resolved_recipients || [])
+        .filter((r) => r.contact_id !== contactId)
+        .map((r) => r.contact_id);
+      // Explicit contact_ids override role-based filter to lock the set after edits.
+      filter.contact_ids = remaining;
+      // Drop assignment_ids if any — explicit contact list takes priority.
+      delete filter.assignment_ids;
+      const { error: uErr } = await supabase
+        .from("comm_campaigns")
+        .update({ recipient_filter: filter, recipient_count: remaining.length })
+        .eq("id", item.ref_id);
+      if (uErr) throw uErr;
+      toast.success("Empfänger entfernt");
+      onChanged();
+    } catch (e: any) {
+      toast.error("Entfernen fehlgeschlagen: " + (e.message || ""));
     }
   };
 
@@ -210,6 +247,58 @@ export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign
                     </Button>
                   </div>
                 </div>
+
+                {item.kind === "campaign" && (
+                  <div className="mt-3 ml-12 border-l-2 border-purple-200 dark:border-purple-900/40 pl-3">
+                    {item.resolved_recipients === undefined ? (
+                      <div className="space-y-1.5 py-1">
+                        {[0, 1, 2].map((i) => (
+                          <div key={i} className="h-4 w-2/3 bg-muted/60 rounded animate-pulse" />
+                        ))}
+                      </div>
+                    ) : item.resolved_recipients.length === 0 ? (
+                      <div className="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1.5 py-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        Keine Empfänger aufgelöst — Versand wird fehlschlagen.
+                      </div>
+                    ) : (
+                      <ul className="space-y-0.5 py-0.5">
+                        {item.resolved_recipients.map((r) => {
+                          const hasEmail = !!r.email;
+                          return (
+                            <li
+                              key={r.contact_id}
+                              className="flex items-center gap-2 text-xs group/row py-0.5"
+                            >
+                              <Mail className={cn(
+                                "h-3 w-3 shrink-0",
+                                hasEmail ? "text-muted-foreground" : "text-destructive"
+                              )} />
+                              <span className="truncate flex-1">
+                                <span className="text-foreground">{r.display_name || "(Unbekannt)"}</span>
+                                {" "}
+                                <span className={cn(
+                                  hasEmail ? "text-muted-foreground" : "text-destructive italic"
+                                )}>
+                                  {hasEmail ? `<${r.email}>` : "(keine E-Mail)"}
+                                </span>
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 opacity-0 group-hover/row:opacity-100 hover:text-destructive"
+                                onClick={() => removeRecipient(item, r.contact_id)}
+                                title="Aus Versand entfernen"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

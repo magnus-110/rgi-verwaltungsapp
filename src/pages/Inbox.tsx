@@ -272,18 +272,34 @@ export const Inbox = () => {
         account_id: s.account_id,
         error_message: s.error_message,
       }));
-      const bulk = (campaignRes.data || []).map((c: any) => ({
-        id: `campaign-${c.id}`,
-        kind: "campaign" as const,
-        ref_id: c.id,
-        subject: c.subject_override || c.name || "(Rundmail)",
-        recipients: [],
-        recipient_count: c.recipient_count || 0,
-        scheduled_at: c.scheduled_at,
-        account_id: c.email_account_id,
-        campaign_type: c.type,
-        error_message: c.error_message,
-      }));
+      const bulk = await Promise.all(
+        (campaignRes.data || []).map(async (c: any) => {
+          let resolved: Array<{ contact_id: string; display_name: string; email: string | null }> | undefined;
+          try {
+            const { data: prev } = await supabase.functions.invoke("comm-preview-recipients", {
+              body: { campaign_id: c.id },
+            });
+            if (prev && Array.isArray((prev as any).recipients)) {
+              resolved = (prev as any).recipients;
+            }
+          } catch {
+            // leave resolved undefined → UI shows loading/fallback
+          }
+          return {
+            id: `campaign-${c.id}`,
+            kind: "campaign" as const,
+            ref_id: c.id,
+            subject: c.subject_override || c.name || "(Rundmail)",
+            recipients: [],
+            recipient_count: resolved ? resolved.length : (c.recipient_count || 0),
+            scheduled_at: c.scheduled_at,
+            account_id: c.email_account_id,
+            campaign_type: c.type,
+            error_message: c.error_message,
+            resolved_recipients: resolved,
+          };
+        }),
+      );
       return [...single, ...bulk].sort((a, b) => {
         const ad = a.scheduled_at ? new Date(a.scheduled_at).getTime() : 0;
         const bd = b.scheduled_at ? new Date(b.scheduled_at).getTime() : 0;
@@ -293,6 +309,7 @@ export const Inbox = () => {
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   });
+
 
   // Drafts query (virtual "Entwürfe" folder)
   const { data: draftItems = [] } = useQuery({
