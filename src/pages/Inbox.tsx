@@ -321,6 +321,7 @@ export const Inbox = () => {
   const isDraftsFolder = selectedFolderId === DRAFTS_FOLDER_ID;
 
   // Fetch emails for selected folder — slim columns; body wird lazy für Detail geladen
+  const isSearching = searchTerm.trim().length >= 2;
   const { data: emails = [], isLoading: emailsLoading } = useQuery({
     queryKey: ["emails", selectedFolderId, searchTerm, selectedAccountIds, isArchiveFolder, filterBuildingId, filterContactId, filterAssignedTo],
     queryFn: async () => {
@@ -328,9 +329,12 @@ export const Inbox = () => {
         .from("emails")
         .select("id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, assigned_to, deleted_at, case_id, message_id, is_etv_relevant, etv_meeting_id")
         .order("date", { ascending: false })
-        .limit(100);
+        .limit(isSearching ? 500 : 100);
 
-      if (isArchiveFolder) {
+      if (isSearching) {
+        // Im Suchmodus ordner-übergreifend suchen (Papierkorb ausgeschlossen)
+        query = query.is("deleted_at", null);
+      } else if (isArchiveFolder) {
         query = query.eq("is_archived", true);
         if (filterBuildingId === "none") query = query.is("building_id", null);
         else if (filterBuildingId !== "all") query = query.eq("building_id", filterBuildingId);
@@ -352,7 +356,7 @@ export const Inbox = () => {
         query = query.eq("assigned_to", filterAssignedTo);
       }
 
-      if (searchTerm.trim()) {
+      if (isSearching) {
         // Escape PostgREST OR-Sonderzeichen (Komma, Klammern) im Suchbegriff
         const safe = searchTerm.trim().replace(/([,()])/g, "\\$1");
         const conds = [
@@ -360,6 +364,7 @@ export const Inbox = () => {
           `from_name.ilike.%${safe}%`,
           `from_address.ilike.%${safe}%`,
           `to_addresses.ilike.%${safe}%`,
+          `cc_addresses.ilike.%${safe}%`,
           `body_text.ilike.%${safe}%`,
         ];
         query = query.or(conds.join(","));

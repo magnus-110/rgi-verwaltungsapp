@@ -1,44 +1,29 @@
-## Ziel
-Platzhalter darf mit Leerzeichen/Tabs in der Zeile stehen (für die Positionierung), trotzdem soll der Farbpunkt erhalten bleiben.
+## Problem
 
-## Lösung: Inline-Platzhalter mit Farb-Modul
+Du findest die Mail von Markus Gschwend nicht, weil die aktuelle Suche zwei harte Einschränkungen hat:
 
-Wir wechseln in `src/components/buildings/keys/tagTemplate.ts` von raw-xml (`{@anhaenger}`) auf einen **normalen Platzhalter** plus zwei farbgesteuerte Inline-Tags:
+1. **Nur 100 neueste Mails pro Ordner** — die Query in `src/pages/Inbox.tsx` (Zeile 331) endet mit `.limit(100)`. Liegt die gesuchte Mail älter, wird sie nie geladen und damit auch nie in der Suche gefunden — selbst wenn Name/Adresse exakt matchen.
+2. **Suche nur im aktuell gewählten Ordner** — die Query filtert auf `folder_id = aktueller Ordner` (oder `is_archived=true` im Archiv). Wenn die Mail im Archiv, einem Unterordner, im Spam oder bei einem anderen Account liegt, taucht sie nicht auf.
 
-**Neue Vorlagen-Syntax (Beispiel mit Einrückung durch Leerzeichen/Tabs):**
-```
-        {dot} {anhaenger}
-```
+Zusätzlich werden `cc_addresses` nicht durchsucht, und der `from_address`-Match scheitert manchmal, weil im Feld z.B. `"Markus Gschwend <m.gschwend@…>"` als ein String drinsteht, der bei einer reinen Adress-Eingabe noch matcht, bei einer Namens-Eingabe aber nur greift, wenn der Name dort tatsächlich steht (nicht immer der Fall — manche Server liefern nur die Adresse).
 
-- `{dot}` → wird durch ein farbiges „●" ersetzt (Farbe = key_type.color_hex)
-- `{anhaenger}` → wird durch den Infotext ersetzt (Tag-Nr · Typ · Schließplan · Liegenschaft)
+## Plan
 
-Beides sind **normale Tags**, die mitten in einer Zeile mit beliebigem Text/Whitespace davor und danach stehen dürfen. Damit ist die Multi-Error-Beschränkung weg.
+Nur Frontend-Änderung in `src/pages/Inbox.tsx` an der `emails`-Query (Zeilen 324–375):
 
-### Wie der Farbpunkt funktioniert
-docxtemplater ersetzt `{dot}` nur durch Text. Damit der Punkt farbig wird, registrieren wir ein kleines **inspect/postparse-Modul** bzw. nutzen einen einfacheren Weg:
+1. **Suchmodus erkennen:** `const isSearching = searchTerm.trim().length >= 2;`
+2. **Im Suchmodus ordner-übergreifend suchen:**
+   - Folder-Filter (`folder_id`, `is_archived`) NICHT anwenden, wenn `isSearching`.
+   - Account-Filter bleibt (damit man nur in seinen Accounts sucht).
+   - Papierkorb (`deleted_at`) bleibt ausgeschlossen.
+3. **Limit hochsetzen im Suchmodus:** `.limit(isSearching ? 500 : 100)`.
+4. **Suchfelder erweitern:** zusätzlich `cc_addresses.ilike.%…%` mit aufnehmen (subject, from_name, from_address, to_addresses, cc_addresses, body_text).
+5. **UI-Hinweis:** Wenn `isSearching`, im Header der Mailliste kleinen Text anzeigen: „Suche in allen Ordnern …" damit klar ist, warum plötzlich Mails aus anderen Ordnern auftauchen. Beim Klick auf ein Suchergebnis kann der Folder daran erkannt werden, dass `email.folder_id` ohnehin im Datensatz mitkommt — kein weiterer Umbau nötig.
 
-**Einfacher Weg (empfohlen, kein Custom-Modul):**
-In der Word-Vorlage formatiert der Nutzer **die Stelle `{dot}` selbst farbig** ist nicht möglich, weil die Farbe pro Anhänger variiert. Daher nutzen wir doch raw-xml, aber **nur für den Punkt allein**, mit der Regel "raw-xml-tag muss alleiniger Inhalt seines Absatzes sein" umgehen wir, indem `{@dot}` in einer **eigenen Tabellenzelle** oder **eigenen Zeile** steht — was die UX wieder verkompliziert.
+## Optional (separat, falls Punkt 1–5 nicht reicht)
 
-**Saubere Lösung: Custom Inline-Modul**
-Wir registrieren bei Docxtemplater ein einfaches Modul, das beim Parsing den Tag `{dot}` durch ein `<w:r>` mit Farbe ersetzt (Inline-Run statt Absatz). Das umgeht die Paragraph-Beschränkung komplett, weil wir nicht über raw-xml gehen, sondern direkt das XML-AST manipulieren.
+Falls die Mail trotzdem nicht auftaucht, ist die wahrscheinlichste Restursache, dass sie schlicht nie vom IMAP gefetched wurde (z.B. Ordner nicht synchronisiert). Dann hilft nur ein Refresh/Sync des betreffenden Accounts — das ist außerhalb dieser Code-Änderung.
 
-Implementierung in `tagTemplate.ts`:
-- Custom `parser`-Funktion für Tag `dot`, die ein `{ raw: '<w:r>…</w:r>' }` zurückgibt → docxtemplater bietet dafür `inspect-module`/`{@inline}` nicht direkt; daher nehmen wir den **pragmatischen Weg**:
+## Geänderte Datei
 
-**Pragmatischer finaler Weg:**
-1. Vorlage enthält den Tag `{anhaenger}` mit beliebigem Whitespace davor (für Positionierung).
-2. **Vor** dem Docxtemplater-Render machen wir einen direkten String-Replace im document.xml: Wir suchen `{anhaenger}` im XML und ersetzen den umschließenden `<w:r>…<w:t>…{anhaenger}…</w:t>…</w:r>` durch unsere mehreren `<w:r>`-Runs (farbiger Punkt + Text). Die Leerzeichen/Tabs davor bleiben unberührt, weil sie in einem **separaten** `<w:r>` stehen (Word splittet Runs nach Formatierung).
-
-Diese Lösung:
-- ✅ Erlaubt Leerzeichen/Tabs/Text vor `{anhaenger}` in derselben Zeile
-- ✅ Farbiger Punkt aus `key_types.color_hex`
-- ✅ Kein Multi-Error mehr
-- ✅ Kein extra User-Setup nötig
-
-### Änderungen
-- `src/components/buildings/keys/tagTemplate.ts`: raw-xml-Replace ersetzen durch direkten XML-String-Replace auf `word/document.xml` (via PizZip), Tag wieder `{anhaenger}` (ohne `@`).
-- `src/components/buildings/keys/BuildingKeysTab.tsx`: Hinweistext aktualisieren — „In der Vorlage `{anhaenger}` schreiben, beliebig eingerückt mit Leerzeichen oder Tabs."
-
-Keine DB-Änderung, keine neuen Dependencies.
+- `src/pages/Inbox.tsx` — nur die `useQuery({ queryKey: ["emails", …] })`-Block.
