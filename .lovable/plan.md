@@ -1,29 +1,42 @@
-## Problem
+## Ziel
 
-Du findest die Mail von Markus Gschwend nicht, weil die aktuelle Suche zwei harte Einschränkungen hat:
+In der „Geplante E-Mails"-Liste sollen Rundmails ihre konkreten Empfänger sichtbar machen — also pro Empfänger eine eigene Zeile (Name + E-Mail + geplanter Zeitpunkt), gruppiert unterhalb des Kampagnen-Headers. Aktuell steht dort nur „0 Kontakte", weil die Empfänger-Auflösung erst zur Versandzeit in `comm-send-bulk-email` passiert.
 
-1. **Nur 100 neueste Mails pro Ordner** — die Query in `src/pages/Inbox.tsx` (Zeile 331) endet mit `.limit(100)`. Liegt die gesuchte Mail älter, wird sie nie geladen und damit auch nie in der Suche gefunden — selbst wenn Name/Adresse exakt matchen.
-2. **Suche nur im aktuell gewählten Ordner** — die Query filtert auf `folder_id = aktueller Ordner` (oder `is_archived=true` im Archiv). Wenn die Mail im Archiv, einem Unterordner, im Spam oder bei einem anderen Account liegt, taucht sie nicht auf.
+## Umsetzung
 
-Zusätzlich werden `cc_addresses` nicht durchsucht, und der `from_address`-Match scheitert manchmal, weil im Feld z.B. `"Markus Gschwend <m.gschwend@…>"` als ein String drinsteht, der bei einer reinen Adress-Eingabe noch matcht, bei einer Namens-Eingabe aber nur greift, wenn der Name dort tatsächlich steht (nicht immer der Fall — manche Server liefern nur die Adresse).
+### 1. Neue Edge Function `comm-preview-recipients`
+- Input: `{ campaign_id }`
+- Lädt die Kampagne (`recipient_filter`, `building_id`, `free_vars`)
+- Ruft die bestehende `loadRecipients(...)` aus `_shared/comm-vars.ts` mit `require_email: true`
+- Gibt zurück: `[{ contact_id, person_id, display_name, email }]`
+- Nutzt Service-Role und prüft Auth-Header (nur eingeloggte Nutzer)
 
-## Plan
+### 2. Frontend: `Inbox.tsx` — `scheduled-mails-virtual`
+- Beim Laden der geplanten Kampagnen für jede Kampagne `comm-preview-recipients` parallel aufrufen (Promise.all, mit Fallback auf leeres Array bei Fehler).
+- Ergebnis in den Campaign-Item als `resolved_recipients: { display_name, email, contact_id }[]` hängen.
+- `recipient_count` aus tatsächlicher Anzahl ableiten (statt aus `comm_campaigns.recipient_count`, das beim Planen oft 0 ist).
+- Auto-Refresh bleibt bei 60 s.
 
-Nur Frontend-Änderung in `src/pages/Inbox.tsx` an der `emails`-Query (Zeilen 324–375):
+### 3. `ScheduledMailsPanel.tsx` — Gruppierte Darstellung
+- `ScheduledItem` um `resolved_recipients?` erweitern.
+- Bei `kind === "campaign"`: Kampagnen-Header (wie heute, mit Symbol, Betreff, Zeitpunkt, Absender, „Rundmail (email)"-Badge, Anzahl Empfänger).
+- Darunter: für jeden Empfänger eine eingerückte, kompakte Zeile mit:
+  - Mail-Icon (klein, ausgegraut)
+  - `Name` und `email@…`
+  - „Aus Versand entfernen"-Icon-Button (X) → aktualisiert `comm_campaigns.recipient_filter`, indem die `contact_id` aus `contact_ids` entfernt wird, dann Query invalidieren.
+- Top-Level „Abbrechen"-Button (Trash) bleibt → storniert ganze Kampagne wie bisher.
+- Loading-Skeleton (3 ausgegraute Sub-Zeilen) solange `resolved_recipients` undefined ist.
+- Falls 0 Empfänger nach Auflösung: kleine Warnung „Keine Empfänger mit hinterlegter E-Mail — Versand wird fehlschlagen".
 
-1. **Suchmodus erkennen:** `const isSearching = searchTerm.trim().length >= 2;`
-2. **Im Suchmodus ordner-übergreifend suchen:**
-   - Folder-Filter (`folder_id`, `is_archived`) NICHT anwenden, wenn `isSearching`.
-   - Account-Filter bleibt (damit man nur in seinen Accounts sucht).
-   - Papierkorb (`deleted_at`) bleibt ausgeschlossen.
-3. **Limit hochsetzen im Suchmodus:** `.limit(isSearching ? 500 : 100)`.
-4. **Suchfelder erweitern:** zusätzlich `cc_addresses.ilike.%…%` mit aufnehmen (subject, from_name, from_address, to_addresses, cc_addresses, body_text).
-5. **UI-Hinweis:** Wenn `isSearching`, im Header der Mailliste kleinen Text anzeigen: „Suche in allen Ordnern …" damit klar ist, warum plötzlich Mails aus anderen Ordnern auftauchen. Beim Klick auf ein Suchergebnis kann der Folder daran erkannt werden, dass `email.folder_id` ohnehin im Datensatz mitkommt — kein weiterer Umbau nötig.
+### 4. Backwards-Compat
+- Einzelmails (`kind === "single"`) bleiben unverändert (eine Zeile, keine Sub-Rows).
+- `comm_campaigns.recipient_count` wird weiterhin geschrieben, nur in der Anzeige durch die echte Auflösung ersetzt.
 
-## Optional (separat, falls Punkt 1–5 nicht reicht)
+## Technische Details
 
-Falls die Mail trotzdem nicht auftaucht, ist die wahrscheinlichste Restursache, dass sie schlicht nie vom IMAP gefetched wurde (z.B. Ordner nicht synchronisiert). Dann hilft nur ein Refresh/Sync des betreffenden Accounts — das ist außerhalb dieser Code-Änderung.
-
-## Geänderte Datei
-
-- `src/pages/Inbox.tsx` — nur die `useQuery({ queryKey: ["emails", …] })`-Block.
+- **Neue Datei**: `supabase/functions/comm-preview-recipients/index.ts`
+- **Geänderte Dateien**: 
+  - `src/pages/Inbox.tsx` (scheduled-mails-virtual Query)
+  - `src/components/email/ScheduledMailsPanel.tsx` (UI + Remove-Logik)
+- **Performance**: bei N geplanten Kampagnen N parallele Funktion-Aufrufe; bei den üblichen 1–5 Kampagnen unkritisch. React-Query cached pro `queryKey`, kein Hot-Spam.
+- **Keine DB-Migration nötig** — `recipient_filter` ist bereits jsonb und schreibbar.
