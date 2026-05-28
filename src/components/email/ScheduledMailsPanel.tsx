@@ -380,12 +380,17 @@ export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign
                                 )}>
                                   {hasEmail ? `<${r.email}>` : "(keine E-Mail)"}
                                 </span>
+                                {r.has_override && (
+                                  <Badge variant="outline" className="ml-1.5 text-[9px] border-amber-400 text-amber-700 dark:text-amber-300 py-0 px-1">
+                                    individuell
+                                  </Badge>
+                                )}
                               </span>
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 className="h-6 w-6 opacity-0 group-hover/row:opacity-100"
-                                onClick={() => openPreview(item, r)}
+                                onClick={() => openPreview(item, r, false)}
                                 title="E-Mail-Vorschau anzeigen"
                                 disabled={previewLoading === `${item.id}:${r.contact_id}`}
                               >
@@ -394,6 +399,15 @@ export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign
                                 ) : (
                                   <Eye className="h-3 w-3" />
                                 )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 opacity-0 group-hover/row:opacity-100"
+                                onClick={() => openPreview(item, r, true)}
+                                title="Diese E-Mail individuell bearbeiten"
+                              >
+                                <Pencil className="h-3 w-3" />
                               </Button>
                               <Button
                                 variant="ghost"
@@ -418,9 +432,16 @@ export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign
       </ScrollArea>
 
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
-        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle className="truncate">{preview?.subject}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2 min-w-0">
+              <span className="truncate">{preview?.subject || "(Kein Betreff)"}</span>
+              {preview?.hasOverride && (
+                <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-700 dark:text-amber-300 shrink-0">
+                  individuell
+                </Badge>
+              )}
+            </DialogTitle>
             <DialogDescription className="flex items-center gap-1.5 text-xs">
               <Mail className="h-3 w-3" />
               An: <span className="text-foreground">{preview?.recipientName}</span>
@@ -429,18 +450,83 @@ export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign
               )}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-auto border rounded-md bg-background">
-            {preview?.format === "plain" ? (
-              <pre className="text-sm whitespace-pre-wrap p-4 font-sans">{preview.body}</pre>
-            ) : (
-              <iframe
-                title="E-Mail-Vorschau"
-                srcDoc={preview?.body || ""}
-                className="w-full h-[60vh] border-0 bg-white"
-                sandbox=""
-              />
-            )}
-          </div>
+
+          {preview && editMode ? (
+            <div className="flex-1 overflow-auto space-y-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Betreff</label>
+                <Input
+                  value={preview.subject}
+                  onChange={(e) => setPreview({ ...preview, subject: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">
+                  Inhalt {preview.format === "html" ? "(HTML)" : "(Text)"}
+                </label>
+                <Textarea
+                  value={preview.body}
+                  onChange={(e) => setPreview({ ...preview, body: e.target.value })}
+                  className="mt-1 font-mono text-xs min-h-[50vh]"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Variablen wie <code>{"{{vorname}}"}</code> sind bereits aufgelöst — speichere den Text wortwörtlich.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-auto border rounded-md bg-background">
+              {preview?.format === "plain" ? (
+                <pre className="text-sm whitespace-pre-wrap p-4 font-sans">{preview.body}</pre>
+              ) : (
+                <iframe
+                  title="E-Mail-Vorschau"
+                  srcDoc={preview?.body || ""}
+                  className="w-full h-[60vh] border-0 bg-white"
+                  sandbox=""
+                />
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="flex-row justify-between sm:justify-between gap-2">
+            <div>
+              {preview?.hasOverride && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={resetPreviewOverride}
+                  disabled={savingPreview}
+                >
+                  <RotateCcw className="h-4 w-4 mr-1.5" />
+                  Auf Vorlage zurücksetzen
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {editMode ? (
+                <>
+                  <Button variant="ghost" size="sm" onClick={() => setEditMode(false)} disabled={savingPreview}>
+                    Abbrechen
+                  </Button>
+                  <Button size="sm" onClick={savePreviewOverride} disabled={savingPreview}>
+                    {savingPreview ? (
+                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4 mr-1.5" />
+                    )}
+                    Speichern
+                  </Button>
+                </>
+              ) : (
+                <Button size="sm" onClick={() => setEditMode(true)}>
+                  <Pencil className="h-4 w-4 mr-1.5" />
+                  Bearbeiten
+                </Button>
+              )}
+            </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
