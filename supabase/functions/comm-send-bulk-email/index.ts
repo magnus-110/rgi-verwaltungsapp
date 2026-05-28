@@ -129,10 +129,22 @@ Deno.serve(async (req) => {
       .eq("name", "Gesendet")
       .maybeSingle();
 
+    // Load per-recipient overrides (subject/body)
+    const { data: overridesData } = await admin
+      .from("comm_recipient_overrides")
+      .select("contact_id, subject, body_html")
+      .eq("campaign_id", campaign_id);
+    const overrideMap = new Map<string, { subject: string | null; body_html: string | null }>(
+      (overridesData || []).map((o: any) => [o.contact_id, { subject: o.subject, body_html: o.body_html }]),
+    );
+
     let ok = 0, fail = 0;
     for (const r of recipients) {
-      const renderedSubject = renderString(subject, r.vars);
-      const renderedBody = renderString(bodyHtml, r.vars);
+      const ov = overrideMap.get(r.contact_id);
+      const effSubject = ov?.subject ?? subject;
+      const effBody = ov?.body_html ?? bodyHtml;
+      const renderedSubject = renderString(effSubject, r.vars);
+      const renderedBody = renderString(effBody, r.vars);
       const isHtml = bodyFormat !== "plain";
       try {
         await transporter.sendMail({
