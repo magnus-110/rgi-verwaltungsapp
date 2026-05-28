@@ -23,6 +23,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -169,7 +170,50 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   const [bccContactPickerOpen, setBccContactPickerOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   const [showCcBcc, setShowCcBcc] = useState(false);
+
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewMeta, setPreviewMeta] = useState<{ name: string; mimeType: string | null }>({ name: "", mimeType: null });
+  const previewIsBlobRef = useRef(false);
+
+  const openAttachment = useCallback(async (att: { file?: File; name?: string; filename?: string; storage_path?: string; contentType?: string; mime_type?: string }) => {
+    const displayName = att.name || att.filename || "Anhang";
+    try {
+      if (att.file) {
+        if (previewUrl && previewIsBlobRef.current) URL.revokeObjectURL(previewUrl);
+        const url = URL.createObjectURL(att.file);
+        previewIsBlobRef.current = true;
+        setPreviewMeta({ name: displayName, mimeType: att.file.type || null });
+        setPreviewUrl(url);
+        setPreviewOpen(true);
+      } else if (att.storage_path) {
+        const { data, error } = await supabase.storage
+          .from("email-attachments")
+          .createSignedUrl(att.storage_path, 3600);
+        if (error) throw error;
+        if (previewUrl && previewIsBlobRef.current) URL.revokeObjectURL(previewUrl);
+        previewIsBlobRef.current = false;
+        setPreviewMeta({ name: displayName, mimeType: att.contentType || att.mime_type || null });
+        setPreviewUrl(data.signedUrl);
+        setPreviewOpen(true);
+      } else {
+        toast.error("Anhang kann nicht geöffnet werden");
+      }
+    } catch (e: any) {
+      toast.error("Vorschau fehlgeschlagen: " + (e?.message || "unbekannter Fehler"));
+    }
+  }, [previewUrl]);
+
+  const handlePreviewOpenChange = useCallback((open: boolean) => {
+    if (!open && previewUrl && previewIsBlobRef.current) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+    setPreviewOpen(open);
+  }, [previewUrl]);
+
+
 
   // Draggable position state (desktop only, but declared here to keep hook order stable across mobile/desktop switches)
   const [dragPos, setDragPos] = useState<{ left: number; top: number } | null>(null);
@@ -892,14 +936,15 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           {compose.attachments.length > 0 && (
             <div className="px-4 py-2 space-y-1.5 border-b bg-muted/30">
               {compose.attachments.map((att, idx) => (
-                <div key={idx} className="flex items-center gap-2 text-sm bg-background rounded-md px-2.5 py-2 border">
+                <div key={idx} className="flex items-center gap-2 text-sm bg-background rounded-md px-2.5 py-2 border cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => openAttachment(att)} title="Vorschau öffnen">
                   <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <span className="truncate flex-1">{att.name}</span>
                   <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(att.size)}</span>
-                  <button onClick={() => removeAttachment(idx)} className="text-muted-foreground hover:text-destructive p-1">
+                  <button onClick={(e) => { e.stopPropagation(); removeAttachment(idx); }} className="text-muted-foreground hover:text-destructive p-1" aria-label="Anhang entfernen">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
+
               ))}
             </div>
           )}
@@ -947,6 +992,14 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
       </div>
       {closeDialog}
+      <AttachmentPreviewDialog
+        open={previewOpen}
+        onOpenChange={handlePreviewOpenChange}
+        url={previewUrl}
+        fileName={previewMeta.name}
+        mimeType={previewMeta.mimeType}
+      />
+
       </>
     );
   }
@@ -1213,13 +1266,14 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             {compose.existingAttachments && compose.existingAttachments.length > 0 && (
               <div className="space-y-0.5">
                 {compose.existingAttachments.map((att: any, idx: number) => (
-                  <div key={`ex-${idx}`} className="flex items-center gap-1.5 text-xs bg-muted rounded px-2 py-1">
+                  <div key={`ex-${idx}`} className="flex items-center gap-1.5 text-xs bg-muted rounded px-2 py-1 cursor-pointer hover:bg-muted/70 transition-colors" onClick={() => openAttachment(att)} title="Vorschau öffnen">
                     <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
                     <span className="truncate flex-1">{att.filename || att.name}</span>
                     <span className="text-muted-foreground shrink-0">{att.size ? formatFileSize(att.size) : ""}</span>
                     <button
-                      onClick={() => update({ existingAttachments: (compose.existingAttachments || []).filter((_: any, i: number) => i !== idx) })}
+                      onClick={(e) => { e.stopPropagation(); update({ existingAttachments: (compose.existingAttachments || []).filter((_: any, i: number) => i !== idx) }); }}
                       className="text-muted-foreground hover:text-destructive"
+                      aria-label="Anhang entfernen"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -1227,17 +1281,19 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
                 ))}
               </div>
             )}
+
             {compose.attachments.length > 0 && (
               <div className="space-y-0.5">
                 {compose.attachments.map((att, idx) => (
-                  <div key={idx} className="flex items-center gap-1.5 text-xs bg-muted rounded px-2 py-1">
+                  <div key={idx} className="flex items-center gap-1.5 text-xs bg-muted rounded px-2 py-1 cursor-pointer hover:bg-muted/70 transition-colors" onClick={() => openAttachment(att)} title="Vorschau öffnen">
                     <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
                     <span className="truncate flex-1">{att.name}</span>
                     <span className="text-muted-foreground shrink-0">{formatFileSize(att.size)}</span>
-                    <button onClick={() => removeAttachment(idx)} className="text-muted-foreground hover:text-destructive">
+                    <button onClick={(e) => { e.stopPropagation(); removeAttachment(idx); }} className="text-muted-foreground hover:text-destructive" aria-label="Anhang entfernen">
                       <X className="h-3 w-3" />
                     </button>
                   </div>
+
                 ))}
               </div>
             )}
@@ -1266,6 +1322,14 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       </div>
     </div>
     {closeDialog}
+    <AttachmentPreviewDialog
+      open={previewOpen}
+      onOpenChange={handlePreviewOpenChange}
+      url={previewUrl}
+      fileName={previewMeta.name}
+      mimeType={previewMeta.mimeType}
+    />
+
     </>
   );
 };
