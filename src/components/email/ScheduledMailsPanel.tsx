@@ -317,6 +317,20 @@ export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                className="h-6 w-6 opacity-0 group-hover/row:opacity-100"
+                                onClick={() => openPreview(item, r)}
+                                title="E-Mail-Vorschau anzeigen"
+                                disabled={previewLoading === `${item.id}:${r.contact_id}`}
+                              >
+                                {previewLoading === `${item.id}:${r.contact_id}` ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Eye className="h-3 w-3" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 className="h-6 w-6 opacity-0 group-hover/row:opacity-100 hover:text-destructive"
                                 onClick={() => removeRecipient(item, r.contact_id)}
                                 title="Aus Versand entfernen"
@@ -335,6 +349,33 @@ export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign
           </div>
         )}
       </ScrollArea>
+
+      <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="truncate">{preview?.subject}</DialogTitle>
+            <DialogDescription className="flex items-center gap-1.5 text-xs">
+              <Mail className="h-3 w-3" />
+              An: <span className="text-foreground">{preview?.recipientName}</span>
+              {preview?.recipientEmail && (
+                <span className="text-muted-foreground">&lt;{preview.recipientEmail}&gt;</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto border rounded-md bg-background">
+            {preview?.format === "plain" ? (
+              <pre className="text-sm whitespace-pre-wrap p-4 font-sans">{preview.body}</pre>
+            ) : (
+              <iframe
+                title="E-Mail-Vorschau"
+                srcDoc={preview?.body || ""}
+                className="w-full h-[60vh] border-0 bg-white"
+                sandbox=""
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
