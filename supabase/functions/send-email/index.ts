@@ -134,8 +134,26 @@ Deno.serve(async (req) => {
       contentType: string;
       storage_path?: string;
     }> = [];
+    const MAX_TOTAL_BYTES = 35 * 1024 * 1024; // 35 MB Summe — darüber sprengt nodemailer + base64 das 150 MB Memory-Limit
     if (attachments && Array.isArray(attachments) && attachments.length > 0) {
       console.log(`Processing ${attachments.length} attachment(s)`);
+      // Vorab Gesamtgröße aus Metadaten prüfen (storage_path: HEAD via list, inline: base64-Länge)
+      let declaredTotal = 0;
+      for (const att of attachments) {
+        if (typeof att.size === "number") declaredTotal += att.size;
+        else if (att.content) declaredTotal += Math.floor((att.content.length * 3) / 4);
+      }
+      if (declaredTotal > MAX_TOTAL_BYTES) {
+        const mb = (declaredTotal / 1024 / 1024).toFixed(1);
+        return new Response(
+          JSON.stringify({
+            error: `Anhänge zu groß: ${mb} MB (max. 35 MB pro E-Mail). Bitte E-Mail aufteilen oder Dateien als Download-Link versenden.`,
+          }),
+          { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      let runningTotal = 0;
       for (const att of attachments) {
         let buf: Uint8Array;
         if (att.storage_path) {
@@ -155,6 +173,16 @@ Deno.serve(async (req) => {
           console.warn(`  - skipping ${att.filename}: no content or storage_path`);
           continue;
         }
+        runningTotal += buf.byteLength;
+        if (runningTotal > MAX_TOTAL_BYTES) {
+          const mb = (runningTotal / 1024 / 1024).toFixed(1);
+          return new Response(
+            JSON.stringify({
+              error: `Anhänge zu groß: ${mb} MB (max. 35 MB pro E-Mail). Bitte E-Mail aufteilen oder Dateien als Download-Link versenden.`,
+            }),
+            { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
         resolvedAttachments.push({
           filename: att.filename,
           buffer: buf,
@@ -168,6 +196,7 @@ Deno.serve(async (req) => {
         contentType: a.contentType,
       }));
     }
+
 
     try {
       await transporter.sendMail(mailOptions);
