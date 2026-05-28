@@ -72,9 +72,6 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
     },
   });
 
-  // Marker so we can detect & replace the signature block when the account changes
-  const SIG_START = "<!--signature-start-->";
-  const SIG_END = "<!--signature-end-->";
   const htmlToPlain = (html: string) =>
     html
       .replace(/<br\s*\/?>(\r?\n)?/gi, "\n")
@@ -89,24 +86,27 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const buildSignatureBlock = (sigHtml: string, format: "html" | "plain") => {
     if (!sigHtml) return "";
     const content = format === "html" ? sigHtml : htmlToPlain(sigHtml);
-    return `\n\n${SIG_START}\n${content}\n${SIG_END}`;
+    return `\n\n${content}`;
   };
 
-  const stripSignatureBlock = (text: string) => {
-    if (!text) return text;
-    const re = new RegExp(`\\n*${SIG_START}[\\s\\S]*?${SIG_END}\\n*`, "g");
-    return text.replace(re, "").trimEnd();
-  };
+  // Track currently-applied signature so we can replace it when account/format changes
+  const appliedSigRef = useRef<string>("");
 
-  // Auto-insert / refresh signature when the sender account or format changes
   useEffect(() => {
     const acc = accounts.find((a: any) => a.id === accountId);
     const sig = acc?.signature_html || "";
-    const base = stripSignatureBlock(body);
-    const next = sig ? base + buildSignatureBlock(sig, bodyFormat) : base;
+    const nextBlock = buildSignatureBlock(sig, bodyFormat);
+    const prevBlock = appliedSigRef.current;
+    let base = body;
+    if (prevBlock && base.endsWith(prevBlock)) {
+      base = base.slice(0, base.length - prevBlock.length).replace(/\s+$/, "");
+    }
+    const next = base + nextBlock;
+    appliedSigRef.current = nextBlock;
     if (next !== body) setBody(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId, bodyFormat, accounts.length]);
+
 
   const reset = () => {
     setStep(1); setName(""); setTemplate(null);
