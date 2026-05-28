@@ -2618,6 +2618,44 @@ export type Database = {
           },
         ]
       }
+      comm_recipient_overrides: {
+        Row: {
+          body_html: string | null
+          campaign_id: string
+          contact_id: string
+          created_at: string
+          id: string
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          body_html?: string | null
+          campaign_id: string
+          contact_id: string
+          created_at?: string
+          id?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          body_html?: string | null
+          campaign_id?: string
+          contact_id?: string
+          created_at?: string
+          id?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comm_recipient_overrides_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "comm_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comm_recipients: {
         Row: {
           building_id: string | null

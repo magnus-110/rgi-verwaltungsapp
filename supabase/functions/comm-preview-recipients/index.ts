@@ -77,16 +77,29 @@ Deno.serve(async (req) => {
       if (!bodyTpl) bodyTpl = t?.body_html || null;
     }
 
+    // Always load per-recipient overrides (cheap; needed for has_override flag)
+    const { data: ovData } = await admin
+      .from("comm_recipient_overrides")
+      .select("contact_id, subject, body_html")
+      .eq("campaign_id", campaignId);
+    const overrideMap = new Map<string, { subject: string | null; body_html: string | null }>(
+      (ovData || []).map((o: any) => [o.contact_id, { subject: o.subject, body_html: o.body_html }]),
+    );
+
     const recipients = resolved.map((r) => {
+      const ov = overrideMap.get(r.contact_id);
       const base: any = {
         contact_id: r.contact_id,
         person_id: r.person_id,
         display_name: r.display_name,
         email: r.email,
+        has_override: !!ov,
       };
       if (includeBody) {
-        base.rendered_subject = subjectTpl ? renderString(subjectTpl, r.vars) : "";
-        base.rendered_body = bodyTpl ? renderString(bodyTpl, r.vars) : "";
+        const effSubject = ov?.subject ?? subjectTpl;
+        const effBody = ov?.body_html ?? bodyTpl;
+        base.rendered_subject = effSubject ? renderString(effSubject, r.vars) : "";
+        base.rendered_body = effBody ? renderString(effBody, r.vars) : "";
         base.body_format = bodyFormat;
       }
       return base;
