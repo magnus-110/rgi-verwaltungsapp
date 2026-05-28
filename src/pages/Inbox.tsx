@@ -1520,6 +1520,19 @@ export const Inbox = () => {
                   </div>
                 ))
               )}
+                ))
+              )}
+              {!emailsLoading && !emailsError && filteredEmails.length > 0 && canLoadMore && (
+                <div className="p-3 flex justify-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPageLimit((n) => n + (isSearching ? 500 : 200))}
+                  >
+                    Mehr laden ({emails.length} geladen)
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </ResizablePanel>
