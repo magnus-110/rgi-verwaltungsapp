@@ -39,7 +39,37 @@ interface Props {
 export function ScheduledMailsPanel({ items, accounts, onChanged, onOpenCampaign }: Props) {
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState<string | null>(null);
+  const [preview, setPreview] = useState<
+    | { recipientName: string; recipientEmail: string | null; subject: string; body: string; format: "html" | "plain" }
+    | null
+  >(null);
   const { openCompose } = useComposeEmail();
+
+  const openPreview = async (item: ScheduledItem, r: ScheduledRecipient) => {
+    const key = `${item.id}:${r.contact_id}`;
+    setPreviewLoading(key);
+    try {
+      const { data, error } = await supabase.functions.invoke("comm-preview-recipients", {
+        body: { campaign_id: item.ref_id, include_body: true },
+      });
+      if (error) throw error;
+      const list = (data as any)?.recipients || [];
+      const match = list.find((x: any) => x.contact_id === r.contact_id);
+      if (!match) throw new Error("Empfänger nicht gefunden");
+      setPreview({
+        recipientName: r.display_name,
+        recipientEmail: r.email,
+        subject: match.rendered_subject || "(Kein Betreff)",
+        body: match.rendered_body || "",
+        format: (match.body_format as "html" | "plain") || "html",
+      });
+    } catch (e: any) {
+      toast.error("Vorschau fehlgeschlagen: " + (e.message || ""));
+    } finally {
+      setPreviewLoading(null);
+    }
+  };
 
   const editScheduled = async (item: ScheduledItem) => {
     if (item.kind !== "single") return;
