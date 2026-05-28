@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,15 +62,51 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   };
 
   const { data: accounts = [] } = useQuery({
-    queryKey: ["email-accounts"],
+    queryKey: ["email-accounts-with-signature"],
     queryFn: async () => {
       const { data, error } = await supabase.from("email_accounts")
-        .select("id, display_name, email_address")
+        .select("id, display_name, email_address, signature_html")
         .eq("is_active", true).order("display_name");
       if (error) throw error;
       return data || [];
     },
   });
+
+  // Marker so we can detect & replace the signature block when the account changes
+  const SIG_START = "<!--signature-start-->";
+  const SIG_END = "<!--signature-end-->";
+  const htmlToPlain = (html: string) =>
+    html
+      .replace(/<br\s*\/?>(\r?\n)?/gi, "\n")
+      .replace(/<\/p>/gi, "\n\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .trim();
+
+  const buildSignatureBlock = (sigHtml: string, format: "html" | "plain") => {
+    if (!sigHtml) return "";
+    const content = format === "html" ? sigHtml : htmlToPlain(sigHtml);
+    return `\n\n${SIG_START}\n${content}\n${SIG_END}`;
+  };
+
+  const stripSignatureBlock = (text: string) => {
+    if (!text) return text;
+    const re = new RegExp(`\\n*${SIG_START}[\\s\\S]*?${SIG_END}\\n*`, "g");
+    return text.replace(re, "").trimEnd();
+  };
+
+  // Auto-insert / refresh signature when the sender account or format changes
+  useEffect(() => {
+    const acc = accounts.find((a: any) => a.id === accountId);
+    const sig = acc?.signature_html || "";
+    const base = stripSignatureBlock(body);
+    const next = sig ? base + buildSignatureBlock(sig, bodyFormat) : base;
+    if (next !== body) setBody(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId, bodyFormat, accounts.length]);
 
   const reset = () => {
     setStep(1); setName(""); setTemplate(null);
@@ -121,7 +157,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
       email_account_id: accountId || null,
       recipient_filter: { roles: filter.roles, contact_ids: recipientIds, assignment_ids: assignmentIds },
       subject_override: subject || null,
-      body_html_override: body || null,
+      body_html_override: (body || "").replace(new RegExp(SIG_START, "g"), "").replace(new RegExp(SIG_END, "g"), "") || null,
       body_format: bodyFormat,
       status,
       scheduled_at: status === "scheduled" && scheduledAt ? new Date(scheduledAt).toISOString() : null,
