@@ -1299,10 +1299,18 @@ export const Inbox = () => {
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
               {emailsLoading ? (
                 <div className="p-4 text-center text-sm text-muted-foreground">Laden...</div>
+              ) : emailsError ? (
+                <div className="p-8 text-center">
+                  <Mail className="h-12 w-12 mx-auto text-destructive/40 mb-3" />
+                  <p className="text-sm text-destructive">Suche fehlgeschlagen</p>
+                  <p className="text-xs text-muted-foreground mt-1">{(emailsError as any)?.message || "Unbekannter Fehler"}</p>
+                </div>
               ) : filteredEmails.length === 0 ? (
                 <div className="p-8 text-center">
                   <Mail className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
-                  <p className="text-sm text-muted-foreground">Keine E-Mails vorhanden</p>
+                  <p className="text-sm text-muted-foreground">
+                    {isSearching ? "Keine Treffer gefunden" : "Keine E-Mails vorhanden"}
+                  </p>
                 </div>
               ) : (
                 filteredEmails.map(email => (
