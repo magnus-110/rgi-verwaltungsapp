@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Command,
   CommandEmpty,
@@ -224,6 +225,118 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+function EditableFuelSection({ invoice, onSaved }: { invoice: Invoice; onSaved: () => void }) {
+  const initial = (invoice.ocr_extracted_data as any) || {};
+  const [ocr, setOcr] = useState<any>(initial);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setOcr((invoice.ocr_extracted_data as any) || {});
+  }, [invoice.id]);
+
+  const fuelUnit = ocr.fuel_unit || (ocr.fuel_type === "oil" ? "l" : ocr.fuel_type === "pellets" ? "kg" : "kWh");
+
+  const persist = async (patch: Record<string, any>) => {
+    const next = { ...ocr, ...patch };
+    setOcr(next);
+    setSaving(true);
+    const { error } = await supabase
+      .from("invoices")
+      .update({ ocr_extracted_data: next } as any)
+      .eq("id", invoice.id);
+    setSaving(false);
+    if (error) {
+      toast.error("Speichern fehlgeschlagen: " + error.message);
+    } else {
+      onSaved();
+    }
+  };
+
+  const NumField = ({ label, field, suffix }: { label: string; field: string; suffix?: string }) => {
+    const [val, setVal] = useState<string>(ocr[field] != null ? String(ocr[field]).replace(".", ",") : "");
+    useEffect(() => { setVal(ocr[field] != null ? String(ocr[field]).replace(".", ",") : ""); }, [invoice.id, ocr[field]]);
+    return (
+      <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">{label}</label>
+        <div className="flex items-center gap-1">
+          <Input
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            onBlur={() => {
+              const raw = val.trim().replace(/\./g, "").replace(",", ".");
+              const num = raw === "" ? null : Number(raw);
+              if (raw !== "" && !Number.isFinite(num)) { toast.error("Ungültige Zahl"); return; }
+              if ((ocr[field] ?? null) !== num) persist({ [field]: num });
+            }}
+            className="h-8 text-sm"
+            inputMode="decimal"
+          />
+          {suffix && <span className="text-xs text-muted-foreground whitespace-nowrap">{suffix}</span>}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="rounded-lg border border-orange-200 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-950/20 p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <Flame className="h-4 w-4 text-orange-500" />
+        <h4 className="text-sm font-semibold">Brennstoffkauf — aus Rechnung erkannt</h4>
+        {saving && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Art</label>
+          <Select value={ocr.fuel_type || "oil"} onValueChange={(v) => persist({ fuel_type: v })}>
+            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="oil">Heizöl</SelectItem>
+              <SelectItem value="pellets">Pellets</SelectItem>
+              <SelectItem value="gas">Gas</SelectItem>
+              <SelectItem value="district_heating">Fernwärme</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <NumField label="Menge" field="fuel_quantity" suffix={fuelUnit} />
+        <NumField label="Energieinhalt" field="energy_content_kwh" suffix="kWh" />
+        <NumField label="CO₂-Emissionen" field="co2_emissions_kg" suffix="kg" />
+        <NumField label="CO₂-Steueranteil" field="co2_tax_amount_eur" suffix="€" />
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Lieferdatum</label>
+          <Input
+            type="date"
+            value={ocr.delivery_date || ""}
+            onChange={(e) => persist({ delivery_date: e.target.value || null })}
+            className="h-8 text-sm"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Verbrauch von</label>
+          <Input
+            type="date"
+            value={ocr.billing_period_from || ""}
+            onChange={(e) => persist({ billing_period_from: e.target.value || null })}
+            className="h-8 text-sm"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Verbrauch bis</label>
+          <Input
+            type="date"
+            value={ocr.billing_period_to || ""}
+            onChange={(e) => persist({ billing_period_to: e.target.value || null })}
+            className="h-8 text-sm"
+          />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Änderungen werden automatisch gespeichert und beim Buchen in die Brennstoffbestandsführung übernommen.
+      </p>
+    </div>
+  );
+}
+
 
 function SearchableBuildingSelect({
   buildings,
@@ -674,66 +787,12 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
             )}
           </div>
 
-          {(() => {
-            const ocr = invoice.ocr_extracted_data as any;
-            if (!ocr?.is_fuel_purchase) return null;
-            const fuelLabel = ocr.fuel_type === "pellets" ? "Pellets"
-              : ocr.fuel_type === "gas" ? "Gas"
-              : ocr.fuel_type === "district_heating" ? "Fernwärme"
-              : "Heizöl";
-            const fuelUnit = ocr.fuel_unit || (ocr.fuel_type === "oil" ? "l"
-              : ocr.fuel_type === "pellets" ? "kg"
-              : "kWh");
-            const fmtNum = (v: any, suffix = "") =>
-              v != null && v !== "" ? `${typeof v === "number" ? new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(v) : v}${suffix}` : "–";
-            return (
-              <>
-                <Separator />
-                <div className="rounded-lg border border-orange-200 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-950/20 p-4 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Flame className="h-4 w-4 text-orange-500" />
-                    <h4 className="text-sm font-semibold">Brennstoffkauf — aus Rechnung erkannt</h4>
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm pt-1">
-                    <InfoRow label="Art" value={fuelLabel} />
-                    <InfoRow label="Menge" value={fmtNum(ocr.fuel_quantity, ` ${fuelUnit}`)} />
-                    <InfoRow label="Energieinhalt" value={fmtNum(ocr.energy_content_kwh, " kWh")} />
-                    <InfoRow label="CO₂-Emissionen" value={fmtNum(ocr.co2_emissions_kg, " kg")} />
-                    <InfoRow label="CO₂-Steueranteil" value={ocr.co2_tax_amount_eur != null ? `${formatCurrency(ocr.co2_tax_amount_eur)} €` : "–"} />
-                    <InfoRow label="Lieferdatum" value={ocr.delivery_date || invoice.invoice_date || "–"} />
-                  </div>
-                  {(ocr.billing_period_from || ocr.billing_period_to) && (() => {
-                    const periodTo = ocr.billing_period_to || ocr.billing_period_from;
-                    const heizjahr = periodTo ? new Date(periodTo).getFullYear() : null;
-                    const invoiceYear = invoice.invoice_date ? new Date(invoice.invoice_date).getFullYear() : null;
-                    const yearMismatch = heizjahr && invoiceYear && heizjahr !== invoiceYear;
-                    return (
-                      <div className={`mt-2 rounded-md border p-2 text-xs ${yearMismatch ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20" : "border-border bg-muted/30"}`}>
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <span className="font-medium">
-                            Verbrauchszeitraum: {ocr.billing_period_from || "?"} – {ocr.billing_period_to || "?"}
-                          </span>
-                          {heizjahr && (
-                            <Badge variant={yearMismatch ? "default" : "secondary"} className={yearMismatch ? "bg-amber-600 hover:bg-amber-600" : ""}>
-                              Heizjahr {heizjahr}
-                            </Badge>
-                          )}
-                        </div>
-                        {yearMismatch && (
-                          <p className="mt-1 text-amber-900 dark:text-amber-200">
-                            Rechnungsdatum {invoiceYear} · Verbrauch wird Heizjahr {heizjahr} zugeordnet.
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  <p className="text-xs text-muted-foreground pt-1">
-                    Diese Daten werden beim Buchen in die Brennstoffbestandsführung übernommen.
-                  </p>
-                </div>
-              </>
-            );
-          })()}
+          {invoice.ocr_extracted_data?.is_fuel_purchase && (
+            <>
+              <Separator />
+              <EditableFuelSection invoice={invoice} onSaved={onRefetch} />
+            </>
+          )}
 
           <Separator />
 
