@@ -245,12 +245,23 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
     return (
       <div key={node.id}>
         <div
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes("application/x-dms-file-ids")) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              if (dropTargetId !== node.id) setDropTargetId(node.id);
+            }
+          }}
+          onDragLeave={() => { if (dropTargetId === node.id) setDropTargetId(null); }}
+          onDrop={(e) => handleDropOnFolder(node.id, e)}
           className={cn(
             "group w-full flex items-center gap-1.5 py-1.5 px-2 rounded-md text-sm hover:bg-accent",
-            isSelected && "bg-accent font-medium"
+            isSelected && "bg-accent font-medium",
+            dropTargetId === node.id && "ring-2 ring-primary bg-primary/10"
           )}
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
         >
+
           <span
             onClick={(e) => { if (hasChildren) { e.stopPropagation(); toggle(node.id); } }}
             className="flex-shrink-0 w-4 cursor-pointer"
