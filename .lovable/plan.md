@@ -1,55 +1,37 @@
-## Ziel
-Veraltete Mistral-Modelle (Retirement 31.05.2026 ff.) projektweit durch die offiziellen Nachfolger ersetzen.
+## Problem
 
-## Mapping
-| Alt | Neu | Hinweis |
-|-----|-----|---------|
-| `mistral-large-latest` | `mistral-medium-3-5` | Mistral Large 2 wird abgeschaltet |
-| `mistral-medium-latest` | `mistral-medium-3-5` | Aktuelles `-latest` zeigt auf 3.1, wird abgeschaltet |
-| `mistral-small-latest` | unverändert | `-latest` zeigt bereits auf Small 4 |
-| `mistral-ocr-latest` | unverändert | Alias zeigt auf OCR 3 |
-| `voxtral-mini-latest` | unverändert | Bereits 2.0 |
-| `mistral-embed` | unverändert | Nicht betroffen |
+Auf dem Admin-Dashboard zeigt das KPI „Neue E-Mails" bei Magnus 4 ungelesene Mails an, obwohl er für seine 3 abonnierten Postfächer 0 ungelesene hat.
 
-Andere im Mail genannte Modelle (devstral*, pixtral*, magistral*, ministral*, leanstral, `mistral-moderation-*`, feste Datums-Snapshots wie `mistral-medium-2508`) werden im Code **nicht** verwendet — kein Handlungsbedarf.
+## Ursache
 
-## Code-Änderungen
+Die RPC `get_dashboard_global_stats` filtert serverseitig bereits korrekt nach `in_app_email_subscriptions` des aufrufenden Users (per `auth.uid()`).
 
-### Edge Functions (`mistral-large-latest` → `mistral-medium-3-5`)
-- `supabase/functions/voice-to-email/index.ts` (Zeile 128, plus Kommentar Zeile 1)
-- `supabase/functions/parse-bank-statement-pdf/index.ts` (97)
-- `supabase/functions/query-documents/index.ts` (482, 618)
-- `supabase/functions/suggest-match/index.ts` (377)
-- `supabase/functions/analyze-billing/index.ts` (61)
-- `supabase/functions/generate-payment-purpose/index.ts` (47)
-- `supabase/functions/generate-meeting-protocol/index.ts` (168)
+Der Bug liegt im Frontend-Cache: in `src/pages/Dashboard.tsx` ist der React-Query-Key
 
-### Edge Functions (`mistral-medium-latest` → `mistral-medium-3-5`)
-- `supabase/functions/classify-email/index.ts` (295)
-
-### Frontend
-- `src/pages/DocumentSettings.tsx`
-  - Dropdown-Optionen (Zeilen 65–67): `mistral-medium-3-5` als Empfohlen, `mistral-small-latest` als „Schneller". Die alte „Large"-Option entfernen.
-  - Default-State (Zeile 80) und Fallback (Zeile 102) auf `mistral-medium-3-5` umstellen.
-
-### Datenbank-Migration
-Neue Migration, die
-- die `DEFAULT`-Klausel von `public.document_chat_settings.model` auf `mistral-medium-3-5` setzt,
-- bestehende Zeilen mit `model = 'mistral-large-latest'` auf `mistral-medium-3-5` aktualisiert.
-
-```sql
-ALTER TABLE public.document_chat_settings
-  ALTER COLUMN model SET DEFAULT 'mistral-medium-3-5';
-
-UPDATE public.document_chat_settings
-   SET model = 'mistral-medium-3-5', updated_at = now()
- WHERE model IN ('mistral-large-latest', 'mistral-medium-latest');
+```ts
+queryKey: ["dashboard-global-stats", managementMode]
 ```
 
-## Nicht im Scope
-- Kein `reasoning_effort: "high"` hinzufügen: Die alten Aufrufe waren Nicht-Reasoning-Modelle (Large 2 / Medium 3.1). Ein automatisches Aktivieren würde Latenz und Kosten erhöhen, ohne dass es vom Nutzer gewünscht wurde. Auf Wunsch nachrüstbar.
-- Keine Anpassung der Embeddings, OCR-, Voxtral- oder Small-Aufrufe.
+— er enthält **nicht** die User-ID. Wenn vorher ein anderer Admin (z. B. Regina, mit Abos auf das Konto mit 4 ungelesenen Mails) im selben Browser eingeloggt war, liefert der Cache nach Login-Wechsel weiterhin dessen Stats an Magnus aus, bis nach 60 s neu gefetcht wird oder der Cache gelöscht wird. Genauso betroffen ist `dashboard-portfolio-totals`.
+
+## Änderungen
+
+**`src/pages/Dashboard.tsx`**
+- `user?.id` aus `useAuth` ziehen (ist bereits importiert, nur `profile` wird aktuell genutzt) und in beide Query-Keys aufnehmen:
+  - `["dashboard-global-stats", user?.id, managementMode]`
+  - `["dashboard-portfolio-totals", user?.id]`
+- Queries via `enabled: !!user?.id` absichern, damit kein Request ohne User feuert.
+
+**`src/hooks/useAuth.tsx`** (nur falls noch nicht vorhanden)
+- Beim Sign-out `queryClient.clear()` aufrufen, damit auch andere user-spezifische Caches (Postfach, Todos etc.) nicht an den nächsten Login durchsickern. Diesen Punkt nur umsetzen, wenn beim Inspizieren kein bestehendes Clear existiert; sonst weglassen.
+
+## Out of scope
+
+- Die RPC selbst bleibt unverändert — sie filtert bereits korrekt nach `in_app_email_subscriptions` + Eingang-Folder + `is_read=false`.
+- Keine UI-/Designänderungen.
 
 ## Verifikation
-- `rg "mistral-large-latest|mistral-medium-latest"` muss leer sein.
-- Edge Functions automatisch redeployen lassen; stichprobenhaft `analyze-billing` und `query-documents` über die UI testen.
+
+1. Als Regina einloggen → Dashboard zeigt 4 neue Mails.
+2. Ausloggen, als Magnus einloggen → KPI „Neue E-Mails" zeigt sofort 0 (statt erst nach 60 s Refetch).
+3. Magnus abonniert ein Postfach mit ungelesenen Mails → KPI aktualisiert sich beim nächsten Refetch.
