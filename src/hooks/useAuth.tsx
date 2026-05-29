@@ -3,6 +3,8 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+
 
 interface Profile {
   id: string;
@@ -43,6 +45,8 @@ interface AuthProviderProps {
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -227,6 +231,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setProfile(null);
       setUser(null);
       setSession(null);
+      queryClient.clear();
+
       
       // Use React Router navigation instead of window.location
       navigate('/login');
