@@ -98,7 +98,7 @@ export function DocumentSettings() {
           id: data.id,
           system_prompt: data.system_prompt || DEFAULT_DOCUMENT_SYSTEM_PROMPT,
           web_system_prompt: (data as any).web_system_prompt || DEFAULT_WEB_SYSTEM_PROMPT,
-          model: data.model || 'mistral-large-latest',
+          model: data.model || 'mistral-medium-3-5',
           temperature: data.temperature ?? 0.3,
           max_tokens: data.max_tokens ?? 2000,
         });
