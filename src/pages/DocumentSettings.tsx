@@ -76,7 +76,7 @@ export function DocumentSettings() {
   const [settings, setSettings] = useState<DocumentChatSettings>({
     system_prompt: DEFAULT_DOCUMENT_SYSTEM_PROMPT,
     web_system_prompt: DEFAULT_WEB_SYSTEM_PROMPT,
-    model: 'mistral-large-latest',
+    model: 'mistral-medium-3-5',
     temperature: 0.3,
     max_tokens: 2000,
   });
