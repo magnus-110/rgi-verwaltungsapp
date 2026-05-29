@@ -106,9 +106,19 @@ export function BuildingDocumentsTab({ buildingId, managementMode }: BuildingDoc
   return (
     <div
       className="h-[calc(100vh-260px)] flex flex-col gap-3"
-      onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+      onDragOver={(e) => {
+        // Nur reagieren, wenn echte Dateien vom Betriebssystem gezogen werden,
+        // nicht bei internem Drag&Drop zwischen Ordnern.
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        setIsDragging(true);
+      }}
       onDragLeave={() => setIsDragging(false)}
-      onDrop={handleDrop}
+      onDrop={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        handleDrop(e);
+      }}
+
     >
       {/* Toolbar */}
       <div className="flex gap-2">
