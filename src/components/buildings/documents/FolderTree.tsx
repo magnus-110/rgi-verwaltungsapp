@@ -58,6 +58,30 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
   const [addingUnderId, setAddingUnderId] = useState<string | null | "root">(null);
   const [addingName, setAddingName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<TreeNode | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+
+  const handleDropOnFolder = async (categoryId: string, e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDropTargetId(null);
+    const raw = e.dataTransfer.getData("application/x-dms-file-ids");
+    if (!raw) return;
+    let ids: string[] = [];
+    try { ids = JSON.parse(raw); } catch { return; }
+    if (!Array.isArray(ids) || ids.length === 0) return;
+    const { error } = await supabase
+      .from('building_files')
+      .update({ category_id: categoryId } as any)
+      .in('id', ids);
+    if (error) {
+      toast.error("Verschieben fehlgeschlagen: " + error.message);
+    } else {
+      toast.success(`${ids.length} Dokument(e) verschoben`);
+      qc.invalidateQueries({ queryKey: ['stammakte-files'] });
+      qc.invalidateQueries({ queryKey: ['stammakte-counts', buildingId] });
+    }
+  };
+
 
   const { data: categories = [] } = useQuery({
     queryKey: ['stammakte-categories', buildingId],
@@ -221,12 +245,23 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
     return (
       <div key={node.id}>
         <div
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes("application/x-dms-file-ids")) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              if (dropTargetId !== node.id) setDropTargetId(node.id);
+            }
+          }}
+          onDragLeave={() => { if (dropTargetId === node.id) setDropTargetId(null); }}
+          onDrop={(e) => handleDropOnFolder(node.id, e)}
           className={cn(
             "group w-full flex items-center gap-1.5 py-1.5 px-2 rounded-md text-sm hover:bg-accent",
-            isSelected && "bg-accent font-medium"
+            isSelected && "bg-accent font-medium",
+            dropTargetId === node.id && "ring-2 ring-primary bg-primary/10"
           )}
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
         >
+
           <span
             onClick={(e) => { if (hasChildren) { e.stopPropagation(); toggle(node.id); } }}
             className="flex-shrink-0 w-4 cursor-pointer"
