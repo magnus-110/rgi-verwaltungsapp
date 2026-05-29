@@ -722,7 +722,7 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
       }
     }
 
-    // Auto-file invoice PDF in building DMS under "Rechnungen" subfolder
+    // Auto-file invoice PDF in building DMS under Finanzen / Rechnungen
     if (finalBuildingId && invoice.file_path) {
       try {
         // Check if already filed
@@ -733,53 +733,15 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
           .maybeSingle();
 
         if (!existingFile) {
-          // Ensure stammakte categories exist
+          // Ensure DMS soll-structure exists, then look up "Rechnungen" by slug
           await supabase.rpc("ensure_stammakte_categories", { p_building_id: finalBuildingId });
-
-          // Find "Rechnungen" subcategory under "Finanzen"
-          const { data: finanzen } = await supabase
+          const { data: rech } = await supabase
             .from("building_file_categories")
             .select("id")
             .eq("building_id", finalBuildingId)
-            .eq("slug", "finanzen")
+            .eq("slug", "finanzen-rechnungen")
             .maybeSingle();
-
-          let rechnungenId: string | null = null;
-          if (finanzen) {
-            const { data: rech } = await supabase
-              .from("building_file_categories")
-              .select("id")
-              .eq("building_id", finalBuildingId)
-              .eq("parent_id", finanzen.id)
-              .eq("slug", "rechnungen")
-              .maybeSingle();
-            
-            if (rech) {
-              rechnungenId = rech.id;
-            } else {
-              const { data: building } = await supabase
-                .from("buildings")
-                .select("management_mode")
-                .eq("id", finalBuildingId)
-                .single();
-              const { data: created } = await supabase
-                .from("building_file_categories")
-                .insert({
-                  name: "Rechnungen",
-                  slug: "rechnungen",
-                  building_id: finalBuildingId,
-                  parent_id: finanzen.id,
-                  management_mode: building?.management_mode || "weg",
-                  icon: "receipt",
-                  color: "#F97316",
-                  sort_order: 10,
-                  auto_rag_enabled: false,
-                })
-                .select("id")
-                .single();
-              rechnungenId = created?.id || null;
-            }
-          }
+          const rechnungenId: string | null = rech?.id ?? null;
 
           // Get file size from storage
           let fileSize = 0;
