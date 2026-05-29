@@ -674,66 +674,12 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
             )}
           </div>
 
-          {(() => {
-            const ocr = invoice.ocr_extracted_data as any;
-            if (!ocr?.is_fuel_purchase) return null;
-            const fuelLabel = ocr.fuel_type === "pellets" ? "Pellets"
-              : ocr.fuel_type === "gas" ? "Gas"
-              : ocr.fuel_type === "district_heating" ? "Fernwärme"
-              : "Heizöl";
-            const fuelUnit = ocr.fuel_unit || (ocr.fuel_type === "oil" ? "l"
-              : ocr.fuel_type === "pellets" ? "kg"
-              : "kWh");
-            const fmtNum = (v: any, suffix = "") =>
-              v != null && v !== "" ? `${typeof v === "number" ? new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(v) : v}${suffix}` : "–";
-            return (
-              <>
-                <Separator />
-                <div className="rounded-lg border border-orange-200 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-950/20 p-4 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Flame className="h-4 w-4 text-orange-500" />
-                    <h4 className="text-sm font-semibold">Brennstoffkauf — aus Rechnung erkannt</h4>
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm pt-1">
-                    <InfoRow label="Art" value={fuelLabel} />
-                    <InfoRow label="Menge" value={fmtNum(ocr.fuel_quantity, ` ${fuelUnit}`)} />
-                    <InfoRow label="Energieinhalt" value={fmtNum(ocr.energy_content_kwh, " kWh")} />
-                    <InfoRow label="CO₂-Emissionen" value={fmtNum(ocr.co2_emissions_kg, " kg")} />
-                    <InfoRow label="CO₂-Steueranteil" value={ocr.co2_tax_amount_eur != null ? `${formatCurrency(ocr.co2_tax_amount_eur)} €` : "–"} />
-                    <InfoRow label="Lieferdatum" value={ocr.delivery_date || invoice.invoice_date || "–"} />
-                  </div>
-                  {(ocr.billing_period_from || ocr.billing_period_to) && (() => {
-                    const periodTo = ocr.billing_period_to || ocr.billing_period_from;
-                    const heizjahr = periodTo ? new Date(periodTo).getFullYear() : null;
-                    const invoiceYear = invoice.invoice_date ? new Date(invoice.invoice_date).getFullYear() : null;
-                    const yearMismatch = heizjahr && invoiceYear && heizjahr !== invoiceYear;
-                    return (
-                      <div className={`mt-2 rounded-md border p-2 text-xs ${yearMismatch ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20" : "border-border bg-muted/30"}`}>
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <span className="font-medium">
-                            Verbrauchszeitraum: {ocr.billing_period_from || "?"} – {ocr.billing_period_to || "?"}
-                          </span>
-                          {heizjahr && (
-                            <Badge variant={yearMismatch ? "default" : "secondary"} className={yearMismatch ? "bg-amber-600 hover:bg-amber-600" : ""}>
-                              Heizjahr {heizjahr}
-                            </Badge>
-                          )}
-                        </div>
-                        {yearMismatch && (
-                          <p className="mt-1 text-amber-900 dark:text-amber-200">
-                            Rechnungsdatum {invoiceYear} · Verbrauch wird Heizjahr {heizjahr} zugeordnet.
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  <p className="text-xs text-muted-foreground pt-1">
-                    Diese Daten werden beim Buchen in die Brennstoffbestandsführung übernommen.
-                  </p>
-                </div>
-              </>
-            );
-          })()}
+          {invoice.ocr_extracted_data?.is_fuel_purchase && (
+            <>
+              <Separator />
+              <EditableFuelSection invoice={invoice} onSaved={onRefetch} />
+            </>
+          )}
 
           <Separator />
 
