@@ -62,8 +62,7 @@ RICHTLINIEN:
 Du kombinierst internes Wissen mit aktueller Internet-Recherche.`;
 
 const AVAILABLE_MODELS = [
-  { value: 'mistral-large-latest', label: 'Mistral Large (Empfohlen)' },
-  { value: 'mistral-medium-latest', label: 'Mistral Medium' },
+  { value: 'mistral-medium-3-5', label: 'Mistral Medium 3.5 (Empfohlen)' },
   { value: 'mistral-small-latest', label: 'Mistral Small (Schneller)' },
 ];
 
