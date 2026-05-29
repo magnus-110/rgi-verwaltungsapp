@@ -88,11 +88,11 @@ const KpiCard = ({
 export const Dashboard = () => {
   const { managementMode } = useManagementMode();
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const isAdmin = profile?.role === "admin";
 
   const { data, isLoading } = useQuery({
-    queryKey: ["dashboard-global-stats", managementMode],
+    queryKey: ["dashboard-global-stats", user?.id, managementMode],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_dashboard_global_stats" as any, {
         p_management_mode: managementMode,
@@ -100,12 +100,13 @@ export const Dashboard = () => {
       if (error) throw error;
       return data as unknown as GlobalStats;
     },
+    enabled: !!user?.id,
     refetchInterval: 60_000,
   });
 
   // Admin-only: portfolio totals (buildings + units) per management mode
   const { data: portfolio } = useQuery({
-    queryKey: ["dashboard-portfolio-totals"],
+    queryKey: ["dashboard-portfolio-totals", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("buildings")
@@ -119,9 +120,10 @@ export const Dashboard = () => {
         return acc;
       }, init);
     },
-    enabled: isAdmin,
+    enabled: isAdmin && !!user?.id,
     staleTime: 5 * 60_000,
   });
+
 
   const stats: GlobalStats = data || {
     open_reports: 0, open_cases: 0, open_invoices: 0, unread_emails: 0,
