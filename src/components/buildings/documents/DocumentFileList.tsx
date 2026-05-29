@@ -202,6 +202,16 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
                 style={{ transform: `translateY(${vi.start}px)` }}
               >
                 <div
+                  draggable
+                  onDragStart={(e) => {
+                    // If row is part of current selection, drag all selected; else drag just this one
+                    const ids = selectedIds.has(f.id) && selectedIds.size > 0
+                      ? Array.from(selectedIds)
+                      : [f.id];
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("application/x-dms-file-ids", JSON.stringify(ids));
+                    e.dataTransfer.setData("text/plain", ids.join(","));
+                  }}
                   onClick={() => onSelect(f)}
                   onDoubleClick={async () => {
                     const { data, error } = await supabase.storage
@@ -215,6 +225,7 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
                     isChecked && "bg-accent/60"
                   )}
                 >
+
                   <div className="flex items-start gap-3">
                     <div
                       className="flex items-center pt-1"
