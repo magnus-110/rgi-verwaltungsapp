@@ -221,33 +221,14 @@ Deno.serve(async (req) => {
         .from("buildings").select("management_mode").eq("id", campaign.building_id).maybeSingle();
       const mode = building?.management_mode || "weg";
 
-      // Look for existing category (building-specific or global) by slug
-      let { data: cat } = await admin
+      // Ensure DMS soll-structure exists, then look up "Schriftverkehr / Serienbriefe" by slug
+      await admin.rpc("ensure_stammakte_categories", { p_building_id: campaign.building_id });
+      const { data: cat } = await admin
         .from("building_file_categories")
         .select("id")
-        .eq("slug", "serienbriefe")
-        .or(`building_id.eq.${campaign.building_id},building_id.is.null`)
-        .order("building_id", { ascending: false, nullsFirst: false })
-        .limit(1)
+        .eq("building_id", campaign.building_id)
+        .eq("slug", "schriftverkehr-serienbriefe")
         .maybeSingle();
-
-      if (!cat) {
-        const { data: created } = await admin
-          .from("building_file_categories")
-          .insert({
-            name: "Serienbriefe",
-            slug: "serienbriefe",
-            building_id: campaign.building_id,
-            management_mode: mode,
-            icon: "mail",
-            color: "#6366F1",
-            sort_order: 60,
-            auto_rag_enabled: false,
-          })
-          .select("id")
-          .single();
-        cat = created;
-      }
 
       // 2. Copy ZIP from comm-assets to building-files bucket
       const dmsPath = `serienbriefe/${campaign.building_id}/${campaign_id}/${zipFileName}`;

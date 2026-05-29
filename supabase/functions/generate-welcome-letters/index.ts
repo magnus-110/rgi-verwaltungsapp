@@ -517,30 +517,14 @@ Deno.serve(async (req) => {
     // DMS filing
     let dmsFileId: string | null = null;
     try {
-      let { data: cat } = await admin
+      // Ensure DMS soll-structure exists, then look up "Schriftverkehr / Begrüßungsbriefe" by slug
+      await admin.rpc("ensure_stammakte_categories", { p_building_id: building_id });
+      const { data: cat } = await admin
         .from("building_file_categories")
         .select("id")
-        .eq("slug", "begruessungsbriefe")
-        .or(`building_id.eq.${building_id},building_id.is.null`)
-        .order("building_id", { ascending: false, nullsFirst: false })
-        .limit(1).maybeSingle();
-
-      if (!cat) {
-        const { data: createdCat } = await admin
-          .from("building_file_categories")
-          .insert({
-            name: "Begrüßungsbriefe",
-            slug: "begruessungsbriefe",
-            building_id,
-            management_mode: mode,
-            icon: "mail",
-            color: "#10B981",
-            sort_order: 65,
-            auto_rag_enabled: false,
-          })
-          .select("id").single();
-        cat = createdCat;
-      }
+        .eq("building_id", building_id)
+        .eq("slug", "schriftverkehr-begruessungsbriefe")
+        .maybeSingle();
 
       const dmsPath = `welcome-letters/${building_id}/${Date.now()}_${docxFileName}`;
       await admin.storage.from("building-files")
