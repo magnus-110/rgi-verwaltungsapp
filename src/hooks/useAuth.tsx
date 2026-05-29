@@ -231,6 +231,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setProfile(null);
       setUser(null);
       setSession(null);
+      queryClient.clear();
+
       
       // Use React Router navigation instead of window.location
       navigate('/login');
