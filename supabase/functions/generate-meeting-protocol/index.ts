@@ -165,7 +165,7 @@ Schreibe NUR den Protokolltext. Kein Markdown. Nutze Absätze und Leerzeilen zur
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'mistral-large-latest',
+        model: 'mistral-medium-3-5',
         messages: [
           { role: 'system', content: 'Du bist ein erfahrener Protokollführer für WEG-Eigentümerversammlungen. Du erstellst rechtssichere, formelle Niederschriften nach deutschem WEG-Recht.' },
           { role: 'user', content: prompt },

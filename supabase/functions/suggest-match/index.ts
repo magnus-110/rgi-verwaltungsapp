@@ -374,7 +374,7 @@ ${candidatesSummary || "(keine offenen Rechnungen/Vorlagen)"}${lineItemsContext}
       method: "POST",
       headers: { Authorization: `Bearer ${MISTRAL_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "mistral-large-latest",
+        model: "mistral-medium-3-5",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },

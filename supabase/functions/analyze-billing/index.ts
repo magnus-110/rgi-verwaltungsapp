@@ -58,7 +58,7 @@ async function callMistral(systemPrompt: string, userPrompt: string, apiKey: str
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "mistral-large-latest",
+      model: "mistral-medium-3-5",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

@@ -44,7 +44,7 @@ Antworte NUR mit dem kurzen Verwendungszweck, nichts anderes.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "mistral-large-latest",
+        model: "mistral-medium-3-5",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 30,
         temperature: 0.1,
