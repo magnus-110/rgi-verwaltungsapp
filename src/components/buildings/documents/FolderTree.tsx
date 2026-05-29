@@ -58,6 +58,30 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
   const [addingUnderId, setAddingUnderId] = useState<string | null | "root">(null);
   const [addingName, setAddingName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<TreeNode | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+
+  const handleDropOnFolder = async (categoryId: string, e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDropTargetId(null);
+    const raw = e.dataTransfer.getData("application/x-dms-file-ids");
+    if (!raw) return;
+    let ids: string[] = [];
+    try { ids = JSON.parse(raw); } catch { return; }
+    if (!Array.isArray(ids) || ids.length === 0) return;
+    const { error } = await supabase
+      .from('building_files')
+      .update({ category_id: categoryId } as any)
+      .in('id', ids);
+    if (error) {
+      toast.error("Verschieben fehlgeschlagen: " + error.message);
+    } else {
+      toast.success(`${ids.length} Dokument(e) verschoben`);
+      qc.invalidateQueries({ queryKey: ['stammakte-files'] });
+      qc.invalidateQueries({ queryKey: ['stammakte-counts', buildingId] });
+    }
+  };
+
 
   const { data: categories = [] } = useQuery({
     queryKey: ['stammakte-categories', buildingId],
