@@ -1,42 +1,55 @@
 ## Ziel
+Veraltete Mistral-Modelle (Retirement 31.05.2026 ff.) projektweit durch die offiziellen Nachfolger ersetzen.
 
-In der „Geplante E-Mails"-Liste sollen Rundmails ihre konkreten Empfänger sichtbar machen — also pro Empfänger eine eigene Zeile (Name + E-Mail + geplanter Zeitpunkt), gruppiert unterhalb des Kampagnen-Headers. Aktuell steht dort nur „0 Kontakte", weil die Empfänger-Auflösung erst zur Versandzeit in `comm-send-bulk-email` passiert.
+## Mapping
+| Alt | Neu | Hinweis |
+|-----|-----|---------|
+| `mistral-large-latest` | `mistral-medium-3-5` | Mistral Large 2 wird abgeschaltet |
+| `mistral-medium-latest` | `mistral-medium-3-5` | Aktuelles `-latest` zeigt auf 3.1, wird abgeschaltet |
+| `mistral-small-latest` | unverändert | `-latest` zeigt bereits auf Small 4 |
+| `mistral-ocr-latest` | unverändert | Alias zeigt auf OCR 3 |
+| `voxtral-mini-latest` | unverändert | Bereits 2.0 |
+| `mistral-embed` | unverändert | Nicht betroffen |
 
-## Umsetzung
+Andere im Mail genannte Modelle (devstral*, pixtral*, magistral*, ministral*, leanstral, `mistral-moderation-*`, feste Datums-Snapshots wie `mistral-medium-2508`) werden im Code **nicht** verwendet — kein Handlungsbedarf.
 
-### 1. Neue Edge Function `comm-preview-recipients`
-- Input: `{ campaign_id }`
-- Lädt die Kampagne (`recipient_filter`, `building_id`, `free_vars`)
-- Ruft die bestehende `loadRecipients(...)` aus `_shared/comm-vars.ts` mit `require_email: true`
-- Gibt zurück: `[{ contact_id, person_id, display_name, email }]`
-- Nutzt Service-Role und prüft Auth-Header (nur eingeloggte Nutzer)
+## Code-Änderungen
 
-### 2. Frontend: `Inbox.tsx` — `scheduled-mails-virtual`
-- Beim Laden der geplanten Kampagnen für jede Kampagne `comm-preview-recipients` parallel aufrufen (Promise.all, mit Fallback auf leeres Array bei Fehler).
-- Ergebnis in den Campaign-Item als `resolved_recipients: { display_name, email, contact_id }[]` hängen.
-- `recipient_count` aus tatsächlicher Anzahl ableiten (statt aus `comm_campaigns.recipient_count`, das beim Planen oft 0 ist).
-- Auto-Refresh bleibt bei 60 s.
+### Edge Functions (`mistral-large-latest` → `mistral-medium-3-5`)
+- `supabase/functions/voice-to-email/index.ts` (Zeile 128, plus Kommentar Zeile 1)
+- `supabase/functions/parse-bank-statement-pdf/index.ts` (97)
+- `supabase/functions/query-documents/index.ts` (482, 618)
+- `supabase/functions/suggest-match/index.ts` (377)
+- `supabase/functions/analyze-billing/index.ts` (61)
+- `supabase/functions/generate-payment-purpose/index.ts` (47)
+- `supabase/functions/generate-meeting-protocol/index.ts` (168)
 
-### 3. `ScheduledMailsPanel.tsx` — Gruppierte Darstellung
-- `ScheduledItem` um `resolved_recipients?` erweitern.
-- Bei `kind === "campaign"`: Kampagnen-Header (wie heute, mit Symbol, Betreff, Zeitpunkt, Absender, „Rundmail (email)"-Badge, Anzahl Empfänger).
-- Darunter: für jeden Empfänger eine eingerückte, kompakte Zeile mit:
-  - Mail-Icon (klein, ausgegraut)
-  - `Name` und `email@…`
-  - „Aus Versand entfernen"-Icon-Button (X) → aktualisiert `comm_campaigns.recipient_filter`, indem die `contact_id` aus `contact_ids` entfernt wird, dann Query invalidieren.
-- Top-Level „Abbrechen"-Button (Trash) bleibt → storniert ganze Kampagne wie bisher.
-- Loading-Skeleton (3 ausgegraute Sub-Zeilen) solange `resolved_recipients` undefined ist.
-- Falls 0 Empfänger nach Auflösung: kleine Warnung „Keine Empfänger mit hinterlegter E-Mail — Versand wird fehlschlagen".
+### Edge Functions (`mistral-medium-latest` → `mistral-medium-3-5`)
+- `supabase/functions/classify-email/index.ts` (295)
 
-### 4. Backwards-Compat
-- Einzelmails (`kind === "single"`) bleiben unverändert (eine Zeile, keine Sub-Rows).
-- `comm_campaigns.recipient_count` wird weiterhin geschrieben, nur in der Anzeige durch die echte Auflösung ersetzt.
+### Frontend
+- `src/pages/DocumentSettings.tsx`
+  - Dropdown-Optionen (Zeilen 65–67): `mistral-medium-3-5` als Empfohlen, `mistral-small-latest` als „Schneller". Die alte „Large"-Option entfernen.
+  - Default-State (Zeile 80) und Fallback (Zeile 102) auf `mistral-medium-3-5` umstellen.
 
-## Technische Details
+### Datenbank-Migration
+Neue Migration, die
+- die `DEFAULT`-Klausel von `public.document_chat_settings.model` auf `mistral-medium-3-5` setzt,
+- bestehende Zeilen mit `model = 'mistral-large-latest'` auf `mistral-medium-3-5` aktualisiert.
 
-- **Neue Datei**: `supabase/functions/comm-preview-recipients/index.ts`
-- **Geänderte Dateien**: 
-  - `src/pages/Inbox.tsx` (scheduled-mails-virtual Query)
-  - `src/components/email/ScheduledMailsPanel.tsx` (UI + Remove-Logik)
-- **Performance**: bei N geplanten Kampagnen N parallele Funktion-Aufrufe; bei den üblichen 1–5 Kampagnen unkritisch. React-Query cached pro `queryKey`, kein Hot-Spam.
-- **Keine DB-Migration nötig** — `recipient_filter` ist bereits jsonb und schreibbar.
+```sql
+ALTER TABLE public.document_chat_settings
+  ALTER COLUMN model SET DEFAULT 'mistral-medium-3-5';
+
+UPDATE public.document_chat_settings
+   SET model = 'mistral-medium-3-5', updated_at = now()
+ WHERE model IN ('mistral-large-latest', 'mistral-medium-latest');
+```
+
+## Nicht im Scope
+- Kein `reasoning_effort: "high"` hinzufügen: Die alten Aufrufe waren Nicht-Reasoning-Modelle (Large 2 / Medium 3.1). Ein automatisches Aktivieren würde Latenz und Kosten erhöhen, ohne dass es vom Nutzer gewünscht wurde. Auf Wunsch nachrüstbar.
+- Keine Anpassung der Embeddings, OCR-, Voxtral- oder Small-Aufrufe.
+
+## Verifikation
+- `rg "mistral-large-latest|mistral-medium-latest"` muss leer sein.
+- Edge Functions automatisch redeployen lassen; stichprobenhaft `analyze-billing` und `query-documents` über die UI testen.

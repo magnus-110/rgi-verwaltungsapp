@@ -479,7 +479,7 @@ async function getChatSettings(
   const defaults = {
     documentSystemPrompt: DEFAULT_DOCUMENT_SYSTEM_PROMPT,
     webSystemPrompt: DEFAULT_WEB_SYSTEM_PROMPT,
-    model: 'mistral-large-latest',
+    model: 'mistral-medium-3-5',
     temperature: 0.3,
     maxTokens: 2000,
   };
@@ -615,7 +615,7 @@ ${question}`;
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'mistral-large-latest',
+      model: 'mistral-medium-3-5',
       inputs: validatedInputs,
       tools: [{ type: 'web_search' }]
     }),

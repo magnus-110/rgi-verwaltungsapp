@@ -94,7 +94,7 @@ VOLLSTÄNDIGKEIT:
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "mistral-large-latest",
+      model: "mistral-medium-3-5",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

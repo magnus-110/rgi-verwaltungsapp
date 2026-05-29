@@ -125,7 +125,7 @@ Formuliere daraus eine fertige E-Mail.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "mistral-large-latest",
+        model: "mistral-medium-3-5",
         temperature: 0.3,
         messages: [
           { role: "system", content: systemPrompt },

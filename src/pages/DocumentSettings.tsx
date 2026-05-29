@@ -62,8 +62,7 @@ RICHTLINIEN:
 Du kombinierst internes Wissen mit aktueller Internet-Recherche.`;
 
 const AVAILABLE_MODELS = [
-  { value: 'mistral-large-latest', label: 'Mistral Large (Empfohlen)' },
-  { value: 'mistral-medium-latest', label: 'Mistral Medium' },
+  { value: 'mistral-medium-3-5', label: 'Mistral Medium 3.5 (Empfohlen)' },
   { value: 'mistral-small-latest', label: 'Mistral Small (Schneller)' },
 ];
 
@@ -77,7 +76,7 @@ export function DocumentSettings() {
   const [settings, setSettings] = useState<DocumentChatSettings>({
     system_prompt: DEFAULT_DOCUMENT_SYSTEM_PROMPT,
     web_system_prompt: DEFAULT_WEB_SYSTEM_PROMPT,
-    model: 'mistral-large-latest',
+    model: 'mistral-medium-3-5',
     temperature: 0.3,
     max_tokens: 2000,
   });
@@ -99,7 +98,7 @@ export function DocumentSettings() {
           id: data.id,
           system_prompt: data.system_prompt || DEFAULT_DOCUMENT_SYSTEM_PROMPT,
           web_system_prompt: (data as any).web_system_prompt || DEFAULT_WEB_SYSTEM_PROMPT,
-          model: data.model || 'mistral-large-latest',
+          model: data.model || 'mistral-medium-3-5',
           temperature: data.temperature ?? 0.3,
           max_tokens: data.max_tokens ?? 2000,
         });

@@ -292,7 +292,7 @@ Nur wenn der Absender/Empfänger NICHT eindeutig per E-Mail-Adresse zugeordnet w
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: "mistral-medium-latest",
+              model: "mistral-medium-3-5",
               messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: emailContent },
