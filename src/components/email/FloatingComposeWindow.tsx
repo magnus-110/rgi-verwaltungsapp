@@ -728,14 +728,30 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         // do not overwrite existing subject silently — leave it
       }
     }
-    // Insert body at end of editable head (before quote), preserve signature/quote tail
+    // Insert body at end of editable head (before quote), but ABOVE the signature.
     const QUOTE_RE = /\n*---\s*(?:Ursprüngliche|Weitergeleitete)\s+Nachricht\s*---/;
     const cur = compose.bodyText || "";
     const m = cur.match(QUOTE_RE);
-    const head = m && m.index !== undefined ? cur.slice(0, m.index) : cur;
+    const headFull = m && m.index !== undefined ? cur.slice(0, m.index) : cur;
     const tail = m && m.index !== undefined ? cur.slice(m.index) : "";
-    const sep = head && !head.endsWith("\n") ? "\n\n" : "";
-    patch.bodyText = head + sep + body + (tail ? "\n\n" + tail : "");
+
+    // Split head into editable area + existing signature, so template body lands ABOVE the signature.
+    const account = accounts.find((a) => a.id === compose.accountId);
+    const sig = account?.signature_html || "";
+    let beforeSig = headFull;
+    let signaturePart = "";
+    if (sig) {
+      const idx = headFull.lastIndexOf(sig);
+      if (idx !== -1) {
+        beforeSig = headFull.slice(0, idx).replace(/\s+$/, "");
+        signaturePart = headFull.slice(idx);
+      }
+    }
+
+    const sep = beforeSig && !beforeSig.endsWith("\n") ? "\n\n" : "";
+    const sigJoin = signaturePart ? "\n\n" + signaturePart.replace(/^\s+/, "") : "";
+    const newHead = beforeSig + sep + body + sigJoin;
+    patch.bodyText = newHead + (tail ? "\n\n" + tail : "");
     update(patch);
   };
 
