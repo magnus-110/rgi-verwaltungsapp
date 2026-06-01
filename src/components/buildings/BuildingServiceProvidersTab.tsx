@@ -248,6 +248,13 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
         onClose={() => setEmergencyEditId(null)}
         onSaved={() => queryClient.invalidateQueries({ queryKey: ["building-service-providers", buildingId] })}
       />
+
+      <EditProviderDialog
+        assignment={providers.find((p) => p.id === editId) || null}
+        categories={categories}
+        onClose={() => setEditId(null)}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: ["building-service-providers", buildingId] })}
+      />
     </div>
   );
 }
