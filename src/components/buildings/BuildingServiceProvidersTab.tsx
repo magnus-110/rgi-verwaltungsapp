@@ -27,6 +27,7 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
   const [showAdd, setShowAdd] = useState(false);
   const [showManageCats, setShowManageCats] = useState(false);
   const [emergencyEditId, setEmergencyEditId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
 
   const { data: categories = [] } = useQuery({
     queryKey: ["service-provider-categories"],
