@@ -183,6 +183,15 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
                       <Button
                         size="icon"
                         variant="ghost"
+                        className="h-7 w-7"
+                        title="Bearbeiten"
+                        onClick={() => setEditId(p.id)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
                         className={`h-7 w-7 ${p.is_emergency_contact ? "text-orange-600 hover:text-orange-700" : ""}`}
                         title="Notfallkontakt-Einstellungen"
                         onClick={() => setEmergencyEditId(p.id)}
