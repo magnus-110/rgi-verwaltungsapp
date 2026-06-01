@@ -647,3 +647,102 @@ function EmergencyEditDialog({
     </Dialog>
   );
 }
+
+function EditProviderDialog({
+  assignment, categories, onClose, onSaved,
+}: {
+  assignment: any | null;
+  categories: { id: string; name: string }[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [category, setCategory] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const open = !!assignment;
+  const assignmentId = assignment?.id;
+
+  useEffect(() => {
+    if (assignment) {
+      setCategory(assignment.service_category || "Sonstiges");
+      setNotes(assignment.notes || "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignmentId]);
+
+  const handleSave = async () => {
+    if (!assignment) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from("contact_building_assignments")
+      .update({
+        service_category: category || "Sonstiges",
+        notes: notes.trim() || null,
+      })
+      .eq("id", assignment.id);
+    setSaving(false);
+    if (error) {
+      toast({ title: "Fehler", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Dienstleister aktualisiert" });
+    onSaved();
+    onClose();
+  };
+
+  const contactName =
+    assignment?.contact?.company_name ||
+    [assignment?.contact?.first_name, assignment?.contact?.last_name].filter(Boolean).join(" ") ||
+    "Dienstleister";
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="h-4 w-4" />
+            Dienstleister bearbeiten
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{contactName}</span>
+          </div>
+
+          <div>
+            <Label className="text-xs">Gewerk / Kategorie</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Bitte wählen..." /></SelectTrigger>
+              <SelectContent>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                ))}
+                {category && !categories.some((c) => c.name === category) && (
+                  <SelectItem value={category}>{category}</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label className="text-xs">Notiz (optional)</Label>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="z.B. Vertragsnummer, Zuständigkeitsbereich..."
+              className="text-sm min-h-[60px]"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Abbrechen</Button>
+          <Button onClick={handleSave} disabled={saving || !category}>
+            {saving ? "Speichern..." : "Speichern"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
