@@ -89,7 +89,7 @@ export function Transfers() {
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list"],
     queryFn: async () => {
-      const { data } = await supabase.from("buildings").select("id, name, building_code").order("name");
+      const { data } = await supabase.from("buildings").select("id, name").order("name");
       return data || [];
     },
   });
