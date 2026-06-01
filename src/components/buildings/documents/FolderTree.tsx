@@ -303,9 +303,6 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
               >
                 {node.name}
               </button>
-              {node.is_recommended && node.fileCount === 0 && (
-                <AlertCircle className="h-3.5 w-3.5 text-destructive" aria-label="Empfohlenes Dokument fehlt" />
-              )}
               {node.fileCount > 0 && (
                 <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{node.fileCount}</Badge>
               )}
