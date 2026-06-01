@@ -51,7 +51,7 @@ interface Invoice {
   building_id?: string | null;
   is_company_invoice?: boolean;
   ocr_extracted_data?: any;
-  buildings?: { name: string; building_code: string } | null;
+  buildings?: { name: string } | null;
 }
 
 interface Props {
@@ -343,7 +343,7 @@ function SearchableBuildingSelect({
   invoice,
   onUpdate,
 }: {
-  buildings: { id: string; name: string; building_code: string }[];
+  buildings: { id: string; name: string }[];
   invoice: Invoice;
   onUpdate: (val: string) => void;
 }) {
@@ -356,7 +356,7 @@ function SearchableBuildingSelect({
     if (currentValue === "__company__") return "RGI Immobilien GmbH & Co. KG";
     if (currentValue === "__none__") return "– Keine Zuordnung –";
     const b = buildings.find((x) => x.id === currentValue);
-    return b ? `${b.building_code} – ${b.name}` : "Liegenschaft wählen";
+    return b ? b.name : "Liegenschaft wählen";
   })();
 
   const allOptions = [
@@ -364,8 +364,8 @@ function SearchableBuildingSelect({
     { value: "__company__", label: "RGI Immobilien GmbH & Co. KG", search: "rgi immobilien gmbh kg" },
     ...buildings.map((b) => ({
       value: b.id,
-      label: `${b.building_code} – ${b.name}`,
-      search: `${b.building_code} ${b.name}`.toLowerCase(),
+      label: b.name,
+      search: b.name.toLowerCase(),
     })),
   ];
 
@@ -428,7 +428,7 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-review"],
     queryFn: async () => {
-      const { data } = await supabase.from("buildings").select("id, name, building_code").order("name");
+      const { data } = await supabase.from("buildings").select("id, name").order("name");
       return data || [];
     },
   });
