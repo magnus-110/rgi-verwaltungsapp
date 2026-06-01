@@ -101,7 +101,7 @@ export function Transfers() {
     queryFn: async () => {
       let query = supabase
         .from("invoices")
-        .select("*, buildings(name, building_code)")
+        .select("*, buildings(name)")
         .neq("invoice_type", "credit_note");
 
       if (showPaid) {
@@ -136,7 +136,7 @@ export function Transfers() {
     queryFn: async () => {
       let query = supabase
         .from("invoices")
-        .select("*, buildings(name, building_code)")
+        .select("*, buildings(name)")
         .eq("invoice_type", "credit_note")
         .order("created_at", { ascending: false });
 
@@ -217,13 +217,14 @@ export function Transfers() {
     const num = parseFloat(q.replace(/\./g, "").replace(",", "."));
     const isNum = !isNaN(num);
     return invoices.filter((inv: any) => {
+      const bld = inv.building_id ? buildings.find((x: any) => x.id === inv.building_id) : null;
       const fields = [
         inv.vendor_name,
         inv.payment_purpose,
         inv.description,
         inv.invoice_number,
         inv.buildings?.name,
-        inv.buildings?.building_code,
+        bld?.name,
         inv.vendor_iban,
       ]
         .filter(Boolean)
@@ -238,7 +239,7 @@ export function Transfers() {
       }
       return false;
     });
-  }, [invoices, searchTerm]);
+  }, [invoices, searchTerm, buildings]);
 
   const formatCurrency = (val: number | null) =>
     val == null ? "–" : new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(val);
@@ -437,7 +438,7 @@ export function Transfers() {
             )}
             {buildings.map((b) => (
               <SelectItem key={b.id} value={b.id}>
-                {b.building_code} – {b.name}
+                {b.name}
               </SelectItem>
             ))}
           </SelectContent>

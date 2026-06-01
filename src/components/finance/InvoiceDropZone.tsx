@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
 
 interface Props {
-  buildings: { id: string; name: string; building_code: string }[];
+  buildings: { id: string; name: string }[];
 }
 
 export function InvoiceDropZone({ buildings }: Props) {
