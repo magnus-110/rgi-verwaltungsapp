@@ -106,7 +106,7 @@ export const CasesGlobalView = () => {
   }, [cases]);
 
   const openCreate = () => {
-    setCreateBuildingId(buildingFilter !== "all" ? buildingFilter : (buildings[0]?.id || ""));
+    setCreateBuildingId(buildingFilter !== "all" ? buildingFilter : "");
     setCreateOpen(true);
   };
 
@@ -190,7 +190,7 @@ export const CasesGlobalView = () => {
             </Button>
           </div>
 
-          <Button className="h-10" onClick={openCreate} disabled={!buildings.length}>
+          <Button className="h-10" onClick={openCreate}>
             <Plus className="h-4 w-4 mr-1.5" />
             <span className="hidden sm:inline">Neuer Vorgang</span>
           </Button>
@@ -228,15 +228,13 @@ export const CasesGlobalView = () => {
 
       <CaseDetailView caseId={selectedCaseId} onClose={() => setSelectedCaseId(null)} />
 
-      {createBuildingId && (
-        <CreateCaseDialog
-          open={createOpen}
-          onOpenChange={setCreateOpen}
-          buildingId={createBuildingId}
-          managementMode={managementMode}
-          onCreated={(c) => setSelectedCaseId(c.id)}
-        />
-      )}
+      <CreateCaseDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        buildingId={createBuildingId || undefined}
+        managementMode={managementMode}
+        onCreated={(c) => setSelectedCaseId(c.id)}
+      />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
