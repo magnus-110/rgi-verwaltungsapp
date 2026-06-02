@@ -86,6 +86,11 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
   const [sendInvite, setSendInvite] = useState(false);
   const [inviting, setInviting] = useState(false);
 
+  // Owner change (Eigentümerwechsel) – only used in edit mode
+  const [originalContactId, setOriginalContactId] = useState<string | null>(null);
+  const [showChangeOwner, setShowChangeOwner] = useState(false);
+  const [ownerSearch, setOwnerSearch] = useState("");
+
   useEffect(() => {
     if (open) {
       loadContacts();
