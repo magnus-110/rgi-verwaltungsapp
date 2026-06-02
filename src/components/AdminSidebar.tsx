@@ -18,6 +18,7 @@ import {
   Workflow,
   FolderKanban,
   CalendarClock,
+  Briefcase,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -50,6 +51,7 @@ const menuItems = [
   { title: "Buchhaltung", url: "/finanzen", icon: Landmark },
   { title: "Zahlungen", url: "/zahlungen", icon: CreditCard },
   { title: "Prozesse", url: "/prozesse", icon: Workflow },
+  { title: "RGI Intern", url: "/rgi-intern", icon: Briefcase, adminOnly: true },
   { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
 ];
 
@@ -157,6 +159,8 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
             <SidebarMenu className="space-y-1">
               {menuItems
                 .filter((item) => {
+                  // adminOnly Einträge nur für Admins anzeigen
+                  if ((item as any).adminOnly && profile?.role !== 'admin') return false;
                   // Mitarbeiter: Kein Chatbot, keine Einstellungen
                   if (profile?.role === 'employee') {
                     return !['Chatbot', 'Einstellungen'].includes(item.title);
