@@ -3,6 +3,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsRgiAdmin } from "@/hooks/useRgiAdmin";
 import { Briefcase, BarChart3, Clock, FileText, Users, FolderKanban, FileStack, Settings } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { DashboardTab } from "@/components/rgi-intern/dashboard/DashboardTab";
+import { ClientsTab } from "@/components/rgi-intern/clients/ClientsTab";
+import { ProjectsTab } from "@/components/rgi-intern/projects/ProjectsTab";
+import { TimeEntriesTab } from "@/components/rgi-intern/time/TimeEntriesTab";
+import { InvoicesTab } from "@/components/rgi-intern/invoices/InvoicesTab";
+import { TemplatesTab } from "@/components/rgi-intern/templates/TemplatesTab";
+import { CompanySettingsTab } from "@/components/rgi-intern/settings/CompanySettingsTab";
 
 export default function RgiIntern() {
   const isAdmin = useIsRgiAdmin();
@@ -41,26 +48,14 @@ export default function RgiIntern() {
           <TabsTrigger value="settings" className="gap-1.5"><Settings className="w-4 h-4" />Einstellungen</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="dashboard"><PlaceholderTab title="Dashboard" hint="Umsatz-KPIs, offene Forderungen, abrechenbare Stunden — folgt in der nächsten Iteration." /></TabsContent>
-        <TabsContent value="projects"><PlaceholderTab title="Projekte" hint="Projekte je Kunde und Sparte mit Default-Stundensatz." /></TabsContent>
-        <TabsContent value="time"><PlaceholderTab title="Stundenerfassung" hint="Schnellerfassung mit Pflicht-Beschreibung, abrechenbar-Toggle, Stundensatz-Override." /></TabsContent>
-        <TabsContent value="invoices"><PlaceholderTab title="Rechnungen" hint="Editor mit Positionen, USt-Auswahl, PDF-Render via CloudConvert." /></TabsContent>
-        <TabsContent value="clients"><PlaceholderTab title="Kunden" hint="Aus Kontakt, Gebäude oder frei erstellbar. Adress-Snapshot." /></TabsContent>
-        <TabsContent value="templates"><PlaceholderTab title="Word-Vorlagen" hint="Upload .docx → Platzhalter werden automatisch erkannt." /></TabsContent>
-        <TabsContent value="settings"><PlaceholderTab title="Firmendaten" hint="Adresse, USt-IdNr., Bankverbindung, Nummernkreis-Muster, Mahngebühren." /></TabsContent>
+        <TabsContent value="dashboard"><DashboardTab /></TabsContent>
+        <TabsContent value="projects"><ProjectsTab /></TabsContent>
+        <TabsContent value="time"><TimeEntriesTab /></TabsContent>
+        <TabsContent value="invoices"><InvoicesTab /></TabsContent>
+        <TabsContent value="clients"><ClientsTab /></TabsContent>
+        <TabsContent value="templates"><TemplatesTab /></TabsContent>
+        <TabsContent value="settings"><CompanySettingsTab /></TabsContent>
       </Tabs>
     </div>
-  );
-}
-
-function PlaceholderTab({ title, hint }: { title: string; hint: string }) {
-  return (
-    <Card className="p-8 mt-4">
-      <h3 className="text-lg font-semibold mb-2">{title}</h3>
-      <p className="text-sm text-muted-foreground">{hint}</p>
-      <p className="text-xs text-muted-foreground mt-4">
-        Backend (DB, Storage, Edge Functions) ist eingerichtet. Diese Ansicht wird in der nächsten Iteration ausgebaut.
-      </p>
-    </Card>
   );
 }
