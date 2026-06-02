@@ -190,7 +190,7 @@ export const CasesGlobalView = () => {
             </Button>
           </div>
 
-          <Button className="h-10" onClick={openCreate} disabled={!buildings.length}>
+          <Button className="h-10" onClick={openCreate}>
             <Plus className="h-4 w-4 mr-1.5" />
             <span className="hidden sm:inline">Neuer Vorgang</span>
           </Button>
