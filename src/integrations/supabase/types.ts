@@ -6918,6 +6918,595 @@ export type Database = {
           },
         ]
       }
+      rgi_clients: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          building_id: string | null
+          city: string | null
+          contact_id: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          customer_no: string | null
+          default_hourly_rate: number | null
+          default_payment_terms_days: number | null
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          type: Database["public"]["Enums"]["rgi_client_type"]
+          updated_at: string
+          vat_id: string | null
+          zip: string | null
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          building_id?: string | null
+          city?: string | null
+          contact_id?: string | null
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_no?: string | null
+          default_hourly_rate?: number | null
+          default_payment_terms_days?: number | null
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          type?: Database["public"]["Enums"]["rgi_client_type"]
+          updated_at?: string
+          vat_id?: string | null
+          zip?: string | null
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          building_id?: string | null
+          city?: string | null
+          contact_id?: string | null
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_no?: string | null
+          default_hourly_rate?: number | null
+          default_payment_terms_days?: number | null
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          type?: Database["public"]["Enums"]["rgi_client_type"]
+          updated_at?: string
+          vat_id?: string | null
+          zip?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rgi_clients_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rgi_clients_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rgi_company_settings: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          bank_name: string | null
+          bic: string | null
+          ceo: string | null
+          city: string | null
+          country: string | null
+          court: string | null
+          created_at: string
+          default_footer_text: string | null
+          default_payment_terms_days: number
+          email: string | null
+          hrb: string | null
+          iban: string | null
+          id: string
+          invoice_number_pattern: string
+          legal_name: string
+          phone: string | null
+          reminder_fee_l1: number | null
+          reminder_fee_l2: number | null
+          reminder_fee_l3: number | null
+          tax_no: string | null
+          updated_at: string
+          vat_id: string | null
+          website: string | null
+          zip: string | null
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          bank_name?: string | null
+          bic?: string | null
+          ceo?: string | null
+          city?: string | null
+          country?: string | null
+          court?: string | null
+          created_at?: string
+          default_footer_text?: string | null
+          default_payment_terms_days?: number
+          email?: string | null
+          hrb?: string | null
+          iban?: string | null
+          id?: string
+          invoice_number_pattern?: string
+          legal_name?: string
+          phone?: string | null
+          reminder_fee_l1?: number | null
+          reminder_fee_l2?: number | null
+          reminder_fee_l3?: number | null
+          tax_no?: string | null
+          updated_at?: string
+          vat_id?: string | null
+          website?: string | null
+          zip?: string | null
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          bank_name?: string | null
+          bic?: string | null
+          ceo?: string | null
+          city?: string | null
+          country?: string | null
+          court?: string | null
+          created_at?: string
+          default_footer_text?: string | null
+          default_payment_terms_days?: number
+          email?: string | null
+          hrb?: string | null
+          iban?: string | null
+          id?: string
+          invoice_number_pattern?: string
+          legal_name?: string
+          phone?: string | null
+          reminder_fee_l1?: number | null
+          reminder_fee_l2?: number | null
+          reminder_fee_l3?: number | null
+          tax_no?: string | null
+          updated_at?: string
+          vat_id?: string | null
+          website?: string | null
+          zip?: string | null
+        }
+        Relationships: []
+      }
+      rgi_invoice_items: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          invoice_id: string
+          kind: Database["public"]["Enums"]["rgi_invoice_item_kind"]
+          line_gross: number
+          line_net: number
+          line_vat: number
+          position: number
+          quantity: number
+          source_time_entry_ids: string[] | null
+          unit: string | null
+          unit_price_net: number
+          vat_rate: number
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          invoice_id: string
+          kind?: Database["public"]["Enums"]["rgi_invoice_item_kind"]
+          line_gross?: number
+          line_net?: number
+          line_vat?: number
+          position?: number
+          quantity?: number
+          source_time_entry_ids?: string[] | null
+          unit?: string | null
+          unit_price_net?: number
+          vat_rate?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          invoice_id?: string
+          kind?: Database["public"]["Enums"]["rgi_invoice_item_kind"]
+          line_gross?: number
+          line_net?: number
+          line_vat?: number
+          position?: number
+          quantity?: number
+          source_time_entry_ids?: string[] | null
+          unit?: string | null
+          unit_price_net?: number
+          vat_rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rgi_invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rgi_invoice_sequences: {
+        Row: {
+          last_no: number
+          scope: string
+          year: number
+        }
+        Insert: {
+          last_no?: number
+          scope: string
+          year: number
+        }
+        Update: {
+          last_no?: number
+          scope?: string
+          year?: number
+        }
+        Relationships: []
+      }
+      rgi_invoice_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_default: boolean
+          name: string
+          placeholder_schema: Json | null
+          sparte: Database["public"]["Enums"]["rgi_sparte"] | null
+          storage_path: string
+          template_kind: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_default?: boolean
+          name: string
+          placeholder_schema?: Json | null
+          sparte?: Database["public"]["Enums"]["rgi_sparte"] | null
+          storage_path: string
+          template_kind?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_default?: boolean
+          name?: string
+          placeholder_schema?: Json | null
+          sparte?: Database["public"]["Enums"]["rgi_sparte"] | null
+          storage_path?: string
+          template_kind?: string
+        }
+        Relationships: []
+      }
+      rgi_invoices: {
+        Row: {
+          cancels_invoice_id: string | null
+          client_address_snapshot: string | null
+          client_id: string
+          client_name_snapshot: string | null
+          created_at: string
+          created_by: string | null
+          docx_storage_path: string | null
+          due_date: string | null
+          footer_text: string | null
+          id: string
+          intro_text: string | null
+          invoice_number: string | null
+          issue_date: string
+          paid_amount: number
+          paid_at: string | null
+          pdf_storage_path: string | null
+          project_id: string | null
+          sent_at: string | null
+          service_period_from: string | null
+          service_period_to: string | null
+          status: Database["public"]["Enums"]["rgi_invoice_status"]
+          subtotal_net: number
+          template_id: string | null
+          total_gross: number
+          updated_at: string
+          vat_total: number
+        }
+        Insert: {
+          cancels_invoice_id?: string | null
+          client_address_snapshot?: string | null
+          client_id: string
+          client_name_snapshot?: string | null
+          created_at?: string
+          created_by?: string | null
+          docx_storage_path?: string | null
+          due_date?: string | null
+          footer_text?: string | null
+          id?: string
+          intro_text?: string | null
+          invoice_number?: string | null
+          issue_date?: string
+          paid_amount?: number
+          paid_at?: string | null
+          pdf_storage_path?: string | null
+          project_id?: string | null
+          sent_at?: string | null
+          service_period_from?: string | null
+          service_period_to?: string | null
+          status?: Database["public"]["Enums"]["rgi_invoice_status"]
+          subtotal_net?: number
+          template_id?: string | null
+          total_gross?: number
+          updated_at?: string
+          vat_total?: number
+        }
+        Update: {
+          cancels_invoice_id?: string | null
+          client_address_snapshot?: string | null
+          client_id?: string
+          client_name_snapshot?: string | null
+          created_at?: string
+          created_by?: string | null
+          docx_storage_path?: string | null
+          due_date?: string | null
+          footer_text?: string | null
+          id?: string
+          intro_text?: string | null
+          invoice_number?: string | null
+          issue_date?: string
+          paid_amount?: number
+          paid_at?: string | null
+          pdf_storage_path?: string | null
+          project_id?: string | null
+          sent_at?: string | null
+          service_period_from?: string | null
+          service_period_to?: string | null
+          status?: Database["public"]["Enums"]["rgi_invoice_status"]
+          subtotal_net?: number
+          template_id?: string | null
+          total_gross?: number
+          updated_at?: string
+          vat_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rgi_invoices_cancels_invoice_id_fkey"
+            columns: ["cancels_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rgi_invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rgi_invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rgi_invoices_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_invoice_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rgi_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          id: string
+          invoice_id: string
+          note: string | null
+          paid_on: string
+          source: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          invoice_id: string
+          note?: string | null
+          paid_on?: string
+          source?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          invoice_id?: string
+          note?: string | null
+          paid_on?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rgi_payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rgi_projects: {
+        Row: {
+          client_id: string
+          closed_at: string | null
+          created_at: string
+          created_by: string | null
+          default_hourly_rate: number | null
+          id: string
+          name: string
+          notes: string | null
+          sparte: Database["public"]["Enums"]["rgi_sparte"]
+          started_at: string | null
+          status: Database["public"]["Enums"]["rgi_project_status"]
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          default_hourly_rate?: number | null
+          id?: string
+          name: string
+          notes?: string | null
+          sparte?: Database["public"]["Enums"]["rgi_sparte"]
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["rgi_project_status"]
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          default_hourly_rate?: number | null
+          id?: string
+          name?: string
+          notes?: string | null
+          sparte?: Database["public"]["Enums"]["rgi_sparte"]
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["rgi_project_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rgi_projects_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rgi_reminders: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          fee: number
+          id: string
+          invoice_id: string
+          level: number
+          pdf_storage_path: string | null
+          sent_on: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          fee?: number
+          id?: string
+          invoice_id: string
+          level: number
+          pdf_storage_path?: string | null
+          sent_on?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          fee?: number
+          id?: string
+          invoice_id?: string
+          level?: number
+          pdf_storage_path?: string | null
+          sent_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rgi_reminders_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rgi_time_entries: {
+        Row: {
+          billable: boolean
+          created_at: string
+          date: string
+          description: string
+          hourly_rate: number | null
+          id: string
+          invoice_item_id: string | null
+          minutes: number
+          project_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          billable?: boolean
+          created_at?: string
+          date?: string
+          description: string
+          hourly_rate?: number | null
+          id?: string
+          invoice_item_id?: string | null
+          minutes: number
+          project_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          billable?: boolean
+          created_at?: string
+          date?: string
+          description?: string
+          hourly_rate?: number | null
+          id?: string
+          invoice_item_id?: string | null
+          minutes?: number
+          project_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rgi_time_entries_invoice_item_id_fkey"
+            columns: ["invoice_item_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_invoice_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rgi_time_entries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_emails: {
         Row: {
           account_id: string
@@ -7968,6 +8557,12 @@ export type Database = {
         Args: { endpoint_param: string; user_id_param: string }
         Returns: undefined
       }
+      rgi_is_admin: { Args: { _user_id: string }; Returns: boolean }
+      rgi_mark_overdue: { Args: never; Returns: number }
+      rgi_next_invoice_number: {
+        Args: { p_sparte?: Database["public"]["Enums"]["rgi_sparte"] }
+        Returns: string
+      }
       save_push_subscription: {
         Args: {
           auth_param: string
@@ -8221,6 +8816,17 @@ export type Database = {
         | "credit_note"
       key_loan_status: "open" | "returned" | "lost"
       management_mode: "weg" | "rent"
+      rgi_client_type: "contact" | "building" | "free"
+      rgi_invoice_item_kind: "time" | "flat" | "material" | "text"
+      rgi_invoice_status:
+        | "draft"
+        | "sent"
+        | "partial"
+        | "paid"
+        | "overdue"
+        | "cancelled"
+      rgi_project_status: "active" | "paused" | "closed"
+      rgi_sparte: "weg" | "rent" | "sales" | "letting" | "other"
       unit_kind:
         | "apartment"
         | "parking_garage"
@@ -8435,6 +9041,18 @@ export const Constants = {
       ],
       key_loan_status: ["open", "returned", "lost"],
       management_mode: ["weg", "rent"],
+      rgi_client_type: ["contact", "building", "free"],
+      rgi_invoice_item_kind: ["time", "flat", "material", "text"],
+      rgi_invoice_status: [
+        "draft",
+        "sent",
+        "partial",
+        "paid",
+        "overdue",
+        "cancelled",
+      ],
+      rgi_project_status: ["active", "paused", "closed"],
+      rgi_sparte: ["weg", "rent", "sales", "letting", "other"],
       unit_kind: [
         "apartment",
         "parking_garage",
