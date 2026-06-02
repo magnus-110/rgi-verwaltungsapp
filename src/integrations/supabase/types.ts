@@ -3515,7 +3515,7 @@ export type Database = {
           chunk_index: number
           content: string
           created_at: string
-          document_id: string
+          document_id: string | null
           embedding: string | null
           file_id: string | null
           id: string
@@ -3530,7 +3530,7 @@ export type Database = {
           chunk_index: number
           content: string
           created_at?: string
-          document_id: string
+          document_id?: string | null
           embedding?: string | null
           file_id?: string | null
           id?: string
@@ -3545,7 +3545,7 @@ export type Database = {
           chunk_index?: number
           content?: string
           created_at?: string
-          document_id?: string
+          document_id?: string | null
           embedding?: string | null
           file_id?: string | null
           id?: string

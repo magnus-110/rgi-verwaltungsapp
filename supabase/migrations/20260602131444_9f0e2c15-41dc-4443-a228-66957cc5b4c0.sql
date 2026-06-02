@@ -1,0 +1,1 @@
+ALTER TABLE public.document_chunks ALTER COLUMN document_id DROP NOT NULL;
