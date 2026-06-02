@@ -10,6 +10,22 @@ const MISTRAL_API_KEY = Deno.env.get('MISTRAL_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
+// ================== Retry helper ==================
+async function withRetry<T>(fn: () => Promise<T>, label: string, attempts = 3): Promise<T> {
+  let lastErr: any;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      const waitMs = 1000 * Math.pow(2, i);
+      console.warn(`[${label}] attempt ${i + 1}/${attempts} failed: ${(e as Error).message}. Retrying in ${waitMs}ms`);
+      if (i < attempts - 1) await new Promise(r => setTimeout(r, waitMs));
+    }
+  }
+  throw lastErr;
+}
+
 // ================== OCR ==================
 async function extractTextWithMistralOCR(signedUrl: string): Promise<string> {
   console.log('Starting Mistral OCR extraction...');
@@ -29,7 +45,7 @@ async function extractTextWithMistralOCR(signedUrl: string): Promise<string> {
   if (!response.ok) {
     const errorText = await response.text();
     console.error('Mistral OCR error:', errorText);
-    throw new Error(`Mistral OCR failed: ${errorText}`);
+    throw new Error(`Mistral OCR failed (${response.status}): ${errorText.slice(0, 500)}`);
   }
 
   const data = await response.json();
@@ -191,10 +207,8 @@ function makeChunk(content: string, startPage: number, endPage: number, document
   };
 }
 
-// For very small docs (no page markers), make a single chunk
 function fallbackChunk(text: string, documentName: string): Chunk[] {
   if (!text || text.trim().length < 50) return [];
-  // Split into ~1500 char windows if longer
   const MAX = 1500;
   if (text.length <= MAX) {
     return [makeChunk(text, 1, 1, documentName)];
@@ -213,25 +227,150 @@ async function generateEmbeddings(texts: string[]): Promise<number[][]> {
 
   for (let i = 0; i < texts.length; i += batchSize) {
     const batch = texts.slice(i, i + batchSize);
-    const response = await fetch('https://api.mistral.ai/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${MISTRAL_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ model: 'mistral-embed', input: batch }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Mistral embedding error:', errorText);
-      throw new Error(`Mistral embedding failed: ${errorText}`);
-    }
-
-    const data = await response.json();
+    const data = await withRetry(async () => {
+      const response = await fetch('https://api.mistral.ai/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${MISTRAL_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model: 'mistral-embed', input: batch }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Mistral embedding failed (${response.status}): ${errorText.slice(0, 300)}`);
+      }
+      return await response.json();
+    }, 'embeddings');
     all.push(...data.data.map((it: any) => it.embedding));
   }
   return all;
+}
+
+// ================== Core processing ==================
+async function processFile(supabase: any, fileId: string, force: boolean) {
+  // Load file
+  const { data: file, error: fileError } = await supabase
+    .from('building_files').select('*').eq('id', fileId).single();
+  if (fileError || !file) {
+    console.error(`[${fileId}] not found`);
+    return;
+  }
+
+  // Skip already-indexed unless force
+  if (!force) {
+    const { count } = await supabase
+      .from('document_chunks').select('id', { count: 'exact', head: true }).eq('file_id', fileId);
+    if ((count ?? 0) > 0) {
+      console.log(`[${fileId}] already has ${count} chunks, skipping`);
+      await supabase.from('building_files').update({
+        processing_status: 'done',
+        processed_at: new Date().toISOString(),
+        processing_error: null,
+      }).eq('id', fileId);
+      return;
+    }
+  } else {
+    await supabase.from('document_chunks').delete().eq('file_id', fileId);
+  }
+
+  // Mark processing
+  await supabase.from('building_files').update({
+    processing_status: 'processing',
+    processing_error: null,
+  }).eq('id', fileId);
+
+  const ocrTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+  const textTypes = ['text/plain', 'text/markdown', 'text/csv', 'application/json'];
+
+  try {
+    let extractedText = file.extracted_text || '';
+
+    if (!extractedText) {
+      if (file.mime_type && ocrTypes.includes(file.mime_type)) {
+        const { data: signed, error: signedErr } = await supabase.storage
+          .from('building-files')
+          .createSignedUrl(file.file_path, 3600);
+        if (signedErr || !signed?.signedUrl) throw new Error('Could not create signed URL for OCR');
+
+        console.log(`[${fileId}] OCR for ${file.display_name}`);
+        extractedText = await withRetry(() => extractTextWithMistralOCR(signed.signedUrl), 'ocr');
+      } else if (file.mime_type && textTypes.includes(file.mime_type)) {
+        extractedText = await downloadAsText(supabase, file.file_path);
+      } else {
+        console.log(`[${fileId}] unsupported mime: ${file.mime_type}`);
+        await supabase.from('building_files').update({
+          processing_status: 'skipped',
+          processing_error: `Unsupported mime type: ${file.mime_type}`,
+          processed_at: new Date().toISOString(),
+        }).eq('id', fileId);
+        return;
+      }
+    }
+
+    if (!extractedText || extractedText.length < 30) {
+      await supabase.from('building_files').update({
+        rag_enabled: false,
+        processing_status: 'skipped',
+        processing_error: 'OCR lieferte keinen verwertbaren Text (vermutlich reines Bild-PDF wie Pläne/Skizzen).',
+        processed_at: new Date().toISOString(),
+      }).eq('id', fileId);
+      return;
+    }
+
+    await supabase.from('building_files').update({
+      extracted_text: extractedText,
+      rag_enabled: true,
+    }).eq('id', fileId);
+
+    let chunks = createSemanticChunks(extractedText, file.display_name);
+    if (chunks.length === 0) chunks = fallbackChunk(extractedText, file.display_name);
+    if (chunks.length === 0) {
+      await supabase.from('building_files').update({
+        processing_status: 'skipped',
+        processing_error: 'Keine Chunks erzeugbar.',
+        processed_at: new Date().toISOString(),
+      }).eq('id', fileId);
+      return;
+    }
+
+    console.log(`[${fileId}] ${chunks.length} chunks, ${extractedText.length} chars`);
+
+    const embeddings = await generateEmbeddings(chunks.map(c => c.content));
+
+    const records = chunks.map((c, idx) => ({
+      document_id: file.id,
+      file_id: file.id,
+      building_id: file.building_id,
+      category: 'building_file',
+      chunk_index: idx,
+      content: c.content,
+      metadata: { ...c.metadata, source: 'building_files', file_id: file.id, file_path: file.file_path, display_name: file.display_name },
+      embedding: `[${embeddings[idx].join(',')}]`,
+    }));
+
+    for (let i = 0; i < records.length; i += 50) {
+      const batch = records.slice(i, i + 50);
+      const { error: insErr } = await supabase.from('document_chunks').insert(batch);
+      if (insErr) throw new Error(`Chunk insert failed: ${insErr.message}`);
+    }
+
+    await supabase.from('building_files').update({
+      processing_status: 'done',
+      processing_error: null,
+      processed_at: new Date().toISOString(),
+    }).eq('id', fileId);
+
+    console.log(`[${fileId}] indexed: ${chunks.length} chunks`);
+  } catch (e) {
+    const msg = (e as Error).message || String(e);
+    console.error(`[${fileId}] processing failed:`, msg);
+    await supabase.from('building_files').update({
+      processing_status: 'failed',
+      processing_error: msg.slice(0, 1000),
+      processed_at: new Date().toISOString(),
+    }).eq('id', fileId);
+  }
 }
 
 // ================== Main ==================
@@ -239,7 +378,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
-    const { fileId, force } = await req.json();
+    const { fileId, force, wait } = await req.json();
     if (!fileId) {
       return new Response(JSON.stringify({ error: 'fileId is required' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -253,112 +392,34 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
-    // Load file
-    const { data: file, error: fileError } = await supabase
-      .from('building_files').select('*').eq('id', fileId).single();
-    if (fileError || !file) {
-      return new Response(JSON.stringify({ error: 'File not found' }), {
-        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Skip already-indexed (unless force=true)
-    if (!force) {
-      const { count } = await supabase
-        .from('document_chunks').select('id', { count: 'exact', head: true }).eq('file_id', fileId);
-      if ((count ?? 0) > 0) {
-        console.log(`File ${fileId} already has ${count} chunks, skipping`);
-        return new Response(JSON.stringify({ success: true, skipped: true, reason: 'already indexed', chunks: count }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-    } else {
-      // Force re-index: delete existing chunks
-      await supabase.from('document_chunks').delete().eq('file_id', fileId);
-    }
-
-    // Determine extraction method by mime
-    const ocrTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
-    const textTypes = ['text/plain', 'text/markdown', 'text/csv', 'application/json'];
-
-    let extractedText = file.extracted_text || '';
-
-    if (!extractedText) {
-      if (file.mime_type && ocrTypes.includes(file.mime_type)) {
-        const { data: signed, error: signedErr } = await supabase.storage
-          .from('building-files')
-          .createSignedUrl(file.file_path, 3600);
-        if (signedErr || !signed?.signedUrl) throw new Error('Could not create signed URL for OCR');
-
-        console.log(`OCR for ${file.display_name}`);
-        extractedText = await extractTextWithMistralOCR(signed.signedUrl);
-      } else if (file.mime_type && textTypes.includes(file.mime_type)) {
-        extractedText = await downloadAsText(supabase, file.file_path);
-      } else {
-        console.log(`Skipping unsupported type: ${file.mime_type}`);
-        return new Response(JSON.stringify({ success: true, skipped: true, reason: 'unsupported mime type' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-    }
-
-    if (!extractedText || extractedText.length < 30) {
-      await supabase.from('building_files').update({ rag_enabled: false }).eq('id', fileId);
-      return new Response(JSON.stringify({ success: true, skipped: true, reason: 'no meaningful text' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Save extracted_text on file
+    // Mark queued immediately so UI feedback is instant
     await supabase.from('building_files').update({
-      extracted_text: extractedText,
-      rag_enabled: true,
+      processing_status: 'processing',
+      processing_error: null,
     }).eq('id', fileId);
 
-    // Chunk
-    let chunks = createSemanticChunks(extractedText, file.display_name);
-    if (chunks.length === 0) chunks = fallbackChunk(extractedText, file.display_name);
-    if (chunks.length === 0) {
-      console.log('No chunks created');
-      return new Response(JSON.stringify({ success: true, skipped: true, reason: 'no chunks' }), {
+    // Synchronous mode for diagnostics / cron
+    if (wait) {
+      await processFile(supabase, fileId, !!force);
+      return new Response(JSON.stringify({ success: true, mode: 'sync' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log(`Created ${chunks.length} chunks for ${file.display_name}`);
-
-    // Embeddings
-    const embeddings = await generateEmbeddings(chunks.map(c => c.content));
-
-    // Insert chunks (trigger fills category_slug + path)
-    // document_chunks.document_id is NOT NULL — use file.id as the logical document id
-    const records = chunks.map((c, idx) => ({
-      document_id: file.id,
-      file_id: file.id,
-      building_id: file.building_id,
-      category: 'building_file',
-      chunk_index: idx,
-      content: c.content,
-      metadata: { ...c.metadata, source: 'building_files', file_id: file.id, file_path: file.file_path, display_name: file.display_name },
-      embedding: `[${embeddings[idx].join(',')}]`,
-    }));
-
-    // Insert in batches of 50
-    for (let i = 0; i < records.length; i += 50) {
-      const batch = records.slice(i, i + 50);
-      const { error: insErr } = await supabase.from('document_chunks').insert(batch);
-      if (insErr) throw new Error(`Chunk insert failed: ${insErr.message}`);
+    // Background mode (default): survives client disconnect
+    // @ts-ignore EdgeRuntime is provided by Supabase Deno runtime
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime?.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(processFile(supabase, fileId, !!force));
+    } else {
+      // Fallback: fire-and-forget
+      processFile(supabase, fileId, !!force).catch(e => console.error('bg error:', e));
     }
 
-    console.log(`Indexed ${file.display_name}: ${chunks.length} chunks, ${extractedText.length} chars`);
-
-    return new Response(JSON.stringify({
-      success: true,
-      fileName: file.display_name,
-      chunks: chunks.length,
-      chars: extractedText.length,
-    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-
+    return new Response(JSON.stringify({ success: true, mode: 'async', fileId }), {
+      status: 202,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   } catch (error) {
     console.error('Error in process-building-file:', error);
     return new Response(JSON.stringify({ error: (error as Error).message || 'Processing failed' }), {
