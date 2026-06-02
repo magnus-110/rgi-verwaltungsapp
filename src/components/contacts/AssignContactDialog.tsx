@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Search, User, Plus, ChevronRight, ChevronLeft, Mail, AlertCircle, Trash2 } from "lucide-react";
+import { Search, User, Plus, ChevronRight, ChevronLeft, Mail, AlertCircle, Trash2, UserCog, ChevronDown } from "lucide-react";
 import { CreateContactDialog } from "./CreateContactDialog";
 import { UNIT_KIND_OPTIONS, type UnitKind } from "@/lib/secondaryUnits";
 
@@ -86,6 +86,11 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
   const [sendInvite, setSendInvite] = useState(false);
   const [inviting, setInviting] = useState(false);
 
+  // Owner change (Eigentümerwechsel) – only used in edit mode
+  const [originalContactId, setOriginalContactId] = useState<string | null>(null);
+  const [showChangeOwner, setShowChangeOwner] = useState(false);
+  const [ownerSearch, setOwnerSearch] = useState("");
+
   useEffect(() => {
     if (open) {
       loadContacts();
@@ -108,6 +113,9 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     setEditStreet(""); setEditZip(""); setEditCity("");
     setEditPhones([]); setEditEmails([]); setEditBanks([]);
     setSendInvite(false);
+    setOriginalContactId(null);
+    setShowChangeOwner(false);
+    setOwnerSearch("");
   };
 
   const loadAssignmentForEdit = async (assignmentId: string) => {
@@ -118,6 +126,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
       .maybeSingle();
     if (error || !a) return;
     setSelectedId(a.contact_id);
+    setOriginalContactId(a.contact_id);
     setUnitNumber(a.unit_number || "");
     setFloorLocation(a.floor_location || "");
     setUnitKind(((a as any).unit_kind || "apartment") as UnitKind);
@@ -277,13 +286,27 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
 
     let error: any = null;
     if (editAssignmentId) {
-      const res = await supabase.from("contact_building_assignments").update({
+      const ownerChanged = !!originalContactId && !!selectedId && originalContactId !== selectedId;
+      const patch: any = {
         role_in_building: roleValue as any,
         unit_number: unitNumber || null,
         floor_location: floorLocation || null,
         unit_kind: unitKind as any,
-      } as any).eq("id", editAssignmentId);
+      };
+      if (ownerChanged) {
+        patch.contact_id = selectedId;
+        // Bank-Zuordnung zurücksetzen – die alte IBAN gehört dem alten Eigentümer
+        patch.bank_account_id = null;
+      }
+      const res = await supabase.from("contact_building_assignments").update(patch).eq("id", editAssignmentId);
       error = res.error;
+      // Sub-Assignments (Stellplätze, Keller etc.) mit umhängen
+      if (!error && ownerChanged) {
+        await supabase
+          .from("contact_building_assignments")
+          .update({ contact_id: selectedId, bank_account_id: null } as any)
+          .eq("parent_assignment_id", editAssignmentId);
+      }
     } else {
       const res = await supabase.from("contact_building_assignments").insert({
         contact_id: selectedId,
@@ -417,7 +440,101 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
                 {getAddress(selectedContact) && (
                   <p className="text-xs text-muted-foreground">{getAddress(selectedContact)}</p>
                 )}
+                {editAssignmentId && originalContactId && selectedId !== originalContactId && (
+                  <p className="text-xs text-amber-600 mt-1 font-medium">
+                    Eigentümerwechsel – Anteile, Hausgeld &amp; Stellplätze bleiben erhalten.
+                  </p>
+                )}
               </div>
+
+              {/* Eigentümerwechsel (nur Edit-Modus) */}
+              {editAssignmentId && (
+                <div className="border rounded-md">
+                  <button
+                    type="button"
+                    onClick={() => setShowChangeOwner(v => !v)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted/50"
+                  >
+                    <span className="flex items-center gap-2">
+                      <UserCog className="h-4 w-4 text-muted-foreground" />
+                      Eigentümer wechseln
+                    </span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showChangeOwner ? "rotate-180" : ""}`} />
+                  </button>
+                  {showChangeOwner && (
+                    <div className="border-t p-3 space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        Wähle einen anderen Kontakt. Einheit, MEA, Hausgeld, Rücklagen und alle Sub-Einheiten bleiben unverändert.
+                      </p>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Kontakt suchen..."
+                          value={ownerSearch}
+                          onChange={(e) => setOwnerSearch(e.target.value)}
+                          className="pl-9 h-8 text-sm"
+                        />
+                      </div>
+                      <div className="max-h-48 overflow-y-auto border rounded-md">
+                        {contacts
+                          .filter(c => {
+                            if (c.id === originalContactId) return false;
+                            const term = ownerSearch.toLowerCase();
+                            if (!term) return true;
+                            const personHit = (c.persons || []).some(p =>
+                              (p.first_name || "").toLowerCase().includes(term) ||
+                              (p.last_name || "").toLowerCase().includes(term)
+                            );
+                            return (c.first_name || "").toLowerCase().includes(term) ||
+                              (c.last_name || "").toLowerCase().includes(term) ||
+                              (c.company_name || "").toLowerCase().includes(term) ||
+                              personHit;
+                          })
+                          .slice(0, 40)
+                          .map(c => (
+                            <div
+                              key={c.id}
+                              onClick={async () => {
+                                setSelectedId(c.id);
+                                setAddressMode("existing");
+                                await loadContactDetails(c.id);
+                              }}
+                              className={`flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors ${
+                                selectedId === c.id && c.id !== originalContactId ? "bg-primary/10" : "hover:bg-muted"
+                              }`}
+                            >
+                              <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                              <div className="min-w-0 flex-1">
+                                <span className="text-sm block truncate">{getName(c)}</span>
+                                {getAddress(c) && (
+                                  <span className="text-xs text-muted-foreground block truncate">{getAddress(c)}</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                      {selectedId !== originalContactId && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={async () => {
+                            if (originalContactId) {
+                              setSelectedId(originalContactId);
+                              setAddressMode("existing");
+                              await loadContactDetails(originalContactId);
+                            }
+                          }}
+                        >
+                          Wechsel zurücksetzen
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+
 
               {/* Unit kind */}
               <div>
