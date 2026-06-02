@@ -339,7 +339,7 @@ async function processFile(supabase: any, fileId: string, force: boolean) {
     const embeddings = await generateEmbeddings(chunks.map(c => c.content));
 
     const records = chunks.map((c, idx) => ({
-      document_id: file.id,
+      document_id: null,
       file_id: file.id,
       building_id: file.building_id,
       category: 'building_file',
