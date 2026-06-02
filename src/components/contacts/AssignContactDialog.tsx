@@ -113,6 +113,9 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     setEditStreet(""); setEditZip(""); setEditCity("");
     setEditPhones([]); setEditEmails([]); setEditBanks([]);
     setSendInvite(false);
+    setOriginalContactId(null);
+    setShowChangeOwner(false);
+    setOwnerSearch("");
   };
 
   const loadAssignmentForEdit = async (assignmentId: string) => {
