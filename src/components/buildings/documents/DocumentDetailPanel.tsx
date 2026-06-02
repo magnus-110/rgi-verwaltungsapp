@@ -294,6 +294,26 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
               onCheckedChange={(v) => setEditing(s => ({ ...s, rag_enabled: v }))}
             />
           </div>
+
+          {(() => {
+            const status = (file as any).processing_status as string | undefined;
+            const err = (file as any).processing_error as string | undefined;
+            if (!status || status === 'done') return null;
+            const map: Record<string, { label: string; cls: string }> = {
+              pending: { label: 'Wartet auf KI-Verarbeitung', cls: 'bg-slate-100 text-slate-700 border-slate-300' },
+              processing: { label: 'Wird gerade indiziert…', cls: 'bg-blue-50 text-blue-700 border-blue-300' },
+              failed: { label: 'KI-Verarbeitung fehlgeschlagen', cls: 'bg-red-50 text-red-700 border-red-300' },
+              skipped: { label: 'Übersprungen (kein Text gefunden)', cls: 'bg-amber-50 text-amber-700 border-amber-300' },
+            };
+            const m = map[status] ?? { label: status, cls: 'bg-muted text-muted-foreground border' };
+            return (
+              <div className={`text-[11px] rounded-md border px-2 py-1.5 ${m.cls}`}>
+                <div className="font-medium">{m.label}</div>
+                {err && <div className="mt-0.5 opacity-80 break-words">{err}</div>}
+              </div>
+            );
+          })()}
+
           <Button
             variant="outline"
             size="sm"
@@ -302,15 +322,11 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
             onClick={async () => {
               setReindexing(true);
               try {
-                const { data, error } = await supabase.functions.invoke('process-building-file', {
+                const { error } = await supabase.functions.invoke('process-building-file', {
                   body: { fileId: file.id, force: true },
                 });
                 if (error) throw error;
-                if (data?.skipped) {
-                  toast.info(`Übersprungen: ${data.reason}`);
-                } else {
-                  toast.success(`Neu indiziert: ${data?.chunks ?? 0} Chunks`);
-                }
+                toast.success('OCR & RAG-Indexierung läuft im Hintergrund. Status erscheint hier, sobald fertig.');
                 onChanged();
               } catch (e: any) {
                 toast.error("Indexierung fehlgeschlagen: " + (e?.message ?? e));
@@ -320,7 +336,7 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
             }}
           >
             <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${reindexing ? 'animate-spin' : ''}`} />
-            {reindexing ? 'Indiziere…' : 'RAG neu indizieren'}
+            {reindexing ? 'Starte…' : 'OCR & RAG neu starten'}
           </Button>
         </div>
 
