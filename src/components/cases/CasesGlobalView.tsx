@@ -228,15 +228,13 @@ export const CasesGlobalView = () => {
 
       <CaseDetailView caseId={selectedCaseId} onClose={() => setSelectedCaseId(null)} />
 
-      {createBuildingId && (
-        <CreateCaseDialog
-          open={createOpen}
-          onOpenChange={setCreateOpen}
-          buildingId={createBuildingId}
-          managementMode={managementMode}
-          onCreated={(c) => setSelectedCaseId(c.id)}
-        />
-      )}
+      <CreateCaseDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        buildingId={createBuildingId || undefined}
+        managementMode={managementMode}
+        onCreated={(c) => setSelectedCaseId(c.id)}
+      />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
