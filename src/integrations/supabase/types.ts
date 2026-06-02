@@ -1456,6 +1456,9 @@ export type Database = {
           management_mode: Database["public"]["Enums"]["management_mode"]
           mime_type: string | null
           parent_file_id: string | null
+          processed_at: string | null
+          processing_error: string | null
+          processing_status: string
           rag_enabled: boolean
           source: Database["public"]["Enums"]["file_source"]
           source_email_id: string | null
@@ -1488,6 +1491,9 @@ export type Database = {
           management_mode: Database["public"]["Enums"]["management_mode"]
           mime_type?: string | null
           parent_file_id?: string | null
+          processed_at?: string | null
+          processing_error?: string | null
+          processing_status?: string
           rag_enabled?: boolean
           source?: Database["public"]["Enums"]["file_source"]
           source_email_id?: string | null
@@ -1520,6 +1526,9 @@ export type Database = {
           management_mode?: Database["public"]["Enums"]["management_mode"]
           mime_type?: string | null
           parent_file_id?: string | null
+          processed_at?: string | null
+          processing_error?: string | null
+          processing_status?: string
           rag_enabled?: boolean
           source?: Database["public"]["Enums"]["file_source"]
           source_email_id?: string | null
