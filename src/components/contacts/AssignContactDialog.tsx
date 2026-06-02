@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Search, User, Plus, ChevronRight, ChevronLeft, Mail, AlertCircle, Trash2 } from "lucide-react";
+import { Search, User, Plus, ChevronRight, ChevronLeft, Mail, AlertCircle, Trash2, UserCog, ChevronDown } from "lucide-react";
 import { CreateContactDialog } from "./CreateContactDialog";
 import { UNIT_KIND_OPTIONS, type UnitKind } from "@/lib/secondaryUnits";
 
