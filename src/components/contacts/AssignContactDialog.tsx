@@ -440,7 +440,101 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
                 {getAddress(selectedContact) && (
                   <p className="text-xs text-muted-foreground">{getAddress(selectedContact)}</p>
                 )}
+                {editAssignmentId && originalContactId && selectedId !== originalContactId && (
+                  <p className="text-xs text-amber-600 mt-1 font-medium">
+                    Eigentümerwechsel – Anteile, Hausgeld &amp; Stellplätze bleiben erhalten.
+                  </p>
+                )}
               </div>
+
+              {/* Eigentümerwechsel (nur Edit-Modus) */}
+              {editAssignmentId && (
+                <div className="border rounded-md">
+                  <button
+                    type="button"
+                    onClick={() => setShowChangeOwner(v => !v)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted/50"
+                  >
+                    <span className="flex items-center gap-2">
+                      <UserCog className="h-4 w-4 text-muted-foreground" />
+                      Eigentümer wechseln
+                    </span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showChangeOwner ? "rotate-180" : ""}`} />
+                  </button>
+                  {showChangeOwner && (
+                    <div className="border-t p-3 space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        Wähle einen anderen Kontakt. Einheit, MEA, Hausgeld, Rücklagen und alle Sub-Einheiten bleiben unverändert.
+                      </p>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Kontakt suchen..."
+                          value={ownerSearch}
+                          onChange={(e) => setOwnerSearch(e.target.value)}
+                          className="pl-9 h-8 text-sm"
+                        />
+                      </div>
+                      <div className="max-h-48 overflow-y-auto border rounded-md">
+                        {contacts
+                          .filter(c => {
+                            if (c.id === originalContactId) return false;
+                            const term = ownerSearch.toLowerCase();
+                            if (!term) return true;
+                            const personHit = (c.persons || []).some(p =>
+                              (p.first_name || "").toLowerCase().includes(term) ||
+                              (p.last_name || "").toLowerCase().includes(term)
+                            );
+                            return (c.first_name || "").toLowerCase().includes(term) ||
+                              (c.last_name || "").toLowerCase().includes(term) ||
+                              (c.company_name || "").toLowerCase().includes(term) ||
+                              personHit;
+                          })
+                          .slice(0, 40)
+                          .map(c => (
+                            <div
+                              key={c.id}
+                              onClick={async () => {
+                                setSelectedId(c.id);
+                                setAddressMode("existing");
+                                await loadContactDetails(c.id);
+                              }}
+                              className={`flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors ${
+                                selectedId === c.id && c.id !== originalContactId ? "bg-primary/10" : "hover:bg-muted"
+                              }`}
+                            >
+                              <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                              <div className="min-w-0 flex-1">
+                                <span className="text-sm block truncate">{getName(c)}</span>
+                                {getAddress(c) && (
+                                  <span className="text-xs text-muted-foreground block truncate">{getAddress(c)}</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                      {selectedId !== originalContactId && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={async () => {
+                            if (originalContactId) {
+                              setSelectedId(originalContactId);
+                              setAddressMode("existing");
+                              await loadContactDetails(originalContactId);
+                            }
+                          }}
+                        >
+                          Wechsel zurücksetzen
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+
 
               {/* Unit kind */}
               <div>
