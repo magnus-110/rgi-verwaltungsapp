@@ -126,6 +126,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
       .maybeSingle();
     if (error || !a) return;
     setSelectedId(a.contact_id);
+    setOriginalContactId(a.contact_id);
     setUnitNumber(a.unit_number || "");
     setFloorLocation(a.floor_location || "");
     setUnitKind(((a as any).unit_kind || "apartment") as UnitKind);
