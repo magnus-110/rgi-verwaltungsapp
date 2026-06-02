@@ -286,13 +286,27 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
 
     let error: any = null;
     if (editAssignmentId) {
-      const res = await supabase.from("contact_building_assignments").update({
+      const ownerChanged = !!originalContactId && !!selectedId && originalContactId !== selectedId;
+      const patch: any = {
         role_in_building: roleValue as any,
         unit_number: unitNumber || null,
         floor_location: floorLocation || null,
         unit_kind: unitKind as any,
-      } as any).eq("id", editAssignmentId);
+      };
+      if (ownerChanged) {
+        patch.contact_id = selectedId;
+        // Bank-Zuordnung zurücksetzen – die alte IBAN gehört dem alten Eigentümer
+        patch.bank_account_id = null;
+      }
+      const res = await supabase.from("contact_building_assignments").update(patch).eq("id", editAssignmentId);
       error = res.error;
+      // Sub-Assignments (Stellplätze, Keller etc.) mit umhängen
+      if (!error && ownerChanged) {
+        await supabase
+          .from("contact_building_assignments")
+          .update({ contact_id: selectedId, bank_account_id: null } as any)
+          .eq("parent_assignment_id", editAssignmentId);
+      }
     } else {
       const res = await supabase.from("contact_building_assignments").insert({
         contact_id: selectedId,
