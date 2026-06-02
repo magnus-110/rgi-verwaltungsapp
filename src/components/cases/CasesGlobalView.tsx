@@ -106,7 +106,7 @@ export const CasesGlobalView = () => {
   }, [cases]);
 
   const openCreate = () => {
-    setCreateBuildingId(buildingFilter !== "all" ? buildingFilter : (buildings[0]?.id || ""));
+    setCreateBuildingId(buildingFilter !== "all" ? buildingFilter : "");
     setCreateOpen(true);
   };
 
