@@ -98,15 +98,17 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     },
   });
 
-  // Fetch all transactions for the selected building
+  // Fetch all transactions for the selected building & fiscal year
   const { data: allBuildingTxns = [], isLoading: txnsLoading } = useQuery({
-    queryKey: ["bank-transactions-building", selectedBuilding],
+    queryKey: ["bank-transactions-building", selectedBuilding, fiscalYear],
     queryFn: async () => {
       if (!selectedBuilding) return [];
       const { data, error } = await supabase
         .from("bank_transactions")
         .select("*, bookings!bank_transactions_booking_id_fkey(id, needs_review, review_note)")
         .eq("building_id", selectedBuilding)
+        .gte("booking_date", `${fiscalYear}-01-01`)
+        .lte("booking_date", `${fiscalYear}-12-31`)
         .order("booking_date", { ascending: true })
         .order("id", { ascending: true });
       if (error) throw error;
