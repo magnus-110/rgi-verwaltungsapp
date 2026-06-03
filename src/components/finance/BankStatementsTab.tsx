@@ -938,7 +938,8 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                     </CardContent>
                   )}
                 </Card>
-              )}
+                );
+              })()}
 
               {/* Search */}
               {selectedBuilding && allBuildingTxns.length > 0 && (
