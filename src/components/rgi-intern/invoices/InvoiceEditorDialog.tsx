@@ -10,11 +10,13 @@ import {
   useCreateRgiInvoice, useUpdateRgiInvoice, useUpsertRgiInvoiceItems, useAddRgiPayment,
   rgiNextInvoiceNumber, rgiRenderInvoice, rgiSignedUrl, type RgiInvoiceItem,
 } from "@/hooks/useRgi";
-import { Trash2, Plus, RefreshCw, Download, Send, CheckCircle } from "lucide-react";
+import { Trash2, Plus, RefreshCw, Download, Send, CheckCircle, FileStack, Save, FolderInput } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface Props {
   open: boolean;
@@ -56,6 +58,71 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
   const [d, setD] = useState<Draft>(emptyDraft());
   const [rendering, setRendering] = useState(false);
   const [payAmount, setPayAmount] = useState("");
+  const qc = useQueryClient();
+
+  const { data: presets } = useQuery({
+    queryKey: ["rgi", "item-presets"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("rgi_item_presets").select("*").order("name");
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string; sparte: string | null; items: any[] }>;
+    },
+  });
+
+  const applyPreset = (presetId: string) => {
+    const p = presets?.find((x) => x.id === presetId);
+    if (!p) return;
+    const newItems: Partial<RgiInvoiceItem>[] = (p.items ?? []).map((it: any) => ({
+      kind: it.kind ?? "flat",
+      description: it.description ?? "",
+      quantity: Number(it.quantity ?? 1),
+      unit: it.unit ?? "Stk",
+      unit_price_net: Number(it.unit_price_net ?? 0),
+      vat_rate: Number(it.vat_rate ?? 19),
+    }));
+    setD((prev) => ({ ...prev, items: [...prev.items, ...newItems] }));
+    toast.success(`Vorlage "${p.name}" geladen`);
+  };
+
+  const saveAsPreset = async () => {
+    if (d.items.length === 0) { toast.error("Keine Positionen vorhanden"); return; }
+    const name = window.prompt("Name der Rechnungsvorlage (z.B. Eigentümerwechsel, Mietvertrag, Verwaltergebühr):");
+    if (!name) return;
+    const project = projects?.find((p) => p.id === d.project_id);
+    const itemsPayload = d.items.map((it) => ({
+      kind: it.kind ?? "flat",
+      description: it.description ?? "",
+      quantity: Number(it.quantity ?? 1),
+      unit: it.unit ?? "Stk",
+      unit_price_net: Number(it.unit_price_net ?? 0),
+      vat_rate: Number(it.vat_rate ?? 19),
+    }));
+    const { error } = await (supabase as any).from("rgi_item_presets").insert({
+      name, sparte: project?.sparte ?? null, items: itemsPayload, created_by: user?.id,
+    });
+    if (error) { toast.error(error.message); return; }
+    toast.success("Als Vorlage gespeichert");
+    qc.invalidateQueries({ queryKey: ["rgi", "item-presets"] });
+  };
+
+  const importFromProject = async () => {
+    if (!d.project_id) { toast.error("Erst Projekt wählen"); return; }
+    const { data: invs, error: e1 } = await supabase
+      .from("rgi_invoices").select("id, issue_date").eq("project_id", d.project_id)
+      .order("issue_date", { ascending: false }).limit(1);
+    if (e1) { toast.error(e1.message); return; }
+    if (!invs || invs.length === 0) { toast.info("Keine vorherige Rechnung für dieses Projekt gefunden"); return; }
+    const { data: srcItems, error: e2 } = await supabase
+      .from("rgi_invoice_items").select("*").eq("invoice_id", invs[0].id).order("position");
+    if (e2) { toast.error(e2.message); return; }
+    const newItems: Partial<RgiInvoiceItem>[] = (srcItems ?? []).map((it: any) => ({
+      kind: it.kind, description: it.description, quantity: Number(it.quantity),
+      unit: it.unit, unit_price_net: Number(it.unit_price_net), vat_rate: Number(it.vat_rate),
+    }));
+    setD((prev) => ({ ...prev, items: [...prev.items, ...newItems] }));
+    toast.success(`${newItems.length} Positionen aus Projekt übernommen`);
+  };
+
 
   useEffect(() => {
     if (!open) return;
@@ -220,11 +287,30 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
 
           {/* Positionen */}
           <Card className="p-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
               <h3 className="font-semibold">Positionen</h3>
-              <Button size="sm" variant="outline" onClick={() => setD({ ...d, items: [...d.items, blankItem()] })}>
-                <Plus className="w-4 h-4 mr-1" />Position
-              </Button>
+              <div className="flex gap-2 flex-wrap">
+                <Select value="" onValueChange={applyPreset}>
+                  <SelectTrigger className="h-9 w-[200px]">
+                    <span className="flex items-center gap-1.5 text-sm"><FileStack className="w-4 h-4" />Aus Vorlage laden…</span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(presets ?? []).length === 0 && <div className="px-2 py-1.5 text-sm text-muted-foreground">Keine Vorlagen</div>}
+                    {presets?.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}{p.sparte ? ` · ${p.sparte}` : ""}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" variant="outline" onClick={importFromProject} disabled={!d.project_id} className="gap-1.5">
+                  <FolderInput className="w-4 h-4" />Aus Projekt
+                </Button>
+                <Button size="sm" variant="outline" onClick={saveAsPreset} disabled={d.items.length === 0} className="gap-1.5">
+                  <Save className="w-4 h-4" />Als Vorlage speichern
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setD({ ...d, items: [...d.items, blankItem()] })}>
+                  <Plus className="w-4 h-4 mr-1" />Position
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <div className="grid grid-cols-[1fr_70px_70px_90px_70px_90px_30px] gap-2 text-xs text-muted-foreground px-1">
@@ -306,14 +392,18 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
 }
 
 function emptyDraft(): Draft {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date();
+  const due = new Date();
+  due.setDate(due.getDate() + 14);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
   return {
     client_id: "", project_id: null, template_id: null,
-    issue_date: today, due_date: "",
+    issue_date: fmt(today), due_date: fmt(due),
     service_period_from: null, service_period_to: null,
     intro_text: "", footer_text: "", items: [],
   };
 }
+
 
 function computeTotals(items: Partial<RgiInvoiceItem>[]) {
   let net = 0, vat19 = 0, vat7 = 0, vat0 = 0;
