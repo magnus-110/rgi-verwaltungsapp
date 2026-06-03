@@ -364,6 +364,15 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
           </Button>
         </DialogFooter>
       </DialogContent>
+      {d.project_id && (
+        <ImportFromProjectDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          projectId={d.project_id}
+          clientId={d.client_id}
+          onApply={handleImported}
+        />
+      )}
     </Dialog>
   );
 }
