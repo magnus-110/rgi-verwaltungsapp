@@ -45,7 +45,8 @@ export default function RgiIntern() {
           <TabsTrigger value="time" className="gap-1.5"><Clock className="w-4 h-4" />Stunden</TabsTrigger>
           <TabsTrigger value="invoices" className="gap-1.5"><FileText className="w-4 h-4" />Rechnungen</TabsTrigger>
           <TabsTrigger value="clients" className="gap-1.5"><Users className="w-4 h-4" />Kunden</TabsTrigger>
-          <TabsTrigger value="templates" className="gap-1.5"><FileStack className="w-4 h-4" />Vorlagen</TabsTrigger>
+          <TabsTrigger value="templates" className="gap-1.5"><FileStack className="w-4 h-4" />Word-Vorlagen</TabsTrigger>
+          <TabsTrigger value="presets" className="gap-1.5"><ClipboardList className="w-4 h-4" />Rechnungsvorlagen</TabsTrigger>
           <TabsTrigger value="settings" className="gap-1.5"><Settings className="w-4 h-4" />Einstellungen</TabsTrigger>
         </TabsList>
 
@@ -55,6 +56,7 @@ export default function RgiIntern() {
         <TabsContent value="invoices"><InvoicesTab /></TabsContent>
         <TabsContent value="clients"><ClientsTab /></TabsContent>
         <TabsContent value="templates"><TemplatesTab /></TabsContent>
+        <TabsContent value="presets"><ItemPresetsTab /></TabsContent>
         <TabsContent value="settings"><CompanySettingsTab /></TabsContent>
       </Tabs>
     </div>
