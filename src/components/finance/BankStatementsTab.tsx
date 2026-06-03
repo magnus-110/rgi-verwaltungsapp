@@ -367,12 +367,12 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
         if (isPdf) {
           const pdfBase64 = await fileToBase64(file);
           ({ data, error } = await supabase.functions.invoke("parse-bank-statement-pdf", {
-            body: { pdfBase64, fileName: file.name, buildingId: selectedBuilding },
+            body: { pdfBase64, fileName: file.name, buildingId: selectedBuilding, fiscalYear },
           }));
         } else {
           const xmlContent = await readFileContent(file);
           ({ data, error } = await supabase.functions.invoke("parse-bank-statement", {
-            body: { xmlContent, buildingId: selectedBuilding !== "all" ? selectedBuilding : null },
+            body: { xmlContent, buildingId: selectedBuilding !== "all" ? selectedBuilding : null, fiscalYear },
           }));
         }
         if (error) throw error;
