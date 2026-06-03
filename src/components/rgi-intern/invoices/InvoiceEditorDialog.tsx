@@ -97,9 +97,9 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
       unit_price_net: Number(it.unit_price_net ?? 0),
       vat_rate: Number(it.vat_rate ?? 19),
     }));
-    const { error } = await supabase.from("rgi_item_presets" as any).insert({
+    const { error } = await (supabase as any).from("rgi_item_presets").insert({
       name, sparte: project?.sparte ?? null, items: itemsPayload, created_by: user?.id,
-    } as any);
+    });
     if (error) { toast.error(error.message); return; }
     toast.success("Als Vorlage gespeichert");
     qc.invalidateQueries({ queryKey: ["rgi", "item-presets"] });
