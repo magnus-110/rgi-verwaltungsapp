@@ -392,6 +392,7 @@ Deno.serve(async (req) => {
         opening_balance: openingBalance,
         closing_balance: closingBalance,
         source_format: "camt_xml",
+        fiscal_year: Number(fiscalYear) || (toDt ? new Date(toDt).getFullYear() : new Date().getFullYear()),
         created_by: user.id,
       })
       .select()
