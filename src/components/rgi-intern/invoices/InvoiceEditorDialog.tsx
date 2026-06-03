@@ -213,7 +213,7 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
 
   const previewRender = async (format: "pdf" | "docx") => {
     if (!d.client_id) { toast.error("Kunde wählen"); return; }
-    if (!d.template_id) { toast.error("Bitte zuerst eine Word-Vorlage wählen (Feld „Vorlage" oben)"); return; }
+    if (!d.template_id) { toast.error('Bitte zuerst eine Word-Vorlage wählen (Feld "Vorlage" oben)'); return; }
     // Open tab synchronously so popup blockers don't block us after awaits
     const win = window.open("", "_blank");
     setRendering(true);
