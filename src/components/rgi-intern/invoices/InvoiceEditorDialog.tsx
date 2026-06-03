@@ -211,6 +211,47 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
     setPayAmount("");
   };
 
+  const previewRender = async (format: "pdf" | "docx") => {
+    if (!d.client_id) { toast.error("Kunde wählen"); return; }
+    setRendering(true);
+    try {
+      let id = invoiceId;
+      const payload: any = {
+        client_id: d.client_id,
+        project_id: d.project_id,
+        template_id: d.template_id,
+        issue_date: d.issue_date,
+        due_date: d.due_date || null,
+        service_period_from: d.service_period_from,
+        service_period_to: d.service_period_to,
+        intro_text: d.intro_text,
+        footer_text: d.footer_text,
+      };
+      if (!id) {
+        payload.created_by = user?.id;
+        const inv = await create.mutateAsync(payload);
+        id = inv.id;
+      } else {
+        await update.mutateAsync({ id, patch: payload });
+      }
+      await upsertItems.mutateAsync({ invoiceId: id!, items: d.items });
+
+      const r = await rgiRenderInvoice(id!);
+      const path = format === "pdf" ? r?.pdf_path : r?.docx_path;
+      if (path) {
+        const url = await rgiSignedUrl("rgi-invoices", path);
+        window.open(url, "_blank");
+        toast.success(`${format.toUpperCase()}-Vorschau erzeugt`);
+      } else {
+        toast.error(`${format.toUpperCase()} nicht verfügbar`);
+      }
+    } catch (e: any) {
+      toast.error(`Rendering fehlgeschlagen: ${e.message}`);
+    } finally {
+      setRendering(false);
+    }
+  };
+
   const isSent = !!invoice?.invoice_number;
 
   return (
