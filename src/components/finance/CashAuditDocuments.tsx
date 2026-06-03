@@ -36,6 +36,26 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
     },
   });
 
+  // Bank-Statement-PDFs (aus Buchhaltung → Kontoauszüge) automatisch übernehmen
+  const { data: bankPdfs = [] } = useQuery({
+    queryKey: ["audit-bank-pdfs", buildingId, fiscalYear, tokenMode ? token : "auth"],
+    queryFn: async () => {
+      if (tokenMode && token) {
+        const { data } = await supabase.rpc("get_audit_bank_statement_pdfs_by_token", { p_token: token });
+        return (data as any[]) || [];
+      }
+      const { data } = await supabase
+        .from("bank_statements")
+        .select("id, file_name, file_path, created_at, statement_date_from, statement_date_to")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear)
+        .eq("source_format", "pdf")
+        .not("file_path", "is", null)
+        .order("statement_date_from", { ascending: true, nullsFirst: false });
+      return (data || []).map((s: any) => ({ ...s, uploaded_at: s.created_at, _source: "bank" as const }));
+    },
+  });
+
   const { data: invoices = [] } = useQuery({
     queryKey: ["audit-invoices", buildingId, fiscalYear, tokenMode ? token : "auth"],
     queryFn: async () => {
