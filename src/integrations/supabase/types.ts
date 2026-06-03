@@ -378,6 +378,7 @@ export type Database = {
           created_by: string | null
           file_name: string
           file_path: string | null
+          fiscal_year: number
           id: string
           import_date: string
           opening_balance: number | null
@@ -395,6 +396,7 @@ export type Database = {
           created_by?: string | null
           file_name: string
           file_path?: string | null
+          fiscal_year?: number
           id?: string
           import_date?: string
           opening_balance?: number | null
@@ -412,6 +414,7 @@ export type Database = {
           created_by?: string | null
           file_name?: string
           file_path?: string | null
+          fiscal_year?: number
           id?: string
           import_date?: string
           opening_balance?: number | null
