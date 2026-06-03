@@ -3,6 +3,7 @@ export const ANNUAL_CYCLE_TASKS: { key: string; label: string; auto?: boolean }[
   { key: "jahresabrechnung_erstellt", label: "Jahresabrechnung erstellt", auto: true },
   { key: "vermoegensbericht_erstellt", label: "Vermögensbericht erstellt", auto: true },
   { key: "wirtschaftsplan_erstellt", label: "Wirtschaftsplan erstellt", auto: true },
+  { key: "tops_abfragen", label: "TOPs abfragen" },
   { key: "etv_einberufen", label: "ETV einberufen", auto: true },
   { key: "etv_protokoll_fertig", label: "ETV-Protokoll fertig", auto: true },
   { key: "beschlusssammlung_aktualisiert", label: "Beschlusssammlung aktualisiert", auto: true },
