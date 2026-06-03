@@ -10,11 +10,13 @@ import {
   useCreateRgiInvoice, useUpdateRgiInvoice, useUpsertRgiInvoiceItems, useAddRgiPayment,
   rgiNextInvoiceNumber, rgiRenderInvoice, rgiSignedUrl, type RgiInvoiceItem,
 } from "@/hooks/useRgi";
-import { Trash2, Plus, RefreshCw, Download, Send, CheckCircle } from "lucide-react";
+import { Trash2, Plus, RefreshCw, Download, Send, CheckCircle, FileStack, Save, FolderInput } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface Props {
   open: boolean;
