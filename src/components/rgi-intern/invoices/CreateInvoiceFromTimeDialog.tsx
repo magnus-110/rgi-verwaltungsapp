@@ -40,7 +40,7 @@ export function CreateInvoiceFromTimeDialog({ open, onOpenChange, entries, proje
 
   const proceed = async () => {
     if (!clientId) return;
-    const items = buildItems(entries, projects, clients, clientId, grouping);
+    const items = buildRgiItemsFromTime(entries, projects, clients, clientId, grouping);
     const inv = await create.mutateAsync({
       client_id: clientId,
       status: "draft",
