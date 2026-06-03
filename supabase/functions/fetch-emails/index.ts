@@ -376,9 +376,10 @@ async function fetchAccountEmails(
 
         // Store attachments in Supabase Storage
         if (insertedEmail && attachments.length > 0) {
-          for (const att of attachments) {
+          for (const [idx, att] of attachments.entries()) {
             try {
-              const storagePath = `${insertedEmail.id}/${sanitizeStorageName(att.filename)}`;
+              // Index-Prefix verhindert Überschreiben bei gleichnamigen Anhängen
+              const storagePath = `${insertedEmail.id}/${idx}_${sanitizeStorageName(att.filename)}`;
               const { error: uploadError } = await supabase.storage
                 .from("email-attachments")
                 .upload(storagePath, att.content, {
