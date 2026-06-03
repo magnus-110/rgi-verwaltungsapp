@@ -63,7 +63,7 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
   const { data: presets } = useQuery({
     queryKey: ["rgi", "item-presets"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("rgi_item_presets" as any).select("*").order("name");
+      const { data, error } = await (supabase as any).from("rgi_item_presets").select("*").order("name");
       if (error) throw error;
       return (data ?? []) as Array<{ id: string; name: string; sparte: string | null; items: any[] }>;
     },
