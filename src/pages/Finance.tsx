@@ -198,6 +198,7 @@ export const Finance = () => {
             <BankStatementsTab
               sharedBuildingId={selectedBuildingId}
               onBuildingChange={setSelectedBuildingId}
+              sharedFiscalYear={allPeriods.find((p: any) => p.id === selectedPeriodId)?.fiscal_year ?? null}
             />
           )}
           {activeSubTab === "bookings" && (
