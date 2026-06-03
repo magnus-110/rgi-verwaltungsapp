@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 
 const NEEDS_PERIOD_TABS = ["abrechnung"];
-const NEEDS_PERIOD_SUB = ["bookings"]; // Sub-tabs under "buchen" that need a period
+const NEEDS_PERIOD_SUB = ["bookings", "statements"]; // Sub-tabs under "buchen" that need a period
 
 const SUB_TABS = [
   { value: "templates", label: "Vorlagen" },
@@ -198,6 +198,7 @@ export const Finance = () => {
             <BankStatementsTab
               sharedBuildingId={selectedBuildingId}
               onBuildingChange={setSelectedBuildingId}
+              sharedFiscalYear={allPeriods.find((p: any) => p.id === selectedPeriodId)?.fiscal_year ?? null}
             />
           )}
           {activeSubTab === "bookings" && (

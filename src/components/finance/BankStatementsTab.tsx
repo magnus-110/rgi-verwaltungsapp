@@ -41,9 +41,10 @@ const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: 
 interface BankStatementsTabProps {
   sharedBuildingId?: string | null;
   onBuildingChange?: (id: string | null) => void;
+  sharedFiscalYear?: number | null;
 }
 
-export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankStatementsTabProps) {
+export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFiscalYear }: BankStatementsTabProps) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -78,14 +79,15 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   const [reviewFlaggedFirst, setReviewFlaggedFirst] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [mappingDialog, setMappingDialog] = useState<{ iban: string; bankName?: string | null } | null>(null);
-  const [fiscalYear, setFiscalYear] = useState<number>(() => {
+  const [internalFiscalYear, setInternalFiscalYear] = useState<number>(() => {
     try {
       const stored = sessionStorage.getItem("bank-statements:fiscal-year");
       return stored ? Number(stored) : new Date().getFullYear();
     } catch { return new Date().getFullYear(); }
   });
+  const fiscalYear = sharedFiscalYear ?? internalFiscalYear;
   const setAndPersistFiscalYear = (y: number) => {
-    setFiscalYear(y);
+    setInternalFiscalYear(y);
     try { sessionStorage.setItem("bank-statements:fiscal-year", String(y)); } catch {}
   };
 
@@ -725,19 +727,21 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <CardTitle className="text-lg">Kontoauszüge</CardTitle>
             <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5">
-                <Label className="text-xs text-muted-foreground">Wirtschaftsjahr</Label>
-                <Select value={String(fiscalYear)} onValueChange={(v) => setAndPersistFiscalYear(Number(v))}>
-                  <SelectTrigger className="h-9 w-[100px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() + 1 - i).map((y) => (
-                      <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {sharedFiscalYear == null && (
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs text-muted-foreground">Wirtschaftsjahr</Label>
+                  <Select value={String(fiscalYear)} onValueChange={(v) => setAndPersistFiscalYear(Number(v))}>
+                    <SelectTrigger className="h-9 w-[100px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() + 1 - i).map((y) => (
+                        <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               {selectedBuilding && unmatchedTransactions.length > 0 && (
                 <Button variant="outline" size="icon" disabled={rematching} onClick={handleRematch} title="Neu abgleichen">
                   {rematching ? <Loader2 className="h-4 w-4 animate-spin" /> : (
