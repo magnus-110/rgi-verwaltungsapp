@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useRgiInvoices, useRgiClients, rgiSignedUrl, rgiRenderInvoice } from "@/hooks/useRgi";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, FileText, Download, RefreshCw } from "lucide-react";
+import { Plus, FileText, Download, RefreshCw, FileType } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { InvoiceEditorDialog } from "./InvoiceEditorDialog";
