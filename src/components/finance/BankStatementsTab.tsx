@@ -127,13 +127,14 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
 
   // Fetch bank statements (full list for IBAN display + downloadable list)
   const { data: bankStatements = [] } = useQuery({
-    queryKey: ["bank-statements-list", selectedBuilding],
+    queryKey: ["bank-statements-list", selectedBuilding, fiscalYear],
     queryFn: async () => {
       if (!selectedBuilding) return [];
       const { data, error } = await supabase
         .from("bank_statements")
-        .select("id, account_iban, account_name, file_name, file_path, source_format, statement_date_from, statement_date_to, opening_balance, closing_balance, parse_warnings, created_at")
+        .select("id, account_iban, account_name, file_name, file_path, source_format, statement_date_from, statement_date_to, opening_balance, closing_balance, parse_warnings, created_at, fiscal_year")
         .eq("building_id", selectedBuilding)
+        .eq("fiscal_year", fiscalYear)
         .order("statement_date_to", { ascending: false, nullsFirst: false })
         .limit(50);
       if (error) throw error;
