@@ -7315,6 +7315,36 @@ export type Database = {
           },
         ]
       }
+      rgi_item_presets: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          items: Json
+          name: string
+          sparte: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          items?: Json
+          name: string
+          sparte?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          items?: Json
+          name?: string
+          sparte?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       rgi_payments: {
         Row: {
           amount: number
