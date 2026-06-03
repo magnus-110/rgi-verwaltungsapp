@@ -87,7 +87,7 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
     if (!win) toast.error("Bitte Pop-ups erlauben, um die Datei zu öffnen");
   };
 
-  const openViaToken = async (kind: "invoice" | "statement_pdf", id: string, _name: string) => {
+  const openViaToken = async (kind: "invoice" | "statement_pdf" | "bank_statement", id: string, _name: string) => {
     try {
       const { data, error } = await supabase.functions.invoke("audit-signed-url", {
         body: { token, kind, id },
