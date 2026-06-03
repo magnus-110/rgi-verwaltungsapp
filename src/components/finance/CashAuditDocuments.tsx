@@ -136,18 +136,25 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
   const dmsRegex = /Gesamtabrechnung|Einzelabrechnung|Verm.egensbericht|Verm.gensbericht|§?35a|_35a|Wirtschaftsplan|^Abrechnung[_ ]/i;
   const isPlanRow = (s: any) => s.category === "plan" || (!s.category && dmsRegex.test(s.file_name || ""));
   const planDocs = (statements as any[]).filter(isPlanRow);
-  const bankStatements = (statements as any[]).filter((s) => !isPlanRow(s));
+  const auditBankStatements = (statements as any[]).filter((s) => !isPlanRow(s));
+  const bankStatements = [
+    ...(bankPdfs as any[]),
+    ...auditBankStatements,
+  ];
 
   const renderDocList = (list: any[], emptyText: string) => (
     <div className="space-y-1">
       {list.map((s: any) => (
         <button
-          key={s.id}
+          key={`${s._source || "audit"}-${s.id}`}
           onClick={() => openStatement(s)}
           className="w-full flex items-center gap-3 p-2 rounded hover:bg-muted/50 text-left text-sm"
         >
           <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           <span className="flex-1 truncate">{s.file_name}</span>
+          {s._source === "bank" && (
+            <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-primary/10 text-primary">Auto</span>
+          )}
           <span className="text-xs text-muted-foreground">
             {s.uploaded_at && new Date(s.uploaded_at).toLocaleDateString("de-DE")}
           </span>
@@ -156,6 +163,7 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
       {list.length === 0 && <p className="text-sm text-muted-foreground py-4 text-center">{emptyText}</p>}
     </div>
   );
+
 
   const sections = [
     {
