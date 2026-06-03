@@ -12,7 +12,17 @@ export type RgiInvoiceItem = Tables["rgi_invoice_items"]["Row"];
 export type RgiTemplate = Tables["rgi_invoice_templates"]["Row"];
 export type RgiCompanySettings = Tables["rgi_company_settings"]["Row"];
 export type RgiPayment = Tables["rgi_payments"]["Row"];
+export type RgiItemPreset = Tables["rgi_item_presets"]["Row"];
 export type RgiSparte = Database["public"]["Enums"]["rgi_sparte"];
+
+export type RgiPresetItem = {
+  kind: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price_net: number;
+  vat_rate: number;
+};
 
 const K = {
   settings: ["rgi", "settings"] as const,
