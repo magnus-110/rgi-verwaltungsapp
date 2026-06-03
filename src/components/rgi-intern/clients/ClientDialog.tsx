@@ -29,7 +29,7 @@ export function ClientDialog({ open, onOpenChange, client }: Props) {
     if (open) {
       setForm(client ?? { type: "free", name: "", country: "Deutschland", default_payment_terms_days: 14 });
       supabase.from("contacts").select("id, name, email").order("name").then(({ data }) => setContacts(data ?? []));
-      supabase.from("buildings").select("id, name, street, zip, city").order("name").then(({ data }) => setBuildings(data ?? []));
+      supabase.from("buildings").select("id, name, address").order("name").then(({ data }) => setBuildings(data ?? []));
     }
   }, [open, client]);
 
@@ -42,7 +42,7 @@ export function ClientDialog({ open, onOpenChange, client }: Props) {
   const pickBuilding = (b: any) => {
     setForm((f: any) => ({
       ...f, building_id: b.id, contact_id: null, type: "building",
-      name: b.name, address_line1: b.street ?? null, zip: b.zip ?? null, city: b.city ?? null,
+      name: b.name, address_line1: b.address ?? null,
     }));
     setBuildingOpen(false);
   };
