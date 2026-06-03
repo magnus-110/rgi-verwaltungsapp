@@ -69,8 +69,11 @@ export function InvoicesTab() {
                   {inv.paid_amount > 0 && ` · ${Number(inv.paid_amount).toFixed(2)} € bezahlt`}
                 </div>
               </div>
+              {inv.docx_storage_path && (
+                <Button variant="ghost" size="sm" onClick={() => openPdf(inv.docx_storage_path!)} title="Word herunterladen"><FileType className="w-4 h-4" /></Button>
+              )}
               {inv.pdf_storage_path && (
-                <Button variant="ghost" size="sm" onClick={() => openPdf(inv.pdf_storage_path!)}><Download className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="sm" onClick={() => openPdf(inv.pdf_storage_path!)} title="PDF herunterladen"><Download className="w-4 h-4" /></Button>
               )}
               <Button variant="ghost" size="sm" disabled={renderingId === inv.id} onClick={() => render(inv.id)}>
                 <RefreshCw className={`w-4 h-4 ${renderingId === inv.id ? "animate-spin" : ""}`} />
