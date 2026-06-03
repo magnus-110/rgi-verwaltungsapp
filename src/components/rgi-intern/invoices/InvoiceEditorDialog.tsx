@@ -287,11 +287,30 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
 
           {/* Positionen */}
           <Card className="p-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
               <h3 className="font-semibold">Positionen</h3>
-              <Button size="sm" variant="outline" onClick={() => setD({ ...d, items: [...d.items, blankItem()] })}>
-                <Plus className="w-4 h-4 mr-1" />Position
-              </Button>
+              <div className="flex gap-2 flex-wrap">
+                <Select value="" onValueChange={applyPreset}>
+                  <SelectTrigger className="h-9 w-[200px]">
+                    <span className="flex items-center gap-1.5 text-sm"><FileStack className="w-4 h-4" />Aus Vorlage laden…</span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(presets ?? []).length === 0 && <div className="px-2 py-1.5 text-sm text-muted-foreground">Keine Vorlagen</div>}
+                    {presets?.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}{p.sparte ? ` · ${p.sparte}` : ""}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" variant="outline" onClick={importFromProject} disabled={!d.project_id} className="gap-1.5">
+                  <FolderInput className="w-4 h-4" />Aus Projekt
+                </Button>
+                <Button size="sm" variant="outline" onClick={saveAsPreset} disabled={d.items.length === 0} className="gap-1.5">
+                  <Save className="w-4 h-4" />Als Vorlage speichern
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setD({ ...d, items: [...d.items, blankItem()] })}>
+                  <Plus className="w-4 h-4 mr-1" />Position
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <div className="grid grid-cols-[1fr_70px_70px_90px_70px_90px_30px] gap-2 text-xs text-muted-foreground px-1">
