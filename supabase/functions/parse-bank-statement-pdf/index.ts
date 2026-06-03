@@ -383,6 +383,7 @@ Deno.serve(async (req) => {
       closing_balance: closing,
       source_format: "pdf",
       parse_warnings: warnings.length ? warnings : null,
+      fiscal_year: Number(fiscalYear) || (extracted.statement_date_to ? new Date(extracted.statement_date_to).getFullYear() : new Date().getFullYear()),
       created_by: user.id,
     }).select().single();
     if (stmtErr) throw stmtErr;
