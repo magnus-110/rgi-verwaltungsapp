@@ -45,7 +45,7 @@ export function ProjectDialog({ open, onOpenChange, project, clients }: Props) {
         setBuildingId("");
       }
       supabase.from("contacts").select("id, name, email").order("name").then(({ data }) => setContacts(data ?? []));
-      supabase.from("buildings").select("id, name, street, zip, city").order("name").then(({ data }) => setBuildings(data ?? []));
+      supabase.from("buildings").select("id, name, address, management_mode").order("name").then(({ data }) => setBuildings(data ?? []));
     }
   }, [open, project]);
 
@@ -76,7 +76,7 @@ export function ProjectDialog({ open, onOpenChange, project, clients }: Props) {
       else {
         const created = await upsertClient.mutateAsync({
           type: "building", building_id: buildingId, name: b?.name ?? "Gebäude",
-          address_line1: b?.street ?? null, zip: b?.zip ?? null, city: b?.city ?? null,
+          address_line1: b?.address ?? null,
         } as any);
         clientId = created.id;
       }
@@ -157,9 +157,9 @@ export function ProjectDialog({ open, onOpenChange, project, clients }: Props) {
                     <CommandEmpty>Keine Gebäude.</CommandEmpty>
                     <CommandGroup>
                       {buildings.map((b) => (
-                        <CommandItem key={b.id} onSelect={() => { setBuildingId(b.id); setPickerOpen(false); }}>
+                        <CommandItem key={b.id} value={`${b.name} ${b.address ?? ""}`} onSelect={() => { setBuildingId(b.id); set("sparte", b.management_mode ?? form.sparte); setPickerOpen(false); }}>
                           <Check className={cn("mr-2 h-4 w-4", buildingId === b.id ? "opacity-100" : "opacity-0")} />
-                          {b.name}
+                          <span>{b.name}</span>
                         </CommandItem>
                       ))}
                     </CommandGroup>
