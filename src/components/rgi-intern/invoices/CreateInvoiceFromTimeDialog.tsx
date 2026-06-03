@@ -4,11 +4,12 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useCreateRgiInvoice, useUpsertRgiInvoiceItems, type RgiTimeEntry, type RgiProject, type RgiClient, type RgiInvoiceItem } from "@/hooks/useRgi";
+import { useCreateRgiInvoice, useUpsertRgiInvoiceItems, type RgiTimeEntry, type RgiProject, type RgiClient } from "@/hooks/useRgi";
 import { useAuth } from "@/hooks/useAuth";
 import { InvoiceEditorDialog } from "./InvoiceEditorDialog";
+import { buildRgiItemsFromTime, type RgiGrouping } from "@/lib/rgiBuildItems";
 
-type Grouping = "per_entry" | "per_day" | "sum";
+type Grouping = RgiGrouping;
 
 interface Props {
   open: boolean;
