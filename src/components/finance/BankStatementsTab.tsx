@@ -843,8 +843,11 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                 </div>
               )}
 
-              {/* Importierte Auszüge (eingeklappt per Default) */}
-              {bankStatements.length > 0 && (
+              {/* Hochgeladene PDF-Belege (eingeklappt per Default) */}
+              {(() => {
+                const pdfStatements = bankStatements.filter((s: any) => s.source_format === "pdf");
+                if (pdfStatements.length === 0) return null;
+                return (
                 <Card className="bg-muted/20">
                   <CardHeader className="pb-2">
                     <button
@@ -860,7 +863,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                           <ChevronRight className="h-4 w-4" />
                         )}
                         <FileText className="h-4 w-4" />
-                        Importierte Auszüge ({bankStatements.length})
+                        Importierte Auszüge ({pdfStatements.length})
                       </CardTitle>
                       <span className="text-xs text-muted-foreground">
                         {statementsExpanded ? "Einklappen" : "Ausklappen"}
@@ -870,8 +873,8 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                   {statementsExpanded && (
                     <CardContent className="pt-0">
                       <div className="space-y-1 max-h-64 overflow-y-auto">
-                        {bankStatements.map((s: any) => {
-                          const isPdf = s.source_format === "pdf";
+                        {pdfStatements.map((s: any) => {
+                          const isPdf = true;
                           const hasWarn = Array.isArray(s.parse_warnings) && s.parse_warnings.length > 0;
                           const startDate = s.statement_date_from ? new Date(s.statement_date_from) : null;
                           const monthLabel = startDate
