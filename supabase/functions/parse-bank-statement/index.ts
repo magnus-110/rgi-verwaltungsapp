@@ -308,7 +308,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { xmlContent, buildingId, rematchBuildingId } = await req.json();
+    const { xmlContent, buildingId, rematchBuildingId, fiscalYear } = await req.json();
 
     // Re-match mode: run matching on all unmatched transactions for a building
     if (rematchBuildingId) {
@@ -392,6 +392,7 @@ Deno.serve(async (req) => {
         opening_balance: openingBalance,
         closing_balance: closingBalance,
         source_format: "camt_xml",
+        fiscal_year: Number(fiscalYear) || (toDt ? new Date(toDt).getFullYear() : new Date().getFullYear()),
         created_by: user.id,
       })
       .select()

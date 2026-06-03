@@ -324,7 +324,7 @@ Deno.serve(async (req) => {
     const apiKey = Deno.env.get("MISTRAL_API_KEY");
     if (!apiKey) throw new Error("MISTRAL_API_KEY nicht konfiguriert");
 
-    const { pdfBase64, fileName, buildingId } = await req.json();
+    const { pdfBase64, fileName, buildingId, fiscalYear } = await req.json();
     if (!pdfBase64 || !fileName) {
       return new Response(JSON.stringify({ error: "pdfBase64 und fileName erforderlich" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -383,6 +383,7 @@ Deno.serve(async (req) => {
       closing_balance: closing,
       source_format: "pdf",
       parse_warnings: warnings.length ? warnings : null,
+      fiscal_year: Number(fiscalYear) || (extracted.statement_date_to ? new Date(extracted.statement_date_to).getFullYear() : new Date().getFullYear()),
       created_by: user.id,
     }).select().single();
     if (stmtErr) throw stmtErr;

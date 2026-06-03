@@ -78,6 +78,16 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   const [reviewFlaggedFirst, setReviewFlaggedFirst] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [mappingDialog, setMappingDialog] = useState<{ iban: string; bankName?: string | null } | null>(null);
+  const [fiscalYear, setFiscalYear] = useState<number>(() => {
+    try {
+      const stored = sessionStorage.getItem("bank-statements:fiscal-year");
+      return stored ? Number(stored) : new Date().getFullYear();
+    } catch { return new Date().getFullYear(); }
+  });
+  const setAndPersistFiscalYear = (y: number) => {
+    setFiscalYear(y);
+    try { sessionStorage.setItem("bank-statements:fiscal-year", String(y)); } catch {}
+  };
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -88,15 +98,17 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     },
   });
 
-  // Fetch all transactions for the selected building
+  // Fetch all transactions for the selected building & fiscal year
   const { data: allBuildingTxns = [], isLoading: txnsLoading } = useQuery({
-    queryKey: ["bank-transactions-building", selectedBuilding],
+    queryKey: ["bank-transactions-building", selectedBuilding, fiscalYear],
     queryFn: async () => {
       if (!selectedBuilding) return [];
       const { data, error } = await supabase
         .from("bank_transactions")
         .select("*, bookings!bank_transactions_booking_id_fkey(id, needs_review, review_note)")
         .eq("building_id", selectedBuilding)
+        .gte("booking_date", `${fiscalYear}-01-01`)
+        .lte("booking_date", `${fiscalYear}-12-31`)
         .order("booking_date", { ascending: true })
         .order("id", { ascending: true });
       if (error) throw error;
@@ -115,13 +127,14 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
 
   // Fetch bank statements (full list for IBAN display + downloadable list)
   const { data: bankStatements = [] } = useQuery({
-    queryKey: ["bank-statements-list", selectedBuilding],
+    queryKey: ["bank-statements-list", selectedBuilding, fiscalYear],
     queryFn: async () => {
       if (!selectedBuilding) return [];
       const { data, error } = await supabase
         .from("bank_statements")
-        .select("id, account_iban, account_name, file_name, file_path, source_format, statement_date_from, statement_date_to, opening_balance, closing_balance, parse_warnings, created_at")
+        .select("id, account_iban, account_name, file_name, file_path, source_format, statement_date_from, statement_date_to, opening_balance, closing_balance, parse_warnings, created_at, fiscal_year")
         .eq("building_id", selectedBuilding)
+        .eq("fiscal_year", fiscalYear)
         .order("statement_date_to", { ascending: false, nullsFirst: false })
         .limit(50);
       if (error) throw error;
@@ -354,12 +367,12 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
         if (isPdf) {
           const pdfBase64 = await fileToBase64(file);
           ({ data, error } = await supabase.functions.invoke("parse-bank-statement-pdf", {
-            body: { pdfBase64, fileName: file.name, buildingId: selectedBuilding },
+            body: { pdfBase64, fileName: file.name, buildingId: selectedBuilding, fiscalYear },
           }));
         } else {
           const xmlContent = await readFileContent(file);
           ({ data, error } = await supabase.functions.invoke("parse-bank-statement", {
-            body: { xmlContent, buildingId: selectedBuilding !== "all" ? selectedBuilding : null },
+            body: { xmlContent, buildingId: selectedBuilding !== "all" ? selectedBuilding : null, fiscalYear },
           }));
         }
         if (error) throw error;
@@ -712,6 +725,19 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <CardTitle className="text-lg">Kontoauszüge</CardTitle>
             <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <Label className="text-xs text-muted-foreground">Wirtschaftsjahr</Label>
+                <Select value={String(fiscalYear)} onValueChange={(v) => setAndPersistFiscalYear(Number(v))}>
+                  <SelectTrigger className="h-9 w-[100px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() + 1 - i).map((y) => (
+                      <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               {selectedBuilding && unmatchedTransactions.length > 0 && (
                 <Button variant="outline" size="icon" disabled={rematching} onClick={handleRematch} title="Neu abgleichen">
                   {rematching ? <Loader2 className="h-4 w-4 animate-spin" /> : (
