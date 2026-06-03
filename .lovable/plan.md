@@ -1,25 +1,49 @@
-## Problem
-Anhänge mit identischem Dateinamen werden im Supabase Storage unter demselben Key abgelegt (`{email_id}/{filename}`) und mit `upsert:true` überschrieben. Die DB hat zwar 4 Zeilen, alle `file_path`-Werte sind aber identisch → 4× derselbe Inhalt sichtbar.
+## Ziel
+Rechtsklick auf ein **Inline-Bild im E-Mail-Body** öffnet ein Kontextmenü mit zwei Aktionen:
+- **„Im DMS / Gebäudeordner speichern"** (gleicher Dialog wie bei normalen Anhängen)
+- **„Als Rechnung importieren"** (gleicher OCR-Workflow wie bei normalen Anhängen; optional zusätzlich „Als Beleg / Gutschrift importieren")
 
-## Lösung
-Storage-Key um einen Eindeutigkeits-Token erweitern, sodass jeder Anhang seine eigene Datei behält. Format: `{email_id}/{index}_{sanitizedName}` (z. B. `…/0_rechnung.pdf`, `…/1_rechnung.pdf`). Index hat den Vorteil, stabil und reproduzierbar zu sein (anders als UUIDs), was Reparse-Idempotenz erleichtert.
+Funktioniert überall, wo `EmailHtmlBody` verwendet wird (Inbox-Detail, ETV-AgendaItem-Dialog usw.).
 
-## Änderungen
+## Umsetzung
 
-### 1. `supabase/functions/fetch-emails/index.ts`
-- **Initialer Fetch (~Z. 378–407):** Schleife auf `attachments.entries()` umstellen, Pfad = `${insertedEmail.id}/${idx}_${sanitize(filename)}`.
-- **Reparse-Pfad (~Z. 873–902):** Bestehende Duplikatprüfung nutzt nur `file_name` und übersieht das Problem. Anpassen: Prüfung auf Tupel `(file_name + file_size)` oder den neuen indexbasierten Pfad — sonst werden beim Reparse neue Kopien angelegt. Pfad ebenfalls indexbasiert bauen.
+### 1. Aktionen aus `EmailAttachments.tsx` in einen Hook extrahieren
+Neue Datei `src/components/email/lib/useAttachmentActions.ts`:
+- `importAttachmentAsInvoice(att, asCreditNote)` — die exakte Logik aus `handleImportAsInvoice` (Z. 97–181), inkl. Bild→PDF-Konvertierung via `mergeImagesToPdf`, Upload in `invoices`-Bucket, Insert, `extract-invoice` / `match-credit-note` Trigger, Toasts.
+- Liefert außerdem `state` (importingId, importedIds) und einen Setter für die SaveToBuilding-Pipeline (`requestSaveToBuilding(att)` → öffnet `SaveAttachmentToBuildingDialog`).
 
-### 2. `supabase/functions/send-email/index.ts` (Z. ~225)
-- Beim Persistieren gesendeter Anhänge ebenfalls Index in den Pfad aufnehmen, damit gleichnamige Attachments im Gesendet-Ordner nicht kollidieren.
+`EmailAttachments.tsx` wird auf den Hook umgestellt, Verhalten bleibt 1:1.
 
-### 3. Bestehende fehlerhafte Daten (einmalige Reparatur)
-- SQL-Auswertung: Wie viele `email_attachments`-Zeilen teilen sich identische `file_path`-Werte?
-- Empfehlung an dich: betroffene Mails in der App „Neu einlesen" (Reparse) lassen — nach dem Codefix legt der Reparse neue, eindeutige Storage-Keys an. Alternativ kann ich ein einmaliges Backfill-Skript schreiben, das alle Duplikat-Pfade identifiziert und über IMAP frisch lädt. Diese Bereinigung erst nach deiner Bestätigung.
+### 2. `EmailHtmlBody` um Kontextmenü erweitern
+- Beim Auflösen der `cid:`-Referenzen zusätzlich pro ersetztem URL ein Mapping `signedUrl → attachmentId` führen.
+- In das iframe-`srcDoc` ein kleines Inline-Script einbetten, das:
+  - das Mapping als `window.__inlineAttachmentMap` erhält,
+  - auf jedem `<img>` ein `contextmenu`-Listener registriert,
+  - bei einem Treffer (`img.src` im Mapping) `e.preventDefault()` macht und via `window.parent.postMessage({ type: "rgi-inline-image-menu", attachmentId, x, y }, "*")` meldet (Koordinaten relativ zum iframe).
+- Parent-Komponente `EmailHtmlBody` hört auf `message`, übersetzt iframe-Koordinaten in Viewport-Koordinaten (bounding rect des iframes), und öffnet ein kontrolliertes Shadcn-`DropdownMenu` an dieser Position mit den Aktionen.
 
-### 4. Keine DB-Schema-Änderung nötig
-`file_path` ist `text`, kein Unique-Constraint betroffen.
+### 3. Aktionen verdrahten
+- `EmailHtmlBody` nutzt den neuen `useAttachmentActions`-Hook und rendert intern:
+  - das Positions-gesteuerte DropdownMenu,
+  - `<SaveAttachmentToBuildingDialog>` (existiert bereits),
+  - die nötigen Snackbars laufen über `sonner` (schon im Hook).
+- Beim Menü-Klick wird das passende `email_attachments`-Row aus dem bereits geladenen `inlineAttachments`-Array genommen und an den Hook übergeben.
 
-## Out of scope
-- Kein Wechsel auf content-hash-basierte Pfade (komplexer, später machbar).
-- Keine UI-Änderungen — die Liste rendert bereits pro DB-Row, Fix wirkt sofort.
+### 4. Menü-Inhalt
+```
+🗂  Im Gebäude/DMS speichern
+📄  Als Rechnung importieren
+💶  Als Beleg / Zahlungseingang importieren
+⬇  Bild herunterladen
+```
+„Herunterladen" ist günstig dazu, weil der iframe-`base target="_blank"` den nativen Browser-Rechtsklick blockiert/umlenkt — so geht keine Funktionalität verloren.
+
+## Was nicht geändert wird
+- Keine Änderungen an Edge Functions, DB-Schema, Buckets.
+- Keine Änderungen an „normaler" Anhangsleiste außer der Refaktorisierung in den Hook (Verhalten identisch).
+- iframe-`sandbox` bleibt; das Inline-Script läuft im iframe-eigenen Origin und `postMessage` ist erlaubt.
+
+## Betroffene Dateien
+- **neu:** `src/components/email/lib/useAttachmentActions.ts`
+- **geändert:** `src/components/email/EmailHtmlBody.tsx` (Mapping + iframe-Script + Menü + Dialog)
+- **geändert:** `src/components/email/EmailAttachments.tsx` (Aufrufe gehen über den neuen Hook)
