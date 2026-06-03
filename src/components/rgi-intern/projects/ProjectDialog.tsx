@@ -34,10 +34,16 @@ export function ProjectDialog({ open, onOpenChange, project, clients }: Props) {
 
   useEffect(() => {
     if (open) {
+      const prefillBuildingId = (project as any)?.__prefillBuildingId as string | undefined;
       setForm(project ?? { name: "", sparte: "weg", status: "active", default_hourly_rate: 77.35 });
-      setSource("client");
-      setContactId("");
-      setBuildingId("");
+      if (prefillBuildingId) {
+        setSource("building");
+        setBuildingId(prefillBuildingId);
+      } else {
+        setSource("client");
+        setContactId("");
+        setBuildingId("");
+      }
       supabase.from("contacts").select("id, name, email").order("name").then(({ data }) => setContacts(data ?? []));
       supabase.from("buildings").select("id, name, street, zip, city").order("name").then(({ data }) => setBuildings(data ?? []));
     }
