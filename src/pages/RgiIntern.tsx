@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsRgiAdmin } from "@/hooks/useRgiAdmin";
-import { Briefcase, BarChart3, Clock, FileText, Users, FolderKanban, FileStack, Settings } from "lucide-react";
+import { Briefcase, BarChart3, Clock, FileText, Users, FolderKanban, FileStack, Settings, ClipboardList } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { DashboardTab } from "@/components/rgi-intern/dashboard/DashboardTab";
 import { ClientsTab } from "@/components/rgi-intern/clients/ClientsTab";
@@ -9,6 +9,7 @@ import { ProjectsTab } from "@/components/rgi-intern/projects/ProjectsTab";
 import { TimeEntriesTab } from "@/components/rgi-intern/time/TimeEntriesTab";
 import { InvoicesTab } from "@/components/rgi-intern/invoices/InvoicesTab";
 import { TemplatesTab } from "@/components/rgi-intern/templates/TemplatesTab";
+import { ItemPresetsTab } from "@/components/rgi-intern/item-presets/ItemPresetsTab";
 import { CompanySettingsTab } from "@/components/rgi-intern/settings/CompanySettingsTab";
 
 export default function RgiIntern() {
