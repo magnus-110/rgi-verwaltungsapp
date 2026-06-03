@@ -34,10 +34,16 @@ export function ProjectDialog({ open, onOpenChange, project, clients }: Props) {
 
   useEffect(() => {
     if (open) {
-      setForm(project ?? { name: "", sparte: "weg", status: "active" });
-      setSource("client");
-      setContactId("");
-      setBuildingId("");
+      const prefillBuildingId = (project as any)?.__prefillBuildingId as string | undefined;
+      setForm(project ?? { name: "", sparte: "weg", status: "active", default_hourly_rate: 77.35 });
+      if (prefillBuildingId) {
+        setSource("building");
+        setBuildingId(prefillBuildingId);
+      } else {
+        setSource("client");
+        setContactId("");
+        setBuildingId("");
+      }
       supabase.from("contacts").select("id, name, email").order("name").then(({ data }) => setContacts(data ?? []));
       supabase.from("buildings").select("id, name, street, zip, city").order("name").then(({ data }) => setBuildings(data ?? []));
     }
@@ -189,9 +195,10 @@ export function ProjectDialog({ open, onOpenChange, project, clients }: Props) {
               </Select>
             </div>
           </div>
-          <div><Label>Std-Stundensatz (€)</Label>
+          <div><Label>Std-Stundensatz (€ inkl. MwSt.)</Label>
             <Input type="number" step="0.01" value={form.default_hourly_rate ?? ""}
               onChange={(e) => set("default_hourly_rate", e.target.value === "" ? null : Number(e.target.value))} />
+            <p className="text-xs text-muted-foreground mt-1">Standard: 77,35 € inkl. MwSt.</p>
           </div>
           <div><Label>Notizen</Label><Textarea rows={3} value={form.notes ?? ""} onChange={(e) => set("notes", e.target.value)} /></div>
         </div>
