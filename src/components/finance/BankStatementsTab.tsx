@@ -47,6 +47,7 @@ interface BankStatementsTabProps {
 export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFiscalYear }: BankStatementsTabProps) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [booking, setBooking] = useState(false);
@@ -335,51 +336,31 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
     r.readAsDataURL(file);
   });
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCamtUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const allFiles = Array.from(files).filter(f => /\.(xml|pdf)$/i.test(f.name));
-    if (allFiles.length === 0) {
-      toast.error("Bitte CAMT-XML oder Kontoauszug-PDF hochladen");
-      return;
-    }
+    const allFiles = Array.from(files).filter(f => /\.xml$/i.test(f.name));
+    if (allFiles.length === 0) { toast.error("Bitte CAMT-XML-Dateien auswählen"); return; }
     if (!selectedBuilding || selectedBuilding === "all") {
-      toast.error("Bitte zuerst eine Liegenschaft auswählen, bevor ein Kontoauszug importiert wird");
-      return;
+      toast.error("Bitte zuerst eine Liegenschaft auswählen"); return;
     }
 
     setUploading(true);
     setUploadProgress(allFiles.length > 1 ? { current: 0, total: allFiles.length } : null);
-
-    let totalImported = 0;
-    let totalMatched = 0;
-    let totalDuplicates = 0;
-    let errors = 0;
+    let totalImported = 0, totalMatched = 0, totalDuplicates = 0, errors = 0;
     const allWarnings: string[] = [];
 
     for (let i = 0; i < allFiles.length; i++) {
       const file = allFiles[i];
       if (allFiles.length > 1) setUploadProgress({ current: i + 1, total: allFiles.length });
-
       try {
-        const isPdf = /\.pdf$/i.test(file.name);
-        let data: any, error: any;
-
-        if (isPdf) {
-          const pdfBase64 = await fileToBase64(file);
-          ({ data, error } = await supabase.functions.invoke("parse-bank-statement-pdf", {
-            body: { pdfBase64, fileName: file.name, buildingId: selectedBuilding, fiscalYear },
-          }));
-        } else {
-          const xmlContent = await readFileContent(file);
-          ({ data, error } = await supabase.functions.invoke("parse-bank-statement", {
-            body: { xmlContent, buildingId: selectedBuilding !== "all" ? selectedBuilding : null, fiscalYear },
-          }));
-        }
+        const xmlContent = await readFileContent(file);
+        const { data, error } = await supabase.functions.invoke("parse-bank-statement", {
+          body: { xmlContent, buildingId: selectedBuilding, fiscalYear },
+        });
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
-
         totalImported += data.totalTransactions || 0;
         totalMatched += data.matchedCount || 0;
         totalDuplicates += data.duplicatesSkipped || 0;
@@ -392,30 +373,13 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
       }
     }
 
-    if (allFiles.length === 1) {
-      if (errors > 0) {
-        toast.error("Fehler beim Import");
-      } else if (totalImported === 0 && totalDuplicates > 0) {
-        toast.info(`Alle ${totalDuplicates} Transaktionen waren bereits importiert.`);
-      } else {
-        const parts = [];
-        if (totalImported > 0) parts.push(`${totalImported} importiert`);
-        if (totalMatched > 0) parts.push(`${totalMatched} zugeordnet`);
-        if (totalDuplicates > 0) parts.push(`${totalDuplicates} Duplikate übersprungen`);
-        toast.success(parts.join(", "));
-      }
-    } else {
-      const parts = [`${allFiles.length - errors} von ${allFiles.length} Dateien verarbeitet`];
-      if (totalImported > 0) parts.push(`${totalImported} Transaktionen importiert`);
-      if (totalMatched > 0) parts.push(`${totalMatched} zugeordnet`);
-      if (totalDuplicates > 0) parts.push(`${totalDuplicates} Duplikate übersprungen`);
-      if (errors > 0) parts.push(`${errors} Fehler`);
-      toast.success(parts.join(", "));
-    }
-
-    if (allWarnings.length) {
-      toast.warning(allWarnings.join(" • "), { duration: 8000 });
-    }
+    const parts = [];
+    if (totalImported > 0) parts.push(`${totalImported} importiert`);
+    if (totalMatched > 0) parts.push(`${totalMatched} zugeordnet`);
+    if (totalDuplicates > 0) parts.push(`${totalDuplicates} Duplikate übersprungen`);
+    if (errors > 0) parts.push(`${errors} Fehler`);
+    (errors > 0 && totalImported === 0 ? toast.error : toast.success)(parts.join(", ") || "Keine neuen Transaktionen");
+    if (allWarnings.length) toast.warning(allWarnings.join(" • "), { duration: 8000 });
 
     queryClient.invalidateQueries({ queryKey: ["bank-statements"] });
     queryClient.invalidateQueries({ queryKey: ["bank-statements-info"] });
@@ -428,6 +392,55 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
     setUploadProgress(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const allFiles = Array.from(files).filter(f => /\.pdf$/i.test(f.name));
+    if (allFiles.length === 0) { toast.error("Bitte PDF-Dateien auswählen"); return; }
+    if (!selectedBuilding || selectedBuilding === "all") {
+      toast.error("Bitte zuerst eine Liegenschaft auswählen"); return;
+    }
+
+    setUploading(true);
+    setUploadProgress(allFiles.length > 1 ? { current: 0, total: allFiles.length } : null);
+    let ok = 0, errors = 0;
+
+    for (let i = 0; i < allFiles.length; i++) {
+      const file = allFiles[i];
+      if (allFiles.length > 1) setUploadProgress({ current: i + 1, total: allFiles.length });
+      try {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "_");
+        const storagePath = `bank-statements/${selectedBuilding}/${Date.now()}_${safeName}`;
+        const { error: upErr } = await supabase.storage
+          .from("building-documents")
+          .upload(storagePath, file, { contentType: "application/pdf", upsert: false });
+        if (upErr) throw upErr;
+        const { error: insErr } = await supabase.from("bank_statements").insert({
+          building_id: selectedBuilding,
+          fiscal_year: fiscalYear,
+          source_format: "pdf",
+          file_name: file.name,
+          file_path: storagePath,
+        });
+        if (insErr) throw insErr;
+        ok++;
+      } catch (err: any) {
+        errors++;
+        console.error(`PDF-Upload-Fehler bei ${file.name}:`, err);
+      }
+    }
+
+    if (errors > 0 && ok === 0) toast.error("Upload fehlgeschlagen");
+    else toast.success(`${ok} PDF${ok === 1 ? "" : "s"} gespeichert${errors ? ` · ${errors} Fehler` : ""}`);
+
+    queryClient.invalidateQueries({ queryKey: ["bank-statements-list"] });
+    setUploading(false);
+    setUploadProgress(null);
+    if (pdfInputRef.current) pdfInputRef.current.value = "";
+  };
+
+
 
 
   const updateMatchStatus = async (txnId: string, status: string) => {
@@ -753,17 +766,22 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                 </Button>
               )}
 
-              <input ref={fileInputRef} type="file" accept=".xml,.pdf" multiple className="hidden" onChange={handleFileUpload} />
-              <Button onClick={() => fileInputRef.current?.click()} disabled={uploading || !selectedBuilding || selectedBuilding === "all"} title={!selectedBuilding ? "Bitte zuerst Liegenschaft wählen" : undefined}>
+              <input ref={fileInputRef} type="file" accept=".xml" multiple className="hidden" onChange={handleCamtUpload} />
+              <input ref={pdfInputRef} type="file" accept=".pdf" multiple className="hidden" onChange={handlePdfUpload} />
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading || !selectedBuilding || selectedBuilding === "all"} title={!selectedBuilding ? "Bitte zuerst Liegenschaft wählen" : "CAMT-XML wird ausgelesen"}>
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileCode className="h-4 w-4 mr-2" />}
+                CAMT-XML importieren
+              </Button>
+              <Button onClick={() => pdfInputRef.current?.click()} disabled={uploading || !selectedBuilding || selectedBuilding === "all"} title={!selectedBuilding ? "Bitte zuerst Liegenschaft wählen" : "PDF wird als Beleg gespeichert"}>
                 {uploading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    {uploadProgress ? `Datei ${uploadProgress.current}/${uploadProgress.total}…` : "Importiere…"}
+                    {uploadProgress ? `Datei ${uploadProgress.current}/${uploadProgress.total}…` : "Lädt…"}
                   </>
                 ) : (
                   <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Kontoauszug importieren
+                    <FileText className="h-4 w-4 mr-2" />
+                    PDF-Beleg hochladen
                   </>
                 )}
               </Button>
@@ -825,8 +843,11 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                 </div>
               )}
 
-              {/* Importierte Auszüge (eingeklappt per Default) */}
-              {bankStatements.length > 0 && (
+              {/* Hochgeladene PDF-Belege (eingeklappt per Default) */}
+              {(() => {
+                const pdfStatements = bankStatements.filter((s: any) => s.source_format === "pdf");
+                if (pdfStatements.length === 0) return null;
+                return (
                 <Card className="bg-muted/20">
                   <CardHeader className="pb-2">
                     <button
@@ -842,7 +863,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                           <ChevronRight className="h-4 w-4" />
                         )}
                         <FileText className="h-4 w-4" />
-                        Importierte Auszüge ({bankStatements.length})
+                        Importierte Auszüge ({pdfStatements.length})
                       </CardTitle>
                       <span className="text-xs text-muted-foreground">
                         {statementsExpanded ? "Einklappen" : "Ausklappen"}
@@ -852,8 +873,8 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                   {statementsExpanded && (
                     <CardContent className="pt-0">
                       <div className="space-y-1 max-h-64 overflow-y-auto">
-                        {bankStatements.map((s: any) => {
-                          const isPdf = s.source_format === "pdf";
+                        {pdfStatements.map((s: any) => {
+                          const isPdf = true;
                           const hasWarn = Array.isArray(s.parse_warnings) && s.parse_warnings.length > 0;
                           const startDate = s.statement_date_from ? new Date(s.statement_date_from) : null;
                           const monthLabel = startDate
@@ -917,7 +938,8 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                     </CardContent>
                   )}
                 </Card>
-              )}
+                );
+              })()}
 
               {/* Search */}
               {selectedBuilding && allBuildingTxns.length > 0 && (

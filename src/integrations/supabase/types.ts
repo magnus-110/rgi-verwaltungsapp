@@ -8492,6 +8492,10 @@ export type Database = {
         Args: { p_token: string }
         Returns: Json[]
       }
+      get_audit_bank_statement_pdfs_by_token: {
+        Args: { p_token: string }
+        Returns: Json[]
+      }
       get_audit_bookings_by_token: {
         Args: { p_token: string }
         Returns: Json[]
