@@ -47,6 +47,7 @@ interface BankStatementsTabProps {
 export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFiscalYear }: BankStatementsTabProps) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [booking, setBooking] = useState(false);
