@@ -44,7 +44,7 @@ interface BankStatementsTabProps {
   sharedFiscalYear?: number | null;
 }
 
-export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankStatementsTabProps) {
+export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFiscalYear }: BankStatementsTabProps) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -79,14 +79,15 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   const [reviewFlaggedFirst, setReviewFlaggedFirst] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [mappingDialog, setMappingDialog] = useState<{ iban: string; bankName?: string | null } | null>(null);
-  const [fiscalYear, setFiscalYear] = useState<number>(() => {
+  const [internalFiscalYear, setInternalFiscalYear] = useState<number>(() => {
     try {
       const stored = sessionStorage.getItem("bank-statements:fiscal-year");
       return stored ? Number(stored) : new Date().getFullYear();
     } catch { return new Date().getFullYear(); }
   });
+  const fiscalYear = sharedFiscalYear ?? internalFiscalYear;
   const setAndPersistFiscalYear = (y: number) => {
-    setFiscalYear(y);
+    setInternalFiscalYear(y);
     try { sessionStorage.setItem("bank-statements:fiscal-year", String(y)); } catch {}
   };
 
