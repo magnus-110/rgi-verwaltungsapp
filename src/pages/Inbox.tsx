@@ -220,6 +220,13 @@ export const Inbox = () => {
     return folder?.name === "Papierkorb";
   }, [selectedFolderId, folders]);
 
+  // Determine if sent folder is selected
+  const isSentFolder = useMemo(() => {
+    if (!selectedFolderId || folders.length === 0) return false;
+    const folder = folders.find(f => f.id === selectedFolderId);
+    return folder?.name === "Gesendet";
+  }, [selectedFolderId, folders]);
+
   // Unread counts per folder (auto-refresh every 30s) — nur abonnierte Postfächer
   const { data: folderCountsRaw = {} } = useQuery({
     queryKey: ["email-folder-counts", myAccountIds],
