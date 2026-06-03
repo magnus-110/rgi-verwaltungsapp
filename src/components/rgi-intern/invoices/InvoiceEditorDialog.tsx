@@ -308,14 +308,18 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
 }
 
 function emptyDraft(): Draft {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date();
+  const due = new Date();
+  due.setDate(due.getDate() + 14);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
   return {
     client_id: "", project_id: null, template_id: null,
-    issue_date: today, due_date: "",
+    issue_date: fmt(today), due_date: fmt(due),
     service_period_from: null, service_period_to: null,
     intro_text: "", footer_text: "", items: [],
   };
 }
+
 
 function computeTotals(items: Partial<RgiInvoiceItem>[]) {
   let net = 0, vat19 = 0, vat7 = 0, vat0 = 0;
