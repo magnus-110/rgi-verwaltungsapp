@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsRgiAdmin } from "@/hooks/useRgiAdmin";
-import { Briefcase, BarChart3, Clock, FileText, Users, FolderKanban, FileStack, Settings } from "lucide-react";
+import { Briefcase, BarChart3, Clock, FileText, Users, FolderKanban, FileStack, Settings, ClipboardList } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { DashboardTab } from "@/components/rgi-intern/dashboard/DashboardTab";
 import { ClientsTab } from "@/components/rgi-intern/clients/ClientsTab";
@@ -9,6 +9,7 @@ import { ProjectsTab } from "@/components/rgi-intern/projects/ProjectsTab";
 import { TimeEntriesTab } from "@/components/rgi-intern/time/TimeEntriesTab";
 import { InvoicesTab } from "@/components/rgi-intern/invoices/InvoicesTab";
 import { TemplatesTab } from "@/components/rgi-intern/templates/TemplatesTab";
+import { ItemPresetsTab } from "@/components/rgi-intern/item-presets/ItemPresetsTab";
 import { CompanySettingsTab } from "@/components/rgi-intern/settings/CompanySettingsTab";
 
 export default function RgiIntern() {
@@ -44,7 +45,8 @@ export default function RgiIntern() {
           <TabsTrigger value="time" className="gap-1.5"><Clock className="w-4 h-4" />Stunden</TabsTrigger>
           <TabsTrigger value="invoices" className="gap-1.5"><FileText className="w-4 h-4" />Rechnungen</TabsTrigger>
           <TabsTrigger value="clients" className="gap-1.5"><Users className="w-4 h-4" />Kunden</TabsTrigger>
-          <TabsTrigger value="templates" className="gap-1.5"><FileStack className="w-4 h-4" />Vorlagen</TabsTrigger>
+          <TabsTrigger value="templates" className="gap-1.5"><FileStack className="w-4 h-4" />Word-Vorlagen</TabsTrigger>
+          <TabsTrigger value="presets" className="gap-1.5"><ClipboardList className="w-4 h-4" />Rechnungsvorlagen</TabsTrigger>
           <TabsTrigger value="settings" className="gap-1.5"><Settings className="w-4 h-4" />Einstellungen</TabsTrigger>
         </TabsList>
 
@@ -54,6 +56,7 @@ export default function RgiIntern() {
         <TabsContent value="invoices"><InvoicesTab /></TabsContent>
         <TabsContent value="clients"><ClientsTab /></TabsContent>
         <TabsContent value="templates"><TemplatesTab /></TabsContent>
+        <TabsContent value="presets"><ItemPresetsTab /></TabsContent>
         <TabsContent value="settings"><CompanySettingsTab /></TabsContent>
       </Tabs>
     </div>

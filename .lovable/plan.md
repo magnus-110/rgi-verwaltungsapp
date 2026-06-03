@@ -1,49 +1,54 @@
-## Ziel
-Rechtsklick auf ein **Inline-Bild im E-Mail-Body** öffnet ein Kontextmenü mit zwei Aktionen:
-- **„Im DMS / Gebäudeordner speichern"** (gleicher Dialog wie bei normalen Anhängen)
-- **„Als Rechnung importieren"** (gleicher OCR-Workflow wie bei normalen Anhängen; optional zusätzlich „Als Beleg / Gutschrift importieren")
+# Rechnungsvorlagen (Inhalte) + Projekt-Stunden-Import
 
-Funktioniert überall, wo `EmailHtmlBody` verwendet wird (Inbox-Detail, ETV-AgendaItem-Dialog usw.).
+Zwei Themen, die beide auf den Rechnungs-Editor (`InvoiceEditorDialog.tsx`) zielen.
 
-## Umsetzung
+## 1. Inhalts-Vorlagen (rgi_item_presets) richtig nutzbar machen
 
-### 1. Aktionen aus `EmailAttachments.tsx` in einen Hook extrahieren
-Neue Datei `src/components/email/lib/useAttachmentActions.ts`:
-- `importAttachmentAsInvoice(att, asCreditNote)` — die exakte Logik aus `handleImportAsInvoice` (Z. 97–181), inkl. Bild→PDF-Konvertierung via `mergeImagesToPdf`, Upload in `invoices`-Bucket, Insert, `extract-invoice` / `match-credit-note` Trigger, Toasts.
-- Liefert außerdem `state` (importingId, importedIds) und einen Setter für die SaveToBuilding-Pipeline (`requestSaveToBuilding(att)` → öffnet `SaveAttachmentToBuildingDialog`).
+Die Tabelle `rgi_item_presets` existiert bereits (letzte Migration), aber:
+- Es gibt keine Verwaltung (Umbenennen / Löschen / Bearbeiten) — nur "speichern" und "laden".
+- Im Editor erscheint nur ein kleines Dropdown "Aus Vorlage laden…" — leicht zu übersehen.
 
-`EmailAttachments.tsx` wird auf den Hook umgestellt, Verhalten bleibt 1:1.
+**Geplante Änderungen:**
 
-### 2. `EmailHtmlBody` um Kontextmenü erweitern
-- Beim Auflösen der `cid:`-Referenzen zusätzlich pro ersetztem URL ein Mapping `signedUrl → attachmentId` führen.
-- In das iframe-`srcDoc` ein kleines Inline-Script einbetten, das:
-  - das Mapping als `window.__inlineAttachmentMap` erhält,
-  - auf jedem `<img>` ein `contextmenu`-Listener registriert,
-  - bei einem Treffer (`img.src` im Mapping) `e.preventDefault()` macht und via `window.parent.postMessage({ type: "rgi-inline-image-menu", attachmentId, x, y }, "*")` meldet (Koordinaten relativ zum iframe).
-- Parent-Komponente `EmailHtmlBody` hört auf `message`, übersetzt iframe-Koordinaten in Viewport-Koordinaten (bounding rect des iframes), und öffnet ein kontrolliertes Shadcn-`DropdownMenu` an dieser Position mit den Aktionen.
+- **Neuer Tab** `Rechnungsvorlagen` in `RgiIntern.tsx` (zwischen *Vorlagen* (=Word) und *Einstellungen*), Komponente `ItemPresetsTab.tsx`:
+  - Liste aller Vorlagen mit Spalten: Name, Sparte, Anzahl Positionen, Summe netto, Aktionen.
+  - Buttons: **Neue Vorlage** (öffnet Editor-Dialog mit leeren Positionen), **Bearbeiten**, **Duplizieren**, **Löschen**.
+  - Editor-Dialog `ItemPresetDialog.tsx`: Name, Sparte (Select), Positionen-Tabelle (Beschreibung, Menge, Einheit, € netto, USt%) — wiederverwendet die gleiche Zeilen-Struktur wie der Rechnungseditor.
+- **Rechnungseditor:** Das bestehende Dropdown "Aus Vorlage laden…" prominenter machen (Button-Variante mit Icon), und nach Auswahl einen Toast mit Link "Vorlagen verwalten" anzeigen.
+- **Default-Vorlagen seeden** (nur falls Tabelle leer ist, beim ersten Öffnen des Tabs): *Verwaltergebühr*, *Eigentümerwechsel*, *Mietvertrag-Erstellung* — als Vorschlag mit 0 € Preisen, damit der Nutzer nur noch Beträge eintragen muss.
 
-### 3. Aktionen verdrahten
-- `EmailHtmlBody` nutzt den neuen `useAttachmentActions`-Hook und rendert intern:
-  - das Positions-gesteuerte DropdownMenu,
-  - `<SaveAttachmentToBuildingDialog>` (existiert bereits),
-  - die nötigen Snackbars laufen über `sonner` (schon im Hook).
-- Beim Menü-Klick wird das passende `email_attachments`-Row aus dem bereits geladenen `inlineAttachments`-Array genommen und an den Hook übergeben.
+**Hook-Erweiterung** in `useRgi.ts`:
+- `useRgiItemPresets()`, `useUpsertRgiItemPreset()`, `useDeleteRgiItemPreset()` — analog zu den anderen Hooks, statt der inline-`(supabase as any)`-Calls.
+- Typen werden nach Migration automatisch in `types.ts` regeneriert (`rgi_item_presets`).
 
-### 4. Menü-Inhalt
-```
-🗂  Im Gebäude/DMS speichern
-📄  Als Rechnung importieren
-💶  Als Beleg / Zahlungseingang importieren
-⬇  Bild herunterladen
-```
-„Herunterladen" ist günstig dazu, weil der iframe-`base target="_blank"` den nativen Browser-Rechtsklick blockiert/umlenkt — so geht keine Funktionalität verloren.
+## 2. "Aus Projekt"-Import auf offene Stunden umstellen
 
-## Was nicht geändert wird
-- Keine Änderungen an Edge Functions, DB-Schema, Buckets.
-- Keine Änderungen an „normaler" Anhangsleiste außer der Refaktorisierung in den Hook (Verhalten identisch).
-- iframe-`sandbox` bleibt; das Inline-Script läuft im iframe-eigenen Origin und `postMessage` ist erlaubt.
+**Aktuelles Problem:** `importFromProject()` lädt nur Positionen der *letzten Rechnung* dieses Projekts. Wenn das Projekt (z. B. "Achweg 3–5 Parkplatz") noch nie abgerechnet wurde, kommt "Keine vorherige Rechnung gefunden" — obwohl Zeit-Einträge existieren.
 
-## Betroffene Dateien
-- **neu:** `src/components/email/lib/useAttachmentActions.ts`
-- **geändert:** `src/components/email/EmailHtmlBody.tsx` (Mapping + iframe-Script + Menü + Dialog)
-- **geändert:** `src/components/email/EmailAttachments.tsx` (Aufrufe gehen über den neuen Hook)
+**Geplante Änderung:** Button "Aus Projekt" öffnet einen neuen Dialog `ImportFromProjectDialog.tsx`:
+
+- Zeigt zwei Quellen nebeneinander:
+  1. **Offene Stunden** (`rgi_time_entries` mit `project_id = aktuelles Projekt`, `invoice_item_id IS NULL`, `billable = true`) — mit Checkbox-Auswahl, Default alle ausgewählt.
+  2. **Letzte Rechnung dieses Projekts** (falls vorhanden) — Positionen mit Checkbox-Auswahl.
+- Gruppierungs-Auswahl für Stunden: *Pro Eintrag* / *Pro Tag* / *Summe* (gleiche Logik wie in `CreateInvoiceFromTimeDialog`, `buildItems` aus dieser Datei extrahieren in `src/lib/rgiBuildItems.ts`).
+- "Übernehmen" hängt die ausgewählten Positionen an die aktuellen Draft-Items an. Für Stunden werden `source_time_entry_ids` korrekt gesetzt, sodass sie beim Versenden als abgerechnet markiert werden.
+
+Der Button bleibt deaktiviert, solange kein Projekt gewählt ist — Tooltip "Erst Projekt oben wählen".
+
+## Technische Details
+
+**Migrationen:** keine (Tabelle existiert bereits). Nur Code.
+
+**Neue Dateien:**
+- `src/components/rgi-intern/item-presets/ItemPresetsTab.tsx`
+- `src/components/rgi-intern/item-presets/ItemPresetDialog.tsx`
+- `src/components/rgi-intern/invoices/ImportFromProjectDialog.tsx`
+- `src/lib/rgiBuildItems.ts` (extrahierter `buildItems` Helper)
+
+**Geänderte Dateien:**
+- `src/pages/RgiIntern.tsx` — neuer Tab.
+- `src/hooks/useRgi.ts` — Hooks für Item-Presets.
+- `src/components/rgi-intern/invoices/InvoiceEditorDialog.tsx` — `importFromProject` durch Dialog ersetzen, Preset-Hooks verwenden.
+- `src/components/rgi-intern/invoices/CreateInvoiceFromTimeDialog.tsx` — `buildItems` importieren statt lokal definieren.
+
+**Keine Schema-Änderung, keine Edge-Function-Änderung.**

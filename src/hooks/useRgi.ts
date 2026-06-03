@@ -12,7 +12,17 @@ export type RgiInvoiceItem = Tables["rgi_invoice_items"]["Row"];
 export type RgiTemplate = Tables["rgi_invoice_templates"]["Row"];
 export type RgiCompanySettings = Tables["rgi_company_settings"]["Row"];
 export type RgiPayment = Tables["rgi_payments"]["Row"];
+export type RgiItemPreset = Tables["rgi_item_presets"]["Row"];
 export type RgiSparte = Database["public"]["Enums"]["rgi_sparte"];
+
+export type RgiPresetItem = {
+  kind: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price_net: number;
+  vat_rate: number;
+};
 
 const K = {
   settings: ["rgi", "settings"] as const,
@@ -351,3 +361,49 @@ export async function rgiSignedUrl(bucket: string, path: string) {
   if (error) throw error;
   return data.signedUrl;
 }
+
+// ---------- Item Presets (Inhalts-Vorlagen) ----------
+const KP = ["rgi", "item-presets"] as const;
+
+export function useRgiItemPresets() {
+  return useQuery({
+    queryKey: KP,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("rgi_item_presets").select("*").order("name");
+      if (error) throw error;
+      return data as RgiItemPreset[];
+    },
+  });
+}
+
+export function useUpsertRgiItemPreset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Partial<RgiItemPreset> & { name: string; items: RgiPresetItem[] }) => {
+      const { data, error } = await supabase.from("rgi_item_presets").upsert(payload as any).select().single();
+      if (error) throw error;
+      return data as RgiItemPreset;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KP });
+      toast.success("Rechnungsvorlage gespeichert");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useDeleteRgiItemPreset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("rgi_item_presets").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KP });
+      toast.success("Vorlage gelöscht");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
