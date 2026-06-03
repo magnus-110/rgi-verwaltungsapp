@@ -213,7 +213,11 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
 
   const previewRender = async (format: "pdf" | "docx") => {
     if (!d.client_id) { toast.error("Kunde wählen"); return; }
+    if (!d.template_id) { toast.error("Bitte zuerst eine Word-Vorlage wählen (Feld „Vorlage" oben)"); return; }
+    // Open tab synchronously so popup blockers don't block us after awaits
+    const win = window.open("", "_blank");
     setRendering(true);
+    const tid = toast.loading(`${format.toUpperCase()} wird erzeugt …`);
     try {
       let id = invoiceId;
       const payload: any = {
@@ -238,15 +242,14 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
 
       const r = await rgiRenderInvoice(id!);
       const path = format === "pdf" ? r?.pdf_path : r?.docx_path;
-      if (path) {
-        const url = await rgiSignedUrl("rgi-invoices", path);
-        window.open(url, "_blank");
-        toast.success(`${format.toUpperCase()}-Vorschau erzeugt`);
-      } else {
-        toast.error(`${format.toUpperCase()} nicht verfügbar`);
-      }
+      if (!path) throw new Error(`${format.toUpperCase()} wurde nicht erzeugt`);
+      const url = await rgiSignedUrl("rgi-invoices", path);
+      if (win) { win.location.href = url; } else { window.location.href = url; }
+      toast.success(`${format.toUpperCase()}-Vorschau erzeugt`, { id: tid });
     } catch (e: any) {
-      toast.error(`Rendering fehlgeschlagen: ${e.message}`);
+      if (win) win.close();
+      console.error("previewRender failed", e);
+      toast.error(`Rendering fehlgeschlagen: ${e?.message ?? e}`, { id: tid });
     } finally {
       setRendering(false);
     }
