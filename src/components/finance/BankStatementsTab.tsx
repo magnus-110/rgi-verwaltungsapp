@@ -725,6 +725,19 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <CardTitle className="text-lg">Kontoauszüge</CardTitle>
             <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <Label className="text-xs text-muted-foreground">Wirtschaftsjahr</Label>
+                <Select value={String(fiscalYear)} onValueChange={(v) => setAndPersistFiscalYear(Number(v))}>
+                  <SelectTrigger className="h-9 w-[100px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() + 1 - i).map((y) => (
+                      <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               {selectedBuilding && unmatchedTransactions.length > 0 && (
                 <Button variant="outline" size="icon" disabled={rematching} onClick={handleRematch} title="Neu abgleichen">
                   {rematching ? <Loader2 className="h-4 w-4 animate-spin" /> : (
