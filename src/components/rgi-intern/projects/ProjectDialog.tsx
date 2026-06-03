@@ -34,7 +34,7 @@ export function ProjectDialog({ open, onOpenChange, project, clients }: Props) {
 
   useEffect(() => {
     if (open) {
-      setForm(project ?? { name: "", sparte: "weg", status: "active" });
+      setForm(project ?? { name: "", sparte: "weg", status: "active", default_hourly_rate: 77.35 });
       setSource("client");
       setContactId("");
       setBuildingId("");
