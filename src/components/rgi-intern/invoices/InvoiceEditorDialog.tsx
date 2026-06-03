@@ -396,9 +396,16 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
           )}
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="gap-2 flex-wrap">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Schließen</Button>
           {!isSent && <Button variant="secondary" onClick={() => save("draft")} disabled={create.isPending || update.isPending}>Als Entwurf speichern</Button>}
+          <Button variant="outline" onClick={() => previewRender("docx")} disabled={rendering || !d.client_id} className="gap-1.5">
+            <Download className="w-4 h-4" />Word (Vorschau)
+          </Button>
+          <Button variant="outline" onClick={() => previewRender("pdf")} disabled={rendering || !d.client_id} className="gap-1.5">
+            {rendering ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            PDF (Vorschau)
+          </Button>
           <Button onClick={() => save("sent")} disabled={rendering || !d.client_id} className="gap-1.5">
             {rendering ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             {isSent ? "Speichern & neu rendern" : "Versenden (PDF erzeugen)"}
