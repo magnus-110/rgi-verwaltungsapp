@@ -122,7 +122,7 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
   const openStatement = (s: any) => {
     if (!s.file_path) return;
     if (s._source === "bank") {
-      if (tokenMode) openViaToken("bank_statement" as any, s.id, s.file_name);
+      if (tokenMode) openViaToken("bank_statement", s.id, s.file_name);
       else openViaStorage("building-documents", s.file_path, s.file_name);
       return;
     }
