@@ -766,17 +766,22 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                 </Button>
               )}
 
-              <input ref={fileInputRef} type="file" accept=".xml,.pdf" multiple className="hidden" onChange={handleFileUpload} />
-              <Button onClick={() => fileInputRef.current?.click()} disabled={uploading || !selectedBuilding || selectedBuilding === "all"} title={!selectedBuilding ? "Bitte zuerst Liegenschaft wählen" : undefined}>
+              <input ref={fileInputRef} type="file" accept=".xml" multiple className="hidden" onChange={handleCamtUpload} />
+              <input ref={pdfInputRef} type="file" accept=".pdf" multiple className="hidden" onChange={handlePdfUpload} />
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading || !selectedBuilding || selectedBuilding === "all"} title={!selectedBuilding ? "Bitte zuerst Liegenschaft wählen" : "CAMT-XML wird ausgelesen"}>
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileCode className="h-4 w-4 mr-2" />}
+                CAMT-XML importieren
+              </Button>
+              <Button onClick={() => pdfInputRef.current?.click()} disabled={uploading || !selectedBuilding || selectedBuilding === "all"} title={!selectedBuilding ? "Bitte zuerst Liegenschaft wählen" : "PDF wird als Beleg gespeichert"}>
                 {uploading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    {uploadProgress ? `Datei ${uploadProgress.current}/${uploadProgress.total}…` : "Importiere…"}
+                    {uploadProgress ? `Datei ${uploadProgress.current}/${uploadProgress.total}…` : "Lädt…"}
                   </>
                 ) : (
                   <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Kontoauszug importieren
+                    <FileText className="h-4 w-4 mr-2" />
+                    PDF-Beleg hochladen
                   </>
                 )}
               </Button>
