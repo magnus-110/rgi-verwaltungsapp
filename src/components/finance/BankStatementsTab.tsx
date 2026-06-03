@@ -41,6 +41,7 @@ const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: 
 interface BankStatementsTabProps {
   sharedBuildingId?: string | null;
   onBuildingChange?: (id: string | null) => void;
+  sharedFiscalYear?: number | null;
 }
 
 export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankStatementsTabProps) {
