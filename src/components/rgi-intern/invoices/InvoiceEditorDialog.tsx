@@ -278,7 +278,7 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button size="sm" variant="outline" onClick={importFromProject} disabled={!d.project_id} className="gap-1.5">
+                <Button size="sm" variant="outline" onClick={() => setImportOpen(true)} disabled={!d.project_id} className="gap-1.5">
                   <FolderInput className="w-4 h-4" />Aus Projekt
                 </Button>
                 <Button size="sm" variant="outline" onClick={saveAsPreset} disabled={d.items.length === 0} className="gap-1.5">
