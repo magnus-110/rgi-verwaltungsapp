@@ -232,10 +232,11 @@ Deno.serve(async (req) => {
 
     // Persist attachments to storage + email_attachments so they show up in the Sent view
     if (insertedEmail?.id && resolvedAttachments.length > 0) {
-      for (const att of resolvedAttachments) {
+      for (const [idx, att] of resolvedAttachments.entries()) {
         try {
           const safeName = String(att.filename || "attachment").replace(/[^\w.\-]+/g, "_");
-          const filePath = `${insertedEmail.id}/${safeName}`;
+          // Index-Prefix verhindert Überschreiben bei gleichnamigen Anhängen
+          const filePath = `${insertedEmail.id}/${idx}_${safeName}`;
           // If already in storage at outgoing path, copy/move into the email folder.
           if (att.storage_path) {
             const { error: mvErr } = await supabaseAdmin.storage
