@@ -308,7 +308,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { xmlContent, buildingId, rematchBuildingId } = await req.json();
+    const { xmlContent, buildingId, rematchBuildingId, fiscalYear } = await req.json();
 
     // Re-match mode: run matching on all unmatched transactions for a building
     if (rematchBuildingId) {
