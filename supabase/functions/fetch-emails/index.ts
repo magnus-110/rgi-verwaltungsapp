@@ -871,17 +871,22 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
       summary.fallback_downloaded = downloaded.length;
     }
 
-    // Insert any attachments that don't yet exist for this email
+    // Insert any attachments that don't yet exist for this email.
+    // Dedup-Key = file_name + file_size, damit gleichnamige Anhänge mit unterschiedlicher Größe
+    // (z. B. 4 verschiedene "rechnung.pdf") nicht fälschlich als Duplikate gelten.
     const { data: existingAtt } = await supabase
       .from("email_attachments")
-      .select("file_name")
+      .select("file_name, file_size")
       .eq("email_id", emailId);
-    const existingNames = new Set((existingAtt || []).map((a: any) => a.file_name));
+    const existingKeys = new Set(
+      (existingAtt || []).map((a: any) => `${a.file_name}::${a.file_size}`),
+    );
 
     let inserted = 0;
-    for (const att of attachments) {
-      if (existingNames.has(att.filename)) continue;
-      const storagePath = `${emailId}/${sanitizeStorageName(att.filename)}`;
+    for (const [idx, att] of attachments.entries()) {
+      if (existingKeys.has(`${att.filename}::${att.content.byteLength}`)) continue;
+      // Index-Prefix verhindert Überschreiben bei gleichnamigen Anhängen
+      const storagePath = `${emailId}/${idx}_${sanitizeStorageName(att.filename)}`;
       const { error: upErr } = await supabase.storage
         .from("email-attachments")
         .upload(storagePath, att.content, { contentType: att.contentType, upsert: true });
