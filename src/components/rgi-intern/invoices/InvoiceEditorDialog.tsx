@@ -59,21 +59,15 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
   const [d, setD] = useState<Draft>(emptyDraft());
   const [rendering, setRendering] = useState(false);
   const [payAmount, setPayAmount] = useState("");
-  const qc = useQueryClient();
+  const [importOpen, setImportOpen] = useState(false);
 
-  const { data: presets } = useQuery({
-    queryKey: ["rgi", "item-presets"],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any).from("rgi_item_presets").select("*").order("name");
-      if (error) throw error;
-      return (data ?? []) as Array<{ id: string; name: string; sparte: string | null; items: any[] }>;
-    },
-  });
+  const { data: presets } = useRgiItemPresets();
+  const upsertPreset = useUpsertRgiItemPreset();
 
   const applyPreset = (presetId: string) => {
     const p = presets?.find((x) => x.id === presetId);
     if (!p) return;
-    const newItems: Partial<RgiInvoiceItem>[] = (p.items ?? []).map((it: any) => ({
+    const newItems: Partial<RgiInvoiceItem>[] = (((p.items as any) ?? []) as any[]).map((it: any) => ({
       kind: it.kind ?? "flat",
       description: it.description ?? "",
       quantity: Number(it.quantity ?? 1),
@@ -98,31 +92,13 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
       unit_price_net: Number(it.unit_price_net ?? 0),
       vat_rate: Number(it.vat_rate ?? 19),
     }));
-    const { error } = await (supabase as any).from("rgi_item_presets").insert({
-      name, sparte: project?.sparte ?? null, items: itemsPayload, created_by: user?.id,
-    });
-    if (error) { toast.error(error.message); return; }
-    toast.success("Als Vorlage gespeichert");
-    qc.invalidateQueries({ queryKey: ["rgi", "item-presets"] });
+    await upsertPreset.mutateAsync({ name, sparte: project?.sparte ?? null, items: itemsPayload } as any);
   };
 
-  const importFromProject = async () => {
-    if (!d.project_id) { toast.error("Erst Projekt wählen"); return; }
-    const { data: invs, error: e1 } = await supabase
-      .from("rgi_invoices").select("id, issue_date").eq("project_id", d.project_id)
-      .order("issue_date", { ascending: false }).limit(1);
-    if (e1) { toast.error(e1.message); return; }
-    if (!invs || invs.length === 0) { toast.info("Keine vorherige Rechnung für dieses Projekt gefunden"); return; }
-    const { data: srcItems, error: e2 } = await supabase
-      .from("rgi_invoice_items").select("*").eq("invoice_id", invs[0].id).order("position");
-    if (e2) { toast.error(e2.message); return; }
-    const newItems: Partial<RgiInvoiceItem>[] = (srcItems ?? []).map((it: any) => ({
-      kind: it.kind, description: it.description, quantity: Number(it.quantity),
-      unit: it.unit, unit_price_net: Number(it.unit_price_net), vat_rate: Number(it.vat_rate),
-    }));
+  const handleImported = (newItems: Partial<RgiInvoiceItem>[]) => {
     setD((prev) => ({ ...prev, items: [...prev.items, ...newItems] }));
-    toast.success(`${newItems.length} Positionen aus Projekt übernommen`);
   };
+
 
 
   useEffect(() => {
