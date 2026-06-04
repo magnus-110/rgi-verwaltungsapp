@@ -141,7 +141,7 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
           <Sparkles className="h-8 w-8 mx-auto mb-3 opacity-50" />
           <p className="text-sm mb-1">Noch kein Protokoll erstellt.</p>
           <p className="text-xs mb-4">
-            {!allVoted ? "Schließen Sie erst alle Abstimmungen ab." : "Klicken Sie auf „Protokoll generieren"."}
+            {!allVoted ? "Schließen Sie erst alle Abstimmungen ab." : "Klicken Sie auf „Protokoll generieren\u201C."}
           </p>
           <Button
             onClick={() => generateMutation.mutate()}
