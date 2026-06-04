@@ -985,13 +985,18 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-2 px-4 pb-4">
+        <div className="flex gap-2 px-4 pb-4 flex-wrap">
           <Button size="sm" onClick={() => updateMeetingStatusMutation.mutate("in_progress")} variant="outline" className="gap-1.5">
             <Play className="h-3.5 w-3.5" /> Versammlung eröffnen
           </Button>
           <Button size="sm" onClick={() => updateMeetingStatusMutation.mutate("completed")} variant="outline" className="gap-1.5">
             <Square className="h-3.5 w-3.5" /> Versammlung schließen
           </Button>
+          <ProxyInstructionsMatrix
+            meetingId={meetingId}
+            agendaItems={agendaItems as any}
+            attendees={attendees as any}
+          />
         </div>
 
         {/* Secret Ballot Toggle */}
