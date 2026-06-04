@@ -397,6 +397,25 @@ Deno.serve(async (req) => {
     if (output_format === "pdf") {
       outBytes = await convertDocxToPdf(docxBytes, `${baseName}.docx`);
       contentType = "application/pdf";
+
+      // Unterschriften anhängen, sofern vorhanden
+      try {
+        const { data: sigs = [] } = await admin
+          .from("etv_protocol_signatures")
+          .select("role, signer_name, signature_png, signed_at")
+          .eq("meeting_id", meeting_id);
+        if (sigs && sigs.length > 0) {
+          outBytes = await appendSignaturePage(
+            outBytes,
+            sigs,
+            meeting.title || "",
+            building?.name || "",
+            meetingDateStr,
+          );
+        }
+      } catch (sigErr) {
+        console.error("Signaturseite konnte nicht angehängt werden (nicht-fatal):", sigErr);
+      }
     }
 
     const { error: upErr } = await admin.storage.from("building-files").upload(outPath, outBytes, {
