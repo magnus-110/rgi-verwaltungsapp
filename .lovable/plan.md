@@ -1,91 +1,94 @@
-## Ziel
+## Befund
 
-Den Nachbereitungs-Tab clean und übersichtlich gestalten — nur das Nötigste, in dieser Reihenfolge:
+Backend ist OK — `etv-render-protocol` liefert sowohl DOCX als auch PDF erfolgreich (HTTP 200 mit signierter URL, geprüft via curl). Das Problem auf der Frontend-Seite ist `window.open(signed_url, "_blank")` nach einer asynchronen Mutation: Browser blocken dieses Popup, weil es nicht direkt aus einer User-Gesture stammt. Fix: Datei als Blob fetchen und über versteckten `<a download>` klicken.
 
-1. **Protokoll-Vorschau** (formatiert, lesbar, mit Vollbild-Option)
-2. **Unterschriften-Bereich** (Eigentümer · Versammlungsleiter · Protokollführer)
-3. **Drei Action-Buttons**: PDF herunterladen · DOCX herunterladen · Beschlusssammlung aktualisieren
+## Was umgebaut wird
 
-Alles andere fliegt raus.
+### 1. Protokoll-Vorschau im RGI-Design (statt iframe-HTML)
 
-## Was entfernt wird (`MeetingProtocol.tsx`)
-
-- Status-Karte oben (TOPs-Zähler, "Protokoll generiert"-Badge) → ein kleiner unauffälliger Header reicht
-- Buttons „Protokoll neu generieren" und „Beschlusssammlung aktualisieren" oberhalb → werden neu unten gruppiert
-- „Generiertes Protokoll"-Card mit rohem `whitespace-pre-wrap` Text → ersetzt durch eingebettetes formatiertes HTML
-- Button-Reihe „Vorschau · Als HTML · Im Portal veröffentlichen" → wird verschlankt, „Als HTML" raus, „Vorschau" wird Vollbild-Icon, „Im Portal veröffentlichen" bleibt erhalten (war im aktuellen Bild ja noch da)
-- Doppelte Vorlagen-Auswahl + DOCX/PDF-Buttons + großer Unterschriften-Block aus `ProtocolRenderActions` → durch schlanke neue Variante ersetzt
-
-## Neuer Aufbau Nachbereitung
+Die jetzige iframe-Vorschau (Segoe UI, generisches HTML) wird durch eine native React-Komponente ersetzt, die sich am App-Design orientiert (shadcn Card, Tailwind, semantische Tokens, Primary-Akzent orange wie der Rest der App). Aufbau:
 
 ```text
-┌─ Mini-Header ─────────────────────────────────────────┐
-│ ✓ 3/3 TOPs · Protokoll: 29.03.2026          [⛶ Groß] │
-├───────────────────────────────────────────────────────┤
-│                                                       │
-│   ┌─ Protokoll (formatiertes HTML, iframe) ────┐      │
-│   │  Eigentümerversammlung – WEG XY            │      │
-│   │  Datum, Ort, Leitung …                     │      │
-│   │  TOP 1 …                                   │      │
-│   │  …                                         │      │
-│   │  Höhe ~600px, scrollbar                    │      │
-│   └────────────────────────────────────────────┘      │
-│                                                       │
-│   Unterschriften                                      │
-│   ┌──────────────┬──────────────┬──────────────┐      │
-│   │ Eigentümer   │ Vers.-leiter │ Protokollf.  │      │
-│   │ [Sign-Pad]   │ [Sign-Pad]   │ [Sign-Pad]   │      │
-│   │ Name: ____   │ Name: ____   │ Name: ____   │      │
-│   └──────────────┴──────────────┴──────────────┘      │
-│                                                       │
-│   [📄 PDF]  [📝 DOCX]  [📚 Beschlusssammlung akt.]    │
-│                                                       │
-│   (sekundär, klein): [✨ Protokoll neu generieren]   │
-│                      [🚀 Im Portal veröffentlichen]   │
-└───────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│  Protokoll der Eigentümerversammlung                │  ← H1, Primary-Akzent, Border-Bottom
+│  WEG Achweg 3-5 · Memmingen                         │  ← Muted
+├─────────────────────────────────────────────────────┤
+│  ┌─ Eckdaten ──────────────────────────────┐        │
+│  │ Datum         04.06.2026                │        │  ← Definition-List
+│  │ Beginn / Ende 15:00 / 18:30 Uhr         │        │
+│  │ Ort           Vereinsheim Memmingen     │        │
+│  │ Leitung       Andreas Göttinger         │        │
+│  │ Protokoll     Max Mustermann            │        │
+│  └─────────────────────────────────────────┘        │
+│                                                     │
+│  Anwesenheit                                        │
+│  Von insgesamt 1.000,000 Tausendstel waren …        │
+│                                                     │
+│  ─────────────────────────────────────────          │
+│  TOP 1 · Verwalterwechsel                           │  ← H2, klein orange Pill mit "TOP 1"
+│  [Beschreibung / Fließtext]                         │
+│  ┌─ Beschluss ─────────────────────────────┐        │
+│  │ Die Eigentümer beschließen …            │        │
+│  │ ──────────────────                      │        │
+│  │ Abstimmung: nach MEA                    │        │
+│  │ Ja 146,000 · Nein 0,000 · Enth. 0,000   │        │  ← Tabular, monospace Zahlen
+│  │ ✓ Angenommen                            │        │  ← grünes Badge bei passed, rot bei failed
+│  └─────────────────────────────────────────┘        │
+│  Notizen: …                                         │  ← nur wenn vorhanden, kursiv muted
+│                                                     │
+│  TOP 2 · …                                          │
+│  …                                                  │
+│                                                     │
+│  Die Versammlung wurde um 18:30 Uhr geschlossen.    │
+│                                                     │
+│  ─────────────────────────────────────────          │
+│  Unterschriften                                     │
+│  ┌──────────────┬──────────────┬──────────────┐     │
+│  │ Eigentümer   │ Vers.-leiter │ Protokollf.  │     │  ← REAL SignaturePads, eingebettet
+│  │ [Pad 120px]  │ [Pad 120px]  │ [Pad 120px]  │     │     im Vorschau-Bereich (nicht
+│  │ Name: ____   │ Name: ____   │ Name: ____   │     │     mehr als separate Karte)
+│  └──────────────┴──────────────┴──────────────┘     │
+└─────────────────────────────────────────────────────┘
 ```
 
-### Vollbild-Modus
+Datenbasis: alles aus `meeting`, `agendaItems`, `attendees` (die Queries existieren bereits) — kein Rückgriff mehr auf den unformatierten `protocol_text`-Blob für die Anzeige. Das KI-generierte `protocol_text` bleibt aber als optionale Einleitung/Fallback erhalten (wenn man es z. B. als Intro-Absatz zeigt).
 
-Ein Icon-Button (⛶) öffnet das aktuelle `generateProtocolHtml()` als `iframe` in einem Dialog auf `max-w-6xl` / `h-[95dvh]` — quasi „lesen wie ein PDF". Schließen per X.
+### 2. Unterschriften direkt in den Vorschau-Bereich
 
-### Unterschriften-Karte
+`ProtocolSignaturesInline` wird in den Protokoll-Container am Ende eingerückt (keine separate Karte mehr, kein extra Header). Die alten gezeichneten Striche „___ Versammlungsleiter / Protokollführer" in der iframe-HTML entfallen komplett (sie waren ja gerade die störenden Striche aus dem Screenshot).
 
-- 3 Spalten responsive (mobil 1-spaltig)
-- Jede Spalte: Rolle, kleines `<SignaturePad>` (existiert in `buildings/keys/SignaturePad.tsx`), Namensfeld
-- Status-Pill „✓ unterschrieben" wenn vorhanden
-- Speichern automatisch onBlur des Pads (delete-then-insert in `etv_protocol_signatures` wie bisher) → kein extra Dialog mehr
-- „Final signieren & im DMS ablegen" bleibt als unauffälliger Button **unter** den Pads, wird erst aktiv wenn alle 3 unterschrieben
+### 3. Vollbild-Modus
 
-### Buttons
+Gleiche React-Vorschau, nur in einem `Dialog` mit `max-w-5xl` und `h-[95dvh]` und schmalerem horizontalem Padding. Renderfunktion ist eine reine Komponente, daher problemlos wiederverwendbar.
 
-- **PDF / DOCX**: rufen direkt `etv-render-protocol` mit `output_format: pdf|docx` auf — Standard-Vorlage wird automatisch verwendet (kein Vorlagen-Dropdown mehr im Tab, das gehört zum Vorlagen-Manager-Tab)
-- **Beschlusssammlung aktualisieren**: bestehende `saveResolutionsMutation` 1:1
-- **Protokoll neu generieren** + **Im Portal veröffentlichen**: bleiben erhalten, werden aber als sekundäre Ghost-Buttons unten platziert (nicht prominent)
+### 4. Fix Download-Buttons (PDF/DOCX)
 
-## Technische Umsetzung
+`ProtocolDownloadButtons.tsx`: statt `window.open()` nach Mutation jetzt:
 
-### `src/components/meetings/MeetingProtocol.tsx` (rewrite Layout)
-- Behält alle Queries + Mutations (`generateMutation`, `saveResolutionsMutation`, `publishMutation`, `generateProtocolHtml`)
-- Rendert Protokoll als `<iframe srcDoc={generateProtocolHtml()}>` direkt im Tab (~600px hoch) statt rohem Textblock
-- Vollbild-Dialog mit gleichem `iframe`, größer
-- Bindet neue `ProtocolSignaturesInline`-Komponente und neue `ProtocolDownloadButtons`-Komponente ein
+```ts
+const res = await fetch(signed_url);
+const blob = await res.blob();
+const url = URL.createObjectURL(blob);
+const a = document.createElement("a");
+a.href = url;
+a.download = `${baseName}.${ext}`;
+document.body.appendChild(a);
+a.click();
+a.remove();
+URL.revokeObjectURL(url);
+```
 
-### Neu: `src/components/meetings/ProtocolSignaturesInline.tsx`
-- Lädt `etv_protocol_signatures` für `meeting_id`
-- Rendert 3-Spalten-Grid mit `SignaturePad` + Namens-`Input` pro Rolle
-- onChange auf Pad + Name: upsert in `etv_protocol_signatures` (delete-then-insert pro Rolle)
-- Zeigt „Final signieren & im DMS ablegen"-Button (ruft `etv-finalize-signed-protocol` wie bisher)
+Das löst zuverlässig den Datei-Download aus, ohne Popup-Blocker. Toast „PDF / DOCX heruntergeladen" als Bestätigung.
 
-### Neu: `src/components/meetings/ProtocolDownloadButtons.tsx`
-- Zwei Buttons (PDF, DOCX) → `supabase.functions.invoke("etv-render-protocol", { meeting_id, output_format })` → `window.open(signed_url)`
-- Nutzt die Default-Vorlage automatisch (kein Template-Picker)
+## Dateien
 
-### Löschen
-- `src/components/meetings/ProtocolRenderActions.tsx` wird **nicht gelöscht**, aber nicht mehr referenziert (kann später entfernt werden); falls gewünscht direkt entfernen
+- **Neu** `src/components/meetings/ProtocolReadableView.tsx` — die strukturierte RGI-Design-Vorschau-Komponente (Eckdaten, Anwesenheit, TOPs mit Beschluss-Cards, Schlusssatz, eingebettete Unterschriften am Fuß)
+- **Edit** `src/components/meetings/MeetingProtocol.tsx` — iframe + alte HTML-Generierung raus, `ProtocolReadableView` rein (sowohl inline als auch im Vollbild-Dialog); `ProtocolSignaturesInline` wird *in* die Readable-View gerendert, nicht mehr als separate Sektion
+- **Edit** `src/components/meetings/ProtocolDownloadButtons.tsx` — Blob-Download statt `window.open`
+- **Löschen** `generateProtocolHtml()` in `MeetingProtocol.tsx` (nicht mehr nötig)
 
 ## Nicht Teil dieses Plans
 
-- Backend / Edge Functions / Datenbank-Schema bleiben unverändert
-- Vorlagen-Tab und ProtocolTemplatesTab bleiben unangetastet
-- KI-Protokoll-Generierung bleibt funktional gleich
+- Backend / Edge Function bleibt unangetastet (funktioniert bereits)
+- Word-Vorlage und docxtemplater-Render-Pipeline unverändert (die ist für den Final-Output ohnehin separat)
+- KI-Protokoll-Generierung unverändert
