@@ -4672,6 +4672,141 @@ export type Database = {
           },
         ]
       }
+      etv_protocol_renders: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          dms_file_id: string | null
+          format: string
+          id: string
+          is_signed: boolean
+          meeting_id: string
+          storage_path: string
+          template_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          dms_file_id?: string | null
+          format: string
+          id?: string
+          is_signed?: boolean
+          meeting_id: string
+          storage_path: string
+          template_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          dms_file_id?: string | null
+          format?: string
+          id?: string
+          is_signed?: boolean
+          meeting_id?: string
+          storage_path?: string
+          template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etv_protocol_renders_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "etv_meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_protocol_renders_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "etv_protocol_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etv_protocol_signatures: {
+        Row: {
+          created_at: string
+          id: string
+          meeting_id: string
+          role: string
+          signature_png: string
+          signed_at: string
+          signed_by: string | null
+          signer_contact_id: string | null
+          signer_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          meeting_id: string
+          role: string
+          signature_png: string
+          signed_at?: string
+          signed_by?: string | null
+          signer_contact_id?: string | null
+          signer_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          meeting_id?: string
+          role?: string
+          signature_png?: string
+          signed_at?: string
+          signed_by?: string | null
+          signer_contact_id?: string | null
+          signer_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etv_protocol_signatures_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "etv_meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_protocol_signatures_signer_contact_id_fkey"
+            columns: ["signer_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etv_protocol_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_default: boolean
+          name: string
+          placeholder_schema: Json | null
+          storage_path: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_default?: boolean
+          name: string
+          placeholder_schema?: Json | null
+          storage_path: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_default?: boolean
+          name?: string
+          placeholder_schema?: Json | null
+          storage_path?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       etv_resolution_templates: {
         Row: {
           category: string | null

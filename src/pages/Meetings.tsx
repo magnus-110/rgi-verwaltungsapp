@@ -8,11 +8,13 @@ import { MeetingEditor } from "@/components/meetings/MeetingEditor";
 import { ResolutionLedger } from "@/components/meetings/ResolutionLedger";
 import { SubmittedTopsManager } from "@/components/meetings/SubmittedTopsManager";
 
+import { ProtocolTemplatesTab } from "@/components/meetings/ProtocolTemplatesTab";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, ArrowLeft, Users, Scale, Inbox, Building2 } from "lucide-react";
+import { Plus, ArrowLeft, Users, Scale, Inbox, Building2, FileText } from "lucide-react";
+
 
 export const Meetings = () => {
   const { profile } = useAuth();
@@ -145,6 +147,11 @@ export const Meetings = () => {
             <span className="hidden sm:inline">Beschlusssammlung</span>
             <span className="sm:hidden">Beschl.</span>
           </TabsTrigger>
+          <TabsTrigger value="templates" className="gap-1.5 md:gap-2 min-h-[44px] text-xs md:text-sm">
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">Protokoll-Vorlagen</span>
+            <span className="sm:hidden">Vorlagen</span>
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="meetings" className="mt-4">
           <Tabs defaultValue="active">
@@ -173,6 +180,9 @@ export const Meetings = () => {
         </TabsContent>
         <TabsContent value="resolutions" className="mt-4">
           <ResolutionLedger buildingFilter={selectedBuildingId} />
+        </TabsContent>
+        <TabsContent value="templates" className="mt-4">
+          <ProtocolTemplatesTab />
         </TabsContent>
       </Tabs>
 
