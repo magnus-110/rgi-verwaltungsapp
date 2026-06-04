@@ -1077,11 +1077,28 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                 </div>
                 <h3 className="text-xl font-bold">{resultDialog.result === "passed" ? "Beschluss angenommen" : "Beschluss abgelehnt"}</h3>
                 <p className="text-sm text-muted-foreground">{resultDialog.title}</p>
-                <div className="flex justify-center gap-6 text-sm">
-                  <div className="text-center"><div className="text-2xl font-bold text-green-600">{resultDialog.yes_count}</div><div className="text-muted-foreground">Ja</div></div>
-                  <div className="text-center"><div className="text-2xl font-bold text-red-600">{resultDialog.no_count}</div><div className="text-muted-foreground">Nein</div></div>
-                  <div className="text-center"><div className="text-2xl font-bold text-muted-foreground">{resultDialog.abstain_count}</div><div className="text-muted-foreground">Enthaltung</div></div>
-                </div>
+                {(() => {
+                  const isMea = resultDialog.voting_principle === "mea";
+                  const fmt = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+                  const yesVal = isMea ? fmt(Number(resultDialog.total_mea_yes || 0)) : resultDialog.yes_count;
+                  const noVal = isMea ? fmt(Number(resultDialog.total_mea_no || 0)) : resultDialog.no_count;
+                  const absVal = isMea ? fmt(Number(resultDialog.total_mea_abstain || 0)) : resultDialog.abstain_count;
+                  const unitLbl = isMea ? "MEA" : "Köpfe";
+                  return (
+                    <>
+                      <div className="flex justify-center gap-6 text-sm">
+                        <div className="text-center"><div className="text-2xl font-bold text-green-600">{yesVal}</div><div className="text-muted-foreground">Ja ({unitLbl})</div></div>
+                        <div className="text-center"><div className="text-2xl font-bold text-red-600">{noVal}</div><div className="text-muted-foreground">Nein ({unitLbl})</div></div>
+                        <div className="text-center"><div className="text-2xl font-bold text-muted-foreground">{absVal}</div><div className="text-muted-foreground">Enthaltung ({unitLbl})</div></div>
+                      </div>
+                      {isMea && (
+                        <div className="text-xs text-muted-foreground">
+                          Köpfe: {resultDialog.yes_count} Ja / {resultDialog.no_count} Nein / {resultDialog.abstain_count} Enth.
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
                 {(resultDialog.requires_double_qualified || resultDialog.double_qualified_relevant) && (
                   <div className="text-sm font-medium">
                     Doppelt qualifizierte Mehrheit: wird nach Bestätigung geprüft
