@@ -21,6 +21,7 @@ import {
   RefreshCw, StickyNote, FileText, Plus, Gavel
 } from "lucide-react";
 import { AgendaItemEmailsSection } from "./AgendaItemEmailsSection";
+import { ProxyInstructionsMatrix } from "./ProxyInstructionsMatrix";
 
 interface MeetingLiveSessionProps {
   meetingId: string;
@@ -326,11 +327,38 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     mutationFn: async (itemId: string) => {
       const { error } = await supabase.from("etv_agenda_items").update({ status: "voting" }).eq("id", itemId);
       if (error) throw error;
+
+      // Auto-Cast: weisungsgebundene Vorab-Stimmen aus Vollmachten übernehmen
+      const proxyAttendees = attendees.filter(
+        (a: any) => a.attendance_type === "proxy" && a.pre_vote_instructions && a.pre_vote_instructions[itemId]
+      );
+      let cast = 0;
+      for (const att of proxyAttendees) {
+        const vote = (att.pre_vote_instructions as any)[itemId];
+        if (!["yes", "no", "abstain"].includes(vote)) continue;
+        const meaW = getMeaWeight(att);
+        const sqmW = getSqmWeight(att);
+        const { error: ve } = await supabase.from("etv_votes").upsert({
+          agenda_item_id: itemId,
+          assignment_id: att.assignment_id,
+          vote,
+          mea_weight: meaW,
+          sqm_weight: sqmW,
+          is_manual_override: false,
+          voted_at: new Date().toISOString(),
+        } as any, { onConflict: "agenda_item_id,assignment_id" });
+        if (!ve) cast += 1;
+      }
+      return cast;
     },
-    onSuccess: (_, itemId) => {
+    onSuccess: (cast, itemId) => {
       setActiveVoteItem(itemId);
       queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
-      toast({ title: "Abstimmung gestartet" });
+      queryClient.invalidateQueries({ queryKey: ["etv-votes-live", itemId] });
+      toast({
+        title: "Abstimmung gestartet",
+        description: cast > 0 ? `${cast} Vorab-Weisung${cast === 1 ? "" : "en"} übernommen` : undefined,
+      });
     },
   });
 
@@ -815,6 +843,20 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                                 })() : (a.proxy_external_name || "Ext.")}
                               </Badge>
                             )}
+                            {(() => {
+                              const instr = (a.pre_vote_instructions || {}) as Record<string, string>;
+                              const w = instr[selectedItem.id];
+                              if (!w) return null;
+                              const label = w === "yes" ? "Weisung: Ja" : w === "no" ? "Weisung: Nein" : "Weisung: Enth.";
+                              const cls = w === "yes"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                : w === "no"
+                                ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                                : "bg-muted text-muted-foreground";
+                              return (
+                                <Badge className={`${cls} text-[9px] shrink-0 px-1 py-0`}>{label}</Badge>
+                              );
+                            })()}
                           </div>
                           <div className="flex gap-1">
                             <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-green-600"
@@ -984,13 +1026,18 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-2 px-4 pb-4">
+        <div className="flex gap-2 px-4 pb-4 flex-wrap">
           <Button size="sm" onClick={() => updateMeetingStatusMutation.mutate("in_progress")} variant="outline" className="gap-1.5">
             <Play className="h-3.5 w-3.5" /> Versammlung eröffnen
           </Button>
           <Button size="sm" onClick={() => updateMeetingStatusMutation.mutate("completed")} variant="outline" className="gap-1.5">
             <Square className="h-3.5 w-3.5" /> Versammlung schließen
           </Button>
+          <ProxyInstructionsMatrix
+            meetingId={meetingId}
+            agendaItems={agendaItems as any}
+            attendees={attendees as any}
+          />
         </div>
 
         {/* Secret Ballot Toggle */}

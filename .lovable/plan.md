@@ -1,94 +1,36 @@
-## Befund
+## Ziel
+Admin kann vor/während der Versammlung für **weisungsgebundene Papier-Vollmachten** die Stimmen pro Eigentümer und TOP vorbelegen. Beim Start der Abstimmung werden diese automatisch als reguläre Ja/Nein/Enthaltung-Stimme eingetragen — der Admin kann sie danach noch ändern.
 
-Backend ist OK — `etv-render-protocol` liefert sowohl DOCX als auch PDF erfolgreich (HTTP 200 mit signierter URL, geprüft via curl). Das Problem auf der Frontend-Seite ist `window.open(signed_url, "_blank")` nach einer asynchronen Mutation: Browser blocken dieses Popup, weil es nicht direkt aus einer User-Gesture stammt. Fix: Datei als Blob fetchen und über versteckten `<a download>` klicken.
+## Was schon da ist
+- Spalte `etv_attendees.pre_vote_instructions` (jsonb, `{ "<agenda_item_id>": "yes|no|abstain" }`) existiert bereits.
+- `LiveVotingManager` castet diese beim Start automatisch — aber genutzt wird produktiv `MeetingLiveSession`, dort fehlt die Logik.
+- Bisher gibt es nur das Eigentümerportal, um Weisungen zu setzen — **keine Admin-UI**.
 
-## Was umgebaut wird
+## Änderungen
 
-### 1. Protokoll-Vorschau im RGI-Design (statt iframe-HTML)
+### 1. Neue Admin-UI: „Weisungs-Matrix" (`ProxyInstructionsMatrix.tsx`)
+Aufruf als Button/Sheet aus `MeetingLiveSession` (oben im Abstimmungs-Bereich): **„Papier-Vollmachten vorbereiten"**.
 
-Die jetzige iframe-Vorschau (Segoe UI, generisches HTML) wird durch eine native React-Komponente ersetzt, die sich am App-Design orientiert (shadcn Card, Tailwind, semantische Tokens, Primary-Akzent orange wie der Rest der App). Aufbau:
+Inhalt: Tabelle
+- Zeilen: alle Anwesenden mit `attendance_type = 'proxy'` (paper-Vollmacht-Halter + per-App-Bevollmächtigte ohne eigene Weisung).
+- Spalten: alle TOPs mit `requires_resolution = true`.
+- Zelle: 3 kompakte Toggle-Buttons **Ja / Nein / Enth.** + Reset-X.
+- Header pro TOP zeigt Kurztitel; bei langem Text Tooltip.
+- „Alle Ja / Alle Nein / Alle Enth." Quick-Aktion pro Zeile.
 
-```text
-┌─────────────────────────────────────────────────────┐
-│  Protokoll der Eigentümerversammlung                │  ← H1, Primary-Akzent, Border-Bottom
-│  WEG Achweg 3-5 · Memmingen                         │  ← Muted
-├─────────────────────────────────────────────────────┤
-│  ┌─ Eckdaten ──────────────────────────────┐        │
-│  │ Datum         04.06.2026                │        │  ← Definition-List
-│  │ Beginn / Ende 15:00 / 18:30 Uhr         │        │
-│  │ Ort           Vereinsheim Memmingen     │        │
-│  │ Leitung       Andreas Göttinger         │        │
-│  │ Protokoll     Max Mustermann            │        │
-│  └─────────────────────────────────────────┘        │
-│                                                     │
-│  Anwesenheit                                        │
-│  Von insgesamt 1.000,000 Tausendstel waren …        │
-│                                                     │
-│  ─────────────────────────────────────────          │
-│  TOP 1 · Verwalterwechsel                           │  ← H2, klein orange Pill mit "TOP 1"
-│  [Beschreibung / Fließtext]                         │
-│  ┌─ Beschluss ─────────────────────────────┐        │
-│  │ Die Eigentümer beschließen …            │        │
-│  │ ──────────────────                      │        │
-│  │ Abstimmung: nach MEA                    │        │
-│  │ Ja 146,000 · Nein 0,000 · Enth. 0,000   │        │  ← Tabular, monospace Zahlen
-│  │ ✓ Angenommen                            │        │  ← grünes Badge bei passed, rot bei failed
-│  └─────────────────────────────────────────┘        │
-│  Notizen: …                                         │  ← nur wenn vorhanden, kursiv muted
-│                                                     │
-│  TOP 2 · …                                          │
-│  …                                                  │
-│                                                     │
-│  Die Versammlung wurde um 18:30 Uhr geschlossen.    │
-│                                                     │
-│  ─────────────────────────────────────────          │
-│  Unterschriften                                     │
-│  ┌──────────────┬──────────────┬──────────────┐     │
-│  │ Eigentümer   │ Vers.-leiter │ Protokollf.  │     │  ← REAL SignaturePads, eingebettet
-│  │ [Pad 120px]  │ [Pad 120px]  │ [Pad 120px]  │     │     im Vorschau-Bereich (nicht
-│  │ Name: ____   │ Name: ____   │ Name: ____   │     │     mehr als separate Karte)
-│  └──────────────┴──────────────┴──────────────┘     │
-└─────────────────────────────────────────────────────┘
-```
+Speichert direkt `etv_attendees.pre_vote_instructions` (merge per assignment) — kein Vote-Insert hier. Toast „Weisung gespeichert".
 
-Datenbasis: alles aus `meeting`, `agendaItems`, `attendees` (die Queries existieren bereits) — kein Rückgriff mehr auf den unformatierten `protocol_text`-Blob für die Anzeige. Das KI-generierte `protocol_text` bleibt aber als optionale Einleitung/Fallback erhalten (wenn man es z. B. als Intro-Absatz zeigt).
+### 2. Auto-Cast in `MeetingLiveSession.tsx`
+In `startVotingMutation` nach dem Status-Update: `pre_vote_instructions[itemId]` aller `proxy`-Attendees als `etv_votes`-Upsert eintragen (`mea_weight` aus Attendee-Shares, `is_manual_override: false`). Toast zeigt: „X Vorab-Weisungen übernommen".
 
-### 2. Unterschriften direkt in den Vorschau-Bereich
+### 3. Visueller Hinweis im Live-Voting
+Pro Attendee-Zeile in der Abstimmungsmaske kleiner Badge **„Weisung: Ja"** (grün/rot/grau), wenn `pre_vote_instructions[itemId]` gesetzt ist, damit der Admin sieht, was vorbelegt war.
 
-`ProtocolSignaturesInline` wird in den Protokoll-Container am Ende eingerückt (keine separate Karte mehr, kein extra Header). Die alten gezeichneten Striche „___ Versammlungsleiter / Protokollführer" in der iframe-HTML entfallen komplett (sie waren ja gerade die störenden Striche aus dem Screenshot).
-
-### 3. Vollbild-Modus
-
-Gleiche React-Vorschau, nur in einem `Dialog` mit `max-w-5xl` und `h-[95dvh]` und schmalerem horizontalem Padding. Renderfunktion ist eine reine Komponente, daher problemlos wiederverwendbar.
-
-### 4. Fix Download-Buttons (PDF/DOCX)
-
-`ProtocolDownloadButtons.tsx`: statt `window.open()` nach Mutation jetzt:
-
-```ts
-const res = await fetch(signed_url);
-const blob = await res.blob();
-const url = URL.createObjectURL(blob);
-const a = document.createElement("a");
-a.href = url;
-a.download = `${baseName}.${ext}`;
-document.body.appendChild(a);
-a.click();
-a.remove();
-URL.revokeObjectURL(url);
-```
-
-Das löst zuverlässig den Datei-Download aus, ohne Popup-Blocker. Toast „PDF / DOCX heruntergeladen" als Bestätigung.
+## Nicht im Scope
+- Bestehender Vote-Logik / Mehrheits-Berechnung (gerade gefixt) bleibt unverändert.
+- Owner-Portal-Weisungen bleiben unverändert.
+- Keine Schema-Änderungen nötig (`pre_vote_instructions` existiert bereits).
 
 ## Dateien
-
-- **Neu** `src/components/meetings/ProtocolReadableView.tsx` — die strukturierte RGI-Design-Vorschau-Komponente (Eckdaten, Anwesenheit, TOPs mit Beschluss-Cards, Schlusssatz, eingebettete Unterschriften am Fuß)
-- **Edit** `src/components/meetings/MeetingProtocol.tsx` — iframe + alte HTML-Generierung raus, `ProtocolReadableView` rein (sowohl inline als auch im Vollbild-Dialog); `ProtocolSignaturesInline` wird *in* die Readable-View gerendert, nicht mehr als separate Sektion
-- **Edit** `src/components/meetings/ProtocolDownloadButtons.tsx` — Blob-Download statt `window.open`
-- **Löschen** `generateProtocolHtml()` in `MeetingProtocol.tsx` (nicht mehr nötig)
-
-## Nicht Teil dieses Plans
-
-- Backend / Edge Function bleibt unangetastet (funktioniert bereits)
-- Word-Vorlage und docxtemplater-Render-Pipeline unverändert (die ist für den Final-Output ohnehin separat)
-- KI-Protokoll-Generierung unverändert
+- **Neu:** `src/components/meetings/ProxyInstructionsMatrix.tsx`
+- **Edit:** `src/components/meetings/MeetingLiveSession.tsx` (Button + Sheet-Mount + Auto-Cast in startVotingMutation + Weisungs-Badge)
