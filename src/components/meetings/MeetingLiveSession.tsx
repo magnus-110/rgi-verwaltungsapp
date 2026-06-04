@@ -494,15 +494,25 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       const noVotes = votes.filter((v: any) => v.vote === "no");
       const abstainVotes = votes.filter((v: any) => v.vote === "abstain");
       const item = agendaItems.find((i) => i.id === itemId);
+      const sumMea = (arr: any[]) => arr.reduce((s: number, v: any) => s + (Number(v.mea_weight) || 0), 0);
+      const meaYes = sumMea(yesVotes);
+      const meaNo = sumMea(noVotes);
+      const meaAbstain = sumMea(abstainVotes);
+      const totalMea = meaYes + meaNo + meaAbstain;
 
       const result = computeResult(item?.voting_principle || "mea", votes, item);
 
       const { error } = await supabase.from("etv_agenda_items").update({
-        status: "closed", result, yes_count: yesVotes.length, no_count: noVotes.length,
-        abstain_count: abstainVotes.length, total_mea_voted: votes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0),
-      }).eq("id", itemId);
+        status: "closed", result,
+        yes_count: yesVotes.length, no_count: noVotes.length, abstain_count: abstainVotes.length,
+        total_mea_voted: totalMea,
+        total_mea_yes: meaYes, total_mea_no: meaNo, total_mea_abstain: meaAbstain,
+      } as any).eq("id", itemId);
       if (error) throw error;
-      return { ...item, result, yes_count: yesVotes.length, no_count: noVotes.length, abstain_count: abstainVotes.length } as AgendaItem;
+      return { ...item, result,
+        yes_count: yesVotes.length, no_count: noVotes.length, abstain_count: abstainVotes.length,
+        total_mea_yes: meaYes, total_mea_no: meaNo, total_mea_abstain: meaAbstain,
+      } as AgendaItem;
     },
     onSuccess: (resultItem) => {
       // Keep activeVoteItem set so the vote grid stays visible with the final state.
