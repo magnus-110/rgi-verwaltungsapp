@@ -428,6 +428,8 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
 
   const castVoteMutation = useMutation({
     mutationFn: async ({ itemId, assignmentId, vote, meaWeight, sqmWeight }: { itemId: string; assignmentId: string; vote: string; meaWeight: number; sqmWeight?: number }) => {
+      // Mark as handled so auto-cast does not overwrite this manual choice
+      autoCastAttempted.current.add(`${itemId}:${assignmentId}`);
       const { error } = await supabase.from("etv_votes").upsert({
         agenda_item_id: itemId, assignment_id: assignmentId, vote, mea_weight: meaWeight,
         sqm_weight: sqmWeight || 0,
@@ -456,6 +458,8 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
 
   const resetVoteMutation = useMutation({
     mutationFn: async ({ itemId, assignmentId }: { itemId: string; assignmentId: string }) => {
+      // Mark as handled so auto-cast does not restore the deleted vote from a paper instruction
+      autoCastAttempted.current.add(`${itemId}:${assignmentId}`);
       const { error } = await supabase.from("etv_votes")
         .delete()
         .eq("agenda_item_id", itemId)
@@ -476,24 +480,33 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
 
   const endVotingMutation = useMutation({
     mutationFn: async (itemId: string) => {
-      const yesVotes = currentVotes.filter((v: any) => v.vote === "yes");
-      const noVotes = currentVotes.filter((v: any) => v.vote === "no");
-      const abstainVotes = currentVotes.filter((v: any) => v.vote === "abstain");
+      // Re-fetch votes from DB to avoid using stale closure state
+      const { data: freshVotes, error: fetchErr } = await supabase
+        .from("etv_votes")
+        .select("*")
+        .eq("agenda_item_id", itemId);
+      if (fetchErr) throw fetchErr;
+      const votes = freshVotes || [];
+      const yesVotes = votes.filter((v: any) => v.vote === "yes");
+      const noVotes = votes.filter((v: any) => v.vote === "no");
+      const abstainVotes = votes.filter((v: any) => v.vote === "abstain");
       const item = agendaItems.find((i) => i.id === itemId);
-      
-      const result = computeResult(item?.voting_principle || "mea", currentVotes, item);
+
+      const result = computeResult(item?.voting_principle || "mea", votes, item);
 
       const { error } = await supabase.from("etv_agenda_items").update({
         status: "closed", result, yes_count: yesVotes.length, no_count: noVotes.length,
-        abstain_count: abstainVotes.length, total_mea_voted: currentVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0),
+        abstain_count: abstainVotes.length, total_mea_voted: votes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0),
       }).eq("id", itemId);
       if (error) throw error;
       return { ...item, result, yes_count: yesVotes.length, no_count: noVotes.length, abstain_count: abstainVotes.length } as AgendaItem;
     },
     onSuccess: (resultItem) => {
-      setActiveVoteItem(null);
+      // Keep activeVoteItem set so the vote grid stays visible with the final state.
+      // It will be cleared when the user opens another TOP or closes the dialog.
       setResultDialog(resultItem);
       queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
+      queryClient.invalidateQueries({ queryKey: ["etv-votes-live", resultItem.id] });
     },
   });
 
