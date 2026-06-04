@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
       const xml = z.file("word/document.xml")!.asText();
       const stripped = xml.replace(/<[^>]+>/g, "");
       const placeholders = Array.from(new Set([...stripped.matchAll(/\{([^{}]+)\}/g)].map(m => m[1])));
-      return json({ placeholders, text: stripped.slice(0, 4000) });
+      return json({ placeholders, raw_xml: xml.slice(0, 6000) });
     }
 
     // Vorlage laden (gewählt oder Standard)
