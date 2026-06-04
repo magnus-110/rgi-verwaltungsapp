@@ -21,11 +21,6 @@ serve(async (req) => {
     }
 
     const mistralApiKey = Deno.env.get('MISTRAL_API_KEY');
-    if (!mistralApiKey) {
-      return new Response(JSON.stringify({ error: 'Mistral API key not configured' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || 'https://eebphowrbarzawwixqcc.supabase.co';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -94,7 +89,7 @@ serve(async (req) => {
     const getMea = (a: any) => {
       const shares = a.contact_building_assignments?.contact_building_shares || [];
       const mea = shares.find((s: any) => s.share_type === 'mea');
-      return mea?.share_value || 0;
+      return Number(mea?.share_value || 0);
     };
 
     const totalMea = (attendees || []).reduce((s: number, a: any) => s + getMea(a), 0);
@@ -170,31 +165,77 @@ ANFORDERUNGEN AN DAS PROTOKOLL:
 
 Schreibe NUR den Protokolltext. Kein Markdown. Nutze Absätze und Leerzeilen zur Gliederung.`;
 
-    // Call Mistral
-    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${mistralApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'mistral-medium-3-5',
-        messages: [
-          { role: 'system', content: 'Du bist ein erfahrener Protokollführer für WEG-Eigentümerversammlungen. Du erstellst rechtssichere, formelle Niederschriften nach deutschem WEG-Recht.' },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.3,
-        max_tokens: 4000,
-      }),
-    });
+    const localProtocolText = `Niederschrift über die Eigentümerversammlung der WEG ${building?.name || ''}
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Mistral API error: ${response.status} - ${errText}`);
+Datum/Uhrzeit: ${meetingDate}
+Ort: ${meeting.location || 'Nicht angegeben'}
+Versammlungsleitung: ${meeting.meeting_chair || building?.manager_name || 'Nicht angegeben'}
+Protokollführung: ${meeting.minutes_taker || 'Nicht angegeben'}
+
+Die Beschlussfähigkeit wurde festgestellt. Anwesend oder vertreten waren ${present.length + proxied.length} stimmberechtigte Eigentümer mit ${presentMea.toFixed(4)} von insgesamt ${totalMea.toFixed(4)} MEA.
+
+Anwesenheit:
+Persönlich anwesend:
+${presentList || 'Keine'}
+
+Per Vollmacht vertreten:
+${proxiedList || 'Keine'}
+
+Abwesend:
+${absentList || 'Keine'}
+
+Tagesordnung und Beschlüsse:
+
+${agendaSummary}
+
+Die Versammlung wurde geschlossen.
+
+Unterschriften:
+
+______________________________
+Versammlungsleitung
+
+______________________________
+Protokollführung`;
+
+    let protocolText = localProtocolText;
+
+    if (mistralApiKey) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+        const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Authorization': `Bearer ${mistralApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'mistral-medium-3-5',
+            messages: [
+              { role: 'system', content: 'Du bist ein erfahrener Protokollführer für WEG-Eigentümerversammlungen. Du erstellst rechtssichere, formelle Niederschriften nach deutschem WEG-Recht.' },
+              { role: 'user', content: prompt },
+            ],
+            temperature: 0.3,
+            max_tokens: 2500,
+          }),
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const result = await response.json();
+          const aiText = result.choices?.[0]?.message?.content?.trim();
+          if (aiText) protocolText = aiText;
+        } else {
+          console.warn('Mistral unavailable, using local protocol fallback:', response.status, await response.text());
+        }
+      } catch (aiErr) {
+        console.warn('Mistral timeout/error, using local protocol fallback:', aiErr);
+      }
+    } else {
+      console.warn('MISTRAL_API_KEY missing, using local protocol fallback');
     }
-
-    const result = await response.json();
-    const protocolText = result.choices?.[0]?.message?.content || '';
 
     // Save to meeting
     const { error: updateErr } = await supabase
