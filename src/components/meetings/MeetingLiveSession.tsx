@@ -164,7 +164,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     },
   });
 
-  // Load votes for active item
+  // Load votes for active item (realtime keeps it fresh — no polling needed)
   const { data: currentVotes = [] } = useQuery({
     queryKey: ["etv-votes-live", activeVoteItem],
     queryFn: async () => {
@@ -177,7 +177,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       return data || [];
     },
     enabled: !!activeVoteItem,
-    refetchInterval: activeVoteItem ? 2000 : false,
+    staleTime: 30_000,
   });
 
   // Realtime votes
@@ -249,20 +249,24 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   };
 
   // Compute result for a given voting principle
+  // Einfache Mehrheit: Ja > Nein (Enthaltungen zählen NICHT als Nein-Stimmen)
   const computeResult = (principle: string, votes: any[], item?: AgendaItem) => {
     const yesVotes = votes.filter((v: any) => v.vote === "yes");
     const noVotes = votes.filter((v: any) => v.vote === "no");
 
     if (principle === "mea") {
       const yesMea = yesVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
-      const totalVotedMea = votes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
-      return totalVotedMea > 0 && yesMea > totalVotedMea / 2 ? "passed" : "failed";
+      const noMea = noVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
+      if (yesMea === 0 && noMea === 0) return "failed";
+      return yesMea > noMea ? "passed" : "failed";
     } else if (principle === "headcount") {
+      if (yesVotes.length === 0 && noVotes.length === 0) return "failed";
       return yesVotes.length > noVotes.length ? "passed" : "failed";
     } else if (principle === "sqm") {
       const yesSqm = yesVotes.reduce((s: number, v: any) => s + (v.sqm_weight || 0), 0);
-      const totalVotedSqm = votes.reduce((s: number, v: any) => s + (v.sqm_weight || 0), 0);
-      return totalVotedSqm > 0 && yesSqm > totalVotedSqm / 2 ? "passed" : "failed";
+      const noSqm = noVotes.reduce((s: number, v: any) => s + (v.sqm_weight || 0), 0);
+      if (yesSqm === 0 && noSqm === 0) return "failed";
+      return yesSqm > noSqm ? "passed" : "failed";
     }
     return "failed";
   };
@@ -339,7 +343,23 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       } as any, { onConflict: "agenda_item_id,assignment_id" });
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["etv-votes-live", activeVoteItem] }),
+    onMutate: async ({ itemId, assignmentId, vote, meaWeight, sqmWeight }) => {
+      const key = ["etv-votes-live", itemId];
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<any[]>(key) || [];
+      const next = previous.filter((v: any) => v.assignment_id !== assignmentId);
+      next.push({
+        agenda_item_id: itemId, assignment_id: assignmentId, vote,
+        mea_weight: meaWeight, sqm_weight: sqmWeight || 0,
+        is_manual_override: true, voted_at: new Date().toISOString(),
+      });
+      queryClient.setQueryData(key, next);
+      return { previous, key };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
+    },
+    // Realtime channel keeps cache in sync — no manual invalidate needed
   });
 
   const resetVoteMutation = useMutation({
@@ -350,7 +370,16 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
         .eq("assignment_id", assignmentId);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["etv-votes-live", activeVoteItem] }),
+    onMutate: async ({ itemId, assignmentId }) => {
+      const key = ["etv-votes-live", itemId];
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<any[]>(key) || [];
+      queryClient.setQueryData(key, previous.filter((v: any) => v.assignment_id !== assignmentId));
+      return { previous, key };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
+    },
   });
 
   const endVotingMutation = useMutation({
