@@ -333,7 +333,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
         (a: any) => a.pre_vote_instructions && a.pre_vote_instructions[itemId]
       );
       let cast = 0;
-      for (const att of proxyAttendees) {
+      for (const att of preVotedAttendees) {
         const vote = (att.pre_vote_instructions as any)[itemId];
         if (!["yes", "no", "abstain"].includes(vote)) continue;
         const meaW = getMeaWeight(att);
