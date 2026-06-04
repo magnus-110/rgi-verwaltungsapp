@@ -921,7 +921,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                                 );
                               })()}
                               {s.file_path ? (
-                                <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => openStatementPdf(s.file_path, s.file_name)}>
+                                <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => openPdfInNewTab(s.file_path, s.file_name)}>
                                   <ExternalLink className="h-3 w-3 mr-1" />Öffnen
                                 </Button>
                               ) : (
