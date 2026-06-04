@@ -92,7 +92,7 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
       Object.entries(instructions).forEach(([k, v]) => {
         if (v === "yes" || v === "no" || v === "abstain") clean[k] = v;
       });
-      const att = proxyAttendees.find((a) => a.assignment_id === assignmentId);
+      const att = rowAttendees.find((a) => a.assignment_id === assignmentId);
       if (!att) throw new Error("Anwesender nicht gefunden");
       const { error } = await supabase
         .from("etv_attendees")
@@ -172,7 +172,7 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
         </SheetHeader>
 
         <div className="mt-4">
-          {proxyAttendees.length === 0 ? (
+          {rowAttendees.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">
               Keine Vollmachten erfasst. Trage zuerst Vollmachten in der Anwesenheitsliste ein.
             </div>
@@ -210,7 +210,7 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
                     </tr>
                   </thead>
                   <tbody>
-                    {proxyAttendees.map((a) => {
+                    {rowAttendees.map((a) => {
                       const cba = a.contact_building_assignments;
                       const contact = cba?.contacts;
                       const row = draft[a.assignment_id] || {};
