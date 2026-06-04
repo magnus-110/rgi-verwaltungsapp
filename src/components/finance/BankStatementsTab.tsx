@@ -209,7 +209,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
       if (!selectedBuilding) return [];
       const { data, error } = await supabase
         .from("invoices")
-        .select("id, invoice_number, vendor_name, gross_amount, vendor_iban, invoice_date, status")
+        .select("id, invoice_number, vendor_name, gross_amount, vendor_iban, invoice_date, status, file_path")
         .eq("building_id", selectedBuilding)
         .order("invoice_date", { ascending: false })
         .limit(200);
