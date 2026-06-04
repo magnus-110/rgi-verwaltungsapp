@@ -328,9 +328,9 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       const { error } = await supabase.from("etv_agenda_items").update({ status: "voting" }).eq("id", itemId);
       if (error) throw error;
 
-      // Auto-Cast: weisungsgebundene Vorab-Stimmen aus Vollmachten übernehmen
-      const proxyAttendees = attendees.filter(
-        (a: any) => a.attendance_type === "proxy" && a.pre_vote_instructions && a.pre_vote_instructions[itemId]
+      // Auto-Cast: Vorab-Stimmen (Papier-Weisungen + Admin-Vorauswahl) übernehmen
+      const preVotedAttendees = attendees.filter(
+        (a: any) => a.pre_vote_instructions && a.pre_vote_instructions[itemId]
       );
       let cast = 0;
       for (const att of proxyAttendees) {
