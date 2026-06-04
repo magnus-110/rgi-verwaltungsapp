@@ -239,7 +239,7 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
   };
 
   const updateEntry = async (id: string, patch: Record<string, any>) => {
-    const { error } = await supabase.from("fuel_inventory").update(patch).eq("id", id);
+    const { error } = await supabase.from("fuel_inventory").update(patch as any).eq("id", id);
     if (error) { toast.error("Speichern fehlgeschlagen: " + error.message); return; }
     queryClient.invalidateQueries({ queryKey: ["fuel-inventory"] });
   };
