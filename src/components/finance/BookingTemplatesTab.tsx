@@ -99,7 +99,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const openInvoicePreview = async (invoiceId: string) => {
     const { data: inv, error } = await supabase
       .from("invoices")
-      .select("file_path, invoice_number, vendor_name")
+      .select("file_path")
       .eq("id", invoiceId)
       .single();
     if (error || !inv?.file_path) {
@@ -111,8 +111,8 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
       toast.error("Datei konnte nicht geladen werden");
       return;
     }
-    setPreviewPdfName(`${inv.invoice_number || "Rechnung"} – ${inv.vendor_name || ""}`);
-    setPreviewPdfUrl(signed.signedUrl);
+    const win = window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
+    if (!win) toast.error("Bitte Pop-ups erlauben, um die Datei zu öffnen");
   };
 
   const filterBuildingId = sharedBuildingId || internalFilterBuildingId;
