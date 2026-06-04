@@ -49,11 +49,21 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
 
-  // Only proxy-attendees (paper or app) are relevant for pre-instructions
-  const proxyAttendees = useMemo(
-    () => attendees.filter((a) => a.attendance_type === "proxy"),
-    [attendees]
-  );
+  // Show ALL attendees (owners) - admin can pre-fill votes for anyone
+  // Sort: proxies first, then present, then others; alphabetical within group
+  const rowAttendees = useMemo(() => {
+    const rank = (a: AttendeeLite) =>
+      a.attendance_type === "proxy" ? 0 : a.attendance_type === "present" ? 1 : 2;
+    return [...attendees]
+      .filter((a) => !!a.assignment_id)
+      .sort((a, b) => {
+        const r = rank(a) - rank(b);
+        if (r !== 0) return r;
+        const an = getContactName(a.contact_building_assignments?.contacts);
+        const bn = getContactName(b.contact_building_assignments?.contacts);
+        return an.localeCompare(bn);
+      });
+  }, [attendees]);
 
   const votableTops = useMemo(
     () =>
@@ -69,11 +79,11 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
   useEffect(() => {
     if (!open) return;
     const initial: Record<string, Record<string, Vote | null>> = {};
-    proxyAttendees.forEach((a) => {
+    rowAttendees.forEach((a) => {
       initial[a.assignment_id] = { ...(a.pre_vote_instructions || {}) };
     });
     setDraft(initial);
-  }, [open, proxyAttendees]);
+  }, [open, rowAttendees]);
 
   const saveMutation = useMutation({
     mutationFn: async ({ assignmentId, instructions }: { assignmentId: string; instructions: Record<string, Vote | null> }) => {
