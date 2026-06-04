@@ -100,9 +100,27 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { meeting_id, template_id, output_format = "pdf" } = await req.json();
-    if (!meeting_id) return json({ error: "meeting_id erforderlich" }, 400);
+    const { meeting_id, template_id, output_format = "pdf", inspect = false } = await req.json();
+    if (!inspect && !meeting_id) return json({ error: "meeting_id erforderlich" }, 400);
     if (!["docx", "pdf"].includes(output_format)) return json({ error: "output_format docx|pdf" }, 400);
+
+    if (inspect) {
+      let tpl2: any = null;
+      if (template_id) {
+        const { data } = await admin.from("etv_protocol_templates").select("*").eq("id", template_id).maybeSingle();
+        tpl2 = data;
+      }
+      if (!tpl2) {
+        const { data } = await admin.from("etv_protocol_templates").select("*").eq("is_default", true).maybeSingle();
+        tpl2 = data;
+      }
+      const { data: f } = await admin.storage.from("building-files").download(tpl2.storage_path);
+      const z = new PizZip(new Uint8Array(await f!.arrayBuffer()));
+      const xml = z.file("word/document.xml")!.asText();
+      const stripped = xml.replace(/<[^>]+>/g, "");
+      const placeholders = Array.from(new Set([...stripped.matchAll(/\{([^{}]+)\}/g)].map(m => m[1])));
+      return json({ placeholders, raw_xml: xml.slice(0, 6000) });
+    }
 
     // Vorlage laden (gewählt oder Standard)
     let tpl: any = null;
@@ -270,6 +288,21 @@ Deno.serve(async (req) => {
     const { data: tplFile, error: tErr } = await admin.storage.from("building-files").download(tpl.storage_path);
     if (tErr || !tplFile) return json({ error: tErr?.message || "Vorlage nicht ladbar" }, 500);
 
+    // Flatten payload to support both nested and dotted keys (docxtemplater nested resolution unreliable on Deno)
+    const flatPayload: Record<string, any> = { ...payload };
+    const flatten = (obj: any, prefix = "") => {
+      for (const k of Object.keys(obj || {})) {
+        const v = obj[k];
+        const key = prefix ? `${prefix}.${k}` : k;
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+          flatten(v, key);
+        } else {
+          flatPayload[key] = v;
+        }
+      }
+    };
+    flatten(payload);
+
     const zip = new PizZip(new Uint8Array(await tplFile.arrayBuffer()));
     const doc = new Docxtemplater(zip, {
       paragraphLoop: true,
@@ -277,7 +310,7 @@ Deno.serve(async (req) => {
       delimiters: { start: "{", end: "}" },
       nullGetter: () => "",
     });
-    doc.render(payload);
+    doc.render(flatPayload);
     const docxBytes = doc.getZip().generate({ type: "uint8array" });
 
     const baseName = `Protokoll_${sanitize(building?.name || "ETV")}_${sanitize(meetingDateStr)}`;
