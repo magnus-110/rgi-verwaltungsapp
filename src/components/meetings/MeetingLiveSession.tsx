@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Play, Square, CheckCircle2, XCircle, Users, BarChart3, UserCheck, UserX,
-  ArrowLeft, ArrowRight, ChevronRight, ChevronLeft, Save, Shield, Copy, Lock, AlertTriangle,
+  ArrowLeft, ArrowRight, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Save, Shield, Copy, Lock, AlertTriangle,
   RefreshCw, StickyNote, FileText, Plus, Gavel, ArrowUp, ArrowDown
 } from "lucide-react";
 import { AgendaItemEmailsSection } from "./AgendaItemEmailsSection";
@@ -73,6 +73,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   const [proceduralResolution, setProceduralResolution] = useState("");
   const [proceduralPrinciple, setProceduralPrinciple] = useState("headcount");
   const [isSecretBallot, setIsSecretBallot] = useState(true);
+  const [isAttendanceCollapsed, setIsAttendanceCollapsed] = useState(true);
 
   // Load meeting for is_secret_ballot
   const { data: meetingData } = useQuery({
@@ -1137,58 +1138,70 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
         {/* Attendance Section */}
         <div className="px-5 py-3">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-foreground">Anwesenheit</h3>
-            {attendees.length === 0 && owners.length > 0 && (
-              <Button onClick={() => initMutation.mutate()} disabled={initMutation.isPending} size="sm" variant="outline" className="gap-1.5 h-7 text-xs">
-                <RefreshCw className={`h-3 w-3 ${initMutation.isPending ? "animate-spin" : ""}`} />
-                Eigentümer laden
-              </Button>
-            )}
-          </div>
-
-          {attendees.length === 0 && owners.length === 0 && (
-            <div className="py-6 text-center text-muted-foreground">
-              <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
-              <p className="text-sm">Keine Eigentümer gefunden. Bitte unter Adressen anlegen.</p>
+            <button
+              onClick={() => setIsAttendanceCollapsed(!isAttendanceCollapsed)}
+              className="flex items-center gap-1.5 text-sm font-semibold text-foreground hover:text-primary transition-colors"
+            >
+              {isAttendanceCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              Anwesenheit
+            </button>
+            <div className="flex items-center gap-2">
+              {attendees.length === 0 && owners.length > 0 && (
+                <Button onClick={() => initMutation.mutate()} disabled={initMutation.isPending} size="sm" variant="outline" className="gap-1.5 h-7 text-xs">
+                  <RefreshCw className={`h-3 w-3 ${initMutation.isPending ? "animate-spin" : ""}`} />
+                  Eigentümer laden
+                </Button>
+              )}
             </div>
-          )}
-
-          <div className="space-y-1">
-            {attendees.map((a: any) => {
-              const cba = a.contact_building_assignments;
-              const contact = cba?.contacts;
-              const borderColor = a.attendance_type === "present"
-                ? "border-l-green-500"
-                : a.attendance_type === "proxy"
-                ? "border-l-blue-500"
-                : "border-l-muted-foreground/30";
-              return (
-                <div
-                  key={a.id}
-                  className={`flex items-center justify-between py-2 px-3 rounded-md border-l-[3px] ${borderColor} hover:bg-muted/30 transition-colors`}
-                >
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="text-sm font-medium truncate">{getContactName(contact)}</span>
-                    {cba?.unit_number && <Badge variant="outline" className="text-[10px] shrink-0 px-1.5 py-0">{cba.unit_number}</Badge>}
-                    {a.proxy_type && (
-                      <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-[10px] shrink-0">
-                        v.d. {a.proxy_type === "manager" ? "Verwalter" : a.proxy_type === "owner" ? (() => {
-                          const proxyContact = allContacts.find((c: any) => c.contacts.id === a.proxy_contact_id);
-                          return proxyContact ? getContactName(proxyContact.contacts) : "Eigentümer";
-                        })() : (a.proxy_external_name || "Extern")}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Switch
-                      checked={a.attendance_type === "present" || (a.attendance_type === "proxy" && !!a.checked_in_at)}
-                      onCheckedChange={(checked) => checkInMutation.mutate({ id: a.id, present: checked })}
-                    />
-                  </div>
-                </div>
-              );
-            })}
           </div>
+
+          {!isAttendanceCollapsed && (
+            <>
+              {attendees.length === 0 && owners.length === 0 && (
+                <div className="py-6 text-center text-muted-foreground">
+                  <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
+                  <p className="text-sm">Keine Eigentümer gefunden. Bitte unter Adressen anlegen.</p>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                {attendees.map((a: any) => {
+                  const cba = a.contact_building_assignments;
+                  const contact = cba?.contacts;
+                  const borderColor = a.attendance_type === "present"
+                    ? "border-l-green-500"
+                    : a.attendance_type === "proxy"
+                    ? "border-l-blue-500"
+                    : "border-l-muted-foreground/30";
+                  return (
+                    <div
+                      key={a.id}
+                      className={`flex items-center justify-between py-2 px-3 rounded-md border-l-[3px] ${borderColor} hover:bg-muted/30 transition-colors`}
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-sm font-medium truncate">{getContactName(contact)}</span>
+                        {cba?.unit_number && <Badge variant="outline" className="text-[10px] shrink-0 px-1.5 py-0">{cba.unit_number}</Badge>}
+                        {a.proxy_type && (
+                          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-[10px] shrink-0">
+                            v.d. {a.proxy_type === "manager" ? "Verwalter" : a.proxy_type === "owner" ? (() => {
+                              const proxyContact = allContacts.find((c: any) => c.contacts.id === a.proxy_contact_id);
+                              return proxyContact ? getContactName(proxyContact.contacts) : "Eigentümer";
+                            })() : (a.proxy_external_name || "Extern")}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Switch
+                          checked={a.attendance_type === "present" || (a.attendance_type === "proxy" && !!a.checked_in_at)}
+                          onCheckedChange={(checked) => checkInMutation.mutate({ id: a.id, present: checked })}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
 
         <Separator />
