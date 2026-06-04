@@ -4410,7 +4410,10 @@ export type Database = {
           submitted_by_contact_id: string | null
           submitted_by_user_id: string | null
           title: string
+          total_mea_abstain: number
+          total_mea_no: number
           total_mea_voted: number | null
+          total_mea_yes: number
           voting_principle: string
           yes_count: number | null
         }
@@ -4434,7 +4437,10 @@ export type Database = {
           submitted_by_contact_id?: string | null
           submitted_by_user_id?: string | null
           title: string
+          total_mea_abstain?: number
+          total_mea_no?: number
           total_mea_voted?: number | null
+          total_mea_yes?: number
           voting_principle?: string
           yes_count?: number | null
         }
@@ -4458,7 +4464,10 @@ export type Database = {
           submitted_by_contact_id?: string | null
           submitted_by_user_id?: string | null
           title?: string
+          total_mea_abstain?: number
+          total_mea_no?: number
           total_mea_voted?: number | null
+          total_mea_yes?: number
           voting_principle?: string
           yes_count?: number | null
         }
