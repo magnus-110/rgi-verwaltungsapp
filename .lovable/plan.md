@@ -1,36 +1,30 @@
 ## Ziel
-Admin kann vor/während der Versammlung für **weisungsgebundene Papier-Vollmachten** die Stimmen pro Eigentümer und TOP vorbelegen. Beim Start der Abstimmung werden diese automatisch als reguläre Ja/Nein/Enthaltung-Stimme eingetragen — der Admin kann sie danach noch ändern.
+Stabiles Live-Voting: Weisungen werden zuverlässig 1× übernommen, manuelle Overrides bleiben bestehen, Reset wird nicht überschrieben, und nach „Beenden" sind alle Stimmen mit korrekten Counts gespeichert und sichtbar.
 
-## Was schon da ist
-- Spalte `etv_attendees.pre_vote_instructions` (jsonb, `{ "<agenda_item_id>": "yes|no|abstain" }`) existiert bereits.
-- `LiveVotingManager` castet diese beim Start automatisch — aber genutzt wird produktiv `MeetingLiveSession`, dort fehlt die Logik.
-- Bisher gibt es nur das Eigentümerportal, um Weisungen zu setzen — **keine Admin-UI**.
+## Änderungen in `src/components/meetings/MeetingLiveSession.tsx`
 
-## Änderungen
+### 1. Auto-Cast-Effekt entkoppeln
+- `useEffect` Dependencies auf `[activeVoteItem, attendees]` reduzieren – `currentVotes` raus.
+- Innen synchron einmalig `queryClient.getQueryData(["etv-votes-live", activeVoteItem])` lesen, um zu prüfen welche Assignments schon eine Stimme haben (statt aus React-State).
+- `autoCastAttempted` Ref durch eine **DB-getriebene Markierung** ersetzen: vor dem Upsert prüfen, ob bereits ein Vote (egal ob manual oder auto) existiert. Damit wird ein gelöschter Reset NICHT neu übergeschrieben, weil wir zusätzlich ein lokales `Set<itemId+assignmentId>` für „in dieser Session bereits behandelt" führen, das **nicht** beim `activeVoteItem`-Wechsel geleert wird (nur einmal pro Mount).
 
-### 1. Neue Admin-UI: „Weisungs-Matrix" (`ProxyInstructionsMatrix.tsx`)
-Aufruf als Button/Sheet aus `MeetingLiveSession` (oben im Abstimmungs-Bereich): **„Papier-Vollmachten vorbereiten"**.
+### 2. Reset respektiert Weisung
+- In `resetVoteMutation` nach erfolgreichem Delete den Key `${itemId}:${assignmentId}` in `autoCastAttempted` eintragen (oder in ein neues `manuallyClearedRef`), damit der Auto-Cast die Stimme NICHT erneut aus der Weisung wiederherstellt.
 
-Inhalt: Tabelle
-- Zeilen: alle Anwesenden mit `attendance_type = 'proxy'` (paper-Vollmacht-Halter + per-App-Bevollmächtigte ohne eigene Weisung).
-- Spalten: alle TOPs mit `requires_resolution = true`.
-- Zelle: 3 kompakte Toggle-Buttons **Ja / Nein / Enth.** + Reset-X.
-- Header pro TOP zeigt Kurztitel; bei langem Text Tooltip.
-- „Alle Ja / Alle Nein / Alle Enth." Quick-Aktion pro Zeile.
+### 3. Override stabil
+- `castVoteMutation` (manueller Ja/Nein/Enth.) trägt assignment ebenfalls in `autoCastAttempted` ein, damit kein Re-Run die Stimme zurück auf die Weisung schreibt, falls der Admin die Weisung nicht parallel ändert.
 
-Speichert direkt `etv_attendees.pre_vote_instructions` (merge per assignment) — kein Vote-Insert hier. Toast „Weisung gespeichert".
+### 4. „Beenden" korrigieren
+- `endVotingMutation.mutationFn`: **vor** der Berechnung frische Votes per `await supabase.from("etv_votes").select("*").eq("agenda_item_id", itemId)` holen, dann counts und Ergebnis daraus berechnen. Keine Closure-Variable mehr verwenden.
+- `onSuccess`: `activeVoteItem` NICHT sofort auf `null` setzen – erst nach dem Schließen des Result-Dialogs (oder Grid soll bei `status='closed'` weiterhin die Votes aus DB anzeigen). Konkret: Query `etv-votes-live` auch für `closed` Items aktiv halten, indem in Grid-Render-Code auf `selectedItem.status === 'voting' || selectedItem.status === 'closed'` geprüft wird.
 
-### 2. Auto-Cast in `MeetingLiveSession.tsx`
-In `startVotingMutation` nach dem Status-Update: `pre_vote_instructions[itemId]` aller `proxy`-Attendees als `etv_votes`-Upsert eintragen (`mea_weight` aus Attendee-Shares, `is_manual_override: false`). Toast zeigt: „X Vorab-Weisungen übernommen".
+### 5. Klarere Indikatoren (UI nur, optional)
+- Badges in der Stimmen-Tabelle: „aus Weisung" vs. „manuell" (Lesen aus `is_manual_override`).
 
-### 3. Visueller Hinweis im Live-Voting
-Pro Attendee-Zeile in der Abstimmungsmaske kleiner Badge **„Weisung: Ja"** (grün/rot/grau), wenn `pre_vote_instructions[itemId]` gesetzt ist, damit der Admin sieht, was vorbelegt war.
-
-## Nicht im Scope
-- Bestehender Vote-Logik / Mehrheits-Berechnung (gerade gefixt) bleibt unverändert.
-- Owner-Portal-Weisungen bleiben unverändert.
-- Keine Schema-Änderungen nötig (`pre_vote_instructions` existiert bereits).
-
-## Dateien
-- **Neu:** `src/components/meetings/ProxyInstructionsMatrix.tsx`
-- **Edit:** `src/components/meetings/MeetingLiveSession.tsx` (Button + Sheet-Mount + Auto-Cast in startVotingMutation + Weisungs-Badge)
+## Verifikation
+- Edge Function nicht betroffen, kein Migration nötig.
+- Manueller Test im Preview:
+  1. TOP A mit 2 Vorab-Weisungen starten → 2 Stimmen erscheinen, kein Doppel-Cast.
+  2. Manuell überschreiben → bleibt stehen, läuft nicht zurück.
+  3. Reset (↩) → Stimme bleibt gelöscht, wird nicht aus Weisung wiederhergestellt.
+  4. „Beenden" klicken → korrekte Counts gespeichert, Stimmen weiter sichtbar.
