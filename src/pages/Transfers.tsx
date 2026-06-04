@@ -474,7 +474,7 @@ export function Transfers() {
         )}
       </div>
 
-      {direction === "outgoing" && <InvoiceDropZone buildings={buildings} />}
+      {direction === "outgoing" && <InvoiceDropZone buildings={buildings} selectedBuildingId={buildingFilter === "all" ? "" : buildingFilter} />}
 
       {/* ───────── OUTGOING TABLE ───────── */}
       {direction === "outgoing" && (
