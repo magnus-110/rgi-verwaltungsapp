@@ -628,6 +628,20 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
     }
   };
 
+  const openPdfInNewTab = async (filePath: string | null, fileName?: string) => {
+    if (!filePath) {
+      toast.error("Originaldatei nicht verfügbar");
+      return;
+    }
+    const { data, error } = await supabase.storage.from("building-documents").createSignedUrl(filePath, 600);
+    if (error || !data?.signedUrl) {
+      toast.error("Datei konnte nicht geöffnet werden");
+      return;
+    }
+    const win = window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    if (!win) toast.error("Bitte Pop-ups erlauben, um die Datei zu öffnen");
+  };
+
   const renderTransactionRow = (txn: any) => {
     const config = MATCH_STATUS_CONFIG[txn.match_status] || MATCH_STATUS_CONFIG.unmatched;
     const Icon = config.icon;
