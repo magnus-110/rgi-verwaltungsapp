@@ -843,6 +843,20 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                                 })() : (a.proxy_external_name || "Ext.")}
                               </Badge>
                             )}
+                            {(() => {
+                              const instr = (a.pre_vote_instructions || {}) as Record<string, string>;
+                              const w = instr[selectedItem.id];
+                              if (!w) return null;
+                              const label = w === "yes" ? "Weisung: Ja" : w === "no" ? "Weisung: Nein" : "Weisung: Enth.";
+                              const cls = w === "yes"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                : w === "no"
+                                ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                                : "bg-muted text-muted-foreground";
+                              return (
+                                <Badge className={`${cls} text-[9px] shrink-0 px-1 py-0`}>{label}</Badge>
+                              );
+                            })()}
                           </div>
                           <div className="flex gap-1">
                             <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-green-600"
