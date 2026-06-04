@@ -624,8 +624,21 @@ export function AssignmentDialog({
                                     variant="ghost"
                                     size="sm"
                                     className="h-6 w-6 p-0 ml-auto shrink-0"
-                                    onClick={(e) => { e.stopPropagation(); setPreviewInvoiceId(item.id); }}
-                                    title="Rechnung anzeigen"
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      if (!item.file_path) {
+                                        toast.error("Originaldatei nicht verfügbar");
+                                        return;
+                                      }
+                                      const { data, error } = await supabase.storage.from("building-documents").createSignedUrl(item.file_path, 600);
+                                      if (error || !data?.signedUrl) {
+                                        toast.error("Datei konnte nicht geöffnet werden");
+                                        return;
+                                      }
+                                      const win = window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+                                      if (!win) toast.error("Bitte Pop-ups erlauben");
+                                    }}
+                                    title="Rechnung in neuem Tab öffnen"
                                   >
                                     <Eye className="h-3.5 w-3.5" />
                                   </Button>
