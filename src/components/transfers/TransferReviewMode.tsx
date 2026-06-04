@@ -557,6 +557,29 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
     }
   };
 
+  const handleConvertToIncoming = async () => {
+    const { error } = await supabase
+      .from("invoices")
+      .update({
+        invoice_type: "credit_note",
+        status: "credit_open",
+        paid_at: null,
+        review_status: null,
+      } as any)
+      .eq("id", invoice.id);
+    if (error) {
+      toast.error("Fehler bei der Umwandlung");
+      return;
+    }
+    toast.success("Als Zahlungseingang markiert");
+    onRefetch();
+    if (invoices.length <= 1) {
+      onClose();
+    } else if (index >= invoices.length - 1) {
+      setIndex(i => i - 1);
+    }
+  };
+
   const saveNotes = async () => {
     await supabase
       .from("invoices")
