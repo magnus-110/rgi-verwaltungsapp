@@ -298,6 +298,9 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
         </div>
       )}
 
+      {/* Word-Vorlagen-Rendering, Tablet-Signaturen & DMS-Ablage */}
+      {hasProtocol && <ProtocolRenderActions meetingId={meetingId} />}
+
       {/* Preview Dialog */}
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
         <DialogContent className="max-w-4xl h-[85dvh] flex flex-col overflow-hidden">
