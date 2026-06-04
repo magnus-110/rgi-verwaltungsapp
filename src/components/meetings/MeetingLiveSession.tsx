@@ -993,9 +993,16 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
               {(isVoted || isClosed) && (() => {
                 const isMea = selectedItem.voting_principle === "mea";
                 const fmt = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-                const yesVal = isMea ? fmt(Number(selectedItem.total_mea_yes || 0)) : selectedItem.yes_count;
-                const noVal = isMea ? fmt(Number(selectedItem.total_mea_no || 0)) : selectedItem.no_count;
-                const absVal = isMea ? fmt(Number(selectedItem.total_mea_abstain || 0)) : selectedItem.abstain_count;
+                // Live-Berechnung aus currentVotes (statt evtl. veraltetem gespeichertem Wert)
+                const liveMeaYes = currentVotes.filter((v: any) => v.vote === "yes").reduce((s: number, v: any) => s + (Number(v.mea_weight) || 0), 0);
+                const liveMeaNo = currentVotes.filter((v: any) => v.vote === "no").reduce((s: number, v: any) => s + (Number(v.mea_weight) || 0), 0);
+                const liveMeaAbs = currentVotes.filter((v: any) => v.vote === "abstain").reduce((s: number, v: any) => s + (Number(v.mea_weight) || 0), 0);
+                const meaYes = liveMeaYes || Number(selectedItem.total_mea_yes || 0);
+                const meaNo = liveMeaNo || Number(selectedItem.total_mea_no || 0);
+                const meaAbs = liveMeaAbs || Number(selectedItem.total_mea_abstain || 0);
+                const yesVal = isMea ? fmt(meaYes) : selectedItem.yes_count;
+                const noVal = isMea ? fmt(meaNo) : selectedItem.no_count;
+                const absVal = isMea ? fmt(meaAbs) : selectedItem.abstain_count;
                 const unitLbl = isMea ? "MEA" : "Köpfe";
                 return (
                 <div className="space-y-2">
