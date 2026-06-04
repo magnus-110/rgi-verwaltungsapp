@@ -293,8 +293,12 @@ Deno.serve(async (req) => {
       paragraphLoop: true,
       linebreaks: true,
       delimiters: { start: "{", end: "}" },
-      nullGetter: () => "",
+      nullGetter: (part: any) => {
+        console.log("NULL_GETTER", JSON.stringify({ value: part?.value, module: part?.module }));
+        return "";
+      },
     });
+    console.log("PAYLOAD_KEYS", Object.keys(payload), "weg.name=", payload.weg.name, "versammlung.datum=", payload.versammlung.datum);
     doc.render(payload);
     const docxBytes = doc.getZip().generate({ type: "uint8array" });
 
