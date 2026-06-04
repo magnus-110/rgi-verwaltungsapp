@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
     // Daten laden
     const { data: meeting, error: mErr } = await admin
       .from("etv_meetings")
-      .select("*, buildings(name, address)")
+      .select("*, buildings(name, address, manager_name, unit_count)")
       .eq("id", meeting_id)
       .single();
     if (mErr || !meeting) return json({ error: mErr?.message || "Versammlung nicht gefunden" }, 404);
@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
 
     const { data: attendees = [] } = await admin
       .from("etv_attendees")
-      .select(`*, contact_building_assignments!inner(contact_building_shares(share_type, share_value))`)
+      .select(`*, contact_building_assignments(unit_number, contacts(first_name, last_name, company_name), contact_building_shares(share_type, share_value))`)
       .eq("meeting_id", meeting_id);
 
     const getMea = (a: any) => {
@@ -137,11 +137,19 @@ Deno.serve(async (req) => {
       const mea = shares.find((s: any) => s.share_type === "mea");
       return Number(mea?.share_value || 0);
     };
+    const getName = (a: any) => {
+      const c = a.contact_building_assignments?.contacts;
+      if (!c) return "Unbekannt";
+      return c.company_name || [c.first_name, c.last_name].filter(Boolean).join(" ") || "Unbenannt";
+    };
+    const getUnit = (a: any) => a.contact_building_assignments?.unit_number || "";
 
     const present = attendees.filter((a: any) => a.attendance_type === "present");
     const proxied = attendees.filter((a: any) => a.attendance_type === "proxy");
+    const absent = attendees.filter((a: any) => a.attendance_type === "absent");
     const totalMea = attendees.reduce((s: number, a: any) => s + getMea(a), 0);
     const presentMea = [...present, ...proxied].reduce((s: number, a: any) => s + getMea(a), 0);
+    const anwesendProzent = totalMea > 0 ? ((presentMea / totalMea) * 100) : 0;
 
     // Anwesenheits-Satz (orientiert am echten RGI-Protokoll, "Tausendstel"-Sprache wenn ~1000)
     const meaUnit = totalMea > 950 && totalMea < 1050 ? "Tausendstel" : "MEA";
@@ -151,47 +159,109 @@ Deno.serve(async (req) => {
         ? ` Es waren alle ${meaUnit} anwesend.`
         : "");
 
+    // Stimmen pro TOP laden, um MEA-Summen zuverlässig (auch für Altdaten) zu berechnen
+    const itemIds = (agendaItems || []).map((it: any) => it.id);
+    let votesByItem: Record<string, any[]> = {};
+    if (itemIds.length) {
+      const { data: allVotes = [] } = await admin
+        .from("etv_votes")
+        .select("agenda_item_id, vote, mea_weight")
+        .in("agenda_item_id", itemIds);
+      for (const v of allVotes as any[]) {
+        (votesByItem[v.agenda_item_id] ||= []).push(v);
+      }
+    }
+
     // TOPs aufbereiten
     const tops = (agendaItems || []).map((it: any, idx: number) => {
-      const ja = Number(it.yes_count ?? 0);
-      const nein = Number(it.no_count ?? 0);
-      const enth = Number(it.abstain_count ?? 0);
+      const koepfeJa = Number(it.yes_count ?? 0);
+      const koepfeNein = Number(it.no_count ?? 0);
+      const koepfeEnth = Number(it.abstain_count ?? 0);
+      const itemVotes = votesByItem[it.id] || [];
+      const sumMea = (filter: string) => itemVotes
+        .filter((v: any) => v.vote === filter)
+        .reduce((s: number, v: any) => s + (Number(v.mea_weight) || 0), 0);
+      const meaJa = Number(it.total_mea_yes ?? sumMea("yes"));
+      const meaNein = Number(it.total_mea_no ?? sumMea("no"));
+      const meaEnth = Number(it.total_mea_abstain ?? sumMea("abstain"));
+      const meaGesamt = meaJa + meaNein + meaEnth;
+      const isMea = it.voting_principle === "mea";
+      // Primäre Ergebniswerte (MEA für mea-Prinzip, sonst Köpfe)
+      const ja = isMea ? fmtMea(meaJa) : String(koepfeJa);
+      const nein = isMea ? fmtMea(meaNein) : String(koepfeNein);
+      const enthaltung = isMea ? fmtMea(meaEnth) : String(koepfeEnth);
       const hatBeschluss = !!(it.resolution_text && it.resolution_text.trim().length > 0);
       const hatNotizen = !!(it.admin_notes && it.admin_notes.trim().length > 0);
       return {
         nummer: String(idx + 1),
         titel: it.title || "",
         text: it.description || "",
+        kategorie: it.category || "",
+        status: it.status || "",
         hat_beschluss: hatBeschluss,
         beschluss_text: it.resolution_text || "",
         abstimmung_methode: buildAbstimmungsMethode(it.voting_principle),
-        ja: fmtMea(ja),
-        nein: fmtMea(nein),
-        enthaltung: fmtMea(enth),
-        ergebnis_satz: buildErgebnisSatz(ja, nein, enth, it.result),
+        ja, nein, enthaltung,
+        ja_koepfe: String(koepfeJa),
+        nein_koepfe: String(koepfeNein),
+        enth_koepfe: String(koepfeEnth),
+        ja_mea: fmtMea(meaJa),
+        nein_mea: fmtMea(meaNein),
+        enth_mea: fmtMea(meaEnth),
+        gesamt_mea: fmtMea(meaGesamt),
+        ergebnis_satz: buildErgebnisSatz(koepfeJa, koepfeNein, koepfeEnth, it.result),
         hat_notizen: hatNotizen,
         notizen: it.admin_notes || "",
       };
     });
 
+    // Anwesenheits-Listen (Mehrzeiler)
+    const presentList = present.map((a: any) => `${getName(a)} (Einheit ${getUnit(a)}, ${fmtMea(getMea(a))} ${meaUnit})`).join("\n");
+    const proxiedList = proxied.map((a: any) => `${getName(a)} (Einheit ${getUnit(a)}, vertreten durch Vollmacht)`).join("\n");
+    const absentList = absent.map((a: any) => `${getName(a)} (Einheit ${getUnit(a)})`).join("\n");
+
     const building = meeting.buildings as any;
     const ortDatumStadt = (building?.address || "").split(",").pop()?.trim()?.replace(/^\d{4,5}\s*/, "") || "";
     const meetingDateStr = fmtDate(meeting.meeting_date);
+    const isQuorate = (present.length + proxied.length) >= 1;
 
     const payload = {
       weg: {
         name: building?.name || "",
+        adresse: building?.address || "",
+        verwalter: building?.manager_name || "",
+        anzahl_einheiten: String(building?.unit_count ?? ""),
+      },
+      gebaeude: {
+        name: building?.name || "",
+        adresse: building?.address || "",
       },
       versammlung: {
+        titel: meeting.title || "",
         datum: meetingDateStr,
         ort: meeting.location || "",
         beginn: fmtTime(meeting.meeting_date),
-        ende: "",
+        ende: meeting.ended_at ? fmtTime(meeting.ended_at) : "",
         leitung: meeting.meeting_chair || "",
         protokollfuehrer: meeting.minutes_taker || "",
         anwesenheit_text: anwesenheitText,
+        anzahl_anwesend: String(present.length),
+        anzahl_vertreten: String(proxied.length),
+        anzahl_abwesend: String(absent.length),
+        anzahl_stimmberechtigt: String(present.length + proxied.length),
+        gesamt_mea: fmtMea(totalMea),
+        anwesende_mea: fmtMea(presentMea),
+        anwesenheit_prozent: anwesendProzent.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+        beschlussfaehig: isQuorate ? "Ja" : "Nein",
+        beschlussfaehigkeit_satz: isQuorate
+          ? `Die Versammlung ist beschlussfähig (${present.length + proxied.length} Eigentümer mit ${fmtMea(presentMea)} ${meaUnit} von ${fmtMea(totalMea)} ${meaUnit}).`
+          : "Die Versammlung ist nicht beschlussfähig.",
+        anwesende_liste: presentList,
+        vertretene_liste: proxiedList,
+        abwesende_liste: absentList,
       },
       tops,
+      anzahl_tops: String(tops.length),
       schlusssatz: "Die Verwaltung bedankt sich bei den anwesenden Eigentümern für ihr Erscheinen und beendet die Versammlung.",
       ort_datum: ortDatumStadt ? `${ortDatumStadt}, ${meetingDateStr}` : meetingDateStr,
     };

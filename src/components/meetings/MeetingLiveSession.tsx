@@ -41,6 +41,9 @@ interface AgendaItem {
   no_count: number;
   abstain_count: number;
   total_mea_voted: number;
+  total_mea_yes?: number;
+  total_mea_no?: number;
+  total_mea_abstain?: number;
   admin_notes: string | null;
   category: string | null;
   requires_double_qualified: boolean;
@@ -491,15 +494,25 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       const noVotes = votes.filter((v: any) => v.vote === "no");
       const abstainVotes = votes.filter((v: any) => v.vote === "abstain");
       const item = agendaItems.find((i) => i.id === itemId);
+      const sumMea = (arr: any[]) => arr.reduce((s: number, v: any) => s + (Number(v.mea_weight) || 0), 0);
+      const meaYes = sumMea(yesVotes);
+      const meaNo = sumMea(noVotes);
+      const meaAbstain = sumMea(abstainVotes);
+      const totalMea = meaYes + meaNo + meaAbstain;
 
       const result = computeResult(item?.voting_principle || "mea", votes, item);
 
       const { error } = await supabase.from("etv_agenda_items").update({
-        status: "closed", result, yes_count: yesVotes.length, no_count: noVotes.length,
-        abstain_count: abstainVotes.length, total_mea_voted: votes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0),
-      }).eq("id", itemId);
+        status: "closed", result,
+        yes_count: yesVotes.length, no_count: noVotes.length, abstain_count: abstainVotes.length,
+        total_mea_voted: totalMea,
+        total_mea_yes: meaYes, total_mea_no: meaNo, total_mea_abstain: meaAbstain,
+      } as any).eq("id", itemId);
       if (error) throw error;
-      return { ...item, result, yes_count: yesVotes.length, no_count: noVotes.length, abstain_count: abstainVotes.length } as AgendaItem;
+      return { ...item, result,
+        yes_count: yesVotes.length, no_count: noVotes.length, abstain_count: abstainVotes.length,
+        total_mea_yes: meaYes, total_mea_no: meaNo, total_mea_abstain: meaAbstain,
+      } as AgendaItem;
     },
     onSuccess: (resultItem) => {
       // Keep activeVoteItem set so the vote grid stays visible with the final state.
@@ -977,21 +990,33 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                 </div>
               )}
 
-              {(isVoted || isClosed) && (
+              {(isVoted || isClosed) && (() => {
+                const isMea = selectedItem.voting_principle === "mea";
+                const fmt = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+                const yesVal = isMea ? fmt(Number(selectedItem.total_mea_yes || 0)) : selectedItem.yes_count;
+                const noVal = isMea ? fmt(Number(selectedItem.total_mea_no || 0)) : selectedItem.no_count;
+                const absVal = isMea ? fmt(Number(selectedItem.total_mea_abstain || 0)) : selectedItem.abstain_count;
+                const unitLbl = isMea ? "MEA" : "Köpfe";
+                return (
                 <div className="space-y-2">
                   <div className="flex gap-6 text-sm">
                     <div className="text-center">
-                      <div className="text-xl font-bold text-green-600">{selectedItem.yes_count}</div>
-                      <div className="text-xs text-muted-foreground">Ja</div>
+                      <div className="text-xl font-bold text-green-600">{yesVal}</div>
+                      <div className="text-xs text-muted-foreground">Ja ({unitLbl})</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-xl font-bold text-red-600">{selectedItem.no_count}</div>
-                      <div className="text-xs text-muted-foreground">Nein</div>
+                      <div className="text-xl font-bold text-red-600">{noVal}</div>
+                      <div className="text-xs text-muted-foreground">Nein ({unitLbl})</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-xl font-bold text-muted-foreground">{selectedItem.abstain_count}</div>
-                      <div className="text-xs text-muted-foreground">Enthaltung</div>
+                      <div className="text-xl font-bold text-muted-foreground">{absVal}</div>
+                      <div className="text-xs text-muted-foreground">Enthaltung ({unitLbl})</div>
                     </div>
+                    {isMea && (
+                      <div className="text-center text-xs text-muted-foreground self-end">
+                        Köpfe: {selectedItem.yes_count} / {selectedItem.no_count} / {selectedItem.abstain_count}
+                      </div>
+                    )}
                   </div>
                   {isClosed && (
                     <p className="text-xs text-orange-600 font-medium">⚠ Ergebnis noch nicht bestätigt</p>
@@ -1002,7 +1027,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                      </Badge>
                   )}
                 </div>
-              )}
+              );})()}
             </div>
             </>)}
 
@@ -1052,11 +1077,28 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                 </div>
                 <h3 className="text-xl font-bold">{resultDialog.result === "passed" ? "Beschluss angenommen" : "Beschluss abgelehnt"}</h3>
                 <p className="text-sm text-muted-foreground">{resultDialog.title}</p>
-                <div className="flex justify-center gap-6 text-sm">
-                  <div className="text-center"><div className="text-2xl font-bold text-green-600">{resultDialog.yes_count}</div><div className="text-muted-foreground">Ja</div></div>
-                  <div className="text-center"><div className="text-2xl font-bold text-red-600">{resultDialog.no_count}</div><div className="text-muted-foreground">Nein</div></div>
-                  <div className="text-center"><div className="text-2xl font-bold text-muted-foreground">{resultDialog.abstain_count}</div><div className="text-muted-foreground">Enthaltung</div></div>
-                </div>
+                {(() => {
+                  const isMea = resultDialog.voting_principle === "mea";
+                  const fmt = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+                  const yesVal = isMea ? fmt(Number(resultDialog.total_mea_yes || 0)) : resultDialog.yes_count;
+                  const noVal = isMea ? fmt(Number(resultDialog.total_mea_no || 0)) : resultDialog.no_count;
+                  const absVal = isMea ? fmt(Number(resultDialog.total_mea_abstain || 0)) : resultDialog.abstain_count;
+                  const unitLbl = isMea ? "MEA" : "Köpfe";
+                  return (
+                    <>
+                      <div className="flex justify-center gap-6 text-sm">
+                        <div className="text-center"><div className="text-2xl font-bold text-green-600">{yesVal}</div><div className="text-muted-foreground">Ja ({unitLbl})</div></div>
+                        <div className="text-center"><div className="text-2xl font-bold text-red-600">{noVal}</div><div className="text-muted-foreground">Nein ({unitLbl})</div></div>
+                        <div className="text-center"><div className="text-2xl font-bold text-muted-foreground">{absVal}</div><div className="text-muted-foreground">Enthaltung ({unitLbl})</div></div>
+                      </div>
+                      {isMea && (
+                        <div className="text-xs text-muted-foreground">
+                          Köpfe: {resultDialog.yes_count} Ja / {resultDialog.no_count} Nein / {resultDialog.abstain_count} Enth.
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
                 {(resultDialog.requires_double_qualified || resultDialog.double_qualified_relevant) && (
                   <div className="text-sm font-medium">
                     Doppelt qualifizierte Mehrheit: wird nach Bestätigung geprüft
