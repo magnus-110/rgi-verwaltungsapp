@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sparkles, Loader2, Maximize2, FileText, Send, CheckCircle2, AlertTriangle } from "lucide-react";
-import { ProtocolSignaturesInline } from "./ProtocolSignaturesInline";
 import { ProtocolDownloadButtons } from "./ProtocolDownloadButtons";
+import { ProtocolReadableView } from "./ProtocolReadableView";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -26,7 +26,7 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
     queryFn: async () => {
       const { data, error } = await supabase
         .from("etv_meetings")
-        .select("*, buildings(name, address, manager_name)")
+        .select("*")
         .eq("id", meetingId)
         .single();
       if (error) throw error;
@@ -39,7 +39,7 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
     queryFn: async () => {
       const { data, error } = await supabase
         .from("etv_agenda_items")
-        .select("*")
+        .select("id, status, resolution_text, result, yes_count, no_count, abstain_count, voting_principle")
         .eq("meeting_id", meetingId)
         .order("sort_order");
       if (error) throw error;
@@ -47,11 +47,10 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
     },
   });
 
-  const protocolText = meeting?.protocol_text || "";
-  const hasProtocol = !!protocolText;
   const votedItems = agendaItems.filter((i: any) => i.status === "voted");
   const totalItems = agendaItems.length;
   const allVoted = totalItems > 0 && votedItems.length === totalItems;
+  const hasAnyContent = totalItems > 0;
 
   const generateMutation = useMutation({
     mutationFn: async () => {
@@ -106,51 +105,12 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
     },
   });
 
-  const generateProtocolHtml = () => {
-    const building = meeting?.buildings as any;
-    return `<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="UTF-8">
-  <style>
-    @page { size: A4; margin: 25mm; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.7; color: #1a1a1a; max-width: 170mm; margin: 0 auto; padding: 24px; }
-    .header { text-align: center; border-bottom: 2px solid #ea580c; padding-bottom: 16px; margin-bottom: 24px; }
-    .header h1 { font-size: 16pt; margin: 0 0 4px; color: #ea580c; }
-    .header p { margin: 2px 0; font-size: 10pt; color: #555; }
-    .protocol-body { white-space: pre-wrap; font-size: 11pt; line-height: 1.8; }
-    .footer { margin-top: 60px; border-top: 1px solid #ddd; padding-top: 16px; font-size: 9pt; color: #888; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>Protokoll der Eigentümerversammlung</h1>
-    <p>${building?.name || ""} — ${building?.address || ""}</p>
-    <p>${meeting?.meeting_date ? format(new Date(meeting.meeting_date), "dd. MMMM yyyy", { locale: de }) : ""}</p>
-  </div>
-  <div class="protocol-body">${protocolText}</div>
-  <div class="footer">Erstellt am ${format(new Date(), "dd.MM.yyyy", { locale: de })} | ${building?.manager_name || "Hausverwaltung"}</div>
-</body>
-</html>`;
-  };
-
-  if (!hasProtocol) {
+  if (!hasAnyContent) {
     return (
       <div className="space-y-4">
         <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
           <Sparkles className="h-8 w-8 mx-auto mb-3 opacity-50" />
-          <p className="text-sm mb-1">Noch kein Protokoll erstellt.</p>
-          <p className="text-xs mb-4">
-            {!allVoted ? "Schließen Sie erst alle Abstimmungen ab." : "Klicken Sie auf „Protokoll generieren\u201C."}
-          </p>
-          <Button
-            onClick={() => generateMutation.mutate()}
-            disabled={generateMutation.isPending || totalItems === 0}
-            className="gap-2"
-          >
-            {generateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            KI-Protokoll generieren
-          </Button>
+          <p className="text-sm mb-1">Noch keine Tagesordnungspunkte erfasst.</p>
         </div>
       </div>
     );
@@ -175,18 +135,10 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
         </Button>
       </div>
 
-      {/* Protokoll-Vorschau */}
+      {/* Protokoll-Vorschau (native, RGI-Design) */}
       <div className="rounded-lg border bg-card overflow-hidden">
-        <iframe
-          srcDoc={generateProtocolHtml()}
-          className="w-full bg-white"
-          style={{ height: 600, border: 0 }}
-          title="Protokoll-Vorschau"
-        />
+        <ProtocolReadableView meetingId={meetingId} compact />
       </div>
-
-      {/* Unterschriften */}
-      <ProtocolSignaturesInline meetingId={meetingId} />
 
       {/* Primäre Aktionen */}
       <div className="flex flex-wrap gap-2 pt-2 border-t">
@@ -210,7 +162,7 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
           variant="ghost" size="sm" className="gap-2 text-xs"
         >
           {generateMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          Protokoll neu generieren
+          KI-Protokolltext neu generieren
         </Button>
         <Button
           onClick={() => publishMutation.mutate()}
@@ -224,11 +176,13 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
 
       {/* Vollbild Dialog */}
       <Dialog open={fullscreen} onOpenChange={setFullscreen}>
-        <DialogContent className="max-w-6xl h-[95dvh] flex flex-col overflow-hidden p-0">
-          <DialogHeader className="p-4 pb-2">
+        <DialogContent className="max-w-5xl h-[95dvh] flex flex-col overflow-hidden p-0">
+          <DialogHeader className="p-4 pb-2 border-b">
             <DialogTitle>Protokoll-Vorschau</DialogTitle>
           </DialogHeader>
-          <iframe srcDoc={generateProtocolHtml()} className="w-full flex-1 min-h-0 border-t bg-white" title="Protokoll Vollbild" />
+          <div className="flex-1 min-h-0 overflow-auto bg-background">
+            <ProtocolReadableView meetingId={meetingId} />
+          </div>
         </DialogContent>
       </Dialog>
     </div>
