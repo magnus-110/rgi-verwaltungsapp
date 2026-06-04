@@ -163,18 +163,18 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <FileSignature className="h-5 w-5 text-primary" />
-            Weisungs-Matrix für Vollmachten
+            Vorab-Abstimmung & Weisungs-Matrix
           </SheetTitle>
           <SheetDescription>
-            Trage hier die schriftlich erhaltenen Weisungen aus Papier-Vollmachten ein. Beim Start der Abstimmung
-            werden die Stimmen automatisch übernommen — du kannst sie später noch ändern.
+            Trage hier Weisungen aus Papier-Vollmachten ein oder stimme schon vorab für anwesende Eigentümer ab.
+            Beim Start der Abstimmung werden alle erfassten Stimmen automatisch übernommen — du kannst sie später noch ändern.
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-4">
           {rowAttendees.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">
-              Keine Vollmachten erfasst. Trage zuerst Vollmachten in der Anwesenheitsliste ein.
+              Keine Eigentümer in der Anwesenheitsliste. Erfasse zuerst Anwesende oder Vollmachten.
             </div>
           ) : votableTops.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">
