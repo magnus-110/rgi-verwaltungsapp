@@ -181,6 +181,9 @@ export const Meetings = () => {
         <TabsContent value="resolutions" className="mt-4">
           <ResolutionLedger buildingFilter={selectedBuildingId} />
         </TabsContent>
+        <TabsContent value="templates" className="mt-4">
+          <ProtocolTemplatesTab />
+        </TabsContent>
       </Tabs>
 
       {/* Mobile FAB */}
