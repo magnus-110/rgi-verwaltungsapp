@@ -49,11 +49,21 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
 
-  // Only proxy-attendees (paper or app) are relevant for pre-instructions
-  const proxyAttendees = useMemo(
-    () => attendees.filter((a) => a.attendance_type === "proxy"),
-    [attendees]
-  );
+  // Show ALL attendees (owners) - admin can pre-fill votes for anyone
+  // Sort: proxies first, then present, then others; alphabetical within group
+  const rowAttendees = useMemo(() => {
+    const rank = (a: AttendeeLite) =>
+      a.attendance_type === "proxy" ? 0 : a.attendance_type === "present" ? 1 : 2;
+    return [...attendees]
+      .filter((a) => !!a.assignment_id)
+      .sort((a, b) => {
+        const r = rank(a) - rank(b);
+        if (r !== 0) return r;
+        const an = getContactName(a.contact_building_assignments?.contacts);
+        const bn = getContactName(b.contact_building_assignments?.contacts);
+        return an.localeCompare(bn);
+      });
+  }, [attendees]);
 
   const votableTops = useMemo(
     () =>
@@ -69,11 +79,11 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
   useEffect(() => {
     if (!open) return;
     const initial: Record<string, Record<string, Vote | null>> = {};
-    proxyAttendees.forEach((a) => {
+    rowAttendees.forEach((a) => {
       initial[a.assignment_id] = { ...(a.pre_vote_instructions || {}) };
     });
     setDraft(initial);
-  }, [open, proxyAttendees]);
+  }, [open, rowAttendees]);
 
   const saveMutation = useMutation({
     mutationFn: async ({ assignmentId, instructions }: { assignmentId: string; instructions: Record<string, Vote | null> }) => {
@@ -82,7 +92,7 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
       Object.entries(instructions).forEach(([k, v]) => {
         if (v === "yes" || v === "no" || v === "abstain") clean[k] = v;
       });
-      const att = proxyAttendees.find((a) => a.assignment_id === assignmentId);
+      const att = rowAttendees.find((a) => a.assignment_id === assignmentId);
       if (!att) throw new Error("Anwesender nicht gefunden");
       const { error } = await supabase
         .from("etv_attendees")
@@ -142,7 +152,7 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
 
   const defaultTrigger = (
     <Button size="sm" variant="outline" className="gap-1.5">
-      <FileSignature className="h-3.5 w-3.5" /> Papier-Vollmachten vorbereiten
+      <FileSignature className="h-3.5 w-3.5" /> Vorab-Abstimmung & Weisungen
     </Button>
   );
 
@@ -153,18 +163,18 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <FileSignature className="h-5 w-5 text-primary" />
-            Weisungs-Matrix für Vollmachten
+            Vorab-Abstimmung & Weisungs-Matrix
           </SheetTitle>
           <SheetDescription>
-            Trage hier die schriftlich erhaltenen Weisungen aus Papier-Vollmachten ein. Beim Start der Abstimmung
-            werden die Stimmen automatisch übernommen — du kannst sie später noch ändern.
+            Trage hier Weisungen aus Papier-Vollmachten ein oder stimme schon vorab für anwesende Eigentümer ab.
+            Beim Start der Abstimmung werden alle erfassten Stimmen automatisch übernommen — du kannst sie später noch ändern.
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-4">
-          {proxyAttendees.length === 0 ? (
+          {rowAttendees.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">
-              Keine Vollmachten erfasst. Trage zuerst Vollmachten in der Anwesenheitsliste ein.
+              Keine Eigentümer in der Anwesenheitsliste. Erfasse zuerst Anwesende oder Vollmachten.
             </div>
           ) : votableTops.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">
@@ -200,17 +210,28 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
                     </tr>
                   </thead>
                   <tbody>
-                    {proxyAttendees.map((a) => {
+                    {rowAttendees.map((a) => {
                       const cba = a.contact_building_assignments;
                       const contact = cba?.contacts;
                       const row = draft[a.assignment_id] || {};
-                      const proxyLabel = a.proxy_type === "manager"
-                        ? "v.d. Verwaltung"
-                        : a.proxy_type === "external"
-                        ? `v.d. ${a.proxy_external_name || "Ext."}`
-                        : a.proxy_type === "owner"
-                        ? "v.d. Eigentümer"
-                        : "Vollmacht";
+                      const isProxy = a.attendance_type === "proxy";
+                      const isPresent = a.attendance_type === "present";
+                      const proxyLabel = isProxy
+                        ? a.proxy_type === "manager"
+                          ? "v.d. Verwaltung"
+                          : a.proxy_type === "external"
+                          ? `v.d. ${a.proxy_external_name || "Ext."}`
+                          : a.proxy_type === "owner"
+                          ? "v.d. Eigentümer"
+                          : "Vollmacht"
+                        : isPresent
+                        ? "Anwesend"
+                        : "Eigentümer";
+                      const badgeClass = isProxy
+                        ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                        : isPresent
+                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                        : "bg-muted text-muted-foreground";
                       return (
                         <tr key={a.id} className="border-t hover:bg-muted/20">
                           <td className="p-2 sticky left-0 bg-background z-10 border-r">
@@ -221,7 +242,7 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
                                 )}
                                 <span className="text-sm font-medium truncate">{getContactName(contact)}</span>
                               </div>
-                              <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-[9px] w-fit px-1 py-0">
+                              <Badge className={`${badgeClass} text-[9px] w-fit px-1 py-0`}>
                                 {proxyLabel}
                               </Badge>
                             </div>
