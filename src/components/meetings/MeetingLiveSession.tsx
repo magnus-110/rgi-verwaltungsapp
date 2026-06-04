@@ -18,7 +18,7 @@ import {
 import {
   Play, Square, CheckCircle2, XCircle, Users, BarChart3, UserCheck, UserX,
   ArrowLeft, ArrowRight, ChevronRight, ChevronLeft, Save, Shield, Copy, Lock, AlertTriangle,
-  RefreshCw, StickyNote, FileText, Plus, Gavel
+  RefreshCw, StickyNote, FileText, Plus, Gavel, ArrowUp, ArrowDown
 } from "lucide-react";
 import { AgendaItemEmailsSection } from "./AgendaItemEmailsSection";
 import { ProxyInstructionsMatrix } from "./ProxyInstructionsMatrix";
