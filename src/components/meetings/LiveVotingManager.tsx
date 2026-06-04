@@ -268,10 +268,11 @@ export const LiveVotingManager = ({ meetingId, buildingId }: LiveVotingManagerPr
       const item = agendaItems.find((i) => i.id === itemId);
       let result = "failed";
 
+      // Einfache Mehrheit: Ja > Nein (Enthaltungen zählen NICHT als Nein)
       if (item?.voting_principle === "mea") {
         const yesMea = yesVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
-        const totalVotedMea = currentVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
-        result = totalVotedMea > 0 && yesMea > totalVotedMea / 2 ? "passed" : "failed";
+        const noMea = noVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
+        result = (yesMea > 0 || noMea > 0) && yesMea > noMea ? "passed" : "failed";
       } else if (item?.voting_principle === "headcount") {
         result = yesVotes.length > noVotes.length ? "passed" : "failed";
       } else if (item?.voting_principle === "double_qualified") {
