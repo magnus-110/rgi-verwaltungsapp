@@ -288,18 +288,29 @@ Deno.serve(async (req) => {
     const { data: tplFile, error: tErr } = await admin.storage.from("building-files").download(tpl.storage_path);
     if (tErr || !tplFile) return json({ error: tErr?.message || "Vorlage nicht ladbar" }, 500);
 
+    // Flatten payload to support both nested and dotted keys (docxtemplater nested resolution unreliable on Deno)
+    const flatPayload: Record<string, any> = { ...payload };
+    const flatten = (obj: any, prefix = "") => {
+      for (const k of Object.keys(obj || {})) {
+        const v = obj[k];
+        const key = prefix ? `${prefix}.${k}` : k;
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+          flatten(v, key);
+        } else {
+          flatPayload[key] = v;
+        }
+      }
+    };
+    flatten(payload);
+
     const zip = new PizZip(new Uint8Array(await tplFile.arrayBuffer()));
     const doc = new Docxtemplater(zip, {
       paragraphLoop: true,
       linebreaks: true,
       delimiters: { start: "{", end: "}" },
-      nullGetter: (part: any) => {
-        console.log("NULL_GETTER", JSON.stringify({ value: part?.value, module: part?.module }));
-        return "";
-      },
+      nullGetter: () => "",
     });
-    console.log("PAYLOAD_KEYS", Object.keys(payload), "weg.name=", payload.weg.name, "versammlung.datum=", payload.versammlung.datum);
-    doc.render(payload);
+    doc.render(flatPayload);
     const docxBytes = doc.getZip().generate({ type: "uint8array" });
 
     const baseName = `Protokoll_${sanitize(building?.name || "ETV")}_${sanitize(meetingDateStr)}`;
