@@ -258,10 +258,14 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     return sqmShare?.share_value || 0;
   };
 
-  // Auto-cast pre-vote instructions (Papier-Weisungen / Admin-Vorauswahl)
-  // Runs whenever the active vote item, attendees or current votes change.
-  // Only casts if the attendee is present/represented and no vote exists yet.
+  // Track which (itemId:assignmentId) pairs have been handled in this mount.
+  // NOT cleared on activeVoteItem change so that manual resets/overrides
+  // do not get overwritten by re-runs of the auto-cast effect.
   const autoCastAttempted = useRef<Set<string>>(new Set());
+
+  // Auto-cast pre-vote instructions (Papier-Weisungen / Admin-Vorauswahl).
+  // Depends ONLY on activeVoteItem and attendees — NOT currentVotes — to avoid
+  // a feedback loop where realtime invalidations re-trigger the effect.
   useEffect(() => {
     if (!activeVoteItem) return;
     const eligible = attendees.filter(
@@ -271,7 +275,9 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
         (a.pre_vote_instructions as any)[activeVoteItem]
     );
     if (eligible.length === 0) return;
-    const existingByAssignment = new Set(currentVotes.map((v: any) => v.assignment_id));
+    // Read current votes from the query cache (avoids re-running on currentVotes change)
+    const cached = (queryClient.getQueryData<any[]>(["etv-votes-live", activeVoteItem]) || []);
+    const existingByAssignment = new Set(cached.map((v: any) => v.assignment_id));
     const todo = eligible.filter((a: any) => {
       if (existingByAssignment.has(a.assignment_id)) return false;
       const key = `${activeVoteItem}:${a.assignment_id}`;
@@ -283,7 +289,16 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       for (const att of todo) {
         const vote = (att.pre_vote_instructions as any)[activeVoteItem];
         if (!["yes", "no", "abstain"].includes(vote)) continue;
-        autoCastAttempted.current.add(`${activeVoteItem}:${att.assignment_id}`);
+        const key = `${activeVoteItem}:${att.assignment_id}`;
+        autoCastAttempted.current.add(key);
+        // Double-check via DB to avoid re-casting after a manual reset
+        const { data: existing } = await supabase
+          .from("etv_votes")
+          .select("assignment_id, is_manual_override")
+          .eq("agenda_item_id", activeVoteItem)
+          .eq("assignment_id", att.assignment_id)
+          .maybeSingle();
+        if (existing) continue;
         await supabase.from("etv_votes").upsert({
           agenda_item_id: activeVoteItem,
           assignment_id: att.assignment_id,
@@ -296,12 +311,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       }
       queryClient.invalidateQueries({ queryKey: ["etv-votes-live", activeVoteItem] });
     })();
-  }, [activeVoteItem, attendees, currentVotes, queryClient]);
-
-  // Reset autoCast memory when the active vote changes
-  useEffect(() => {
-    autoCastAttempted.current = new Set();
-  }, [activeVoteItem]);
+  }, [activeVoteItem, attendees, queryClient]);
 
   // Compute result for a given voting principle
   // Einfache Mehrheit: Ja > Nein (Enthaltungen zählen NICHT als Nein-Stimmen)
