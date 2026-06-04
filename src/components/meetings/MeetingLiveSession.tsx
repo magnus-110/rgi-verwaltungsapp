@@ -164,7 +164,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     },
   });
 
-  // Load votes for active item
+  // Load votes for active item (realtime keeps it fresh — no polling needed)
   const { data: currentVotes = [] } = useQuery({
     queryKey: ["etv-votes-live", activeVoteItem],
     queryFn: async () => {
@@ -177,7 +177,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       return data || [];
     },
     enabled: !!activeVoteItem,
-    refetchInterval: activeVoteItem ? 2000 : false,
+    staleTime: 30_000,
   });
 
   // Realtime votes
