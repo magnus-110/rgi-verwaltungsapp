@@ -1,13 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Sparkles, Loader2, Eye, Download, FileText, Send, CheckCircle2, AlertTriangle } from "lucide-react";
-import { ProtocolRenderActions } from "./ProtocolRenderActions";
+import { Sparkles, Loader2, Maximize2, FileText, Send, CheckCircle2, AlertTriangle } from "lucide-react";
+import { ProtocolSignaturesInline } from "./ProtocolSignaturesInline";
+import { ProtocolDownloadButtons } from "./ProtocolDownloadButtons";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -19,7 +19,7 @@ interface MeetingProtocolProps {
 export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [showPreview, setShowPreview] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
 
   const { data: meeting } = useQuery({
     queryKey: ["etv-meeting-protocol", meetingId],
@@ -47,53 +47,26 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
     },
   });
 
-  const { data: attendees = [] } = useQuery({
-    queryKey: ["etv-attendees-protocol", meetingId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("etv_attendees")
-        .select(`
-          *,
-          contact_building_assignments!inner(
-            unit_number,
-            contacts!inner(first_name, last_name, company_name)
-          )
-        `)
-        .eq("meeting_id", meetingId);
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
   const protocolText = meeting?.protocol_text || "";
   const hasProtocol = !!protocolText;
-
-  // Check readiness
   const votedItems = agendaItems.filter((i: any) => i.status === "voted");
   const totalItems = agendaItems.length;
   const allVoted = totalItems > 0 && votedItems.length === totalItems;
-  const hasNotesOrResolutions = agendaItems.some((i: any) => i.admin_notes || i.resolution_text);
 
-  // Generate protocol via dedicated edge function
   const generateMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("generate-meeting-protocol", {
-        body: { meetingId },
-      });
+      const { data, error } = await supabase.functions.invoke("generate-meeting-protocol", { body: { meetingId } });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       return data.protocol as string;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["etv-meeting-protocol", meetingId] });
-      toast({ title: "Protokoll generiert", description: "Das Protokoll wurde aus den Versammlungsdaten erstellt." });
+      toast({ title: "Protokoll generiert" });
     },
-    onError: (err: any) => {
-      toast({ title: "Fehler bei der Protokollerstellung", description: err.message, variant: "destructive" });
-    },
+    onError: (err: any) => toast({ title: "Fehler", description: err.message, variant: "destructive" }),
   });
 
-  // Save resolutions to Beschlusssammlung
   const saveResolutionsMutation = useMutation({
     mutationFn: async () => {
       const items = agendaItems.filter((i: any) => i.status === "voted" && i.resolution_text);
@@ -117,28 +90,19 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
       if (error) throw error;
       return resolutions.length;
     },
-    onSuccess: (count) => {
-      toast({ title: "Beschlusssammlung aktualisiert", description: `${count} Beschlüsse gespeichert.` });
-    },
+    onSuccess: (count) => toast({ title: "Beschlusssammlung aktualisiert", description: `${count} Beschlüsse gespeichert.` }),
   });
 
-  // Publish protocol
   const publishMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
-        .from("etv_meetings")
-        .update({ protocol_published: true })
-        .eq("id", meetingId);
+      const { error } = await supabase.from("etv_meetings").update({ protocol_published: true }).eq("id", meetingId);
       if (error) throw error;
-      const { error: resError } = await supabase
-        .from("etv_resolutions")
-        .update({ published: true })
-        .eq("meeting_id", meetingId);
+      const { error: resError } = await supabase.from("etv_resolutions").update({ published: true }).eq("meeting_id", meetingId);
       if (resError) throw resError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["etv-meeting-protocol", meetingId] });
-      toast({ title: "Veröffentlicht", description: "Protokoll und Beschlüsse sind jetzt im Eigentümer-Portal sichtbar." });
+      toast({ title: "Veröffentlicht", description: "Protokoll und Beschlüsse sind im Eigentümer-Portal sichtbar." });
     },
   });
 
@@ -150,14 +114,12 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
   <meta charset="UTF-8">
   <style>
     @page { size: A4; margin: 25mm; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.7; color: #1a1a1a; max-width: 170mm; margin: 0 auto; }
-    .header { text-align: center; border-bottom: 2px solid #1e40af; padding-bottom: 16px; margin-bottom: 24px; }
-    .header h1 { font-size: 16pt; margin: 0 0 4px; color: #1e40af; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.7; color: #1a1a1a; max-width: 170mm; margin: 0 auto; padding: 24px; }
+    .header { text-align: center; border-bottom: 2px solid #ea580c; padding-bottom: 16px; margin-bottom: 24px; }
+    .header h1 { font-size: 16pt; margin: 0 0 4px; color: #ea580c; }
     .header p { margin: 2px 0; font-size: 10pt; color: #555; }
     .protocol-body { white-space: pre-wrap; font-size: 11pt; line-height: 1.8; }
     .footer { margin-top: 60px; border-top: 1px solid #ddd; padding-top: 16px; font-size: 9pt; color: #888; }
-    .signatures { margin-top: 40px; display: flex; justify-content: space-between; }
-    .sig-line { width: 200px; border-top: 1px solid #333; padding-top: 4px; font-size: 9pt; text-align: center; }
   </style>
 </head>
 <body>
@@ -167,153 +129,107 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
     <p>${meeting?.meeting_date ? format(new Date(meeting.meeting_date), "dd. MMMM yyyy", { locale: de }) : ""}</p>
   </div>
   <div class="protocol-body">${protocolText}</div>
-  <div class="signatures">
-    <div class="sig-line">Versammlungsleiter</div>
-    <div class="sig-line">Protokollführer</div>
-  </div>
-  <div class="footer">
-    Erstellt am ${format(new Date(), "dd.MM.yyyy", { locale: de })} | ${building?.manager_name || "Hausverwaltung"}
-  </div>
+  <div class="footer">Erstellt am ${format(new Date(), "dd.MM.yyyy", { locale: de })} | ${building?.manager_name || "Hausverwaltung"}</div>
 </body>
 </html>`;
   };
 
-  const handleDownload = () => {
-    const html = generateProtocolHtml();
-    const blob = new Blob([html], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Protokoll_${meeting?.title?.replace(/\s+/g, "_") || "ETV"}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast({ title: "Protokoll heruntergeladen" });
-  };
+  if (!hasProtocol) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
+          <Sparkles className="h-8 w-8 mx-auto mb-3 opacity-50" />
+          <p className="text-sm mb-1">Noch kein Protokoll erstellt.</p>
+          <p className="text-xs mb-4">
+            {!allVoted ? "Schließen Sie erst alle Abstimmungen ab." : "Klicken Sie auf „Protokoll generieren\u201C."}
+          </p>
+          <Button
+            onClick={() => generateMutation.mutate()}
+            disabled={generateMutation.isPending || totalItems === 0}
+            className="gap-2"
+          >
+            {generateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            KI-Protokoll generieren
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      {/* Status overview */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center gap-4 flex-wrap text-sm">
-            <div className="flex items-center gap-2">
-              {allVoted ? (
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-              ) : (
-                <AlertTriangle className="h-4 w-4 text-orange-500" />
-              )}
-              <span>{votedItems.length} / {totalItems} TOPs abgestimmt</span>
-            </div>
-            {hasProtocol && (
-              <Badge variant="outline" className="text-xs">
-                Protokoll generiert: {meeting?.protocol_generated_at
-                  ? format(new Date(meeting.protocol_generated_at), "dd.MM.yyyy HH:mm", { locale: de })
-                  : ""}
-              </Badge>
-            )}
-            {meeting?.protocol_published && (
-              <Badge className="text-xs">✓ Veröffentlicht</Badge>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Actions */}
-      <div className="flex flex-wrap gap-2">
-        <Button
-          onClick={() => generateMutation.mutate()}
-          disabled={generateMutation.isPending || totalItems === 0}
-          variant="outline"
-          className="gap-2"
-        >
-          {generateMutation.isPending ? (
-            <><Loader2 className="h-4 w-4 animate-spin" /> Protokoll wird erstellt...</>
-          ) : (
-            <><Sparkles className="h-4 w-4" /> {hasProtocol ? "Protokoll neu generieren" : "KI-Protokoll generieren"}</>
+      {/* Mini Header */}
+      <div className="flex items-center justify-between flex-wrap gap-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="flex items-center gap-1.5">
+            {allVoted ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <AlertTriangle className="h-3.5 w-3.5 text-orange-500" />}
+            {votedItems.length} / {totalItems} TOPs
+          </span>
+          {meeting?.protocol_generated_at && (
+            <span>Generiert: {format(new Date(meeting.protocol_generated_at), "dd.MM.yyyy HH:mm", { locale: de })}</span>
           )}
+          {meeting?.protocol_published && <Badge className="h-5 text-[10px]">✓ Veröffentlicht</Badge>}
+        </div>
+        <Button size="sm" variant="ghost" onClick={() => setFullscreen(true)} className="gap-1.5 h-7">
+          <Maximize2 className="h-3.5 w-3.5" /> Vollbild
         </Button>
+      </div>
+
+      {/* Protokoll-Vorschau */}
+      <div className="rounded-lg border bg-card overflow-hidden">
+        <iframe
+          srcDoc={generateProtocolHtml()}
+          className="w-full bg-white"
+          style={{ height: 600, border: 0 }}
+          title="Protokoll-Vorschau"
+        />
+      </div>
+
+      {/* Unterschriften */}
+      <ProtocolSignaturesInline meetingId={meetingId} />
+
+      {/* Primäre Aktionen */}
+      <div className="flex flex-wrap gap-2 pt-2 border-t">
+        <ProtocolDownloadButtons meetingId={meetingId} />
         <Button
           onClick={() => saveResolutionsMutation.mutate()}
           disabled={saveResolutionsMutation.isPending || votedItems.length === 0}
           variant="outline"
           className="gap-2"
         >
-          <FileText className="h-4 w-4" />
+          {saveResolutionsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
           Beschlusssammlung aktualisieren
         </Button>
       </div>
 
-      {/* Protocol display */}
-      {hasProtocol ? (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Generiertes Protokoll</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="prose prose-sm max-w-none dark:prose-invert whitespace-pre-wrap text-sm leading-relaxed border rounded-md p-4 bg-muted/30 max-h-[500px] overflow-y-auto">
-              {protocolText}
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
-            <Sparkles className="h-8 w-8 mx-auto mb-3 opacity-50" />
-            <p className="text-sm">Noch kein Protokoll erstellt.</p>
-            <p className="text-xs mt-1">
-              {!allVoted
-                ? "Schließen Sie erst alle Abstimmungen ab, dann kann das Protokoll automatisch generiert werden."
-                : "Klicken Sie auf \"KI-Protokoll generieren\" um das Protokoll aus allen Versammlungsdaten zu erstellen."}
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {/* Sekundär */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          onClick={() => generateMutation.mutate()}
+          disabled={generateMutation.isPending}
+          variant="ghost" size="sm" className="gap-2 text-xs"
+        >
+          {generateMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          Protokoll neu generieren
+        </Button>
+        <Button
+          onClick={() => publishMutation.mutate()}
+          disabled={publishMutation.isPending || meeting?.protocol_published}
+          variant="ghost" size="sm" className="gap-2 text-xs"
+        >
+          <Send className="h-3.5 w-3.5" />
+          {meeting?.protocol_published ? "Veröffentlicht ✓" : "Im Portal veröffentlichen"}
+        </Button>
+      </div>
 
-      {/* Save / Preview / Download / Publish */}
-      {hasProtocol && (
-        <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={() => setShowPreview(true)}
-            variant="outline"
-            className="gap-2"
-          >
-            <Eye className="h-4 w-4" /> Vorschau
-          </Button>
-          <Button
-            onClick={handleDownload}
-            variant="outline"
-            className="gap-2"
-          >
-            <Download className="h-4 w-4" /> Als HTML
-          </Button>
-          <Button
-            onClick={() => publishMutation.mutate()}
-            disabled={publishMutation.isPending || meeting?.protocol_published}
-            variant={meeting?.protocol_published ? "secondary" : "default"}
-            className="gap-2"
-          >
-            <Send className="h-4 w-4" />
-            {meeting?.protocol_published ? "Veröffentlicht ✓" : "Im Portal veröffentlichen"}
-          </Button>
-        </div>
-      )}
-
-      {/* Word-Vorlagen-Rendering, Tablet-Signaturen & DMS-Ablage */}
-      {hasProtocol && <ProtocolRenderActions meetingId={meetingId} />}
-
-      {/* Preview Dialog */}
-      <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-4xl h-[85dvh] flex flex-col overflow-hidden">
-          <DialogHeader>
+      {/* Vollbild Dialog */}
+      <Dialog open={fullscreen} onOpenChange={setFullscreen}>
+        <DialogContent className="max-w-6xl h-[95dvh] flex flex-col overflow-hidden p-0">
+          <DialogHeader className="p-4 pb-2">
             <DialogTitle>Protokoll-Vorschau</DialogTitle>
           </DialogHeader>
-          <iframe
-            srcDoc={generateProtocolHtml()}
-            className="w-full flex-1 min-h-0 border rounded-md"
-            title="Protokollvorschau"
-          />
+          <iframe srcDoc={generateProtocolHtml()} className="w-full flex-1 min-h-0 border-t bg-white" title="Protokoll Vollbild" />
         </DialogContent>
-
       </Dialog>
     </div>
   );
