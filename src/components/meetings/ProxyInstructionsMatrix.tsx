@@ -214,13 +214,24 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
                       const cba = a.contact_building_assignments;
                       const contact = cba?.contacts;
                       const row = draft[a.assignment_id] || {};
-                      const proxyLabel = a.proxy_type === "manager"
-                        ? "v.d. Verwaltung"
-                        : a.proxy_type === "external"
-                        ? `v.d. ${a.proxy_external_name || "Ext."}`
-                        : a.proxy_type === "owner"
-                        ? "v.d. Eigentümer"
-                        : "Vollmacht";
+                      const isProxy = a.attendance_type === "proxy";
+                      const isPresent = a.attendance_type === "present";
+                      const proxyLabel = isProxy
+                        ? a.proxy_type === "manager"
+                          ? "v.d. Verwaltung"
+                          : a.proxy_type === "external"
+                          ? `v.d. ${a.proxy_external_name || "Ext."}`
+                          : a.proxy_type === "owner"
+                          ? "v.d. Eigentümer"
+                          : "Vollmacht"
+                        : isPresent
+                        ? "Anwesend"
+                        : "Eigentümer";
+                      const badgeClass = isProxy
+                        ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                        : isPresent
+                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                        : "bg-muted text-muted-foreground";
                       return (
                         <tr key={a.id} className="border-t hover:bg-muted/20">
                           <td className="p-2 sticky left-0 bg-background z-10 border-r">
