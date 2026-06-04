@@ -18,6 +18,9 @@ const ROLES = [
 
 type RoleKey = typeof ROLES[number]["key"];
 
+const INLINE_HEIGHT = 160;
+const FULL_HEIGHT = 320;
+
 function SignatureColumn({
   meetingId,
   role,
@@ -33,6 +36,7 @@ function SignatureColumn({
 }) {
   const [name, setName] = useState(existing?.signer_name || "");
   const [png, setPng] = useState<string | null>(existing?.signature_png || null);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     setName(existing?.signer_name || "");
@@ -54,13 +58,35 @@ function SignatureColumn({
 
   const isSigned = !!existing;
 
+  const handleSaveAndClose = () => {
+    if (name.trim() && png) {
+      save.mutate(undefined, {
+        onSuccess: () => setOpen(false),
+      });
+    } else {
+      setOpen(false);
+    }
+  };
+
   return (
     <div className="rounded-lg border bg-card p-3 space-y-2">
       <div className="flex items-center justify-between">
         <div className="text-xs font-medium">{label}</div>
         {isSigned && <Badge variant="secondary" className="gap-1 h-5 text-[10px]"><CheckCircle2 className="h-3 w-3" />signiert</Badge>}
       </div>
-      <SignaturePad value={png} onChange={setPng} height={120} />
+      <div className="relative">
+        <SignaturePad value={png} onChange={setPng} height={INLINE_HEIGHT} />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="absolute top-1 right-1 h-7 w-7 p-0 opacity-60 hover:opacity-100"
+          onClick={() => setOpen(true)}
+          title="Vergrößern"
+        >
+          <Maximize2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
       <Input
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -76,6 +102,30 @@ function SignatureColumn({
         {save.isPending && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
         Speichern
       </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base">{label} — Unterschrift</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <SignaturePad value={png} onChange={setPng} height={FULL_HEIGHT} />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Vor- und Nachname"
+              className="h-9 text-sm"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setOpen(false)}>Abbrechen</Button>
+            <Button size="sm" disabled={!name.trim() || !png || save.isPending} onClick={handleSaveAndClose}>
+              {save.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+              Speichern & Schließen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
