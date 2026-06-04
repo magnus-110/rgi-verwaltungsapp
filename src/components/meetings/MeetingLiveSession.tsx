@@ -21,6 +21,7 @@ import {
   RefreshCw, StickyNote, FileText, Plus, Gavel
 } from "lucide-react";
 import { AgendaItemEmailsSection } from "./AgendaItemEmailsSection";
+import { ProxyInstructionsMatrix } from "./ProxyInstructionsMatrix";
 
 interface MeetingLiveSessionProps {
   meetingId: string;
