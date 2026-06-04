@@ -9,13 +9,14 @@ import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
 
 interface Props {
   buildings: { id: string; name: string }[];
+  selectedBuildingId?: string;
 }
 
-export function InvoiceDropZone({ buildings }: Props) {
+export function InvoiceDropZone({ buildings, selectedBuildingId = "" }: Props) {
   const queryClient = useQueryClient();
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState<string[]>([]);
-  const [selectedBuilding, setSelectedBuilding] = useState<string>("");
+  const selectedBuilding = selectedBuildingId;
 
   const uploadFile = useCallback(async (file: File) => {
     const lowerName = file.name.toLowerCase();
@@ -106,26 +107,13 @@ export function InvoiceDropZone({ buildings }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3 flex-wrap">
-        <Select value={selectedBuilding || "auto"} onValueChange={v => setSelectedBuilding(v === "auto" ? "" : v)}>
-          <SelectTrigger className="w-64 h-9 text-sm">
-            <SelectValue placeholder="Liegenschaft (optional – wird automatisch erkannt)" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="auto">Automatisch erkennen</SelectItem>
-            <SelectItem value="company">🏢 RGI Immobilien (Firma)</SelectItem>
-            {buildings.map(b => (
-              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {uploading.length > 0 && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {uploading.length} Datei(en) werden verarbeitet...
-          </div>
-        )}
-      </div>
+      {uploading.length > 0 && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {uploading.length} Datei(en) werden verarbeitet...
+        </div>
+      )}
+
 
       <label
         className={cn(
@@ -157,7 +145,7 @@ export function InvoiceDropZone({ buildings }: Props) {
             </p>
             <p className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
               <Sparkles className="h-3 w-3" />
-              PDF, XML (XRechnung/ZUGFeRD) oder Foto/Scan (JPG, PNG) • Liegenschaft wird automatisch erkannt
+              PDF, XML (XRechnung/ZUGFeRD) oder Foto/Scan (JPG, PNG) • {selectedBuilding ? (selectedBuilding === "company" ? "Wird RGI Immobilien (Firma) zugeordnet" : "Wird der ausgewählten Liegenschaft zugeordnet") : "Liegenschaft wird automatisch erkannt"}
             </p>
           </div>
         </div>
