@@ -343,7 +343,23 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       } as any, { onConflict: "agenda_item_id,assignment_id" });
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["etv-votes-live", activeVoteItem] }),
+    onMutate: async ({ itemId, assignmentId, vote, meaWeight, sqmWeight }) => {
+      const key = ["etv-votes-live", itemId];
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<any[]>(key) || [];
+      const next = previous.filter((v: any) => v.assignment_id !== assignmentId);
+      next.push({
+        agenda_item_id: itemId, assignment_id: assignmentId, vote,
+        mea_weight: meaWeight, sqm_weight: sqmWeight || 0,
+        is_manual_override: true, voted_at: new Date().toISOString(),
+      });
+      queryClient.setQueryData(key, next);
+      return { previous, key };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
+    },
+    // Realtime channel keeps cache in sync — no manual invalidate needed
   });
 
   const resetVoteMutation = useMutation({
@@ -354,7 +370,16 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
         .eq("assignment_id", assignmentId);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["etv-votes-live", activeVoteItem] }),
+    onMutate: async ({ itemId, assignmentId }) => {
+      const key = ["etv-votes-live", itemId];
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<any[]>(key) || [];
+      queryClient.setQueryData(key, previous.filter((v: any) => v.assignment_id !== assignmentId));
+      return { previous, key };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
+    },
   });
 
   const endVotingMutation = useMutation({
