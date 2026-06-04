@@ -16,6 +16,39 @@ function principleLabel(p?: string | null) {
   return "nach Anteilen (MEA)";
 }
 
+type ProtocolMeeting = {
+  meeting_date: string | null;
+  location: string | null;
+  meeting_chair: string | null;
+  minutes_taker: string | null;
+  buildings: { name: string | null; address: string | null; manager_name: string | null } | null;
+};
+
+type ProtocolAgendaItem = {
+  id: string;
+  title: string | null;
+  description: string | null;
+  resolution_text: string | null;
+  admin_notes: string | null;
+  result: string | null;
+  voting_principle: string | null;
+  yes_count: number | null;
+  no_count: number | null;
+  abstain_count: number | null;
+  total_mea_yes?: number | null;
+  total_mea_no?: number | null;
+  total_mea_abstain?: number | null;
+};
+
+type ProtocolAttendee = {
+  attendance_type: string | null;
+  contact_building_assignments?: {
+    contact_building_shares?: { share_type: string | null; share_value: number | string | null }[] | null;
+  } | null;
+};
+
+type ProtocolVote = { agenda_item_id: string; vote: string | null; mea_weight: number | string | null };
+
 export function ProtocolReadableView({
   meetingId,
   compact = false,
@@ -25,7 +58,7 @@ export function ProtocolReadableView({
   compact?: boolean;
   showSignatures?: boolean;
 }) {
-  const { data: meeting } = useQuery({
+  const { data: meeting } = useQuery<ProtocolMeeting>({
     queryKey: ["protocol-view-meeting", meetingId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -34,11 +67,11 @@ export function ProtocolReadableView({
         .eq("id", meetingId)
         .single();
       if (error) throw error;
-      return data;
+      return data as unknown as ProtocolMeeting;
     },
   });
 
-  const { data: agendaItems = [] } = useQuery({
+  const { data: agendaItems = [] } = useQuery<ProtocolAgendaItem[]>({
     queryKey: ["protocol-view-agenda", meetingId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -47,23 +80,23 @@ export function ProtocolReadableView({
         .eq("meeting_id", meetingId)
         .order("sort_order");
       if (error) throw error;
-      return data || [];
+      return (data || []) as unknown as ProtocolAgendaItem[];
     },
   });
 
-  const { data: attendees = [] } = useQuery({
+  const { data: attendees = [] } = useQuery<ProtocolAttendee[]>({
     queryKey: ["protocol-view-attendees", meetingId],
     queryFn: async () => {
       const { data } = await supabase
         .from("etv_attendees")
         .select(`*, contact_building_assignments!inner(contact_building_shares(share_type, share_value))`)
         .eq("meeting_id", meetingId);
-      return data || [];
+      return (data || []) as unknown as ProtocolAttendee[];
     },
   });
 
-  const itemIds = agendaItems.map((it: any) => it.id);
-  const { data: votes = [] } = useQuery({
+  const itemIds = agendaItems.map((it) => it.id);
+  const { data: votes = [] } = useQuery<ProtocolVote[]>({
     queryKey: ["protocol-view-votes", meetingId, itemIds.join(",")],
     queryFn: async () => {
       if (itemIds.length === 0) return [];
@@ -72,21 +105,21 @@ export function ProtocolReadableView({
         .select("agenda_item_id, vote, mea_weight")
         .in("agenda_item_id", itemIds);
       if (error) throw error;
-      return data || [];
+      return (data || []) as unknown as ProtocolVote[];
     },
     enabled: itemIds.length > 0,
   });
 
   if (!meeting) return null;
 
-  const building = (meeting as any).buildings;
-  const getMea = (a: any) => {
+  const building = meeting.buildings;
+  const getMea = (a: ProtocolAttendee) => {
     const shares = a.contact_building_assignments?.contact_building_shares || [];
-    return Number(shares.find((s: any) => s.share_type === "mea")?.share_value || 0);
+    return Number(shares.find((s) => s.share_type === "mea")?.share_value || 0);
   };
-  const presentLike = attendees.filter((a: any) => a.attendance_type === "present" || a.attendance_type === "proxy");
-  const totalMea = attendees.reduce((s: number, a: any) => s + getMea(a), 0);
-  const presentMea = presentLike.reduce((s: number, a: any) => s + getMea(a), 0);
+  const presentLike = attendees.filter((a) => a.attendance_type === "present" || a.attendance_type === "proxy");
+  const totalMea = attendees.reduce((s, a) => s + getMea(a), 0);
+  const presentMea = presentLike.reduce((s, a) => s + getMea(a), 0);
   const meaUnit = totalMea > 950 && totalMea < 1050 ? "Tausendstel" : "MEA";
 
   const meetingDate = meeting.meeting_date ? new Date(meeting.meeting_date) : null;
@@ -136,13 +169,13 @@ export function ProtocolReadableView({
         {agendaItems.length === 0 && (
           <p className="text-sm text-muted-foreground italic">Keine TOPs erfasst.</p>
         )}
-        {agendaItems.map((it: any, idx: number) => {
+        {agendaItems.map((it, idx) => {
           const hasResolution = !!(it.resolution_text && it.resolution_text.trim());
           const hasNotes = !!(it.admin_notes && it.admin_notes.trim());
-          const itemVotes = votes.filter((v: any) => v.agenda_item_id === it.id);
+          const itemVotes = votes.filter((v) => v.agenda_item_id === it.id);
           const sumMea = (vote: string) => itemVotes
-            .filter((v: any) => v.vote === vote)
-            .reduce((sum: number, v: any) => sum + Number(v.mea_weight || 0), 0);
+            .filter((v) => v.vote === vote)
+            .reduce((sum, v) => sum + Number(v.mea_weight || 0), 0);
           const isMea = it.voting_principle === "mea";
           const headJa = Number(it.yes_count ?? 0);
           const headNein = Number(it.no_count ?? 0);
