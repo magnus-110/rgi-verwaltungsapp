@@ -152,7 +152,7 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
 
   const defaultTrigger = (
     <Button size="sm" variant="outline" className="gap-1.5">
-      <FileSignature className="h-3.5 w-3.5" /> Papier-Vollmachten vorbereiten
+      <FileSignature className="h-3.5 w-3.5" /> Vorab-Abstimmung & Weisungen
     </Button>
   );
 
