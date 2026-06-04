@@ -26,7 +26,7 @@ import {
 import {
   X, ChevronLeft, ChevronRight, Copy, CheckCircle, CreditCard,
   AlertTriangle, FileText, Loader2, Trash2, Save, Flame,
-  Check, ChevronsUpDown,
+  Check, ChevronsUpDown, ArrowDownToLine,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMobileSplitView, MobileViewSwitcher, MobileBackToListButton } from "@/components/shared/MobileSplitView";
