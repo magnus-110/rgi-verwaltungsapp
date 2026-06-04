@@ -18,7 +18,7 @@ import {
 import {
   Play, Square, CheckCircle2, XCircle, Users, BarChart3, UserCheck, UserX,
   ArrowLeft, ArrowRight, ChevronRight, ChevronLeft, Save, Shield, Copy, Lock, AlertTriangle,
-  RefreshCw, StickyNote, FileText, Plus, Gavel
+  RefreshCw, StickyNote, FileText, Plus, Gavel, ArrowUp, ArrowDown
 } from "lucide-react";
 import { AgendaItemEmailsSection } from "./AgendaItemEmailsSection";
 import { ProxyInstructionsMatrix } from "./ProxyInstructionsMatrix";
@@ -560,6 +560,29 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
       toast({ title: "Abstimmung erneut geöffnet" });
     },
+  });
+
+  // Reorder TOPs (swap sort_order with neighbor)
+  const reorderMutation = useMutation({
+    mutationFn: async ({ itemId, direction }: { itemId: string; direction: "up" | "down" }) => {
+      const idx = agendaItems.findIndex((i) => i.id === itemId);
+      if (idx === -1) return;
+      const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= agendaItems.length) return;
+      const a = agendaItems[idx];
+      const b = agendaItems[targetIdx];
+      // Two-step swap to avoid unique constraint conflicts on (meeting_id, sort_order)
+      const { error: e1 } = await supabase.from("etv_agenda_items").update({ sort_order: -1 }).eq("id", a.id);
+      if (e1) throw e1;
+      const { error: e2 } = await supabase.from("etv_agenda_items").update({ sort_order: a.sort_order }).eq("id", b.id);
+      if (e2) throw e2;
+      const { error: e3 } = await supabase.from("etv_agenda_items").update({ sort_order: b.sort_order }).eq("id", a.id);
+      if (e3) throw e3;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
+    },
+    onError: (err: any) => toast({ title: "Fehler beim Verschieben", description: err.message, variant: "destructive" }),
   });
 
   const getStatusBadge = (item: AgendaItem) => {
@@ -1154,7 +1177,27 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 opacity-50 group-hover:opacity-100"
+                    disabled={idx === 0 || reorderMutation.isPending}
+                    onClick={() => reorderMutation.mutate({ itemId: item.id, direction: "up" })}
+                    title="Nach oben"
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 opacity-50 group-hover:opacity-100"
+                    disabled={idx === agendaItems.length - 1 || reorderMutation.isPending}
+                    onClick={() => reorderMutation.mutate({ itemId: item.id, direction: "down" })}
+                    title="Nach unten"
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </Button>
                   {getStatusBadge(item)}
                   <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
