@@ -5,6 +5,81 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import PizZip from "https://esm.sh/pizzip@3.1.7";
 import Docxtemplater from "https://esm.sh/docxtemplater@3.50.0";
+import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
+
+function dataUrlToBytes(dataUrl: string): Uint8Array {
+  const b64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+async function appendSignaturePage(
+  pdfBytes: Uint8Array,
+  signatures: any[],
+  meetingTitle: string,
+  buildingName: string,
+  meetingDateStr: string,
+): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.load(pdfBytes);
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const page = pdfDoc.addPage([595.28, 841.89]);
+  const { width, height } = page.getSize();
+  const margin = 50;
+  let y = height - margin;
+
+  page.drawText("Unterschriften", { x: margin, y, size: 18, font: fontBold, color: rgb(0.1, 0.25, 0.5) });
+  y -= 12;
+  page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 1, color: rgb(0.1, 0.25, 0.5) });
+  y -= 30;
+  page.drawText(`Protokoll: ${meetingTitle}`, { x: margin, y, size: 11, font });
+  y -= 16;
+  page.drawText(`Liegenschaft: ${buildingName}`, { x: margin, y, size: 11, font });
+  y -= 16;
+  page.drawText(`Datum der Versammlung: ${meetingDateStr}`, { x: margin, y, size: 11, font });
+  y -= 40;
+
+  const roleLabels: Record<string, string> = {
+    leiter: "Versammlungsleiter",
+    protokollant: "Protokollführer",
+    eigentuemer: "Eigentümer",
+  };
+
+  for (const role of ["leiter", "protokollant", "eigentuemer"] as const) {
+    const sig = signatures.find((s: any) => s.role === role);
+    page.drawText(roleLabels[role], { x: margin, y, size: 12, font: fontBold });
+    y -= 18;
+    if (sig) {
+      try {
+        const pngBytes = dataUrlToBytes(sig.signature_png);
+        const pngImage = await pdfDoc.embedPng(pngBytes);
+        const sigW = 200;
+        const ratio = pngImage.height / pngImage.width;
+        const sigH = Math.min(80, sigW * ratio);
+        page.drawImage(pngImage, { x: margin, y: y - sigH, width: sigW, height: sigH });
+        y -= sigH + 6;
+      } catch (e) {
+        console.error("Signatur-PNG konnte nicht eingebettet werden", e);
+      }
+      page.drawLine({ start: { x: margin, y }, end: { x: margin + 260, y }, thickness: 0.7, color: rgb(0.3, 0.3, 0.3) });
+      y -= 14;
+      const signedAt = sig.signed_at ? new Date(sig.signed_at).toLocaleString("de-DE") : "";
+      page.drawText(`${sig.signer_name}${signedAt ? " — " + signedAt : ""}`, {
+        x: margin, y, size: 9, font, color: rgb(0.3, 0.3, 0.3),
+      });
+    } else {
+      y -= 50;
+      page.drawLine({ start: { x: margin, y }, end: { x: margin + 260, y }, thickness: 0.7, color: rgb(0.6, 0.6, 0.6) });
+      y -= 14;
+      page.drawText("(noch nicht unterschrieben)", { x: margin, y, size: 9, font, color: rgb(0.6, 0.6, 0.6) });
+    }
+    y -= 50;
+  }
+
+  return await pdfDoc.save();
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -322,6 +397,25 @@ Deno.serve(async (req) => {
     if (output_format === "pdf") {
       outBytes = await convertDocxToPdf(docxBytes, `${baseName}.docx`);
       contentType = "application/pdf";
+
+      // Unterschriften anhängen, sofern vorhanden
+      try {
+        const { data: sigs = [] } = await admin
+          .from("etv_protocol_signatures")
+          .select("role, signer_name, signature_png, signed_at")
+          .eq("meeting_id", meeting_id);
+        if (sigs && sigs.length > 0) {
+          outBytes = await appendSignaturePage(
+            outBytes,
+            sigs,
+            meeting.title || "",
+            building?.name || "",
+            meetingDateStr,
+          );
+        }
+      } catch (sigErr) {
+        console.error("Signaturseite konnte nicht angehängt werden (nicht-fatal):", sigErr);
+      }
     }
 
     const { error: upErr } = await admin.storage.from("building-files").upload(outPath, outBytes, {
