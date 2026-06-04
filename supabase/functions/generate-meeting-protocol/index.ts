@@ -36,13 +36,23 @@ serve(async (req) => {
     }
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    console.log('generate-meeting-protocol meetingId:', meetingId);
+
     // Load meeting
     const { data: meeting, error: meetingErr } = await supabase
       .from('etv_meetings')
       .select('*, buildings(name, address, manager_name, unit_count)')
       .eq('id', meetingId)
-      .single();
-    if (meetingErr) throw meetingErr;
+      .maybeSingle();
+    if (meetingErr) {
+      console.error('meeting query error', meetingErr);
+      throw meetingErr;
+    }
+    if (!meeting) {
+      return new Response(JSON.stringify({ error: `Versammlung mit ID ${meetingId} wurde nicht gefunden.` }), {
+        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // Load agenda items
     const { data: agendaItems, error: aiErr } = await supabase
@@ -52,19 +62,22 @@ serve(async (req) => {
       .order('sort_order');
     if (aiErr) throw aiErr;
 
-    // Load attendees
+    // Load attendees (LEFT join — include attendees without assignments)
     const { data: attendees, error: attErr } = await supabase
       .from('etv_attendees')
       .select(`
         *,
-        contact_building_assignments!inner(
+        contact_building_assignments(
           unit_number,
-          contacts!inner(first_name, last_name, company_name),
+          contacts(first_name, last_name, company_name),
           contact_building_shares(share_type, share_value)
         )
       `)
       .eq('meeting_id', meetingId);
-    if (attErr) throw attErr;
+    if (attErr) {
+      console.error('attendees query error', attErr);
+      throw attErr;
+    }
 
     const building = meeting.buildings;
     const present = (attendees || []).filter((a: any) => a.attendance_type === 'present');
