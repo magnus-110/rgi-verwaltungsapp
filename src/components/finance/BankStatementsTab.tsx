@@ -877,7 +877,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                             ? `${format(startDate, "LLLL", { locale: de })} ${format(startDate, "yyyy")}`
                             : s.file_name;
                           return (
-                            <div key={s.id} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded hover:bg-muted/50">
+                            <div key={s.id} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer" onDoubleClick={() => openPdfInNewTab(s.file_path, s.file_name)}>
                               {isPdf ? <FileText className="h-3.5 w-3.5 text-red-600 shrink-0" /> : <FileCode className="h-3.5 w-3.5 text-blue-600 shrink-0" />}
                               <Badge variant="outline" className="text-[10px] h-4">{isPdf ? "PDF" : "CAMT"}</Badge>
                               <span className="font-medium whitespace-nowrap">{monthLabel}</span>
