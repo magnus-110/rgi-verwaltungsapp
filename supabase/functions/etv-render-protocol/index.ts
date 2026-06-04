@@ -21,7 +21,7 @@ function fmtTime(d?: string | null): string {
   if (!d) return "";
   const dt = new Date(d);
   if (isNaN(dt.getTime())) return "";
-  return dt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr";
+  return dt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 }
 function fmtMea(n: number): string {
   return n.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
