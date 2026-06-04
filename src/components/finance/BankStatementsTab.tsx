@@ -628,6 +628,20 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
     }
   };
 
+  const openPdfInNewTab = async (filePath: string | null, fileName?: string) => {
+    if (!filePath) {
+      toast.error("Originaldatei nicht verfügbar");
+      return;
+    }
+    const { data, error } = await supabase.storage.from("building-documents").createSignedUrl(filePath, 600);
+    if (error || !data?.signedUrl) {
+      toast.error("Datei konnte nicht geöffnet werden");
+      return;
+    }
+    const win = window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    if (!win) toast.error("Bitte Pop-ups erlauben, um die Datei zu öffnen");
+  };
+
   const renderTransactionRow = (txn: any) => {
     const config = MATCH_STATUS_CONFIG[txn.match_status] || MATCH_STATUS_CONFIG.unmatched;
     const Icon = config.icon;
@@ -863,7 +877,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                             ? `${format(startDate, "LLLL", { locale: de })} ${format(startDate, "yyyy")}`
                             : s.file_name;
                           return (
-                            <div key={s.id} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded hover:bg-muted/50">
+                            <div key={s.id} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer" onDoubleClick={() => openPdfInNewTab(s.file_path, s.file_name)}>
                               {isPdf ? <FileText className="h-3.5 w-3.5 text-red-600 shrink-0" /> : <FileCode className="h-3.5 w-3.5 text-blue-600 shrink-0" />}
                               <Badge variant="outline" className="text-[10px] h-4">{isPdf ? "PDF" : "CAMT"}</Badge>
                               <span className="font-medium whitespace-nowrap">{monthLabel}</span>
