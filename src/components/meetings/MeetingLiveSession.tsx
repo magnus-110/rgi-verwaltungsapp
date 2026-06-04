@@ -193,6 +193,14 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     return () => { supabase.removeChannel(channel); };
   }, [activeVoteItem, queryClient]);
 
+  // Sync activeVoteItem with any agenda item already in 'voting' status
+  // (e.g. when reopening the session or after a refresh)
+  useEffect(() => {
+    if (activeVoteItem) return;
+    const ongoing = agendaItems.find((it: any) => it.status === "voting");
+    if (ongoing) setActiveVoteItem(ongoing.id);
+  }, [agendaItems, activeVoteItem]);
+
   // Init edit state from loaded data
   useEffect(() => {
     const res: Record<string, string> = {};
