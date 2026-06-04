@@ -107,26 +107,13 @@ export function InvoiceDropZone({ buildings, selectedBuildingId = "" }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3 flex-wrap">
-        <Select value={selectedBuilding || "auto"} onValueChange={v => setSelectedBuilding(v === "auto" ? "" : v)}>
-          <SelectTrigger className="w-64 h-9 text-sm">
-            <SelectValue placeholder="Liegenschaft (optional – wird automatisch erkannt)" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="auto">Automatisch erkennen</SelectItem>
-            <SelectItem value="company">🏢 RGI Immobilien (Firma)</SelectItem>
-            {buildings.map(b => (
-              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {uploading.length > 0 && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {uploading.length} Datei(en) werden verarbeitet...
-          </div>
-        )}
-      </div>
+      {uploading.length > 0 && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {uploading.length} Datei(en) werden verarbeitet...
+        </div>
+      )}
+
 
       <label
         className={cn(
