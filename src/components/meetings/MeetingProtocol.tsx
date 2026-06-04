@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sparkles, Loader2, Eye, Download, FileText, Send, CheckCircle2, AlertTriangle } from "lucide-react";
+import { ProtocolRenderActions } from "./ProtocolRenderActions";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -296,6 +297,9 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
           </Button>
         </div>
       )}
+
+      {/* Word-Vorlagen-Rendering, Tablet-Signaturen & DMS-Ablage */}
+      {hasProtocol && <ProtocolRenderActions meetingId={meetingId} />}
 
       {/* Preview Dialog */}
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
