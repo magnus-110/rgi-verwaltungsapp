@@ -380,21 +380,6 @@ export function Transfers() {
           </p>
         </div>
 
-        {/* Mini-Dashboard */}
-        <div className="flex items-center gap-3 text-xs">
-          <div className="px-3 py-1.5 rounded-md border border-destructive/30 bg-destructive/5">
-            <div className="text-muted-foreground">Offen ausgehend</div>
-            <div className="font-semibold text-destructive tabular-nums">
-              {formatCurrency(summary?.openOutgoing ?? 0)}
-            </div>
-          </div>
-          <div className="px-3 py-1.5 rounded-md border border-success/30 bg-success/5">
-            <div className="text-muted-foreground">Offen eingehend</div>
-            <div className="font-semibold text-success tabular-nums">
-              {formatCurrency(summary?.openIncoming ?? 0)}
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Tabs Ausgehend / Eingehend */}
