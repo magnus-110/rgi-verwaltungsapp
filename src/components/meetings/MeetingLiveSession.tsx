@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Play, Square, CheckCircle2, XCircle, Users, BarChart3, UserCheck, UserX,
-  ArrowLeft, ArrowRight, ChevronRight, ChevronLeft, Save, Shield, Copy, Lock, AlertTriangle,
+  ArrowLeft, ArrowRight, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Save, Shield, Copy, Lock, AlertTriangle,
   RefreshCw, StickyNote, FileText, Plus, Gavel, ArrowUp, ArrowDown
 } from "lucide-react";
 import { AgendaItemEmailsSection } from "./AgendaItemEmailsSection";
@@ -73,6 +73,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   const [proceduralResolution, setProceduralResolution] = useState("");
   const [proceduralPrinciple, setProceduralPrinciple] = useState("headcount");
   const [isSecretBallot, setIsSecretBallot] = useState(true);
+  const [isAttendanceCollapsed, setIsAttendanceCollapsed] = useState(true);
 
   // Load meeting for is_secret_ballot
   const { data: meetingData } = useQuery({
