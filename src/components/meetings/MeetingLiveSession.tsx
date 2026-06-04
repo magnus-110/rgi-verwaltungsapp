@@ -1177,7 +1177,27 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 opacity-50 group-hover:opacity-100"
+                    disabled={idx === 0 || reorderMutation.isPending}
+                    onClick={() => reorderMutation.mutate({ itemId: item.id, direction: "up" })}
+                    title="Nach oben"
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 opacity-50 group-hover:opacity-100"
+                    disabled={idx === agendaItems.length - 1 || reorderMutation.isPending}
+                    onClick={() => reorderMutation.mutate({ itemId: item.id, direction: "down" })}
+                    title="Nach unten"
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </Button>
                   {getStatusBadge(item)}
                   <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
