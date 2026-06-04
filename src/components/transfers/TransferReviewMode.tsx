@@ -684,6 +684,30 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
               {invoice.review_status === "verified" && (
                 <Badge variant="default">Geprüft</Badge>
               )}
+              {invoice.invoice_type !== "credit_note" && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1.5">
+                      <ArrowDownToLine className="h-3.5 w-3.5 text-success" />
+                      <span className="hidden sm:inline">Als Zahlungseingang</span>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Als Zahlungseingang markieren?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Die Rechnung „{invoice.vendor_name || "Unbekannt"}" wurde fälschlich als Ausgangsrechnung importiert und wird als Zahlungseingang (Beleg) umklassifiziert. Sie finden sie danach im Reiter „Eingehend".
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleConvertToIncoming}>
+                        Umwandeln
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
