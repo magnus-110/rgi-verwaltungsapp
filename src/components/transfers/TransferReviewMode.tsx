@@ -565,7 +565,7 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
         invoice_type: "credit_note",
         status: "credit_open",
         paid_at: null,
-        review_status: null,
+        review_status: "pending",
       } as any)
       .eq("id", invoice.id);
     if (error) {
