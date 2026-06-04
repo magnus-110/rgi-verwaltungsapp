@@ -145,7 +145,7 @@ export function InvoiceDropZone({ buildings, selectedBuildingId = "" }: Props) {
             </p>
             <p className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
               <Sparkles className="h-3 w-3" />
-              PDF, XML (XRechnung/ZUGFeRD) oder Foto/Scan (JPG, PNG) • Liegenschaft wird automatisch erkannt
+              PDF, XML (XRechnung/ZUGFeRD) oder Foto/Scan (JPG, PNG) • {selectedBuilding ? (selectedBuilding === "company" ? "Wird RGI Immobilien (Firma) zugeordnet" : "Wird der ausgewählten Liegenschaft zugeordnet") : "Liegenschaft wird automatisch erkannt"}
             </p>
           </div>
         </div>
