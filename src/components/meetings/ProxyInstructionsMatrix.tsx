@@ -242,7 +242,7 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
                                 )}
                                 <span className="text-sm font-medium truncate">{getContactName(contact)}</span>
                               </div>
-                              <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-[9px] w-fit px-1 py-0">
+                              <Badge className={`${badgeClass} text-[9px] w-fit px-1 py-0`}>
                                 {proxyLabel}
                               </Badge>
                             </div>
