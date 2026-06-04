@@ -26,7 +26,7 @@ import {
 import {
   X, ChevronLeft, ChevronRight, Copy, CheckCircle, CreditCard,
   AlertTriangle, FileText, Loader2, Trash2, Save, Flame,
-  Check, ChevronsUpDown,
+  Check, ChevronsUpDown, ArrowDownToLine,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMobileSplitView, MobileViewSwitcher, MobileBackToListButton } from "@/components/shared/MobileSplitView";
@@ -50,6 +50,7 @@ interface Invoice {
   payment_purpose?: string | null;
   building_id?: string | null;
   is_company_invoice?: boolean;
+  invoice_type?: string | null;
   ocr_extracted_data?: any;
   buildings?: { name: string } | null;
 }
@@ -557,6 +558,29 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
     }
   };
 
+  const handleConvertToIncoming = async () => {
+    const { error } = await supabase
+      .from("invoices")
+      .update({
+        invoice_type: "credit_note",
+        status: "credit_open",
+        paid_at: null,
+        review_status: null,
+      } as any)
+      .eq("id", invoice.id);
+    if (error) {
+      toast.error("Fehler bei der Umwandlung");
+      return;
+    }
+    toast.success("Als Zahlungseingang markiert");
+    onRefetch();
+    if (invoices.length <= 1) {
+      onClose();
+    } else if (index >= invoices.length - 1) {
+      setIndex(i => i - 1);
+    }
+  };
+
   const saveNotes = async () => {
     await supabase
       .from("invoices")
@@ -660,6 +684,30 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
             <div className="flex items-center gap-2">
               {invoice.review_status === "verified" && (
                 <Badge variant="default">Geprüft</Badge>
+              )}
+              {invoice.invoice_type !== "credit_note" && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1.5">
+                      <ArrowDownToLine className="h-3.5 w-3.5 text-success" />
+                      <span className="hidden sm:inline">Als Zahlungseingang</span>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Als Zahlungseingang markieren?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Die Rechnung „{invoice.vendor_name || "Unbekannt"}" wurde fälschlich als Ausgangsrechnung importiert und wird als Zahlungseingang (Beleg) umklassifiziert. Sie finden sie danach im Reiter „Eingehend".
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleConvertToIncoming}>
+                        Umwandeln
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               )}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
