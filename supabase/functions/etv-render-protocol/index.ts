@@ -100,9 +100,27 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { meeting_id, template_id, output_format = "pdf" } = await req.json();
-    if (!meeting_id) return json({ error: "meeting_id erforderlich" }, 400);
+    const { meeting_id, template_id, output_format = "pdf", inspect = false } = await req.json();
+    if (!inspect && !meeting_id) return json({ error: "meeting_id erforderlich" }, 400);
     if (!["docx", "pdf"].includes(output_format)) return json({ error: "output_format docx|pdf" }, 400);
+
+    if (inspect) {
+      let tpl2: any = null;
+      if (template_id) {
+        const { data } = await admin.from("etv_protocol_templates").select("*").eq("id", template_id).maybeSingle();
+        tpl2 = data;
+      }
+      if (!tpl2) {
+        const { data } = await admin.from("etv_protocol_templates").select("*").eq("is_default", true).maybeSingle();
+        tpl2 = data;
+      }
+      const { data: f } = await admin.storage.from("building-files").download(tpl2.storage_path);
+      const z = new PizZip(new Uint8Array(await f!.arrayBuffer()));
+      const xml = z.file("word/document.xml")!.asText();
+      const stripped = xml.replace(/<[^>]+>/g, "");
+      const placeholders = Array.from(new Set([...stripped.matchAll(/\{([^{}]+)\}/g)].map(m => m[1])));
+      return json({ placeholders, text: stripped.slice(0, 4000) });
+    }
 
     // Vorlage laden (gewählt oder Standard)
     let tpl: any = null;
