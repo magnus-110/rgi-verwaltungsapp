@@ -990,21 +990,33 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                 </div>
               )}
 
-              {(isVoted || isClosed) && (
+              {(isVoted || isClosed) && (() => {
+                const isMea = selectedItem.voting_principle === "mea";
+                const fmt = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+                const yesVal = isMea ? fmt(Number(selectedItem.total_mea_yes || 0)) : selectedItem.yes_count;
+                const noVal = isMea ? fmt(Number(selectedItem.total_mea_no || 0)) : selectedItem.no_count;
+                const absVal = isMea ? fmt(Number(selectedItem.total_mea_abstain || 0)) : selectedItem.abstain_count;
+                const unitLbl = isMea ? "MEA" : "Köpfe";
+                return (
                 <div className="space-y-2">
                   <div className="flex gap-6 text-sm">
                     <div className="text-center">
-                      <div className="text-xl font-bold text-green-600">{selectedItem.yes_count}</div>
-                      <div className="text-xs text-muted-foreground">Ja</div>
+                      <div className="text-xl font-bold text-green-600">{yesVal}</div>
+                      <div className="text-xs text-muted-foreground">Ja ({unitLbl})</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-xl font-bold text-red-600">{selectedItem.no_count}</div>
-                      <div className="text-xs text-muted-foreground">Nein</div>
+                      <div className="text-xl font-bold text-red-600">{noVal}</div>
+                      <div className="text-xs text-muted-foreground">Nein ({unitLbl})</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-xl font-bold text-muted-foreground">{selectedItem.abstain_count}</div>
-                      <div className="text-xs text-muted-foreground">Enthaltung</div>
+                      <div className="text-xl font-bold text-muted-foreground">{absVal}</div>
+                      <div className="text-xs text-muted-foreground">Enthaltung ({unitLbl})</div>
                     </div>
+                    {isMea && (
+                      <div className="text-center text-xs text-muted-foreground self-end">
+                        Köpfe: {selectedItem.yes_count} / {selectedItem.no_count} / {selectedItem.abstain_count}
+                      </div>
+                    )}
                   </div>
                   {isClosed && (
                     <p className="text-xs text-orange-600 font-medium">⚠ Ergebnis noch nicht bestätigt</p>
@@ -1015,7 +1027,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                      </Badge>
                   )}
                 </div>
-              )}
+              );})()}
             </div>
             </>)}
 
