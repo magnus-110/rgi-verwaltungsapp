@@ -562,6 +562,29 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     },
   });
 
+  // Reorder TOPs (swap sort_order with neighbor)
+  const reorderMutation = useMutation({
+    mutationFn: async ({ itemId, direction }: { itemId: string; direction: "up" | "down" }) => {
+      const idx = agendaItems.findIndex((i) => i.id === itemId);
+      if (idx === -1) return;
+      const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= agendaItems.length) return;
+      const a = agendaItems[idx];
+      const b = agendaItems[targetIdx];
+      // Two-step swap to avoid unique constraint conflicts on (meeting_id, sort_order)
+      const { error: e1 } = await supabase.from("etv_agenda_items").update({ sort_order: -1 }).eq("id", a.id);
+      if (e1) throw e1;
+      const { error: e2 } = await supabase.from("etv_agenda_items").update({ sort_order: a.sort_order }).eq("id", b.id);
+      if (e2) throw e2;
+      const { error: e3 } = await supabase.from("etv_agenda_items").update({ sort_order: b.sort_order }).eq("id", a.id);
+      if (e3) throw e3;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
+    },
+    onError: (err: any) => toast({ title: "Fehler beim Verschieben", description: err.message, variant: "destructive" }),
+  });
+
   const getStatusBadge = (item: AgendaItem) => {
     if (item.status === "voted") {
       return (
