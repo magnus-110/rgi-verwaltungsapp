@@ -257,6 +257,51 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     return sqmShare?.share_value || 0;
   };
 
+  // Auto-cast pre-vote instructions (Papier-Weisungen / Admin-Vorauswahl)
+  // Runs whenever the active vote item, attendees or current votes change.
+  // Only casts if the attendee is present/represented and no vote exists yet.
+  const autoCastAttempted = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!activeVoteItem) return;
+    const eligible = attendees.filter(
+      (a: any) =>
+        (a.attendance_type === "present" || (a.attendance_type === "proxy" && a.checked_in_at)) &&
+        a.pre_vote_instructions &&
+        (a.pre_vote_instructions as any)[activeVoteItem]
+    );
+    if (eligible.length === 0) return;
+    const existingByAssignment = new Set(currentVotes.map((v: any) => v.assignment_id));
+    const todo = eligible.filter((a: any) => {
+      if (existingByAssignment.has(a.assignment_id)) return false;
+      const key = `${activeVoteItem}:${a.assignment_id}`;
+      if (autoCastAttempted.current.has(key)) return false;
+      return true;
+    });
+    if (todo.length === 0) return;
+    (async () => {
+      for (const att of todo) {
+        const vote = (att.pre_vote_instructions as any)[activeVoteItem];
+        if (!["yes", "no", "abstain"].includes(vote)) continue;
+        autoCastAttempted.current.add(`${activeVoteItem}:${att.assignment_id}`);
+        await supabase.from("etv_votes").upsert({
+          agenda_item_id: activeVoteItem,
+          assignment_id: att.assignment_id,
+          vote,
+          mea_weight: getMeaWeight(att),
+          sqm_weight: getSqmWeight(att),
+          is_manual_override: false,
+          voted_at: new Date().toISOString(),
+        } as any, { onConflict: "agenda_item_id,assignment_id" });
+      }
+      queryClient.invalidateQueries({ queryKey: ["etv-votes-live", activeVoteItem] });
+    })();
+  }, [activeVoteItem, attendees, currentVotes, queryClient]);
+
+  // Reset autoCast memory when the active vote changes
+  useEffect(() => {
+    autoCastAttempted.current = new Set();
+  }, [activeVoteItem]);
+
   // Compute result for a given voting principle
   // Einfache Mehrheit: Ja > Nein (Enthaltungen zählen NICHT als Nein-Stimmen)
   const computeResult = (principle: string, votes: any[], item?: AgendaItem) => {
