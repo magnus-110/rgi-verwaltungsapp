@@ -21,7 +21,10 @@ function fmtTime(d?: string | null): string {
   if (!d) return "";
   const dt = new Date(d);
   if (isNaN(dt.getTime())) return "";
-  return dt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  return dt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr";
+}
+function fmtMea(n: number): string {
+  return n.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 }
 function sanitize(s: string): string {
   return (s || "").replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 80);
@@ -31,6 +34,22 @@ function json(b: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function buildErgebnisSatz(ja: number, nein: number, enth: number, result?: string | null): string {
+  const total = ja + nein + enth;
+  if (total === 0) return "Es wurde nicht abgestimmt.";
+  const angenommen = (result === "passed") || (result == null && ja > nein);
+  if (!angenommen) return "Der Beschluss wurde abgelehnt.";
+  if (nein === 0 && enth === 0) return "Der Beschluss wurde einstimmig angenommen und verkündet.";
+  if (nein === 0) return "Der Beschluss wurde mehrheitlich (bei Enthaltungen) angenommen und verkündet.";
+  return "Der Beschluss wurde mehrheitlich angenommen und verkündet.";
+}
+
+function buildAbstimmungsMethode(principle?: string | null): string {
+  if (principle === "headcount") return "Die Abstimmung erfolgte nach Köpfen.";
+  if (principle === "double_qualified") return "Die Abstimmung erfolgte nach doppelt qualifizierter Mehrheit.";
+  return "Die Abstimmung erfolgte nach Anteilen (MEA).";
 }
 
 async function convertDocxToPdf(docxBytes: Uint8Array, filename: string): Promise<Uint8Array> {
@@ -100,7 +119,7 @@ Deno.serve(async (req) => {
     // Daten laden
     const { data: meeting, error: mErr } = await admin
       .from("etv_meetings")
-      .select("*, buildings(name, address, manager_name, unit_count)")
+      .select("*, buildings(name, address)")
       .eq("id", meeting_id)
       .single();
     if (mErr || !meeting) return json({ error: mErr?.message || "Versammlung nicht gefunden" }, 404);
@@ -110,19 +129,9 @@ Deno.serve(async (req) => {
 
     const { data: attendees = [] } = await admin
       .from("etv_attendees")
-      .select(`*, contact_building_assignments!inner(unit_number, contacts!inner(first_name, last_name, company_name), contact_building_shares(share_type, share_value))`)
+      .select(`*, contact_building_assignments!inner(contact_building_shares(share_type, share_value))`)
       .eq("meeting_id", meeting_id);
 
-    const { data: signatures = [] } = await admin
-      .from("etv_protocol_signatures").select("*").eq("meeting_id", meeting_id).order("signed_at");
-
-    const building = meeting.buildings as any;
-    const getName = (a: any) => {
-      const c = a.contact_building_assignments?.contacts;
-      if (!c) return "Unbekannt";
-      return c.company_name || [c.first_name, c.last_name].filter(Boolean).join(" ") || "Unbenannt";
-    };
-    const getUnit = (a: any) => a.contact_building_assignments?.unit_number || "";
     const getMea = (a: any) => {
       const shares = a.contact_building_assignments?.contact_building_shares || [];
       const mea = shares.find((s: any) => s.share_type === "mea");
@@ -133,92 +142,61 @@ Deno.serve(async (req) => {
     const proxied = attendees.filter((a: any) => a.attendance_type === "proxy");
     const totalMea = attendees.reduce((s: number, a: any) => s + getMea(a), 0);
     const presentMea = [...present, ...proxied].reduce((s: number, a: any) => s + getMea(a), 0);
-    const anwesendCount = present.length + proxied.length;
 
-    const anwesendeRows = [...present, ...proxied].map((a: any) => ({
-      name: getName(a),
-      einheit: getUnit(a),
-      mea: getMea(a).toFixed(4),
-      anwesenheit_typ: a.attendance_type === "present" ? "persönlich" : "Vollmacht",
-    }));
+    // Anwesenheits-Satz (orientiert am echten RGI-Protokoll, "Tausendstel"-Sprache wenn ~1000)
+    const meaUnit = totalMea > 950 && totalMea < 1050 ? "Tausendstel" : "MEA";
+    const anwesenheitText =
+      `Von insgesamt ${fmtMea(totalMea)} ${meaUnit} waren ${fmtMea(presentMea)} ${meaUnit} anwesend.` +
+      (Math.abs(presentMea - totalMea) < 0.001 && totalMea > 0
+        ? ` Es waren alle ${meaUnit} anwesend.`
+        : "");
 
-    const topsRows = (agendaItems || []).map((it: any, idx: number) => ({
-      nummer: String(idx + 1),
-      titel: it.title || "",
-      beschreibung: it.description || "",
-      diskussion: it.admin_notes || "",
-      beschlusstext: it.resolution_text || "",
-      ergebnis: it.result === "passed" ? "ANGENOMMEN" : it.result === "failed" ? "ABGELEHNT" : "—",
-      ja_stimmen: String(it.yes_count ?? 0),
-      nein_stimmen: String(it.no_count ?? 0),
-      enthaltungen: String(it.abstain_count ?? 0),
-      mehrheit_typ:
-        it.voting_principle === "mea" ? "MEA"
-        : it.voting_principle === "headcount" ? "Kopf"
-        : it.voting_principle === "double_qualified" ? "Doppelt qualifiziert"
-        : (it.voting_principle || ""),
-      angenommen: it.result === "passed" ? "Ja" : "Nein",
-    }));
+    // TOPs aufbereiten
+    const tops = (agendaItems || []).map((it: any, idx: number) => {
+      const ja = Number(it.yes_count ?? 0);
+      const nein = Number(it.no_count ?? 0);
+      const enth = Number(it.abstain_count ?? 0);
+      const hatBeschluss = !!(it.resolution_text && it.resolution_text.trim().length > 0);
+      const hatNotizen = !!(it.admin_notes && it.admin_notes.trim().length > 0);
+      return {
+        nummer: String(idx + 1),
+        titel: it.title || "",
+        text: it.description || "",
+        hat_beschluss: hatBeschluss,
+        beschluss_text: it.resolution_text || "",
+        abstimmung_methode: buildAbstimmungsMethode(it.voting_principle),
+        ja: fmtMea(ja),
+        nein: fmtMea(nein),
+        enthaltung: fmtMea(enth),
+        ergebnis_satz: buildErgebnisSatz(ja, nein, enth, it.result),
+        hat_notizen: hatNotizen,
+        notizen: it.admin_notes || "",
+      };
+    });
 
-    const beschluesseRows = topsRows.filter((t) => t.beschlusstext).map((t) => ({
-      nummer: t.nummer,
-      text: t.beschlusstext,
-      ergebnis: t.ergebnis,
-    }));
-
-    const sigText = (role: string) => {
-      const s = signatures.find((x: any) => x.role === role);
-      if (!s) return "";
-      return `${s.signer_name}  (unterschrieben am ${fmtDate(s.signed_at)})`;
-    };
+    const building = meeting.buildings as any;
+    const ortDatumStadt = (building?.address || "").split(",").pop()?.trim()?.replace(/^\d{4,5}\s*/, "") || "";
+    const meetingDateStr = fmtDate(meeting.meeting_date);
 
     const payload = {
-      versammlung: {
-        titel: meeting.title || "",
-        datum: fmtDate(meeting.meeting_date),
-        uhrzeit_beginn: fmtTime(meeting.meeting_date),
-        uhrzeit_ende: "",
-        ort: meeting.location || "",
-        art: meeting.title?.toLowerCase().includes("außer") ? "außerordentlich" : "ordentlich",
-        beschlussfaehig: meeting.quorum_reached ? "Ja" : (anwesendCount >= 1 ? "Ja" : "Nein"),
-      },
-      liegenschaft: {
+      weg: {
         name: building?.name || "",
-        adresse: building?.address || "",
-        plz: "",
-        ort: "",
       },
-      verwaltung: {
-        name: building?.manager_name || "RGI Immobilien GmbH & Co. KG",
-        adresse: "",
-        telefon: "08363 960656",
-        email: "info@rgi-immobilien.de",
+      versammlung: {
+        datum: meetingDateStr,
+        ort: meeting.location || "",
+        beginn: fmtTime(meeting.meeting_date),
+        ende: "",
+        leitung: meeting.meeting_chair || "",
+        protokollfuehrer: meeting.minutes_taker || "",
+        anwesenheit_text: anwesenheitText,
       },
-      versammlungsleiter: { name: meeting.meeting_chair || "" },
-      protokollfuehrer: { name: meeting.minutes_taker || "" },
-      stimmzaehler: { name: "" },
-      anwesenheit: {
-        anzahl_anwesend: String(present.length),
-        anzahl_vertreten: String(proxied.length),
-        anzahl_gesamt: String(attendees.length),
-        mea_anwesend: presentMea.toFixed(4),
-        mea_gesamt: totalMea.toFixed(4),
-        quote_prozent: totalMea > 0 ? ((presentMea / totalMea) * 100).toFixed(1) : "0",
-      },
-      anwesende: anwesendeRows,
-      tops: topsRows,
-      beschluesse: beschluesseRows,
-      einleitung: "",
-      abschluss: "",
-      ki_protokoll_volltext: meeting.protocol_text || "",
-      erstellt_am: new Date().toLocaleDateString("de-DE"),
-      naechster_termin: "",
-      signature_leiter: sigText("leiter"),
-      signature_protokollant: sigText("protokollant"),
-      signature_eigentuemer: sigText("eigentuemer"),
+      tops,
+      schlusssatz: "Die Verwaltung bedankt sich bei den anwesenden Eigentümern für ihr Erscheinen und beendet die Versammlung.",
+      ort_datum: ortDatumStadt ? `${ortDatumStadt}, ${meetingDateStr}` : meetingDateStr,
     };
 
-    // Template laden
+    // Template laden & rendern
     const { data: tplFile, error: tErr } = await admin.storage.from("building-files").download(tpl.storage_path);
     if (tErr || !tplFile) return json({ error: tErr?.message || "Vorlage nicht ladbar" }, 500);
 
@@ -232,7 +210,7 @@ Deno.serve(async (req) => {
     doc.render(payload);
     const docxBytes = doc.getZip().generate({ type: "uint8array" });
 
-    const baseName = `Protokoll_${sanitize(meeting.title || "ETV")}_${sanitize(building?.name || "")}`;
+    const baseName = `Protokoll_${sanitize(building?.name || "ETV")}_${sanitize(meetingDateStr)}`;
     const outExt = output_format === "pdf" ? "pdf" : "docx";
     const outPath = `_etv-protocol-renders/${meeting_id}/${baseName}_${Date.now()}.${outExt}`;
 

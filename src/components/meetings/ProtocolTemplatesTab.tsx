@@ -11,15 +11,34 @@ import { toast } from "sonner";
 import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
 
 const PLACEHOLDERS: [string, string[]][] = [
-  ["Versammlung", ["{versammlung.titel}", "{versammlung.datum}", "{versammlung.uhrzeit_beginn}", "{versammlung.uhrzeit_ende}", "{versammlung.ort}", "{versammlung.art}", "{versammlung.beschlussfaehig}"]],
-  ["Liegenschaft / Verwaltung", ["{liegenschaft.name}", "{liegenschaft.adresse}", "{verwaltung.name}", "{verwaltung.telefon}", "{verwaltung.email}"]],
-  ["Rollen", ["{versammlungsleiter.name}", "{protokollfuehrer.name}", "{stimmzaehler.name}"]],
-  ["Anwesenheit", ["{anwesenheit.anzahl_anwesend}", "{anwesenheit.anzahl_vertreten}", "{anwesenheit.anzahl_gesamt}", "{anwesenheit.mea_anwesend}", "{anwesenheit.mea_gesamt}", "{anwesenheit.quote_prozent}"]],
-  ["Anwesende (Tabellen-Loop)", ["{#anwesende}{name} | {einheit} | {mea} | {anwesenheit_typ}{/anwesende}"]],
-  ["TOPs (Tabellen-Loop)", ["{#tops}{nummer} | {titel} | {beschreibung} | {diskussion} | {beschlusstext} | {ergebnis} | {ja_stimmen} | {nein_stimmen} | {enthaltungen} | {mehrheit_typ} | {angenommen}{/tops}"]],
-  ["Beschlüsse (Loop)", ["{#beschluesse}{nummer} | {text} | {ergebnis}{/beschluesse}"]],
-  ["KI-Texte / Allgemein", ["{einleitung}", "{abschluss}", "{ki_protokoll_volltext}", "{erstellt_am}", "{naechster_termin}"]],
-  ["Unterschriften (als Text)", ["{signature_leiter}", "{signature_protokollant}", "{signature_eigentuemer}"]],
+  ["Kopf / Stammdaten", [
+    "{weg.name}",
+    "{versammlung.datum}",
+    "{versammlung.ort}",
+    "{versammlung.beginn}",
+    "{versammlung.ende}",
+    "{versammlung.leitung}",
+    "{versammlung.protokollfuehrer}",
+    "{versammlung.anwesenheit_text}",
+  ]],
+  ["TOPs (Loop – komplette TOP-Sektion zwischen #tops und /tops)", [
+    "{#tops}",
+    "TOP {nummer} – {titel}",
+    "{text}",
+    "{#hat_beschluss}",
+    "Beschlussantrag: {beschluss_text}",
+    "{abstimmung_methode}",
+    "dafür: {ja}, dagegen: {nein}, enthalten: {enthaltung}",
+    "{ergebnis_satz}",
+    "{/hat_beschluss}",
+    "{#hat_notizen}Notizen: {notizen}{/hat_notizen}",
+    "{/tops}",
+  ]],
+  ["Schluss & Unterschriften", [
+    "{schlusssatz}",
+    "{ort_datum}",
+    "(Unterschriften werden nach dem Signieren als Bild ins PDF eingefügt – kein Text-Platzhalter nötig)",
+  ]],
 ];
 
 export function ProtocolTemplatesTab() {
