@@ -62,6 +62,21 @@ export function ProtocolReadableView({
     },
   });
 
+  const itemIds = agendaItems.map((it: any) => it.id);
+  const { data: votes = [] } = useQuery({
+    queryKey: ["protocol-view-votes", meetingId, itemIds.join(",")],
+    queryFn: async () => {
+      if (itemIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("etv_votes")
+        .select("agenda_item_id, vote, mea_weight")
+        .in("agenda_item_id", itemIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: itemIds.length > 0,
+  });
+
   if (!meeting) return null;
 
   const building = (meeting as any).buildings;
@@ -124,10 +139,22 @@ export function ProtocolReadableView({
         {agendaItems.map((it: any, idx: number) => {
           const hasResolution = !!(it.resolution_text && it.resolution_text.trim());
           const hasNotes = !!(it.admin_notes && it.admin_notes.trim());
-          const ja = Number(it.yes_count ?? 0);
-          const nein = Number(it.no_count ?? 0);
-          const enth = Number(it.abstain_count ?? 0);
+          const itemVotes = votes.filter((v: any) => v.agenda_item_id === it.id);
+          const sumMea = (vote: string) => itemVotes
+            .filter((v: any) => v.vote === vote)
+            .reduce((sum: number, v: any) => sum + Number(v.mea_weight || 0), 0);
+          const isMea = it.voting_principle === "mea";
+          const headJa = Number(it.yes_count ?? 0);
+          const headNein = Number(it.no_count ?? 0);
+          const headEnth = Number(it.abstain_count ?? 0);
+          const meaJa = Number(it.total_mea_yes ?? sumMea("yes"));
+          const meaNein = Number(it.total_mea_no ?? sumMea("no"));
+          const meaEnth = Number(it.total_mea_abstain ?? sumMea("abstain"));
+          const ja = isMea ? meaJa : headJa;
+          const nein = isMea ? meaNein : headNein;
+          const enth = isMea ? meaEnth : headEnth;
           const total = ja + nein + enth;
+          const formatResultValue = (n: number) => isMea ? fmtMea(n) : String(n);
           const passed = it.result === "passed" || (it.result == null && ja > nein && total > 0);
           const failed = it.result === "failed" || (it.result == null && nein >= ja && total > 0);
           return (
@@ -152,13 +179,13 @@ export function ProtocolReadableView({
                       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
                         <span className="text-muted-foreground text-xs">Abstimmung {principleLabel(it.voting_principle)}</span>
                         <span className="flex items-center gap-1.5 text-green-700">
-                          <CheckCircle2 className="h-4 w-4" /> Ja <span className="tabular-nums font-medium">{fmtMea(ja)}</span>
+                          <CheckCircle2 className="h-4 w-4" /> Ja <span className="tabular-nums font-medium">{formatResultValue(ja)}</span>
                         </span>
                         <span className="flex items-center gap-1.5 text-red-700">
-                          <XCircle className="h-4 w-4" /> Nein <span className="tabular-nums font-medium">{fmtMea(nein)}</span>
+                          <XCircle className="h-4 w-4" /> Nein <span className="tabular-nums font-medium">{formatResultValue(nein)}</span>
                         </span>
                         <span className="flex items-center gap-1.5 text-muted-foreground">
-                          <MinusCircle className="h-4 w-4" /> Enth. <span className="tabular-nums font-medium">{fmtMea(enth)}</span>
+                          <MinusCircle className="h-4 w-4" /> Enth. <span className="tabular-nums font-medium">{formatResultValue(enth)}</span>
                         </span>
                         {passed && (
                           <Badge className="bg-green-100 text-green-800 border-green-200 hover:bg-green-100">Angenommen</Badge>
