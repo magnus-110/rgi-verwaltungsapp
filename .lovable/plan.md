@@ -1,60 +1,91 @@
 ## Ziel
 
-Protokoll-System radikal vereinfachen: Das Protokoll entsteht direkt aus den im Editor vorbereiteten TOPs (Beschreibung + optional Beschlussantrag + Abstimmungsergebnis + Notizen). Kein KI-Fließtext, keine 30 Platzhalter, keine Anwesenheitsliste pro Person — nur das, was real im RGI-Protokoll steht.
+Den Nachbereitungs-Tab clean und übersichtlich gestalten — nur das Nötigste, in dieser Reihenfolge:
 
-## Neues Vorlagen-Schema (schlank)
+1. **Protokoll-Vorschau** (formatiert, lesbar, mit Vollbild-Option)
+2. **Unterschriften-Bereich** (Eigentümer · Versammlungsleiter · Protokollführer)
+3. **Drei Action-Buttons**: PDF herunterladen · DOCX herunterladen · Beschlusssammlung aktualisieren
 
-**Kopf / Stammdaten**
-- `{weg.name}` – z.B. "Birkenweg 13, Pfronten"
-- `{versammlung.datum}` – "27.02.2026"
-- `{versammlung.ort}` – "Gasthof Aggenstein - Tiroler Str. 124, 87459 Pfronten"
-- `{versammlung.beginn}` / `{versammlung.ende}` – "17:00 Uhr" / "20:00 Uhr"
-- `{versammlung.leitung}` – Name Versammlungsleitung
-- `{versammlung.protokollfuehrer}` – Name Protokollführer
-- `{versammlung.anwesenheit_text}` – fertig formatierter Satz "Von insgesamt 1000,000 Tausendstel waren 1000,000 Tausendstel anwesend." (+ optional "Es waren alle Tausendstel anwesend.")
+Alles andere fliegt raus.
 
-**TOP-Loop** `{#tops} … {/tops}` mit Feldern:
-- `{nummer}` – "1", "2", …
-- `{titel}` – "Eröffnung der Eigentümerversammlung"
-- `{text}` – kompletter vorbereiteter Beschreibungstext aus dem TOP-Editor (mehrzeilig, inkl. Unterpunkten)
-- `{#hat_beschluss}` … `{/hat_beschluss}` – Block nur rendern wenn Beschlussantrag existiert
-  - `{beschluss_text}` – Wortlaut des Antrags
-  - `{abstimmung_methode}` – "Die Abstimmung erfolgte nach Anteilen (MEA)." (oder Kopfprinzip-Variante)
-  - `{ja}` / `{nein}` / `{enthaltung}` – formatiert "1.000,000"
-  - `{ergebnis_satz}` – "Der Beschluss wurde einstimmig angenommen und verkündet." / "mehrheitlich angenommen" / "abgelehnt"
-- `{#hat_notizen}` `{notizen}` `{/hat_notizen}` – nur wenn admin_notes vorhanden
+## Was entfernt wird (`MeetingProtocol.tsx`)
 
-**Schluss**
-- `{schlusssatz}` – "Die Verwaltung bedankt sich … und beendet die Versammlung um 20:00 Uhr."
-- `{ort_datum}` – "Pfronten, 27.02.2026"
+- Status-Karte oben (TOPs-Zähler, "Protokoll generiert"-Badge) → ein kleiner unauffälliger Header reicht
+- Buttons „Protokoll neu generieren" und „Beschlusssammlung aktualisieren" oberhalb → werden neu unten gruppiert
+- „Generiertes Protokoll"-Card mit rohem `whitespace-pre-wrap` Text → ersetzt durch eingebettetes formatiertes HTML
+- Button-Reihe „Vorschau · Als HTML · Im Portal veröffentlichen" → wird verschlankt, „Als HTML" raus, „Vorschau" wird Vollbild-Icon, „Im Portal veröffentlichen" bleibt erhalten (war im aktuellen Bild ja noch da)
+- Doppelte Vorlagen-Auswahl + DOCX/PDF-Buttons + großer Unterschriften-Block aus `ProtocolRenderActions` → durch schlanke neue Variante ersetzt
 
-**Unterschriften** (PNG-Felder via pdf-lib im finalize-Schritt)
-- Versammlungsleitung, Protokollführer, Beirat, Eigentümer (1 Eigentümer-Unterschrift, wie in der Vorlage)
+## Neuer Aufbau Nachbereitung
 
-## Was rausfliegt
+```text
+┌─ Mini-Header ─────────────────────────────────────────┐
+│ ✓ 3/3 TOPs · Protokoll: 29.03.2026          [⛶ Groß] │
+├───────────────────────────────────────────────────────┤
+│                                                       │
+│   ┌─ Protokoll (formatiertes HTML, iframe) ────┐      │
+│   │  Eigentümerversammlung – WEG XY            │      │
+│   │  Datum, Ort, Leitung …                     │      │
+│   │  TOP 1 …                                   │      │
+│   │  …                                         │      │
+│   │  Höhe ~600px, scrollbar                    │      │
+│   └────────────────────────────────────────────┘      │
+│                                                       │
+│   Unterschriften                                      │
+│   ┌──────────────┬──────────────┬──────────────┐      │
+│   │ Eigentümer   │ Vers.-leiter │ Protokollf.  │      │
+│   │ [Sign-Pad]   │ [Sign-Pad]   │ [Sign-Pad]   │      │
+│   │ Name: ____   │ Name: ____   │ Name: ____   │      │
+│   └──────────────┴──────────────┴──────────────┘      │
+│                                                       │
+│   [📄 PDF]  [📝 DOCX]  [📚 Beschlusssammlung akt.]    │
+│                                                       │
+│   (sekundär, klein): [✨ Protokoll neu generieren]   │
+│                      [🚀 Im Portal veröffentlichen]   │
+└───────────────────────────────────────────────────────┘
+```
 
-- KI-Generierung (`{ki.*}`, `{einleitung}`, `{ki_protokoll_volltext}`) → nicht benötigt, Inhalte stehen in den TOPs
-- Anwesenheitsloop `{#anwesende}` mit Einzeleinträgen → ersetzt durch einen Anwesenheits-Summary-Satz
-- `{liegenschaft.plz/ort/einheiten_anzahl/mea_gesamt}`, `{verwaltung.*}`, `{rollen.*}`, separater `{#beschluesse}`-Loop, `{versammlung.titel/uhrzeit_beginn/uhrzeit_ende/art/einladungs_datum/beschlussfaehig/quorum_text}` → alles raus
-- `etv-render-protocol` Payload-Builder entsprechend abspecken
+### Vollbild-Modus
 
-## Umsetzung
+Ein Icon-Button (⛶) öffnet das aktuelle `generateProtocolHtml()` als `iframe` in einem Dialog auf `max-w-6xl` / `h-[95dvh]` — quasi „lesen wie ein PDF". Schließen per X.
 
-1. **`supabase/functions/etv-render-protocol/index.ts`** — Payload-Builder neu schreiben: nur noch die oben gelisteten Felder, TOPs aus `etv_agenda_items` sortiert (sort_order) mit `description` → `text`, `resolution_text` → `beschluss_text`, `yes/no/abstain_count` → Stimmen, `admin_notes` → `notizen`. Hilfs-Funktion `formatMea(n)` (de-DE 3 Nachkommastellen), `buildErgebnisSatz()` (einstimmig vs. mehrheitlich vs. abgelehnt anhand Stimmen).
-2. **`ProtocolTemplatesTab.tsx`** — Platzhalter-Hilfe (Help-Sheet/Akkordeon) auf die neue, schlanke Liste reduzieren mit Beispielen.
-3. **Neue `.docx`-Vorlage `ETV_Protokoll_Vorlage_v2.docx`** generieren, die das echte RGI-Layout nachbaut: 
-   - Kopfzeile "RGI IMMOBILIEN – Verkauf · Vermietung · Verwaltung"
-   - Titel "Protokoll zur Eigentümerversammlung der Eigentümergemeinschaft {weg.name}"
-   - Block Datum/Ort/Beginn/Ende/Leitung/Protokollführer/Anwesenheit
-   - `{#tops}`-Schleife mit "TOP {nummer} - {titel}", `{text}`, bedingter Beschluss-Block (Beschlussantrag-Wortlaut + Abstimmungsergebnis-Zeilen + Ergebnissatz), bedingter Notizen-Block
-   - Schlusssatz, Ort/Datum, vier Unterschriftsfelder
-4. **`MeetingProtocol.tsx`** — sicherstellen, dass die TOP-Beschreibung (`description`) das Hauptfeld für den Fließtext ist (kleines UI-Hinweis-Label "Dieser Text erscheint 1:1 im Protokoll").
-5. **KI-Erzeugung** (`generate-meeting-protocol`-Aufruf in MeetingProtocol) optional belassen, aber Hinweis: dient nur als Entwurf für `description`, fließt nicht mehr direkt in die Vorlage.
+### Unterschriften-Karte
 
-## Deliverables
+- 3 Spalten responsive (mobil 1-spaltig)
+- Jede Spalte: Rolle, kleines `<SignaturePad>` (existiert in `buildings/keys/SignaturePad.tsx`), Namensfeld
+- Status-Pill „✓ unterschrieben" wenn vorhanden
+- Speichern automatisch onBlur des Pads (delete-then-insert in `etv_protocol_signatures` wie bisher) → kein extra Dialog mehr
+- „Final signieren & im DMS ablegen" bleibt als unauffälliger Button **unter** den Pads, wird erst aktiv wenn alle 3 unterschrieben
 
-- Aktualisierte Edge Function + Templates-Tab
-- Neue `ETV_Protokoll_Vorlage_v2.docx` als Download
-- Kurze Platzhalter-Liste (1 Seite) zum Weitergeben an Claude für künftige Vorlagen-Varianten
+### Buttons
 
-Soll ich so umsetzen?
+- **PDF / DOCX**: rufen direkt `etv-render-protocol` mit `output_format: pdf|docx` auf — Standard-Vorlage wird automatisch verwendet (kein Vorlagen-Dropdown mehr im Tab, das gehört zum Vorlagen-Manager-Tab)
+- **Beschlusssammlung aktualisieren**: bestehende `saveResolutionsMutation` 1:1
+- **Protokoll neu generieren** + **Im Portal veröffentlichen**: bleiben erhalten, werden aber als sekundäre Ghost-Buttons unten platziert (nicht prominent)
+
+## Technische Umsetzung
+
+### `src/components/meetings/MeetingProtocol.tsx` (rewrite Layout)
+- Behält alle Queries + Mutations (`generateMutation`, `saveResolutionsMutation`, `publishMutation`, `generateProtocolHtml`)
+- Rendert Protokoll als `<iframe srcDoc={generateProtocolHtml()}>` direkt im Tab (~600px hoch) statt rohem Textblock
+- Vollbild-Dialog mit gleichem `iframe`, größer
+- Bindet neue `ProtocolSignaturesInline`-Komponente und neue `ProtocolDownloadButtons`-Komponente ein
+
+### Neu: `src/components/meetings/ProtocolSignaturesInline.tsx`
+- Lädt `etv_protocol_signatures` für `meeting_id`
+- Rendert 3-Spalten-Grid mit `SignaturePad` + Namens-`Input` pro Rolle
+- onChange auf Pad + Name: upsert in `etv_protocol_signatures` (delete-then-insert pro Rolle)
+- Zeigt „Final signieren & im DMS ablegen"-Button (ruft `etv-finalize-signed-protocol` wie bisher)
+
+### Neu: `src/components/meetings/ProtocolDownloadButtons.tsx`
+- Zwei Buttons (PDF, DOCX) → `supabase.functions.invoke("etv-render-protocol", { meeting_id, output_format })` → `window.open(signed_url)`
+- Nutzt die Default-Vorlage automatisch (kein Template-Picker)
+
+### Löschen
+- `src/components/meetings/ProtocolRenderActions.tsx` wird **nicht gelöscht**, aber nicht mehr referenziert (kann später entfernt werden); falls gewünscht direkt entfernen
+
+## Nicht Teil dieses Plans
+
+- Backend / Edge Functions / Datenbank-Schema bleiben unverändert
+- Vorlagen-Tab und ProtocolTemplatesTab bleiben unangetastet
+- KI-Protokoll-Generierung bleibt funktional gleich
