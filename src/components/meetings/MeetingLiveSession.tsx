@@ -185,6 +185,23 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     staleTime: 30_000,
   });
 
+  // Separate vote load for the selected TOP so closed/confirmed results still show
+  // the actual MEA sums after activeVoteItem is no longer available.
+  const { data: selectedItemVotes = [] } = useQuery({
+    queryKey: ["etv-votes-detail", selectedTopId],
+    queryFn: async () => {
+      if (!selectedTopId) return [];
+      const { data, error } = await supabase
+        .from("etv_votes")
+        .select("*")
+        .eq("agenda_item_id", selectedTopId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedTopId,
+    staleTime: 10_000,
+  });
+
   // Realtime votes
   useEffect(() => {
     if (!activeVoteItem) return;
@@ -520,6 +537,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       setResultDialog(resultItem);
       queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
       queryClient.invalidateQueries({ queryKey: ["etv-votes-live", resultItem.id] });
+      queryClient.invalidateQueries({ queryKey: ["etv-votes-detail", resultItem.id] });
     },
   });
 
@@ -993,10 +1011,11 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
               {(isVoted || isClosed) && (() => {
                 const isMea = selectedItem.voting_principle === "mea";
                 const fmt = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-                // Live-Berechnung aus currentVotes (statt evtl. veraltetem gespeichertem Wert)
-                const liveMeaYes = currentVotes.filter((v: any) => v.vote === "yes").reduce((s: number, v: any) => s + (Number(v.mea_weight) || 0), 0);
-                const liveMeaNo = currentVotes.filter((v: any) => v.vote === "no").reduce((s: number, v: any) => s + (Number(v.mea_weight) || 0), 0);
-                const liveMeaAbs = currentVotes.filter((v: any) => v.vote === "abstain").reduce((s: number, v: any) => s + (Number(v.mea_weight) || 0), 0);
+                // Berechnung aus den Stimmen des ausgewählten TOPs (auch nach Bestätigung/Refresh)
+                const resultVotes = selectedItemVotes.length > 0 ? selectedItemVotes : currentVotes;
+                const liveMeaYes = resultVotes.filter((v: any) => v.vote === "yes").reduce((s: number, v: any) => s + (Number(v.mea_weight) || 0), 0);
+                const liveMeaNo = resultVotes.filter((v: any) => v.vote === "no").reduce((s: number, v: any) => s + (Number(v.mea_weight) || 0), 0);
+                const liveMeaAbs = resultVotes.filter((v: any) => v.vote === "abstain").reduce((s: number, v: any) => s + (Number(v.mea_weight) || 0), 0);
                 const meaYes = liveMeaYes || Number(selectedItem.total_mea_yes || 0);
                 const meaNo = liveMeaNo || Number(selectedItem.total_mea_no || 0);
                 const meaAbs = liveMeaAbs || Number(selectedItem.total_mea_abstain || 0);
