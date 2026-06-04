@@ -327,11 +327,38 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     mutationFn: async (itemId: string) => {
       const { error } = await supabase.from("etv_agenda_items").update({ status: "voting" }).eq("id", itemId);
       if (error) throw error;
+
+      // Auto-Cast: weisungsgebundene Vorab-Stimmen aus Vollmachten übernehmen
+      const proxyAttendees = attendees.filter(
+        (a: any) => a.attendance_type === "proxy" && a.pre_vote_instructions && a.pre_vote_instructions[itemId]
+      );
+      let cast = 0;
+      for (const att of proxyAttendees) {
+        const vote = (att.pre_vote_instructions as any)[itemId];
+        if (!["yes", "no", "abstain"].includes(vote)) continue;
+        const meaW = getMeaWeight(att);
+        const sqmW = getSqmWeight(att);
+        const { error: ve } = await supabase.from("etv_votes").upsert({
+          agenda_item_id: itemId,
+          assignment_id: att.assignment_id,
+          vote,
+          mea_weight: meaW,
+          sqm_weight: sqmW,
+          is_manual_override: false,
+          voted_at: new Date().toISOString(),
+        } as any, { onConflict: "agenda_item_id,assignment_id" });
+        if (!ve) cast += 1;
+      }
+      return cast;
     },
-    onSuccess: (_, itemId) => {
+    onSuccess: (cast, itemId) => {
       setActiveVoteItem(itemId);
       queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
-      toast({ title: "Abstimmung gestartet" });
+      queryClient.invalidateQueries({ queryKey: ["etv-votes-live", itemId] });
+      toast({
+        title: "Abstimmung gestartet",
+        description: cast > 0 ? `${cast} Vorab-Weisung${cast === 1 ? "" : "en"} übernommen` : undefined,
+      });
     },
   });
 
