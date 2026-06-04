@@ -50,6 +50,7 @@ interface Invoice {
   payment_purpose?: string | null;
   building_id?: string | null;
   is_company_invoice?: boolean;
+  invoice_type?: string | null;
   ocr_extracted_data?: any;
   buildings?: { name: string } | null;
 }
