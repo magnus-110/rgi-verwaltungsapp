@@ -9,13 +9,14 @@ import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
 
 interface Props {
   buildings: { id: string; name: string }[];
+  selectedBuildingId?: string;
 }
 
-export function InvoiceDropZone({ buildings }: Props) {
+export function InvoiceDropZone({ buildings, selectedBuildingId = "" }: Props) {
   const queryClient = useQueryClient();
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState<string[]>([]);
-  const [selectedBuilding, setSelectedBuilding] = useState<string>("");
+  const selectedBuilding = selectedBuildingId;
 
   const uploadFile = useCallback(async (file: File) => {
     const lowerName = file.name.toLowerCase();
