@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
-import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Link2Off, Send, RefreshCw, Landmark, FileWarning, Sparkles, Flag, AlertCircle, RotateCw, FileText, ExternalLink, FileCode } from "lucide-react";
+import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Link2Off, Send, RefreshCw, Landmark, FileWarning, Sparkles, Flag, AlertCircle, RotateCw, FileText, ExternalLink, FileCode, Trash2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -642,6 +642,27 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
     if (!win) toast.error("Bitte Pop-ups erlauben, um die Datei zu öffnen");
   };
 
+  const handleDeleteStatement = async (s: any) => {
+    const ok = window.confirm(
+      `Kontoauszug "${s.file_name}" wirklich löschen?\n\nAlle dazugehörigen Bank-Transaktionen werden mitgelöscht. ` +
+      `Bereits erstellte Buchungen bleiben erhalten, verlieren aber den Bezug zur Bank-Transaktion.`
+    );
+    if (!ok) return;
+    try {
+      if (s.file_path) {
+        await supabase.storage.from("building-documents").remove([s.file_path]);
+      }
+      const { error } = await supabase.from("bank_statements").delete().eq("id", s.id);
+      if (error) throw error;
+      toast.success("Kontoauszug gelöscht");
+      queryClient.invalidateQueries({ queryKey: ["bank-statements-list"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+    } catch (err: any) {
+      toast.error("Löschen fehlgeschlagen: " + (err?.message || err));
+    }
+  };
+
   const renderTransactionRow = (txn: any) => {
     const config = MATCH_STATUS_CONFIG[txn.match_status] || MATCH_STATUS_CONFIG.unmatched;
     const Icon = config.icon;
@@ -839,9 +860,9 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                 </div>
               )}
 
-              {/* Hochgeladene PDF-Belege (eingeklappt per Default) */}
+              {/* Hochgeladene Belege (PDF + CAMT, eingeklappt per Default) */}
               {(() => {
-                const pdfStatements = bankStatements.filter((s: any) => s.source_format === "pdf");
+                const pdfStatements = bankStatements;
                 if (pdfStatements.length === 0) return null;
                 return (
                 <Card className="bg-muted/20">
@@ -870,7 +891,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                     <CardContent className="pt-0">
                       <div className="space-y-1 max-h-64 overflow-y-auto">
                         {pdfStatements.map((s: any) => {
-                          const isPdf = true;
+                          const isPdf = s.source_format === "pdf";
                           const hasWarn = Array.isArray(s.parse_warnings) && s.parse_warnings.length > 0;
                           const startDate = s.statement_date_from ? new Date(s.statement_date_from) : null;
                           const monthLabel = startDate
@@ -927,6 +948,15 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                               ) : (
                                 <span className="text-muted-foreground text-[10px]">— nur Daten</span>
                               )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={(e) => { e.stopPropagation(); handleDeleteStatement(s); }}
+                                title="Kontoauszug und Transaktionen löschen"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
                             </div>
                           );
                         })}
