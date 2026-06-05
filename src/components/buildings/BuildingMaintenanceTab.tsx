@@ -30,12 +30,14 @@ export const BuildingMaintenanceTab = ({ buildingId }: BuildingMaintenanceTabPro
       if (error) throw error;
 
       setConfigs(
-        (data || []).map((c) => ({
+        (data || []).map((c: any) => ({
           maintenance_type: c.maintenance_type,
           is_active: c.is_active,
           custom_interval_months: c.custom_interval_months ?? undefined,
           custom_lead_time_days: c.custom_lead_time_days ?? undefined,
           last_maintenance_date: c.last_maintenance_date ?? undefined,
+          custom_label: c.custom_label ?? undefined,
+          custom_category: c.custom_category ?? undefined,
         }))
       );
     } catch (error) {
