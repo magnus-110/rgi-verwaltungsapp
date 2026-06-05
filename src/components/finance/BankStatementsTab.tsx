@@ -948,6 +948,15 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                               ) : (
                                 <span className="text-muted-foreground text-[10px]">— nur Daten</span>
                               )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={(e) => { e.stopPropagation(); handleDeleteStatement(s); }}
+                                title="Kontoauszug und Transaktionen löschen"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
                             </div>
                           );
                         })}
