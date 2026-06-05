@@ -290,12 +290,14 @@ export function BankReconciliationTab({ sharedBuildingId, onBuildingChange }: Pr
           month={openMonth}
           existing={reconByMonth.get(openMonth)}
           previousMonthRecon={openMonth > 1 ? reconByMonth.get(openMonth - 1) : null}
+          monthStatements={statementsByMonth.get(openMonth) ?? []}
           onSaved={() => { refetch(); queryClient.invalidateQueries({ queryKey: ["bank-reconciliations"] }); }}
         />
       )}
     </div>
   );
 }
+
 
 interface DialogProps {
   open: boolean;
