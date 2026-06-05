@@ -1,51 +1,60 @@
 ## Ziel
-Admin-„NOVA" (interner Dokumenten-Chat für Admins/Mitarbeiter) komplett aus der App und dem Code entfernen. Das tenant/WEG-Owner-Chatbot-System sowie die RAG-Verarbeitung beim DMS-Upload bleiben unverändert.
 
-## Was bleibt erhalten (RAG für DMS)
-- `supabase/functions/process-building-file` (DMS-Upload → Chunks/Embeddings)
-- `supabase/functions/process-document`, `process-bulk-upload`, `process-knowledge-document`
-- `supabase/functions/chat-with-ai` (tenant/weg-owner Chatbot)
-- `KnowledgeDocumentsManager` und Settings-Tab „Chatbot" (für Mieter/WEG-Owner-Chat)
-- `src/pages/tenant/Chatbot.tsx`, `src/pages/weg-owner/Chatbot.tsx`
-- DMS unter `src/components/buildings/documents/*` und `src/components/files/*`
+Rechnungserstellung zuverlässig machen und den Editor in eine **Live-Vorschau-Ansicht** umbauen: links Eingabeformular, rechts laufend aktualisierte Rechnungsvorschau (visuell wie das fertige PDF).
 
-## Was entfernt wird
+## Befund
 
-### Navigation
-- `src/components/AdminSidebar.tsx`: Eintrag `{ title: "NOVA", url: "/documents", icon: Sparkles }` entfernen (Z. 42).
-- `src/components/MobileHeader.tsx`: NOVA-Eintrag in `getNavigationItems()` für admin/employee entfernen (Z. 97). Die `Sparkles`-Verwendungen für tenant/weg-owner Chat bleiben.
+1. **„Rendering fehlgeschlagen: Object not found"** kommt aus `supabase/functions/rgi-render-invoice/index.ts`. Ursache ist eine Schema-Diskrepanz zwischen deiner hochgeladenen `Rechnungsvorlage.docx` und dem Payload, den die Edge Function erzeugt:
+   - Template nutzt `{firma.zip}`, `{firma.stadt}`, `{kunde.stadt}`, `{kunde.land}`, `{rechnung.intro}`, `{rechnung.footer}`
+   - Edge Function liefert aktuell `firma.plz`, `firma.ort`, `kunde.plz`, `kunde.ort`, `rechnung.intro` (ok), `rechnung.footer` (ok), aber kein `stadt/zip/land`.
+   - docxtemplater wirft dann „scope … not found" → bei uns als generischer Fehler sichtbar.
 
-### Routen
-- `src/App.tsx`: 
-  - Lazy-Imports `Documents` und `DocumentSettings` (Z. 29–30) entfernen.
-  - Routen `/documents` und `/documents/settings` (Z. 112–113) entfernen.
+2. Es gibt **keine Live-Vorschau** – jeder Vorschau-Klick stößt die Edge Function (CloudConvert → LibreOffice → PDF) an, was langsam und fehleranfällig ist.
 
-### Seiten/Komponenten löschen
-- `src/pages/Documents.tsx`
-- `src/pages/DocumentSettings.tsx`
-- Ordner `src/components/documents/` (NOVA-UI: AddPromptDialog, ChatHistorySidebar, ChatInputField, ChatMessages, ChatWelcome, DocumentChat, DocumentSourcesList, DocumentUpload, EditPromptDialog, KnowledgeScopeSelector, NewCategoryDialog, PdfViewerModal, PromptEnhancerSuggestion, PromptGuideSheet, PromptTemplateMenu, UploadDialog, UploadProgressWidget, CategorySelector, BuildingDocumentList)
+## Umsetzung
 
-### Edge Functions löschen
-- `supabase/functions/query-documents` (nur von Documents.tsx + CaseAskAi genutzt)
-- `supabase/functions/enhance-prompt` (Prompt-Optimierung im NOVA-Chat)
+### 1. Edge Function `rgi-render-invoice` – Payload erweitern
+- `firma`: zusätzlich `zip` (= aktuell `plz`), `stadt` (= `city`), Felder bleiben rückwärtskompatibel.
+- `kunde`: zusätzlich `zip`, `stadt`, `land`, `strasse`. Snapshot-Adresse beachten.
+- Sicherstellen, dass jede Variable mindestens als leerer String existiert (verhindert docxtemplater-„undefined scope"-Fehler).
+- `nullGetter` an `Docxtemplater` übergeben → liefert `""` für fehlende Tags, statt zu werfen.
+- Klarere Fehlermeldung, wenn die Vorlagen-Datei im Bucket fehlt („Storage: Object not found" → „Vorlagendatei wurde gelöscht, bitte erneut hochladen").
 
-### Case-Feature: NOVA-Abhängigkeit entkoppeln
-- `src/components/cases/CaseAskAi.tsx` nutzt `query-documents`. Wird mit entfernt.
-- `src/components/cases/CaseDetailView.tsx`: Import + Rendering von `<CaseAskAi … />` (Z. 14, 217) entfernen.
+### 2. `InvoiceEditorDialog.tsx` – Split-Layout
 
-### Settings-Aufräumung (optional, nur NOVA-spezifisches)
-- `src/pages/Settings.tsx` Kommentar „Chatbot (NOVA)" → in „Chatbot" umbenennen, KEINE Inhalte entfernen (dieser Tab ist für tenant/WEG-Chatbot, nicht NOVA).
+```text
+┌────────────────────────── Dialog (max-w-7xl) ──────────────────────────┐
+│ Header: „Neue Rechnung"                                               │
+├──────────────────────────────┬─────────────────────────────────────────┤
+│ LINKS  (overflow-y-auto)     │ RECHTS  (sticky, overflow-y-auto)       │
+│   – Kunde / Projekt          │   Live HTML-Vorschau der Rechnung       │
+│   – Daten / Vorlage          │   (A4-Skalierung, RGI-Briefkopf,        │
+│   – Positionen-Tabelle       │    Positionen-Tabelle, Summen,          │
+│   – Intro / Footer           │    Footer, Bankdaten)                   │
+├──────────────────────────────┴─────────────────────────────────────────┤
+│ Footer: Schließen · Entwurf · Word · PDF · Versenden                  │
+└────────────────────────────────────────────────────────────────────────┘
+```
 
-### LocalStorage
-- `nova_*`-Keys werden mit Documents.tsx zusammen gelöscht; keine Migration nötig (browser-local).
+- Neue Komponente `InvoiceLivePreview.tsx` (rein client-seitig, React + Tailwind), rendert eine A4-ähnliche Karte mit denselben Daten wie der DOCX-Render. Reagiert reaktiv auf Form-Änderungen, **kein** Backend-Call.
+- Quelle der Firmendaten: `useRgiCompanySettings()` (bereits vorhanden, sonst kurzer Hook).
+- Beim Vorschau-Button „PDF (Vorschau)" bleibt der bisherige Edge-Function-Render bestehen (für 1:1-DOCX-Output).
+- Mobile-Fallback: bei `< lg` stapelt sich die Vorschau unter das Formular.
 
-## Datenbank
-Keine Migration. Tabellen wie `knowledge_documents`, `document_chunks`, `building_files` etc. bleiben — sie werden weiter von DMS/Chatbot genutzt.
+### 3. Robustheit
+- Wenn die ausgewählte Word-Vorlage fehlt oder kein `storage_path` mehr existiert, zeigt der Editor einen Hinweis-Banner („Vorlage nicht gefunden – bitte erneut hochladen") und disabled „Versenden".
+- Optional: `previewRender` ruft vorher `supabase.storage.from('rgi-invoice-templates').list()` um Existenz zu prüfen → freundliche Fehlermeldung.
 
-## Akzeptanzkriterien
-- [ ] „NOVA" erscheint nirgendwo mehr in Sidebar/MobileHeader.
-- [ ] `/documents` und `/documents/settings` sind nicht mehr erreichbar.
-- [ ] Build läuft fehlerfrei (keine toten Imports).
-- [ ] DMS-Upload eines neuen Dokuments triggert weiterhin `process-building-file` → Embeddings.
-- [ ] Tenant- und WEG-Owner-Chat funktionieren weiter.
-- [ ] CaseDetailView öffnet ohne Fehler (ohne AskAi-Block).
+## Technische Details
+
+**Dateien**
+- `supabase/functions/rgi-render-invoice/index.ts` – Payload + nullGetter + Fehler-Mapping
+- `src/components/rgi-intern/invoices/InvoiceEditorDialog.tsx` – Layout-Umbau auf `grid lg:grid-cols-[1fr_1fr]`
+- `src/components/rgi-intern/invoices/InvoiceLivePreview.tsx` *(neu)* – HTML-Vorschau
+- `src/hooks/useRgi.ts` – ggf. `useRgiCompanySettings` ergänzen, falls noch nicht exportiert
+
+**Keine DB-Migration nötig.**
+
+## Out-of-Scope
+- Echtzeit-DOCX/PDF-Rendering im Browser (zu schwer, nicht nötig – HTML reicht für Vorschau).
+- Änderungen am Vorlagen-Upload-Flow.
