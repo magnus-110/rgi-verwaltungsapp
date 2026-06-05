@@ -127,6 +127,10 @@ export const MaintenanceConfigSection = ({ configs, onChange }: MaintenanceConfi
                     <Calendar
                       mode="single"
                       selected={lastDate}
+                      defaultMonth={lastDate ?? new Date()}
+                      captionLayout="dropdown-buttons"
+                      fromYear={new Date().getFullYear() - 20}
+                      toYear={new Date().getFullYear()}
                       onSelect={(date) => {
                         updateConfig(type.key, {
                           last_maintenance_date: date ? format(date, "yyyy-MM-dd") : undefined,
