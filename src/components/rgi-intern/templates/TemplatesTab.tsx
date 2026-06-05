@@ -32,14 +32,16 @@ export function TemplatesTab() {
       const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error: upErr } = await supabase.storage.from("rgi-invoice-templates").upload(path, file);
       if (upErr) throw upErr;
-      const { error: insErr } = await supabase.from("rgi_invoice_templates").insert({
+      const { data: inserted, error: insErr } = await supabase.from("rgi_invoice_templates").insert({
         name: file.name.replace(/\.[^.]+$/, ""),
         storage_path: path,
         template_kind: "invoice",
-      } as any);
+      } as any).select().single();
       if (insErr) throw insErr;
-      // Fire-and-forget placeholder parse
-      supabase.functions.invoke("rgi-parse-template-placeholders", { body: { storage_path: path } }).catch(() => {});
+      // Fire-and-forget placeholder parse (with correct template_id)
+      if (inserted?.id) {
+        supabase.functions.invoke("rgi-parse-template-placeholders", { body: { template_id: inserted.id } }).catch(() => {});
+      }
       toast.success("Vorlage hochgeladen");
       qc.invalidateQueries({ queryKey: ["rgi", "templates"] });
     } catch (e: any) {
