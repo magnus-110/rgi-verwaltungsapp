@@ -26,8 +26,6 @@ const ConfirmEmailChange = lazy(() => import("./pages/ConfirmEmailChange").then(
 const Tickets = lazy(() => import("./pages/Tickets").then(m => ({ default: m.Tickets })));
 const Buildings = lazy(() => import("./pages/Buildings").then(m => ({ default: m.Buildings })));
 const Settings = lazy(() => import("./pages/Settings").then(m => ({ default: m.Settings })));
-const Documents = lazy(() => import("./pages/Documents").then(m => ({ default: m.Documents })));
-const DocumentSettings = lazy(() => import("./pages/DocumentSettings").then(m => ({ default: m.DocumentSettings })));
 const WebhookSettings = lazy(() => import("./pages/WebhookSettings").then(m => ({ default: m.WebhookSettings })));
 const Todos = lazy(() => import("./pages/Todos").then(m => ({ default: m.Todos })));
 const Calendar = lazy(() => import("./pages/Calendar").then(m => ({ default: m.Calendar })));
@@ -109,8 +107,6 @@ const App = () => (
               <Route path="/buildings" element={<AdminLayout><Buildings /></AdminLayout>} />
               <Route path="/buildings/:id" element={<AdminLayout><Buildings /></AdminLayout>} />
               <Route path="/forum" element={<Navigate to="/buildings" replace />} />
-              <Route path="/documents" element={<AdminLayout><Documents /></AdminLayout>} />
-              <Route path="/documents/settings" element={<AdminLayout><DocumentSettings /></AdminLayout>} />
               <Route path="/chatbot" element={<Navigate to="/settings?tab=chatbot" replace />} />
               <Route path="/webhooks" element={<AdminLayout><WebhookSettings /></AdminLayout>} />
               <Route path="/settings" element={<AdminLayout><Settings /></AdminLayout>} />

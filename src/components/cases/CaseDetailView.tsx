@@ -11,7 +11,7 @@ import { de } from "date-fns/locale";
 import { useCase, useCaseEvents, useUpdateCase, useSummarizeCase, CASE_STATUS_LABEL, CASE_PRIORITY_LABEL, CASE_CATEGORY_LABEL, CaseStatus, CasePriority } from "@/hooks/useCases";
 import { CaseTimeline } from "./CaseTimeline";
 import { CaseQuickAdd } from "./CaseQuickAdd";
-import { CaseAskAi } from "./CaseAskAi";
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useManagementMode } from "@/hooks/useManagementMode";
@@ -213,8 +213,6 @@ export const CaseDetailView = ({ caseId, onClose }: Props) => {
               </div>
             </div>
 
-            {/* Floating chat */}
-            <CaseAskAi caseId={caseRow.id} buildingId={caseRow.building_id} />
           </>
         )}
       </SheetContent>

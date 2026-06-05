@@ -94,7 +94,7 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
       const items = [
         { icon: BarChart3, label: "Dashboard", path: '/dashboard', active: location.pathname === '/dashboard' },
         { icon: Mail, label: "Postfach", path: '/postfach', active: location.pathname.startsWith('/postfach') },
-        { icon: Sparkles, label: "NOVA", path: '/documents', active: location.pathname.startsWith('/documents') },
+        
         { icon: CheckSquare, label: "Aufgaben", path: '/todos', active: location.pathname.startsWith('/todos') },
         { icon: CalendarDays, label: "Kalender", path: '/calendar', active: location.pathname.startsWith('/calendar') },
         { icon: ClipboardList, label: "Meldungen", path: '/tickets', active: (location.pathname === '/tickets' || location.pathname.startsWith('/reports')) },

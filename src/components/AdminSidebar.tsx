@@ -39,7 +39,7 @@ import { Button } from "@/components/ui/button";
 const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
   { title: "Postfach", url: "/postfach", icon: Mail },
-  { title: "NOVA", url: "/documents", icon: Sparkles },
+  
   { title: "Aufgaben", url: "/todos", icon: CheckSquare },
   { title: "Kalender", url: "/calendar", icon: CalendarDays },
   { title: "Meldungen", url: "/tickets", icon: ClipboardList },
