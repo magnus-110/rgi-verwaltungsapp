@@ -91,19 +91,26 @@ async function addHashes(transactions: any[]): Promise<any[]> {
   return transactions;
 }
 
-async function deduplicateTransactions(supabase: any, transactions: any[]): Promise<{ unique: any[]; duplicateCount: number }> {
+async function deduplicateTransactions(supabase: any, transactions: any[], buildingId: string | null): Promise<{ unique: any[]; duplicateCount: number }> {
   if (transactions.length === 0) return { unique: [], duplicateCount: 0 };
 
   const hashes = transactions.map((t) => t.transaction_hash);
-  
-  // Check in batches of 100
+
+  // Scope duplicate check to the same building – identische Buchungstexte/Beträge
+  // in unterschiedlichen Liegenschaften sind keine Duplikate.
   const existingHashes = new Set<string>();
   for (let i = 0; i < hashes.length; i += 100) {
     const batch = hashes.slice(i, i + 100);
-    const { data } = await supabase
+    let query = supabase
       .from("bank_transactions")
       .select("transaction_hash")
       .in("transaction_hash", batch);
+    if (buildingId) {
+      query = query.eq("building_id", buildingId);
+    } else {
+      query = query.is("building_id", null);
+    }
+    const { data } = await query;
     if (data) {
       data.forEach((r: any) => existingHashes.add(r.transaction_hash));
     }
