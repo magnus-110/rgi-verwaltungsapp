@@ -424,6 +424,42 @@ function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAc
         </DialogHeader>
 
         <div className="space-y-4">
+          {monthStatements.length > 0 && (
+            <div className="border rounded-md p-3 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900 space-y-2">
+              <div className="text-xs font-semibold flex items-center gap-2">
+                <FileText className="h-4 w-4" /> Salden aus importiertem Kontoauszug verfügbar
+              </div>
+              {monthStatements.map((s: any) => {
+                const fromInMonth = s.statement_date_from && new Date(s.statement_date_from).getFullYear() === year && new Date(s.statement_date_from).getMonth() + 1 === month;
+                const toInMonth = s.statement_date_to && new Date(s.statement_date_to).getFullYear() === year && new Date(s.statement_date_to).getMonth() + 1 === month;
+                const fmt = (n: number | null | undefined) => n == null ? "—" : String(n).replace(".", ",");
+                return (
+                  <div key={s.id} className="flex items-center justify-between text-xs gap-2">
+                    <div className="truncate">
+                      <span className="font-medium">{s.file_name}</span>
+                      <span className="text-muted-foreground"> · {s.statement_date_from || "?"} → {s.statement_date_to || "?"}</span>
+                      <div className="text-muted-foreground">
+                        {fromInMonth && <>Anfang: <span className="font-mono">{fmt(s.opening_balance)} €</span> </>}
+                        {toInMonth && <>Ende: <span className="font-mono">{fmt(s.closing_balance)} €</span></>}
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (fromInMonth && s.opening_balance != null) setOpeningBank(String(s.opening_balance).replace(".", ","));
+                        if (toInMonth && s.closing_balance != null) setClosingBank(String(s.closing_balance).replace(".", ","));
+                      }}
+                    >
+                      Übernehmen
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-xs">Anfangssaldo lt. Kontoauszug (€)</Label>
