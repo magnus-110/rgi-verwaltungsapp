@@ -123,15 +123,16 @@ export function BankReconciliationTab({ sharedBuildingId, onBuildingChange }: Pr
 
   // IBAN des gewählten Bankkontos (aus chart_of_accounts)
   const { data: bankIban } = useQuery({
-    queryKey: ["recon-bank-iban", bankAccountId],
-    enabled: !!bankAccountId,
+    queryKey: ["recon-bank-iban", bankAccountId, buildingId],
+    enabled: !!bankAccountId && !!buildingId,
     queryFn: async () => {
       const { data } = await supabase
-        .from("chart_of_accounts")
+        .from("building_bank_accounts" as any)
         .select("iban")
-        .eq("id", bankAccountId)
+        .eq("building_id", buildingId)
+        .eq("coa_account_id", bankAccountId)
         .maybeSingle();
-      return (data?.iban as string | null) ?? null;
+      return ((data as any)?.iban as string | null) ?? null;
     },
   });
 
