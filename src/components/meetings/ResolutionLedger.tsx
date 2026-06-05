@@ -23,6 +23,17 @@ export const ResolutionLedger = ({ buildingFilter: externalBuildingFilter }: Res
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
 
+  const getResolutionDateMs = (resolution: any) => {
+    const dateValue = resolution.resolved_at || resolution.etv_meetings?.meeting_date || resolution.created_at;
+    const timestamp = dateValue ? new Date(dateValue).getTime() : 0;
+    return Number.isNaN(timestamp) ? 0 : timestamp;
+  };
+
+  const getResolutionNumber = (resolutionNumber?: string | null) => {
+    const matches = resolutionNumber?.match(/\d+/g);
+    return matches ? Number(matches[matches.length - 1]) : 0;
+  };
+
   const { data: resolutions = [], isLoading } = useQuery({
     queryKey: ["etv-resolutions"],
     queryFn: async () => {
@@ -68,15 +79,21 @@ export const ResolutionLedger = ({ buildingFilter: externalBuildingFilter }: Res
     },
   });
 
-  const filtered = resolutions.filter((r: any) => {
-    const matchesSearch =
-      !search ||
-      r.resolution_text?.toLowerCase().includes(search.toLowerCase()) ||
-      r.resolution_number?.toLowerCase().includes(search.toLowerCase()) ||
-      r.buildings?.name?.toLowerCase().includes(search.toLowerCase());
-    const matchesBuilding = activeBuildingFilter === "all" || r.building_id === activeBuildingFilter;
-    return matchesSearch && matchesBuilding;
-  });
+  const filtered = resolutions
+    .filter((r: any) => {
+      const matchesSearch =
+        !search ||
+        r.resolution_text?.toLowerCase().includes(search.toLowerCase()) ||
+        r.resolution_number?.toLowerCase().includes(search.toLowerCase()) ||
+        r.buildings?.name?.toLowerCase().includes(search.toLowerCase());
+      const matchesBuilding = activeBuildingFilter === "all" || r.building_id === activeBuildingFilter;
+      return matchesSearch && matchesBuilding;
+    })
+    .sort((a: any, b: any) => {
+      const dateDiff = getResolutionDateMs(b) - getResolutionDateMs(a);
+      if (dateDiff !== 0) return dateDiff;
+      return getResolutionNumber(b.resolution_number) - getResolutionNumber(a.resolution_number);
+    });
 
   return (
     <div className="space-y-4">
@@ -113,12 +130,15 @@ export const ResolutionLedger = ({ buildingFilter: externalBuildingFilter }: Res
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         {r.result === "passed" ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                          <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
                         ) : (
                           <XCircle className="h-4 w-4 text-destructive flex-shrink-0" />
                         )}
                         <span className="font-semibold text-sm">{r.resolution_number}</span>
-                        <Badge variant={r.result === "passed" ? "default" : "destructive"} className="text-xs">
+                        <Badge
+                          variant={r.result === "passed" ? "outline" : "destructive"}
+                          className={r.result === "passed" ? "text-xs border-transparent bg-success text-primary-foreground" : "text-xs"}
+                        >
                           {r.result === "passed" ? "Angenommen" : "Abgelehnt"}
                         </Badge>
                         {!r.published && <Badge variant="outline" className="text-xs">Entwurf</Badge>}

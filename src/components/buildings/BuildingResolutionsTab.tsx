@@ -18,6 +18,17 @@ export const BuildingResolutionsTab = ({ buildingId }: BuildingResolutionsTabPro
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
 
+  const getResolutionDateMs = (resolution: any) => {
+    const dateValue = resolution.resolved_at || resolution.etv_meetings?.meeting_date || resolution.created_at;
+    const timestamp = dateValue ? new Date(dateValue).getTime() : 0;
+    return Number.isNaN(timestamp) ? 0 : timestamp;
+  };
+
+  const getResolutionNumber = (resolutionNumber?: string | null) => {
+    const matches = resolutionNumber?.match(/\d+/g);
+    return matches ? Number(matches[matches.length - 1]) : 0;
+  };
+
   const { data: resolutions = [], isLoading } = useQuery({
     queryKey: ["building-resolutions", buildingId],
     queryFn: async () => {
@@ -34,15 +45,21 @@ export const BuildingResolutionsTab = ({ buildingId }: BuildingResolutionsTabPro
     },
   });
 
-  const filtered = resolutions.filter((r: any) => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return (
-      r.resolution_text?.toLowerCase().includes(s) ||
-      r.resolution_number?.toLowerCase().includes(s) ||
-      r.etv_meetings?.title?.toLowerCase().includes(s)
-    );
-  });
+  const filtered = resolutions
+    .filter((r: any) => {
+      if (!search) return true;
+      const s = search.toLowerCase();
+      return (
+        r.resolution_text?.toLowerCase().includes(s) ||
+        r.resolution_number?.toLowerCase().includes(s) ||
+        r.etv_meetings?.title?.toLowerCase().includes(s)
+      );
+    })
+    .sort((a: any, b: any) => {
+      const dateDiff = getResolutionDateMs(b) - getResolutionDateMs(a);
+      if (dateDiff !== 0) return dateDiff;
+      return getResolutionNumber(b.resolution_number) - getResolutionNumber(a.resolution_number);
+    });
 
   if (isLoading) {
     return <div className="text-center text-muted-foreground py-8">Laden...</div>;
@@ -84,12 +101,15 @@ export const BuildingResolutionsTab = ({ buildingId }: BuildingResolutionsTabPro
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       {r.result === "passed" ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                        <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
                       ) : (
                         <XCircle className="h-4 w-4 text-destructive flex-shrink-0" />
                       )}
                       <span className="font-semibold text-sm">{r.resolution_number}</span>
-                      <Badge variant={r.result === "passed" ? "default" : "destructive"} className="text-xs">
+                      <Badge
+                        variant={r.result === "passed" ? "outline" : "destructive"}
+                        className={r.result === "passed" ? "text-xs border-transparent bg-success text-primary-foreground" : "text-xs"}
+                      >
                         {r.result === "passed" ? "Angenommen" : "Abgelehnt"}
                       </Badge>
                       {!r.published && <Badge variant="outline" className="text-xs">Entwurf</Badge>}
