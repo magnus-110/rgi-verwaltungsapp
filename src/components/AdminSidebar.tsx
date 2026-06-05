@@ -39,17 +39,15 @@ import { Button } from "@/components/ui/button";
 const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
   { title: "Postfach", url: "/postfach", icon: Mail },
-  
-  { title: "Aufgaben", url: "/todos", icon: CheckSquare },
-  { title: "Kalender", url: "/calendar", icon: CalendarDays },
-  { title: "Meldungen", url: "/tickets", icon: ClipboardList },
-  { title: "Vorgänge", url: "/tickets/vorgaenge", icon: FolderKanban },
   { title: "Gebäude", url: "/buildings", icon: Castle },
-  // "Jahreszyklus" als eigener Navigationspunkt entfernt – integriert ins Dashboard und Gebäude-Übersicht.
-  { title: "Adressen", url: "/contacts", icon: BookUser },
-  { title: "Versammlungen", url: "/versammlungen", icon: Users },
   { title: "Buchhaltung", url: "/finanzen", icon: Landmark },
   { title: "Zahlungen", url: "/zahlungen", icon: CreditCard },
+  { title: "Adressen", url: "/contacts", icon: BookUser },
+  { title: "Kalender", url: "/calendar", icon: CalendarDays },
+  { title: "Aufgaben", url: "/todos", icon: CheckSquare },
+  { title: "Meldungen", url: "/tickets", icon: ClipboardList },
+  { title: "Vorgänge", url: "/tickets/vorgaenge", icon: FolderKanban },
+  { title: "Versammlungen", url: "/versammlungen", icon: Users },
   { title: "Prozesse", url: "/prozesse", icon: Workflow },
   { title: "RGI Intern", url: "/rgi-intern", icon: Briefcase, adminOnly: true },
   { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },

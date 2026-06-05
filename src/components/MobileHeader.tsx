@@ -25,6 +25,7 @@ import {
   CreditCard,
   Workflow,
   FolderKanban,
+  Briefcase,
 } from "lucide-react";
 
 interface MobileHeaderProps {
@@ -94,17 +95,17 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
       const items = [
         { icon: BarChart3, label: "Dashboard", path: '/dashboard', active: location.pathname === '/dashboard' },
         { icon: Mail, label: "Postfach", path: '/postfach', active: location.pathname.startsWith('/postfach') },
-        
-        { icon: CheckSquare, label: "Aufgaben", path: '/todos', active: location.pathname.startsWith('/todos') },
-        { icon: CalendarDays, label: "Kalender", path: '/calendar', active: location.pathname.startsWith('/calendar') },
-        { icon: ClipboardList, label: "Meldungen", path: '/tickets', active: (location.pathname === '/tickets' || location.pathname.startsWith('/reports')) },
-        { icon: FolderKanban, label: "Vorgänge", path: '/tickets/vorgaenge', active: location.pathname.startsWith('/tickets/vorgaenge') },
         { icon: Castle, label: "Gebäude", path: '/buildings', active: location.pathname.startsWith('/buildings') },
-        { icon: BookUser, label: "Adressen", path: '/contacts', active: location.pathname.startsWith('/contacts') },
-        { icon: Users, label: "Versammlungen", path: '/versammlungen', active: location.pathname.startsWith('/versammlungen') },
         { icon: Landmark, label: "Buchhaltung", path: '/finanzen', active: location.pathname.startsWith('/finanzen') },
         { icon: CreditCard, label: "Zahlungen", path: '/zahlungen', active: location.pathname.startsWith('/zahlungen') || location.pathname.startsWith('/ueberweisungen') },
+        { icon: BookUser, label: "Adressen", path: '/contacts', active: location.pathname.startsWith('/contacts') },
+        { icon: CalendarDays, label: "Kalender", path: '/calendar', active: location.pathname.startsWith('/calendar') },
+        { icon: CheckSquare, label: "Aufgaben", path: '/todos', active: location.pathname.startsWith('/todos') },
+        { icon: ClipboardList, label: "Meldungen", path: '/tickets', active: (location.pathname === '/tickets' || location.pathname.startsWith('/reports')) },
+        { icon: FolderKanban, label: "Vorgänge", path: '/tickets/vorgaenge', active: location.pathname.startsWith('/tickets/vorgaenge') },
+        { icon: Users, label: "Versammlungen", path: '/versammlungen', active: location.pathname.startsWith('/versammlungen') },
         { icon: Workflow, label: "Prozesse", path: '/prozesse', active: location.pathname.startsWith('/prozesse') },
+        { icon: Briefcase, label: "RGI Intern", path: '/rgi-intern', active: location.pathname.startsWith('/rgi-intern'), adminOnly: true },
         { icon: Settings, label: "Einstellungen", path: '/settings', active: location.pathname.startsWith('/settings'), adminOnly: true },
       ];
 
