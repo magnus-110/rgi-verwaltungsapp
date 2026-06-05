@@ -891,7 +891,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                     <CardContent className="pt-0">
                       <div className="space-y-1 max-h-64 overflow-y-auto">
                         {pdfStatements.map((s: any) => {
-                          const isPdf = true;
+                          const isPdf = s.source_format === "pdf";
                           const hasWarn = Array.isArray(s.parse_warnings) && s.parse_warnings.length > 0;
                           const startDate = s.statement_date_from ? new Date(s.statement_date_from) : null;
                           const monthLabel = startDate
