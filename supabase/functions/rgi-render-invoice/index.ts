@@ -182,6 +182,7 @@ Deno.serve(async (req) => {
       paragraphLoop: true,
       linebreaks: true,
       delimiters: { start: "{", end: "}" },
+      nullGetter: () => "",
     });
     doc.render(payload);
     const docxBytes = doc.getZip().generate({ type: "uint8array" });
