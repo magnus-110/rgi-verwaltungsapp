@@ -65,6 +65,8 @@ export const BuildingMaintenanceTab = ({ buildingId }: BuildingMaintenanceTabPro
             custom_interval_months: c.custom_interval_months || null,
             custom_lead_time_days: c.custom_lead_time_days || null,
             last_maintenance_date: c.last_maintenance_date || null,
+            custom_label: c.custom_label || null,
+            custom_category: c.custom_category || null,
           }))
         );
         if (error) throw error;
