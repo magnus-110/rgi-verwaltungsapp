@@ -95,7 +95,12 @@ Deno.serve(async (req) => {
     const { data: tplFile, error: tplErr } = await admin.storage
       .from("rgi-invoice-templates")
       .download(invoice.template.storage_path);
-    if (tplErr || !tplFile) return json({ error: tplErr?.message || "Vorlage nicht ladbar" }, 500);
+    if (tplErr || !tplFile) {
+      const msg = /not.?found|object/i.test(tplErr?.message || "")
+        ? "Die Vorlagendatei wurde im Speicher nicht gefunden. Bitte die Word-Vorlage erneut hochladen."
+        : (tplErr?.message || "Vorlage nicht ladbar");
+      return json({ error: msg }, 404);
+    }
 
     // Build payload
     const items = (invoice.items || []).sort((a: any, b: any) => a.position - b.position);
@@ -112,9 +117,13 @@ Deno.serve(async (req) => {
         adresse: [company?.address_line1, company?.address_line2, [company?.zip, company?.city].filter(Boolean).join(" "), company?.country].filter(Boolean).join(", "),
         strasse: company?.address_line1 || "",
         plz: company?.zip || "",
+        zip: company?.zip || "",
         ort: company?.city || "",
+        stadt: company?.city || "",
+        land: company?.country || "",
         steuernr: company?.tax_no || "",
         ustid: company?.vat_id || "",
+        ceo: company?.ceo || "",
         geschaeftsfuehrer: company?.ceo || "",
         hrb: company?.hrb || "",
         amtsgericht: company?.court || "",
@@ -130,7 +139,10 @@ Deno.serve(async (req) => {
         adresse: invoice.client_address_snapshot || [invoice.client?.address_line1, [invoice.client?.zip, invoice.client?.city].filter(Boolean).join(" "), invoice.client?.country].filter(Boolean).join(", "),
         strasse: invoice.client?.address_line1 || "",
         plz: invoice.client?.zip || "",
+        zip: invoice.client?.zip || "",
         ort: invoice.client?.city || "",
+        stadt: invoice.client?.city || "",
+        land: invoice.client?.country || "",
         email: invoice.client?.email || "",
         ustid: invoice.client?.vat_id || "",
         kundennr: invoice.client?.customer_no || "",
@@ -175,6 +187,7 @@ Deno.serve(async (req) => {
       paragraphLoop: true,
       linebreaks: true,
       delimiters: { start: "{", end: "}" },
+      nullGetter: () => "",
     });
     doc.render(payload);
     const docxBytes = doc.getZip().generate({ type: "uint8array" });

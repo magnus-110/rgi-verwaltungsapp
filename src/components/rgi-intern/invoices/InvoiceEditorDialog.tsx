@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { ImportFromProjectDialog } from "./ImportFromProjectDialog";
+import { InvoiceLivePreview } from "./InvoiceLivePreview";
 
 interface Props {
   open: boolean;
@@ -259,8 +260,8 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-[min(1400px,98vw)] max-h-[95vh] p-0 gap-0 flex flex-col">
+        <DialogHeader className="px-6 pt-5 pb-3 border-b">
           <DialogTitle className="flex items-center gap-2">
             {invoiceId ? "Rechnung bearbeiten" : "Neue Rechnung"}
             {invoice?.invoice_number && <Badge variant="outline" className="font-mono">{invoice.invoice_number}</Badge>}
@@ -268,7 +269,9 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="grid lg:grid-cols-2 flex-1 min-h-0 overflow-hidden">
+          <div className="overflow-y-auto p-6 space-y-4 border-r">
+
           {/* Kopf */}
           <Card className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="col-span-2">
@@ -397,9 +400,24 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
               </div>
             </Card>
           )}
+          </div>
+
+          <div className="hidden lg:block overflow-hidden bg-muted/20">
+            <InvoiceLivePreview
+              clientId={d.client_id}
+              issueDate={d.issue_date}
+              dueDate={d.due_date}
+              servicePeriodFrom={d.service_period_from}
+              servicePeriodTo={d.service_period_to}
+              introText={d.intro_text}
+              footerText={d.footer_text}
+              invoiceNumber={invoice?.invoice_number}
+              items={d.items}
+            />
+          </div>
         </div>
 
-        <DialogFooter className="gap-2 flex-wrap">
+        <DialogFooter className="gap-2 flex-wrap px-6 py-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Schließen</Button>
           {!isSent && <Button variant="secondary" onClick={() => save("draft")} disabled={create.isPending || update.isPending}>Als Entwurf speichern</Button>}
           <Button variant="outline" onClick={() => previewRender("docx")} disabled={rendering || !d.client_id} className="gap-1.5">
