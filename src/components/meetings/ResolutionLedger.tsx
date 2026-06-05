@@ -31,7 +31,7 @@ export const ResolutionLedger = ({ buildingFilter: externalBuildingFilter }: Res
         .select(`
           *,
           buildings!inner(name, address),
-          etv_meetings!inner(title, meeting_date)
+          etv_meetings(title, meeting_date)
         `)
         .order("resolved_at", { ascending: false });
       if (error) throw error;
