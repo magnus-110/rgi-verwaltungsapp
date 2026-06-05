@@ -260,149 +260,178 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(1400px,98vw)] max-h-[95vh] p-0 gap-0 flex flex-col">
-        <DialogHeader className="px-6 pt-5 pb-3 border-b">
-          <DialogTitle className="flex items-center gap-2">
+      <DialogContent className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 flex flex-col border-0 [&>button]:top-4 [&>button]:right-4">
+        <DialogHeader className="px-6 pt-4 pb-3 border-b bg-background shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-base">
             {invoiceId ? "Rechnung bearbeiten" : "Neue Rechnung"}
             {invoice?.invoice_number && <Badge variant="outline" className="font-mono">{invoice.invoice_number}</Badge>}
             {invoice && <Badge>{invoice.status}</Badge>}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid lg:grid-cols-2 flex-1 min-h-0 overflow-hidden">
-          <div className="overflow-y-auto p-6 space-y-4 border-r">
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] flex-1 min-h-0 overflow-hidden">
+          {/* LINKS: Eingabe */}
+          <div className="overflow-y-auto p-6 space-y-4 border-r bg-background">
 
-          {/* Kopf */}
-          <Card className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="col-span-2">
-              <Label>Kunde *</Label>
-              <Select value={d.client_id} onValueChange={(v) => setD({ ...d, client_id: v })} disabled={isSent}>
-                <SelectTrigger><SelectValue placeholder="Kunde wählen…" /></SelectTrigger>
-                <SelectContent>{clients?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="col-span-2">
-              <Label>Projekt (optional)</Label>
-              <Select value={d.project_id ?? "none"} onValueChange={(v) => setD({ ...d, project_id: v === "none" ? null : v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— kein Projekt —</SelectItem>
-                  {projects?.filter((p) => !d.client_id || p.client_id === d.client_id).map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div><Label>Rechnungsdatum</Label><Input type="date" value={d.issue_date} onChange={(e) => setD({ ...d, issue_date: e.target.value })} /></div>
-            <div><Label>Fällig am</Label><Input type="date" value={d.due_date} onChange={(e) => setD({ ...d, due_date: e.target.value })} /></div>
-            <div><Label>Leistung von</Label><Input type="date" value={d.service_period_from ?? ""} onChange={(e) => setD({ ...d, service_period_from: e.target.value || null })} /></div>
-            <div><Label>Leistung bis</Label><Input type="date" value={d.service_period_to ?? ""} onChange={(e) => setD({ ...d, service_period_to: e.target.value || null })} /></div>
-            <div className="col-span-2 md:col-span-4">
-              <Label>Vorlage</Label>
-              <Select value={d.template_id ?? "none"} onValueChange={(v) => setD({ ...d, template_id: v === "none" ? null : v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— Standard —</SelectItem>
-                  {templates?.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </Card>
-
-          {/* Positionen */}
-          <Card className="p-4">
-            <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-              <h3 className="font-semibold">Positionen</h3>
-              <div className="flex gap-2 flex-wrap">
-                <Select value="" onValueChange={applyPreset}>
-                  <SelectTrigger className="h-9 w-[200px]">
-                    <span className="flex items-center gap-1.5 text-sm"><FileStack className="w-4 h-4" />Aus Vorlage laden…</span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(presets ?? []).length === 0 && <div className="px-2 py-1.5 text-sm text-muted-foreground">Keine Vorlagen</div>}
-                    {presets?.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}{p.sparte ? ` · ${p.sparte}` : ""}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button size="sm" variant="outline" onClick={() => setImportOpen(true)} disabled={!d.project_id} className="gap-1.5">
-                  <FolderInput className="w-4 h-4" />Aus Projekt
-                </Button>
-                <Button size="sm" variant="outline" onClick={saveAsPreset} disabled={d.items.length === 0} className="gap-1.5">
-                  <Save className="w-4 h-4" />Als Vorlage speichern
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => setD({ ...d, items: [...d.items, blankItem()] })}>
-                  <Plus className="w-4 h-4 mr-1" />Position
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="grid grid-cols-[1fr_70px_70px_90px_70px_90px_30px] gap-2 text-xs text-muted-foreground px-1">
-                <span>Beschreibung</span><span>Menge</span><span>Einheit</span><span>€ netto</span><span>USt%</span><span>Σ brutto</span><span /></div>
-              {d.items.map((it, idx) => {
-                const lineNet = (it.quantity ?? 0) * (it.unit_price_net ?? 0);
-                const lineGross = lineNet * (1 + (it.vat_rate ?? 0) / 100);
-                return (
-                  <div key={idx} className="grid grid-cols-[1fr_70px_70px_90px_70px_90px_30px] gap-2 items-center">
-                    <Textarea rows={1} className="min-h-9" value={it.description ?? ""} onChange={(e) => setItem(idx, { description: e.target.value })} />
-                    <Input type="number" step="0.01" value={it.quantity ?? 0} onChange={(e) => setItem(idx, { quantity: Number(e.target.value) })} />
-                    <Input value={it.unit ?? ""} onChange={(e) => setItem(idx, { unit: e.target.value })} />
-                    <Input type="number" step="0.01" value={it.unit_price_net ?? 0} onChange={(e) => setItem(idx, { unit_price_net: Number(e.target.value) })} />
-                    <Select value={String(it.vat_rate ?? 19)} onValueChange={(v) => setItem(idx, { vat_rate: Number(v) })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">0%</SelectItem>
-                        <SelectItem value="7">7%</SelectItem>
-                        <SelectItem value="19">19%</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <div className="text-sm text-right font-mono">{lineGross.toFixed(2)}</div>
-                    <Button variant="ghost" size="sm" onClick={() => setD({ ...d, items: d.items.filter((_, i) => i !== idx) })}>
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
-                  </div>
-                );
-              })}
-              {d.items.length === 0 && <div className="text-sm text-muted-foreground text-center py-4">Noch keine Positionen.</div>}
-            </div>
-            <div className="mt-4 pt-3 border-t flex justify-end">
-              <div className="text-sm space-y-1 min-w-[240px]">
-                <div className="flex justify-between"><span>Netto</span><span className="font-mono">{totals.net.toFixed(2)} €</span></div>
-                {totals.vat19 > 0 && <div className="flex justify-between text-muted-foreground"><span>USt 19%</span><span className="font-mono">{totals.vat19.toFixed(2)} €</span></div>}
-                {totals.vat7 > 0 && <div className="flex justify-between text-muted-foreground"><span>USt 7%</span><span className="font-mono">{totals.vat7.toFixed(2)} €</span></div>}
-                <div className="flex justify-between font-semibold text-base pt-1 border-t"><span>Brutto</span><span className="font-mono">{totals.gross.toFixed(2)} €</span></div>
-              </div>
-            </div>
-          </Card>
-
-          {/* Texte */}
-          <Card className="p-4 space-y-3">
-            <div><Label>Einleitungstext</Label><Textarea rows={2} value={d.intro_text} onChange={(e) => setD({ ...d, intro_text: e.target.value })} /></div>
-            <div><Label>Fußtext</Label><Textarea rows={2} value={d.footer_text} onChange={(e) => setD({ ...d, footer_text: e.target.value })} /></div>
-          </Card>
-
-          {/* Zahlungen */}
-          {invoiceId && isSent && (
-            <Card className="p-4">
-              <h3 className="font-semibold mb-3">Zahlungen</h3>
-              <div className="space-y-1 mb-3">
-                {(payments ?? []).map((p) => (
-                  <div key={p.id} className="text-sm flex justify-between border-b pb-1">
-                    <span>{p.paid_on} {p.note && `· ${p.note}`}</span>
-                    <span className="font-mono">{Number(p.amount).toFixed(2)} €</span>
-                  </div>
-                ))}
-                {(payments ?? []).length === 0 && <span className="text-sm text-muted-foreground">Keine Zahlungen erfasst.</span>}
-              </div>
-              <div className="flex gap-2">
-                <Input type="number" step="0.01" placeholder="Betrag (€)" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
-                <Button onClick={addPay} disabled={!payAmount} className="gap-1.5"><CheckCircle className="w-4 h-4" />Zahlung erfassen</Button>
+            {/* Basisdaten */}
+            <Card className="p-4 space-y-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Basisdaten</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <Label className="text-xs">Kunde *</Label>
+                  <Select value={d.client_id} onValueChange={(v) => setD({ ...d, client_id: v })} disabled={isSent}>
+                    <SelectTrigger><SelectValue placeholder="Kunde wählen…" /></SelectTrigger>
+                    <SelectContent>{clients?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-xs">Projekt</Label>
+                  <Select value={d.project_id ?? "none"} onValueChange={(v) => setD({ ...d, project_id: v === "none" ? null : v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— kein Projekt —</SelectItem>
+                      {projects?.filter((p) => !d.client_id || p.client_id === d.client_id).map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-xs">Word-Vorlage</Label>
+                  <Select value={d.template_id ?? "none"} onValueChange={(v) => setD({ ...d, template_id: v === "none" ? null : v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Standard —</SelectItem>
+                      {templates?.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label className="text-xs">Rechnungsdatum</Label><Input type="date" value={d.issue_date} onChange={(e) => setD({ ...d, issue_date: e.target.value })} /></div>
+                <div><Label className="text-xs">Fällig am</Label><Input type="date" value={d.due_date} onChange={(e) => setD({ ...d, due_date: e.target.value })} /></div>
+                <div><Label className="text-xs">Leistung von</Label><Input type="date" value={d.service_period_from ?? ""} onChange={(e) => setD({ ...d, service_period_from: e.target.value || null })} /></div>
+                <div><Label className="text-xs">Leistung bis</Label><Input type="date" value={d.service_period_to ?? ""} onChange={(e) => setD({ ...d, service_period_to: e.target.value || null })} /></div>
               </div>
             </Card>
-          )}
+
+            {/* Positionen */}
+            <Card className="p-4">
+              <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Positionen</h3>
+                <div className="flex gap-1.5 flex-wrap">
+                  <Select value="" onValueChange={applyPreset}>
+                    <SelectTrigger className="h-8 w-[170px] text-xs">
+                      <span className="flex items-center gap-1.5"><FileStack className="w-3.5 h-3.5" />Vorlage laden…</span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(presets ?? []).length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">Keine Vorlagen</div>}
+                      {presets?.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}{p.sparte ? ` · ${p.sparte}` : ""}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" variant="ghost" onClick={() => setImportOpen(true)} disabled={!d.project_id} className="h-8 gap-1 text-xs">
+                    <FolderInput className="w-3.5 h-3.5" />Projekt
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={saveAsPreset} disabled={d.items.length === 0} className="h-8 gap-1 text-xs">
+                    <Save className="w-3.5 h-3.5" />Speichern
+                  </Button>
+                  <Button size="sm" onClick={() => setD({ ...d, items: [...d.items, blankItem()] })} className="h-8 gap-1 text-xs">
+                    <Plus className="w-3.5 h-3.5" />Position
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {d.items.map((it, idx) => {
+                  const lineNet = (it.quantity ?? 0) * (it.unit_price_net ?? 0);
+                  const lineGross = lineNet * (1 + (it.vat_rate ?? 0) / 100);
+                  return (
+                    <div key={idx} className="border rounded-md p-3 space-y-2 bg-muted/30">
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs font-mono text-muted-foreground pt-2 w-5">{idx + 1}.</span>
+                        <Textarea
+                          rows={2}
+                          placeholder="Beschreibung der Leistung…"
+                          className="flex-1 text-sm"
+                          value={it.description ?? ""}
+                          onChange={(e) => setItem(idx, { description: e.target.value })}
+                        />
+                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setD({ ...d, items: d.items.filter((_, i) => i !== idx) })}>
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 items-end pl-7">
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Menge</Label>
+                          <Input className="h-8" type="number" step="0.01" value={it.quantity ?? 0} onChange={(e) => setItem(idx, { quantity: Number(e.target.value) })} />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Einheit</Label>
+                          <Input className="h-8" value={it.unit ?? ""} onChange={(e) => setItem(idx, { unit: e.target.value })} />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">€ netto</Label>
+                          <Input className="h-8" type="number" step="0.01" value={it.unit_price_net ?? 0} onChange={(e) => setItem(idx, { unit_price_net: Number(e.target.value) })} />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">USt</Label>
+                          <Select value={String(it.vat_rate ?? 19)} onValueChange={(v) => setItem(idx, { vat_rate: Number(v) })}>
+                            <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="0">0%</SelectItem>
+                              <SelectItem value="7">7%</SelectItem>
+                              <SelectItem value="19">19%</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="text-sm font-mono font-semibold whitespace-nowrap pb-1.5">{lineGross.toFixed(2)} €</div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {d.items.length === 0 && <div className="text-sm text-muted-foreground text-center py-8 border border-dashed rounded-md">Noch keine Positionen. Klick auf „Position" oder eine Vorlage.</div>}
+              </div>
+
+              <div className="mt-4 pt-3 border-t flex justify-end">
+                <div className="text-sm space-y-1 min-w-[240px]">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Netto</span><span className="font-mono">{totals.net.toFixed(2)} €</span></div>
+                  {totals.vat19 > 0 && <div className="flex justify-between text-muted-foreground"><span>USt 19%</span><span className="font-mono">{totals.vat19.toFixed(2)} €</span></div>}
+                  {totals.vat7 > 0 && <div className="flex justify-between text-muted-foreground"><span>USt 7%</span><span className="font-mono">{totals.vat7.toFixed(2)} €</span></div>}
+                  <div className="flex justify-between font-semibold text-base pt-1 border-t"><span>Brutto</span><span className="font-mono">{totals.gross.toFixed(2)} €</span></div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Texte */}
+            <Card className="p-4 space-y-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Texte</h3>
+              <div><Label className="text-xs">Einleitungstext</Label><Textarea rows={2} value={d.intro_text} onChange={(e) => setD({ ...d, intro_text: e.target.value })} /></div>
+              <div><Label className="text-xs">Fußtext</Label><Textarea rows={2} value={d.footer_text} onChange={(e) => setD({ ...d, footer_text: e.target.value })} /></div>
+            </Card>
+
+            {/* Zahlungen */}
+            {invoiceId && isSent && (
+              <Card className="p-4">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Zahlungen</h3>
+                <div className="space-y-1 mb-3">
+                  {(payments ?? []).map((pmt) => (
+                    <div key={pmt.id} className="text-sm flex justify-between border-b pb-1">
+                      <span>{pmt.paid_on} {pmt.note && `· ${pmt.note}`}</span>
+                      <span className="font-mono">{Number(pmt.amount).toFixed(2)} €</span>
+                    </div>
+                  ))}
+                  {(payments ?? []).length === 0 && <span className="text-sm text-muted-foreground">Keine Zahlungen erfasst.</span>}
+                </div>
+                <div className="flex gap-2">
+                  <Input type="number" step="0.01" placeholder="Betrag (€)" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
+                  <Button onClick={addPay} disabled={!payAmount} className="gap-1.5"><CheckCircle className="w-4 h-4" />Erfassen</Button>
+                </div>
+              </Card>
+            )}
           </div>
 
-          <div className="hidden lg:block overflow-hidden bg-muted/20">
+          {/* RECHTS: Vorschau */}
+          <div className="hidden lg:block overflow-hidden">
             <InvoiceLivePreview
               clientId={d.client_id}
               issueDate={d.issue_date}
@@ -417,19 +446,19 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
           </div>
         </div>
 
-        <DialogFooter className="gap-2 flex-wrap px-6 py-4 border-t">
+        <DialogFooter className="gap-2 flex-wrap px-6 py-3 border-t bg-background shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Schließen</Button>
           {!isSent && <Button variant="secondary" onClick={() => save("draft")} disabled={create.isPending || update.isPending}>Als Entwurf speichern</Button>}
           <Button variant="outline" onClick={() => previewRender("docx")} disabled={rendering || !d.client_id} className="gap-1.5">
-            <Download className="w-4 h-4" />Word (Vorschau)
+            <Download className="w-4 h-4" />Word
           </Button>
           <Button variant="outline" onClick={() => previewRender("pdf")} disabled={rendering || !d.client_id} className="gap-1.5">
             {rendering ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            PDF (Vorschau)
+            PDF
           </Button>
           <Button onClick={() => save("sent")} disabled={rendering || !d.client_id} className="gap-1.5">
             {rendering ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            {isSent ? "Speichern & neu rendern" : "Versenden (PDF erzeugen)"}
+            {isSent ? "Speichern & neu rendern" : "Versenden"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -182,14 +182,28 @@ Deno.serve(async (req) => {
     };
 
     const tplBuf = new Uint8Array(await tplFile.arrayBuffer());
-    const zip = new PizZip(tplBuf);
+    let zip: PizZip;
+    try {
+      zip = new PizZip(tplBuf);
+    } catch (zErr: any) {
+      return json({ error: `Vorlage ist keine gültige .docx-Datei: ${zErr?.message || zErr}` }, 422);
+    }
     const doc = new Docxtemplater(zip, {
       paragraphLoop: true,
       linebreaks: true,
       delimiters: { start: "{", end: "}" },
       nullGetter: () => "",
     });
-    doc.render(payload);
+    try {
+      doc.render(payload);
+    } catch (rErr: any) {
+      const tplErrors = rErr?.properties?.errors;
+      if (Array.isArray(tplErrors) && tplErrors.length) {
+        const details = tplErrors.map((te: any) => `${te?.properties?.xtag ?? "?"}: ${te?.properties?.explanation ?? te?.message}`).join(" | ");
+        return json({ error: `Vorlage enthält ungültige/unbekannte Platzhalter — ${details}` }, 422);
+      }
+      return json({ error: `Word-Rendering fehlgeschlagen: ${rErr?.message || rErr}` }, 500);
+    }
     const docxBytes = doc.getZip().generate({ type: "uint8array" });
 
     const baseName = `${sanitize(invoice.invoice_number || "Entwurf")}_${sanitize(invoice.client_name_snapshot || invoice.client?.name || "Kunde")}`;

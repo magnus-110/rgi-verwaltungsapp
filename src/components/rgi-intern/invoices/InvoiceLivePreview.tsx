@@ -1,4 +1,8 @@
 import { useRgiSettings, useRgiClients, type RgiInvoiceItem } from "@/hooks/useRgi";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Building2, User, Calendar, FileText, Receipt, Banknote } from "lucide-react";
 
 interface Props {
   clientId: string;
@@ -13,9 +17,9 @@ interface Props {
 }
 
 const fmtDate = (s?: string | null) => {
-  if (!s) return "";
+  if (!s) return "—";
   const d = new Date(s);
-  return isNaN(d.getTime()) ? "" : d.toLocaleDateString("de-DE");
+  return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("de-DE");
 };
 const fmtMoney = (n: number) =>
   n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
@@ -25,120 +29,140 @@ export function InvoiceLivePreview(p: Props) {
   const { data: clients } = useRgiClients();
   const client = clients?.find((c) => c.id === p.clientId);
 
-  let net = 0, vat19 = 0, vat7 = 0, vat0 = 0;
+  let net = 0, vat19 = 0, vat7 = 0;
   for (const it of p.items) {
     const n = (it.quantity ?? 0) * (it.unit_price_net ?? 0);
     net += n;
     const r = it.vat_rate ?? 0;
     if (r === 19) vat19 += n * 0.19;
     else if (r === 7) vat7 += n * 0.07;
-    else vat0 += 0;
   }
-  const gross = net + vat19 + vat7 + vat0;
+  const gross = net + vat19 + vat7;
 
   const period = p.servicePeriodFrom || p.servicePeriodTo
     ? `${fmtDate(p.servicePeriodFrom)} – ${fmtDate(p.servicePeriodTo)}`
-    : "";
+    : null;
 
   return (
-    <div className="bg-muted/40 rounded-md p-3 overflow-y-auto h-full">
-      <div className="bg-white text-slate-900 shadow-md mx-auto" style={{ width: "100%", maxWidth: 720, aspectRatio: "1 / 1.414", padding: "32px 36px", fontFamily: "Arial, sans-serif", fontSize: 11 }}>
-        {/* Briefkopf */}
-        <div className="flex justify-between items-start mb-6">
-          <div>
-            <div className="text-[10px] font-semibold tracking-wide text-slate-600">RGI IMMOBILIEN</div>
-            <div className="text-[9px] text-slate-500">Verkauf · Vermietung · Verwaltung</div>
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Rechnung</h1>
-        </div>
+    <div className="h-full overflow-y-auto p-6 space-y-4 bg-muted/30">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Vorschau</h2>
+        <Badge variant={p.invoiceNumber ? "default" : "secondary"} className="font-mono">
+          {p.invoiceNumber || "ENTWURF"}
+        </Badge>
+      </div>
 
-        {/* Adresse + Meta */}
-        <div className="grid grid-cols-2 gap-6 mb-6">
-          <div>
-            <div className="text-[8px] text-slate-500 border-b border-slate-300 pb-1 mb-1">
-              {company?.legal_name} · {[company?.address_line1, company?.zip, company?.city].filter(Boolean).join(" · ")}
+      {/* Kunde + Eckdaten */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <Card className="p-4">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2">
+            <User className="w-3.5 h-3.5" /> Rechnungsempfänger
+          </div>
+          {client ? (
+            <div className="space-y-0.5 text-sm">
+              <div className="font-semibold">{client.name}</div>
+              {client.address_line1 && <div>{client.address_line1}</div>}
+              {(client.zip || client.city) && <div>{[client.zip, client.city].filter(Boolean).join(" ")}</div>}
+              {client.country && <div className="text-muted-foreground">{client.country}</div>}
+              <div className="pt-1 text-xs text-muted-foreground space-y-0.5">
+                {client.customer_no && <div>Kd-Nr. {client.customer_no}</div>}
+                {client.vat_id && <div>USt-IdNr. {client.vat_id}</div>}
+              </div>
             </div>
-            <div className="font-semibold">{client?.name || <span className="text-slate-400">Kunde …</span>}</div>
-            {client?.address_line1 && <div>{client.address_line1}</div>}
-            {(client?.zip || client?.city) && <div>{[client?.zip, client?.city].filter(Boolean).join(" ")}</div>}
-            {client?.country && <div>{client.country}</div>}
+          ) : (
+            <div className="text-sm text-muted-foreground italic">Noch kein Kunde gewählt</div>
+          )}
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2">
+            <Calendar className="w-3.5 h-3.5" /> Eckdaten
           </div>
-          <div className="text-[10px]">
-            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-              <span className="text-slate-500">Rechnungsnummer</span><span className="font-medium">{p.invoiceNumber || "ENTWURF"}</span>
-              <span className="text-slate-500">Rechnungsdatum</span><span>{fmtDate(p.issueDate)}</span>
-              <span className="text-slate-500">Fällig bis</span><span>{fmtDate(p.dueDate)}</span>
-              {period && (<><span className="text-slate-500">Leistungszeitraum</span><span>{period}</span></>)}
-              {client?.customer_no && (<><span className="text-slate-500">Kundennummer</span><span>{client.customer_no}</span></>)}
-              {client?.vat_id && (<><span className="text-slate-500">USt-IdNr.</span><span>{client.vat_id}</span></>)}
-            </div>
+          <div className="grid grid-cols-2 gap-y-1.5 text-sm">
+            <span className="text-muted-foreground">Rechnungsdatum</span><span className="font-medium">{fmtDate(p.issueDate)}</span>
+            <span className="text-muted-foreground">Fällig bis</span><span className="font-medium">{fmtDate(p.dueDate)}</span>
+            {period && (<><span className="text-muted-foreground">Leistung</span><span>{period}</span></>)}
           </div>
+        </Card>
+      </div>
+
+      {/* Einleitung */}
+      {p.introText && (
+        <Card className="p-4">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2">
+            <FileText className="w-3.5 h-3.5" /> Einleitung
+          </div>
+          <p className="text-sm whitespace-pre-line">{p.introText}</p>
+        </Card>
+      )}
+
+      {/* Positionen */}
+      <Card className="p-4">
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-3">
+          <Receipt className="w-3.5 h-3.5" /> Positionen ({p.items.length})
         </div>
-
-        <p className="mb-2">Sehr geehrte Damen und Herren,</p>
-        {p.introText && <p className="whitespace-pre-line mb-3">{p.introText}</p>}
-
-        {/* Positionstabelle */}
-        <table className="w-full border-collapse text-[10px] mb-4">
-          <thead>
-            <tr className="border-b-2 border-slate-400 text-left">
-              <th className="py-1 pr-1 w-6">Nr.</th>
-              <th className="py-1 pr-1">Beschreibung</th>
-              <th className="py-1 pr-1 text-right w-12">Menge</th>
-              <th className="py-1 pr-1 w-10">Einh.</th>
-              <th className="py-1 pr-1 text-right w-16">Einzelpreis</th>
-              <th className="py-1 pr-1 text-right w-10">USt</th>
-              <th className="py-1 pl-1 text-right w-16">Summe</th>
-            </tr>
-          </thead>
-          <tbody>
-            {p.items.length === 0 && (
-              <tr><td colSpan={7} className="text-center text-slate-400 py-3">— noch keine Positionen —</td></tr>
-            )}
+        {p.items.length === 0 ? (
+          <div className="text-sm text-muted-foreground italic text-center py-6">— noch keine Positionen —</div>
+        ) : (
+          <div className="space-y-2">
             {p.items.map((it, i) => {
               const lineNet = (it.quantity ?? 0) * (it.unit_price_net ?? 0);
               const lineGross = lineNet * (1 + (it.vat_rate ?? 0) / 100);
               return (
-                <tr key={i} className="border-b border-slate-200 align-top">
-                  <td className="py-1 pr-1">{i + 1}</td>
-                  <td className="py-1 pr-1 whitespace-pre-line">{it.description || <span className="text-slate-400">…</span>}</td>
-                  <td className="py-1 pr-1 text-right">{Number(it.quantity ?? 0).toLocaleString("de-DE")}</td>
-                  <td className="py-1 pr-1">{it.unit}</td>
-                  <td className="py-1 pr-1 text-right">{fmtMoney(it.unit_price_net ?? 0)}</td>
-                  <td className="py-1 pr-1 text-right">{it.vat_rate ?? 0}%</td>
-                  <td className="py-1 pl-1 text-right">{fmtMoney(lineGross)}</td>
-                </tr>
+                <div key={i} className="flex items-start gap-3 py-2 border-b last:border-b-0">
+                  <div className="text-xs font-mono text-muted-foreground pt-0.5 w-5">{i + 1}.</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium whitespace-pre-line">{it.description || <span className="text-muted-foreground italic">ohne Beschreibung</span>}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {Number(it.quantity ?? 0).toLocaleString("de-DE")} {it.unit} × {fmtMoney(it.unit_price_net ?? 0)} · {it.vat_rate ?? 0}% USt
+                    </div>
+                  </div>
+                  <div className="text-sm font-mono font-semibold whitespace-nowrap">{fmtMoney(lineGross)}</div>
+                </div>
               );
             })}
-          </tbody>
-        </table>
+          </div>
+        )}
 
-        {/* Summen */}
-        <div className="flex justify-end mb-4">
-          <table className="text-[10px]">
-            <tbody>
-              <tr><td className="pr-6 py-0.5 text-slate-600">Nettobetrag</td><td className="text-right">{fmtMoney(net)}</td></tr>
-              {vat19 > 0 && <tr><td className="pr-6 py-0.5 text-slate-600">Umsatzsteuer 19%</td><td className="text-right">{fmtMoney(vat19)}</td></tr>}
-              {vat7 > 0 && <tr><td className="pr-6 py-0.5 text-slate-600">Umsatzsteuer 7%</td><td className="text-right">{fmtMoney(vat7)}</td></tr>}
-              <tr className="font-semibold border-t border-slate-400"><td className="pr-6 py-0.5">Gesamtbetrag</td><td className="text-right">{fmtMoney(gross)}</td></tr>
-            </tbody>
-          </table>
+        <Separator className="my-3" />
+        <div className="space-y-1 text-sm">
+          <div className="flex justify-between"><span className="text-muted-foreground">Netto</span><span className="font-mono">{fmtMoney(net)}</span></div>
+          {vat19 > 0 && <div className="flex justify-between text-muted-foreground"><span>USt 19 %</span><span className="font-mono">{fmtMoney(vat19)}</span></div>}
+          {vat7 > 0 && <div className="flex justify-between text-muted-foreground"><span>USt 7 %</span><span className="font-mono">{fmtMoney(vat7)}</span></div>}
+          <div className="flex justify-between font-semibold text-base pt-1 border-t"><span>Gesamtbetrag</span><span className="font-mono">{fmtMoney(gross)}</span></div>
         </div>
+      </Card>
 
-        {p.footerText && <p className="whitespace-pre-line mb-3 text-[10px]">{p.footerText}</p>}
+      {/* Footer-Text */}
+      {p.footerText && (
+        <Card className="p-4">
+          <div className="text-xs font-medium text-muted-foreground mb-2">Fußtext</div>
+          <p className="text-sm whitespace-pre-line">{p.footerText}</p>
+        </Card>
+      )}
 
-        <p className="text-[10px] mb-3">
-          Bitte überweisen Sie den Gesamtbetrag bis zum <strong>{fmtDate(p.dueDate)}</strong> auf folgendes Konto:<br />
-          <strong>{company?.bank_name}</strong> · IBAN <strong>{company?.iban}</strong> · BIC <strong>{company?.bic}</strong>
+      {/* Bankdaten */}
+      <Card className="p-4">
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2">
+          <Banknote className="w-3.5 h-3.5" /> Zahlung
+        </div>
+        <p className="text-sm">
+          Bitte überweisen Sie den Gesamtbetrag von <strong>{fmtMoney(gross)}</strong> bis zum <strong>{fmtDate(p.dueDate)}</strong> auf:
         </p>
-
-        <p className="text-[10px]">Mit freundlichen Grüßen<br /><strong>{company?.legal_name}</strong></p>
-
-        <div className="mt-6 pt-2 border-t border-slate-300 text-[7.5px] text-slate-500 leading-snug">
-          {company?.legal_name} · {company?.address_line1} · {company?.zip} {company?.city} · Tel. {company?.phone} · {company?.email}<br />
-          Geschäftsführer {company?.ceo} · HRB {company?.hrb} · USt-IdNr. {company?.vat_id} · {company?.bank_name}: IBAN {company?.iban} · BIC {company?.bic}
+        <div className="mt-2 text-sm grid grid-cols-[80px_1fr] gap-y-0.5">
+          <span className="text-muted-foreground">Bank</span><span className="font-medium">{company?.bank_name || "—"}</span>
+          <span className="text-muted-foreground">IBAN</span><span className="font-mono">{company?.iban || "—"}</span>
+          <span className="text-muted-foreground">BIC</span><span className="font-mono">{company?.bic || "—"}</span>
         </div>
-      </div>
+      </Card>
+
+      {/* Absender / Firma */}
+      <Card className="p-3 bg-transparent border-dashed">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Building2 className="w-3.5 h-3.5" />
+          <span>{company?.legal_name} · {company?.address_line1} · {company?.zip} {company?.city}</span>
+        </div>
+      </Card>
     </div>
   );
 }
