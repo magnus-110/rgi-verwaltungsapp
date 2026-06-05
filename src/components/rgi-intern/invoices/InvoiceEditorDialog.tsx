@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { ImportFromProjectDialog } from "./ImportFromProjectDialog";
+import { InvoiceLivePreview } from "./InvoiceLivePreview";
 
 interface Props {
   open: boolean;
