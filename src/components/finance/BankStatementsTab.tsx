@@ -642,6 +642,27 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
     if (!win) toast.error("Bitte Pop-ups erlauben, um die Datei zu öffnen");
   };
 
+  const handleDeleteStatement = async (s: any) => {
+    const ok = window.confirm(
+      `Kontoauszug "${s.file_name}" wirklich löschen?\n\nAlle dazugehörigen Bank-Transaktionen werden mitgelöscht. ` +
+      `Bereits erstellte Buchungen bleiben erhalten, verlieren aber den Bezug zur Bank-Transaktion.`
+    );
+    if (!ok) return;
+    try {
+      if (s.file_path) {
+        await supabase.storage.from("building-documents").remove([s.file_path]);
+      }
+      const { error } = await supabase.from("bank_statements").delete().eq("id", s.id);
+      if (error) throw error;
+      toast.success("Kontoauszug gelöscht");
+      queryClient.invalidateQueries({ queryKey: ["bank-statements-list"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+    } catch (err: any) {
+      toast.error("Löschen fehlgeschlagen: " + (err?.message || err));
+    }
+  };
+
   const renderTransactionRow = (txn: any) => {
     const config = MATCH_STATUS_CONFIG[txn.match_status] || MATCH_STATUS_CONFIG.unmatched;
     const Icon = config.icon;
