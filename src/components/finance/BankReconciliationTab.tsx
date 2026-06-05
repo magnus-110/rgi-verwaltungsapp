@@ -243,15 +243,19 @@ export function BankReconciliationTab({ sharedBuildingId, onBuildingChange }: Pr
                   const info = getStatusInfo(m);
                   const Icon = info.icon;
                   const r = reconByMonth.get(m);
+                  const hasStatement = (statementsByMonth.get(m)?.length ?? 0) > 0;
                   return (
                     <button
                       key={m}
                       onClick={() => setOpenMonth(m)}
-                      className={`p-3 rounded-lg border transition hover:scale-105 hover:shadow-md flex flex-col items-center gap-1 ${info.color}`}
-                      title={info.label}
+                      className={`relative p-3 rounded-lg border transition hover:scale-105 hover:shadow-md flex flex-col items-center gap-1 ${info.color}`}
+                      title={hasStatement ? `${info.label} · Auszug verfügbar` : info.label}
                     >
                       <Icon className="h-4 w-4" />
                       <span className="text-xs font-semibold">{label}</span>
+                      {hasStatement && (
+                        <FileText className="absolute top-1 right-1 h-3 w-3 opacity-70" />
+                      )}
                       {r?.difference != null && r.status === "mismatch" && (
                         <span className="text-[10px] font-mono">{Number(r.difference).toFixed(2)} €</span>
                       )}
@@ -259,6 +263,7 @@ export function BankReconciliationTab({ sharedBuildingId, onBuildingChange }: Pr
                   );
                 })}
               </div>
+
 
               <p className="text-xs text-muted-foreground">
                 Klicke auf einen Monat, um Anfangs-/Endsaldo lt. Kontoauszug einzutragen und mit der Buchhaltung zu vergleichen.
