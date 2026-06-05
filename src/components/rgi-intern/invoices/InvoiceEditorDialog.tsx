@@ -260,8 +260,8 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-[min(1400px,98vw)] max-h-[95vh] p-0 gap-0 flex flex-col">
+        <DialogHeader className="px-6 pt-5 pb-3 border-b">
           <DialogTitle className="flex items-center gap-2">
             {invoiceId ? "Rechnung bearbeiten" : "Neue Rechnung"}
             {invoice?.invoice_number && <Badge variant="outline" className="font-mono">{invoice.invoice_number}</Badge>}
@@ -269,7 +269,9 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="grid lg:grid-cols-2 flex-1 min-h-0 overflow-hidden">
+          <div className="overflow-y-auto p-6 space-y-4 border-r">
+
           {/* Kopf */}
           <Card className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="col-span-2">
