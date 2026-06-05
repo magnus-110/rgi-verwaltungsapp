@@ -25,7 +25,7 @@ export const BuildingResolutionsTab = ({ buildingId }: BuildingResolutionsTabPro
         .from("etv_resolutions")
         .select(`
           *,
-          etv_meetings!inner(title, meeting_date)
+          etv_meetings(title, meeting_date)
         `)
         .eq("building_id", buildingId)
         .order("resolved_at", { ascending: false });
