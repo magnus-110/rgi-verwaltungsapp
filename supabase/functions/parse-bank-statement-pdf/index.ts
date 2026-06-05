@@ -221,13 +221,14 @@ async function resolveBankAccountId(
 ): Promise<string | null> {
   if (iban) {
     const cleanIban = iban.replace(/\s/g, "").toUpperCase();
-    const { data: coa } = await supabase
-      .from("chart_of_accounts")
-      .select("id")
+    // IBAN-Mapping liegt in building_bank_accounts
+    const { data: mapping } = await supabase
+      .from("building_bank_accounts")
+      .select("coa_account_id")
+      .eq("building_id", buildingId)
       .eq("iban", cleanIban)
-      .or(`building_id.is.null,building_id.eq.${buildingId}`)
       .limit(1);
-    if (coa?.length) return coa[0].id;
+    if (mapping?.length && mapping[0].coa_account_id) return mapping[0].coa_account_id;
   }
   const { data: coa } = await supabase
     .from("chart_of_accounts")
