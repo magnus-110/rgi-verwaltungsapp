@@ -309,10 +309,11 @@ interface DialogProps {
   month: number;
   existing?: any;
   previousMonthRecon?: any;
+  monthStatements?: any[];
   onSaved: () => void;
 }
 
-function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAccountLabel, year, month, existing, previousMonthRecon, onSaved }: DialogProps) {
+function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAccountLabel, year, month, existing, previousMonthRecon, monthStatements = [], onSaved }: DialogProps) {
   const [openingBank, setOpeningBank] = useState<string>(
     existing?.opening_balance_bank != null
       ? String(existing.opening_balance_bank).replace(".", ",")
