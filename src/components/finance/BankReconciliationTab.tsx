@@ -105,6 +105,63 @@ export function BankReconciliationTab({ sharedBuildingId, onBuildingChange }: Pr
     },
   });
 
+  // Bank-Auszüge dieser Liegenschaft / dieses Jahres — für Prefill und Monatskachel-Markierung
+  const { data: statements = [] } = useQuery({
+    queryKey: ["recon-bank-statements", buildingId, year],
+    enabled: !!buildingId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bank_statements")
+        .select("id, file_name, account_iban, statement_date_from, statement_date_to, opening_balance, closing_balance, source_format, created_at")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", year)
+        .order("statement_date_to", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // IBAN des gewählten Bankkontos (aus chart_of_accounts)
+  const { data: bankIban } = useQuery({
+    queryKey: ["recon-bank-iban", bankAccountId],
+    enabled: !!bankAccountId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("chart_of_accounts")
+        .select("iban")
+        .eq("id", bankAccountId)
+        .maybeSingle();
+      return (data?.iban as string | null) ?? null;
+    },
+  });
+
+  // Map: month -> Auszüge, die diesen Monat berühren (gefiltert nach IBAN wenn vorhanden)
+  const statementsByMonth = useMemo(() => {
+    const map = new Map<number, any[]>();
+    const cleanIban = (bankIban || "").replace(/\s/g, "").toUpperCase();
+    for (const s of statements) {
+      if (!s.statement_date_to) continue;
+      if (cleanIban) {
+        const sIban = (s.account_iban || "").replace(/\s/g, "").toUpperCase();
+        if (sIban && sIban !== cleanIban) continue;
+      }
+      const dStart = new Date(s.statement_date_from || s.statement_date_to);
+      const dEnd = new Date(s.statement_date_to);
+      let y = dStart.getFullYear(), m = dStart.getMonth() + 1;
+      const endY = dEnd.getFullYear(), endM = dEnd.getMonth() + 1;
+      while (y < endY || (y === endY && m <= endM)) {
+        if (y === year) {
+          if (!map.has(m)) map.set(m, []);
+          map.get(m)!.push(s);
+        }
+        m++;
+        if (m > 12) { m = 1; y++; }
+      }
+    }
+    return map;
+  }, [statements, bankIban, year]);
+
+
   const reconByMonth = useMemo(() => {
     const m = new Map<number, any>();
     reconciliations.forEach((r) => m.set(r.period_month, r));
