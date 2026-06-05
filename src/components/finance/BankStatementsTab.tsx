@@ -860,9 +860,9 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                 </div>
               )}
 
-              {/* Hochgeladene PDF-Belege (eingeklappt per Default) */}
+              {/* Hochgeladene Belege (PDF + CAMT, eingeklappt per Default) */}
               {(() => {
-                const pdfStatements = bankStatements.filter((s: any) => s.source_format === "pdf");
+                const pdfStatements = bankStatements;
                 if (pdfStatements.length === 0) return null;
                 return (
                 <Card className="bg-muted/20">
