@@ -252,42 +252,77 @@ async function matchTransactions(supabase: any, statementId: string, buildingId:
   return { matched: matchedCount, total: savedTxns.length };
 }
 
+async function resolveBankAccountId(
+  supabase: any, buildingId: string, iban: string | null,
+): Promise<string | null> {
+  if (iban) {
+    const cleanIban = iban.replace(/\s/g, "").toUpperCase();
+    const { data: mapping } = await supabase
+      .from("building_bank_accounts").select("coa_account_id")
+      .eq("building_id", buildingId).eq("iban", cleanIban).limit(1);
+    if (mapping?.length && mapping[0].coa_account_id) return mapping[0].coa_account_id;
+  }
+  const { data: coa } = await supabase
+    .from("chart_of_accounts").select("id, account_number, account_name")
+    .or("account_number.like.18%,account_number.like.10%")
+    .or(`building_id.is.null,building_id.eq.${buildingId}`);
+  const bank = (coa || []).find((a: any) => /bank|giro|tagesgeld/i.test(a.account_name || ""));
+  return bank?.id ?? null;
+}
+
+async function upsertReconMonth(
+  supabase: any, buildingId: string, bankAccountId: string, statementId: string,
+  year: number, month: number, opening: number | null, closing: number | null,
+  source: "pdf_import" | "camt_import",
+): Promise<void> {
+  const { data: existing } = await supabase
+    .from("bank_reconciliations").select("id, opening_balance_bank, closing_balance_bank, bank_source")
+    .eq("building_id", buildingId).eq("bank_account_id", bankAccountId)
+    .eq("period_year", year).eq("period_month", month).maybeSingle();
+  if (existing && existing.bank_source !== source && existing.bank_source !== null
+      && (existing.closing_balance_bank != null || existing.opening_balance_bank != null)) {
+    return;
+  }
+  const payload: any = {
+    building_id: buildingId, bank_account_id: bankAccountId,
+    period_year: year, period_month: month,
+    bank_source: source, source_statement_id: statementId, status: "open",
+  };
+  if (opening != null) payload.opening_balance_bank = opening;
+  if (closing != null) payload.closing_balance_bank = closing;
+  await supabase.from("bank_reconciliations")
+    .upsert(payload, { onConflict: "building_id,bank_account_id,period_year,period_month" });
+}
+
 async function syncReconciliation(
   supabase: any, buildingId: string, statementId: string, iban: string | null,
-  dateTo: string | null, opening: number | null, closing: number | null,
+  dateFrom: string | null, dateTo: string | null,
+  opening: number | null, closing: number | null,
   source: "pdf_import" | "camt_import",
 ): Promise<void> {
   if (!buildingId || !dateTo || (opening == null && closing == null)) return;
-  let bankAccountId: string | null = null;
-  if (iban) {
-    const { data: coa } = await supabase
-      .from("chart_of_accounts").select("id, iban")
-      .or(`building_id.is.null,building_id.eq.${buildingId}`)
-      .or(`iban.eq.${iban}`).limit(1);
-    if (coa?.length) bankAccountId = coa[0].id;
-  }
-  if (!bankAccountId) {
-    const { data: coa } = await supabase
-      .from("chart_of_accounts").select("id, account_number, account_name")
-      .or("account_number.like.18%,account_number.like.10%")
-      .or(`building_id.is.null,building_id.eq.${buildingId}`);
-    const bank = (coa || []).find((a: any) => /bank|giro|tagesgeld/i.test(a.account_name || ""));
-    if (bank) bankAccountId = bank.id;
-  }
+  const bankAccountId = await resolveBankAccountId(supabase, buildingId, iban);
   if (!bankAccountId) return;
-  const d = new Date(dateTo);
-  const year = d.getFullYear(); const month = d.getMonth() + 1;
-  const { data: existing } = await supabase
-    .from("bank_reconciliations").select("id, closing_balance_bank, bank_source")
-    .eq("building_id", buildingId).eq("bank_account_id", bankAccountId)
-    .eq("period_year", year).eq("period_month", month).maybeSingle();
-  if (existing && existing.closing_balance_bank != null && existing.bank_source !== source && existing.bank_source !== null) return;
-  await supabase.from("bank_reconciliations").upsert({
-    building_id: buildingId, bank_account_id: bankAccountId,
-    period_year: year, period_month: month,
-    opening_balance_bank: opening, closing_balance_bank: closing,
-    bank_source: source, source_statement_id: statementId, status: "open",
-  }, { onConflict: "building_id,bank_account_id,period_year,period_month" });
+
+  const dEnd = new Date(dateTo);
+  const dStart = dateFrom ? new Date(dateFrom) : dEnd;
+  const startYear = dStart.getFullYear();
+  const startMonth = dStart.getMonth() + 1;
+  const endYear = dEnd.getFullYear();
+  const endMonth = dEnd.getMonth() + 1;
+
+  if (startYear === endYear && startMonth === endMonth) {
+    await upsertReconMonth(supabase, buildingId, bankAccountId, statementId, endYear, endMonth, opening, closing, source);
+    return;
+  }
+  await upsertReconMonth(supabase, buildingId, bankAccountId, statementId, startYear, startMonth, opening, null, source);
+  await upsertReconMonth(supabase, buildingId, bankAccountId, statementId, endYear, endMonth, null, closing, source);
+  let y = startYear, m = startMonth + 1;
+  while (y < endYear || (y === endYear && m < endMonth)) {
+    if (m > 12) { m = 1; y++; continue; }
+    await upsertReconMonth(supabase, buildingId, bankAccountId, statementId, y, m, null, null, source);
+    m++;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -356,114 +391,121 @@ Deno.serve(async (req) => {
 
     const cleanXml = stripNamespaces(xmlContent);
 
-    let stmt = getTag(cleanXml, "Stmt");
-    if (!stmt) stmt = getTag(cleanXml, "Rpt");
-    if (!stmt) stmt = cleanXml;
-
-    console.log("XML length:", cleanXml.length, "Stmt/Rpt length:", stmt.length);
-
-    const accountIban = getTag(getTag(getTag(stmt, "Acct"), "Id"), "IBAN");
-    const accountName = getTag(getTag(stmt, "Acct"), "Nm");
-
-    const frToDt = getTag(stmt, "FrToDt");
-    const frDt = getTag(getTag(frToDt, "FrDtTm"), "").substring(0, 10) ||
-                 getTag(frToDt, "FrDt") || null;
-    const toDt = getTag(getTag(frToDt, "ToDtTm"), "").substring(0, 10) ||
-                 getTag(frToDt, "ToDt") || null;
-
-    // CAMT-Salden extrahieren: Bal-Blöcke mit OPBD (opening) / CLBD (closing)
-    const balanceBlocks = getAllTags(stmt, "Bal");
-    let openingBalance: number | null = null;
-    let closingBalance: number | null = null;
-    for (const bal of balanceBlocks) {
-      const code = getTag(getTag(getTag(bal, "Tp"), "CdOrPrtry"), "Cd");
-      const amtMatch = bal.match(/<Amt[^>]*>([\d.,]+)<\/Amt>/i);
-      if (!amtMatch) continue;
-      const raw = parseFloat(amtMatch[1].replace(/\./g, "").replace(",", "."));
-      const sign = getTag(bal, "CdtDbtInd") === "DBIT" ? -1 : 1;
-      const value = sign * (isNaN(raw) ? 0 : raw);
-      if ((code === "OPBD" || code === "PRCD") && openingBalance == null) openingBalance = value;
-      if (code === "CLBD") closingBalance = value;
+    // Mehrere <Stmt>-Blöcke pro CAMT-Datei möglich (z. B. monatlich gebündelt)
+    let stmts = getAllTags(cleanXml, "Stmt");
+    if (stmts.length === 0) {
+      const rpts = getAllTags(cleanXml, "Rpt");
+      stmts = rpts.length > 0 ? rpts : [cleanXml];
     }
+    console.log("XML length:", cleanXml.length, "Statement blocks:", stmts.length);
 
-    // Create bank statement record
-    const { data: statement, error: stmtError } = await supabase
-      .from("bank_statements")
-      .insert({
-        building_id: buildingId || null,
-        file_name: "CAMT XML Import",
-        account_iban: accountIban || null,
-        account_name: accountName || null,
-        statement_date_from: frDt,
-        statement_date_to: toDt,
-        opening_balance: openingBalance,
-        closing_balance: closingBalance,
-        source_format: "camt_xml",
-        fiscal_year: Number(fiscalYear) || (toDt ? new Date(toDt).getFullYear() : new Date().getFullYear()),
-        created_by: user.id,
-      })
-      .select()
-      .single();
+    const perStatement: any[] = [];
+    let totalUnique = 0;
+    let totalDuplicates = 0;
+    let totalMatched = 0;
+    let lastStatementId: string | null = null;
 
-    if (stmtError) throw stmtError;
+    for (const stmt of stmts) {
+      const accountIban = getTag(getTag(getTag(stmt, "Acct"), "Id"), "IBAN");
+      const accountName = getTag(getTag(stmt, "Acct"), "Nm");
 
-    // Parse entries and compute hashes
-    let transactions = parseEntries(stmt, buildingId, statement.id);
-    transactions = await addHashes(transactions);
-    console.log("Parsed", transactions.length, "transactions from XML");
+      const frToDt = getTag(stmt, "FrToDt");
+      const frDt = getTag(getTag(frToDt, "FrDtTm"), "").substring(0, 10) ||
+                   getTag(frToDt, "FrDt") || null;
+      const toDt = getTag(getTag(frToDt, "ToDtTm"), "").substring(0, 10) ||
+                   getTag(frToDt, "ToDt") || null;
 
-    // Deduplicate
-    const { unique, duplicateCount } = await deduplicateTransactions(supabase, transactions);
-    console.log("Unique:", unique.length, "Duplicates skipped:", duplicateCount);
+      // Salden: OPBD/PRCD = opening, CLBD = closing
+      const balanceBlocks = getAllTags(stmt, "Bal");
+      let openingBalance: number | null = null;
+      let closingBalance: number | null = null;
+      for (const bal of balanceBlocks) {
+        const code = getTag(getTag(getTag(bal, "Tp"), "CdOrPrtry"), "Cd");
+        const amtMatch = bal.match(/<Amt[^>]*>([\d.,]+)<\/Amt>/i);
+        if (!amtMatch) continue;
+        const raw = parseFloat(amtMatch[1].replace(/\./g, "").replace(",", "."));
+        const sign = getTag(bal, "CdtDbtInd") === "DBIT" ? -1 : 1;
+        const value = sign * (isNaN(raw) ? 0 : raw);
+        if ((code === "OPBD" || code === "PRCD") && openingBalance == null) openingBalance = value;
+        if (code === "CLBD") closingBalance = value;
+      }
 
-    // Insert unique transactions
-    if (unique.length > 0) {
-      const { error: txError } = await supabase
-        .from("bank_transactions")
-        .insert(unique);
-      if (txError) throw txError;
-    }
+      const stmtLabel = frDt && toDt ? `${frDt}…${toDt}` : (toDt || "CAMT");
 
-    // If no unique transactions were imported, delete the empty statement
-    if (unique.length === 0 && duplicateCount > 0) {
-      await supabase.from("bank_statements").delete().eq("id", statement.id);
-      return new Response(
-        JSON.stringify({
-          success: true,
-          statementId: null,
-          totalTransactions: 0,
-          duplicatesSkipped: duplicateCount,
-          matchedCount: 0,
-          unmatchedCount: 0,
-          message: `Alle ${duplicateCount} Transaktionen waren bereits importiert.`,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+      const { data: statement, error: stmtError } = await supabase
+        .from("bank_statements")
+        .insert({
+          building_id: buildingId || null,
+          file_name: `CAMT XML Import ${stmtLabel}`,
+          account_iban: accountIban || null,
+          account_name: accountName || null,
+          statement_date_from: frDt,
+          statement_date_to: toDt,
+          opening_balance: openingBalance,
+          closing_balance: closingBalance,
+          source_format: "camt_xml",
+          fiscal_year: Number(fiscalYear) || (toDt ? new Date(toDt).getFullYear() : new Date().getFullYear()),
+          created_by: user.id,
+        })
+        .select()
+        .single();
+      if (stmtError) throw stmtError;
 
-    // Matching phase
-    const matchResult = unique.length > 0
-      ? await matchTransactions(supabase, statement.id, buildingId || null)
-      : { matched: 0, total: 0 };
+      let transactions = parseEntries(stmt, buildingId, statement.id);
+      transactions = await addHashes(transactions);
+      const { unique, duplicateCount } = await deduplicateTransactions(supabase, transactions, buildingId || null);
 
-    // Saldo-Sync in Kostenabgleich
-    if (buildingId && (openingBalance != null || closingBalance != null)) {
-      try {
-        await syncReconciliation(
-          supabase, buildingId, statement.id, accountIban || null,
-          toDt, openingBalance, closingBalance, "camt_import",
-        );
-      } catch (e) { console.warn("recon sync failed:", e); }
+      if (unique.length > 0) {
+        const { error: txError } = await supabase.from("bank_transactions").insert(unique);
+        if (txError) throw txError;
+      }
+
+      if (unique.length === 0 && duplicateCount > 0) {
+        // Leeres Statement wieder entfernen
+        await supabase.from("bank_statements").delete().eq("id", statement.id);
+        perStatement.push({ period: stmtLabel, inserted: 0, duplicates: duplicateCount, matched: 0 });
+        totalDuplicates += duplicateCount;
+        continue;
+      }
+
+      const matchResult = unique.length > 0
+        ? await matchTransactions(supabase, statement.id, buildingId || null)
+        : { matched: 0, total: 0 };
+
+      if (buildingId && (openingBalance != null || closingBalance != null)) {
+        try {
+          await syncReconciliation(
+            supabase, buildingId, statement.id, accountIban || null,
+            frDt, toDt, openingBalance, closingBalance, "camt_import",
+          );
+        } catch (e) { console.warn("recon sync failed:", e); }
+      }
+
+      lastStatementId = statement.id;
+      totalUnique += unique.length;
+      totalDuplicates += duplicateCount;
+      totalMatched += matchResult.matched;
+      perStatement.push({
+        period: stmtLabel,
+        statementId: statement.id,
+        inserted: unique.length,
+        duplicates: duplicateCount,
+        matched: matchResult.matched,
+        opening: openingBalance,
+        closing: closingBalance,
+      });
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        statementId: statement.id,
-        totalTransactions: unique.length,
-        duplicatesSkipped: duplicateCount,
-        matchedCount: matchResult.matched,
-        unmatchedCount: unique.length - matchResult.matched,
+        statementId: lastStatementId,
+        statementsProcessed: perStatement.length,
+        perStatement,
+        totalTransactions: totalUnique,
+        duplicatesSkipped: totalDuplicates,
+        matchedCount: totalMatched,
+        unmatchedCount: totalUnique - totalMatched,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

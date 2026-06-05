@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { CheckCircle2, AlertTriangle, Circle, MinusCircle, Loader2, Landmark } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Circle, MinusCircle, Loader2, Landmark, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { signedTotalForAccount } from "./lib/bookingAggregation";
 
@@ -105,6 +105,64 @@ export function BankReconciliationTab({ sharedBuildingId, onBuildingChange }: Pr
     },
   });
 
+  // Bank-Auszüge dieser Liegenschaft / dieses Jahres — für Prefill und Monatskachel-Markierung
+  const { data: statements = [] } = useQuery({
+    queryKey: ["recon-bank-statements", buildingId, year],
+    enabled: !!buildingId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bank_statements")
+        .select("id, file_name, account_iban, statement_date_from, statement_date_to, opening_balance, closing_balance, source_format, created_at")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", year)
+        .order("statement_date_to", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // IBAN des gewählten Bankkontos (aus chart_of_accounts)
+  const { data: bankIban } = useQuery({
+    queryKey: ["recon-bank-iban", bankAccountId, buildingId],
+    enabled: !!bankAccountId && !!buildingId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("building_bank_accounts" as any)
+        .select("iban")
+        .eq("building_id", buildingId)
+        .eq("coa_account_id", bankAccountId)
+        .maybeSingle();
+      return ((data as any)?.iban as string | null) ?? null;
+    },
+  });
+
+  // Map: month -> Auszüge, die diesen Monat berühren (gefiltert nach IBAN wenn vorhanden)
+  const statementsByMonth = useMemo(() => {
+    const map = new Map<number, any[]>();
+    const cleanIban = (bankIban || "").replace(/\s/g, "").toUpperCase();
+    for (const s of statements) {
+      if (!s.statement_date_to) continue;
+      if (cleanIban) {
+        const sIban = (s.account_iban || "").replace(/\s/g, "").toUpperCase();
+        if (sIban && sIban !== cleanIban) continue;
+      }
+      const dStart = new Date(s.statement_date_from || s.statement_date_to);
+      const dEnd = new Date(s.statement_date_to);
+      let y = dStart.getFullYear(), m = dStart.getMonth() + 1;
+      const endY = dEnd.getFullYear(), endM = dEnd.getMonth() + 1;
+      while (y < endY || (y === endY && m <= endM)) {
+        if (y === year) {
+          if (!map.has(m)) map.set(m, []);
+          map.get(m)!.push(s);
+        }
+        m++;
+        if (m > 12) { m = 1; y++; }
+      }
+    }
+    return map;
+  }, [statements, bankIban, year]);
+
+
   const reconByMonth = useMemo(() => {
     const m = new Map<number, any>();
     reconciliations.forEach((r) => m.set(r.period_month, r));
@@ -185,15 +243,19 @@ export function BankReconciliationTab({ sharedBuildingId, onBuildingChange }: Pr
                   const info = getStatusInfo(m);
                   const Icon = info.icon;
                   const r = reconByMonth.get(m);
+                  const hasStatement = (statementsByMonth.get(m)?.length ?? 0) > 0;
                   return (
                     <button
                       key={m}
                       onClick={() => setOpenMonth(m)}
-                      className={`p-3 rounded-lg border transition hover:scale-105 hover:shadow-md flex flex-col items-center gap-1 ${info.color}`}
-                      title={info.label}
+                      className={`relative p-3 rounded-lg border transition hover:scale-105 hover:shadow-md flex flex-col items-center gap-1 ${info.color}`}
+                      title={hasStatement ? `${info.label} · Auszug verfügbar` : info.label}
                     >
                       <Icon className="h-4 w-4" />
                       <span className="text-xs font-semibold">{label}</span>
+                      {hasStatement && (
+                        <FileText className="absolute top-1 right-1 h-3 w-3 opacity-70" />
+                      )}
                       {r?.difference != null && r.status === "mismatch" && (
                         <span className="text-[10px] font-mono">{Number(r.difference).toFixed(2)} €</span>
                       )}
@@ -201,6 +263,7 @@ export function BankReconciliationTab({ sharedBuildingId, onBuildingChange }: Pr
                   );
                 })}
               </div>
+
 
               <p className="text-xs text-muted-foreground">
                 Klicke auf einen Monat, um Anfangs-/Endsaldo lt. Kontoauszug einzutragen und mit der Buchhaltung zu vergleichen.
@@ -227,12 +290,14 @@ export function BankReconciliationTab({ sharedBuildingId, onBuildingChange }: Pr
           month={openMonth}
           existing={reconByMonth.get(openMonth)}
           previousMonthRecon={openMonth > 1 ? reconByMonth.get(openMonth - 1) : null}
+          monthStatements={statementsByMonth.get(openMonth) ?? []}
           onSaved={() => { refetch(); queryClient.invalidateQueries({ queryKey: ["bank-reconciliations"] }); }}
         />
       )}
     </div>
   );
 }
+
 
 interface DialogProps {
   open: boolean;
@@ -244,10 +309,11 @@ interface DialogProps {
   month: number;
   existing?: any;
   previousMonthRecon?: any;
+  monthStatements?: any[];
   onSaved: () => void;
 }
 
-function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAccountLabel, year, month, existing, previousMonthRecon, onSaved }: DialogProps) {
+function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAccountLabel, year, month, existing, previousMonthRecon, monthStatements = [], onSaved }: DialogProps) {
   const [openingBank, setOpeningBank] = useState<string>(
     existing?.opening_balance_bank != null
       ? String(existing.opening_balance_bank).replace(".", ",")
@@ -358,6 +424,42 @@ function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAc
         </DialogHeader>
 
         <div className="space-y-4">
+          {monthStatements.length > 0 && (
+            <div className="border rounded-md p-3 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900 space-y-2">
+              <div className="text-xs font-semibold flex items-center gap-2">
+                <FileText className="h-4 w-4" /> Salden aus importiertem Kontoauszug verfügbar
+              </div>
+              {monthStatements.map((s: any) => {
+                const fromInMonth = s.statement_date_from && new Date(s.statement_date_from).getFullYear() === year && new Date(s.statement_date_from).getMonth() + 1 === month;
+                const toInMonth = s.statement_date_to && new Date(s.statement_date_to).getFullYear() === year && new Date(s.statement_date_to).getMonth() + 1 === month;
+                const fmt = (n: number | null | undefined) => n == null ? "—" : String(n).replace(".", ",");
+                return (
+                  <div key={s.id} className="flex items-center justify-between text-xs gap-2">
+                    <div className="truncate">
+                      <span className="font-medium">{s.file_name}</span>
+                      <span className="text-muted-foreground"> · {s.statement_date_from || "?"} → {s.statement_date_to || "?"}</span>
+                      <div className="text-muted-foreground">
+                        {fromInMonth && <>Anfang: <span className="font-mono">{fmt(s.opening_balance)} €</span> </>}
+                        {toInMonth && <>Ende: <span className="font-mono">{fmt(s.closing_balance)} €</span></>}
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (fromInMonth && s.opening_balance != null) setOpeningBank(String(s.opening_balance).replace(".", ","));
+                        if (toInMonth && s.closing_balance != null) setClosingBank(String(s.closing_balance).replace(".", ","));
+                      }}
+                    >
+                      Übernehmen
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-xs">Anfangssaldo lt. Kontoauszug (€)</Label>
