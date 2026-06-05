@@ -252,42 +252,78 @@ async function matchTransactions(supabase: any, statementId: string, buildingId:
   return { matched: matchedCount, total: savedTxns.length };
 }
 
+async function resolveBankAccountId(
+  supabase: any, buildingId: string, iban: string | null,
+): Promise<string | null> {
+  if (iban) {
+    const cleanIban = iban.replace(/\s/g, "").toUpperCase();
+    const { data: coa } = await supabase
+      .from("chart_of_accounts").select("id")
+      .eq("iban", cleanIban)
+      .or(`building_id.is.null,building_id.eq.${buildingId}`).limit(1);
+    if (coa?.length) return coa[0].id;
+  }
+  const { data: coa } = await supabase
+    .from("chart_of_accounts").select("id, account_number, account_name")
+    .or("account_number.like.18%,account_number.like.10%")
+    .or(`building_id.is.null,building_id.eq.${buildingId}`);
+  const bank = (coa || []).find((a: any) => /bank|giro|tagesgeld/i.test(a.account_name || ""));
+  return bank?.id ?? null;
+}
+
+async function upsertReconMonth(
+  supabase: any, buildingId: string, bankAccountId: string, statementId: string,
+  year: number, month: number, opening: number | null, closing: number | null,
+  source: "pdf_import" | "camt_import",
+): Promise<void> {
+  const { data: existing } = await supabase
+    .from("bank_reconciliations").select("id, opening_balance_bank, closing_balance_bank, bank_source")
+    .eq("building_id", buildingId).eq("bank_account_id", bankAccountId)
+    .eq("period_year", year).eq("period_month", month).maybeSingle();
+  if (existing && existing.bank_source !== source && existing.bank_source !== null
+      && (existing.closing_balance_bank != null || existing.opening_balance_bank != null)) {
+    return;
+  }
+  const payload: any = {
+    building_id: buildingId, bank_account_id: bankAccountId,
+    period_year: year, period_month: month,
+    bank_source: source, source_statement_id: statementId, status: "open",
+  };
+  if (opening != null) payload.opening_balance_bank = opening;
+  if (closing != null) payload.closing_balance_bank = closing;
+  await supabase.from("bank_reconciliations")
+    .upsert(payload, { onConflict: "building_id,bank_account_id,period_year,period_month" });
+}
+
 async function syncReconciliation(
   supabase: any, buildingId: string, statementId: string, iban: string | null,
-  dateTo: string | null, opening: number | null, closing: number | null,
+  dateFrom: string | null, dateTo: string | null,
+  opening: number | null, closing: number | null,
   source: "pdf_import" | "camt_import",
 ): Promise<void> {
   if (!buildingId || !dateTo || (opening == null && closing == null)) return;
-  let bankAccountId: string | null = null;
-  if (iban) {
-    const { data: coa } = await supabase
-      .from("chart_of_accounts").select("id, iban")
-      .or(`building_id.is.null,building_id.eq.${buildingId}`)
-      .or(`iban.eq.${iban}`).limit(1);
-    if (coa?.length) bankAccountId = coa[0].id;
-  }
-  if (!bankAccountId) {
-    const { data: coa } = await supabase
-      .from("chart_of_accounts").select("id, account_number, account_name")
-      .or("account_number.like.18%,account_number.like.10%")
-      .or(`building_id.is.null,building_id.eq.${buildingId}`);
-    const bank = (coa || []).find((a: any) => /bank|giro|tagesgeld/i.test(a.account_name || ""));
-    if (bank) bankAccountId = bank.id;
-  }
+  const bankAccountId = await resolveBankAccountId(supabase, buildingId, iban);
   if (!bankAccountId) return;
-  const d = new Date(dateTo);
-  const year = d.getFullYear(); const month = d.getMonth() + 1;
-  const { data: existing } = await supabase
-    .from("bank_reconciliations").select("id, closing_balance_bank, bank_source")
-    .eq("building_id", buildingId).eq("bank_account_id", bankAccountId)
-    .eq("period_year", year).eq("period_month", month).maybeSingle();
-  if (existing && existing.closing_balance_bank != null && existing.bank_source !== source && existing.bank_source !== null) return;
-  await supabase.from("bank_reconciliations").upsert({
-    building_id: buildingId, bank_account_id: bankAccountId,
-    period_year: year, period_month: month,
-    opening_balance_bank: opening, closing_balance_bank: closing,
-    bank_source: source, source_statement_id: statementId, status: "open",
-  }, { onConflict: "building_id,bank_account_id,period_year,period_month" });
+
+  const dEnd = new Date(dateTo);
+  const dStart = dateFrom ? new Date(dateFrom) : dEnd;
+  const startYear = dStart.getFullYear();
+  const startMonth = dStart.getMonth() + 1;
+  const endYear = dEnd.getFullYear();
+  const endMonth = dEnd.getMonth() + 1;
+
+  if (startYear === endYear && startMonth === endMonth) {
+    await upsertReconMonth(supabase, buildingId, bankAccountId, statementId, endYear, endMonth, opening, closing, source);
+    return;
+  }
+  await upsertReconMonth(supabase, buildingId, bankAccountId, statementId, startYear, startMonth, opening, null, source);
+  await upsertReconMonth(supabase, buildingId, bankAccountId, statementId, endYear, endMonth, null, closing, source);
+  let y = startYear, m = startMonth + 1;
+  while (y < endYear || (y === endYear && m < endMonth)) {
+    if (m > 12) { m = 1; y++; continue; }
+    await upsertReconMonth(supabase, buildingId, bankAccountId, statementId, y, m, null, null, source);
+    m++;
+  }
 }
 
 Deno.serve(async (req) => {
