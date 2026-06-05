@@ -166,11 +166,15 @@ Deno.serve(async (req) => {
       const tasksToInsert: any[] = [];
 
       for (const config of bConfigs) {
-        const typeDef = getTypeDef(config.maintenance_type);
-        if (!typeDef) continue;
+        const isCustom = String(config.maintenance_type).startsWith("custom_");
+        const typeDef = isCustom ? null : getTypeDef(config.maintenance_type);
+        if (!isCustom && !typeDef) continue;
 
-        const intervalMonths = config.custom_interval_months || typeDef.defaultIntervalMonths;
-        const leadTimeDays = config.custom_lead_time_days || typeDef.defaultLeadTimeDays;
+        const defaultInterval = typeDef?.defaultIntervalMonths ?? 12;
+        const defaultLead = typeDef?.defaultLeadTimeDays ?? 14;
+        const intervalMonths = config.custom_interval_months || defaultInterval;
+        const leadTimeDays = config.custom_lead_time_days || defaultLead;
+        const label = typeDef?.label || config.custom_label || "Eigene Wartung";
 
         // Generate due dates: if last_maintenance_date is set, start from there + interval
         let cursor: Date;
@@ -185,7 +189,7 @@ Deno.serve(async (req) => {
           let dueDate = new Date(cursor);
 
           // Apply seasonal logic
-          if (typeDef.seasonal) {
+          if (typeDef?.seasonal) {
             dueDate = adjustForSeason(dueDate, typeDef.seasonal);
           }
 
@@ -198,8 +202,8 @@ Deno.serve(async (req) => {
               const showInListDate = subDays(dueDate, leadTimeDays);
 
               tasksToInsert.push({
-                title: `${typeDef.label} - Wartung`,
-                description: typeDef.label,
+                title: `${label} - Wartung`,
+                description: label,
                 due_date: dueDateStr,
                 show_in_list_date: formatDate(showInListDate < today ? today : showInListDate),
                 maintenance_type: config.maintenance_type,
