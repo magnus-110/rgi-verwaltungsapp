@@ -400,9 +400,24 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
               </div>
             </Card>
           )}
+          </div>
+
+          <div className="hidden lg:block overflow-hidden bg-muted/20">
+            <InvoiceLivePreview
+              clientId={d.client_id}
+              issueDate={d.issue_date}
+              dueDate={d.due_date}
+              servicePeriodFrom={d.service_period_from}
+              servicePeriodTo={d.service_period_to}
+              introText={d.intro_text}
+              footerText={d.footer_text}
+              invoiceNumber={invoice?.invoice_number}
+              items={d.items}
+            />
+          </div>
         </div>
 
-        <DialogFooter className="gap-2 flex-wrap">
+        <DialogFooter className="gap-2 flex-wrap px-6 py-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Schließen</Button>
           {!isSent && <Button variant="secondary" onClick={() => save("draft")} disabled={create.isPending || update.isPending}>Als Entwurf speichern</Button>}
           <Button variant="outline" onClick={() => previewRender("docx")} disabled={rendering || !d.client_id} className="gap-1.5">
