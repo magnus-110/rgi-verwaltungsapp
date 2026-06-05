@@ -95,7 +95,12 @@ Deno.serve(async (req) => {
     const { data: tplFile, error: tplErr } = await admin.storage
       .from("rgi-invoice-templates")
       .download(invoice.template.storage_path);
-    if (tplErr || !tplFile) return json({ error: tplErr?.message || "Vorlage nicht ladbar" }, 500);
+    if (tplErr || !tplFile) {
+      const msg = /not.?found|object/i.test(tplErr?.message || "")
+        ? "Die Vorlagendatei wurde im Speicher nicht gefunden. Bitte die Word-Vorlage erneut hochladen."
+        : (tplErr?.message || "Vorlage nicht ladbar");
+      return json({ error: msg }, 404);
+    }
 
     // Build payload
     const items = (invoice.items || []).sort((a: any, b: any) => a.position - b.position);
