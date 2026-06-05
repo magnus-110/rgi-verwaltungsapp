@@ -5983,7 +5983,9 @@ export type Database = {
         Row: {
           building_id: string
           created_at: string
+          custom_category: string | null
           custom_interval_months: number | null
+          custom_label: string | null
           custom_lead_time_days: number | null
           id: string
           is_active: boolean
@@ -5995,7 +5997,9 @@ export type Database = {
         Insert: {
           building_id: string
           created_at?: string
+          custom_category?: string | null
           custom_interval_months?: number | null
+          custom_label?: string | null
           custom_lead_time_days?: number | null
           id?: string
           is_active?: boolean
@@ -6007,7 +6011,9 @@ export type Database = {
         Update: {
           building_id?: string
           created_at?: string
+          custom_category?: string | null
           custom_interval_months?: number | null
+          custom_label?: string | null
           custom_lead_time_days?: number | null
           id?: string
           is_active?: boolean
