@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SignaturePad } from "./SignaturePad";
 import { RgiWordmark } from "@/components/onboarding/ui/RgiWordmark";
 import { KeyTag } from "./types";
@@ -99,9 +100,7 @@ export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerNa
                   Rechtsverbindlich erfasst
                 </div>
               </div>
-              <div className="rounded-xl border border-border bg-background overflow-hidden">
-                <SignaturePad value={png} onChange={setPng} height={240} />
-              </div>
+              <SignaturePad value={png} onChange={setPng} height={320} />
               <div className="pt-2">
                 <div className="h-px bg-foreground/60 max-w-xs" />
                 <div className="mt-1.5 text-xs text-muted-foreground">{borrowerName || "Empfänger"} · {today}</div>
