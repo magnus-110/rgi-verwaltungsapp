@@ -83,10 +83,11 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Schlüssel ausgeben · <span className="font-mono">{tag.tag_number}</span></DialogTitle></DialogHeader>
-        <div className="space-y-3">
+    <>
+      <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Schlüssel ausgeben · <span className="font-mono">{tag.tag_number}</span></DialogTitle></DialogHeader>
+          <div className="space-y-3">
           <div>
             <Label>Kontakt (optional)</Label>
             <Popover>
@@ -171,8 +172,9 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
           ) : (
             <Button onClick={save} disabled={saving}>Ausgeben</Button>
           )}
-        </DialogFooter>
-      </DialogContent>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <KeySignatureOverlay
         open={signOpen}
@@ -183,6 +185,6 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
         dueDate={dueDate}
         buildingLabel={buildingLabel}
       />
-    </Dialog>
+    </>
   );
 };
