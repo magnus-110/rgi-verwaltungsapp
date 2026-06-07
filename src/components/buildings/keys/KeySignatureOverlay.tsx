@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { SignaturePad } from "./SignaturePad";
 import { RgiWordmark } from "@/components/onboarding/ui/RgiWordmark";
 import { KeyTag } from "./types";
@@ -26,19 +26,16 @@ export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerNa
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
     window.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
+    return () => { window.removeEventListener("keydown", onKey); };
   }, [open, onCancel]);
-
-  if (!open) return null;
 
   const today = format(new Date(), "dd. MMMM yyyy", { locale: de });
   const dueLabel = dueDate ? format(new Date(dueDate + "T00:00:00"), "dd. MMMM yyyy", { locale: de }) : "—";
 
-  return createPortal(
-    <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
-      <div className="min-h-full flex items-start md:items-center justify-center p-4 md:p-10">
-        <div className="w-full max-w-3xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
+      <DialogContent className="max-w-3xl max-h-[95vh] overflow-y-auto p-0">
+        <div className="bg-card overflow-hidden">
           {/* Header */}
           <div className="flex items-start justify-between px-8 pt-8 pb-6 border-b border-border">
             <div className="flex items-center gap-4">
@@ -78,7 +75,8 @@ export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerNa
               <p>
                 Hiermit bestätige ich, <span className="font-semibold">{borrowerName || "—"}</span>,
                 am <span className="font-semibold">{today}</span> den oben bezeichneten Schlüssel
-                von der <span className="font-semibold">RGI Immobilien GmbH &amp; Co. KG</span> in
+                für das Objekt <span className="font-semibold">{buildingLabel || "—"}</span> von der{" "}
+                <span className="font-semibold">RGI Immobilien GmbH &amp; Co. KG</span> in
                 einwandfreiem Zustand erhalten zu haben.
               </p>
               <p className="text-muted-foreground">
@@ -99,9 +97,7 @@ export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerNa
                   Rechtsverbindlich erfasst
                 </div>
               </div>
-              <div className="rounded-xl border border-border bg-background overflow-hidden">
-                <SignaturePad value={png} onChange={setPng} height={240} />
-              </div>
+              <SignaturePad value={png} onChange={setPng} height={320} />
               <div className="pt-2">
                 <div className="h-px bg-foreground/60 max-w-xs" />
                 <div className="mt-1.5 text-xs text-muted-foreground">{borrowerName || "Empfänger"} · {today}</div>
@@ -122,9 +118,8 @@ export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerNa
             </div>
           </div>
         </div>
-      </div>
-    </div>,
-    document.body
+      </DialogContent>
+    </Dialog>
   );
 };
 
