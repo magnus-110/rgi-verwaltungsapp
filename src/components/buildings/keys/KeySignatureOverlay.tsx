@@ -75,7 +75,8 @@ export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerNa
               <p>
                 Hiermit bestätige ich, <span className="font-semibold">{borrowerName || "—"}</span>,
                 am <span className="font-semibold">{today}</span> den oben bezeichneten Schlüssel
-                von der <span className="font-semibold">RGI Immobilien GmbH &amp; Co. KG</span> in
+                für das Objekt <span className="font-semibold">{buildingLabel || "—"}</span> von der{" "}
+                <span className="font-semibold">RGI Immobilien GmbH &amp; Co. KG</span> in
                 einwandfreiem Zustand erhalten zu haben.
               </p>
               <p className="text-muted-foreground">
