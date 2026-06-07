@@ -67,9 +67,8 @@ export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerNa
             </div>
 
             {/* Schlüssel-Details */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4 rounded-xl border border-border bg-muted/30 px-6 py-5">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 rounded-xl border border-border bg-muted/30 px-6 py-5">
               <Detail label="Schlüssel-Nr." value={tag.tag_number} mono />
-              <Detail label="Bezeichnung" value={tag.label || "—"} />
               <Detail label="Objekt" value={buildingLabel || "—"} />
               <Detail label="Rückgabe bis" value={dueLabel} />
             </div>
