@@ -33,6 +33,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
   const [signature, setSignature] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [signOpen, setSignOpen] = useState(false);
 
   useEffect(() => { if (open) { setContactId(null); setContactLabel(""); setName(""); setEmail(""); setSignature(null); setNotes(""); setRequiresSignature(false); setSendConfirmation(false); setSendOverdueReminder(false); setDueDate(format(new Date(Date.now() + 7 * 86400000), "yyyy-MM-dd")); }}, [open]);
 
