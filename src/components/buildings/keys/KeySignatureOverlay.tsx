@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { SignaturePad } from "./SignaturePad";
 import { RgiWordmark } from "@/components/onboarding/ui/RgiWordmark";
 import { KeyTag } from "./types";
@@ -117,9 +117,8 @@ export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerNa
             </div>
           </div>
         </div>
-      </div>
-    </div>,
-    document.body
+      </DialogContent>
+    </Dialog>
   );
 };
 
