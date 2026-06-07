@@ -102,15 +102,9 @@ export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerNa
               <div className="rounded-xl border border-border bg-background overflow-hidden">
                 <SignaturePad value={png} onChange={setPng} height={240} />
               </div>
-              <div className="flex items-end justify-between pt-2">
-                <div className="flex-1">
-                  <div className="h-px bg-foreground/60 max-w-xs" />
-                  <div className="mt-1.5 text-xs text-muted-foreground">{borrowerName || "Empfänger"} · {today}</div>
-                </div>
-                <div className="text-right ml-8">
-                  <div className="h-px bg-foreground/60 w-48 ml-auto" />
-                  <div className="mt-1.5 text-xs text-muted-foreground">RGI Immobilien GmbH &amp; Co. KG</div>
-                </div>
+              <div className="pt-2">
+                <div className="h-px bg-foreground/60 max-w-xs" />
+                <div className="mt-1.5 text-xs text-muted-foreground">{borrowerName || "Empfänger"} · {today}</div>
               </div>
             </div>
           </div>
