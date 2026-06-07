@@ -39,10 +39,10 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
 
   const { data: building } = useQuery({
     queryKey: ["building-label", buildingId],
-    queryFn: async () => (await supabase.from("buildings").select("name, address, city").eq("id", buildingId).maybeSingle()).data,
+    queryFn: async () => (await supabase.from("buildings").select("name, address").eq("id", buildingId).maybeSingle()).data,
     enabled: open && !!buildingId,
   });
-  const buildingLabel = building ? [building.name, building.address, building.city].filter(Boolean).join(", ") : "";
+  const buildingLabel = building ? [building.name, building.address].filter(Boolean).join(", ") : "";
 
   const { data: contacts = [] } = useQuery({
     queryKey: ["contacts-search", contactSearch],
