@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SignaturePad } from "./SignaturePad";
@@ -27,19 +26,16 @@ export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerNa
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
     window.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
+    return () => { window.removeEventListener("keydown", onKey); };
   }, [open, onCancel]);
-
-  if (!open) return null;
 
   const today = format(new Date(), "dd. MMMM yyyy", { locale: de });
   const dueLabel = dueDate ? format(new Date(dueDate + "T00:00:00"), "dd. MMMM yyyy", { locale: de }) : "—";
 
-  return createPortal(
-    <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
-      <div className="min-h-full flex items-start md:items-center justify-center p-4 md:p-10">
-        <div className="w-full max-w-3xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
+      <DialogContent className="max-w-3xl max-h-[95vh] overflow-y-auto p-0">
+        <div className="bg-card overflow-hidden">
           {/* Header */}
           <div className="flex items-start justify-between px-8 pt-8 pb-6 border-b border-border">
             <div className="flex items-center gap-4">
