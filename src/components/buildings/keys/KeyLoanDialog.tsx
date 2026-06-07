@@ -11,9 +11,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { KeyTag } from "./types";
-import { SignaturePad } from "./SignaturePad";
+import { KeySignatureOverlay } from "./KeySignatureOverlay";
 import { useAuth } from "@/hooks/useAuth";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, PenLine, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 
 interface Props { open: boolean; onClose: () => void; tag: KeyTag; buildingId: string; }
