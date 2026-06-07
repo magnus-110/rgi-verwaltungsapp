@@ -11,9 +11,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { KeyTag } from "./types";
-import { SignaturePad } from "./SignaturePad";
+import { KeySignatureOverlay } from "./KeySignatureOverlay";
 import { useAuth } from "@/hooks/useAuth";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, PenLine, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 
 interface Props { open: boolean; onClose: () => void; tag: KeyTag; buildingId: string; }
@@ -33,6 +33,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
   const [signature, setSignature] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [signOpen, setSignOpen] = useState(false);
 
   useEffect(() => { if (open) { setContactId(null); setContactLabel(""); setName(""); setEmail(""); setSignature(null); setNotes(""); setRequiresSignature(false); setSendConfirmation(false); setSendOverdueReminder(false); setDueDate(format(new Date(Date.now() + 7 * 86400000), "yyyy-MM-dd")); }}, [open]);
 
@@ -125,15 +126,55 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
             <label className="flex items-center gap-2 text-sm"><Checkbox checked={sendOverdueReminder} onCheckedChange={(v) => setSendOverdueReminder(!!v)} /> Mahnmail bei Überfälligkeit</label>
           </div>
           {requiresSignature && (
-            <div><Label>Unterschrift</Label><SignaturePad value={signature} onChange={setSignature} /></div>
+            <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+              {signature ? (
+                <>
+                  <div className="flex items-center gap-2 text-sm text-success">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span className="font-medium">Unterschrift erfasst</span>
+                  </div>
+                  <div className="rounded-md border border-border bg-background p-2">
+                    <img src={signature} alt="Unterschrift" className="h-16 w-auto mx-auto" />
+                  </div>
+                  <Button type="button" variant="ghost" size="sm" className="w-full h-7 text-xs" onClick={() => setSignOpen(true)}>
+                    Erneut unterschreiben
+                  </Button>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Die Unterschrift wird im nächsten Schritt im Vollbild-Übergabeprotokoll erfasst.
+                </p>
+              )}
+            </div>
           )}
           <div><Label>Notiz</Label><Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>Abbrechen</Button>
-          <Button onClick={save} disabled={saving}>Ausgeben</Button>
+          {requiresSignature && !signature ? (
+            <Button
+              onClick={() => {
+                if (!contactId && !name) { toast.error("Kontakt oder Name angeben"); return; }
+                setSignOpen(true);
+              }}
+              className="gap-2"
+            >
+              <PenLine className="h-4 w-4" /> Jetzt unterschreiben
+            </Button>
+          ) : (
+            <Button onClick={save} disabled={saving}>Ausgeben</Button>
+          )}
         </DialogFooter>
       </DialogContent>
+
+      <KeySignatureOverlay
+        open={signOpen}
+        onCancel={() => setSignOpen(false)}
+        onConfirm={(png) => { setSignature(png); setSignOpen(false); }}
+        tag={tag}
+        borrowerName={name || contactLabel}
+        dueDate={dueDate}
+      />
     </Dialog>
   );
 };
