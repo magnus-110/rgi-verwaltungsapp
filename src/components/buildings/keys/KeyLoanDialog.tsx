@@ -37,6 +37,13 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
 
   useEffect(() => { if (open) { setContactId(null); setContactLabel(""); setName(""); setEmail(""); setSignature(null); setNotes(""); setRequiresSignature(false); setSendConfirmation(false); setSendOverdueReminder(false); setDueDate(format(new Date(Date.now() + 7 * 86400000), "yyyy-MM-dd")); }}, [open]);
 
+  const { data: building } = useQuery({
+    queryKey: ["building-label", buildingId],
+    queryFn: async () => (await supabase.from("buildings").select("name, address, city").eq("id", buildingId).maybeSingle()).data,
+    enabled: open && !!buildingId,
+  });
+  const buildingLabel = building ? [building.name, building.address, building.city].filter(Boolean).join(", ") : "";
+
   const { data: contacts = [] } = useQuery({
     queryKey: ["contacts-search", contactSearch],
     queryFn: async () => {
@@ -174,6 +181,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
         tag={tag}
         borrowerName={name || contactLabel}
         dueDate={dueDate}
+        buildingLabel={buildingLabel}
       />
     </Dialog>
   );
