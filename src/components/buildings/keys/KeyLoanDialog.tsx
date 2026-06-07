@@ -108,7 +108,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
                       const mail = person?.contact_emails?.[0]?.email;
                       return (
                         <CommandItem key={c.id} value={c.id} onSelect={() => {
-                          setContactId(c.id); setContactLabel(label); if (mail) setEmail(mail); if (!name) setName(label);
+                          setContactId(c.id); setContactLabel(label); setName(label); setEmail(mail || "");
                         }}>
                           {label} {mail && <span className="text-xs text-muted-foreground ml-2">{mail}</span>}
                         </CommandItem>
