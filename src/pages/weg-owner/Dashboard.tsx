@@ -156,7 +156,7 @@ export const WegOwnerDashboard = () => {
     ...(hasVisibleFiles
       ? [{ icon: FileText, label: "Dokumente", path: "/weg-owner/files", kind: "files" as const, unread: unreadFiles }]
       : []),
-    { icon: MessageCircle, label: "Chat", path: "/weg-owner/chatbot" },
+    { icon: MessageCircle, label: "KI-Chat", path: "/weg-owner/chatbot" },
     { icon: MessageSquare, label: "Schwarzes Brett", path: "/weg-owner/forum", kind: "forum", unread: unreadForum },
     { icon: Users, label: "Versammlungen", path: "/weg-owner/meetings", kind: "meetings", unread: unreadMeetings },
   ];
