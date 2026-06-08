@@ -331,6 +331,10 @@ export function EmergencyContactsWidget({ buildingIds }: Props) {
                     row={row}
                     iconBg="bg-red-500/10"
                     iconColor="text-red-600"
+                    expanded={expandedId === row.key}
+                    onToggle={() =>
+                      setExpandedId((cur) => (cur === row.key ? null : row.key))
+                    }
                   />
                 </div>
               ))}
