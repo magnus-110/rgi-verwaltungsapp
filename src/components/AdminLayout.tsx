@@ -9,6 +9,7 @@ import { UploadProgressWidget } from "./documents/UploadProgressWidget";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { DmsJobsProvider } from "@/contexts/DmsJobsProvider";
 import { DmsJobsTray } from "./finance/DmsJobsTray";
+import { PasskeyPromptDialog } from "./PasskeyPromptDialog";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
