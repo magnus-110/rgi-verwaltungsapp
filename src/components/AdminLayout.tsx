@@ -86,6 +86,9 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
           </main>
         </div>
       </SidebarProvider>
+      {profile?.user_id && (
+        <PasskeyPromptDialog userId={profile.user_id} enabled={true} />
+      )}
     </>
   );
 };
