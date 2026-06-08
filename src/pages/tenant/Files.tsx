@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, Building2, Search, FileText, Download, Loader2 } from "lucide-react";
@@ -59,14 +58,20 @@ function FilesByCategory({ files, categories, search }: { files: FileItem[]; cat
   }, [filtered, categories]);
 
   const handleDownload = async (file: FileItem) => {
+    const targetWindow = window.open("", "_blank", "noopener");
     setDownloading(file.id);
     try {
       const { data, error } = await supabase.functions.invoke("get-building-file-url", {
         body: { filePath: file.file_path },
       });
       if (error) throw error;
-      window.open(data.signedUrl, "_blank");
+      if (targetWindow) {
+        targetWindow.location.href = data.signedUrl;
+      } else {
+        window.location.href = data.signedUrl;
+      }
     } catch {
+      targetWindow?.close();
       toast.error("Download fehlgeschlagen");
     } finally {
       setDownloading(null);
