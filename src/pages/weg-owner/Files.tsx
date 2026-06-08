@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, Building2, Search, FileText, Download, Loader2 } from "lucide-react";
@@ -89,28 +88,6 @@ function FilesByCategory({ files, categories, search }: { files: FileItem[]; cat
       targetWindow.location.href = url;
     } else {
       window.location.href = url;
-    }
-  };
-
-  const handleDownload = async (file: FileItem) => {
-    setDownloading(file.id);
-    const url = await getSignedUrl(file);
-    setDownloading(null);
-    if (!url) { toast.error("Download fehlgeschlagen"); return; }
-    try {
-      const res = await fetch(url);
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = file.display_name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-    } catch {
-      // Fallback: open in new tab
-      window.open(url, "_blank", "noopener");
     }
   };
 
