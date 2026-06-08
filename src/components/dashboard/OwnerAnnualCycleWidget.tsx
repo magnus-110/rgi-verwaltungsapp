@@ -29,7 +29,7 @@ export const OwnerAnnualCycleWidget = ({ buildings }: Props) => {
   const fiscalYears = useMemo(() => buildFiscalYears(), []);
   const [selectedYear, setSelectedYear] = useState(fiscalYears[2]);
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
     if (!selectedBuildingId && buildings.length > 0) setSelectedBuildingId(buildings[0].id);
