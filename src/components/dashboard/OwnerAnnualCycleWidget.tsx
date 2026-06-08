@@ -8,12 +8,37 @@ import { buildFiscalYears, type AnnualCycleStatus } from "@/lib/annualCycle";
 import { cn } from "@/lib/utils";
 
 // Owner-facing milestones (custom labels) – linked to annual_cycle_tasks keys
-const OWNER_MILESTONES: { key: string; label: string; short: string }[] = [
-  { key: "beschluesse_umgesetzt", label: "Beschlüsse umgesetzt", short: "Beschlüsse" },
-  { key: "heizkostenabrechnung_beantragt", label: "Heizkostenabrechnung eingereicht", short: "Heizkosten" },
-  { key: "jahresabrechnung_erstellt", label: "Jahresabrechnung erstellt", short: "Abrechnung" },
-  { key: "kassenpruefung", label: "Kassenprüfung", short: "Kassenprüfung" },
-  { key: "etv_protokoll_fertig", label: "Eigentümerversammlung", short: "ETV" },
+const OWNER_MILESTONES: { key: string; label: string; short: string; description: string }[] = [
+  {
+    key: "beschluesse_umgesetzt",
+    label: "Beschlüsse umgesetzt",
+    short: "Beschlüsse",
+    description: "Alle in der letzten Eigentümerversammlung gefassten Beschlüsse wurden umgesetzt oder beauftragt.",
+  },
+  {
+    key: "heizkostenabrechnung_beantragt",
+    label: "Heizkostenabrechnung eingereicht",
+    short: "Heizkosten",
+    description: "Die Verbrauchsdaten wurden an den Messdienstleister (z. B. Brunata) übergeben, damit die Heizkostenabrechnung erstellt werden kann.",
+  },
+  {
+    key: "jahresabrechnung_erstellt",
+    label: "Jahresabrechnung erstellt",
+    short: "Abrechnung",
+    description: "Die Jahresabrechnung des abgelaufenen Wirtschaftsjahres wurde fertiggestellt und steht zur Prüfung bereit.",
+  },
+  {
+    key: "kassenpruefung",
+    label: "Kassenprüfung",
+    short: "Kassenprüfung",
+    description: "Der gewählte Kassenprüfer hat die Belege und Konten geprüft und das Ergebnis dokumentiert.",
+  },
+  {
+    key: "etv_protokoll_fertig",
+    label: "Eigentümerversammlung",
+    short: "ETV",
+    description: "Die jährliche Eigentümerversammlung wurde durchgeführt und das Protokoll versendet.",
+  },
 ];
 
 interface Building { id: string; name: string }
