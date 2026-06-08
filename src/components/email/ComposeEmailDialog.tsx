@@ -75,6 +75,8 @@ export const ComposeEmailDialog = ({
   const [bccContactPickerOpen, setBccContactPickerOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   const [showCcBcc, setShowCcBcc] = useState(false);
+  const [dmsPickerOpen, setDmsPickerOpen] = useState(false);
+  const [dmsLoading, setDmsLoading] = useState(false);
 
   useEffect(() => {
     return () => {
