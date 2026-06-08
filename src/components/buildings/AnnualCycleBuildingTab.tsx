@@ -61,6 +61,29 @@ export const AnnualCycleBuildingTab = ({ buildingId }: Props) => {
     },
   });
 
+  // Fetch the actual fiscal year range (may be shifted, e.g. 01.07.–30.06.)
+  const fiscalYearNum = new Date(selected.start).getFullYear();
+  const { data: period } = useQuery({
+    queryKey: ["billing-period", buildingId, fiscalYearNum],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("billing_periods")
+        .select("period_from, period_to")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYearNum)
+        .maybeSingle();
+      return data as { period_from: string; period_to: string } | null;
+    },
+  });
+
+  const fmtDate = (iso: string) => {
+    const [y, m, d] = iso.split("T")[0].split("-");
+    return `${d}.${m}.${y}`;
+  };
+  const periodFrom = period?.period_from ?? selected.start;
+  const periodTo = period?.period_to ?? selected.end;
+  const isShifted = !(periodFrom.endsWith("-01-01") && periodTo.endsWith("-12-31"));
+
   const byKey = useMemo(() => {
     const m = new Map<string, TaskRow>();
     tasks.forEach(t => m.set(t.task_key, t));
