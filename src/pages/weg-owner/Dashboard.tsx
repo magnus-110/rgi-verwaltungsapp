@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 interface Building { id: string; name: string; address: string | null }
 
 const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-  <h2 className="text-[11px] font-semibold uppercase tracking-[0.6px] text-muted-foreground/80 px-1 mb-2">
+  <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.6px] text-muted-foreground/80 px-1 mb-2">
     {children}
   </h2>
 );
