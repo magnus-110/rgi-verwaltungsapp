@@ -102,16 +102,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           setUser(null);
           setProfile(null);
           setLoading(false);
-        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
           setSession(session);
           setUser(session?.user ?? null);
-          setProfile((current) => current?.user_id === session?.user?.id ? current : null);
-          setLoading(!!session?.user);
-        } else if (event === 'INITIAL_SESSION') {
-          setSession(session);
-          setUser(session?.user ?? null);
-          setProfile((current) => current?.user_id === session?.user?.id ? current : null);
-          setLoading(!!session?.user);
+          setProfile((current) => {
+            const sameUser = current?.user_id === session?.user?.id;
+            // Keep loading false if profile already matches current session user
+            setLoading(!!session?.user && !sameUser);
+            return sameUser ? current : null;
+          });
         }
       }
     );
