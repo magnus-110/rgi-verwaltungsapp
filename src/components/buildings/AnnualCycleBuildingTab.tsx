@@ -61,6 +61,29 @@ export const AnnualCycleBuildingTab = ({ buildingId }: Props) => {
     },
   });
 
+  // Fetch the actual fiscal year range (may be shifted, e.g. 01.07.–30.06.)
+  const fiscalYearNum = new Date(selected.start).getFullYear();
+  const { data: period } = useQuery({
+    queryKey: ["billing-period", buildingId, fiscalYearNum],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("billing_periods")
+        .select("period_from, period_to")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYearNum)
+        .maybeSingle();
+      return data as { period_from: string; period_to: string } | null;
+    },
+  });
+
+  const fmtDate = (iso: string) => {
+    const [y, m, d] = iso.split("T")[0].split("-");
+    return `${d}.${m}.${y}`;
+  };
+  const periodFrom = period?.period_from ?? selected.start;
+  const periodTo = period?.period_to ?? selected.end;
+  const isShifted = !(periodFrom.endsWith("-01-01") && periodTo.endsWith("-12-31"));
+
   const byKey = useMemo(() => {
     const m = new Map<string, TaskRow>();
     tasks.forEach(t => m.set(t.task_key, t));
@@ -86,24 +109,41 @@ export const AnnualCycleBuildingTab = ({ buildingId }: Props) => {
 
   return (
     <Card>
-      <CardHeader className="p-3 md:p-4 pb-2 flex-row items-center justify-between space-y-0 gap-2">
-        <CardTitle className="text-sm md:text-base flex items-center gap-2">
-          <CalendarClock className="h-4 w-4 text-primary" />
-          Jahreszyklus
-        </CardTitle>
-        <Select
-          value={selected.start}
-          onValueChange={(v) => setSelected(fiscalYears.find(f => f.start === v)!)}
-        >
-          <SelectTrigger className="h-8 w-[140px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {fiscalYears.map(fy => (
-              <SelectItem key={fy.start} value={fy.start}>Wirtschaftsjahr {fy.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <CardHeader className="p-3 md:p-4 pb-2 space-y-2">
+        <div className="flex flex-row items-center justify-between gap-2">
+          <CardTitle className="text-sm md:text-base flex items-center gap-2">
+            <CalendarClock className="h-4 w-4 text-primary" />
+            Jahreszyklus
+          </CardTitle>
+          <Select
+            value={selected.start}
+            onValueChange={(v) => setSelected(fiscalYears.find(f => f.start === v)!)}
+          >
+            <SelectTrigger className="h-8 w-[140px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {fiscalYears.map(fy => (
+                <SelectItem key={fy.start} value={fy.start}>Wirtschaftsjahr {fy.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant="outline" className="text-xs font-mono">
+            {fmtDate(periodFrom)} – {fmtDate(periodTo)}
+          </Badge>
+          {isShifted && (
+            <Badge variant="secondary" className="text-[10px] bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30">
+              Verschobenes Wirtschaftsjahr
+            </Badge>
+          )}
+          {!period && (
+            <span className="text-[11px] text-muted-foreground">
+              (kein Abrechnungszeitraum hinterlegt – Standard Kalenderjahr)
+            </span>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="p-3 md:p-4 pt-1 space-y-2">
         {isLoading && <p className="text-sm text-muted-foreground">Lade…</p>}
