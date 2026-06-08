@@ -9,6 +9,7 @@ import { UploadProgressWidget } from "./documents/UploadProgressWidget";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { DmsJobsProvider } from "@/contexts/DmsJobsProvider";
 import { DmsJobsTray } from "./finance/DmsJobsTray";
+import { PasskeyPromptDialog } from "./PasskeyPromptDialog";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -85,6 +86,9 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
           </main>
         </div>
       </SidebarProvider>
+      {profile?.user_id && (
+        <PasskeyPromptDialog userId={profile.user_id} enabled={true} />
+      )}
     </>
   );
 };

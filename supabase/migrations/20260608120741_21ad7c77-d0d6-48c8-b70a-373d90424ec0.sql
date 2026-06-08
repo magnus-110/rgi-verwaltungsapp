@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS passkey_prompt_dismissed_at TIMESTAMPTZ NULL;

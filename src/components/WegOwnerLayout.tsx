@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
  import { TermsAcceptanceDialog } from "@/components/TermsAcceptanceDialog";
  import { IntroVideoDialog } from "@/components/IntroVideoDialog";
+ import { PasskeyPromptDialog } from "@/components/PasskeyPromptDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { VotingPopup } from "@/components/meetings/VotingPopup";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
@@ -294,6 +295,9 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
         />
       )}
       <VotingPopup />
+      {profile?.user_id && (
+        <PasskeyPromptDialog userId={profile.user_id} enabled={termsAccepted === true} />
+      )}
       {/* Onboarding-Wizard erst zeigen, wenn AGB akzeptiert wurden */}
       {termsAccepted === true && <OnboardingFAB />}
       {/* Erklärvideo erst NACH Onboarding-Abschluss */}

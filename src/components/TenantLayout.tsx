@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
  import { TermsAcceptanceDialog } from "@/components/TermsAcceptanceDialog";
  import { IntroVideoDialog } from "@/components/IntroVideoDialog";
+ import { PasskeyPromptDialog } from "@/components/PasskeyPromptDialog";
  import { supabase } from "@/integrations/supabase/client";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 import { Button } from "@/components/ui/button";
@@ -236,6 +237,9 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
          userId={profile.user_id}
          onAccepted={handleTermsAccepted}
        />
+     )}
+     {profile?.user_id && (
+       <PasskeyPromptDialog userId={profile.user_id} enabled={termsAccepted === true} />
      )}
      <IntroVideoDialog open={showIntroVideo} onClose={dismissIntroVideo} />
     </div>
