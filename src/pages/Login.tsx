@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,39 @@ export const Login = () => {
   const passkeySupported =
     typeof window !== "undefined" && !!(window as any).PublicKeyCredential;
   const { signIn, user, profile } = useAuth();
+  const conditionalAbortRef = useRef<AbortController | null>(null);
+
+  // Silent Passkey Autofill (Conditional UI) — shows passkeys in the email field
+  useEffect(() => {
+    if (!passkeySupported) return;
+    const auth = supabase.auth as any;
+    if (typeof auth.signInWithPasskey !== "function") return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const PKC: any = (window as any).PublicKeyCredential;
+        if (typeof PKC?.isConditionalMediationAvailable !== "function") return;
+        const available = await PKC.isConditionalMediationAvailable();
+        if (!available || cancelled) return;
+
+        const controller = new AbortController();
+        conditionalAbortRef.current = controller;
+        await auth.signInWithPasskey({
+          mediation: "conditional",
+          signal: controller.signal,
+        });
+      } catch (e: any) {
+        if (e?.name === "NotAllowedError" || e?.name === "AbortError") return;
+        console.warn("Passkey conditional UI failed", e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      try { conditionalAbortRef.current?.abort(); } catch {}
+    };
+  }, [passkeySupported]);
 
   // Redirect authenticated users
   if (user && profile) {
@@ -138,35 +171,13 @@ export const Login = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {passkeySupported && (
-              <div className="mb-4 space-y-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={handlePasskeyLogin}
-                  disabled={passkeyLoading}
-                >
-                  <Fingerprint className="h-4 w-4 mr-2" />
-                  {passkeyLoading ? "Anmelden…" : "Mit Passkey anmelden"}
-                </Button>
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">oder</span>
-                  </div>
-                </div>
-              </div>
-            )}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="identifier">Benutzername oder E-Mail</Label>
                 <Input
                   id="identifier"
                   type="text"
-                  autoComplete="username"
+                  autoComplete="username webauthn"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   placeholder="z.B. max.mustermann"
@@ -208,6 +219,30 @@ export const Login = () => {
               >
                 {loading ? "Anmelden..." : "Anmelden"}
               </Button>
+
+              {passkeySupported && (
+                <>
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-border" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">oder</span>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={handlePasskeyLogin}
+                    disabled={passkeyLoading}
+                  >
+                    <Fingerprint className="h-4 w-4 mr-2" />
+                    {passkeyLoading ? "Anmelden…" : "Mit Passkey anmelden"}
+                  </Button>
+                </>
+              )}
+
               
               <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
                 <DialogTrigger asChild>
