@@ -192,23 +192,16 @@ interface StatTileProps {
 }
 
 const StatTile = ({ icon: Icon, label, count, accentBg, accentText, onClick }: StatTileProps) => {
-  const isZero = count === 0;
   return (
     <button
       onClick={onClick}
       className="text-left rounded-[14px] border border-border/60 bg-card p-4 shadow-sm transition-all hover:border-primary/40 hover:shadow active:scale-[0.99] min-h-[112px] flex flex-col justify-between"
     >
       <div className="flex items-start justify-between">
-        <div className={cn("h-11 w-11 rounded-xl flex items-center justify-center", isZero ? "bg-muted" : accentBg)}>
-          <Icon className={cn("h-5 w-5", isZero ? "text-muted-foreground" : accentText)} />
+        <div className={cn("h-11 w-11 rounded-xl flex items-center justify-center", accentBg)}>
+          <Icon className={cn("h-5 w-5", accentText)} />
         </div>
-        {isZero ? (
-          <div className="h-8 w-8 rounded-full bg-emerald-500/15 flex items-center justify-center" aria-label="Alles erledigt">
-            <Check className="h-4 w-4 text-emerald-600" strokeWidth={3} />
-          </div>
-        ) : (
-          <span className={cn("text-3xl font-bold tabular-nums leading-none", accentText)}>{count}</span>
-        )}
+        <span className={cn("text-3xl font-bold tabular-nums leading-none", accentText)}>{count}</span>
       </div>
       <div className="text-[13px] font-medium text-foreground mt-3">{label}</div>
     </button>
