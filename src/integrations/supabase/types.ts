@@ -4864,11 +4864,14 @@ export type Database = {
       etv_resolutions: {
         Row: {
           abstain_count: number | null
+          actionable_status: string
           agenda_item_id: string | null
           building_id: string
+          case_id: string | null
           created_at: string | null
           created_by: string | null
           id: string
+          is_actionable: boolean
           meeting_id: string | null
           no_count: number | null
           notes: string | null
@@ -4883,11 +4886,14 @@ export type Database = {
         }
         Insert: {
           abstain_count?: number | null
+          actionable_status?: string
           agenda_item_id?: string | null
           building_id: string
+          case_id?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string
+          is_actionable?: boolean
           meeting_id?: string | null
           no_count?: number | null
           notes?: string | null
@@ -4902,11 +4908,14 @@ export type Database = {
         }
         Update: {
           abstain_count?: number | null
+          actionable_status?: string
           agenda_item_id?: string | null
           building_id?: string
+          case_id?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string
+          is_actionable?: boolean
           meeting_id?: string | null
           no_count?: number | null
           notes?: string | null
@@ -4932,6 +4941,13 @@ export type Database = {
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_resolutions_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
             referencedColumns: ["id"]
           },
           {

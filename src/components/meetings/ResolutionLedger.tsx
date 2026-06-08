@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Search, Scale, CheckCircle2, XCircle, StickyNote, Save, Pencil } from "lucide-react";
+import { Search, Scale, CheckCircle2, XCircle, StickyNote, Save, Pencil, Wrench, ExternalLink } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -20,8 +22,27 @@ export const ResolutionLedger = ({ buildingFilter: externalBuildingFilter }: Res
   const activeBuildingFilter = externalBuildingFilter || "all";
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+
+  const toggleActionableMutation = useMutation({
+    mutationFn: async ({ id, value }: { id: string; value: boolean }) => {
+      const { error } = await supabase
+        .from("etv_resolutions")
+        .update({ is_actionable: value } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      toast({
+        title: vars.value ? "Als umsetzungsrelevant markiert" : "Markierung entfernt",
+        description: vars.value ? "Es wurde automatisch ein Vorgang angelegt." : undefined,
+      });
+      queryClient.invalidateQueries({ queryKey: ["etv-resolutions"] });
+    },
+    onError: (err: any) => toast({ title: "Fehler", description: err.message, variant: "destructive" }),
+  });
 
   const getResolutionDateMs = (resolution: any) => {
     const dateValue = resolution.resolved_at || resolution.etv_meetings?.meeting_date || resolution.created_at;
@@ -142,6 +163,11 @@ export const ResolutionLedger = ({ buildingFilter: externalBuildingFilter }: Res
                           {r.result === "passed" ? "Angenommen" : "Abgelehnt"}
                         </Badge>
                         {!r.published && <Badge variant="outline" className="text-xs">Entwurf</Badge>}
+                        {r.is_actionable && (
+                          <Badge variant="outline" className="text-xs gap-1 border-primary/40 bg-primary/10 text-primary">
+                            <Wrench className="h-3 w-3" /> Umzusetzen
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-sm whitespace-pre-wrap">{r.resolution_text}</p>
                       <div className="flex gap-4 text-xs text-muted-foreground flex-wrap">
@@ -152,6 +178,36 @@ export const ResolutionLedger = ({ buildingFilter: externalBuildingFilter }: Res
                       </div>
                     </div>
                   </div>
+
+                  {/* Umsetzungsrelevanz */}
+                  {r.result === "passed" && (
+                    <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2">
+                      <div className="flex items-center gap-2 text-xs">
+                        <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
+                        <div>
+                          <div className="font-medium text-foreground">Umsetzungsrelevant</div>
+                          <div className="text-muted-foreground">Erstellt automatisch einen Vorgang zur Nachverfolgung.</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {r.case_id && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 gap-1 text-xs"
+                            onClick={() => navigate(`/tickets/vorgaenge?case=${r.case_id}`)}
+                          >
+                            <ExternalLink className="h-3 w-3" /> Vorgang
+                          </Button>
+                        )}
+                        <Switch
+                          checked={!!r.is_actionable}
+                          onCheckedChange={(v) => toggleActionableMutation.mutate({ id: r.id, value: v })}
+                          disabled={toggleActionableMutation.isPending}
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   {/* Bemerkung (notes) */}
                   <div className="border-t pt-3">
