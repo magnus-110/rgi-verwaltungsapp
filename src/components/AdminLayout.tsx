@@ -30,6 +30,14 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
     return <Navigate to="/login" replace />;
   }
 
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-lg">Profil wird geladen...</div>
+      </div>
+    );
+  }
+
 
   if (profile?.role !== 'admin' && profile?.role !== 'employee') {
     return (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext, ReactNode } from "react";
+import React, { useState, useEffect, useCallback, createContext, useContext, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -52,15 +52,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async () => {
-    if (!user) return;
+  const fetchProfile = useCallback(async (targetUserId = user?.id) => {
+    if (!targetUserId) {
+      setLoading(false);
+      return;
+    }
     
     
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', targetUserId)
         .single();
 
       if (error) {
@@ -76,7 +79,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       console.error('Error fetching profile:', error);
       setLoading(false); // Stop loading on error
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     let mounted = true;
@@ -102,14 +105,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           setSession(session);
           setUser(session?.user ?? null);
-          // Don't stop loading until profile is fetched
+          setProfile((current) => current?.user_id === session?.user?.id ? current : null);
+          setLoading(!!session?.user);
         } else if (event === 'INITIAL_SESSION') {
           setSession(session);
           setUser(session?.user ?? null);
-          // Only stop loading if no user, otherwise wait for profile
-          if (!session?.user) {
-            setLoading(false);
-          }
+          setProfile((current) => current?.user_id === session?.user?.id ? current : null);
+          setLoading(!!session?.user);
         }
       }
     );
@@ -126,11 +128,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       setSession(session);
       setUser(session?.user ?? null);
-      
-      // Only stop loading if no user, otherwise wait for profile
-      if (!session?.user) {
-        setLoading(false);
-      }
+      setProfile((current) => current?.user_id === session?.user?.id ? current : null);
+      setLoading(!!session?.user);
     });
 
     return () => {
@@ -140,15 +139,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   useEffect(() => {
-    if (user && !profile) {
-      
-      setTimeout(() => {
-        fetchProfile();
+    if (user && profile?.user_id !== user.id) {
+      setLoading(true);
+      const timeoutId = window.setTimeout(() => {
+        fetchProfile(user.id);
       }, 0);
+      return () => window.clearTimeout(timeoutId);
     } else if (!user) {
       setProfile(null);
+      setLoading(false);
+    } else if (profile?.user_id === user.id) {
+      setLoading(false);
     }
-  }, [user, profile]);
+  }, [user?.id, profile?.user_id, fetchProfile]);
 
   const signIn = async (identifier: string, password: string) => {
     try {
@@ -176,7 +179,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // Fallback: try as-is
       }
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: loginEmail,
         password,
       });
@@ -190,9 +193,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return { error };
       }
 
-      setTimeout(() => {
-        navigate('/');
-      }, 100);
+      const signedInUser = data.user ?? data.session?.user ?? null;
+      setSession(data.session ?? null);
+      setUser(signedInUser);
+      setProfile(null);
+      if (signedInUser) {
+        setLoading(true);
+        await fetchProfile(signedInUser.id);
+      }
+
+      navigate('/', { replace: true });
 
       return {};
     } catch (error) {
