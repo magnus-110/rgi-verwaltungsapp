@@ -1,238 +1,180 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { 
-  AlertTriangle, 
-  Plus, 
-  MessageCircle, 
-  Building2, 
-  Phone,
-  Mail,
-  Clock,
-  AlertCircle,
-  MessageSquare,
-  FileText
-} from "lucide-react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
+import { AlertTriangle, MessageSquare, MessageCircle, FileText, Users, Scale, Phone, Mail, Building2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
+import { OwnerAnnualCycleWidget } from "@/components/dashboard/OwnerAnnualCycleWidget";
+import { EmergencyContactsWidget } from "@/components/forum/EmergencyContactsWidget";
+import { PROPERTY_MANAGER_FALLBACK } from "@/lib/emergencyContactInfo";
+
+interface Building { id: string; name: string; address: string | null }
 
 export const WegOwnerDashboard = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const hasVisibleFiles = useHasVisibleFiles(profile?.user_id);
-  const [reports, setReports] = useState<any[]>([]);
-  const [buildings, setBuildings] = useState<any[]>([]);
+  const [buildings, setBuildings] = useState<Building[]>([]);
+  const [openReports, setOpenReports] = useState(0);
+  const [openResolutions, setOpenResolutions] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (profile) {
-      fetchData();
-    }
-  }, [profile]);
+    if (!profile?.user_id) return;
+    const load = async () => {
+      try {
+        const { data: assignments } = await supabase
+          .from("weg_owner_buildings")
+          .select("building_id")
+          .eq("user_id", profile.user_id);
+        const bIds = (assignments || []).map((a: any) => a.building_id as string);
 
-  const fetchData = async () => {
-    try {
-      // Fetch reports
-      const { data: reportsData, error: reportsError } = await supabase
-        .from("weg_reports")
-        .select("*")
-        .eq("reported_by", profile?.user_id)
-        .order("created_at", { ascending: false });
+        let bs: Building[] = [];
+        if (bIds.length) {
+          const { data: bData } = await supabase
+            .from("buildings")
+            .select("id, name, address")
+            .in("id", bIds);
+          bs = (bData || []) as Building[];
+        }
+        setBuildings(bs);
 
-      if (reportsError) throw reportsError;
-      setReports(reportsData || []);
+        const { data: reports } = await supabase
+          .from("weg_reports")
+          .select("id", { count: "exact", head: false })
+          .eq("reported_by", profile.user_id)
+          .eq("status", "open");
+        setOpenReports(reports?.length || 0);
 
-      // Fetch building assignments
-      const { data: assignments, error: assignmentsError } = await supabase
-        .from("weg_owner_buildings")
-        .select("id, building_id, created_at")
-        .eq("user_id", profile?.user_id);
-
-      if (assignmentsError) throw assignmentsError;
-
-      if (assignments && assignments.length > 0) {
-        const buildingIds = assignments.map(a => a.building_id);
-        const { data: buildingsData, error: buildingsError } = await supabase
-          .from("buildings")
-          .select("id, name, address, building_code")
-          .in("id", buildingIds);
-
-        if (buildingsError) throw buildingsError;
-        
-        const combinedData = assignments.map(assignment => {
-          const building = buildingsData?.find(b => b.id === assignment.building_id);
-          return {
-            ...assignment,
-            building
-          };
-        });
-        
-        setBuildings(combinedData);
+        if (bIds.length) {
+          const { data: res } = await supabase
+            .from("etv_resolutions")
+            .select("id")
+            .in("building_id", bIds)
+            .eq("is_actionable", true)
+            .eq("published", true)
+            .neq("actionable_status", "completed");
+          setOpenResolutions(res?.length || 0);
+        }
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error("Error fetching data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+    load();
+  }, [profile?.user_id]);
 
-  const openReports = reports.filter(r => r.status === "open").length;
+  const buildingIds = buildings.map((b) => b.id);
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-lg text-muted-foreground animate-fade-in">Laden...</div>
+        <div className="text-lg text-muted-foreground">Laden...</div>
       </div>
     );
   }
 
+  const actions = [
+    ...(hasVisibleFiles ? [{ icon: FileText, label: "Dokumente", path: "/weg-owner/files" }] : []),
+    { icon: MessageCircle, label: "Chat", path: "/weg-owner/chatbot" },
+    { icon: MessageSquare, label: "Schwarzes Brett", path: "/weg-owner/forum" },
+    { icon: Users, label: "Versammlungen", path: "/weg-owner/meetings" },
+  ];
+
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-2xl mx-auto space-y-8">
-        {/* Welcome Section */}
-        <div className="text-center space-y-4 py-8">
-          <h1 className="text-4xl font-light text-foreground">
+    <div className="min-h-screen bg-background">
+      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+        {/* Welcome */}
+        <div className="text-center space-y-2 pt-2">
+          <h1 className="text-3xl md:text-4xl font-light text-foreground">
             Willkommen zurück, {profile?.first_name}
           </h1>
-          
           {buildings.length > 0 && (
-            <div className="text-lg text-muted-foreground space-y-1">
-              {buildings.map((building, index) => (
-                <p key={building.id}>
-                  {building.building?.name || 'Unbekanntes Gebäude'}
-                  {index < buildings.length - 1 && buildings.length > 1 ? ', ' : ''}
-                </p>
-              ))}
+            <div className="text-base text-muted-foreground">
+              {buildings.map((b) => b.name).join(", ")}
             </div>
           )}
         </div>
 
-        {/* Status */}
-        {openReports > 0 && (
-          <Card className="border-0 shadow-sm bg-red-50 border-red-100">
-            <CardContent className="p-6 text-center">
-              <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-              <div className="text-2xl font-semibold text-red-700 mb-1">{openReports}</div>
-              <div className="text-red-600">offene Meldungen</div>
+        {/* Stat tiles */}
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => navigate("/weg-owner/reports")}
+            className="text-left rounded-2xl border border-border bg-card p-4 shadow-sm hover:shadow-md hover:border-primary/30 transition-all"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <AlertTriangle className={`h-5 w-5 ${openReports > 0 ? "text-orange-500" : "text-muted-foreground"}`} />
+              <span className={`text-3xl font-bold tabular-nums ${openReports > 0 ? "text-orange-600" : "text-foreground"}`}>{openReports}</span>
+            </div>
+            <div className="text-xs font-medium text-muted-foreground">Offene Meldungen</div>
+          </button>
+          <button
+            onClick={() => navigate("/weg-owner/resolutions")}
+            className="text-left rounded-2xl border border-border bg-card p-4 shadow-sm hover:shadow-md hover:border-primary/30 transition-all"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <Scale className={`h-5 w-5 ${openResolutions > 0 ? "text-primary" : "text-muted-foreground"}`} />
+              <span className={`text-3xl font-bold tabular-nums ${openResolutions > 0 ? "text-primary" : "text-foreground"}`}>{openResolutions}</span>
+            </div>
+            <div className="text-xs font-medium text-muted-foreground">Offene Beschlüsse</div>
+          </button>
+        </div>
+
+        {/* Annual cycle */}
+        {buildings.length > 0 && <OwnerAnnualCycleWidget buildings={buildings} />}
+
+        {/* Quick actions */}
+        <div className={`grid gap-3 ${actions.length === 4 ? "grid-cols-4" : "grid-cols-3"}`}>
+          {actions.map((a) => (
+            <button
+              key={a.path}
+              onClick={() => navigate(a.path)}
+              className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card p-3 shadow-sm hover:shadow-md hover:border-primary/30 transition-all"
+            >
+              <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center">
+                <a.icon className="h-5 w-5 text-primary" />
+              </div>
+              <span className="text-[11px] font-medium text-center leading-tight">{a.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Contact & emergency */}
+        <div className="space-y-3 pt-4">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide px-1">Kontakt & Notfall</h3>
+
+          <Card className="border-border/60 shadow-sm">
+            <CardContent className="p-5 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-md bg-primary/10 flex items-center justify-center">
+                  <Building2 className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <div className="text-sm font-semibold">{PROPERTY_MANAGER_FALLBACK.name}</div>
+                  <div className="text-xs text-muted-foreground">Ihre Hausverwaltung</div>
+                </div>
+              </div>
+              <div className="space-y-2 text-sm">
+                <a href={`tel:${PROPERTY_MANAGER_FALLBACK.phone.replace(/\s+/g, "")}`} className="flex items-center gap-2 hover:text-primary transition-colors">
+                  <Phone className="h-4 w-4 text-primary shrink-0" />
+                  <span className="tabular-nums">{PROPERTY_MANAGER_FALLBACK.phone}</span>
+                </a>
+                <a href={`mailto:${PROPERTY_MANAGER_FALLBACK.email}`} className="flex items-center gap-2 hover:text-primary transition-colors break-all">
+                  <Mail className="h-4 w-4 text-primary shrink-0" />
+                  <span>{PROPERTY_MANAGER_FALLBACK.email}</span>
+                </a>
+                <a href="https://maps.app.goo.gl/nnWb3Dz5Rid1xzzv7" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-primary transition-colors">
+                  <Building2 className="h-4 w-4 text-primary shrink-0" />
+                  <span>Vilstalstr. 4, 87459 Pfronten</span>
+                </a>
+              </div>
+              <p className="text-xs text-muted-foreground border-t pt-2">
+                Tel. erreichbar: 10:00–15:00 Uhr · Termine nach Vereinbarung
+              </p>
             </CardContent>
           </Card>
-        )}
 
-        {/* Actions */}
-        <div className="space-y-3">
-          <Button 
-            variant="outline" 
-            className="w-full h-16 text-left justify-start border border-border/50 bg-card shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
-            onClick={() => navigate("/weg-owner/reports")}
-          >
-            <div className="flex items-center gap-4 w-full">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                <AlertTriangle className="w-5 h-5 text-primary" />
-              </div>
-              <div className="flex-1">
-                <div className="font-medium">Problem melden</div>
-                <div className="text-sm text-muted-foreground">Meldung erstellen oder verwalten</div>
-              </div>
-            </div>
-          </Button>
-          
-          {hasVisibleFiles && (
-            <Button 
-              variant="outline" 
-              className="w-full h-16 text-left justify-start border border-border/50 bg-card shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
-              onClick={() => navigate("/weg-owner/files")}
-            >
-              <div className="flex items-center gap-4 w-full">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                  <FileText className="w-5 h-5 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <div className="font-medium">Meine Dokumente</div>
-                  <div className="text-sm text-muted-foreground">Dokumente einsehen</div>
-                </div>
-              </div>
-            </Button>
-          )}
-
-          <Button 
-            variant="outline" 
-            className="w-full h-16 text-left justify-start border border-border/50 bg-card shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
-            onClick={() => navigate("/weg-owner/forum")}
-          >
-            <div className="flex items-center gap-4 w-full">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                <MessageSquare className="w-5 h-5 text-primary" />
-              </div>
-              <div className="flex-1">
-                <div className="font-medium">Schwarzes Brett</div>
-                <div className="text-sm text-muted-foreground">Nachrichten und Ankündigungen</div>
-              </div>
-            </div>
-          </Button>
-
-          <Button 
-            variant="outline" 
-            className="w-full h-16 text-left justify-start border border-border/50 bg-card shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
-            onClick={() => navigate("/weg-owner/chatbot")}
-          >
-            <div className="flex items-center gap-4 w-full">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                <MessageCircle className="w-5 h-5 text-primary" />
-              </div>
-              <div className="flex-1">
-                <div className="font-medium">Frage stellen</div>
-                <div className="text-sm text-muted-foreground">RGI KI Assistentin</div>
-              </div>
-            </div>
-          </Button>
-        </div>
-
-        {/* Buildings */}
-        {buildings.length > 0 && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium text-center">Ihre Gebäude</h3>
-            <div className="space-y-3">
-              {buildings.map((building) => (
-                <Card key={building.id} className="border-0 shadow-sm bg-white">
-                  <CardContent className="p-4">
-                    <div className="text-sm font-medium">
-                      {building.building?.name || 'Unbekanntes Gebäude'}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {building.building?.address || 'Keine Adresse'}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Contact */}
-        <div className="mt-12 pt-8 border-t border-border">
-            <div className="text-center space-y-4">
-              <h3 className="text-lg font-medium">Kontakt & Notfall</h3>
-              <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 shrink-0" />
-                  <a href="tel:+498363960656" className="hover:underline hover:text-foreground transition-colors">08363 960656</a>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 shrink-0" />
-                  <a href="mailto:info@rgi-immobilien.de" className="hover:underline hover:text-foreground transition-colors truncate">info@rgi-immobilien.de</a>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4 shrink-0" />
-                  <a href="https://maps.app.goo.gl/nnWb3Dz5Rid1xzzv7" target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-foreground transition-colors">Vilstalstr. 4, 87459 Pfronten</a>
-                </div>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                <div>Tel. erreichbar: 10:00-15:00 Uhr</div>
-                <div>Termine nach Vereinbarung</div>
-              </div>
-            </div>
+          {buildingIds.length > 0 && <EmergencyContactsWidget buildingIds={buildingIds} />}
         </div>
       </div>
     </div>
