@@ -124,22 +124,53 @@ function PublicEmergencyEntry({
   row,
   iconBg,
   iconColor,
+  expanded,
+  onToggle,
 }: {
   row: EntryRow;
   iconBg: string;
   iconColor: string;
+  expanded: boolean;
+  onToggle: () => void;
 }) {
-  const subtitle = [row.phone, row.hint].filter(Boolean).join(" · ");
   return (
-    <ListRow
-      icon={Phone}
-      iconBg={iconBg}
-      iconColor={iconColor}
-      title={row.title}
-      subtitle={subtitle}
-      href={row.phone ? `tel:${row.phone.replace(/\s+/g, "")}` : undefined}
-      showChevron={!!row.phone}
-    />
+    <div>
+      <ListRow
+        icon={Phone}
+        iconBg={iconBg}
+        iconColor={iconColor}
+        title={row.title}
+        subtitle={row.phone}
+        onClick={onToggle}
+        right={
+          <ChevronDown
+            className={cn(
+              "h-5 w-5 text-muted-foreground/60 transition-transform duration-200 shrink-0",
+              expanded && "rotate-180"
+            )}
+          />
+        }
+      />
+      {expanded && (
+        <div className="bg-muted/30 px-4 py-3 space-y-2 border-t border-foreground/[0.055]">
+          {row.phone && (
+            <a
+              href={`tel:${row.phone.replace(/\s+/g, "")}`}
+              className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-background transition-colors"
+            >
+              <Phone className="h-4 w-4 text-red-600 shrink-0" />
+              <span className="text-[14px] font-medium text-foreground tabular-nums">{row.phone}</span>
+            </a>
+          )}
+          {row.hint && (
+            <div className="flex items-start gap-3 px-2 py-2">
+              <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+              <span className="text-[13px] text-muted-foreground leading-relaxed">{row.hint}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -300,6 +331,10 @@ export function EmergencyContactsWidget({ buildingIds }: Props) {
                     row={row}
                     iconBg="bg-red-500/10"
                     iconColor="text-red-600"
+                    expanded={expandedId === row.key}
+                    onToggle={() =>
+                      setExpandedId((cur) => (cur === row.key ? null : row.key))
+                    }
                   />
                 </div>
               ))}
