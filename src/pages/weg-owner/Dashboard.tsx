@@ -208,30 +208,42 @@ export const WegOwnerDashboard = () => {
         {/* Quick actions */}
         <section>
           <SectionLabel>Schnellzugriff</SectionLabel>
-          <div className={cn(
-            "grid gap-3",
-            actions.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"
-          )}>
-            {actions.map((a) => (
-              <button
-                key={a.path}
-                onClick={() => handleActionClick(a.path, a.kind)}
-                aria-label={a.unread && a.unread > 0 ? `${a.label} – ${a.unread} neue Einträge` : a.label}
-                className="relative flex flex-col items-center justify-center gap-2.5 min-h-[96px] rounded-[14px] border border-border/60 bg-card p-3 shadow-sm transition-all hover:border-primary/40 hover:shadow active:scale-[0.98]"
-              >
-                {a.unread !== undefined && a.unread > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 z-10 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-semibold tabular-nums shadow ring-2 ring-background">
-                    {a.unread > 99 ? "99+" : a.unread}
-                  </span>
-                )}
-                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <a.icon className="h-6 w-6 text-primary" />
-                </div>
-                <span className="text-[13px] font-medium text-center leading-tight">{a.label}</span>
-              </button>
-            ))}
-          </div>
+          {hasVisibleFiles === null ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="min-h-[96px] rounded-[14px] border border-border/60 bg-card animate-pulse"
+                />
+              ))}
+            </div>
+          ) : (
+            <div className={cn(
+              "grid gap-3",
+              actions.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"
+            )}>
+              {actions.map((a) => (
+                <button
+                  key={a.path}
+                  onClick={() => handleActionClick(a.path, a.kind)}
+                  aria-label={a.unread && a.unread > 0 ? `${a.label} – ${a.unread} neue Einträge` : a.label}
+                  className="relative flex flex-col items-center justify-center gap-2.5 min-h-[96px] rounded-[14px] border border-border/60 bg-card p-3 shadow-sm transition-all hover:border-primary/40 hover:shadow active:scale-[0.98]"
+                >
+                  {a.unread !== undefined && a.unread > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 z-10 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-semibold tabular-nums shadow ring-2 ring-background">
+                      {a.unread > 99 ? "99+" : a.unread}
+                    </span>
+                  )}
+                  <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <a.icon className="h-6 w-6 text-primary" />
+                  </div>
+                  <span className="text-[13px] font-medium text-center leading-tight">{a.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </section>
+
 
         {/* Contact & emergency */}
         <section>
