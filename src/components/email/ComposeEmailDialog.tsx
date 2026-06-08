@@ -372,6 +372,17 @@ export const ComposeEmailDialog = ({
               >
                 <Paperclip className="h-5 w-5" />
               </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 rounded-full"
+                onClick={() => setDmsPickerOpen(true)}
+                disabled={dmsLoading}
+                aria-label="Aus DMS anhängen"
+                title="Aus DMS anhängen"
+              >
+                {dmsLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <FolderOpen className="h-5 w-5" />}
+              </Button>
               <EmailTemplatePicker
                 context={{ to, accountId }}
                 currentSubject={subject}
