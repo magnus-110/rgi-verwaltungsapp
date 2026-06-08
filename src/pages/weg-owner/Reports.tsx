@@ -428,48 +428,64 @@ export const WegOwnerReports = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "open":
-        return <Badge variant="destructive">Offen</Badge>;
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-500/10 text-orange-700 px-2.5 py-0.5 text-[11px] font-medium">
+            <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+            Offen
+          </span>
+        );
       case "in_progress":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-200">Bearbeitet</Badge>;
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 text-blue-700 px-2.5 py-0.5 text-[11px] font-medium">
+            <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+            In Bearbeitung
+          </span>
+        );
       case "resolved":
-        return <Badge variant="default">Erledigt</Badge>;
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 text-emerald-700 px-2.5 py-0.5 text-[11px] font-medium">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Erledigt
+          </span>
+        );
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="outline" className="text-[11px]">{status}</Badge>;
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Laden...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-base text-muted-foreground">Laden...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-2xl mx-auto space-y-8">
+    <div className="min-h-screen bg-background">
+      <div className="max-w-xl md:max-w-2xl mx-auto px-4 py-5 space-y-5">
         {/* Header */}
-        <div className="text-center space-y-4 py-8">
-           <h1 className="text-4xl font-light text-foreground">Meldungen</h1>
-          <p className="text-lg text-muted-foreground">
-             Erstellen und verwalten Sie Ihre Meldungen
+        <div className="space-y-2 pt-1">
+          <h1 className="font-display text-2xl font-semibold text-foreground leading-tight tracking-tight">
+            Meldungen
+          </h1>
+          <p className="text-[13px] text-muted-foreground">
+            Erstellen und verwalten Sie Ihre Meldungen an die Verwaltung
           </p>
         </div>
 
         {/* Create Button */}
-        <div className="text-center">
-          <Dialog open={isCreateReportOpen} onOpenChange={setIsCreateReportOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90 text-base px-8 py-3 rounded-full shadow-sm">
-                <Plus className="h-5 w-5 mr-2" />
-                Neue Meldung
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
-              <DialogHeader>
-                 <DialogTitle>Neue Meldung erstellen</DialogTitle>
-              </DialogHeader>
+        <Dialog open={isCreateReportOpen} onOpenChange={setIsCreateReportOpen}>
+          <DialogTrigger asChild>
+            <Button className="w-full h-12 rounded-[14px] bg-primary text-primary-foreground hover:bg-primary/90 text-[15px] font-medium shadow-sm">
+              <Plus className="h-5 w-5 mr-2" />
+              Neue Meldung
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle className="font-display tracking-tight">Neue Meldung erstellen</DialogTitle>
+            </DialogHeader>
               <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1">
                 {/* Collapsible contact section */}
                 <div className="bg-muted/30 rounded-xl p-4">
@@ -597,84 +613,90 @@ export const WegOwnerReports = () => {
                   </div>
                 </div>
 
-                <Button onClick={createReport} className="w-full h-12 text-base font-medium" disabled={uploading}>
+                <Button onClick={createReport} className="w-full h-12 text-base font-medium rounded-[14px]" disabled={uploading}>
                   {uploading ? "Wird erstellt..." : "Meldung absenden"}
                 </Button>
               </div>
             </DialogContent>
           </Dialog>
-        </div>
 
         {/* Reports List */}
-        <div className="space-y-4">
+        <section>
+          <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.6px] text-muted-foreground/80 px-1 mb-2">
+            Ihre Meldungen
+          </h2>
           {reports.length === 0 ? (
-            <div className="text-center py-16">
-              <AlertCircle className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-              <p className="text-muted-foreground text-lg mb-2">Noch keine Meldungen</p>
-              <p className="text-sm text-muted-foreground">Erstellen Sie Ihre erste Meldung</p>
+            <div className="rounded-[14px] border border-border/60 bg-card shadow-sm p-8 text-center">
+              <div className="mx-auto h-12 w-12 rounded-xl bg-muted flex items-center justify-center mb-3">
+                <AlertCircle className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="font-display text-[15px] font-semibold text-foreground mb-1">Noch keine Meldungen</p>
+              <p className="text-[13px] text-muted-foreground">Erstellen Sie Ihre erste Meldung an die Verwaltung.</p>
             </div>
           ) : (
-            reports.map((report) => (
-              <Card key={report.id} className="border-0 shadow-sm bg-white">
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="text-lg font-medium mb-1">{report.title}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(report.created_at).toLocaleDateString('de-DE')}
-                      </p>
-                      {report.contact_email && (
-                        <p className="text-sm text-muted-foreground">
-                          Von: {report.contact_email}
+            <div className="space-y-3">
+              {reports.map((report) => (
+                <div key={report.id} className="rounded-[14px] border border-border/60 bg-card shadow-sm overflow-hidden">
+                  <div className="px-4 py-3.5">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-display text-[15px] font-semibold text-foreground tracking-tight leading-tight">
+                          {report.title}
+                        </h3>
+                        <p className="text-[12px] text-muted-foreground mt-0.5">
+                          {new Date(report.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })}
                         </p>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
+                      </div>
                       {getStatusBadge(report.status)}
                     </div>
+                    <p className="text-[14px] text-foreground/80 whitespace-pre-wrap leading-relaxed">{report.description}</p>
                   </div>
-                  
-                  <p className="text-muted-foreground mb-4">{report.description}</p>
-                  
+
                   {report.admin_notes && report.admin_notes.trim() && (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                      <h4 className="text-sm font-medium text-green-800 mb-2">Notiz der Verwaltung:</h4>
-                      <p className="text-sm text-green-700">{report.admin_notes}</p>
-                    </div>
-                  )}
-                  
-                  {attachmentUrls[report.id] && attachmentUrls[report.id].length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium">Anhänge:</h4>
-                      <div className="grid grid-cols-2 gap-2">
-                        {attachmentUrls[report.id].map((attachment: AttachmentWithUrl, index: number) => (
-                          <div key={index} className="flex items-center p-2 bg-muted rounded-lg">
-                            <FileText className="h-4 w-4 mr-2 text-blue-600" />
-                            {attachment.signedUrl ? (
-                              <a
-                                href={attachment.signedUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-blue-600 hover:text-blue-800 truncate"
-                              >
-                                {attachment.name}
-                              </a>
-                            ) : (
-                              <span className="text-sm text-gray-500 truncate">
-                                {attachment.name} (Nicht verfügbar)
-                              </span>
-                            )}
-                          </div>
-                        ))}
+                    <>
+                      <div className="h-px bg-foreground/[0.055]" />
+                      <div className="px-4 py-3 bg-emerald-500/[0.04]">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.5px] text-emerald-700 mb-1">
+                          Antwort der Verwaltung
+                        </p>
+                        <p className="text-[14px] text-foreground/85 whitespace-pre-wrap leading-relaxed">{report.admin_notes}</p>
                       </div>
-                    </div>
+                    </>
                   )}
-                </CardContent>
-              </Card>
-            ))
+
+                  {attachmentUrls[report.id] && attachmentUrls[report.id].length > 0 && (
+                    <>
+                      <div className="h-px bg-foreground/[0.055]" />
+                      <div className="px-4 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.5px] text-muted-foreground/80 mb-2">
+                          Anhänge
+                        </p>
+                        <div className="space-y-1.5">
+                          {attachmentUrls[report.id].map((attachment: AttachmentWithUrl, index: number) => (
+                            <a
+                              key={index}
+                              href={attachment.signedUrl || '#'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition-colors ${attachment.signedUrl ? 'hover:bg-muted/60 text-foreground' : 'text-muted-foreground pointer-events-none'}`}
+                            >
+                              <div className="h-8 w-8 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center">
+                                <FileText className="h-4 w-4 text-primary" />
+                              </div>
+                              <span className="truncate flex-1">{attachment.name}</span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );
 };
+

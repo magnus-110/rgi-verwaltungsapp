@@ -1,13 +1,11 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Building, MessageSquare, Calendar, FileText } from "lucide-react";
+import { MessageSquare, FileText, Building2 } from "lucide-react";
 import { format } from "date-fns";
+import { de } from "date-fns/locale";
 import { EmergencyContactsWidget } from "@/components/forum/EmergencyContactsWidget";
+import { cn } from "@/lib/utils";
 
 interface Building {
   id: string;
@@ -26,6 +24,12 @@ interface ForumPost {
   attachments?: { name: string; path: string; size: number; type: string }[];
 }
 
+const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+  <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.6px] text-muted-foreground/80 px-1 mb-2">
+    {children}
+  </h2>
+);
+
 export const WegOwnerForum = () => {
   const { user } = useAuth();
   const [posts, setPosts] = useState<ForumPost[]>([]);
@@ -36,19 +40,10 @@ export const WegOwnerForum = () => {
   useEffect(() => {
     const fetchForumPosts = async () => {
       if (!user) return;
-
       try {
-        // Fetch buildings where the user is a WEG owner
         const { data: userBuildings, error: buildingsError } = await supabase
           .from('weg_owner_buildings')
-          .select(`
-            building_id,
-            buildings:building_id (
-              id,
-              name,
-              address
-            )
-          `)
+          .select(`building_id, buildings:building_id ( id, name, address )`)
           .eq('user_id', user.id);
 
         if (buildingsError) {
@@ -56,33 +51,18 @@ export const WegOwnerForum = () => {
           return;
         }
 
-        const buildingsList = userBuildings?.map(ub => ub.buildings).filter(Boolean) || [];
+        const buildingsList = (userBuildings?.map(ub => ub.buildings).filter(Boolean) || []) as Building[];
         setBuildings(buildingsList);
 
         const buildingIds = buildingsList.map(b => b.id);
-
         if (buildingIds.length === 0) {
           setLoading(false);
           return;
         }
 
-        // Fetch forum posts for these buildings
         const { data: forumPosts, error: postsError } = await supabase
           .from('forum_posts')
-          .select(`
-            id,
-            title,
-            content,
-            created_at,
-            author_id,
-            building_id,
-            attachments,
-            buildings:building_id (
-              id,
-              name,
-              address
-            )
-          `)
+          .select(`id, title, content, created_at, author_id, building_id, attachments, buildings:building_id ( id, name, address )`)
           .in('building_id', buildingIds)
           .order('created_at', { ascending: false });
 
@@ -91,11 +71,10 @@ export const WegOwnerForum = () => {
           return;
         }
 
-        // Parse attachments if they are stored as strings
         const processedPosts = (forumPosts as any)?.map((post: any) => ({
           ...post,
-          attachments: typeof post.attachments === 'string' 
-            ? JSON.parse(post.attachments || '[]') 
+          attachments: typeof post.attachments === 'string'
+            ? JSON.parse(post.attachments || '[]')
             : post.attachments || []
         })) || [];
 
@@ -110,157 +89,157 @@ export const WegOwnerForum = () => {
     fetchForumPosts();
   }, [user]);
 
-  const filteredPosts = selectedBuilding === "all" 
-    ? posts 
+  const filteredPosts = selectedBuilding === "all"
+    ? posts
     : posts.filter(post => post.building_id === selectedBuilding);
-
-  const groupedPosts = filteredPosts.reduce((acc, post) => {
-    const buildingId = post.building_id;
-    if (!acc[buildingId]) {
-      acc[buildingId] = [];
-    }
-    acc[buildingId].push(post);
-    return acc;
-  }, {} as Record<string, ForumPost[]>);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Laden...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-base text-muted-foreground">Laden...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-2xl mx-auto space-y-8">
+    <div className="min-h-screen bg-background">
+      <div className="max-w-xl md:max-w-2xl mx-auto px-4 py-5 space-y-5">
         {/* Header */}
-        <div className="text-center space-y-4 py-8">
-          <h1 className="text-4xl font-light text-foreground">Schwarzes Brett</h1>
-          <p className="text-lg text-muted-foreground">
-            Nachrichten und Ankündigungen
+        <div className="space-y-2 pt-1">
+          <h1 className="font-display text-2xl font-semibold text-foreground leading-tight tracking-tight">
+            Schwarzes Brett
+          </h1>
+          <p className="text-[13px] text-muted-foreground">
+            Nachrichten und Ankündigungen Ihrer Verwaltung
           </p>
         </div>
 
-        {/* Notfall- & Wichtige Kontakte ganz oben */}
-        {buildings.length > 0 && (
-          <EmergencyContactsWidget buildingIds={buildings.map((b) => b.id)} />
+        {/* Building filter chips */}
+        {buildings.length > 1 && (
+          <div className="flex gap-2 flex-wrap">
+            <FilterChip active={selectedBuilding === "all"} onClick={() => setSelectedBuilding("all")}>
+              Alle Gebäude
+            </FilterChip>
+            {buildings.map((b) => (
+              <FilterChip key={b.id} active={selectedBuilding === b.id} onClick={() => setSelectedBuilding(b.id)}>
+                {b.name}
+              </FilterChip>
+            ))}
+          </div>
         )}
 
-        {/* Gebäude-Filter */}
-        <div className="text-center space-y-4">
-          {buildings.length > 1 && (
-            <div className="flex gap-2 flex-wrap justify-center">
-              <Button
-                variant={selectedBuilding === "all" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedBuilding("all")}
-              >
-                Alle Gebäude
-              </Button>
-              {buildings.map((building) => (
-                <Button
-                  key={building.id}
-                  variant={selectedBuilding === building.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedBuilding(building.id)}
-                >
-                  {building.name}
-                </Button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {buildings.length === 0 ? (
-          <Card className="border-0 shadow-sm bg-white">
-            <CardContent className="p-8 text-center">
-              <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium mb-2">Keine Gebäude zugewiesen</h3>
-              <p className="text-muted-foreground">
-                Sie sind noch keinem Gebäude als WEG-Eigentümer zugeordnet.
-              </p>
-            </CardContent>
-          </Card>
-        ) : filteredPosts.length === 0 ? (
-          <Card className="border-0 shadow-sm bg-white">
-            <CardContent className="p-8 text-center">
-              <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium mb-2">Keine Beiträge vorhanden</h3>
-              <p className="text-muted-foreground">
-                Es gibt noch keine Schwarzes Brett-Beiträge für die ausgewählten Gebäude.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-6">
-            {Object.entries(groupedPosts).map(([buildingId, buildingPosts]) => {
-              const building = buildings.find(b => b.id === buildingId);
-              if (!building) return null;
-
-              return (
-                <div key={buildingId} className="space-y-4">
-                  {buildings.length > 1 && selectedBuilding === "all" && (
-                    <div className="text-center">
-                      <h2 className="text-xl font-medium text-foreground">{building.name}</h2>
-                      <p className="text-sm text-muted-foreground">{building.address}</p>
-                    </div>
-                  )}
-
-                  <div className="space-y-4">
-                    {buildingPosts.map((post) => (
-                      <Card key={post.id} className="border-0 shadow-sm bg-white">
-                        <CardContent className="p-6">
-                          <div className="space-y-4">
-                            <div className="text-left">
-                              <h3 className="text-lg font-medium text-foreground text-left">{post.title}</h3>
-                              <p className="text-sm text-muted-foreground text-left">
-                                {format(new Date(post.created_at), 'dd.MM.yyyy HH:mm')}
-                              </p>
-                            </div>
-                            
-                            <div className="text-left">
-                              <p className="text-muted-foreground whitespace-pre-wrap text-left">{post.content}</p>
-                            </div>
-                            
-                            {post.attachments && post.attachments.length > 0 && (
-                              <div className="text-center space-y-2">
-                                <p className="text-sm font-medium">Anhänge:</p>
-                                <div className="flex flex-wrap gap-2 justify-center">
-                                  {post.attachments.map((attachment: any, index: number) => (
-                                    <Button
-                                      key={index}
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => {
-                                        supabase.storage
-                                          .from('forum-attachments')
-                                          .createSignedUrl(attachment.path, 3600)
-                                          .then(({ data }) => {
-                                            if (data?.signedUrl) {
-                                              window.open(data.signedUrl, '_blank');
-                                            }
-                                          });
-                                      }}
-                                    >
-                                      <FileText className="h-3 w-3 mr-1" />
-                                      {attachment.name}
-                                    </Button>
-                                  ))}
-                                </div>
-                              </div>
+        {/* Posts */}
+        <section>
+          <SectionLabel>Beiträge</SectionLabel>
+          {buildings.length === 0 ? (
+            <EmptyState
+              title="Keine Gebäude zugewiesen"
+              subtitle="Sie sind noch keinem Gebäude als WEG-Eigentümer zugeordnet."
+            />
+          ) : filteredPosts.length === 0 ? (
+            <EmptyState
+              title="Keine Beiträge"
+              subtitle="Es gibt noch keine Beiträge für die ausgewählten Gebäude."
+            />
+          ) : (
+            <div className="space-y-3">
+              {filteredPosts.map((post) => {
+                const building = buildings.find(b => b.id === post.building_id);
+                return (
+                  <article key={post.id} className="rounded-[14px] border border-border/60 bg-card shadow-sm overflow-hidden">
+                    <div className="px-4 py-3.5">
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-display text-[15px] font-semibold text-foreground tracking-tight leading-tight">
+                            {post.title}
+                          </h3>
+                          <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground mt-1">
+                            <span>{format(new Date(post.created_at), "dd. MMMM yyyy", { locale: de })}</span>
+                            {building && buildings.length > 1 && (
+                              <>
+                                <span className="text-muted-foreground/40">·</span>
+                                <Building2 className="h-3 w-3" />
+                                <span className="truncate">{building.name}</span>
+                              </>
                             )}
                           </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                        </div>
+                      </div>
+                      <p className="text-[14px] text-foreground/85 whitespace-pre-wrap leading-relaxed">
+                        {post.content}
+                      </p>
+                    </div>
+
+                    {post.attachments && post.attachments.length > 0 && (
+                      <>
+                        <div className="h-px bg-foreground/[0.055]" />
+                        <div className="px-4 py-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.5px] text-muted-foreground/80 mb-2">
+                            Anhänge
+                          </p>
+                          <div className="space-y-1.5">
+                            {post.attachments.map((attachment: any, index: number) => (
+                              <button
+                                key={index}
+                                onClick={() => {
+                                  supabase.storage
+                                    .from('forum-attachments')
+                                    .createSignedUrl(attachment.path, 3600)
+                                    .then(({ data }) => {
+                                      if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+                                    });
+                                }}
+                                className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-foreground transition-colors hover:bg-muted/60 text-left"
+                              >
+                                <div className="h-8 w-8 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center">
+                                  <FileText className="h-4 w-4 text-primary" />
+                                </div>
+                                <span className="truncate flex-1">{attachment.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Notfallkontakte unten */}
+        {buildings.length > 0 && (
+          <section>
+            <SectionLabel>Notfallkontakte</SectionLabel>
+            <EmergencyContactsWidget buildingIds={buildings.map((b) => b.id)} />
+          </section>
         )}
       </div>
     </div>
   );
 };
+
+const FilterChip = ({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
+  <button
+    onClick={onClick}
+    className={cn(
+      "h-8 px-3 rounded-full text-[12px] font-medium transition-colors border",
+      active
+        ? "bg-primary text-primary-foreground border-primary"
+        : "bg-card text-foreground border-border/60 hover:bg-muted/60"
+    )}
+  >
+    {children}
+  </button>
+);
+
+const EmptyState = ({ title, subtitle }: { title: string; subtitle: string }) => (
+  <div className="rounded-[14px] border border-border/60 bg-card shadow-sm p-8 text-center">
+    <div className="mx-auto h-12 w-12 rounded-xl bg-muted flex items-center justify-center mb-3">
+      <MessageSquare className="h-6 w-6 text-muted-foreground" />
+    </div>
+    <p className="font-display text-[15px] font-semibold text-foreground mb-1">{title}</p>
+    <p className="text-[13px] text-muted-foreground">{subtitle}</p>
+  </div>
+);
