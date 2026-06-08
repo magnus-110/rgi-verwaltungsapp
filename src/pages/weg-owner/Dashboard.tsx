@@ -17,6 +17,30 @@ const SectionLabel = ({ children }: { children: React.ReactNode }) => (
   </h2>
 );
 
+const LS_PREFIX = "rgi:lastSeen";
+const lsKey = (kind: "forum" | "files" | "meetings", userId: string) =>
+  `${LS_PREFIX}:${kind}:${userId}`;
+
+const getLastSeen = (kind: "forum" | "files" | "meetings", userId: string): string => {
+  try {
+    const existing = localStorage.getItem(lsKey(kind, userId));
+    if (existing) return existing;
+    const now = new Date().toISOString();
+    localStorage.setItem(lsKey(kind, userId), now);
+    return now;
+  } catch {
+    return new Date().toISOString();
+  }
+};
+
+const markSeen = (kind: "forum" | "files" | "meetings", userId: string) => {
+  try {
+    localStorage.setItem(lsKey(kind, userId), new Date().toISOString());
+  } catch {
+    /* noop */
+  }
+};
+
 export const WegOwnerDashboard = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
@@ -24,16 +48,20 @@ export const WegOwnerDashboard = () => {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [openReports, setOpenReports] = useState(0);
   const [openResolutions, setOpenResolutions] = useState(0);
+  const [unreadForum, setUnreadForum] = useState(0);
+  const [unreadFiles, setUnreadFiles] = useState(0);
+  const [unreadMeetings, setUnreadMeetings] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!profile?.user_id) return;
+    const userId = profile.user_id;
     const load = async () => {
       try {
         const { data: assignments } = await supabase
           .from("weg_owner_buildings")
           .select("building_id")
-          .eq("user_id", profile.user_id);
+          .eq("user_id", userId);
         const bIds = (assignments || []).map((a: any) => a.building_id as string);
 
         let bs: Building[] = [];
@@ -49,7 +77,7 @@ export const WegOwnerDashboard = () => {
         const { data: reports } = await supabase
           .from("weg_reports")
           .select("id")
-          .eq("reported_by", profile.user_id)
+          .eq("reported_by", userId)
           .eq("status", "open");
         setOpenReports(reports?.length || 0);
 
@@ -62,7 +90,45 @@ export const WegOwnerDashboard = () => {
             .eq("published", true)
             .neq("actionable_status", "completed");
           setOpenResolutions(res?.length || 0);
+
+          // Unread badges
+          const forumSeen = getLastSeen("forum", userId);
+          const meetingsSeen = getLastSeen("meetings", userId);
+
+          const [forumRes, meetingsRes] = await Promise.all([
+            supabase
+              .from("forum_posts")
+              .select("id", { count: "exact", head: true })
+              .in("building_id", bIds)
+              .eq("management_mode", "weg")
+              .gt("created_at", forumSeen),
+            supabase
+              .from("etv_meetings")
+              .select("id", { count: "exact", head: true })
+              .in("building_id", bIds)
+              .gt("created_at", meetingsSeen),
+          ]);
+          setUnreadForum(forumRes.count ?? 0);
+          setUnreadMeetings(meetingsRes.count ?? 0);
         }
+
+        // Files (visible to user) — independent of buildings list
+        const filesSeen = getLastSeen("files", userId);
+        const [personalRes, buildingRes] = await Promise.all([
+          supabase
+            .from("building_files")
+            .select("id", { count: "exact", head: true })
+            .eq("assigned_user_id", userId)
+            .eq("visible_to_users", true)
+            .gt("created_at", filesSeen),
+          supabase
+            .from("building_files")
+            .select("id", { count: "exact", head: true })
+            .is("assigned_user_id", null)
+            .eq("visible_to_users", true)
+            .gt("created_at", filesSeen),
+        ]);
+        setUnreadFiles((personalRes.count ?? 0) + (buildingRes.count ?? 0));
       } finally {
         setLoading(false);
       }
@@ -80,11 +146,29 @@ export const WegOwnerDashboard = () => {
     );
   }
 
-  const actions = [
-    ...(hasVisibleFiles ? [{ icon: FileText, label: "Dokumente", path: "/weg-owner/files" }] : []),
+  const handleActionClick = (path: string, kind?: "forum" | "files" | "meetings") => {
+    if (kind && profile?.user_id) {
+      markSeen(kind, profile.user_id);
+      if (kind === "forum") setUnreadForum(0);
+      if (kind === "files") setUnreadFiles(0);
+      if (kind === "meetings") setUnreadMeetings(0);
+    }
+    navigate(path);
+  };
+
+  const actions: {
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    path: string;
+    kind?: "forum" | "files" | "meetings";
+    unread?: number;
+  }[] = [
+    ...(hasVisibleFiles
+      ? [{ icon: FileText, label: "Dokumente", path: "/weg-owner/files", kind: "files" as const, unread: unreadFiles }]
+      : []),
     { icon: MessageCircle, label: "Chat", path: "/weg-owner/chatbot" },
-    { icon: MessageSquare, label: "Schwarzes Brett", path: "/weg-owner/forum" },
-    { icon: Users, label: "Versammlungen", path: "/weg-owner/meetings" },
+    { icon: MessageSquare, label: "Schwarzes Brett", path: "/weg-owner/forum", kind: "forum", unread: unreadForum },
+    { icon: Users, label: "Versammlungen", path: "/weg-owner/meetings", kind: "meetings", unread: unreadMeetings },
   ];
 
   const phoneHref = `tel:${PROPERTY_MANAGER_FALLBACK.phone.replace(/\s+/g, "")}`;
@@ -140,9 +224,15 @@ export const WegOwnerDashboard = () => {
             {actions.map((a) => (
               <button
                 key={a.path}
-                onClick={() => navigate(a.path)}
-                className="flex flex-col items-center justify-center gap-2.5 min-h-[96px] rounded-[14px] border border-border/60 bg-card p-3 shadow-sm transition-all hover:border-primary/40 hover:shadow active:scale-[0.98]"
+                onClick={() => handleActionClick(a.path, a.kind)}
+                aria-label={a.unread && a.unread > 0 ? `${a.label} – ${a.unread} neue Einträge` : a.label}
+                className="relative flex flex-col items-center justify-center gap-2.5 min-h-[96px] rounded-[14px] border border-border/60 bg-card p-3 shadow-sm transition-all hover:border-primary/40 hover:shadow active:scale-[0.98]"
               >
+                {a.unread !== undefined && a.unread > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 z-10 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-semibold tabular-nums shadow ring-2 ring-background">
+                    {a.unread > 99 ? "99+" : a.unread}
+                  </span>
+                )}
                 <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
                   <a.icon className="h-6 w-6 text-primary" />
                 </div>
