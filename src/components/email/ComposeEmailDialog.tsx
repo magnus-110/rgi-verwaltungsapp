@@ -883,6 +883,11 @@ export const ComposeEmailDialog = ({
           fileName={previewMeta.name}
           mimeType={previewMeta.mimeType}
         />
+        <DmsFilePickerDialog
+          open={dmsPickerOpen}
+          onOpenChange={setDmsPickerOpen}
+          onSelectItems={handleDmsSelect}
+        />
       </DialogContent>
     </Dialog>
   );
