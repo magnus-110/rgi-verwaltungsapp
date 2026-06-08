@@ -127,7 +127,12 @@ export const OwnerAnnualCycleWidget = ({ buildings }: Props) => {
 
       <div className="bg-card rounded-[14px] border border-border/60 overflow-hidden shadow-sm">
         {collapsed ? (
-          <div className="flex items-stretch divide-x divide-foreground/[0.055]">
+          <button
+            type="button"
+            onClick={() => setCollapsed(false)}
+            aria-label="Jahreszyklus aufklappen"
+            className="w-full flex items-stretch divide-x divide-foreground/[0.055] transition-colors hover:bg-muted/40 active:bg-muted/60 cursor-pointer text-left"
+          >
             {OWNER_MILESTONES.map((m) => {
               const entry = byKey.get(m.key);
               const status: AnnualCycleStatus = entry?.status ?? "open";
@@ -164,7 +169,7 @@ export const OwnerAnnualCycleWidget = ({ buildings }: Props) => {
                 </div>
               );
             })}
-          </div>
+          </button>
         ) : (
           OWNER_MILESTONES.map((m, idx) => {
             const entry = byKey.get(m.key);
@@ -177,10 +182,16 @@ export const OwnerAnnualCycleWidget = ({ buildings }: Props) => {
             const subtitle = isDone
               ? completedDate ? `Erledigt am ${completedDate}` : "Erledigt"
               : STATUS_TEXT[status];
+            const isOpen = expandedKey === m.key;
             return (
               <div key={m.key}>
                 {idx > 0 && <div className="h-px bg-foreground/[0.055]" />}
-                <div className="flex items-center gap-4 px-4 py-3.5 min-h-[64px]">
+                <button
+                  type="button"
+                  onClick={() => setExpandedKey(isOpen ? null : m.key)}
+                  aria-expanded={isOpen}
+                  className="w-full flex items-center gap-4 px-4 py-3.5 min-h-[64px] text-left transition-colors hover:bg-muted/40 active:bg-muted/60"
+                >
                   <div
                     className={cn(
                       "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2",
@@ -204,12 +215,24 @@ export const OwnerAnnualCycleWidget = ({ buildings }: Props) => {
                     </div>
                     <div className="text-[13px] text-muted-foreground mt-0.5">{subtitle}</div>
                   </div>
-                </div>
+                  <ChevronDown
+                    className={cn(
+                      "h-5 w-5 text-muted-foreground/60 shrink-0 transition-transform",
+                      isOpen && "rotate-180"
+                    )}
+                  />
+                </button>
+                {isOpen && (
+                  <div className="px-4 pb-4 pt-1 pl-[68px] text-[13px] leading-relaxed text-muted-foreground bg-muted/30">
+                    {m.description}
+                  </div>
+                )}
               </div>
             );
           })
         )}
       </div>
+
     </section>
   );
 };
