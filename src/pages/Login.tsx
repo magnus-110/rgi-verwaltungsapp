@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,39 @@ export const Login = () => {
   const passkeySupported =
     typeof window !== "undefined" && !!(window as any).PublicKeyCredential;
   const { signIn, user, profile } = useAuth();
+  const conditionalAbortRef = useRef<AbortController | null>(null);
+
+  // Silent Passkey Autofill (Conditional UI) — shows passkeys in the email field
+  useEffect(() => {
+    if (!passkeySupported) return;
+    const auth = supabase.auth as any;
+    if (typeof auth.signInWithPasskey !== "function") return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const PKC: any = (window as any).PublicKeyCredential;
+        if (typeof PKC?.isConditionalMediationAvailable !== "function") return;
+        const available = await PKC.isConditionalMediationAvailable();
+        if (!available || cancelled) return;
+
+        const controller = new AbortController();
+        conditionalAbortRef.current = controller;
+        await auth.signInWithPasskey({
+          mediation: "conditional",
+          signal: controller.signal,
+        });
+      } catch (e: any) {
+        if (e?.name === "NotAllowedError" || e?.name === "AbortError") return;
+        console.warn("Passkey conditional UI failed", e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      try { conditionalAbortRef.current?.abort(); } catch {}
+    };
+  }, [passkeySupported]);
 
   // Redirect authenticated users
   if (user && profile) {
