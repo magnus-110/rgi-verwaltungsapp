@@ -1,100 +1,53 @@
+## Ziel
+Konsistente Typografie (Century Gothic Headings, Work Sans Body) und das Notfall-Nummern-Widget so umbauen, dass es zum klaren, edlen Look der WEG-Owner-Startseite passt.
 
-# Eigentümer-Dashboard übersichtlicher (Onboarding-Stil)
+## 1. Typografie konsistent verankern
 
-## Was am Screenshot heute nicht funktioniert
-- **Jahreszyklus**: 6 Stationen horizontal auf 411 px ⇒ Kreise gequetscht, Labels überlappen („Jahresabrechnung" abgeschnitten, „Wirtschaftsplan" kollidiert mit „ETV"), Status nicht erkennbar.
-- **4 Schnellaktions-Kacheln** in einer Reihe ⇒ „Versammlungen" bricht zweizeilig, Icons winzig (h-5), Tap-Targets zu klein für 40 +.
-- **Stat-Tiles** funktional, aber zu kleine Zahl/Icon, kein klarer Aktionscharakter.
-- **Kontakt-Karte** dichte Textwand, kein klarer Aktions-Hinweis (Anrufen/Mailen).
-- Generell viele unterschiedliche Border-Radien/Schatten ⇒ unruhig.
+In `src/index.css`:
+- `body` bekommt explizit `font-family: 'Work Sans', system-ui, sans-serif` (aktuell nur über Tailwind `font-sans`, mancher Code überschreibt das).
+- Utility-Klassen `.heading-display` / `.heading-primary` werden auf Century Gothic gesetzt (aktuell stehen sie auf `font-sans`/`font-manrope` = Work Sans, was inkonsistent ist).
+- `.body-text`, `.body-secondary`, `.label-text` bleiben Work Sans (nur Klassennamen aufräumen).
 
-## Designsprache (übernommen vom Onboarding-Wizard)
-- **Karten**: `bg-card rounded-[14px] border border-border/60`, sanfter Schatten, Hairline-Divider `bg-foreground/[0.055]` zwischen Listenzeilen.
-- **Zeilen-Pattern** wie `BigChoiceCard`: links Icon-Quadrat 44–48 px in `bg-primary/10` / `bg-muted`, Titel `font-medium text-base`, Untertitel `text-sm text-muted-foreground`, rechts Chevron oder Zahl.
-- **Section-Header**: kleines Uppercase-Label (`text-[11px] tracking-[0.6px] text-muted-foreground/80`) wie `SectionCard label`.
-- **Mindest-Tap-Target 56 px**, Schriftgrößen tendenziell eine Stufe größer (Body 15–16 px).
-- Farben: Primary-Orange behalten, Status-Grün (`emerald-500`) für erledigt, Orange für laufend, neutrales Grau für offen.
+Im `WegOwnerLayout` / `Dashboard`:
+- Begrüßungs-H1 und alle `SectionLabel`-Überschriften erhalten explizit `font-display` (= Century Gothic), damit auch in Edge-Cases die richtige Schrift greift.
+- `font-medium`/`font-semibold` an Card-Titeln im Jahreszyklus, Stat-Tiles, Schnellzugriff und Kontakt werden auf `font-display tracking-tight` umgestellt, wo es sich um Überschriften handelt (nicht bei reinen Werten/Fließtext).
 
-## Neuaufbau (von oben nach unten)
+## 2. Notfall-Nummern-Widget Redesign
 
-### 1. Begrüßung — kompakter
-- `text-2xl font-semibold` (statt 4xl light), eine Zeile.
-- Darunter Gebäudename als kleiner Chip (`rounded-full bg-muted px-3 py-1 text-xs`).
-- Reduziert vertikalen Platz und wirkt fokussierter.
+Neues Look & Feel im Stil der bestehenden Dashboard-Karten (rounded-[14px], `border-border/60`, `bg-card`, `shadow-sm`, ListRow-Pattern mit 44 px Icon-Squares, Hairline-Divider `bg-foreground/[0.055]`).
 
-### 2. Zwei Status-Karten (Offene Meldungen / Offene Beschlüsse) — neuer Stil
-- Jede Karte = ganze Breite **einer** Spalte im 2-Spalten-Grid, aber im neuen Stil:
-  - Icon-Quadrat 44 px in `bg-orange-500/10` (Meldungen) bzw. `bg-primary/10` (Beschlüsse).
-  - Große Zahl `text-3xl font-bold` rechts oben.
-  - Label unten `text-sm font-medium`.
-  - Ist Wert = 0 ⇒ kleines „Alles erledigt"-Häkchen statt Zahl, neutrale Farbe.
-  - Vollflächig klickbar, gleicher Rahmenradius wie SectionCard.
+### Struktur
+1. **Kollabierte Karte (Default)**
+   - Eine ruhige Card mit `rounded-[14px] border border-border/60 bg-card shadow-sm`.
+   - Header-Row als 64 px-Tap-Zeile: links 44 px Icon-Square `bg-orange-500/10` mit `ShieldAlert`, mittig „Notfall-Nummern" (`font-display text-[15px]`) + Untertitel „Verwaltung, Technik & öffentliche Notrufe" (`text-[13px] text-muted-foreground`), rechts Chevron.
+   - Kein farbiger Balken oben mehr (zu „App"-haft), stattdessen feine 1 px Akzentlinie nur unter dem Header, wenn geöffnet.
 
-### 3. Jahreszyklus — vertikale Schritt-Liste statt horizontaler Kreise
-Das ist die Kernverbesserung. Eine vertikale Liste in einem SectionCard, ein Eintrag pro Meilenstein:
+2. **Geöffneter Zustand**
+   - Hairline-Divider, dann ein „Hinweis"-Bereich: kompakte Zeile mit kleinem `AlertTriangle` in `text-orange-600`, Text in Work Sans, KEIN buntes Kasten-Highlight mehr. Der Text wird kürzer: „Bitte immer zuerst die Hausverwaltung kontaktieren. Externe Handwerker nur, wenn diese nicht erreichbar ist."
+   - Darunter 3 Sektionen (Verwaltung, Technik, öffentliche Notrufe). Jede Sektion ist eine `ListRow`-Gruppe — keine eigene Karte mehr, sondern Trennung über Section-Labels (`text-[11px] uppercase tracking-[0.6px] text-muted-foreground/80`) plus Hairline.
+   - Jede Kontakt-Zeile = `ListRow`:
+     - Icon-Square 44 px (`bg-orange-500/10 text-orange-600`, bei öffentlichen Notrufen `bg-red-500/10 text-red-600`).
+     - Title in `font-display text-[15px]` (z. B. „Hausverwaltung", „Feuerwehr").
+     - Subtitle in `text-[13px] text-muted-foreground` — Telefonnummer in `tabular-nums`, danach optional kategoriespezifischer Hinweis als ein-zeiliger Satz.
+     - Komplette Zeile ist `tel:`-Link, Right-Chevron für visuelle Klickbarkeit.
+   - „Technische Betreuung": wenn leer, einzelne ruhige Zeile mit grauem Icon und Text „Keine Handwerksbetriebe als Notfallkontakt freigeschaltet" — kein kursiver Italic mehr.
 
-```
-┌─────────────────────────────────────────┐
-│ JAHRESZYKLUS 2026             [Gebäude ▾]│
-├─────────────────────────────────────────┤
-│ ✅  Jahresabrechnung erstellt           │
-│     erledigt am 12.03.2026              │
-├─────────────────────────────────────────┤
-│ ✅  Wirtschaftsplan erstellt            │
-│     erledigt am 20.03.2026              │
-├─────────────────────────────────────────┤
-│ 🟠  ETV einberufen                      │
-│     in Bearbeitung                      │
-├─────────────────────────────────────────┤
-│ ⚪  ETV-Protokoll fertig                │
-│     offen                               │
-├─────────────────────────────────────────┤
-│ ⚪  §35a-Bescheinigung versendet        │
-│     offen                               │
-├─────────────────────────────────────────┤
-│ ⚪  Hausgeldanpassung umgesetzt         │
-│     offen                               │
-└─────────────────────────────────────────┘
-```
+3. **Footer-Bar entfällt** (Telefon/Mail wären doppelt zur Kontakt-Sektion oben).
 
-- Jeder Eintrag: links 32-px-Status-Kreis (grün+✓ / orange-Punkt / grauer Ring), daneben Label `text-[15px] font-medium` + Status/Datum `text-xs text-muted-foreground`.
-- Keine Labels mehr unter Mini-Kreisen, keine Überlappung mehr.
-- Oben rechts Jahres- und (bei >1 Gebäude) Gebäude-Selector im flachen Stil.
-- Auf Tablet/Desktop bleibt dieselbe Liste — eine Spalte ist auch hier gut lesbar.
+### Hochwertige Details
+- Konsistente Icon-Squares mit `rounded-xl` (12 px) wie bei den anderen Dashboard-Komponenten — statt der bisherigen `size-9 rounded-full` und `size-9 rounded-md`-Mischung.
+- Innenabstand `px-4 py-3.5`, `min-h-[64px]` für gute Tappbarkeit (40+ Nutzer).
+- Subtile Hover-Stufe: `hover:bg-muted/40 active:bg-muted/60`, kein Akzentbalken, keine farbigen Hintergrundkästen.
+- Wegfall der zwei roten/orangenen `accentBar`-Streifen, des `rgi-orange/[0.06]`-Hinweiskastens und des `border-rgi-orange/20` — diese „Achtung-Optik" wirkt aktuell wie eine andere App.
+- Öffentliche Notrufe: rote Icon-Tönung, aber Text bleibt neutral — Hochwertigkeit kommt aus Ruhe, nicht aus Farbflächen.
+- Akzent-Strich (1 px) in `bg-foreground/[0.055]` zwischen Gruppen — identisch zum Jahreszyklus.
 
-### 4. Schnellaktionen — 2 × 2 Grid mit großen Kacheln
-- Statt 4 × 1 ⇒ **2 × 2** (mobil) bzw. 4 × 1 (Tablet/Desktop ab `sm:`).
-- Jede Kachel: 
-  - Icon-Quadrat 48 px in `bg-primary/10`, Icon `h-6 w-6 text-primary`.
-  - Label `text-sm font-medium` einzeilig (keine Wrap-Probleme mehr).
-  - Mindesthöhe 96 px, `rounded-[14px]`, klarer Tap-Hover.
-- Wenn „Dokumente" fehlt (kein `hasVisibleFiles`), füllt sich 2 × 2 mit den verbleibenden 3 ⇒ Layout fällt auf 3-Spalten-Reihe zurück.
+## 3. Out of scope
+- Datenquellen, Edge Functions, Datenbankschema bleiben unverändert.
+- Admin-Seite und Tenant-Dashboard bleiben unverändert.
+- Keine neuen Routen.
 
-### 5. Kontakt & Notfall — Listen-Pattern
-- Section-Header „KONTAKT & NOTFALL" (uppercase, klein).
-- **RGI-Hausverwaltung als SectionCard** mit drei tap-baren Zeilen (alle nach BigChoiceCard-Logik):
-  1. 📞 **Anrufen** · `08363 960656` · Untertitel „Mo–Fr 10:00–15:00"
-  2. ✉️ **E-Mail schreiben** · `info@rgi-immobilien.de`
-  3. 📍 **Adresse / Route** · „Vilstalstr. 4, 87459 Pfronten"
-- Jede Zeile öffnet `tel:` / `mailto:` / Google Maps. Großer Touch-Bereich, Chevron rechts.
-- Darunter `EmergencyContactsWidget` (Handwerker/Notfall) — bleibt wie bisher, aber Header in gleicher Uppercase-Optik.
-
-### 6. Vertikaler Rhythmus
-- Padding zwischen Sektionen `space-y-5` (statt 6) für ruhigeres Bild.
-- Max-Breite `max-w-xl` mobil, `max-w-2xl` ab `md:`.
-
-## Was NICHT geändert wird
-- Daten/Queries (`weg_owner_buildings`, `weg_reports`, `etv_resolutions`, `annual_cycle_tasks`).
-- Routen / Navigation.
-- Logik in `OwnerAnnualCycleWidget` (nur Render wird ersetzt; Query bleibt).
-- Tenant- und Admin-Dashboard.
-
-## Betroffene Dateien
-- `src/pages/weg-owner/Dashboard.tsx` — Layout & neue Stat-/Action-/Kontakt-Kacheln.
-- `src/components/dashboard/OwnerAnnualCycleWidget.tsx` — horizontale Timeline ⇒ vertikale Liste.
-- Neue kleine Helper-Komponente `src/components/dashboard/owner/ListRow.tsx` (Icon-Square + Titel + Untertitel + optional rechtsbündiges Element) — wird in Stat-Karten, Jahreszyklus-Zeilen und Kontaktblock wiederverwendet, damit überall dasselbe Pattern gilt.
-
-## Out of Scope
-- Keine neuen Features (nur visuelle Re-Komposition vorhandener Daten).
-- Onboarding-Wizard selbst bleibt unverändert.
-- Dark-Mode-Tuning später, falls nötig.
+## Dateien
+- `src/index.css` — Utility-Klassen + body-Font verankern.
+- `src/components/forum/EmergencyContactsWidget.tsx` — komplette UI-Überarbeitung, Daten-/Loader-Logik unangetastet, `ListRow` aus `src/components/dashboard/owner/ListRow.tsx` wiederverwenden.
+- `src/components/WegOwnerLayout.tsx` und `src/pages/weg-owner/Dashboard.tsx` — Überschriften gezielt mit `font-display` annotieren (nur wenige Stellen).

@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 interface Building { id: string; name: string; address: string | null }
 
 const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-  <h2 className="text-[11px] font-semibold uppercase tracking-[0.6px] text-muted-foreground/80 px-1 mb-2">
+  <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.6px] text-muted-foreground/80 px-1 mb-2">
     {children}
   </h2>
 );
@@ -96,7 +96,7 @@ export const WegOwnerDashboard = () => {
       <div className="max-w-xl md:max-w-2xl mx-auto px-4 py-5 space-y-5">
         {/* Welcome */}
         <div className="space-y-2 pt-1">
-          <h1 className="text-2xl font-semibold text-foreground leading-tight">
+          <h1 className="font-display text-2xl font-semibold text-foreground leading-tight tracking-tight">
             Willkommen zurück, {profile?.first_name}
           </h1>
           {buildings.length > 0 && (
@@ -157,7 +157,7 @@ export const WegOwnerDashboard = () => {
           <SectionLabel>Kontakt & Notfall</SectionLabel>
           <div className="bg-card rounded-[14px] border border-border/60 overflow-hidden shadow-sm">
             <div className="px-4 pt-3.5 pb-2">
-              <div className="text-[15px] font-semibold text-foreground">{PROPERTY_MANAGER_FALLBACK.name}</div>
+              <div className="font-display text-[15px] font-semibold text-foreground tracking-tight">{PROPERTY_MANAGER_FALLBACK.name}</div>
               <div className="text-[13px] text-muted-foreground">Ihre Hausverwaltung · Mo–Fr 10:00–15:00</div>
             </div>
             <div className="h-px bg-foreground/[0.055]" />
