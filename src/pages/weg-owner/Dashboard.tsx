@@ -51,7 +51,6 @@ export const WegOwnerDashboard = () => {
   const [unreadForum, setUnreadForum] = useState(0);
   const [unreadFiles, setUnreadFiles] = useState(0);
   const [unreadMeetings, setUnreadMeetings] = useState(0);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!profile?.user_id) return;
@@ -91,7 +90,6 @@ export const WegOwnerDashboard = () => {
             .neq("actionable_status", "completed");
           setOpenResolutions(res?.length || 0);
 
-          // Unread badges
           const forumSeen = getLastSeen("forum", userId);
           const meetingsSeen = getLastSeen("meetings", userId);
 
@@ -112,7 +110,6 @@ export const WegOwnerDashboard = () => {
           setUnreadMeetings(meetingsRes.count ?? 0);
         }
 
-        // Files (visible to user) — independent of buildings list
         const filesSeen = getLastSeen("files", userId);
         const [personalRes, buildingRes] = await Promise.all([
           supabase
@@ -129,8 +126,8 @@ export const WegOwnerDashboard = () => {
             .gt("created_at", filesSeen),
         ]);
         setUnreadFiles((personalRes.count ?? 0) + (buildingRes.count ?? 0));
-      } finally {
-        setLoading(false);
+      } catch (err) {
+        console.error("Dashboard load failed", err);
       }
     };
     load();
@@ -138,13 +135,6 @@ export const WegOwnerDashboard = () => {
 
   const buildingIds = buildings.map((b) => b.id);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-base text-muted-foreground">Laden...</div>
-      </div>
-    );
-  }
 
   const handleActionClick = (path: string, kind?: "forum" | "files" | "meetings") => {
     if (kind && profile?.user_id) {
