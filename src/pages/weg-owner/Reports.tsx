@@ -428,48 +428,64 @@ export const WegOwnerReports = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "open":
-        return <Badge variant="destructive">Offen</Badge>;
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-500/10 text-orange-700 px-2.5 py-0.5 text-[11px] font-medium">
+            <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+            Offen
+          </span>
+        );
       case "in_progress":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-200">Bearbeitet</Badge>;
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 text-blue-700 px-2.5 py-0.5 text-[11px] font-medium">
+            <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+            In Bearbeitung
+          </span>
+        );
       case "resolved":
-        return <Badge variant="default">Erledigt</Badge>;
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 text-emerald-700 px-2.5 py-0.5 text-[11px] font-medium">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Erledigt
+          </span>
+        );
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="outline" className="text-[11px]">{status}</Badge>;
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Laden...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-base text-muted-foreground">Laden...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-2xl mx-auto space-y-8">
+    <div className="min-h-screen bg-background">
+      <div className="max-w-xl md:max-w-2xl mx-auto px-4 py-5 space-y-5">
         {/* Header */}
-        <div className="text-center space-y-4 py-8">
-           <h1 className="text-4xl font-light text-foreground">Meldungen</h1>
-          <p className="text-lg text-muted-foreground">
-             Erstellen und verwalten Sie Ihre Meldungen
+        <div className="space-y-2 pt-1">
+          <h1 className="font-display text-2xl font-semibold text-foreground leading-tight tracking-tight">
+            Meldungen
+          </h1>
+          <p className="text-[13px] text-muted-foreground">
+            Erstellen und verwalten Sie Ihre Meldungen an die Verwaltung
           </p>
         </div>
 
         {/* Create Button */}
-        <div className="text-center">
-          <Dialog open={isCreateReportOpen} onOpenChange={setIsCreateReportOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90 text-base px-8 py-3 rounded-full shadow-sm">
-                <Plus className="h-5 w-5 mr-2" />
-                Neue Meldung
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
-              <DialogHeader>
-                 <DialogTitle>Neue Meldung erstellen</DialogTitle>
-              </DialogHeader>
+        <Dialog open={isCreateReportOpen} onOpenChange={setIsCreateReportOpen}>
+          <DialogTrigger asChild>
+            <Button className="w-full h-12 rounded-[14px] bg-primary text-primary-foreground hover:bg-primary/90 text-[15px] font-medium shadow-sm">
+              <Plus className="h-5 w-5 mr-2" />
+              Neue Meldung
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle className="font-display tracking-tight">Neue Meldung erstellen</DialogTitle>
+            </DialogHeader>
               <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1">
                 {/* Collapsible contact section */}
                 <div className="bg-muted/30 rounded-xl p-4">
