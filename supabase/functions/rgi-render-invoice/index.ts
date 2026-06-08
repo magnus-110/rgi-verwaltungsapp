@@ -1,7 +1,7 @@
 // rgi-render-invoice
 // Rendert eine RGI-Rechnung aus Word-Vorlage + DB-Daten,
 // konvertiert via CloudConvert nach PDF und legt beide Dateien
-// in Bucket 'rgi-invoices' ab.
+// in Bucket 'invoices' ab.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import PizZip from "https://esm.sh/pizzip@3.1.7";
 import Docxtemplater from "https://esm.sh/docxtemplater@3.50.0";
@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
     const baseName = `${sanitize(invoice.invoice_number || "Entwurf")}_${sanitize(invoice.client_name_snapshot || invoice.client?.name || "Kunde")}`;
     const docxPath = `docx/${invoice.id}/${baseName}.docx`;
 
-    await admin.storage.from("rgi-invoices").upload(docxPath, docxBytes, {
+    await admin.storage.from("invoices").upload(docxPath, docxBytes, {
       contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       upsert: true,
     });
@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
       try {
         const pdfBytes = await convertDocxToPdf(docxBytes, `${baseName}.docx`);
         pdfPath = `pdf/${invoice.id}/${baseName}.pdf`;
-        await admin.storage.from("rgi-invoices").upload(pdfPath, pdfBytes, {
+        await admin.storage.from("invoices").upload(pdfPath, pdfBytes, {
           contentType: "application/pdf",
           upsert: true,
         });

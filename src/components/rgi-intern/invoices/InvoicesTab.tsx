@@ -25,13 +25,13 @@ export function InvoicesTab() {
   const clientName = (id: string) => clients?.find((c) => c.id === id)?.name ?? "—";
 
   const openPdf = async (path: string) => {
-    const url = await rgiSignedUrl("rgi-invoices", path);
+    const url = await rgiSignedUrl("invoices", path);
     window.open(url, "_blank");
   };
 
   const downloadFile = async (path: string) => {
     try {
-      const url = await rgiSignedUrl("rgi-invoices", path);
+      const url = await rgiSignedUrl("invoices", path);
       const res = await fetch(url);
       if (!res.ok) throw new Error(`Download fehlgeschlagen (${res.status})`);
       const blob = await res.blob();

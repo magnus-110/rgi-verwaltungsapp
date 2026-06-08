@@ -185,7 +185,7 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
           const r = await rgiRenderInvoice(id!);
           toast.success("Rechnung versendet & PDF erzeugt");
           if (r?.pdf_path) {
-            const url = await rgiSignedUrl("rgi-invoices", r.pdf_path);
+            const url = await rgiSignedUrl("invoices", r.pdf_path);
             window.open(url, "_blank");
           }
         } catch (e: any) {
@@ -245,7 +245,7 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
         throw new Error(r.pdf_error);
       }
       if (!path) throw new Error(`${format.toUpperCase()} wurde nicht erzeugt`);
-      const url = await rgiSignedUrl("rgi-invoices", path);
+      const url = await rgiSignedUrl("invoices", path);
       const res = await fetch(url);
       if (!res.ok) throw new Error(`Download fehlgeschlagen (${res.status})`);
       const blob = await res.blob();
