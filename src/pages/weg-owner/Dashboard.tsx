@@ -121,8 +121,8 @@ export const WegOwnerDashboard = () => {
             icon={Scale}
             label="Offene Beschlüsse"
             count={openResolutions}
-            accentBg="bg-primary/10"
-            accentText="text-primary"
+            accentBg="bg-orange-500/10"
+            accentText="text-orange-600"
             onClick={() => navigate("/weg-owner/resolutions")}
           />
         </div>
