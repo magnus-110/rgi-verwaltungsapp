@@ -50,6 +50,7 @@ const WegOwnerSettings = lazy(() => import("./pages/weg-owner/Settings").then(m 
 const WegOwnerFiles = lazy(() => import("./pages/weg-owner/Files").then(m => ({ default: m.WegOwnerFiles })));
 const WegOwnerMeetings = lazy(() => import("./pages/weg-owner/Meetings").then(m => ({ default: m.WegOwnerMeetings })));
 const WegOwnerCashAudit = lazy(() => import("./pages/weg-owner/CashAudit").then(m => ({ default: m.WegOwnerCashAudit })));
+const WegOwnerResolutions = lazy(() => import("./pages/weg-owner/Resolutions").then(m => ({ default: m.WegOwnerResolutions })));
 
 const TenantDashboard = lazy(() => import("./pages/tenant/Dashboard").then(m => ({ default: m.TenantDashboard })));
 const TenantReports = lazy(() => import("./pages/tenant/Reports").then(m => ({ default: m.TenantReports })));
@@ -145,6 +146,7 @@ const App = () => (
               <Route path="/weg-owner/files" element={<WegOwnerLayout><WegOwnerFiles /></WegOwnerLayout>} />
               <Route path="/weg-owner/meetings" element={<WegOwnerLayout><WegOwnerMeetings /></WegOwnerLayout>} />
               <Route path="/weg-owner/kassenpruefung" element={<WegOwnerLayout><WegOwnerCashAudit /></WegOwnerLayout>} />
+              <Route path="/weg-owner/resolutions" element={<WegOwnerLayout><WegOwnerResolutions /></WegOwnerLayout>} />
               
               {/* Tenant Routes */}
               <Route path="/tenant/change-password" element={<TenantLayout><ChangePassword /></TenantLayout>} />
