@@ -9,15 +9,23 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileText, Search } from "lucide-react";
 
+export interface DmsPickerItem {
+  path: string;
+  name: string;
+  mimeType: string | null;
+  size: number | null;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   buildingId?: string;
   excludePaths?: string[];
-  onSelect: (paths: string[]) => void;
+  onSelect?: (paths: string[]) => void;
+  onSelectItems?: (items: DmsPickerItem[]) => void;
 }
 
-export const DmsFilePickerDialog = ({ open, onOpenChange, buildingId, excludePaths = [], onSelect }: Props) => {
+export const DmsFilePickerDialog = ({ open, onOpenChange, buildingId, excludePaths = [], onSelect, onSelectItems }: Props) => {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Record<string, boolean>>({});
 
@@ -46,8 +54,16 @@ export const DmsFilePickerDialog = ({ open, onOpenChange, buildingId, excludePat
   });
 
   const handleConfirm = () => {
-    const paths = files.filter((f: any) => selected[f.id]).map((f: any) => f.file_path);
-    onSelect(paths);
+    const chosen = files.filter((f: any) => selected[f.id]);
+    onSelect?.(chosen.map((f: any) => f.file_path));
+    onSelectItems?.(
+      chosen.map((f: any) => ({
+        path: f.file_path,
+        name: f.display_name || (f.file_path?.split("/").pop() ?? "Dokument"),
+        mimeType: f.mime_type ?? null,
+        size: typeof f.file_size === "number" ? f.file_size : null,
+      })),
+    );
     setSelected({});
     setSearch("");
     onOpenChange(false);
