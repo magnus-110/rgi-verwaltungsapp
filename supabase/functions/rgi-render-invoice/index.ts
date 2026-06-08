@@ -219,18 +219,28 @@ Deno.serve(async (req) => {
       upsert: true,
     });
 
-    const pdfBytes = await convertDocxToPdf(docxBytes, `${baseName}.docx`);
-    await admin.storage.from("rgi-invoices").upload(pdfPath, pdfBytes, {
-      contentType: "application/pdf",
-      upsert: true,
-    });
+    let pdfPath: string | null = null;
+    let pdfError: string | null = null;
+    if (formats.includes("pdf")) {
+      try {
+        const pdfBytes = await convertDocxToPdf(docxBytes, `${baseName}.docx`);
+        pdfPath = `pdf/${invoice.id}/${baseName}.pdf`;
+        await admin.storage.from("rgi-invoices").upload(pdfPath, pdfBytes, {
+          contentType: "application/pdf",
+          upsert: true,
+        });
+      } catch (pe: any) {
+        console.error("PDF conversion failed", pe);
+        pdfError = String(pe?.message || pe);
+      }
+    }
 
     await admin.from("rgi_invoices").update({
       docx_storage_path: docxPath,
-      pdf_storage_path: pdfPath,
+      ...(pdfPath ? { pdf_storage_path: pdfPath } : {}),
     }).eq("id", invoice.id);
 
-    return json({ ok: true, docx_path: docxPath, pdf_path: pdfPath });
+    return json({ ok: true, docx_path: docxPath, pdf_path: pdfPath, pdf_error: pdfError });
   } catch (e: any) {
     console.error("rgi-render-invoice error", e);
     const tplErrors = e?.properties?.errors;
