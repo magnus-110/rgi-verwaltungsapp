@@ -5,7 +5,7 @@ export const PROPERTY_MANAGER_HINT =
   "Bitte zuerst die Hausverwaltung kontaktieren. Externe Handwerksbetriebe sollen nur dann eigenständig beauftragt werden, wenn die Hausverwaltung nicht erreichbar ist.";
 
 export const PROPERTY_MANAGER_FALLBACK = {
-  name: "RGI Immobilien Hausverwaltung",
+  name: "RGI Immobilien GmbH & Co. KG",
   phone: "08363 960656",
   email: "info@rgi-immobilien.de",
   hours: "Während der Bürozeiten",
