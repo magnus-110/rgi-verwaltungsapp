@@ -1,9 +1,11 @@
 export const ANNUAL_CYCLE_TASKS: { key: string; label: string; auto?: boolean }[] = [
-  { key: "heizkostenabrechnung_beantragt", label: "Heizkostenabrechnung beantragt" },
+  { key: "beschluesse_umgesetzt", label: "Beschlüsse umgesetzt" },
+  { key: "heizkostenabrechnung_beantragt", label: "Heizkostenabrechnung eingereicht" },
   { key: "jahresabrechnung_erstellt", label: "Jahresabrechnung erstellt", auto: true },
   { key: "vermoegensbericht_erstellt", label: "Vermögensbericht erstellt", auto: true },
   { key: "wirtschaftsplan_erstellt", label: "Wirtschaftsplan erstellt", auto: true },
   { key: "tops_abfragen", label: "TOPs abfragen" },
+  { key: "kassenpruefung", label: "Kassenprüfung" },
   { key: "etv_einberufen", label: "ETV einberufen", auto: true },
   { key: "etv_protokoll_fertig", label: "ETV-Protokoll fertig", auto: true },
   { key: "beschlusssammlung_aktualisiert", label: "Beschlusssammlung aktualisiert", auto: true },
