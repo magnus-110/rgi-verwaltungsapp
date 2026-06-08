@@ -25,6 +25,7 @@ import { KnowledgeDocumentsManager } from "@/components/chatbot/KnowledgeDocumen
 import { ChartOfAccountsTab } from "@/components/finance/ChartOfAccountsTab";
 import { ReportTemplateSettings } from "@/components/finance/ReportTemplateSettings";
 import { NotificationSettingsSection } from "@/components/settings/NotificationSettingsSection";
+import { PasskeysSection } from "@/components/settings/PasskeysSection";
 
 interface AdminUser {
   user_id: string;
@@ -407,6 +408,7 @@ export const Settings = () => {
                 }}>Passwort ändern</Button>
               </CardContent>
             </Card>
+            <PasskeysSection />
           </TabsContent>
 
           {/* Tab: Benutzerverwaltung */}

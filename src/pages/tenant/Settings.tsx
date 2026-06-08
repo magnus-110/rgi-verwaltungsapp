@@ -8,6 +8,7 @@
  import { toast } from "@/hooks/use-toast";
  import { User, Lock } from "lucide-react";
  import { LegalDocumentsSheet } from "@/components/LegalDocumentsSheet";
+ import { PasskeysSection } from "@/components/settings/PasskeysSection";
  
  export const TenantSettings = () => {
    const { profile, updatePassword } = useAuth();
@@ -184,9 +185,11 @@
              {isUpdatingPassword ? "Wird geändert..." : "Passwort ändern"}
            </Button>
          </CardContent>
-       </Card>
+        </Card>
  
-       <div className="flex justify-center gap-4 pt-4 pb-8">
+        <PasskeysSection />
+ 
+        <div className="flex justify-center gap-4 pt-4 pb-8">
          <button 
            onClick={() => openLegalSheet("agb")}
            className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
