@@ -213,10 +213,11 @@ Deno.serve(async (req) => {
     const baseName = `${sanitize(invoice.invoice_number || "Entwurf")}_${sanitize(invoice.client_name_snapshot || invoice.client?.name || "Kunde")}`;
     const docxPath = `docx/${invoice.id}/${baseName}.docx`;
 
-    await admin.storage.from("invoices").upload(docxPath, docxBytes, {
+    const { error: docxUploadError } = await admin.storage.from("invoices").upload(docxPath, docxBytes, {
       contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       upsert: true,
     });
+    if (docxUploadError) return json({ error: `DOCX-Upload fehlgeschlagen: ${docxUploadError.message}` }, 500);
 
     let pdfPath: string | null = null;
     let pdfError: string | null = null;
@@ -224,10 +225,11 @@ Deno.serve(async (req) => {
       try {
         const pdfBytes = await convertDocxToPdf(docxBytes, `${baseName}.docx`);
         pdfPath = `pdf/${invoice.id}/${baseName}.pdf`;
-        await admin.storage.from("invoices").upload(pdfPath, pdfBytes, {
+        const { error: pdfUploadError } = await admin.storage.from("invoices").upload(pdfPath, pdfBytes, {
           contentType: "application/pdf",
           upsert: true,
         });
+        if (pdfUploadError) throw new Error(`PDF-Upload fehlgeschlagen: ${pdfUploadError.message}`);
       } catch (pe: any) {
         console.error("PDF conversion failed", pe);
         pdfError = String(pe?.message || pe);
