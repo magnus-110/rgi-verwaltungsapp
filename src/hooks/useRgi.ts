@@ -348,12 +348,12 @@ export async function rgiNextInvoiceNumber(sparte?: RgiSparte) {
   return data as string;
 }
 
-export async function rgiRenderInvoice(invoiceId: string) {
+export async function rgiRenderInvoice(invoiceId: string, formats?: ("docx" | "pdf")[]) {
   const { data, error } = await supabase.functions.invoke("rgi-render-invoice", {
-    body: { invoice_id: invoiceId },
+    body: { invoice_id: invoiceId, ...(formats ? { formats } : {}) },
   });
   if (error) throw error;
-  return data as { docx_path: string; pdf_path: string };
+  return data as { docx_path: string; pdf_path?: string | null; pdf_error?: string | null };
 }
 
 export async function rgiSignedUrl(bucket: string, path: string) {

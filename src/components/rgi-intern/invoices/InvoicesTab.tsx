@@ -29,6 +29,25 @@ export function InvoicesTab() {
     window.open(url, "_blank");
   };
 
+  const downloadFile = async (path: string) => {
+    try {
+      const url = await rgiSignedUrl("rgi-invoices", path);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Download fehlgeschlagen (${res.status})`);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = path.split("/").pop() || "Rechnung.docx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch (e: any) {
+      toast.error(`Download fehlgeschlagen: ${e.message}`);
+    }
+  };
+
   const render = async (id: string) => {
     setRenderingId(id);
     try {
@@ -70,7 +89,7 @@ export function InvoicesTab() {
                 </div>
               </div>
               {inv.docx_storage_path && (
-                <Button variant="ghost" size="sm" onClick={() => openPdf(inv.docx_storage_path!)} title="Word herunterladen"><FileType className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="sm" onClick={() => downloadFile(inv.docx_storage_path!)} title="Word herunterladen"><FileType className="w-4 h-4" /></Button>
               )}
               {inv.pdf_storage_path && (
                 <Button variant="ghost" size="sm" onClick={() => openPdf(inv.pdf_storage_path!)} title="PDF herunterladen"><Download className="w-4 h-4" /></Button>

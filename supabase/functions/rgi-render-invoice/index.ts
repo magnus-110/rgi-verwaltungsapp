@@ -80,7 +80,11 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { invoice_id } = await req.json();
+    const body = await req.json();
+    const { invoice_id } = body;
+    const formats: ("docx" | "pdf")[] = Array.isArray(body?.formats) && body.formats.length
+      ? body.formats.filter((f: any) => f === "docx" || f === "pdf")
+      : ["docx", "pdf"];
     if (!invoice_id) return json({ error: "invoice_id erforderlich" }, 400);
 
     const { data: invoice, error: invErr } = await admin
@@ -208,25 +212,34 @@ Deno.serve(async (req) => {
 
     const baseName = `${sanitize(invoice.invoice_number || "Entwurf")}_${sanitize(invoice.client_name_snapshot || invoice.client?.name || "Kunde")}`;
     const docxPath = `docx/${invoice.id}/${baseName}.docx`;
-    const pdfPath = `pdf/${invoice.id}/${baseName}.pdf`;
 
     await admin.storage.from("rgi-invoices").upload(docxPath, docxBytes, {
       contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       upsert: true,
     });
 
-    const pdfBytes = await convertDocxToPdf(docxBytes, `${baseName}.docx`);
-    await admin.storage.from("rgi-invoices").upload(pdfPath, pdfBytes, {
-      contentType: "application/pdf",
-      upsert: true,
-    });
+    let pdfPath: string | null = null;
+    let pdfError: string | null = null;
+    if (formats.includes("pdf")) {
+      try {
+        const pdfBytes = await convertDocxToPdf(docxBytes, `${baseName}.docx`);
+        pdfPath = `pdf/${invoice.id}/${baseName}.pdf`;
+        await admin.storage.from("rgi-invoices").upload(pdfPath, pdfBytes, {
+          contentType: "application/pdf",
+          upsert: true,
+        });
+      } catch (pe: any) {
+        console.error("PDF conversion failed", pe);
+        pdfError = String(pe?.message || pe);
+      }
+    }
 
     await admin.from("rgi_invoices").update({
       docx_storage_path: docxPath,
-      pdf_storage_path: pdfPath,
+      ...(pdfPath ? { pdf_storage_path: pdfPath } : {}),
     }).eq("id", invoice.id);
 
-    return json({ ok: true, docx_path: docxPath, pdf_path: pdfPath });
+    return json({ ok: true, docx_path: docxPath, pdf_path: pdfPath, pdf_error: pdfError });
   } catch (e: any) {
     console.error("rgi-render-invoice error", e);
     const tplErrors = e?.properties?.errors;
