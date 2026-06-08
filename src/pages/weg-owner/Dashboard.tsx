@@ -1,15 +1,21 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
-import { AlertTriangle, MessageSquare, MessageCircle, FileText, Users, Scale, Phone, Mail, Building2 } from "lucide-react";
+import { AlertTriangle, MessageSquare, MessageCircle, FileText, Users, Scale, Phone, Mail, MapPin, Check, ChevronRight, Building2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 import { OwnerAnnualCycleWidget } from "@/components/dashboard/OwnerAnnualCycleWidget";
 import { EmergencyContactsWidget } from "@/components/forum/EmergencyContactsWidget";
 import { PROPERTY_MANAGER_FALLBACK } from "@/lib/emergencyContactInfo";
+import { cn } from "@/lib/utils";
 
 interface Building { id: string; name: string; address: string | null }
+
+const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+  <h2 className="text-[11px] font-semibold uppercase tracking-[0.6px] text-muted-foreground/80 px-1 mb-2">
+    {children}
+  </h2>
+);
 
 export const WegOwnerDashboard = () => {
   const navigate = useNavigate();
@@ -42,7 +48,7 @@ export const WegOwnerDashboard = () => {
 
         const { data: reports } = await supabase
           .from("weg_reports")
-          .select("id", { count: "exact", head: false })
+          .select("id")
           .eq("reported_by", profile.user_id)
           .eq("status", "open");
         setOpenReports(reports?.length || 0);
@@ -69,7 +75,7 @@ export const WegOwnerDashboard = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-lg text-muted-foreground">Laden...</div>
+        <div className="text-base text-muted-foreground">Laden...</div>
       </div>
     );
   }
@@ -81,16 +87,21 @@ export const WegOwnerDashboard = () => {
     { icon: Users, label: "Versammlungen", path: "/weg-owner/meetings" },
   ];
 
+  const phoneHref = `tel:${PROPERTY_MANAGER_FALLBACK.phone.replace(/\s+/g, "")}`;
+  const mailHref = `mailto:${PROPERTY_MANAGER_FALLBACK.email}`;
+  const mapsHref = "https://maps.app.goo.gl/nnWb3Dz5Rid1xzzv7";
+
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-xl md:max-w-2xl mx-auto px-4 py-5 space-y-5">
         {/* Welcome */}
-        <div className="text-center space-y-2 pt-2">
-          <h1 className="text-3xl md:text-4xl font-light text-foreground">
+        <div className="space-y-2 pt-1">
+          <h1 className="text-2xl font-semibold text-foreground leading-tight">
             Willkommen zurück, {profile?.first_name}
           </h1>
           {buildings.length > 0 && (
-            <div className="text-base text-muted-foreground">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
+              <Building2 className="h-3.5 w-3.5" />
               {buildings.map((b) => b.name).join(", ")}
             </div>
           )}
@@ -98,85 +109,133 @@ export const WegOwnerDashboard = () => {
 
         {/* Stat tiles */}
         <div className="grid grid-cols-2 gap-3">
-          <button
+          <StatTile
+            icon={AlertTriangle}
+            label="Offene Meldungen"
+            count={openReports}
+            accentBg="bg-orange-500/10"
+            accentText="text-orange-600"
             onClick={() => navigate("/weg-owner/reports")}
-            className="text-left rounded-2xl border border-border bg-card p-4 shadow-sm hover:shadow-md hover:border-primary/30 transition-all"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <AlertTriangle className={`h-5 w-5 ${openReports > 0 ? "text-orange-500" : "text-muted-foreground"}`} />
-              <span className={`text-3xl font-bold tabular-nums ${openReports > 0 ? "text-orange-600" : "text-foreground"}`}>{openReports}</span>
-            </div>
-            <div className="text-xs font-medium text-muted-foreground">Offene Meldungen</div>
-          </button>
-          <button
+          />
+          <StatTile
+            icon={Scale}
+            label="Offene Beschlüsse"
+            count={openResolutions}
+            accentBg="bg-primary/10"
+            accentText="text-primary"
             onClick={() => navigate("/weg-owner/resolutions")}
-            className="text-left rounded-2xl border border-border bg-card p-4 shadow-sm hover:shadow-md hover:border-primary/30 transition-all"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <Scale className={`h-5 w-5 ${openResolutions > 0 ? "text-primary" : "text-muted-foreground"}`} />
-              <span className={`text-3xl font-bold tabular-nums ${openResolutions > 0 ? "text-primary" : "text-foreground"}`}>{openResolutions}</span>
-            </div>
-            <div className="text-xs font-medium text-muted-foreground">Offene Beschlüsse</div>
-          </button>
+          />
         </div>
 
         {/* Annual cycle */}
         {buildings.length > 0 && <OwnerAnnualCycleWidget buildings={buildings} />}
 
         {/* Quick actions */}
-        <div className={`grid gap-3 ${actions.length === 4 ? "grid-cols-4" : "grid-cols-3"}`}>
-          {actions.map((a) => (
-            <button
-              key={a.path}
-              onClick={() => navigate(a.path)}
-              className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card p-3 shadow-sm hover:shadow-md hover:border-primary/30 transition-all"
-            >
-              <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center">
-                <a.icon className="h-5 w-5 text-primary" />
-              </div>
-              <span className="text-[11px] font-medium text-center leading-tight">{a.label}</span>
-            </button>
-          ))}
-        </div>
+        <section>
+          <SectionLabel>Schnellzugriff</SectionLabel>
+          <div className={cn(
+            "grid gap-3",
+            actions.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"
+          )}>
+            {actions.map((a) => (
+              <button
+                key={a.path}
+                onClick={() => navigate(a.path)}
+                className="flex flex-col items-center justify-center gap-2.5 min-h-[96px] rounded-[14px] border border-border/60 bg-card p-3 shadow-sm transition-all hover:border-primary/40 hover:shadow active:scale-[0.98]"
+              >
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <a.icon className="h-6 w-6 text-primary" />
+                </div>
+                <span className="text-[13px] font-medium text-center leading-tight">{a.label}</span>
+              </button>
+            ))}
+          </div>
+        </section>
 
         {/* Contact & emergency */}
-        <div className="space-y-3 pt-4">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide px-1">Kontakt & Notfall</h3>
+        <section>
+          <SectionLabel>Kontakt & Notfall</SectionLabel>
+          <div className="bg-card rounded-[14px] border border-border/60 overflow-hidden shadow-sm">
+            <div className="px-4 pt-3.5 pb-2">
+              <div className="text-[15px] font-semibold text-foreground">{PROPERTY_MANAGER_FALLBACK.name}</div>
+              <div className="text-[13px] text-muted-foreground">Ihre Hausverwaltung · Mo–Fr 10:00–15:00</div>
+            </div>
+            <div className="h-px bg-foreground/[0.055]" />
+            <ContactRow icon={Phone} title="Anrufen" subtitle={PROPERTY_MANAGER_FALLBACK.phone} href={phoneHref} />
+            <div className="h-px bg-foreground/[0.055]" />
+            <ContactRow icon={Mail} title="E-Mail schreiben" subtitle={PROPERTY_MANAGER_FALLBACK.email} href={mailHref} />
+            <div className="h-px bg-foreground/[0.055]" />
+            <ContactRow icon={MapPin} title="Adresse & Route" subtitle="Vilstalstr. 4, 87459 Pfronten" href={mapsHref} external />
+          </div>
+        </section>
 
-          <Card className="border-border/60 shadow-sm">
-            <CardContent className="p-5 space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-md bg-primary/10 flex items-center justify-center">
-                  <Building2 className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold">{PROPERTY_MANAGER_FALLBACK.name}</div>
-                  <div className="text-xs text-muted-foreground">Ihre Hausverwaltung</div>
-                </div>
-              </div>
-              <div className="space-y-2 text-sm">
-                <a href={`tel:${PROPERTY_MANAGER_FALLBACK.phone.replace(/\s+/g, "")}`} className="flex items-center gap-2 hover:text-primary transition-colors">
-                  <Phone className="h-4 w-4 text-primary shrink-0" />
-                  <span className="tabular-nums">{PROPERTY_MANAGER_FALLBACK.phone}</span>
-                </a>
-                <a href={`mailto:${PROPERTY_MANAGER_FALLBACK.email}`} className="flex items-center gap-2 hover:text-primary transition-colors break-all">
-                  <Mail className="h-4 w-4 text-primary shrink-0" />
-                  <span>{PROPERTY_MANAGER_FALLBACK.email}</span>
-                </a>
-                <a href="https://maps.app.goo.gl/nnWb3Dz5Rid1xzzv7" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-primary transition-colors">
-                  <Building2 className="h-4 w-4 text-primary shrink-0" />
-                  <span>Vilstalstr. 4, 87459 Pfronten</span>
-                </a>
-              </div>
-              <p className="text-xs text-muted-foreground border-t pt-2">
-                Tel. erreichbar: 10:00–15:00 Uhr · Termine nach Vereinbarung
-              </p>
-            </CardContent>
-          </Card>
-
-          {buildingIds.length > 0 && <EmergencyContactsWidget buildingIds={buildingIds} />}
-        </div>
+        {buildingIds.length > 0 && (
+          <section>
+            <SectionLabel>Notfallkontakte</SectionLabel>
+            <EmergencyContactsWidget buildingIds={buildingIds} />
+          </section>
+        )}
       </div>
     </div>
   );
 };
+
+// --- Sub-components ---
+
+interface StatTileProps {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  count: number;
+  accentBg: string;
+  accentText: string;
+  onClick: () => void;
+}
+
+const StatTile = ({ icon: Icon, label, count, accentBg, accentText, onClick }: StatTileProps) => {
+  const isZero = count === 0;
+  return (
+    <button
+      onClick={onClick}
+      className="text-left rounded-[14px] border border-border/60 bg-card p-4 shadow-sm transition-all hover:border-primary/40 hover:shadow active:scale-[0.99] min-h-[112px] flex flex-col justify-between"
+    >
+      <div className="flex items-start justify-between">
+        <div className={cn("h-11 w-11 rounded-xl flex items-center justify-center", isZero ? "bg-muted" : accentBg)}>
+          <Icon className={cn("h-5 w-5", isZero ? "text-muted-foreground" : accentText)} />
+        </div>
+        {isZero ? (
+          <div className="h-8 w-8 rounded-full bg-emerald-500/15 flex items-center justify-center" aria-label="Alles erledigt">
+            <Check className="h-4 w-4 text-emerald-600" strokeWidth={3} />
+          </div>
+        ) : (
+          <span className={cn("text-3xl font-bold tabular-nums leading-none", accentText)}>{count}</span>
+        )}
+      </div>
+      <div className="text-[13px] font-medium text-foreground mt-3">{label}</div>
+    </button>
+  );
+};
+
+interface ContactRowProps {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  subtitle: string;
+  href: string;
+  external?: boolean;
+}
+
+const ContactRow = ({ icon: Icon, title, subtitle, href, external }: ContactRowProps) => (
+  <a
+    href={href}
+    {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+    className="flex items-center gap-4 px-4 py-3.5 min-h-[64px] transition-colors hover:bg-muted/40 active:bg-muted/60"
+  >
+    <div className="h-11 w-11 shrink-0 rounded-xl bg-primary/10 flex items-center justify-center">
+      <Icon className="h-5 w-5 text-primary" />
+    </div>
+    <div className="flex-1 min-w-0">
+      <div className="text-[15px] font-medium text-foreground leading-tight">{title}</div>
+      <div className="text-[13px] text-muted-foreground mt-0.5 truncate">{subtitle}</div>
+    </div>
+    <ChevronRight className="h-5 w-5 text-muted-foreground/60 shrink-0" />
+  </a>
+);

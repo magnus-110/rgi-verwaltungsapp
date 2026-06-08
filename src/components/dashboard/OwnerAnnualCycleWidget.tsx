@@ -1,10 +1,9 @@
 import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarClock, Check } from "lucide-react";
-import { ANNUAL_CYCLE_TASKS, buildFiscalYears, STATUS_LABEL, type AnnualCycleStatus } from "@/lib/annualCycle";
+import { Check } from "lucide-react";
+import { ANNUAL_CYCLE_TASKS, buildFiscalYears, type AnnualCycleStatus } from "@/lib/annualCycle";
 import { cn } from "@/lib/utils";
 
 // Simplified milestones for owners (subset of admin cycle)
@@ -18,8 +17,13 @@ const OWNER_MILESTONES = [
 ];
 
 interface Building { id: string; name: string }
-
 interface Props { buildings: Building[] }
+
+const STATUS_TEXT: Record<AnnualCycleStatus, string> = {
+  open: "Offen",
+  in_progress: "In Bearbeitung",
+  done: "Erledigt",
+};
 
 export const OwnerAnnualCycleWidget = ({ buildings }: Props) => {
   const fiscalYears = useMemo(() => buildFiscalYears(), []);
@@ -45,8 +49,8 @@ export const OwnerAnnualCycleWidget = ({ buildings }: Props) => {
   });
 
   const byKey = useMemo(() => {
-    const m = new Map<string, AnnualCycleStatus>();
-    tasks.forEach((t) => m.set(t.task_key, t.status));
+    const m = new Map<string, { status: AnnualCycleStatus; completed_at: string | null }>();
+    tasks.forEach((t) => m.set(t.task_key, { status: t.status, completed_at: t.completed_at }));
     return m;
   }, [tasks]);
 
@@ -55,84 +59,83 @@ export const OwnerAnnualCycleWidget = ({ buildings }: Props) => {
     .filter((t): t is { key: string; label: string } => !!t);
 
   return (
-    <Card className="border-border/60 shadow-sm">
-      <CardContent className="p-5 space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-md bg-primary/10 flex items-center justify-center">
-              <CalendarClock className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold leading-tight">Jahreszyklus</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Aktueller Bearbeitungsstand</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {buildings.length > 1 && (
-              <Select value={selectedBuildingId ?? undefined} onValueChange={setSelectedBuildingId}>
-                <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue placeholder="Gebäude" /></SelectTrigger>
-                <SelectContent>
-                  {buildings.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <Select
-              value={selectedYear.start}
-              onValueChange={(v) => setSelectedYear(fiscalYears.find((f) => f.start === v) ?? fiscalYears[2])}
-            >
-              <SelectTrigger className="h-8 w-[88px] text-xs"><SelectValue /></SelectTrigger>
+    <section>
+      <div className="flex items-center justify-between px-1 mb-2">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.6px] text-muted-foreground/80">
+          Jahreszyklus {selectedYear.label}
+        </h2>
+        <div className="flex items-center gap-2">
+          {buildings.length > 1 && (
+            <Select value={selectedBuildingId ?? undefined} onValueChange={setSelectedBuildingId}>
+              <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue placeholder="Gebäude" /></SelectTrigger>
               <SelectContent>
-                {fiscalYears.map((fy) => (
-                  <SelectItem key={fy.start} value={fy.start}>{fy.label}</SelectItem>
+                {buildings.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          )}
+          <Select
+            value={selectedYear.start}
+            onValueChange={(v) => setSelectedYear(fiscalYears.find((f) => f.start === v) ?? fiscalYears[2])}
+          >
+            <SelectTrigger className="h-8 w-[84px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {fiscalYears.map((fy) => (
+                <SelectItem key={fy.start} value={fy.start}>{fy.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
+      </div>
 
-        {/* Horizontal timeline */}
-        <div className="relative">
-          <div className="flex items-center justify-between gap-1 overflow-x-auto pb-2">
-            {milestones.map((m, idx) => {
-              const status = byKey.get(m.key) ?? "open";
-              const isDone = status === "done";
-              const isInProgress = status === "in_progress";
-              const isLast = idx === milestones.length - 1;
-              return (
-                <div key={m.key} className="flex items-center flex-1 min-w-0">
-                  <div className="flex flex-col items-center gap-1.5 flex-shrink-0 px-1">
-                    <div
-                      className={cn(
-                        "h-7 w-7 rounded-full flex items-center justify-center border-2 transition-colors",
-                        isDone && "bg-emerald-500 border-emerald-500 text-white",
-                        isInProgress && "bg-orange-500/20 border-orange-500 text-orange-700",
-                        !isDone && !isInProgress && "bg-muted border-muted-foreground/30 text-muted-foreground"
-                      )}
-                      title={`${m.label}: ${STATUS_LABEL[status]}`}
-                    >
-                      {isDone ? <Check className="h-3.5 w-3.5" /> : (
-                        <span className={cn("h-2 w-2 rounded-full", isInProgress ? "bg-orange-500" : "bg-muted-foreground/40")} />
-                      )}
-                    </div>
-                    <span className={cn(
-                      "text-[10px] leading-tight text-center max-w-[68px]",
-                      isDone ? "text-foreground font-medium" : "text-muted-foreground"
-                    )}>{m.label}</span>
-                  </div>
-                  {!isLast && (
-                    <div className={cn(
-                      "h-0.5 flex-1 mt-[-18px] mx-0.5 rounded",
-                      isDone ? "bg-emerald-500" : "bg-muted-foreground/20"
-                    )} />
+      <div className="bg-card rounded-[14px] border border-border/60 overflow-hidden shadow-sm">
+        {milestones.map((m, idx) => {
+          const entry = byKey.get(m.key);
+          const status: AnnualCycleStatus = entry?.status ?? "open";
+          const isDone = status === "done";
+          const isProgress = status === "in_progress";
+          const completedDate = entry?.completed_at
+            ? new Date(entry.completed_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })
+            : null;
+          const subtitle = isDone
+            ? completedDate ? `Erledigt am ${completedDate}` : "Erledigt"
+            : STATUS_TEXT[status];
+          return (
+            <div key={m.key}>
+              {idx > 0 && <div className="h-px bg-foreground/[0.055]" />}
+              <div className="flex items-center gap-4 px-4 py-3.5 min-h-[64px]">
+                <div
+                  className={cn(
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2",
+                    isDone && "bg-emerald-500 border-emerald-500 text-white",
+                    isProgress && "bg-orange-500/15 border-orange-500 text-orange-700",
+                    !isDone && !isProgress && "bg-muted border-muted-foreground/25 text-muted-foreground"
+                  )}
+                  aria-label={STATUS_TEXT[status]}
+                >
+                  {isDone ? (
+                    <Check className="h-4 w-4" strokeWidth={3} />
+                  ) : isProgress ? (
+                    <span className="h-2 w-2 rounded-full bg-orange-500" />
+                  ) : (
+                    <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />
                   )}
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+                <div className="flex-1 min-w-0">
+                  <div className={cn(
+                    "text-[15px] leading-tight",
+                    isDone ? "text-foreground font-medium" : "text-foreground font-medium"
+                  )}>
+                    {m.label}
+                  </div>
+                  <div className="text-[13px] text-muted-foreground mt-0.5">{subtitle}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 };
