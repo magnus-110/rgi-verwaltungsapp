@@ -6836,6 +6836,7 @@ export type Database = {
           initial_password_set_at: string | null
           last_name: string | null
           must_change_password: boolean | null
+          passkey_prompt_dismissed_at: string | null
           phone: string | null
           role: Database["public"]["Enums"]["app_role"]
           terms_accepted_at: string | null
@@ -6854,6 +6855,7 @@ export type Database = {
           initial_password_set_at?: string | null
           last_name?: string | null
           must_change_password?: boolean | null
+          passkey_prompt_dismissed_at?: string | null
           phone?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           terms_accepted_at?: string | null
@@ -6872,6 +6874,7 @@ export type Database = {
           initial_password_set_at?: string | null
           last_name?: string | null
           must_change_password?: boolean | null
+          passkey_prompt_dismissed_at?: string | null
           phone?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           terms_accepted_at?: string | null
