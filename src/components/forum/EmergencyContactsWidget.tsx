@@ -157,8 +157,6 @@ export function EmergencyContactsWidget({ buildingIds }: Props) {
     hint: n.whenToCall,
   }));
 
-  const totalCount =
-    verwaltungRows.length + technischRows.length + notrufRows.length;
 
   return (
     <div className="bg-card rounded-[14px] border border-border/60 overflow-hidden shadow-sm">
