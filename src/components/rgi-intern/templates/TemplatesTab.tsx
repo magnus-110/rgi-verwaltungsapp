@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 const PLACEHOLDERS = [
+  ["Häufige Kurzformen", ["{Rechnungsnummer}", "{Rechnungsdatum}", "{Fällig}", "{Leistungszeitraum}", "{Kundennummer}", "{Kunde}", "{Kundenadresse}", "{Nettobetrag}", "{Umsatzsteuer}", "{Gesamtbetrag}", "{IBAN}", "{BIC}"]],
   ["Firma", ["{firma.name}", "{firma.adresse}", "{firma.zip}", "{firma.stadt}", "{firma.iban}", "{firma.bic}", "{firma.bank}", "{firma.steuernr}", "{firma.ustid}", "{firma.email}", "{firma.telefon}", "{firma.website}", "{firma.ceo}", "{firma.hrb}"]],
   ["Kunde", ["{kunde.name}", "{kunde.adresse}", "{kunde.zip}", "{kunde.stadt}", "{kunde.land}", "{kunde.email}", "{kunde.ustid}", "{kunde.kundennr}"]],
   ["Rechnung", ["{rechnung.nummer}", "{rechnung.datum}", "{rechnung.faellig}", "{rechnung.leistungszeitraum}", "{rechnung.intro}", "{rechnung.footer}"]],
