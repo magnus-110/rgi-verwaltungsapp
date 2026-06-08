@@ -295,6 +295,9 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
         />
       )}
       <VotingPopup />
+      {profile?.user_id && (
+        <PasskeyPromptDialog userId={profile.user_id} enabled={termsAccepted === true} />
+      )}
       {/* Onboarding-Wizard erst zeigen, wenn AGB akzeptiert wurden */}
       {termsAccepted === true && <OnboardingFAB />}
       {/* Erklärvideo erst NACH Onboarding-Abschluss */}
