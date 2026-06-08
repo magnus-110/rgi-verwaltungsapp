@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext, ReactNode } from "react";
+import React, { useState, useEffect, useCallback, createContext, useContext, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -52,7 +52,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (targetUserId = user?.id) => {
+  const fetchProfile = useCallback(async (targetUserId = user?.id) => {
     if (!targetUserId) {
       setLoading(false);
       return;
@@ -79,7 +79,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       console.error('Error fetching profile:', error);
       setLoading(false); // Stop loading on error
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     let mounted = true;
@@ -151,7 +151,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } else if (profile?.user_id === user.id) {
       setLoading(false);
     }
-  }, [user?.id, profile?.user_id]);
+  }, [user?.id, profile?.user_id, fetchProfile]);
 
   const signIn = async (identifier: string, password: string) => {
     try {
