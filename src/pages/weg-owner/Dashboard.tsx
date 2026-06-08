@@ -236,18 +236,31 @@ export const WegOwnerDashboard = () => {
         <section>
           <SectionLabel>Kontakt & Notfall</SectionLabel>
           <div className="bg-card rounded-[14px] border border-border/60 overflow-hidden shadow-sm">
-            <div className="px-4 pt-3.5 pb-2">
-              <div className="font-display text-[15px] font-semibold text-foreground tracking-tight">{PROPERTY_MANAGER_FALLBACK.name}</div>
-              <div className="text-[13px] text-muted-foreground">Ihre Hausverwaltung · Mo–Fr 10:00–15:00</div>
-            </div>
-            <div className="h-px bg-foreground/[0.055]" />
-            <ContactRow icon={Phone} title="Anrufen" subtitle={PROPERTY_MANAGER_FALLBACK.phone} href={phoneHref} />
-            <div className="h-px bg-foreground/[0.055]" />
-            <ContactRow icon={Mail} title="E-Mail schreiben" subtitle={PROPERTY_MANAGER_FALLBACK.email} href={mailHref} />
-            <div className="h-px bg-foreground/[0.055]" />
-            <ContactRow icon={MapPin} title="Adresse & Route" subtitle="Vilstalstr. 4, 87459 Pfronten" href={mapsHref} external />
+            <button
+              type="button"
+              onClick={() => setContactOpen((v) => !v)}
+              aria-expanded={contactOpen}
+              className="w-full flex items-center gap-3 px-4 pt-3.5 pb-3 text-left transition-colors hover:bg-muted/40"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="font-display text-[15px] font-semibold text-foreground tracking-tight truncate">{PROPERTY_MANAGER_FALLBACK.name}</div>
+                <div className="text-[13px] text-muted-foreground">Ihre Hausverwaltung · Mo–Fr 10:00–15:00</div>
+              </div>
+              <ChevronDown className={cn("h-5 w-5 text-muted-foreground/60 shrink-0 transition-transform", contactOpen && "rotate-180")} />
+            </button>
+            {contactOpen && (
+              <>
+                <div className="h-px bg-foreground/[0.055]" />
+                <ContactRow icon={Phone} title="Anrufen" subtitle={PROPERTY_MANAGER_FALLBACK.phone} href={phoneHref} />
+                <div className="h-px bg-foreground/[0.055]" />
+                <ContactRow icon={Mail} title="E-Mail schreiben" subtitle={PROPERTY_MANAGER_FALLBACK.email} href={mailHref} />
+                <div className="h-px bg-foreground/[0.055]" />
+                <ContactRow icon={MapPin} title="Adresse & Route" subtitle="Vilstalstr. 4, 87459 Pfronten" href={mapsHref} external />
+              </>
+            )}
           </div>
         </section>
+
 
         {buildingIds.length > 0 && (
           <section>
