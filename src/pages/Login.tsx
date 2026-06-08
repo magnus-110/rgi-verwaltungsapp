@@ -219,6 +219,30 @@ export const Login = () => {
               >
                 {loading ? "Anmelden..." : "Anmelden"}
               </Button>
+
+              {passkeySupported && (
+                <>
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-border" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">oder</span>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={handlePasskeyLogin}
+                    disabled={passkeyLoading}
+                  >
+                    <Fingerprint className="h-4 w-4 mr-2" />
+                    {passkeyLoading ? "Anmelden…" : "Mit Passkey anmelden"}
+                  </Button>
+                </>
+              )}
+
               
               <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
                 <DialogTrigger asChild>
