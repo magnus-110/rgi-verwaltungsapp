@@ -96,7 +96,7 @@ export const WegOwnerDashboard = () => {
       <div className="max-w-xl md:max-w-2xl mx-auto px-4 py-5 space-y-5">
         {/* Welcome */}
         <div className="space-y-2 pt-1">
-          <h1 className="text-2xl font-semibold text-foreground leading-tight">
+          <h1 className="font-display text-2xl font-semibold text-foreground leading-tight tracking-tight">
             Willkommen zurück, {profile?.first_name}
           </h1>
           {buildings.length > 0 && (
