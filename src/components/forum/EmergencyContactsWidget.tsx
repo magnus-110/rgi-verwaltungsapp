@@ -3,14 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   ChevronDown,
   ShieldAlert,
-  Building2,
   Wrench,
   Siren,
   AlertTriangle,
   Phone,
+  Mail,
+  Info,
 } from "lucide-react";
 import {
-  PROPERTY_MANAGER_FALLBACK,
   PUBLIC_EMERGENCY_NUMBERS,
   getCategoryHint,
 } from "@/lib/emergencyContactInfo";
@@ -41,7 +41,9 @@ interface EntryRow {
   key: string;
   title: string;
   phone?: string;
+  email?: string;
   hint?: string | null;
+  category?: string;
 }
 
 const SectionHeading = ({ children }: { children: React.ReactNode }) => (
@@ -50,21 +52,87 @@ const SectionHeading = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
-function ContactEntry({
+function ServiceProviderEntry({
   row,
   iconBg,
   iconColor,
-  icon: Icon,
+  expanded,
+  onToggle,
 }: {
   row: EntryRow;
   iconBg: string;
   iconColor: string;
-  icon: typeof Phone;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div>
+      <ListRow
+        icon={Phone}
+        iconBg={iconBg}
+        iconColor={iconColor}
+        title={row.title}
+        subtitle={row.category}
+        onClick={onToggle}
+        right={
+          <ChevronDown
+            className={cn(
+              "h-5 w-5 text-muted-foreground/60 transition-transform duration-200 shrink-0",
+              expanded && "rotate-180"
+            )}
+          />
+        }
+      />
+      {expanded && (
+        <div className="bg-muted/30 px-4 py-3 space-y-2 border-t border-foreground/[0.055]">
+          {row.phone && (
+            <a
+              href={`tel:${row.phone.replace(/\s+/g, "")}`}
+              className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-background transition-colors"
+            >
+              <Phone className="h-4 w-4 text-orange-600 shrink-0" />
+              <span className="text-[14px] font-medium text-foreground tabular-nums">{row.phone}</span>
+            </a>
+          )}
+          {row.email && (
+            <a
+              href={`mailto:${row.email}`}
+              className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-background transition-colors"
+            >
+              <Mail className="h-4 w-4 text-primary shrink-0" />
+              <span className="text-[14px] text-foreground truncate">{row.email}</span>
+            </a>
+          )}
+          {row.hint && (
+            <div className="flex items-start gap-3 px-2 py-2">
+              <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+              <span className="text-[13px] text-muted-foreground leading-relaxed">{row.hint}</span>
+            </div>
+          )}
+          {!row.phone && !row.email && !row.hint && (
+            <div className="text-[13px] text-muted-foreground px-2 py-1">
+              Keine weiteren Kontaktdaten hinterlegt.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PublicEmergencyEntry({
+  row,
+  iconBg,
+  iconColor,
+}: {
+  row: EntryRow;
+  iconBg: string;
+  iconColor: string;
 }) {
   const subtitle = [row.phone, row.hint].filter(Boolean).join(" · ");
   return (
     <ListRow
-      icon={Icon}
+      icon={Phone}
       iconBg={iconBg}
       iconColor={iconColor}
       title={row.title}
@@ -77,6 +145,7 @@ function ContactEntry({
 
 export function EmergencyContactsWidget({ buildingIds }: Props) {
   const [open, setOpen] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<EmergencyAssignment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -110,43 +179,29 @@ export function EmergencyContactsWidget({ buildingIds }: Props) {
   const getName = (c: EmergencyAssignment["contact"]) =>
     c?.company_name || [c?.first_name, c?.last_name].filter(Boolean).join(" ") || "Dienstleister";
 
-  const isVerwaltung = (cat: string) => cat.toLowerCase().includes("hausmeister");
   const sortedAssignments = [...assignments].sort(
     (x, y) => (x.emergency_sort_order ?? 999) - (y.emergency_sort_order ?? 999)
-  );
-  const verwaltungAssignments = sortedAssignments.filter(
-    (a) => a.service_category && isVerwaltung(a.service_category)
-  );
-  const technischAssignments = sortedAssignments.filter(
-    (a) => a.service_category && !isVerwaltung(a.service_category)
   );
 
   const buildRow = (a: EmergencyAssignment, fallbackCat: string): EntryRow | null => {
     const c = a.contact;
     if (!c) return null;
     const phone = (c.contact_phones || [])[0]?.phone_number;
+    const primaryEmail =
+      (c.contact_emails || []).find((e) => e.is_primary)?.email ||
+      (c.contact_emails || [])[0]?.email;
     const cat = a.service_category || fallbackCat;
     return {
       key: a.id,
-      title: `${cat} – ${getName(c)}`,
+      title: getName(c),
+      category: cat,
       phone,
+      email: primaryEmail,
       hint: a.emergency_note || getCategoryHint(cat),
     };
   };
 
-  const verwaltungRows: EntryRow[] = [
-    {
-      key: "hv",
-      title: "Hausverwaltung",
-      phone: PROPERTY_MANAGER_FALLBACK.phone,
-      hint: "Mo–Fr 10:00–15:00 · Gemeinschaftseigentum",
-    },
-    ...verwaltungAssignments
-      .map((a) => buildRow(a, "Hausmeister"))
-      .filter((r): r is EntryRow => r !== null),
-  ];
-
-  const technischRows: EntryRow[] = technischAssignments
+  const dienstleisterRows: EntryRow[] = sortedAssignments
     .map((a) => buildRow(a, "Sonstiges"))
     .filter((r): r is EntryRow => r !== null);
 
@@ -156,7 +211,6 @@ export function EmergencyContactsWidget({ buildingIds }: Props) {
     phone: n.number,
     hint: n.whenToCall,
   }));
-
 
   return (
     <div className="bg-card rounded-[14px] border border-border/60 overflow-hidden shadow-sm">
@@ -174,7 +228,7 @@ export function EmergencyContactsWidget({ buildingIds }: Props) {
             Notfall-Nummern
           </div>
           <div className="text-[13px] text-muted-foreground mt-0.5 leading-snug">
-            Verwaltung, Technik &amp; öffentliche Notrufe
+            Dienstleister &amp; öffentliche Notrufe
           </div>
         </div>
         <ChevronDown
@@ -202,47 +256,30 @@ export function EmergencyContactsWidget({ buildingIds }: Props) {
                 </p>
               </div>
 
-              {/* Verwaltung */}
-              <div className="h-px bg-foreground/[0.055]" />
-              <SectionHeading>
-                <span className="inline-flex items-center gap-1.5">
-                  <Building2 className="h-3 w-3" />
-                  Verwaltung &amp; Betreuung
-                </span>
-              </SectionHeading>
-              {verwaltungRows.map((row, idx) => (
-                <div key={row.key}>
-                  {idx > 0 && <div className="h-px bg-foreground/[0.055] ml-[60px]" />}
-                  <ContactEntry
-                    row={row}
-                    icon={Phone}
-                    iconBg="bg-orange-500/10"
-                    iconColor="text-orange-600"
-                  />
-                </div>
-              ))}
-
-              {/* Technik */}
+              {/* Dienstleister */}
               <div className="h-px bg-foreground/[0.055]" />
               <SectionHeading>
                 <span className="inline-flex items-center gap-1.5">
                   <Wrench className="h-3 w-3" />
-                  Technische Betreuung
+                  Dienstleister
                 </span>
               </SectionHeading>
-              {technischRows.length === 0 ? (
+              {dienstleisterRows.length === 0 ? (
                 <div className="px-4 py-3.5 text-[13px] text-muted-foreground">
-                  Keine Handwerksbetriebe als Notfallkontakt freigeschaltet.
+                  Keine Dienstleister als Notfallkontakt freigeschaltet.
                 </div>
               ) : (
-                technischRows.map((row, idx) => (
+                dienstleisterRows.map((row, idx) => (
                   <div key={row.key}>
                     {idx > 0 && <div className="h-px bg-foreground/[0.055] ml-[60px]" />}
-                    <ContactEntry
+                    <ServiceProviderEntry
                       row={row}
-                      icon={Phone}
                       iconBg="bg-orange-500/10"
                       iconColor="text-orange-600"
+                      expanded={expandedId === row.key}
+                      onToggle={() =>
+                        setExpandedId((cur) => (cur === row.key ? null : row.key))
+                      }
                     />
                   </div>
                 ))
@@ -259,9 +296,8 @@ export function EmergencyContactsWidget({ buildingIds }: Props) {
               {notrufRows.map((row, idx) => (
                 <div key={row.key}>
                   {idx > 0 && <div className="h-px bg-foreground/[0.055] ml-[60px]" />}
-                  <ContactEntry
+                  <PublicEmergencyEntry
                     row={row}
-                    icon={Phone}
                     iconBg="bg-red-500/10"
                     iconColor="text-red-600"
                   />
