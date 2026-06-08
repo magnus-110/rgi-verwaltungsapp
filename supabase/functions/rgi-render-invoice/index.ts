@@ -80,7 +80,11 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { invoice_id } = await req.json();
+    const body = await req.json();
+    const { invoice_id } = body;
+    const formats: ("docx" | "pdf")[] = Array.isArray(body?.formats) && body.formats.length
+      ? body.formats.filter((f: any) => f === "docx" || f === "pdf")
+      : ["docx", "pdf"];
     if (!invoice_id) return json({ error: "invoice_id erforderlich" }, 400);
 
     const { data: invoice, error: invErr } = await admin
