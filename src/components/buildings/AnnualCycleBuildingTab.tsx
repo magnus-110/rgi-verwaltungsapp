@@ -109,24 +109,41 @@ export const AnnualCycleBuildingTab = ({ buildingId }: Props) => {
 
   return (
     <Card>
-      <CardHeader className="p-3 md:p-4 pb-2 flex-row items-center justify-between space-y-0 gap-2">
-        <CardTitle className="text-sm md:text-base flex items-center gap-2">
-          <CalendarClock className="h-4 w-4 text-primary" />
-          Jahreszyklus
-        </CardTitle>
-        <Select
-          value={selected.start}
-          onValueChange={(v) => setSelected(fiscalYears.find(f => f.start === v)!)}
-        >
-          <SelectTrigger className="h-8 w-[140px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {fiscalYears.map(fy => (
-              <SelectItem key={fy.start} value={fy.start}>Wirtschaftsjahr {fy.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <CardHeader className="p-3 md:p-4 pb-2 space-y-2">
+        <div className="flex flex-row items-center justify-between gap-2">
+          <CardTitle className="text-sm md:text-base flex items-center gap-2">
+            <CalendarClock className="h-4 w-4 text-primary" />
+            Jahreszyklus
+          </CardTitle>
+          <Select
+            value={selected.start}
+            onValueChange={(v) => setSelected(fiscalYears.find(f => f.start === v)!)}
+          >
+            <SelectTrigger className="h-8 w-[140px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {fiscalYears.map(fy => (
+                <SelectItem key={fy.start} value={fy.start}>Wirtschaftsjahr {fy.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant="outline" className="text-xs font-mono">
+            {fmtDate(periodFrom)} – {fmtDate(periodTo)}
+          </Badge>
+          {isShifted && (
+            <Badge variant="secondary" className="text-[10px] bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30">
+              Verschobenes Wirtschaftsjahr
+            </Badge>
+          )}
+          {!period && (
+            <span className="text-[11px] text-muted-foreground">
+              (kein Abrechnungszeitraum hinterlegt – Standard Kalenderjahr)
+            </span>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="p-3 md:p-4 pt-1 space-y-2">
         {isLoading && <p className="text-sm text-muted-foreground">Lade…</p>}
