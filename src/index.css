@@ -145,27 +145,27 @@ All colors MUST be HSL.
 @layer components {
   /* Premium typography classes */
   .heading-display {
-    @apply font-sans font-semibold text-foreground;
+    @apply font-display font-semibold text-foreground;
     letter-spacing: -0.025em;
   }
   
   .heading-primary {
-    @apply font-manrope font-semibold text-foreground;
+    @apply font-display font-semibold text-foreground;
     letter-spacing: -0.025em;
   }
   
   .body-text {
-    @apply font-manrope font-normal text-foreground;
+    @apply font-sans font-normal text-foreground;
     letter-spacing: -0.011em;
   }
   
   .body-secondary {
-    @apply font-manrope font-normal text-muted-foreground;
+    @apply font-sans font-normal text-muted-foreground;
     letter-spacing: -0.008em;
   }
   
   .label-text {
-    @apply font-manrope font-medium text-foreground;
+    @apply font-sans font-medium text-foreground;
     letter-spacing: 0.01em;
   }
   
