@@ -127,8 +127,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       setSession(session);
       setUser(session?.user ?? null);
-      setProfile((current) => current?.user_id === session?.user?.id ? current : null);
-      setLoading(!!session?.user);
+      setProfile((current) => {
+        const sameUser = current?.user_id === session?.user?.id;
+        setLoading(!!session?.user && !sameUser);
+        return sameUser ? current : null;
+      });
     });
 
     return () => {
