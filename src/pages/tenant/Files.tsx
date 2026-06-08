@@ -92,9 +92,14 @@ function FilesByCategory({ files, categories, search }: { files: FileItem[]; cat
           </h3>
           <div className="space-y-1">
             {group.files.map((file) => (
-              <div
+              <button
                 key={file.id}
-                className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors group"
+                onClick={() => {
+                  if (downloading === file.id) return;
+                  handleDownload(file);
+                }}
+                disabled={downloading === file.id}
+                className="w-full text-left flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors group cursor-pointer disabled:cursor-wait disabled:opacity-70"
               >
                 <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -103,16 +108,12 @@ function FilesByCategory({ files, categories, search }: { files: FileItem[]; cat
                     {formatFileSize(file.file_size)} · {format(new Date(file.created_at), "dd.MM.yyyy", { locale: de })}
                   </p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 flex-shrink-0 opacity-60 group-hover:opacity-100"
-                  onClick={() => handleDownload(file)}
-                  disabled={downloading === file.id}
-                >
-                  <Download className="w-4 h-4" />
-                </Button>
-              </div>
+                {downloading === file.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground flex-shrink-0" />
+                ) : (
+                  <Download className="h-4 w-4 text-muted-foreground flex-shrink-0 opacity-60 group-hover:opacity-100" />
+                )}
+              </button>
             ))}
           </div>
         </div>
