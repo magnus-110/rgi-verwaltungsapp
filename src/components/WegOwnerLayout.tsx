@@ -21,7 +21,8 @@ import {
   MessageSquare,
   FolderOpen,
   Users,
-  ClipboardCheck
+  ClipboardCheck,
+  Scale
 } from "lucide-react";
 
 interface WegOwnerLayoutProps {
@@ -155,6 +156,12 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       path: '/weg-owner/kassenpruefung',
       active: location.pathname.startsWith('/weg-owner/kassenpruefung')
     }] : []),
+    { 
+      icon: Scale, 
+      label: "Beschlüsse", 
+      path: '/weg-owner/resolutions',
+      active: location.pathname.startsWith('/weg-owner/resolutions')
+    },
     { 
       icon: MessageSquare, 
       label: "Schwarzes Brett", 
