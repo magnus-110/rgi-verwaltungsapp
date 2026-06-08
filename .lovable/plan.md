@@ -1,37 +1,46 @@
-## Ziel
-Auf der WEG-Owner-Startseite bekommen die Kacheln **Schwarzes Brett**, **Dokumente** und **Versammlungen** ein rotes Zähler-Badge oben rechts (WhatsApp-Stil), sobald es seit dem letzten Besuch neue Einträge gibt. Nach einem Klick auf die Kachel verschwindet das Badge bis zum nächsten neuen Eintrag.
+# Problem-Analyse
 
-## Wie der „ungelesen"-Status funktioniert
-Pro Nutzer und pro Bereich wird ein „zuletzt gesehen"-Zeitstempel in `localStorage` gespeichert (z. B. `rgi:lastSeen:forum:<userId>`, `…:files:<userId>`, `…:meetings:<userId>`).
-- **Beim Laden des Dashboards**: für jeden Bereich wird gezählt, wie viele Einträge ein `created_at` (bzw. `published_at` bei Versammlungen) **nach** diesem Zeitstempel haben — beschränkt auf die Gebäude des Nutzers.
-- **Beim ersten Aufruf** (kein Wert vorhanden): Zeitstempel wird auf „jetzt" gesetzt → keine alten Einträge erscheinen als ungelesen.
-- **Beim Klick auf eine Kachel**: Zeitstempel wird auf „jetzt" aktualisiert, die lokale Zahl im UI sofort auf 0 gesetzt, dann navigiert.
+Beim Klick auf „Als DOCX" im Rechnungseditor (`InvoiceEditorDialog.previewRender("docx")`) passieren zwei unschöne Dinge:
 
-Reine Frontend-Lösung, keine DB-Änderung nötig.
+1. **Leerer about:blank-Tab**: Wir öffnen synchron `window.open("", "_blank")` (Zeile 219), bevor der Render läuft. Wenn der Render scheitert, bleibt der leere Tab sichtbar.
+2. **„Rendering fehlgeschlagen"** obwohl die Vorlage korrekt ist: Die Edge Function `rgi-render-invoice` rendert IMMER zuerst die DOCX und konvertiert dann via CloudConvert nach PDF. Schlägt der **PDF-Schritt** fehl (CloudConvert-Quota, Netzwerk-Timeout, LibreOffice-Engine-Hänger), bekommt der Client einen 500er — **obwohl die DOCX bereits in Storage liegt**. Damit ist auch der DOCX-Download für den Nutzer „kaputt".
 
-## Zählquellen
-- **Schwarzes Brett**: `forum_posts` mit `building_id IN buildingIds`, `management_mode = 'weg'`, `created_at > lastSeen`.
-- **Dokumente**: sichtbare Dateien für den Nutzer — gleiche Logik wie `useHasVisibleFiles`, erweitert um Count + `created_at > lastSeen`. Vermutlich `building_files` gefiltert über `building_file_visibility` / Assignments. Genaue Query wird beim Implementieren an `useHasVisibleFiles` angelehnt.
-- **Versammlungen**: `etv_meetings` mit `building_id IN buildingIds` und einem Veröffentlichungs-/Erstellungs-Zeitstempel (`published_at` bzw. `created_at`) `> lastSeen`. Nur veröffentlichte Meetings zählen.
+Die hochgeladene `Rechnungsvorlage.docx` rendert in der lokalen docxtemplater-Probe problemlos. Die Vorlage ist also nicht das Problem — es ist die unnötige Kopplung von DOCX an PDF + die Tab-Öffnung-vor-Await-Logik.
 
-## UI-Änderungen
-- `src/pages/weg-owner/Dashboard.tsx`:
-  - Neue States: `unreadForum`, `unreadFiles`, `unreadMeetings`.
-  - Im `load()` zusätzlich die drei Counts ermitteln.
-  - `actions`-Array bekommt pro Eintrag ein optionales `unreadCount`.
-  - Klick-Handler setzt vor `navigate(path)` den passenden `localStorage`-Key auf `new Date().toISOString()` und den lokalen State auf 0.
-- Quick-Action-Button (die Kachel im `Schnellzugriff`-Grid):
-  - `relative` Wrapper, das `Icon`-Quadrat bleibt unverändert.
-  - Badge: kleines, rundes Pill oben rechts (`absolute -top-1 -right-1`), `bg-red-500 text-white`, `min-w-[20px] h-5 px-1.5 rounded-full`, `text-[11px] font-semibold tabular-nums`, Anzeige `count > 99 ? "99+" : count`. Nur sichtbar wenn `count > 0`.
-  - Optional `aria-label` ergänzt um „X neue Einträge".
+# Plan
 
-## Edge Cases
-- Nutzer ohne Gebäude → alle Counts = 0, keine Badges.
-- „Dokumente"-Kachel wird ohnehin nur gerendert wenn `hasVisibleFiles` — Badge-Logik daran gekoppelt.
-- `localStorage` nicht verfügbar (SSR/Private Mode) → defensive `try/catch`, im Zweifel Count = 0.
-- Mehrere Tabs: beim Fokus-Event `visibilitychange` werden die Counts neu geladen, damit ein Mark-as-read in Tab A sich in Tab B aktualisiert (leichte Verbesserung, optional).
+## 1. Edge Function `rgi-render-invoice` — Formate selektiv erzeugen
+
+- Neuer optionaler Body-Parameter `formats: ("docx" | "pdf")[]` (Default: `["docx","pdf"]` für Rückwärtskompatibilität).
+- DOCX wird immer gerendert und hochgeladen.
+- PDF nur wenn `formats` `"pdf"` enthält. Schlägt die PDF-Konvertierung fehl, wird die DOCX trotzdem als Erfolg zurückgegeben — mit `pdf_error` im Response statt 500er.
+- Response weiterhin `{ ok, docx_path, pdf_path?, pdf_error? }`.
+
+## 2. `rgiRenderInvoice` (Hook) — Formate durchreichen
+
+- Signatur erweitern: `rgiRenderInvoice(invoiceId, formats?)`.
+- Default unverändert (beide Formate), damit bestehende Aufrufstellen (z.B. „PDF erzeugen"-Button in `InvoicesTab`) funktionieren.
+
+## 3. `InvoiceEditorDialog.previewRender(format)` — sauberer Download
+
+- **`window.open("", "_blank")` entfernen** (kein about:blank mehr).
+- Nur das angefragte Format anfordern: `rgiRenderInvoice(id, [format])`.
+- Statt Tab-Redirect ein klassischer Browser-Download: Signed URL holen → `fetch` → Blob → `<a download>` programmatisch klicken (analog zu `ProtocolDownloadButtons.tsx`, dort bewährt). Damit kein Popup-Blocker-Problem und kein leerer Tab.
+- Fehler-Toast unverändert, aber ohne `win.close()`-Logik.
+
+## 4. `InvoicesTab` Word-Button — gleiche Download-Logik
+
+- `openPdf(inv.docx_storage_path!)` (öffnet DOCX in neuem Tab → Browser bietet meist nur „Speichern unter" an, je nach Browser teils about:blank) ersetzen durch denselben Blob-Download-Helper. Bei PDF darf der Tab bleiben (PDF-Inline-Viewer ist gewünscht).
+
+## Technische Details
+
+- Datei `supabase/functions/rgi-render-invoice/index.ts`: ~10 Zeilen — `formats`-Parsing, `if (formats.includes("pdf"))` um den CloudConvert-Block, `try/catch` um den PDF-Schritt mit `pdfError`-Variable.
+- Datei `src/hooks/useRgi.ts`: `rgiRenderInvoice(invoiceId, formats?: ("docx"|"pdf")[])`, Body um `formats` ergänzen, Rückgabetyp `{ docx_path: string; pdf_path?: string; pdf_error?: string }`.
+- Datei `src/components/rgi-intern/invoices/InvoiceEditorDialog.tsx`: `previewRender` umbauen (kein `window.open`, Blob-Download), Aufruf `rgiRenderInvoice(id!, [format])`. Bei `pdf_error` einen Warn-Toast zeigen.
+- Datei `src/components/rgi-intern/invoices/InvoicesTab.tsx`: Kleinen `downloadBlob(path)`-Helper für DOCX, PDF-Verhalten unverändert.
 
 ## Out of scope
-- Keine serverseitige „read receipts"-Tabelle.
-- Keine Push-Benachrichtigungen.
-- Andere Tiles (Chat, Meldungen, Beschlüsse) bleiben unverändert — die haben bereits eigene Zähler.
+
+- Keine Vorlagen-Änderung — die hochgeladene Vorlage funktioniert.
+- Kein Refactoring der CloudConvert-Logik selbst.
+- Keine Änderung an Storage-Buckets/Policies.
