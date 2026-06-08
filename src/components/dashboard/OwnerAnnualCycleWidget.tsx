@@ -8,12 +8,37 @@ import { buildFiscalYears, type AnnualCycleStatus } from "@/lib/annualCycle";
 import { cn } from "@/lib/utils";
 
 // Owner-facing milestones (custom labels) – linked to annual_cycle_tasks keys
-const OWNER_MILESTONES: { key: string; label: string; short: string }[] = [
-  { key: "beschluesse_umgesetzt", label: "Beschlüsse umgesetzt", short: "Beschlüsse" },
-  { key: "heizkostenabrechnung_beantragt", label: "Heizkostenabrechnung eingereicht", short: "Heizkosten" },
-  { key: "jahresabrechnung_erstellt", label: "Jahresabrechnung erstellt", short: "Abrechnung" },
-  { key: "kassenpruefung", label: "Kassenprüfung", short: "Kassenprüfung" },
-  { key: "etv_protokoll_fertig", label: "Eigentümerversammlung", short: "ETV" },
+const OWNER_MILESTONES: { key: string; label: string; short: string; description: string }[] = [
+  {
+    key: "beschluesse_umgesetzt",
+    label: "Beschlüsse umgesetzt",
+    short: "Beschlüsse",
+    description: "Alle in der letzten Eigentümerversammlung gefassten Beschlüsse wurden umgesetzt oder beauftragt.",
+  },
+  {
+    key: "heizkostenabrechnung_beantragt",
+    label: "Heizkostenabrechnung eingereicht",
+    short: "Heizkosten",
+    description: "Die Verbrauchsdaten wurden an den Messdienstleister (z. B. Brunata) übergeben, damit die Heizkostenabrechnung erstellt werden kann.",
+  },
+  {
+    key: "jahresabrechnung_erstellt",
+    label: "Jahresabrechnung erstellt",
+    short: "Abrechnung",
+    description: "Die Jahresabrechnung des abgelaufenen Wirtschaftsjahres wurde fertiggestellt und steht zur Prüfung bereit.",
+  },
+  {
+    key: "kassenpruefung",
+    label: "Kassenprüfung",
+    short: "Kassenprüfung",
+    description: "Der gewählte Kassenprüfer hat die Belege und Konten geprüft und das Ergebnis dokumentiert.",
+  },
+  {
+    key: "etv_protokoll_fertig",
+    label: "Eigentümerversammlung",
+    short: "ETV",
+    description: "Die jährliche Eigentümerversammlung wurde durchgeführt und das Protokoll versendet.",
+  },
 ];
 
 interface Building { id: string; name: string }
@@ -30,6 +55,7 @@ export const OwnerAnnualCycleWidget = ({ buildings }: Props) => {
   const [selectedYear, setSelectedYear] = useState(fiscalYears[2]);
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(true);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (!selectedBuildingId && buildings.length > 0) setSelectedBuildingId(buildings[0].id);
@@ -101,7 +127,12 @@ export const OwnerAnnualCycleWidget = ({ buildings }: Props) => {
 
       <div className="bg-card rounded-[14px] border border-border/60 overflow-hidden shadow-sm">
         {collapsed ? (
-          <div className="flex items-stretch divide-x divide-foreground/[0.055]">
+          <button
+            type="button"
+            onClick={() => setCollapsed(false)}
+            aria-label="Jahreszyklus aufklappen"
+            className="w-full flex items-stretch divide-x divide-foreground/[0.055] transition-colors hover:bg-muted/40 active:bg-muted/60 cursor-pointer text-left"
+          >
             {OWNER_MILESTONES.map((m) => {
               const entry = byKey.get(m.key);
               const status: AnnualCycleStatus = entry?.status ?? "open";
@@ -138,7 +169,7 @@ export const OwnerAnnualCycleWidget = ({ buildings }: Props) => {
                 </div>
               );
             })}
-          </div>
+          </button>
         ) : (
           OWNER_MILESTONES.map((m, idx) => {
             const entry = byKey.get(m.key);
@@ -151,10 +182,16 @@ export const OwnerAnnualCycleWidget = ({ buildings }: Props) => {
             const subtitle = isDone
               ? completedDate ? `Erledigt am ${completedDate}` : "Erledigt"
               : STATUS_TEXT[status];
+            const isOpen = expandedKey === m.key;
             return (
               <div key={m.key}>
                 {idx > 0 && <div className="h-px bg-foreground/[0.055]" />}
-                <div className="flex items-center gap-4 px-4 py-3.5 min-h-[64px]">
+                <button
+                  type="button"
+                  onClick={() => setExpandedKey(isOpen ? null : m.key)}
+                  aria-expanded={isOpen}
+                  className="w-full flex items-center gap-4 px-4 py-3.5 min-h-[64px] text-left transition-colors hover:bg-muted/40 active:bg-muted/60"
+                >
                   <div
                     className={cn(
                       "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2",
@@ -178,12 +215,24 @@ export const OwnerAnnualCycleWidget = ({ buildings }: Props) => {
                     </div>
                     <div className="text-[13px] text-muted-foreground mt-0.5">{subtitle}</div>
                   </div>
-                </div>
+                  <ChevronDown
+                    className={cn(
+                      "h-5 w-5 text-muted-foreground/60 shrink-0 transition-transform",
+                      isOpen && "rotate-180"
+                    )}
+                  />
+                </button>
+                {isOpen && (
+                  <div className="px-4 pb-4 pt-1 pl-[68px] text-[13px] leading-relaxed text-muted-foreground bg-muted/30">
+                    {m.description}
+                  </div>
+                )}
               </div>
             );
           })
         )}
       </div>
+
     </section>
   );
 };
