@@ -9,13 +9,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Send, Loader2, Paperclip, X, Users, Search, ArrowLeft, ChevronDown } from "lucide-react";
+import { Send, Loader2, Paperclip, X, Users, Search, ArrowLeft, ChevronDown, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EmailTemplatePicker } from "./EmailTemplatePicker";
 import { VoiceDictationButton } from "./VoiceDictationButton";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
+import { DmsFilePickerDialog, type DmsPickerItem } from "@/components/meetings/DmsFilePickerDialog";
 
 interface ComposeEmailDialogProps {
   open: boolean;
@@ -74,6 +75,8 @@ export const ComposeEmailDialog = ({
   const [bccContactPickerOpen, setBccContactPickerOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   const [showCcBcc, setShowCcBcc] = useState(false);
+  const [dmsPickerOpen, setDmsPickerOpen] = useState(false);
+  const [dmsLoading, setDmsLoading] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -156,6 +159,54 @@ export const ComposeEmailDialog = ({
   const removeAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));
   };
+
+  const handleDmsSelect = async (items: DmsPickerItem[]) => {
+    if (!items.length) return;
+    setDmsLoading(true);
+    const MAX_SIZE = 20 * 1024 * 1024;
+    try {
+      const added: AttachmentFile[] = [];
+      for (const item of items) {
+        try {
+          if (typeof item.size === "number" && item.size > MAX_SIZE) {
+            toast.error(`${item.name} ist zu groß (max. 20MB)`);
+            continue;
+          }
+          const { data: signed, error: signErr } = await supabase.storage
+            .from("building-files")
+            .createSignedUrl(item.path, 300);
+          if (signErr || !signed?.signedUrl) {
+            toast.error(`${item.name}: konnte nicht geladen werden`);
+            continue;
+          }
+          const res = await fetch(signed.signedUrl);
+          if (!res.ok) {
+            toast.error(`${item.name}: Download fehlgeschlagen`);
+            continue;
+          }
+          const blob = await res.blob();
+          if (blob.size > MAX_SIZE) {
+            toast.error(`${item.name} ist zu groß (max. 20MB)`);
+            continue;
+          }
+          const file = new File([blob], item.name, {
+            type: item.mimeType || blob.type || "application/octet-stream",
+          });
+          added.push({ file, name: item.name, size: file.size });
+        } catch (e: any) {
+          console.error("DMS attach failed", e);
+          toast.error(`${item.name}: ${e?.message ?? "Fehler"}`);
+        }
+      }
+      if (added.length) {
+        setAttachments(prev => [...prev, ...added]);
+        toast.success(`${added.length} Datei(en) aus DMS angehängt`);
+      }
+    } finally {
+      setDmsLoading(false);
+    }
+  };
+
 
   const openAttachment = (att: AttachmentFile) => {
     const url = URL.createObjectURL(att.file);
@@ -320,6 +371,17 @@ export const ComposeEmailDialog = ({
                 aria-label="Anhang hinzufügen"
               >
                 <Paperclip className="h-5 w-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 rounded-full"
+                onClick={() => setDmsPickerOpen(true)}
+                disabled={dmsLoading}
+                aria-label="Aus DMS anhängen"
+                title="Aus DMS anhängen"
+              >
+                {dmsLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <FolderOpen className="h-5 w-5" />}
               </Button>
               <EmailTemplatePicker
                 context={{ to, accountId }}
@@ -514,6 +576,11 @@ export const ComposeEmailDialog = ({
           url={previewUrl}
           fileName={previewMeta.name}
           mimeType={previewMeta.mimeType}
+        />
+        <DmsFilePickerDialog
+          open={dmsPickerOpen}
+          onOpenChange={setDmsPickerOpen}
+          onSelectItems={handleDmsSelect}
         />
       </>
     );
@@ -749,6 +816,17 @@ export const ComposeEmailDialog = ({
                 <Paperclip className="h-3.5 w-3.5" />
                 Anhang hinzufügen
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setDmsPickerOpen(true)}
+                disabled={dmsLoading}
+              >
+                {dmsLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderOpen className="h-3.5 w-3.5" />}
+                Aus DMS
+              </Button>
               <EmailTemplatePicker
                 context={{ to, accountId }}
                 currentSubject={subject}
@@ -804,6 +882,11 @@ export const ComposeEmailDialog = ({
           url={previewUrl}
           fileName={previewMeta.name}
           mimeType={previewMeta.mimeType}
+        />
+        <DmsFilePickerDialog
+          open={dmsPickerOpen}
+          onOpenChange={setDmsPickerOpen}
+          onSelectItems={handleDmsSelect}
         />
       </DialogContent>
     </Dialog>
