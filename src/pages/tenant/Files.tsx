@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Building2, Search, FileText, Download } from "lucide-react";
+import { User, Building2, Search, FileText, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
