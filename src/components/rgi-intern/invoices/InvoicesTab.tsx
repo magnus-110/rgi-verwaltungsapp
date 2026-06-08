@@ -29,6 +29,25 @@ export function InvoicesTab() {
     window.open(url, "_blank");
   };
 
+  const downloadFile = async (path: string) => {
+    try {
+      const url = await rgiSignedUrl("rgi-invoices", path);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Download fehlgeschlagen (${res.status})`);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = path.split("/").pop() || "Rechnung.docx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch (e: any) {
+      toast.error(`Download fehlgeschlagen: ${e.message}`);
+    }
+  };
+
   const render = async (id: string) => {
     setRenderingId(id);
     try {
