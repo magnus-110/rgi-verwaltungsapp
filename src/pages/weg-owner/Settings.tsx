@@ -9,6 +9,7 @@ import { LegalDocumentsSheet } from "@/components/LegalDocumentsSheet";
 import { OwnerSelfServiceSection } from "@/components/owner/OwnerSelfServiceSection";
 import { supabase } from "@/integrations/supabase/client";
 import { Mail, Info } from "lucide-react";
+import { PasskeysSection } from "@/components/settings/PasskeysSection";
 
 export const WegOwnerSettings = () => {
   const { profile, updatePassword } = useAuth();
@@ -228,6 +229,8 @@ export const WegOwnerSettings = () => {
            </Button>
          </CardContent>
        </Card>
+
+       <PasskeysSection />
  
        <div className="flex justify-center gap-4 pt-4 pb-8">
          <button 

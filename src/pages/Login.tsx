@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Fingerprint } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -18,6 +18,9 @@ export const Login = () => {
   const [resetEmail, setResetEmail] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const passkeySupported =
+    typeof window !== "undefined" && !!(window as any).PublicKeyCredential;
   const { signIn, user, profile } = useAuth();
 
   // Redirect authenticated users
@@ -38,6 +41,27 @@ export const Login = () => {
       toast.error("Ein Fehler ist aufgetreten");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePasskeyLogin = async () => {
+    const auth = supabase.auth as any;
+    if (typeof auth.signInWithPasskey !== "function") {
+      toast.error("Passkey-Anmeldung ist nicht verfügbar.");
+      return;
+    }
+    setPasskeyLoading(true);
+    try {
+      const { error } = await auth.signInWithPasskey();
+      if (error) {
+        if (error.name === "NotAllowedError" || error.code === "user_cancelled") return;
+        toast.error(error.message ?? "Passkey-Anmeldung fehlgeschlagen.");
+      }
+    } catch (e: any) {
+      if (e?.name === "NotAllowedError") return;
+      toast.error(e?.message ?? "Passkey-Anmeldung fehlgeschlagen.");
+    } finally {
+      setPasskeyLoading(false);
     }
   };
 
@@ -114,6 +138,28 @@ export const Login = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {passkeySupported && (
+              <div className="mb-4 space-y-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handlePasskeyLogin}
+                  disabled={passkeyLoading}
+                >
+                  <Fingerprint className="h-4 w-4 mr-2" />
+                  {passkeyLoading ? "Anmelden…" : "Mit Passkey anmelden"}
+                </Button>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-border" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">oder</span>
+                  </div>
+                </div>
+              </div>
+            )}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="identifier">Benutzername oder E-Mail</Label>

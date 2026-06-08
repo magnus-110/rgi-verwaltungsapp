@@ -13,5 +13,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-  }
+    // Opt-in to the experimental Supabase Auth passkey (WebAuthn) APIs.
+    experimental: { passkey: true },
+  } as any,
 });
