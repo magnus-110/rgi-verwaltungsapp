@@ -212,7 +212,6 @@ Deno.serve(async (req) => {
 
     const baseName = `${sanitize(invoice.invoice_number || "Entwurf")}_${sanitize(invoice.client_name_snapshot || invoice.client?.name || "Kunde")}`;
     const docxPath = `docx/${invoice.id}/${baseName}.docx`;
-    const pdfPath = `pdf/${invoice.id}/${baseName}.pdf`;
 
     await admin.storage.from("rgi-invoices").upload(docxPath, docxBytes, {
       contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
