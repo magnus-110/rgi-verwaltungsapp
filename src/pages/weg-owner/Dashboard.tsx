@@ -157,7 +157,7 @@ export const WegOwnerDashboard = () => {
           <SectionLabel>Kontakt & Notfall</SectionLabel>
           <div className="bg-card rounded-[14px] border border-border/60 overflow-hidden shadow-sm">
             <div className="px-4 pt-3.5 pb-2">
-              <div className="text-[15px] font-semibold text-foreground">{PROPERTY_MANAGER_FALLBACK.name}</div>
+              <div className="font-display text-[15px] font-semibold text-foreground tracking-tight">{PROPERTY_MANAGER_FALLBACK.name}</div>
               <div className="text-[13px] text-muted-foreground">Ihre Hausverwaltung · Mo–Fr 10:00–15:00</div>
             </div>
             <div className="h-px bg-foreground/[0.055]" />
