@@ -148,6 +148,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } else if (!user) {
       setProfile(null);
       setLoading(false);
+    } else if (profile?.user_id === user.id) {
+      setLoading(false);
     }
   }, [user?.id, profile?.user_id]);
 
