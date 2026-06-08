@@ -46,6 +46,7 @@ export const WegOwnerDashboard = () => {
   const { profile } = useAuth();
   const hasVisibleFiles = useHasVisibleFiles(profile?.user_id);
   const [buildings, setBuildings] = useState<Building[]>([]);
+  const [contactOpen, setContactOpen] = useState(false);
   const [openReports, setOpenReports] = useState(0);
   const [openResolutions, setOpenResolutions] = useState(0);
   const [unreadForum, setUnreadForum] = useState(0);
