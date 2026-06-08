@@ -21,6 +21,10 @@ function fmtMoney(n: number | string | null | undefined): string {
   const v = typeof n === "string" ? parseFloat(n) : (n ?? 0);
   return (v || 0).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 }
+function fmtNumber(n: number | string | null | undefined, max = 4): string {
+  const v = typeof n === "string" ? parseFloat(n) : (n ?? 0);
+  return (v || 0).toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: max });
+}
 function sanitize(s: string): string {
   return (s || "").replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 80);
 }
@@ -107,15 +111,57 @@ Deno.serve(async (req) => {
     }
 
     // Build payload
-    const items = (invoice.items || []).sort((a: any, b: any) => a.position - b.position);
+    const items = (invoice.items || [])
+      .sort((a: any, b: any) => a.position - b.position)
+      .map((it: any, idx: number) => {
+        const quantity = Number(it.quantity || 0);
+        const unitPriceNet = Number(it.unit_price_net || 0);
+        const vatRate = Number(it.vat_rate || 0);
+        const lineNet = Math.round(quantity * unitPriceNet * 100) / 100;
+        const lineVat = Math.round(lineNet * vatRate) / 100;
+        const lineGross = Math.round((lineNet + lineVat) * 100) / 100;
+        return { ...it, idx, quantity, unitPriceNet, vatRate, lineNet, lineVat, lineGross };
+      });
     const vatBreakdown: Record<string, { net: number; vat: number }> = {};
     for (const it of items) {
-      const k = String(it.vat_rate);
+      const k = String(it.vatRate);
       vatBreakdown[k] ??= { net: 0, vat: 0 };
-      vatBreakdown[k].net += Number(it.line_net);
-      vatBreakdown[k].vat += Number(it.line_vat);
+      vatBreakdown[k].net += it.lineNet;
+      vatBreakdown[k].vat += it.lineVat;
     }
+    const totals = items.reduce((acc: any, it: any) => {
+      acc.net += it.lineNet;
+      acc.vat += it.lineVat;
+      acc.gross += it.lineGross;
+      return acc;
+    }, { net: 0, vat: 0, gross: 0 });
+    const invoiceNumber = invoice.invoice_number || "ENTWURF";
+    const issueDate = fmtDate(invoice.issue_date);
+    const dueDate = fmtDate(invoice.due_date);
+    const servicePeriod = invoice.service_period_from || invoice.service_period_to
+      ? `${fmtDate(invoice.service_period_from)} – ${fmtDate(invoice.service_period_to)}`
+      : "";
+    const clientName = invoice.client_name_snapshot || invoice.client?.name || "";
+    const clientAddress = invoice.client_address_snapshot || [invoice.client?.address_line1, [invoice.client?.zip, invoice.client?.city].filter(Boolean).join(" "), invoice.client?.country].filter(Boolean).join(", ");
     const payload = {
+      Rechnungsnummer: invoiceNumber,
+      Rechnungsdatum: issueDate,
+      Faellig: dueDate,
+      Fällig: dueDate,
+      Faelligkeit: dueDate,
+      Fälligkeit: dueDate,
+      Leistungszeitraum: servicePeriod,
+      Kundennummer: invoice.client?.customer_no || "",
+      Kunde: clientName,
+      Kundenadresse: clientAddress,
+      Netto: fmtMoney(totals.net),
+      Nettobetrag: fmtMoney(totals.net),
+      Umsatzsteuer: fmtMoney(totals.vat),
+      Gesamtbetrag: fmtMoney(totals.gross),
+      Brutto: fmtMoney(totals.gross),
+      IBAN: company?.iban || "",
+      BIC: company?.bic || "",
+      Bank: company?.bank_name || "",
       firma: {
         name: company?.legal_name || "",
         adresse: [company?.address_line1, company?.address_line2, [company?.zip, company?.city].filter(Boolean).join(" "), company?.country].filter(Boolean).join(", "),
@@ -139,8 +185,8 @@ Deno.serve(async (req) => {
         website: company?.website || "",
       },
       kunde: {
-        name: invoice.client_name_snapshot || invoice.client?.name || "",
-        adresse: invoice.client_address_snapshot || [invoice.client?.address_line1, [invoice.client?.zip, invoice.client?.city].filter(Boolean).join(" "), invoice.client?.country].filter(Boolean).join(", "),
+        name: clientName,
+        adresse: clientAddress,
         strasse: invoice.client?.address_line1 || "",
         plz: invoice.client?.zip || "",
         zip: invoice.client?.zip || "",
@@ -152,36 +198,36 @@ Deno.serve(async (req) => {
         kundennr: invoice.client?.customer_no || "",
       },
       rechnung: {
-        nummer: invoice.invoice_number || "ENTWURF",
-        datum: fmtDate(invoice.issue_date),
-        faellig: fmtDate(invoice.due_date),
-        leistungszeitraum: invoice.service_period_from || invoice.service_period_to
-          ? `${fmtDate(invoice.service_period_from)} – ${fmtDate(invoice.service_period_to)}`
-          : "",
+        nummer: invoiceNumber,
+        datum: issueDate,
+        faellig: dueDate,
+        leistungszeitraum: servicePeriod,
         intro: invoice.intro_text || "",
         footer: invoice.footer_text || company?.default_footer_text || "",
         projekt: invoice.project?.name || "",
       },
-      positionen: items.map((it: any, idx: number) => ({
-        nr: idx + 1,
+      positionen: items.map((it: any) => ({
+        nr: it.idx + 1,
+        pos: it.idx + 1,
         beschreibung: it.description,
-        menge: Number(it.quantity).toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 4 }),
+        menge: fmtNumber(it.quantity),
         einheit: it.unit || "",
-        einzelpreis: fmtMoney(it.unit_price_net),
-        ust: `${Number(it.vat_rate)}%`,
-        netto: fmtMoney(it.line_net),
-        summe: fmtMoney(it.line_gross),
+        einzelpreis: fmtMoney(it.unitPriceNet),
+        ust: `${fmtNumber(it.vatRate, 2)}%`,
+        netto: fmtMoney(it.lineNet),
+        summe: fmtMoney(it.lineGross),
+        brutto: fmtMoney(it.lineGross),
       })),
       summe: {
-        netto: fmtMoney(invoice.subtotal_net),
-        ust: fmtMoney(invoice.vat_total),
+        netto: fmtMoney(totals.net),
+        ust: fmtMoney(totals.vat),
         ust19: fmtMoney(vatBreakdown["19"]?.vat || 0),
         ust7: fmtMoney(vatBreakdown["7"]?.vat || 0),
         ust0: fmtMoney(vatBreakdown["0"]?.vat || 0),
         netto19: fmtMoney(vatBreakdown["19"]?.net || 0),
         netto7: fmtMoney(vatBreakdown["7"]?.net || 0),
         netto0: fmtMoney(vatBreakdown["0"]?.net || 0),
-        brutto: fmtMoney(invoice.total_gross),
+        brutto: fmtMoney(totals.gross),
       },
     };
 
