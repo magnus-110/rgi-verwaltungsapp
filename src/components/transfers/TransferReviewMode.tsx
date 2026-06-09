@@ -392,7 +392,8 @@ function SearchableBuildingSelect({
               {allOptions.map((opt) => (
                 <CommandItem
                   key={opt.value}
-                  value={opt.value}
+                  value={`${opt.label} ${opt.search} ${opt.value}`}
+                  keywords={[opt.label, opt.search]}
                   onSelect={() => {
                     onUpdate(opt.value);
                     setOpen(false);
