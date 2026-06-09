@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, MessageSquare, MessageCircle, FileText, Users, Scale, Phone, Mail, MapPin, Check, ChevronRight, ChevronDown, Building2 } from "lucide-react";
+import { AlertTriangle, MessageSquare, MessageCircle, FileText, Users, Scale, Phone, Mail, MapPin, Check, ChevronRight, ChevronDown, Building2, MessageSquarePlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
@@ -263,6 +263,8 @@ export const WegOwnerDashboard = () => {
             </button>
             {contactOpen && (
               <>
+                <div className="h-px bg-foreground/[0.055]" />
+                <ContactRow icon={MessageSquarePlus} title="Meldung erstellen" subtitle="Anliegen direkt an die Hausverwaltung" href="/weg-owner/reports" />
                 <div className="h-px bg-foreground/[0.055]" />
                 <ContactRow icon={Phone} title="Anrufen" subtitle={PROPERTY_MANAGER_FALLBACK.phone} href={phoneHref} />
                 <div className="h-px bg-foreground/[0.055]" />
