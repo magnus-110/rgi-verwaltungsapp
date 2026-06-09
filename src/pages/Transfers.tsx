@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, isToday } from "date-fns";
 import {
   CreditCard, AlertTriangle, Play, StickyNote, Check, X, FileCode, Loader2,
-  RefreshCw, Sparkles, ArrowDownToLine, ArrowUpFromLine, Link2, Clock,
+  RefreshCw, Sparkles, ArrowDownToLine, ArrowUpFromLine, Link2, Clock, ArrowUpDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -69,6 +69,7 @@ export function Transfers() {
   const [reviewInvoices, setReviewInvoices] = useState<any[]>([]);
   const [showPaid, setShowPaid] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortByBuilding, setSortByBuilding] = useState(false);
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [retryingOcr, setRetryingOcr] = useState<string | null>(null);
@@ -212,11 +213,9 @@ export function Transfers() {
   // Suche: Name (Vendor / Verwendungszweck / Re-Nr.) oder Betrag
   const filteredInvoices = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return invoices;
-    // Betrag: erlaube "," als Dezimalzeichen
     const num = parseFloat(q.replace(/\./g, "").replace(",", "."));
-    const isNum = !isNaN(num);
-    return invoices.filter((inv: any) => {
+    const isNum = q && !isNaN(num);
+    const base = !q ? invoices : invoices.filter((inv: any) => {
       const bld = inv.building_id ? buildings.find((x: any) => x.id === inv.building_id) : null;
       const fields = [
         inv.vendor_name,
@@ -233,13 +232,27 @@ export function Transfers() {
       if (isNum) {
         const amt = Number(inv.gross_amount) || 0;
         if (Math.abs(amt - num) < 0.005) return true;
-        // auch Substring-Treffer auf der formatierten Zahl ("123,45")
         const amtStr = amt.toFixed(2).replace(".", ",");
         if (amtStr.includes(q)) return true;
       }
       return false;
     });
-  }, [invoices, searchTerm, buildings]);
+    if (!sortByBuilding) return base;
+    const labelOf = (inv: any) => {
+      if ((inv as any).is_company_invoice) return "\u0000RGI"; // group first
+      return (inv as any).buildings?.name || "zzz_kein";
+    };
+    return [...base].sort((a, b) => {
+      const la = labelOf(a);
+      const lb = labelOf(b);
+      const cmp = la.localeCompare(lb, "de");
+      if (cmp !== 0) return cmp;
+      // innerhalb einer Liegenschaft: nach Fälligkeit
+      const da = a.due_date ? new Date(a.due_date).getTime() : Infinity;
+      const db = b.due_date ? new Date(b.due_date).getTime() : Infinity;
+      return da - db;
+    });
+  }, [invoices, searchTerm, buildings, sortByBuilding]);
 
   const formatCurrency = (val: number | null) =>
     val == null ? "–" : new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(val);
@@ -544,7 +557,17 @@ export function Transfers() {
                   <TableHead>Verwendungszweck</TableHead>
                   <TableHead>IBAN</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
-                  <TableHead>Liegenschaft</TableHead>
+                  <TableHead>
+                    <button
+                      type="button"
+                      onClick={() => setSortByBuilding((v) => !v)}
+                      className={`inline-flex items-center gap-1 transition-colors ${sortByBuilding ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                      title={sortByBuilding ? "Sortierung nach Liegenschaft aktiv – klicken zum Zurücksetzen" : "Nach Liegenschaft gruppieren"}
+                    >
+                      Liegenschaft
+                      <ArrowUpDown className={`h-3 w-3 ${sortByBuilding ? "opacity-100" : "opacity-40"}`} />
+                    </button>
+                  </TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
@@ -655,6 +678,8 @@ export function Transfers() {
           onMatch={(inv) => setMatchInvoice(inv)}
           onRefetch={refetch}
           onOpen={(inv) => openReviewForInvoice(inv)}
+          sortByBuilding={sortByBuilding}
+          onToggleSortByBuilding={() => setSortByBuilding((v) => !v)}
         />
       )}
 
@@ -672,6 +697,7 @@ export function Transfers() {
 // ============================================================
 function IncomingList({
   invoices, buildings, formatCurrency, retryOcr, retryingOcr, onMatch, onRefetch, onOpen,
+  sortByBuilding, onToggleSortByBuilding,
 }: {
   invoices: any[];
   buildings: any[];
@@ -681,6 +707,8 @@ function IncomingList({
   onMatch: (inv: any) => void;
   onRefetch: () => void;
   onOpen: (inv: any) => void;
+  sortByBuilding: boolean;
+  onToggleSortByBuilding: () => void;
 }) {
   const renderStatus = (inv: any) => {
     const tx = inv._linked_tx;
@@ -716,7 +744,17 @@ function IncomingList({
             <TableHead>Absender</TableHead>
             <TableHead>Verwendungszweck</TableHead>
             <TableHead className="text-right">Betrag</TableHead>
-            <TableHead>Liegenschaft</TableHead>
+            <TableHead>
+              <button
+                type="button"
+                onClick={onToggleSortByBuilding}
+                className={`inline-flex items-center gap-1 transition-colors ${sortByBuilding ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                title={sortByBuilding ? "Sortierung nach Liegenschaft aktiv – klicken zum Zurücksetzen" : "Nach Liegenschaft gruppieren"}
+              >
+                Liegenschaft
+                <ArrowUpDown className={`h-3 w-3 ${sortByBuilding ? "opacity-100" : "opacity-40"}`} />
+              </button>
+            </TableHead>
             
             <TableHead>Status</TableHead>
             <TableHead className="w-32 text-right">Aktion</TableHead>
