@@ -925,6 +925,7 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
     setRequiresResolution(t.requires_resolution !== false);
     setRequiresDQ(t.requires_double_qualified || false);
     setDqRelevant(t.double_qualified_relevant || false);
+    setTplIsActionable(t.is_actionable || false);
     setDialogOpen(true);
   };
 
