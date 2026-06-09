@@ -39,7 +39,7 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
     queryFn: async () => {
       const { data, error } = await supabase
         .from("etv_agenda_items")
-        .select("id, status, resolution_text, result, yes_count, no_count, abstain_count, voting_principle")
+        .select("id, status, resolution_text, result, yes_count, no_count, abstain_count, voting_principle, is_actionable")
         .eq("meeting_id", meetingId)
         .order("sort_order");
       if (error) throw error;
