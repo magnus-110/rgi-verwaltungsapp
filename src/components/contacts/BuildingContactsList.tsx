@@ -280,11 +280,14 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   });
 
   const { data: customShareTypes = [] } = useQuery({
-    queryKey: ['custom-share-types'],
+    queryKey: ['custom-share-types', buildingId],
     queryFn: async () => {
-      const { data } = await supabase.from("contact_building_shares").select("share_type");
+      const { data } = await supabase
+        .from("building_share_types")
+        .select("value")
+        .eq("building_id", buildingId);
       if (!data) return [];
-      const unique = [...new Set(data.map(d => d.share_type))];
+      const unique = [...new Set(data.map((d: any) => d.value as string))];
       return unique.filter(t => !SHARE_TYPES.some(s => s.value === t) && t && t !== String("__add__"));
     },
   });
@@ -474,7 +477,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const updateShare = async (id: string, field: string, value: any) => {
     await supabase.from("contact_building_shares").update({ [field]: value } as any).eq("id", id);
     await refetch();
-    if (field === "share_type") queryClient.invalidateQueries({ queryKey: ["custom-share-types"] });
+    if (field === "share_type") queryClient.invalidateQueries({ queryKey: ["custom-share-types", buildingId] });
   };
   const deleteShare = async (id: string) => {
     await supabase.from("contact_building_shares").delete().eq("id", id);
@@ -489,12 +492,33 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     const val = editingType.value.trim();
     if (editingType.field === "share_type") {
       if (editingType.mode === "edit" && editingType.oldValue) {
-        // Rename: update all records with old value to new value
-        await supabase.from("contact_building_shares").update({ share_type: val } as any).eq("share_type", editingType.oldValue as any);
+        // Rename: catalog + alle Shares dieses Gebäudes
+        await supabase
+          .from("building_share_types")
+          .update({ value: val, label: val } as any)
+          .eq("building_id", buildingId)
+          .eq("value", editingType.oldValue);
+        const { data: asgs } = await supabase
+          .from("contact_building_assignments")
+          .select("id")
+          .eq("building_id", buildingId);
+        const ids = (asgs || []).map((a: any) => a.id);
+        if (ids.length > 0) {
+          await supabase
+            .from("contact_building_shares")
+            .update({ share_type: val } as any)
+            .in("assignment_id", ids)
+            .eq("share_type", editingType.oldValue as any);
+        }
       } else {
+        // Neu anlegen: in Katalog + in den aktuellen Share-Datensatz schreiben
+        await supabase
+          .from("building_share_types")
+          .upsert({ building_id: buildingId, value: val, label: val } as any, { onConflict: "building_id,value" } as any);
         await supabase.from("contact_building_shares").update({ share_type: val } as any).eq("id", editingType.id);
       }
-      queryClient.invalidateQueries({ queryKey: ["custom-share-types"] });
+      queryClient.invalidateQueries({ queryKey: ["custom-share-types", buildingId] });
+      queryClient.invalidateQueries({ queryKey: ["building-share-types", buildingId] });
     } else {
       if (editingType.mode === "edit" && editingType.oldValue) {
         await supabase.from("contact_building_costs").update({ cost_type: val }).eq("cost_type", editingType.oldValue);
@@ -509,8 +533,25 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
   const deleteCustomType = async (field: string, typeValue: string) => {
     if (field === "share_type") {
-      await supabase.from("contact_building_shares").update({ share_type: "mea" } as any).eq("share_type", typeValue as any);
-      queryClient.invalidateQueries({ queryKey: ["custom-share-types"] });
+      const { data: asgs } = await supabase
+        .from("contact_building_assignments")
+        .select("id")
+        .eq("building_id", buildingId);
+      const ids = (asgs || []).map((a: any) => a.id);
+      if (ids.length > 0) {
+        await supabase
+          .from("contact_building_shares")
+          .update({ share_type: "mea" } as any)
+          .in("assignment_id", ids)
+          .eq("share_type", typeValue as any);
+      }
+      await supabase
+        .from("building_share_types")
+        .delete()
+        .eq("building_id", buildingId)
+        .eq("value", typeValue);
+      queryClient.invalidateQueries({ queryKey: ["custom-share-types", buildingId] });
+      queryClient.invalidateQueries({ queryKey: ["building-share-types", buildingId] });
     } else {
       await supabase.from("contact_building_costs").update({ cost_type: "Hausgeld" }).eq("cost_type", typeValue);
       queryClient.invalidateQueries({ queryKey: ["custom-cost-types"] });

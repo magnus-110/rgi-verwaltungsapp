@@ -1708,6 +1708,41 @@ export type Database = {
           },
         ]
       }
+      building_share_types: {
+        Row: {
+          building_id: string
+          created_at: string
+          id: string
+          label: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          building_id: string
+          created_at?: string
+          id?: string
+          label: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          building_id?: string
+          created_at?: string
+          id?: string
+          label?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "building_share_types_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       buildings: {
         Row: {
           address: string
