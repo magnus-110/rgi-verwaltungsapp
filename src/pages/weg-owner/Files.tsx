@@ -3,7 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Building2, Search, FileText, Download, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { User, Building2, Search, FileText, Download, Loader2, Folder, ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -19,6 +22,7 @@ interface FileItem {
   visibility_role: string | null;
   created_at: string;
   category_id: string | null;
+  fiscal_year: number | null;
 }
 
 interface Category {
@@ -27,40 +31,74 @@ interface Category {
   color: string | null;
 }
 
+const NO_CAT = "__none__";
+const NO_YEAR = "__noyear__";
+const ALL_YEARS = "__all__";
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function FilesByCategory({ files, categories, search }: { files: FileItem[]; categories: Category[]; search: string }) {
+function FilesBrowser({ files, categories, search }: { files: FileItem[]; categories: Category[]; search: string }) {
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [selectedCatId, setSelectedCatId] = useState<string | null>(null);
+  const [yearFilter, setYearFilter] = useState<string>(ALL_YEARS);
 
-  const filtered = useMemo(() =>
-    files.filter(f => f.display_name.toLowerCase().includes(search.toLowerCase())),
-    [files, search]
-  );
+  // Year options derived from files
+  const yearOptions = useMemo(() => {
+    const years = new Set<number>();
+    let hasNoYear = false;
+    files.forEach(f => {
+      if (f.fiscal_year != null) years.add(f.fiscal_year);
+      else hasNoYear = true;
+    });
+    const sorted = Array.from(years).sort((a, b) => b - a);
+    return { years: sorted, hasNoYear };
+  }, [files]);
 
+  // Apply search + year filter
+  const filtered = useMemo(() => {
+    const s = search.toLowerCase();
+    return files.filter(f => {
+      if (s && !f.display_name.toLowerCase().includes(s)) return false;
+      if (yearFilter === ALL_YEARS) return true;
+      if (yearFilter === NO_YEAR) return f.fiscal_year == null;
+      return String(f.fiscal_year) === yearFilter;
+    });
+  }, [files, search, yearFilter]);
+
+  // Group by category id (key = id or NO_CAT)
   const grouped = useMemo(() => {
-    const map = new Map<string | null, { name: string; files: FileItem[] }>();
-
-    // Group by category
-    for (const file of filtered) {
-      const catId = file.category_id;
-      if (!map.has(catId)) {
-        const cat = categories.find(c => c.id === catId);
-        map.set(catId, { name: cat?.name || "Ohne Kategorie", files: [] });
-      }
-      map.get(catId)!.files.push(file);
+    const map = new Map<string, FileItem[]>();
+    for (const f of filtered) {
+      const key = f.category_id || NO_CAT;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(f);
     }
+    return map;
+  }, [filtered]);
 
-    // Sort: named categories first (by name), "Ohne Kategorie" last
-    return Array.from(map.entries()).sort(([aId, a], [bId, b]) => {
-      if (!aId) return 1;
-      if (!bId) return -1;
+  // Cards to show — only non-empty
+  const folderCards = useMemo(() => {
+    const cards: { id: string; name: string; color: string | null; count: number }[] = [];
+    categories.forEach(c => {
+      const list = grouped.get(c.id);
+      if (list && list.length > 0) {
+        cards.push({ id: c.id, name: c.name, color: c.color, count: list.length });
+      }
+    });
+    const noCatList = grouped.get(NO_CAT);
+    if (noCatList && noCatList.length > 0) {
+      cards.push({ id: NO_CAT, name: "Ohne Kategorie", color: null, count: noCatList.length });
+    }
+    return cards.sort((a, b) => {
+      if (a.id === NO_CAT) return 1;
+      if (b.id === NO_CAT) return -1;
       return a.name.localeCompare(b.name);
     });
-  }, [filtered, categories]);
+  }, [categories, grouped]);
 
   const getSignedUrl = async (file: FileItem): Promise<string | null> => {
     try {
@@ -84,39 +122,50 @@ function FilesByCategory({ files, categories, search }: { files: FileItem[]; cat
       toast.error("Öffnen fehlgeschlagen");
       return;
     }
-    if (targetWindow) {
-      targetWindow.location.href = url;
-    } else {
-      window.location.href = url;
-    }
+    if (targetWindow) targetWindow.location.href = url;
+    else window.location.href = url;
   };
 
-  if (filtered.length === 0) {
-    return (
-      <div className="text-center py-12 text-muted-foreground">
-        <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
-        <p className="text-sm">{search ? `Keine Dokumente für „${search}" gefunden` : "Noch keine Dokumente vorhanden"}</p>
-      </div>
-    );
-  }
+  const yearSelect = (
+    <Select value={yearFilter} onValueChange={setYearFilter}>
+      <SelectTrigger className="h-9 w-[160px]">
+        <SelectValue placeholder="Wirtschaftsjahr" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL_YEARS}>Alle Jahre</SelectItem>
+        {yearOptions.years.map(y => (
+          <SelectItem key={y} value={String(y)}>WJ {y}</SelectItem>
+        ))}
+        {yearOptions.hasNoYear && <SelectItem value={NO_YEAR}>Ohne Jahr</SelectItem>}
+      </SelectContent>
+    </Select>
+  );
 
-  return (
-    <div className="space-y-6">
-      {grouped.map(([catId, group]) => (
-        <div key={catId || "__none__"}>
-          <h3 className="text-sm font-semibold text-primary uppercase tracking-wide mb-3 px-1 flex items-center gap-2">
-            <div className="w-1 h-4 rounded-full bg-primary" />
-            {group.name}
-          </h3>
+  // Drill-down view
+  if (selectedCatId) {
+    const list = grouped.get(selectedCatId) || [];
+    const card = folderCards.find(c => c.id === selectedCatId);
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="ghost" size="sm" onClick={() => setSelectedCatId(null)}>
+            <ChevronLeft className="w-4 h-4 mr-1" /> Zurück
+          </Button>
+          <h3 className="text-base font-semibold flex-1">{card?.name || "Dokumente"}</h3>
+          {yearSelect}
+        </div>
+        {list.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">Keine Dokumente in diesem Ordner.</p>
+          </div>
+        ) : (
           <div className="space-y-1">
-            {group.files.map((file) => (
+            {list.map((file) => (
               <button
                 key={file.id}
                 type="button"
-                onClick={() => {
-                  if (downloading === file.id) return;
-                  handleOpen(file);
-                }}
+                onClick={() => { if (downloading !== file.id) handleOpen(file); }}
                 disabled={downloading === file.id}
                 className="w-full text-left flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors group cursor-pointer disabled:cursor-wait disabled:opacity-70"
               >
@@ -125,6 +174,7 @@ function FilesByCategory({ files, categories, search }: { files: FileItem[]; cat
                   <p className="text-sm font-medium truncate">{file.display_name}</p>
                   <p className="text-xs text-muted-foreground">
                     {formatFileSize(file.file_size)} · {format(new Date(file.created_at), "dd.MM.yyyy", { locale: de })}
+                    {file.fiscal_year != null && <> · WJ {file.fiscal_year}</>}
                   </p>
                 </div>
                 {downloading === file.id ? (
@@ -135,8 +185,48 @@ function FilesByCategory({ files, categories, search }: { files: FileItem[]; cat
               </button>
             ))}
           </div>
+        )}
+      </div>
+    );
+  }
+
+  // Folder cards view
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 justify-end">
+        {yearSelect}
+      </div>
+      {folderCards.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="text-sm">
+            {search || yearFilter !== ALL_YEARS
+              ? "Keine Dokumente für die aktuelle Auswahl gefunden."
+              : "Noch keine Dokumente vorhanden."}
+          </p>
         </div>
-      ))}
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {folderCards.map((c) => (
+            <Card
+              key={c.id}
+              onClick={() => setSelectedCatId(c.id)}
+              className="p-4 cursor-pointer hover:bg-muted/50 hover:border-primary/40 transition-colors flex items-center gap-3"
+            >
+              <div
+                className="h-11 w-11 rounded-lg flex items-center justify-center shrink-0"
+                style={{ backgroundColor: (c.color || "#3b82f6") + "1f", color: c.color || undefined }}
+              >
+                <Folder className="h-5 w-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{c.name}</p>
+                <p className="text-xs text-muted-foreground">{c.count} {c.count === 1 ? "Dokument" : "Dokumente"}</p>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -156,14 +246,12 @@ export function WegOwnerFiles() {
   const fetchFiles = async () => {
     setLoading(true);
 
-    // Find all contact ids linked to this user (a user may map to multiple contacts)
     const { data: contactRows } = await supabase
       .from("contacts")
       .select("id")
       .eq("user_id", profile!.user_id);
     const contactIds = (contactRows || []).map((c: any) => c.id);
 
-    // File ids explicitly shared with these contacts
     let visibilityFileIds: string[] = [];
     if (contactIds.length > 0) {
       const { data: visRows } = await supabase
@@ -174,14 +262,12 @@ export function WegOwnerFiles() {
     }
 
     const [assignedRes, personenRes, buildingRes, catRes] = await Promise.all([
-      // Files directly assigned to this user
       supabase
         .from("building_files")
         .select("*")
         .eq("assigned_user_id", profile!.user_id)
         .eq("visible_to_users", true)
         .order("created_at", { ascending: false }),
-      // Files shared specifically with one of this user's contacts
       visibilityFileIds.length > 0
         ? supabase
             .from("building_files")
@@ -189,7 +275,6 @@ export function WegOwnerFiles() {
             .in("id", visibilityFileIds)
             .order("created_at", { ascending: false })
         : Promise.resolve({ data: [] as any[] }),
-      // Building-wide files: visible to all, NOT person-specific, NOT individually assigned
       supabase
         .from("building_files")
         .select("*")
@@ -204,7 +289,6 @@ export function WegOwnerFiles() {
         .order("sort_order"),
     ]);
 
-    // Merge personal sources, dedupe by id
     const personalMap = new Map<string, FileItem>();
     (assignedRes.data || []).forEach((f: any) => personalMap.set(f.id, f));
     (personenRes.data || []).forEach((f: any) => personalMap.set(f.id, f));
@@ -226,7 +310,6 @@ export function WegOwnerFiles() {
         <p className="text-sm text-muted-foreground">Ihre persönlichen und Gebäude-Dokumente</p>
       </div>
 
-      {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
@@ -237,7 +320,7 @@ export function WegOwnerFiles() {
         />
       </div>
 
-      <Tabs defaultValue="personal">
+      <Tabs defaultValue="building">
         <TabsList variant="pill" className="w-full grid grid-cols-2">
           <TabsTrigger value="personal" className="gap-2">
             <User className="w-4 h-4" />
@@ -249,10 +332,10 @@ export function WegOwnerFiles() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="personal" className="mt-4">
-          <FilesByCategory files={personalFiles} categories={categories} search={search} />
+          <FilesBrowser files={personalFiles} categories={categories} search={search} />
         </TabsContent>
         <TabsContent value="building" className="mt-4">
-          <FilesByCategory files={buildingFiles} categories={categories} search={search} />
+          <FilesBrowser files={buildingFiles} categories={categories} search={search} />
         </TabsContent>
       </Tabs>
     </div>
