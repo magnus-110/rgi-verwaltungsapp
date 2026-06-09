@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { CheckCircle2, AlertTriangle, Circle, MinusCircle, Loader2, Landmark, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { signedTotalForAccount } from "./lib/bookingAggregation";
+import { useFiscalYearContext } from "@/contexts/FiscalYearContext";
 
 interface Props {
   sharedBuildingId?: string | null;
@@ -38,7 +39,13 @@ export function BankReconciliationTab({ sharedBuildingId, onBuildingChange }: Pr
     setInternalBuilding(id);
     onBuildingChange?.(id);
   };
-  const [year, setYear] = useState<number>(new Date().getFullYear());
+  const fyCtx = useFiscalYearContext();
+  const ctxYear = fyCtx.getFiscalYear(buildingId || null);
+  const year = ctxYear ?? new Date().getFullYear();
+  const setYear = (y: number) => {
+    if (buildingId) fyCtx.setFiscalYear(buildingId, y);
+    else fyCtx.setGlobalFiscalYear(y);
+  };
   const [bankAccountId, setBankAccountId] = useState<string>("");
   const [openMonth, setOpenMonth] = useState<number | null>(null);
 

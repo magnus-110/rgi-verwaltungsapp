@@ -10,6 +10,7 @@ import { BankReconciliationTab } from "@/components/finance/BankReconciliationTa
 import { ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useFiscalYearContext } from "@/contexts/FiscalYearContext";
 
 
 const NEEDS_PERIOD_TABS = ["abrechnung"];
@@ -44,8 +45,11 @@ const loadPersisted = (): Partial<PersistedState> => {
 
 export const Finance = () => {
   const persisted = useRef(loadPersisted()).current;
+  const fyCtx = useFiscalYearContext();
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(persisted.selectedBuildingId ?? null);
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(persisted.selectedPeriodId ?? null);
+  const initialPeriod =
+    persisted.selectedPeriodId ?? (persisted.selectedBuildingId ? fyCtx.getPeriodId(persisted.selectedBuildingId) : null);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(initialPeriod);
   const [activeTab, setActiveTab] = useState(persisted.activeTab ?? "buchen");
   const [activeSubTab, setActiveSubTab] = useState<SubTab>(persisted.activeSubTab ?? "statements");
   const [buchenHover, setBuchenHover] = useState(false);
@@ -137,7 +141,7 @@ export const Finance = () => {
 
       <BillingPeriodSelector
         selectedBuildingId={selectedBuildingId}
-        onBuildingChange={(id) => { setSelectedBuildingId(id); setSelectedPeriodId(null); }}
+        onBuildingChange={(id) => { setSelectedBuildingId(id); setSelectedPeriodId(id ? fyCtx.getPeriodId(id) : null); }}
         selectedPeriodId={selectedPeriodId}
         onPeriodChange={setSelectedPeriodId}
         showPeriod={showPeriod}

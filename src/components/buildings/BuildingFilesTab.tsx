@@ -12,6 +12,7 @@ import { FileDropCard } from "@/components/files/FileDropCard";
 import { FileCategoryManager } from "@/components/files/FileCategoryManager";
 import { Plus, FolderCog, RefreshCw, X, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
+import { useFiscalYearContext } from "@/contexts/FiscalYearContext";
 
 interface Category {
   id: string;
@@ -36,13 +37,28 @@ interface BuildingFilesTabProps {
 
 export const BuildingFilesTab = ({ buildingId, managementMode }: BuildingFilesTabProps) => {
   const { profile } = useAuth();
+  const fyCtx = useFiscalYearContext();
 
   const [files, setFiles] = useState<any[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [persons, setPersons] = useState<PersonProfile[]>([]);
 
   const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const [selectedYear, setSelectedYear] = useState<string>("all"); // "all" | "general" | "2026" ...
+  // Default: aktuell gewähltes Wirtschaftsjahr aus Context (falls vorhanden), sonst "all"
+  const ctxYear = fyCtx.getFiscalYear(buildingId);
+  const [selectedYear, setSelectedYear] = useState<string>(ctxYear != null ? String(ctxYear) : "all");
+  useEffect(() => {
+    if (ctxYear != null && selectedYear !== String(ctxYear) && selectedYear === "all") {
+      setSelectedYear(String(ctxYear));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctxYear]);
+  const handleYearChange = (v: string) => {
+    setSelectedYear(v);
+    if (v === "all" || v === "general") return;
+    const n = Number(v);
+    if (Number.isFinite(n)) fyCtx.setFiscalYear(buildingId, n);
+  };
   const [visibleToUsers, setVisibleToUsers] = useState(true);
   const [description, setDescription] = useState("");
   const [showDescription, setShowDescription] = useState(false);
@@ -248,7 +264,7 @@ export const BuildingFilesTab = ({ buildingId, managementMode }: BuildingFilesTa
             </PopoverContent>
           </Popover>
 
-          <Select value={selectedYear} onValueChange={setSelectedYear}>
+          <Select value={selectedYear} onValueChange={handleYearChange}>
             <SelectTrigger className="w-[170px]">
               <SelectValue placeholder="Wirtschaftsjahr" />
             </SelectTrigger>

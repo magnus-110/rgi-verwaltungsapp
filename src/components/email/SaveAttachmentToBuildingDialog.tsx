@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, FolderPlus } from "lucide-react";
 import { toast } from "sonner";
 import { VisibilityRole, VISIBILITY_LABELS, DocCategory } from "@/components/buildings/documents/types";
+import { useFiscalYearContext } from "@/contexts/FiscalYearContext";
 
 interface FileToFile {
   name: string;
@@ -28,10 +29,19 @@ interface SaveAttachmentToBuildingDialogProps {
 export function SaveAttachmentToBuildingDialog({
   open, onOpenChange, attachments, emailId, defaultBuildingId, onDone,
 }: SaveAttachmentToBuildingDialogProps) {
+  const fyCtx = useFiscalYearContext();
   const [buildingId, setBuildingId] = useState<string>(defaultBuildingId || "");
   const [categoryId, setCategoryId] = useState<string>("");
   const [visibility, setVisibility] = useState<VisibilityRole>('intern');
+  // Bewusst keine Vorauswahl – wenn der User aktiv ein Jahr wählt, teilen wir es.
   const [fiscalYear, setFiscalYear] = useState<string>("general");
+  const handleFiscalYearChange = (v: string) => {
+    setFiscalYear(v);
+    if (v !== "general" && buildingId) {
+      const n = parseInt(v, 10);
+      if (Number.isFinite(n)) fyCtx.setFiscalYear(buildingId, n);
+    }
+  };
   const [buildings, setBuildings] = useState<{ id: string; name: string; management_mode: string }[]>([]);
   const [categories, setCategories] = useState<DocCategory[]>([]);
   const [saving, setSaving] = useState(false);
@@ -274,7 +284,7 @@ export function SaveAttachmentToBuildingDialog({
           </div>
           <div>
             <Label>Zuordnung</Label>
-            <Select value={fiscalYear} onValueChange={setFiscalYear}>
+            <Select value={fiscalYear} onValueChange={handleFiscalYearChange}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="general">Allgemein (kein Wirtschaftsjahr)</SelectItem>
