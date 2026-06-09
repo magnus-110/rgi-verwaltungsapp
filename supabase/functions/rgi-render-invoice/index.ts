@@ -238,6 +238,17 @@ Deno.serve(async (req) => {
     } catch (zErr: any) {
       return json({ error: `Vorlage ist keine gültige .docx-Datei: ${zErr?.message || zErr}` }, 422);
     }
+    // Word's spell-/grammar-checker injects <w:proofErr/> tags inside placeholders
+    // like {firma.adresse}, splitting them across runs and breaking docxtemplater.
+    // Also strip bookmark markers for the same reason.
+    const SPLIT_RE = /<w:(?:proofErr|bookmarkStart|bookmarkEnd)\b[^>]*\/>/g;
+    for (const name of Object.keys(zip.files)) {
+      if (/^word\/(document|header\d*|footer\d*)\.xml$/.test(name)) {
+        const f = zip.file(name);
+        if (!f) continue;
+        zip.file(name, f.asText().replace(SPLIT_RE, ""));
+      }
+    }
     const doc = new Docxtemplater(zip, {
       paragraphLoop: true,
       linebreaks: true,
