@@ -280,11 +280,14 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   });
 
   const { data: customShareTypes = [] } = useQuery({
-    queryKey: ['custom-share-types'],
+    queryKey: ['custom-share-types', buildingId],
     queryFn: async () => {
-      const { data } = await supabase.from("contact_building_shares").select("share_type");
+      const { data } = await supabase
+        .from("building_share_types")
+        .select("value")
+        .eq("building_id", buildingId);
       if (!data) return [];
-      const unique = [...new Set(data.map(d => d.share_type))];
+      const unique = [...new Set(data.map((d: any) => d.value as string))];
       return unique.filter(t => !SHARE_TYPES.some(s => s.value === t) && t && t !== String("__add__"));
     },
   });
