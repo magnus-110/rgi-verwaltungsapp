@@ -70,19 +70,15 @@ export const CasesGlobalView = () => {
   const [search, setSearch] = useState("");
   const [buildingFilter, setBuildingFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all_open");
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createBuildingId, setCreateBuildingId] = useState<string>("");
 
   const filtered = useMemo(() => {
-    return cases.filter((c) => {
+    const list = cases.filter((c) => {
       if (buildingFilter !== "all" && c.building_id !== buildingFilter) return false;
       if (statusFilter === "all_open" && c.status === "resolved") return false;
       if (statusFilter !== "all_open" && statusFilter !== "all" && c.status !== statusFilter) return false;
-      if (priorityFilter !== "all" && c.priority !== priorityFilter) return false;
-      if (categoryFilter !== "all" && c.category !== categoryFilter) return false;
       if (search.trim()) {
         const s = search.toLowerCase();
         const hay = `${c.title} ${c.description || ""} ${c.buildings?.name || ""}`.toLowerCase();
@@ -90,7 +86,13 @@ export const CasesGlobalView = () => {
       }
       return true;
     });
-  }, [cases, buildingFilter, statusFilter, priorityFilter, categoryFilter, search]);
+    return [...list].sort((a, b) => {
+      const aOver = a.due_at && isPast(new Date(a.due_at)) && a.status !== "resolved" && a.status !== "archived" ? 1 : 0;
+      const bOver = b.due_at && isPast(new Date(b.due_at)) && b.status !== "resolved" && b.status !== "archived" ? 1 : 0;
+      if (aOver !== bOver) return bOver - aOver;
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+    });
+  }, [cases, buildingFilter, statusFilter, search]);
 
   const counts = useMemo(() => {
     const byStatus: Record<string, number> = {};
