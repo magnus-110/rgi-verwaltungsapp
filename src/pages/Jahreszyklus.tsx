@@ -20,6 +20,7 @@ import {
 } from "@/lib/annualCycle";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useFiscalYearContext } from "@/contexts/FiscalYearContext";
 
 
 interface BuildingRow {
@@ -46,8 +47,24 @@ const STATUS_DOT: Record<AnnualCycleStatus, string> = {
 export const Jahreszyklus = () => {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const fyCtx = useFiscalYearContext();
   const fiscalYears = useMemo(() => buildFiscalYears(), []);
-  const [selected, setSelected] = useState(fiscalYears[2]);
+  const ctxYear = fyCtx.globalFiscalYear;
+  const initial =
+    (ctxYear != null && fiscalYears.find((f) => Number(f.label) === ctxYear)) ||
+    fiscalYears[2];
+  const [selected, setSelected] = useState(initial);
+  useEffect(() => {
+    if (ctxYear == null) return;
+    const m = fiscalYears.find((f) => Number(f.label) === ctxYear);
+    if (m && m.start !== selected.start) setSelected(m);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctxYear]);
+  useEffect(() => {
+    const y = Number(selected.label);
+    if (Number.isFinite(y) && fyCtx.globalFiscalYear !== y) fyCtx.setGlobalFiscalYear(y);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected.start]);
   const [filter, setFilter] = useState<"all" | "open">("all");
   const [editing, setEditing] = useState<{ row: TaskRow; building: BuildingRow; label: string } | null>(null);
 

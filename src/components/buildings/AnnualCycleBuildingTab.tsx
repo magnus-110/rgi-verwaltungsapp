@@ -16,6 +16,7 @@ import {
   buildFiscalYears, type AnnualCycleStatus,
 } from "@/lib/annualCycle";
 import { toast } from "sonner";
+import { useFiscalYearContext } from "@/contexts/FiscalYearContext";
 
 interface Props {
   buildingId: string;
@@ -31,8 +32,29 @@ interface TaskRow {
 
 export const AnnualCycleBuildingTab = ({ buildingId }: Props) => {
   const qc = useQueryClient();
+  const fyCtx = useFiscalYearContext();
   const fiscalYears = useMemo(() => buildFiscalYears(), []);
-  const [selected, setSelected] = useState(fiscalYears[2]); // current year
+  const ctxYear = fyCtx.getFiscalYear(buildingId);
+  const initial =
+    (ctxYear != null && fiscalYears.find((f) => Number(f.label) === ctxYear)) ||
+    fiscalYears[2]; // current year fallback
+  const [selected, setSelected] = useState(initial);
+
+  // Wenn der Kontext sich von außen ändert (z. B. User wählt in Buchhaltung ein Jahr), übernehmen
+  useEffect(() => {
+    if (ctxYear == null) return;
+    const match = fiscalYears.find((f) => Number(f.label) === ctxYear);
+    if (match && match.start !== selected.start) setSelected(match);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctxYear]);
+
+  // Lokale Änderung in den Kontext schreiben
+  useEffect(() => {
+    const y = Number(selected.label);
+    if (!Number.isFinite(y)) return;
+    if (ctxYear !== y) fyCtx.setFiscalYear(buildingId, y);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected.start]);
 
   const queryKey = ["annual-cycle", buildingId, selected.start];
 
