@@ -264,6 +264,8 @@ export const WegOwnerDashboard = () => {
             {contactOpen && (
               <>
                 <div className="h-px bg-foreground/[0.055]" />
+                <ContactRow icon={MessageSquarePlus} title="Meldung erstellen" subtitle="Anliegen direkt an die Hausverwaltung" href="/weg-owner/reports" />
+                <div className="h-px bg-foreground/[0.055]" />
                 <ContactRow icon={Phone} title="Anrufen" subtitle={PROPERTY_MANAGER_FALLBACK.phone} href={phoneHref} />
                 <div className="h-px bg-foreground/[0.055]" />
                 <ContactRow icon={Mail} title="E-Mail schreiben" subtitle={PROPERTY_MANAGER_FALLBACK.email} href={mailHref} />
