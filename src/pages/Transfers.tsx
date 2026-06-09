@@ -678,6 +678,8 @@ export function Transfers() {
           onMatch={(inv) => setMatchInvoice(inv)}
           onRefetch={refetch}
           onOpen={(inv) => openReviewForInvoice(inv)}
+          sortByBuilding={sortByBuilding}
+          onToggleSortByBuilding={() => setSortByBuilding((v) => !v)}
         />
       )}
 
