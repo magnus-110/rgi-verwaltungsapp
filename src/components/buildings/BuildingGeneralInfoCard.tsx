@@ -205,12 +205,49 @@ export const BuildingGeneralInfoCard = ({ buildingId }: Props) => {
             />
           </div>
         </div>
+
+        {/* Wirtschaftsjahr-Beginn */}
+        <div className="space-y-1">
+          <Label className="text-xs flex items-center gap-1.5">
+            <CalendarRange className="h-3 w-3" /> Wirtschaftsjahr-Beginn
+          </Label>
+          <div className="flex items-center gap-2">
+            <Select value={String(fyDay)} onValueChange={(v) => setFyDay(Number(v))}>
+              <SelectTrigger className="h-9 w-[90px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+                  <SelectItem key={d} value={String(d)}>{d}.</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={String(fyMonth)} onValueChange={(v) => setFyMonth(Number(v))}>
+              <SelectTrigger className="h-9 flex-1 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[
+                  "Januar","Februar","März","April","Mai","Juni",
+                  "Juli","August","September","Oktober","November","Dezember",
+                ].map((m, i) => (
+                  <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Wird überall für Jahreszyklus und Wirtschaftsjahr-Auswahl dieser Liegenschaft verwendet.
+          </p>
+        </div>
+
         <div className="flex justify-end">
           <Button size="sm" onClick={handleSaveMain} disabled={!isMainDirty || savingMain} className="gap-1.5">
             {savingMain ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
             Speichern
           </Button>
         </div>
+
 
         {/* Gläubiger-ID */}
         <div className="border-t pt-3">
