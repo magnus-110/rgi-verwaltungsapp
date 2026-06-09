@@ -137,12 +137,9 @@ export const WegOwnerResolutions = () => {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
-        <div className="flex items-center gap-2">
-          <Scale className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold">Beschlüsse</h1>
-            <p className="text-sm text-muted-foreground">Beschlusssammlung Ihrer WEG</p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold">Beschlüsse</h1>
+          <p className="text-sm text-muted-foreground">Beschlusssammlung Ihrer WEG</p>
         </div>
 
         <div className="relative">
