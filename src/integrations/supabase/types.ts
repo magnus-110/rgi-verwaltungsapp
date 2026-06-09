@@ -4405,6 +4405,7 @@ export type Database = {
           description: string | null
           double_qualified_relevant: boolean
           id: string
+          is_actionable: boolean
           meeting_id: string
           no_count: number | null
           requires_double_qualified: boolean
@@ -4432,6 +4433,7 @@ export type Database = {
           description?: string | null
           double_qualified_relevant?: boolean
           id?: string
+          is_actionable?: boolean
           meeting_id: string
           no_count?: number | null
           requires_double_qualified?: boolean
@@ -4459,6 +4461,7 @@ export type Database = {
           description?: string | null
           double_qualified_relevant?: boolean
           id?: string
+          is_actionable?: boolean
           meeting_id?: string
           no_count?: number | null
           requires_double_qualified?: boolean
@@ -4829,6 +4832,7 @@ export type Database = {
           description: string | null
           double_qualified_relevant: boolean
           id: string
+          is_actionable: boolean
           requires_double_qualified: boolean
           requires_resolution: boolean
           resolution_text: string | null
@@ -4843,6 +4847,7 @@ export type Database = {
           description?: string | null
           double_qualified_relevant?: boolean
           id?: string
+          is_actionable?: boolean
           requires_double_qualified?: boolean
           requires_resolution?: boolean
           resolution_text?: string | null
@@ -4857,6 +4862,7 @@ export type Database = {
           description?: string | null
           double_qualified_relevant?: boolean
           id?: string
+          is_actionable?: boolean
           requires_double_qualified?: boolean
           requires_resolution?: boolean
           resolution_text?: string | null
