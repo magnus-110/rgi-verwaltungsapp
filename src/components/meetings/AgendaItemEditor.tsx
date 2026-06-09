@@ -940,6 +940,7 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
         requires_resolution: requiresResolution,
         requires_double_qualified: requiresResolution ? requiresDQ : false,
         double_qualified_relevant: requiresResolution ? dqRelevant : false,
+        is_actionable: requiresResolution ? tplIsActionable : false,
       } as any;
       if (editingId) {
         const { error } = await supabase.from("etv_resolution_templates").update(payload).eq("id", editingId);
