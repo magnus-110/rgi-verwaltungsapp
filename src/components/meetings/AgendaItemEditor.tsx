@@ -603,9 +603,9 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                           DQ erforderlich
                                         </Badge>
                                       )}
-                                      {item.category && (
-                                        <Badge variant="secondary" className="text-xs">
-                                          {categories.find((c) => c.value === item.category)?.label || item.category}
+                                      {item.is_actionable && (
+                                        <Badge variant="outline" className="text-xs gap-1 border-primary/40 bg-primary/10 text-primary">
+                                          <Wrench className="h-3 w-3" /> Umzusetzen
                                         </Badge>
                                       )}
                                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEditing(item)}>
