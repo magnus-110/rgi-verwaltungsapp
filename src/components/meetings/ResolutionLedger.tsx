@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Search, Scale, CheckCircle2, XCircle, StickyNote, Save, Pencil, Wrench, ExternalLink } from "lucide-react";
+import { Search, Scale, CheckCircle2, XCircle, StickyNote, Save, Pencil, Wrench, ExternalLink, Eye, EyeOff } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
