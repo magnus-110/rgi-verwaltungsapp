@@ -6,7 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Scale, Search, CheckCircle2, XCircle, Clock, AlertCircle } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Scale, Search, CheckCircle2, XCircle, Clock, AlertCircle, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -47,6 +48,29 @@ export const WegOwnerResolutions = () => {
     enabled: buildingIds.length > 0,
   });
 
+  const caseIds = useMemo(
+    () => (resolutions as any[]).filter((r) => r.case_id).map((r) => r.case_id as string),
+    [resolutions]
+  );
+
+  const { data: lastEventByCase = {} } = useQuery({
+    queryKey: ["weg-owner-resolutions-events", caseIds.join(",")],
+    queryFn: async () => {
+      if (!caseIds.length) return {};
+      const { data } = await supabase
+        .from("case_events")
+        .select("case_id, occurred_at")
+        .in("case_id", caseIds)
+        .order("occurred_at", { ascending: false });
+      const map: Record<string, string> = {};
+      (data || []).forEach((e: any) => {
+        if (!map[e.case_id]) map[e.case_id] = e.occurred_at;
+      });
+      return map;
+    },
+    enabled: caseIds.length > 0,
+  });
+
   const filtered = useMemo(() => {
     if (!search) return resolutions;
     const s = search.toLowerCase();
@@ -64,39 +88,48 @@ export const WegOwnerResolutions = () => {
     const meeting = r.etv_meetings;
     const status = statusBadge[r.actionable_status as string] || statusBadge.open;
     const StatusIcon = status.Icon;
-    const lastUpdate = r.cases?.updated_at;
+    const lastEdit = (lastEventByCase as Record<string, string>)[r.case_id] || r.cases?.updated_at;
     return (
       <Card key={r.id}>
-        <CardContent className="p-4 space-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            {r.result === "passed" ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            ) : (
-              <XCircle className="h-4 w-4 text-destructive" />
-            )}
-            <span className="font-semibold text-sm">{r.resolution_number}</span>
-            <Badge variant="outline" className={r.result === "passed" ? "text-xs border-transparent bg-emerald-600 text-white" : "text-xs"}>
-              {r.result === "passed" ? "Angenommen" : "Abgelehnt"}
-            </Badge>
-            {showStatus && r.is_actionable && (
-              <Badge variant="outline" className={`text-xs gap-1 ${status.cls}`}>
-                <StatusIcon className="h-3 w-3" />
-                {status.label}
-              </Badge>
-            )}
-          </div>
-          <p className="text-sm whitespace-pre-wrap">{r.resolution_text}</p>
-          <div className="flex gap-x-4 gap-y-1 text-xs text-muted-foreground flex-wrap">
-            <span>{r.buildings?.name}</span>
-            <span>{meeting?.title}</span>
-            <span>{r.resolved_at ? format(new Date(r.resolved_at), "dd.MM.yyyy", { locale: de }) : ""}</span>
-          </div>
-          {showStatus && r.is_actionable && lastUpdate && (
-            <div className="text-xs text-muted-foreground border-t pt-2 mt-2">
-              Letzter Bearbeitungsstand: <span className="font-medium text-foreground">{format(new Date(lastUpdate), "dd.MM.yyyy", { locale: de })}</span>
-            </div>
-          )}
-        </CardContent>
+        <Collapsible>
+          <CardContent className="p-4 space-y-2">
+            <CollapsibleTrigger className="group w-full text-left">
+              <div className="flex items-start gap-2">
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {r.result === "passed" ? (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+                    )}
+                    <span className="font-semibold text-sm">{r.resolution_number}</span>
+                    <Badge variant="outline" className={r.result === "passed" ? "text-xs border-transparent bg-emerald-600 text-white" : "text-xs"}>
+                      {r.result === "passed" ? "Angenommen" : "Abgelehnt"}
+                    </Badge>
+                    {showStatus && r.is_actionable && (
+                      <Badge variant="outline" className={`text-xs gap-1 ${status.cls}`}>
+                        <StatusIcon className="h-3 w-3" />
+                        {status.label}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex gap-x-4 gap-y-1 text-xs text-muted-foreground flex-wrap">
+                    <span>{r.buildings?.name}</span>
+                    <span>{meeting?.title}</span>
+                    <span>{r.resolved_at ? format(new Date(r.resolved_at), "dd.MM.yyyy", { locale: de }) : ""}</span>
+                    {showStatus && r.is_actionable && lastEdit && (
+                      <span>Zuletzt bearbeitet: <span className="font-medium text-foreground">{format(new Date(lastEdit), "dd.MM.yyyy", { locale: de })}</span></span>
+                    )}
+                  </div>
+                </div>
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180 flex-shrink-0 mt-0.5" />
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2">
+              <p className="text-sm whitespace-pre-wrap border-t pt-3">{r.resolution_text}</p>
+            </CollapsibleContent>
+          </CardContent>
+        </Collapsible>
       </Card>
     );
   };
