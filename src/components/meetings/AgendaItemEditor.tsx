@@ -150,6 +150,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
         requires_double_qualified: newRequiresResolution ? newRequiresDQ : false,
         double_qualified_relevant: newRequiresResolution ? newDQRelevant : false,
         requires_resolution: newRequiresResolution,
+        is_actionable: newRequiresResolution ? newIsActionable : false,
       } as any);
       if (error) throw error;
     },
