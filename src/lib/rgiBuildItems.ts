@@ -38,7 +38,7 @@ export function buildRgiItemsFromTime(
   if (grouping === "per_day") {
     const groups = new Map<string, RgiTimeEntry[]>();
     for (const e of entries) {
-      const key = `${e.date}|${getRgiRate(e, projects, clients, clientId)}`;
+      const key = `${e.date ?? ""}|${getRgiRate(e, projects, clients, clientId)}`;
       const arr = groups.get(key) ?? [];
       arr.push(e);
       groups.set(key, arr);
@@ -49,7 +49,7 @@ export function buildRgiItemsFromTime(
       const descs = es.map((e) => e.description).join("; ");
       return {
         kind: "time",
-        description: `${date} — ${descs}`,
+        description: date ? `${date} — ${descs}` : descs,
         quantity: Number((totalMin / 60).toFixed(2)),
         unit: "Std",
         unit_price_net: getRgiRate(es[0], projects, clients, clientId),
