@@ -14,7 +14,7 @@ import { Download, Trash2, X, History, Sparkles, ExternalLink, Wrench, RefreshCw
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { DocFile, VisibilityRole, VISIBILITY_LABELS } from "./types";
+import { DocFile, VisibilityRole, VISIBILITY_LABELS, getFileBucket } from "./types";
 import { useNavigate } from "react-router-dom";
 import { PersonVisibilityPicker } from "./PersonVisibilityPicker";
 import { MAINTENANCE_TYPES } from "@/lib/maintenanceTypes";
