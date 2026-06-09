@@ -8750,6 +8750,13 @@ export type Database = {
         Args: { _user_id: string }
         Returns: string[]
       }
+      get_owner_resolution_last_edits: {
+        Args: { _resolution_ids: string[] }
+        Returns: {
+          last_edit: string
+          resolution_id: string
+        }[]
+      }
       get_service_provider_pool: {
         Args: never
         Returns: {
