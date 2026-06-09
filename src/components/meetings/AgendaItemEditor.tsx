@@ -258,6 +258,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       requires_double_qualified: editRequiresResolution ? editRequiresDQ : false,
       double_qualified_relevant: editRequiresResolution ? editDQRelevant : false,
       requires_resolution: editRequiresResolution,
+      is_actionable: editRequiresResolution ? editIsActionable : false,
     } as any);
     setEditingItemId(null);
     setEditNewFiles([]);
