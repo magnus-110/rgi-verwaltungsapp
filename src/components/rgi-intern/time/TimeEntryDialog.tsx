@@ -38,7 +38,7 @@ export function TimeEntryDialog({ open, onOpenChange, entry, projects }: Props) 
   useEffect(() => {
     if (open) {
       const init = entry ?? {
-        date: new Date().toISOString().slice(0, 10),
+        date: null,
         minutes: 30,
         billable: true,
         description: "",
@@ -54,7 +54,12 @@ export function TimeEntryDialog({ open, onOpenChange, entry, projects }: Props) 
     if (!form.project_id || !form.description || !user) return;
     const minutes = parseDuration(durationStr);
     if (minutes <= 0) return;
-    await upsert.mutateAsync({ ...form, minutes, user_id: form.user_id ?? user.id });
+    await upsert.mutateAsync({
+      ...form,
+      date: form.date || null,
+      minutes,
+      user_id: form.user_id ?? user.id,
+    });
     onOpenChange(false);
   };
 
