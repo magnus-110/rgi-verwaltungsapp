@@ -256,88 +256,69 @@ interface ListProps {
 const CasesList = ({ items, onOpen, onChangeStatus, onDelete }: ListProps) => {
   return (
     <Card className="overflow-hidden">
-      <div className="hidden lg:grid grid-cols-[1fr_180px_120px_140px_140px_120px_110px_40px] gap-3 px-4 py-2.5 bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground font-medium border-b">
-        <div>Titel</div>
-        <div>Gebäude</div>
-        <div>Kategorie</div>
-        <div>Priorität</div>
-        <div>Status</div>
-        <div>Fällig</div>
-        <div className="text-right">Aktualisiert</div>
-        <div></div>
-      </div>
       <div className="divide-y divide-border">
         {items.map((c) => {
           const overdue = c.due_at && isPast(new Date(c.due_at)) && c.status !== "resolved" && c.status !== "archived";
+          const summary = c.ai_summary
+            ? c.ai_summary.replace(/^#{1,6}\s+/gm, "").replace(/\*\*?/g, "").split("\n").find((l) => l.trim())
+            : null;
           return (
             <div
               key={c.id}
-              className="grid grid-cols-1 lg:grid-cols-[1fr_180px_120px_140px_140px_120px_110px_40px] gap-3 px-4 py-3 hover:bg-muted/40 cursor-pointer items-center group"
+              className="flex items-start gap-3 px-4 py-3 hover:bg-muted/40 cursor-pointer group"
               onClick={() => onOpen(c.id)}
             >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className={cn("h-2 w-2 rounded-full shrink-0", PRIORITY_DOT[c.priority])} />
-                  <span className="font-medium truncate">{c.title}</span>
+              <span
+                className={cn("h-2.5 w-2.5 rounded-full shrink-0 mt-2", STATUS_DOT[c.status])}
+                title={CASE_STATUS_LABEL[c.status]}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="text-base font-semibold leading-snug truncate">{c.title}</h3>
+                  <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <Select value={c.status} onValueChange={(v) => onChangeStatus(c.id, v as CaseStatus)}>
+                      <SelectTrigger className={cn("h-7 text-xs border px-2 gap-1 w-auto", STATUS_BADGE[c.status])}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(CASE_STATUS_LABEL).map(([k, v]) => (
+                          <SelectItem key={k} value={k}>{v}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => onDelete(c)}
+                      aria-label="Vorgang löschen"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1 min-w-0">
+                    <Building2 className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{c.buildings?.name || "—"}{c.unit_number ? ` · WE ${c.unit_number}` : ""}</span>
+                  </span>
                   {c.events_count > 0 && (
-                    <span className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground shrink-0">
-                      <MessageSquare className="h-3 w-3" />{c.events_count}
+                    <span className="inline-flex items-center gap-1">
+                      <MessageSquare className="h-3.5 w-3.5" />{c.events_count}
                     </span>
                   )}
+                  {c.due_at && (
+                    <span className={cn("inline-flex items-center gap-1", overdue && "text-destructive font-medium")}>
+                      <Clock className="h-3.5 w-3.5" />
+                      {overdue ? "Überfällig " : "Fällig "}
+                      {format(new Date(c.due_at), "dd.MM.yy", { locale: de })}
+                    </span>
+                  )}
+                  <span>· aktualisiert {formatDistanceToNow(new Date(c.updated_at), { addSuffix: true, locale: de })}</span>
                 </div>
-                {c.ai_summary && (
-                  <p className="text-xs text-muted-foreground truncate mt-0.5 lg:pl-4">
-                    {c.ai_summary.replace(/^#{1,6}\s+/gm, "").replace(/\*\*?/g, "").split("\n")[0]}
-                  </p>
+                {summary && (
+                  <p className="text-xs text-muted-foreground/90 truncate mt-1">{summary}</p>
                 )}
-              </div>
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground min-w-0">
-                <Building2 className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">{c.buildings?.name || "—"}</span>
-              </div>
-              <div className="text-xs">
-                <Badge variant="outline" className="font-normal">{CASE_CATEGORY_LABEL[c.category]}</Badge>
-              </div>
-              <div>
-                <Badge variant="outline" className={cn("font-normal", PRIORITY_BADGE[c.priority].className)}>
-                  {PRIORITY_BADGE[c.priority].label}
-                </Badge>
-              </div>
-              <div onClick={(e) => e.stopPropagation()}>
-                <Select value={c.status} onValueChange={(v) => onChangeStatus(c.id, v as CaseStatus)}>
-                  <SelectTrigger className={cn("h-8 text-xs border", STATUS_BADGE[c.status])}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(CASE_STATUS_LABEL).map(([k, v]) => (
-                      <SelectItem key={k} value={k}>{v}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className={cn("text-xs flex items-center gap-1", overdue ? "text-destructive font-medium" : "text-muted-foreground")}>
-                {c.due_at ? (
-                  <>
-                    <Clock className="h-3 w-3" />
-                    {format(new Date(c.due_at), "dd.MM.yy", { locale: de })}
-                  </>
-                ) : (
-                  <span className="text-muted-foreground/50">—</span>
-                )}
-              </div>
-              <div className="text-xs text-muted-foreground text-right">
-                {formatDistanceToNow(new Date(c.updated_at), { addSuffix: true, locale: de })}
-              </div>
-              <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => onDelete(c)}
-                  aria-label="Vorgang löschen"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
               </div>
             </div>
           );
