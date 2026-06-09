@@ -48,8 +48,33 @@ const STATUS_STYLES: Record<AnnualCycleStatus, { dot: string; ring: string; icon
 
 export const AnnualCycleTimeline = ({ buildingId }: Props) => {
   const qc = useQueryClient();
-  const fiscalYears = useMemo(() => buildFiscalYears(), []);
+  const { data: bCfg } = useQuery({
+    queryKey: ["building-fy-cfg", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("fiscal_year_start_month, fiscal_year_start_day")
+        .eq("id", buildingId)
+        .maybeSingle();
+      if (error) throw error;
+      return (data || { fiscal_year_start_month: 1, fiscal_year_start_day: 1 }) as {
+        fiscal_year_start_month: number;
+        fiscal_year_start_day: number;
+      };
+    },
+  });
+  const fiscalYears = useMemo(
+    () =>
+      buildFiscalYears(undefined, {
+        startMonth: bCfg?.fiscal_year_start_month ?? 1,
+        startDay: bCfg?.fiscal_year_start_day ?? 1,
+      }),
+    [bCfg?.fiscal_year_start_month, bCfg?.fiscal_year_start_day]
+  );
   const [selected, setSelected] = useState(fiscalYears[2]);
+  useEffect(() => {
+    setSelected(fiscalYears[2]);
+  }, [fiscalYears]);
   const [editingKey, setEditingKey] = useState<string | null>(null);
 
   const queryKey = ["annual-cycle-timeline", buildingId, selected.start];
