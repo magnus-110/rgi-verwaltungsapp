@@ -7656,7 +7656,7 @@ export type Database = {
         Row: {
           billable: boolean
           created_at: string
-          date: string
+          date: string | null
           description: string
           hourly_rate: number | null
           id: string
@@ -7669,7 +7669,7 @@ export type Database = {
         Insert: {
           billable?: boolean
           created_at?: string
-          date?: string
+          date?: string | null
           description: string
           hourly_rate?: number | null
           id?: string
@@ -7682,7 +7682,7 @@ export type Database = {
         Update: {
           billable?: boolean
           created_at?: string
-          date?: string
+          date?: string | null
           description?: string
           hourly_rate?: number | null
           id?: string

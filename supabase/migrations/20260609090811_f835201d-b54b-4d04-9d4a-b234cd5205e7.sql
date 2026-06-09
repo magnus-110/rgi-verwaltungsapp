@@ -1,0 +1,1 @@
+ALTER TABLE public.rgi_time_entries ALTER COLUMN date DROP NOT NULL;
