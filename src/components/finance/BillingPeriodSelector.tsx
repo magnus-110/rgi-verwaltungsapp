@@ -77,6 +77,17 @@ export function BillingPeriodSelector({
 
   const selectedPeriod = periods.find((p) => p.id === selectedPeriodId);
 
+  // Schreibe Auswahl in den globalen FiscalYear-Context, sobald sich Periode/Gebäude ändert.
+  useEffect(() => {
+    if (!selectedBuildingId) return;
+    if (selectedPeriod) {
+      fyCtx.setBoth(selectedBuildingId, selectedPeriod.fiscal_year, selectedPeriod.id);
+    } else if (selectedPeriodId === null) {
+      fyCtx.setPeriodId(selectedBuildingId, null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBuildingId, selectedPeriodId, selectedPeriod?.fiscal_year]);
+
   // Auto-fill dates when year changes
   const handleYearChange = (val: string) => {
     setNewYear(val);
