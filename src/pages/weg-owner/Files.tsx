@@ -43,10 +43,9 @@ function formatFileSize(bytes: number): string {
 
 function FilesBrowser({ files, categories, search }: { files: FileItem[]; categories: Category[]; search: string }) {
   const [downloading, setDownloading] = useState<string | null>(null);
-  const [selectedCatId, setSelectedCatId] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [yearFilter, setYearFilter] = useState<string>(ALL_YEARS);
 
-  // Year options derived from files
   const yearOptions = useMemo(() => {
     const years = new Set<number>();
     let hasNoYear = false;
@@ -58,7 +57,6 @@ function FilesBrowser({ files, categories, search }: { files: FileItem[]; catego
     return { years: sorted, hasNoYear };
   }, [files]);
 
-  // Apply search + year filter
   const filtered = useMemo(() => {
     const s = search.toLowerCase();
     return files.filter(f => {
@@ -69,7 +67,6 @@ function FilesBrowser({ files, categories, search }: { files: FileItem[]; catego
     });
   }, [files, search, yearFilter]);
 
-  // Group by category id (key = id or NO_CAT)
   const grouped = useMemo(() => {
     const map = new Map<string, FileItem[]>();
     for (const f of filtered) {
@@ -80,18 +77,17 @@ function FilesBrowser({ files, categories, search }: { files: FileItem[]; catego
     return map;
   }, [filtered]);
 
-  // Cards to show — only non-empty
   const folderCards = useMemo(() => {
-    const cards: { id: string; name: string; color: string | null; count: number }[] = [];
+    const cards: { id: string; name: string; count: number }[] = [];
     categories.forEach(c => {
       const list = grouped.get(c.id);
       if (list && list.length > 0) {
-        cards.push({ id: c.id, name: c.name, color: c.color, count: list.length });
+        cards.push({ id: c.id, name: c.name, count: list.length });
       }
     });
     const noCatList = grouped.get(NO_CAT);
     if (noCatList && noCatList.length > 0) {
-      cards.push({ id: NO_CAT, name: "Ohne Kategorie", color: null, count: noCatList.length });
+      cards.push({ id: NO_CAT, name: "Ohne Kategorie", count: noCatList.length });
     }
     return cards.sort((a, b) => {
       if (a.id === NO_CAT) return 1;
@@ -99,6 +95,14 @@ function FilesBrowser({ files, categories, search }: { files: FileItem[]; catego
       return a.name.localeCompare(b.name);
     });
   }, [categories, grouped]);
+
+  const toggle = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
 
   const getSignedUrl = async (file: FileItem): Promise<string | null> => {
     try {
@@ -113,17 +117,14 @@ function FilesBrowser({ files, categories, search }: { files: FileItem[]; catego
   };
 
   const handleOpen = async (file: FileItem) => {
-    const targetWindow = window.open("", "_blank", "noopener");
     setDownloading(file.id);
     const url = await getSignedUrl(file);
     setDownloading(null);
     if (!url) {
-      targetWindow?.close();
       toast.error("Öffnen fehlgeschlagen");
       return;
     }
-    if (targetWindow) targetWindow.location.href = url;
-    else window.location.href = url;
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   const yearSelect = (
@@ -141,56 +142,6 @@ function FilesBrowser({ files, categories, search }: { files: FileItem[]; catego
     </Select>
   );
 
-  // Drill-down view
-  if (selectedCatId) {
-    const list = grouped.get(selectedCatId) || [];
-    const card = folderCards.find(c => c.id === selectedCatId);
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={() => setSelectedCatId(null)}>
-            <ChevronLeft className="w-4 h-4 mr-1" /> Zurück
-          </Button>
-          <h3 className="text-base font-semibold flex-1">{card?.name || "Dokumente"}</h3>
-          {yearSelect}
-        </div>
-        {list.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">Keine Dokumente in diesem Ordner.</p>
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {list.map((file) => (
-              <button
-                key={file.id}
-                type="button"
-                onClick={() => { if (downloading !== file.id) handleOpen(file); }}
-                disabled={downloading === file.id}
-                className="w-full text-left flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors group cursor-pointer disabled:cursor-wait disabled:opacity-70"
-              >
-                <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{file.display_name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatFileSize(file.file_size)} · {format(new Date(file.created_at), "dd.MM.yyyy", { locale: de })}
-                    {file.fiscal_year != null && <> · WJ {file.fiscal_year}</>}
-                  </p>
-                </div>
-                {downloading === file.id ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground flex-shrink-0" />
-                ) : (
-                  <Download className="w-4 h-4" />
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Folder cards view
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 justify-end">
@@ -206,25 +157,58 @@ function FilesBrowser({ files, categories, search }: { files: FileItem[]; catego
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {folderCards.map((c) => (
-            <Card
-              key={c.id}
-              onClick={() => setSelectedCatId(c.id)}
-              className="p-4 cursor-pointer hover:bg-muted/50 hover:border-primary/40 transition-colors flex items-center gap-3"
-            >
-              <div
-                className="h-11 w-11 rounded-lg flex items-center justify-center shrink-0"
-                style={{ backgroundColor: (c.color || "#3b82f6") + "1f", color: c.color || undefined }}
-              >
-                <Folder className="h-5 w-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate">{c.name}</p>
-                <p className="text-xs text-muted-foreground">{c.count} {c.count === 1 ? "Dokument" : "Dokumente"}</p>
-              </div>
-            </Card>
-          ))}
+        <div className="space-y-2">
+          {folderCards.map((c) => {
+            const isOpen = expandedIds.has(c.id);
+            const list = grouped.get(c.id) || [];
+            return (
+              <Card key={c.id} className="overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggle(c.id)}
+                  className="w-full p-4 hover:bg-muted/50 transition-colors flex items-center gap-3 text-left"
+                >
+                  <div className="h-11 w-11 rounded-lg bg-muted text-muted-foreground flex items-center justify-center shrink-0">
+                    <Folder className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">{c.name}</p>
+                    <p className="text-xs text-muted-foreground">{c.count} {c.count === 1 ? "Dokument" : "Dokumente"}</p>
+                  </div>
+                  {isOpen
+                    ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                </button>
+                {isOpen && (
+                  <div className="border-t px-2 py-2 space-y-1">
+                    {list.map((file) => (
+                      <button
+                        key={file.id}
+                        type="button"
+                        onClick={() => { if (downloading !== file.id) handleOpen(file); }}
+                        disabled={downloading === file.id}
+                        className="w-full text-left flex items-center gap-3 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors cursor-pointer disabled:cursor-wait disabled:opacity-70"
+                      >
+                        <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{file.display_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatFileSize(file.file_size)} · {format(new Date(file.created_at), "dd.MM.yyyy", { locale: de })}
+                            {file.fiscal_year != null && <> · WJ {file.fiscal_year}</>}
+                          </p>
+                        </div>
+                        {downloading === file.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground flex-shrink-0" />
+                        ) : (
+                          <Download className="w-4 h-4 text-muted-foreground" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
