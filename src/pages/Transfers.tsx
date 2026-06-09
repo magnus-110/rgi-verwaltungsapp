@@ -697,6 +697,7 @@ export function Transfers() {
 // ============================================================
 function IncomingList({
   invoices, buildings, formatCurrency, retryOcr, retryingOcr, onMatch, onRefetch, onOpen,
+  sortByBuilding, onToggleSortByBuilding,
 }: {
   invoices: any[];
   buildings: any[];
@@ -706,6 +707,8 @@ function IncomingList({
   onMatch: (inv: any) => void;
   onRefetch: () => void;
   onOpen: (inv: any) => void;
+  sortByBuilding: boolean;
+  onToggleSortByBuilding: () => void;
 }) {
   const renderStatus = (inv: any) => {
     const tx = inv._linked_tx;
