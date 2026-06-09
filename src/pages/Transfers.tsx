@@ -336,15 +336,13 @@ export function Transfers() {
       return;
     }
     const isPaid = inv.status === "paid";
-    if (isPaid) {
-      setReviewInvoices(paidInvoices);
-      const idx = paidInvoices.findIndex(p => p.id === inv.id);
-      setReviewIndex(idx >= 0 ? idx : 0);
-    } else {
-      setReviewInvoices(unpaidInvoices);
-      const idx = unpaidInvoices.findIndex(u => u.id === inv.id);
-      setReviewIndex(idx >= 0 ? idx : 0);
-    }
+    // Immer aus der (optional nach Liegenschaft sortierten) gefilterten Liste arbeiten
+    const pool = filteredInvoices.filter((i: any) =>
+      isPaid ? i.status === "paid" : i.status !== "paid"
+    );
+    setReviewInvoices(pool);
+    const idx = pool.findIndex((p: any) => p.id === inv.id);
+    setReviewIndex(idx >= 0 ? idx : 0);
     setReviewMode(true);
   };
 
