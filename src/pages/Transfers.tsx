@@ -744,7 +744,17 @@ function IncomingList({
             <TableHead>Absender</TableHead>
             <TableHead>Verwendungszweck</TableHead>
             <TableHead className="text-right">Betrag</TableHead>
-            <TableHead>Liegenschaft</TableHead>
+            <TableHead>
+              <button
+                type="button"
+                onClick={onToggleSortByBuilding}
+                className={`inline-flex items-center gap-1 transition-colors ${sortByBuilding ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                title={sortByBuilding ? "Sortierung nach Liegenschaft aktiv – klicken zum Zurücksetzen" : "Nach Liegenschaft gruppieren"}
+              >
+                Liegenschaft
+                <ArrowUpDown className={`h-3 w-3 ${sortByBuilding ? "opacity-100" : "opacity-40"}`} />
+              </button>
+            </TableHead>
             
             <TableHead>Status</TableHead>
             <TableHead className="w-32 text-right">Aktion</TableHead>
