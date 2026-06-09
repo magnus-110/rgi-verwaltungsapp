@@ -48,27 +48,23 @@ export const WegOwnerResolutions = () => {
     enabled: buildingIds.length > 0,
   });
 
-  const caseIds = useMemo(
-    () => (resolutions as any[]).filter((r) => r.case_id).map((r) => r.case_id as string),
+  const resolutionIds = useMemo(
+    () => (resolutions as any[]).filter((r) => r.is_actionable).map((r) => r.id as string),
     [resolutions]
   );
 
-  const { data: lastEventByCase = {} } = useQuery({
-    queryKey: ["weg-owner-resolutions-events", caseIds.join(",")],
+  const { data: lastEditByResolution = {} } = useQuery({
+    queryKey: ["weg-owner-resolutions-last-edits", resolutionIds.join(",")],
     queryFn: async () => {
-      if (!caseIds.length) return {};
-      const { data } = await supabase
-        .from("case_events")
-        .select("case_id, occurred_at")
-        .in("case_id", caseIds)
-        .order("occurred_at", { ascending: false });
+      if (!resolutionIds.length) return {};
+      const { data } = await supabase.rpc("get_owner_resolution_last_edits", { _resolution_ids: resolutionIds });
       const map: Record<string, string> = {};
       (data || []).forEach((e: any) => {
-        if (!map[e.case_id]) map[e.case_id] = e.occurred_at;
+        if (e.last_edit) map[e.resolution_id] = e.last_edit;
       });
       return map;
     },
-    enabled: caseIds.length > 0,
+    enabled: resolutionIds.length > 0,
   });
 
   const filtered = useMemo(() => {
