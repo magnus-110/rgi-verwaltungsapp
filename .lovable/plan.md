@@ -1,34 +1,27 @@
-## 1) Jahreszyklus wird beim Eigentümer nicht synchronisiert
+## Änderungen an `src/pages/weg-owner/Files.tsx`
 
-### Ursache
-`OwnerAnnualCycleWidget` liest direkt aus `annual_cycle_tasks` (gleiche Tabelle wie der Admin). Die RLS-SELECT-Policy nutzt `user_can_access_building(auth.uid(), building_id)`. Diese Funktion erlaubt nur:
-- Admins (`user_has_admin_access`)
-- Hausverwalter (`building_managers`)
+### 1) Farben entfernen
+- Im Ordner-Icon: keinen `style={{ backgroundColor: color + "1f", color }}` mehr verwenden.
+- Stattdessen neutrale Tokens: `bg-muted text-muted-foreground` für das Icon-Quadrat.
+- Card-Hover bleibt neutral (`hover:bg-muted/50`, kein `hover:border-primary/40`).
 
-WEG-Eigentümer (Verknüpfung über `weg_owner_buildings`) sind nicht enthalten. Daher liefert das Query beim Eigentümer immer 0 Zeilen — die Kacheln bleiben grau, egal was der Admin setzt.
+### 2) Inline-Aufklappen statt Drill-Down
+- `selectedCatId` durch ein `expandedIds: Set<string>` ersetzen.
+- Klick auf eine Karte toggelt die Kategorie: Karte bleibt sichtbar, darunter erscheinen die Dokumente (oder collapse).
+- Kein "Zurück"-Button mehr; mehrere Ordner können gleichzeitig offen sein.
+- Layout: statt `grid grid-cols-3` eine vertikale Liste (`space-y-2`), damit aufgeklappte Inhalte sauber unter der jeweiligen Karte stehen. Auf Desktop bleibt die Liste angenehm lesbar (max-width).
+- Chevron-Icon (rechts) zeigt offen/zu an.
 
-### Fix
-Migration: SELECT-Policy auf `annual_cycle_tasks` erweitern, sodass auch WEG-Eigentümer ihre Gebäude lesen dürfen (read-only; Update/Delete/Insert bleiben Admin/Manager). Umsetzung über eine kleine Helper-Function `user_can_view_building_cycle(uid, building_id)` (SECURITY DEFINER), die zusätzlich `EXISTS (SELECT 1 FROM weg_owner_buildings wob JOIN weg_owners wo ON wo.id = wob.weg_owner_id WHERE wob.building_id = _building_id AND wo.user_id = _uid)` prüft. Anschließend `DROP POLICY annual_cycle_select` und neu mit der Helper-Funktion anlegen.
+### 3) Dokument öffnen ohne `about:blank`-Hänger
+Aktuell wird `window.open("")` **vor** dem Holen der Signed-URL gerufen. Browser blocken das oft als Popup, oder der Tab bleibt auf `about:blank` stehen, wenn das Edge-Function-Fetch scheitert.
 
-Damit zeigt das Owner-Widget exakt denselben Status wie der Admin.
+Neuer Ablauf:
+- Erst `getSignedUrl(file)` aufrufen (await).
+- Bei Erfolg: `window.open(url, "_blank", "noopener,noreferrer")` — direkt mit der echten URL, so dass der neue Tab sofort das PDF lädt und der Browser-Zurück-Button wieder zum App-Tab zurückführt.
+- Bei Fehler: Toast wie bisher, **kein** leeres Fenster.
+- Loading-Spinner bleibt am Listeneintrag während des Fetches.
 
-## 2) Dokumente-Seite des Eigentümers: Ordner-Cards + Wirtschaftsjahr-Filter
-
-Datei: `src/pages/weg-owner/Files.tsx`
-
-### Änderungen
-- **Ordner-Cards statt flacher Gruppen-Überschriften**: Einstiegsansicht zeigt pro Tab (Persönlich / Gebäude) ein Grid aus Karten — eine Karte je Kategorie mit Icon/Farbe (aus `building_file_categories`), Name und Dateianzahl. Klick auf Karte → Drill-down in die Dateiliste dieser Kategorie (mit „Zurück"-Button). Mobil 1 Spalte, Desktop 2–3 Spalten.
-- **Nur belegte Ordner anzeigen**: Karten werden nur gerendert, wenn `files.filter(f => f.category_id === cat.id).length > 0`. „Ohne Kategorie" nur, wenn solche Dateien existieren.
-- **Wirtschaftsjahr-Filter**: Select oben (neben Suche). Optionen werden dynamisch aus den geladenen Dateien gebildet (`building_files.fiscal_year`, distinct, absteigend) plus „Alle Jahre" und „Ohne Jahr". Filter wirkt vor der Gruppierung, sodass leere Ordner für das gewählte Jahr automatisch verschwinden.
-- Sucheingabe bleibt; sie filtert weiterhin über `display_name` und wirkt zusätzlich zum Jahresfilter.
-- Hierarchie der Kategorien (`parent_id`): vorerst flach lassen wie heute (alle Kategorien als Karten). Falls gewünscht, in einem Folgeschritt Top-Level-Karten mit Aufklappen der Unterordner — bitte bei Bedarf bestätigen.
-
-### Technische Hinweise
-- `building_files.fiscal_year` existiert bereits → keine DB-Änderung nötig.
-- `building_file_categories` liefert `icon`, `color`, `name` für die Card-Darstellung.
-- Drill-down rein clientseitig per Local-State (`selectedCategoryId`), keine zusätzlichen Queries.
-- Keine Änderung an Sichtbarkeits-/RLS-Regeln der Dateien.
-
-## Reihenfolge
-1. Migration für `annual_cycle_tasks`-SELECT-Policy (Owner-Sync).
-2. Refactor `src/pages/weg-owner/Files.tsx` (Cards, Jahresfilter, Empty-Folder-Hide).
+### Nicht betroffen
+- Daten-Layer (`fetchFiles`, Queries, RLS) bleibt unverändert.
+- Tabs-Struktur (Persönlich / Gebäude), Suche, Wirtschaftsjahr-Filter bleiben.
+- Keine Backend-Migration nötig.
