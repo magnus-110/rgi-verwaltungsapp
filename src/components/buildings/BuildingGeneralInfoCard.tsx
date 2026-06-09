@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Info, Save, Loader2, Flame, MapPin, StickyNote, Plus, Trash2, Pencil, X, Check, Landmark } from "lucide-react";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Info, Save, Loader2, Flame, MapPin, StickyNote, Plus, Trash2, Pencil, X, Check, Landmark, CalendarRange } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
