@@ -116,9 +116,20 @@ export const WegOwnerResolutions = () => {
                   <div className="flex gap-x-4 gap-y-1 text-xs text-muted-foreground flex-wrap">
                     <span>{r.buildings?.name}</span>
                     <span>{meeting?.title}</span>
-                    <span>{r.resolved_at ? format(new Date(r.resolved_at), "dd.MM.yyyy", { locale: de }) : ""}</span>
-                    {showStatus && r.is_actionable && lastEdit && (
-                      <span>Zuletzt bearbeitet: <span className="font-medium text-foreground">{format(new Date(lastEdit), "dd.MM.yyyy", { locale: de })}</span></span>
+                    <span>
+                      Versammlung: {meeting?.meeting_date
+                        ? format(new Date(meeting.meeting_date), "dd.MM.yyyy", { locale: de })
+                        : r.resolved_at
+                          ? format(new Date(r.resolved_at), "dd.MM.yyyy", { locale: de })
+                          : "—"}
+                    </span>
+                    {lastEdit && (
+                      <span>
+                        Zuletzt bearbeitet:{" "}
+                        <span className="font-medium text-foreground">
+                          {format(new Date(lastEdit), "dd.MM.yyyy", { locale: de })}
+                        </span>
+                      </span>
                     )}
                   </div>
                 </div>
