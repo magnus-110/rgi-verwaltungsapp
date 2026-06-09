@@ -9,6 +9,7 @@ import { Loader2, FileText, X } from "lucide-react";
 import { toast } from "sonner";
 import { VisibilityRole, VISIBILITY_LABELS, DocCategory } from "./types";
 import { PersonVisibilityPicker } from "./PersonVisibilityPicker";
+import { useFiscalYearContext } from "@/contexts/FiscalYearContext";
 
 interface UploadDocumentDialogProps {
   open: boolean;
@@ -24,11 +25,20 @@ export function UploadDocumentDialog({
   open, onOpenChange, buildingId, managementMode,
   initialCategoryId, initialFiles, onUploaded,
 }: UploadDocumentDialogProps) {
+  const fyCtx = useFiscalYearContext();
   const [files, setFiles] = useState<File[]>([]);
   const [categoryId, setCategoryId] = useState<string>("");
   const [visibility, setVisibility] = useState<VisibilityRole>('intern');
   const [validUntil, setValidUntil] = useState<string>("");
+  // Bewusst KEINE Vorauswahl – user pickt aktiv, dann wird der Wert geteilt.
   const [fiscalYear, setFiscalYear] = useState<string>("general");
+  const handleFiscalYearChange = (v: string) => {
+    setFiscalYear(v);
+    if (v !== "general") {
+      const n = parseInt(v, 10);
+      if (Number.isFinite(n)) fyCtx.setFiscalYear(buildingId, n);
+    }
+  };
   const [uploading, setUploading] = useState(false);
   const [categories, setCategories] = useState<DocCategory[]>([]);
   const [owners, setOwners] = useState<Array<{ id: string; first_name?: string | null; last_name?: string | null; company_name?: string | null }>>([]);
@@ -238,7 +248,7 @@ export function UploadDocumentDialog({
 
           <div>
             <Label>Zuordnung</Label>
-            <Select value={fiscalYear} onValueChange={setFiscalYear}>
+            <Select value={fiscalYear} onValueChange={handleFiscalYearChange}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="general">Allgemein (kein Wirtschaftsjahr)</SelectItem>
