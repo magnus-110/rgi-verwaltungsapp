@@ -16,7 +16,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function InvoicesTab() {
-  const { data: invoices, isLoading } = useRgiInvoices();
+  const { data: invoices, isLoading, refetch: refetchInvoices } = useRgiInvoices();
   const { data: clients } = useRgiClients();
   const [editorId, setEditorId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -52,6 +52,7 @@ export function InvoicesTab() {
     setRenderingId(id);
     try {
       const r = await rgiRenderInvoice(id);
+      await refetchInvoices();
       toast.success("PDF erzeugt");
       if (r?.pdf_path) await openPdf(r.pdf_path);
     } catch (e: any) {

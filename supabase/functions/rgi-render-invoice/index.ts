@@ -29,6 +29,17 @@ function sanitize(s: string): string {
   return (s || "").replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 80);
 }
 
+function withDotAliases<T extends Record<string, any>>(source: T): T {
+  const out: Record<string, any> = { ...source };
+  for (const [group, value] of Object.entries(source)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    for (const [key, nestedValue] of Object.entries(value)) {
+      out[`${group}.${key}`] = nestedValue;
+    }
+  }
+  return out as T;
+}
+
 async function convertDocxToPdf(docxBytes: Uint8Array, filename: string): Promise<Uint8Array> {
   const apiKey = Deno.env.get("CLOUDCONVERT_API_KEY");
   if (!apiKey) throw new Error("CLOUDCONVERT_API_KEY ist nicht konfiguriert");
@@ -256,7 +267,7 @@ Deno.serve(async (req) => {
       nullGetter: () => "",
     });
     try {
-      doc.render(payload);
+      doc.render(withDotAliases(payload));
     } catch (rErr: any) {
       const tplErrors = rErr?.properties?.errors;
       if (Array.isArray(tplErrors) && tplErrors.length) {
@@ -267,11 +278,13 @@ Deno.serve(async (req) => {
     }
     const docxBytes = doc.getZip().generate({ type: "uint8array" });
 
-    const baseName = `${sanitize(invoice.invoice_number || "Entwurf")}_${sanitize(invoice.client_name_snapshot || invoice.client?.name || "Kunde")}`;
+    const renderStamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+    const baseName = `${sanitize(invoice.invoice_number || "Entwurf")}_${sanitize(invoice.client_name_snapshot || invoice.client?.name || "Kunde")}_${renderStamp}`;
     const docxPath = `docx/${invoice.id}/${baseName}.docx`;
 
     const { error: docxUploadError } = await admin.storage.from("invoices").upload(docxPath, docxBytes, {
       contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      cacheControl: "0",
       upsert: true,
     });
     if (docxUploadError) return json({ error: `DOCX-Upload fehlgeschlagen: ${docxUploadError.message}` }, 500);
@@ -284,6 +297,7 @@ Deno.serve(async (req) => {
         pdfPath = `pdf/${invoice.id}/${baseName}.pdf`;
         const { error: pdfUploadError } = await admin.storage.from("invoices").upload(pdfPath, pdfBytes, {
           contentType: "application/pdf",
+          cacheControl: "0",
           upsert: true,
         });
         if (pdfUploadError) throw new Error(`PDF-Upload fehlgeschlagen: ${pdfUploadError.message}`);
