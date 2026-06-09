@@ -136,7 +136,7 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
 
   const handleDownload = async () => {
     const { data, error } = await supabase.storage
-      .from('building-files')
+      .from(getFileBucket(file.source))
       .createSignedUrl(file.file_path, 60, { download: file.display_name });
     if (error) { toast.error(error.message); return; }
     window.open(data.signedUrl, '_blank');
@@ -144,7 +144,7 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
 
   const handleOpenInTab = async () => {
     const { data, error } = await supabase.storage
-      .from('building-files')
+      .from(getFileBucket(file.source))
       .createSignedUrl(file.file_path, 60);
     if (error) { toast.error(error.message); return; }
     window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
