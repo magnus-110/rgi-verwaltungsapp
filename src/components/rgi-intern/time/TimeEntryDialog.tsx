@@ -38,7 +38,7 @@ export function TimeEntryDialog({ open, onOpenChange, entry, projects }: Props) 
   useEffect(() => {
     if (open) {
       const init = entry ?? {
-        date: new Date().toISOString().slice(0, 10),
+        date: null,
         minutes: 30,
         billable: true,
         description: "",
@@ -54,7 +54,12 @@ export function TimeEntryDialog({ open, onOpenChange, entry, projects }: Props) 
     if (!form.project_id || !form.description || !user) return;
     const minutes = parseDuration(durationStr);
     if (minutes <= 0) return;
-    await upsert.mutateAsync({ ...form, minutes, user_id: form.user_id ?? user.id });
+    await upsert.mutateAsync({
+      ...form,
+      date: form.date || null,
+      minutes,
+      user_id: form.user_id ?? user.id,
+    });
     onOpenChange(false);
   };
 
@@ -64,7 +69,7 @@ export function TimeEntryDialog({ open, onOpenChange, entry, projects }: Props) 
         <DialogHeader><DialogTitle>{entry ? "Stunden bearbeiten" : "Stunden erfassen"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Datum</Label><Input type="date" value={form.date ?? ""} onChange={(e) => set("date", e.target.value)} /></div>
+            <div><Label>Datum <span className="text-xs text-muted-foreground">(optional)</span></Label><Input type="date" value={form.date ?? ""} onChange={(e) => set("date", e.target.value || null)} /></div>
             <div><Label>Dauer (HH:MM oder Minuten)</Label><Input value={durationStr} onChange={(e) => setDurationStr(e.target.value)} placeholder="1:30" /></div>
           </div>
           <div>

@@ -27,7 +27,7 @@ export function buildRgiItemsFromTime(
   if (grouping === "per_entry") {
     return entries.map((e) => ({
       kind: "time",
-      description: `${e.date} — ${e.description}`,
+      description: e.date ? `${e.date} — ${e.description}` : e.description,
       quantity: Number((e.minutes / 60).toFixed(2)),
       unit: "Std",
       unit_price_net: getRgiRate(e, projects, clients, clientId),
@@ -38,7 +38,7 @@ export function buildRgiItemsFromTime(
   if (grouping === "per_day") {
     const groups = new Map<string, RgiTimeEntry[]>();
     for (const e of entries) {
-      const key = `${e.date}|${getRgiRate(e, projects, clients, clientId)}`;
+      const key = `${e.date ?? ""}|${getRgiRate(e, projects, clients, clientId)}`;
       const arr = groups.get(key) ?? [];
       arr.push(e);
       groups.set(key, arr);
@@ -49,7 +49,7 @@ export function buildRgiItemsFromTime(
       const descs = es.map((e) => e.description).join("; ");
       return {
         kind: "time",
-        description: `${date} — ${descs}`,
+        description: date ? `${date} — ${descs}` : descs,
         quantity: Number((totalMin / 60).toFixed(2)),
         unit: "Std",
         unit_price_net: getRgiRate(es[0], projects, clients, clientId),
@@ -66,12 +66,12 @@ export function buildRgiItemsFromTime(
   );
   const totalHours = totalMin / 60;
   const rate = totalHours > 0 ? totalCost / totalHours : 0;
-  const dates = [...new Set(entries.map((e) => e.date))].sort();
+  const dates = [...new Set(entries.map((e) => e.date).filter(Boolean) as string[])].sort();
   const range = dates.length > 1 ? `${dates[0]} – ${dates[dates.length - 1]}` : dates[0];
   return [
     {
       kind: "time",
-      description: `Geleistete Stunden ${range}`,
+      description: range ? `Geleistete Stunden ${range}` : `Geleistete Stunden`,
       quantity: Number(totalHours.toFixed(2)),
       unit: "Std",
       unit_price_net: Number(rate.toFixed(2)),
