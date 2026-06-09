@@ -38,6 +38,7 @@ interface AgendaItem {
   requires_double_qualified: boolean;
   double_qualified_relevant: boolean;
   requires_resolution: boolean;
+  is_actionable: boolean;
 }
 
 const votingPrinciples = [
