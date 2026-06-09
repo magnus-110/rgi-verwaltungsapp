@@ -141,7 +141,7 @@ export const Finance = () => {
 
       <BillingPeriodSelector
         selectedBuildingId={selectedBuildingId}
-        onBuildingChange={(id) => { setSelectedBuildingId(id); setSelectedPeriodId(null); }}
+        onBuildingChange={(id) => { setSelectedBuildingId(id); setSelectedPeriodId(id ? fyCtx.getPeriodId(id) : null); }}
         selectedPeriodId={selectedPeriodId}
         onPeriodChange={setSelectedPeriodId}
         showPeriod={showPeriod}
