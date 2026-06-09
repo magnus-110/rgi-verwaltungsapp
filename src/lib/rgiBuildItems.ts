@@ -66,12 +66,12 @@ export function buildRgiItemsFromTime(
   );
   const totalHours = totalMin / 60;
   const rate = totalHours > 0 ? totalCost / totalHours : 0;
-  const dates = [...new Set(entries.map((e) => e.date))].sort();
+  const dates = [...new Set(entries.map((e) => e.date).filter(Boolean) as string[])].sort();
   const range = dates.length > 1 ? `${dates[0]} – ${dates[dates.length - 1]}` : dates[0];
   return [
     {
       kind: "time",
-      description: `Geleistete Stunden ${range}`,
+      description: range ? `Geleistete Stunden ${range}` : `Geleistete Stunden`,
       quantity: Number(totalHours.toFixed(2)),
       unit: "Std",
       unit_price_net: Number(rate.toFixed(2)),
