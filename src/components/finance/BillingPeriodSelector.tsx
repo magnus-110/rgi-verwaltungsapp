@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useManagementMode } from "@/hooks/useManagementMode";
+import { useFiscalYearContext } from "@/contexts/FiscalYearContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +38,7 @@ export function BillingPeriodSelector({
 }: BillingPeriodSelectorProps) {
   const queryClient = useQueryClient();
   const { managementMode } = useManagementMode();
+  const fyCtx = useFiscalYearContext();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editMode, setEditMode] = useState<"create" | "edit">("create");
   const [editingId, setEditingId] = useState<string | null>(null);
