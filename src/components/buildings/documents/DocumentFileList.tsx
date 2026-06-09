@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
-import { DocFile, VISIBILITY_LABELS } from "./types";
+import { DocFile, VISIBILITY_LABELS, getFileBucket } from "./types";
 
 interface DocumentFileListProps {
   buildingId: string;
