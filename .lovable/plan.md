@@ -1,48 +1,38 @@
-# Plan: Wirtschaftsjahr pro Liegenschaft konfigurierbar
-
 ## Ziel
-1. Die Karte „Allgemeine Infos" wird in der Gebäudeübersicht direkt **unter** den Jahreszyklus-Streifen verschoben (statt ganz unten).
-2. In „Allgemeine Infos" kann der Wirtschaftsjahr-Beginn für die Liegenschaft gesetzt werden (Monat + Tag, z. B. 01.07.). Diese Einstellung steuert dann sämtliche Jahreszyklus-/Wirtschaftsjahr-Anzeigen für diese Liegenschaft.
+Die Vorgänge-Übersichtsseite (`/tickets/vorgaenge`) wird neu strukturiert, sodass auf den ersten Blick klar ist, **um welchen Vorgang es geht** — ohne visuelles Rauschen durch Kategorie und Priorität.
 
-## Änderungen
+## Änderungen in `src/components/cases/CasesGlobalView.tsx`
 
-### 1) Datenbank
-Neue Spalten auf `public.buildings`:
-- `fiscal_year_start_month` `smallint` (1–12, Default 1)
-- `fiscal_year_start_day` `smallint` (1–28, Default 1)
+### 1. Filter & Spalten entfernen
+- Filter „Priorität" und „Kategorie" aus der Toolbar entfernen (inkl. zugehöriger States `priorityFilter`, `categoryFilter`).
+- Suche, Gebäudefilter, Statusfilter, View-Toggle und „Neuer Vorgang" bleiben.
+- KPI-Reihe (5 Status-Kacheln) bleibt unverändert.
 
-Keine RLS-Änderung (Tabelle besteht bereits).
+### 2. Neue, übersichtliche Listendarstellung (`CasesList`)
+Statt 8-spaltigem Tabellengrid → **gestapelte Zeilen mit klarer Hierarchie**:
 
-### 2) Helper `src/lib/annualCycle.ts`
-`buildFiscalYears` so erweitern, dass Start-Monat/Tag übergeben werden können:
-- bei Default (1/1) bleibt das Verhalten identisch (`2026` → 01.01.–31.12.).
-- bei abweichendem Beginn (z. B. 7/1) wird der Zeitraum `2026-07-01` → `2027-06-30` erzeugt; Label = „2026/2027".
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│ ● [Großer Titel des Vorgangs]                       [Status-Pill]   │
+│   🏢 Gebäudename · WE 3   •   💬 4   •   ⏰ fällig 12.06.   • vor 2h│
+│   ↳ Kurzzusammenfassung aus ai_summary (1 Zeile, muted)             │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-### 3) Reihenfolge in `BuildingOverviewTab.tsx`
-`<BuildingGeneralInfoCard>` direkt nach `<AnnualCycleTimeline>` rendern (alte Position am Ende entfernen).
+Konkret:
+- **Zeile 1:** Statuspunkt (kleiner farbiger Dot nach Status statt Priorität) + **fetter Titel (text-base)** links; Status-Select als kompakte Pill rechts.
+- **Zeile 2 (Meta):** Gebäude (+ ggf. `unit_number`), Event-Count, Fälligkeit (rot wenn überfällig), „vor X" — alle in `text-xs text-muted-foreground`, durch `·` getrennt.
+- **Zeile 3 (optional):** Erste Zeile aus `ai_summary` als einzeiliger truncate-Text, falls vorhanden.
+- Hover: dezenter `bg-muted/40` + Lösch-Icon erscheint rechts.
+- Keine Badges mehr für Kategorie/Priorität in der Liste.
 
-### 4) `BuildingGeneralInfoCard.tsx`
-- Neues Feld „Wirtschaftsjahr-Beginn" (zwei kleine Selects: Tag + Monat, Default 1. Januar) in den Stammfeldern oben.
-- Speichern schreibt `fiscal_year_start_month` / `fiscal_year_start_day` in `buildings`.
-- Beim Ändern wird `["building-general-info"]` und `["jz-tasks"]` invalidiert.
+### 3. Board-Ansicht (`CasesBoard`)
+- Karten ebenfalls entschlacken: nur Titel (font-medium), darunter Gebäude + Meta-Zeile, kein Kategorie-Badge, kein Prioritäts-Badge. Lösch-Button & Status bleiben.
 
-### 5) Konsumenten von `buildFiscalYears`
-Überall, wo ein konkretes Gebäude im Scope ist, lädt der Aufrufer Start-Monat/Tag aus `buildings` und ruft `buildFiscalYears(currentYear, { startMonth, startDay })`:
-- `src/components/buildings/AnnualCycleTimeline.tsx`
-- `src/components/buildings/AnnualCycleBuildingTab.tsx`
-- Im globalen Überblick (`pages/Jahreszyklus.tsx`, Dashboard-Widgets) bleibt der Kalenderjahr-Default — diese Übersichten sind gebäudeübergreifend.
+### 4. Sortierung
+- Default-Sortierung der Liste: überfällige zuerst, dann nach `updated_at` desc (bisher nur `updated_at`). Liefert relevantere Reihenfolge ohne Prio-Filter.
 
-### 6) Seed-RPC
-`seed_annual_cycle_tasks` wird in `AnnualCycleTimeline` bereits mit `selected.start`/`selected.end` aufgerufen — durch den neuen Helper passen Start/Ende automatisch zum konfigurierten Wirtschaftsjahr-Beginn, ohne die RPC anzufassen.
-
-### 7) Finance-Seite
-`Finance.tsx` arbeitet mit `billing_periods` (eigene Zeiträume, nicht mit `buildFiscalYears`). Hier sind keine Änderungen nötig — der Beginn wird beim Anlegen neuer `billing_periods` ohnehin manuell gewählt; die neue Building-Einstellung kann später als Default beim Anlegen herangezogen werden (out of scope dieses Tickets).
-
-## Technische Details
-- Speicherformat im UI: zwei Select-Felder (Tag 1–28, Monat 1–12). 28-Tage-Limit vermeidet 29.–31.-Edge-Cases.
-- Label-Logik: `startMonth === 1 && startDay === 1` → „2026"; sonst „2026/2027".
-- Period-Range bei abweichendem Beginn: `start = YYYY-MM-DD`, `end = (YYYY+1)-MM-(DD-1)` (mit korrektem Vormonats-Übergang).
-
-## Out of scope
-- Automatisches Anlegen passender `billing_periods` aus dieser Einstellung.
-- Migration vorhandener `annual_cycle_tasks`-Zeilen auf neue Zeiträume.
+## Nicht geändert
+- `useCases`-Hook, DB-Schema, `CaseDetailView` (dort bleiben Kategorie & Priorität editierbar).
+- Routing, Tabs in `Tickets.tsx`.
+- `BuildingCasesTab` (gebäude-interne Ansicht) — Scope ist nur die globale Vorgänge-Seite.
