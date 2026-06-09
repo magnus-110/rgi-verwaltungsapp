@@ -392,7 +392,8 @@ function SearchableBuildingSelect({
               {allOptions.map((opt) => (
                 <CommandItem
                   key={opt.value}
-                  value={opt.value}
+                  value={`${opt.label} ${opt.search} ${opt.value}`}
+                  keywords={[opt.label, opt.search]}
                   onSelect={() => {
                     onUpdate(opt.value);
                     setOpen(false);
@@ -742,6 +743,30 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
 
           {/* Copy fields for bank transfer */}
           <div className="bg-muted/50 rounded-lg p-4 space-y-1">
+            <div className="py-2">
+              <p className="text-xs text-muted-foreground mb-1">Liegenschaft</p>
+              <SearchableBuildingSelect
+                buildings={buildings}
+                invoice={invoice}
+                onUpdate={async (val) => {
+                  const updates: any = {};
+                  if (val === "__company__") {
+                    updates.is_company_invoice = true;
+                    updates.building_id = null;
+                  } else if (val === "__none__") {
+                    updates.is_company_invoice = false;
+                    updates.building_id = null;
+                  } else {
+                    updates.is_company_invoice = false;
+                    updates.building_id = val;
+                  }
+                  const { error } = await supabase.from("invoices").update(updates).eq("id", invoice.id);
+                  if (error) toast.error("Fehler beim Speichern");
+                  else { toast.success("Liegenschaft aktualisiert"); onRefetch(); }
+                }}
+              />
+            </div>
+            <Separator />
             <PurposeEditCopyField
               label="Empfänger"
               value={invoice.vendor_name || "–"}
