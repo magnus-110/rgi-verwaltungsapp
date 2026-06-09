@@ -143,25 +143,7 @@ export const CasesGlobalView = () => {
             </SelectContent>
           </Select>
 
-          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="h-10 w-[140px]"><SelectValue placeholder="Priorität" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle Prioritäten</SelectItem>
-              {Object.entries(CASE_PRIORITY_LABEL).map(([k, v]) => (
-                <SelectItem key={k} value={k}>{v}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
 
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="h-10 w-[160px]"><SelectValue placeholder="Kategorie" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle Kategorien</SelectItem>
-              {Object.entries(CASE_CATEGORY_LABEL).map(([k, v]) => (
-                <SelectItem key={k} value={k}>{v}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
 
           {/* View toggle */}
           <div className="flex border border-border rounded-md overflow-hidden h-10">
