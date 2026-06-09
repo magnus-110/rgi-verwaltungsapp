@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, isToday } from "date-fns";
 import {
   CreditCard, AlertTriangle, Play, StickyNote, Check, X, FileCode, Loader2,
-  RefreshCw, Sparkles, ArrowDownToLine, ArrowUpFromLine, Link2, Clock,
+  RefreshCw, Sparkles, ArrowDownToLine, ArrowUpFromLine, Link2, Clock, ArrowUpDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
