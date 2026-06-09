@@ -33,24 +33,54 @@ interface TaskRow {
 export const AnnualCycleBuildingTab = ({ buildingId }: Props) => {
   const qc = useQueryClient();
   const fyCtx = useFiscalYearContext();
-  const fiscalYears = useMemo(() => buildFiscalYears(), []);
+  const { data: bCfg } = useQuery({
+    queryKey: ["building-fy-cfg", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("fiscal_year_start_month, fiscal_year_start_day")
+        .eq("id", buildingId)
+        .maybeSingle();
+      if (error) throw error;
+      return (data || { fiscal_year_start_month: 1, fiscal_year_start_day: 1 }) as {
+        fiscal_year_start_month: number;
+        fiscal_year_start_day: number;
+      };
+    },
+  });
+  const fiscalYears = useMemo(
+    () =>
+      buildFiscalYears(undefined, {
+        startMonth: bCfg?.fiscal_year_start_month ?? 1,
+        startDay: bCfg?.fiscal_year_start_day ?? 1,
+      }),
+    [bCfg?.fiscal_year_start_month, bCfg?.fiscal_year_start_day]
+  );
+  const startYearOf = (fy: typeof fiscalYears[number]) => Number(fy.start.slice(0, 4));
   const ctxYear = fyCtx.getFiscalYear(buildingId);
   const initial =
-    (ctxYear != null && fiscalYears.find((f) => Number(f.label) === ctxYear)) ||
+    (ctxYear != null && fiscalYears.find((f) => startYearOf(f) === ctxYear)) ||
     fiscalYears[2]; // current year fallback
   const [selected, setSelected] = useState(initial);
+
+  // Re-sync selected when fiscal-year-config (and therefore the array) reloads.
+  useEffect(() => {
+    const match = fiscalYears.find((f) => startYearOf(f) === startYearOf(selected));
+    if (match && match.start !== selected.start) setSelected(match);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fiscalYears]);
 
   // Wenn der Kontext sich von außen ändert (z. B. User wählt in Buchhaltung ein Jahr), übernehmen
   useEffect(() => {
     if (ctxYear == null) return;
-    const match = fiscalYears.find((f) => Number(f.label) === ctxYear);
+    const match = fiscalYears.find((f) => startYearOf(f) === ctxYear);
     if (match && match.start !== selected.start) setSelected(match);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctxYear]);
 
   // Lokale Änderung in den Kontext schreiben
   useEffect(() => {
-    const y = Number(selected.label);
+    const y = startYearOf(selected);
     if (!Number.isFinite(y)) return;
     if (ctxYear !== y) fyCtx.setFiscalYear(buildingId, y);
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Info, Save, Loader2, Flame, MapPin, StickyNote, Plus, Trash2, Pencil, X, Check, Landmark } from "lucide-react";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Info, Save, Loader2, Flame, MapPin, StickyNote, Plus, Trash2, Pencil, X, Check, Landmark, CalendarRange } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
@@ -33,34 +36,51 @@ export const BuildingGeneralInfoCard = ({ buildingId }: Props) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("buildings")
-        .select("etv_default_location, heating_type, creditor_id")
+        .select("etv_default_location, heating_type, creditor_id, fiscal_year_start_month, fiscal_year_start_day")
         .eq("id", buildingId)
         .single();
       if (error) throw error;
-      return data as { etv_default_location: string | null; heating_type: string | null; creditor_id: string | null };
+      return data as {
+        etv_default_location: string | null;
+        heating_type: string | null;
+        creditor_id: string | null;
+        fiscal_year_start_month: number;
+        fiscal_year_start_day: number;
+      };
     },
   });
 
   const [etv, setEtv] = useState("");
   const [heating, setHeating] = useState("");
+  const [fyMonth, setFyMonth] = useState<number>(1);
+  const [fyDay, setFyDay] = useState<number>(1);
   const [savingMain, setSavingMain] = useState(false);
 
   useEffect(() => {
     if (building) {
       setEtv(building.etv_default_location || "");
       setHeating(building.heating_type || "");
+      setFyMonth(building.fiscal_year_start_month ?? 1);
+      setFyDay(building.fiscal_year_start_day ?? 1);
     }
   }, [building]);
 
   const isMainDirty =
     (building?.etv_default_location || "") !== etv ||
-    (building?.heating_type || "") !== heating;
+    (building?.heating_type || "") !== heating ||
+    (building?.fiscal_year_start_month ?? 1) !== fyMonth ||
+    (building?.fiscal_year_start_day ?? 1) !== fyDay;
 
   const handleSaveMain = async () => {
     setSavingMain(true);
     const { error } = await supabase
       .from("buildings")
-      .update({ etv_default_location: etv || null, heating_type: heating || null })
+      .update({
+        etv_default_location: etv || null,
+        heating_type: heating || null,
+        fiscal_year_start_month: fyMonth,
+        fiscal_year_start_day: fyDay,
+      })
       .eq("id", buildingId);
     setSavingMain(false);
     if (error) {
@@ -70,6 +90,9 @@ export const BuildingGeneralInfoCard = ({ buildingId }: Props) => {
     toast({ title: "Gespeichert" });
     qc.invalidateQueries({ queryKey: ["building-general-info", buildingId] });
     qc.invalidateQueries({ queryKey: ["building-detail", buildingId] });
+    qc.invalidateQueries({ queryKey: ["building-fy-cfg", buildingId] });
+    qc.invalidateQueries({ queryKey: ["annual-cycle-timeline", buildingId] });
+    qc.invalidateQueries({ queryKey: ["annual-cycle", buildingId] });
   };
 
   // ---- Notizen-Liste ----
@@ -182,12 +205,49 @@ export const BuildingGeneralInfoCard = ({ buildingId }: Props) => {
             />
           </div>
         </div>
+
+        {/* Wirtschaftsjahr-Beginn */}
+        <div className="space-y-1">
+          <Label className="text-xs flex items-center gap-1.5">
+            <CalendarRange className="h-3 w-3" /> Wirtschaftsjahr-Beginn
+          </Label>
+          <div className="flex items-center gap-2">
+            <Select value={String(fyDay)} onValueChange={(v) => setFyDay(Number(v))}>
+              <SelectTrigger className="h-9 w-[90px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+                  <SelectItem key={d} value={String(d)}>{d}.</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={String(fyMonth)} onValueChange={(v) => setFyMonth(Number(v))}>
+              <SelectTrigger className="h-9 flex-1 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[
+                  "Januar","Februar","März","April","Mai","Juni",
+                  "Juli","August","September","Oktober","November","Dezember",
+                ].map((m, i) => (
+                  <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Wird überall für Jahreszyklus und Wirtschaftsjahr-Auswahl dieser Liegenschaft verwendet.
+          </p>
+        </div>
+
         <div className="flex justify-end">
           <Button size="sm" onClick={handleSaveMain} disabled={!isMainDirty || savingMain} className="gap-1.5">
             {savingMain ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
             Speichern
           </Button>
         </div>
+
 
         {/* Gläubiger-ID */}
         <div className="border-t pt-3">

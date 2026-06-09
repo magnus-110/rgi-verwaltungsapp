@@ -131,6 +131,9 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
         <AnnualCycleTimeline buildingId={buildingId} />
       )}
 
+      {/* Allgemeine Infos direkt unter Jahreszyklus */}
+      <BuildingGeneralInfoCard buildingId={buildingId} />
+
       {/* 2 Spalten Grid (Vorgänge + Meldungen) */}
       <div className="grid md:grid-cols-2 gap-3 md:gap-4">
         {/* Offene Vorgänge */}
@@ -313,8 +316,6 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
         </CardContent>
       </Card>
 
-      {/* Allgemeine Infos (ETV-Ort, Heizungsart, Notizen) */}
-      <BuildingGeneralInfoCard buildingId={buildingId} />
 
       {/* Quick Actions */}
       <Card>

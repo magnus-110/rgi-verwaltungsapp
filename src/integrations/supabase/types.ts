@@ -1716,6 +1716,8 @@ export type Database = {
           created_at: string | null
           creditor_id: string | null
           etv_default_location: string | null
+          fiscal_year_start_day: number
+          fiscal_year_start_month: number
           general_notes: string | null
           heating_type: string | null
           id: string
@@ -1736,6 +1738,8 @@ export type Database = {
           created_at?: string | null
           creditor_id?: string | null
           etv_default_location?: string | null
+          fiscal_year_start_day?: number
+          fiscal_year_start_month?: number
           general_notes?: string | null
           heating_type?: string | null
           id?: string
@@ -1756,6 +1760,8 @@ export type Database = {
           created_at?: string | null
           creditor_id?: string | null
           etv_default_location?: string | null
+          fiscal_year_start_day?: number
+          fiscal_year_start_month?: number
           general_notes?: string | null
           heating_type?: string | null
           id?: string
