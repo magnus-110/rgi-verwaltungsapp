@@ -72,6 +72,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [editRequiresDQ, setEditRequiresDQ] = useState(false);
   const [editDQRelevant, setEditDQRelevant] = useState(false);
   const [editRequiresResolution, setEditRequiresResolution] = useState(true);
+  const [editIsActionable, setEditIsActionable] = useState(false);
 
   // New item form
   const [newTitle, setNewTitle] = useState("");
@@ -83,6 +84,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [newRequiresDQ, setNewRequiresDQ] = useState(false);
   const [newDQRelevant, setNewDQRelevant] = useState(false);
   const [newRequiresResolution, setNewRequiresResolution] = useState(true);
+  const [newIsActionable, setNewIsActionable] = useState(false);
 
   // AI suggestion state
   const [newAiSuggestion, setNewAiSuggestion] = useState<string | null>(null);
