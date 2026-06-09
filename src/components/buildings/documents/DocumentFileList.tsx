@@ -254,7 +254,7 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
                           onClick={async (e) => {
                             e.stopPropagation();
                             const { data, error } = await supabase.storage
-                              .from('building-files')
+                              .from(getFileBucket(f.source))
                               .createSignedUrl(f.file_path, 60);
                             if (!error && data) window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
                           }}
