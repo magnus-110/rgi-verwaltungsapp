@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Search, Scale, CheckCircle2, XCircle, StickyNote, Save, Pencil, Wrench, ExternalLink } from "lucide-react";
+import { Search, Scale, CheckCircle2, XCircle, StickyNote, Save, Pencil, Wrench, ExternalLink, Eye, EyeOff } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -38,6 +38,24 @@ export const ResolutionLedger = ({ buildingFilter: externalBuildingFilter }: Res
       toast({
         title: vars.value ? "Als umsetzungsrelevant markiert" : "Markierung entfernt",
         description: vars.value ? "Es wurde automatisch ein Vorgang angelegt." : undefined,
+      });
+      queryClient.invalidateQueries({ queryKey: ["etv-resolutions"] });
+    },
+    onError: (err: any) => toast({ title: "Fehler", description: err.message, variant: "destructive" }),
+  });
+
+  const togglePublishedMutation = useMutation({
+    mutationFn: async ({ id, value }: { id: string; value: boolean }) => {
+      const { error } = await supabase
+        .from("etv_resolutions")
+        .update({ published: value } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      toast({
+        title: vars.value ? "Im Eigentümer-Portal veröffentlicht" : "Aus dem Portal entfernt",
+        description: vars.value ? "Der Beschluss ist jetzt für Eigentümer sichtbar." : undefined,
       });
       queryClient.invalidateQueries({ queryKey: ["etv-resolutions"] });
     },
@@ -162,7 +180,21 @@ export const ResolutionLedger = ({ buildingFilter: externalBuildingFilter }: Res
                         >
                           {r.result === "passed" ? "Angenommen" : "Abgelehnt"}
                         </Badge>
-                        {!r.published && <Badge variant="outline" className="text-xs">Entwurf</Badge>}
+                        {r.published ? (
+                          <Badge variant="outline" className="text-xs gap-1 border-success/40 bg-success/10 text-success">
+                            <Eye className="h-3 w-3" /> Veröffentlicht
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-xs gap-1 px-2"
+                            onClick={() => togglePublishedMutation.mutate({ id: r.id, value: true })}
+                            disabled={togglePublishedMutation.isPending}
+                          >
+                            <EyeOff className="h-3 w-3" /> Entwurf – jetzt veröffentlichen
+                          </Button>
+                        )}
                         {r.is_actionable && (
                           <Badge variant="outline" className="text-xs gap-1 border-primary/40 bg-primary/10 text-primary">
                             <Wrench className="h-3 w-3" /> Umzusetzen

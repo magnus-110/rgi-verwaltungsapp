@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Scale, Search, CheckCircle2, XCircle, Plus, Wrench, ExternalLink } from "lucide-react";
+import { Scale, Search, CheckCircle2, XCircle, Plus, Wrench, ExternalLink, Eye, EyeOff } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -34,6 +34,21 @@ export const BuildingResolutionsTab = ({ buildingId }: BuildingResolutionsTabPro
       toast({
         title: vars.value ? "Als umsetzungsrelevant markiert" : "Markierung entfernt",
         description: vars.value ? "Es wurde automatisch ein Vorgang angelegt." : undefined,
+      });
+      qc.invalidateQueries({ queryKey: ["building-resolutions", buildingId] });
+    },
+    onError: (err: any) => toast({ title: "Fehler", description: err.message, variant: "destructive" }),
+  });
+
+  const togglePublished = useMutation({
+    mutationFn: async ({ id, value }: { id: string; value: boolean }) => {
+      const { error } = await supabase.from("etv_resolutions").update({ published: value } as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      toast({
+        title: vars.value ? "Im Eigentümer-Portal veröffentlicht" : "Aus dem Portal entfernt",
+        description: vars.value ? "Der Beschluss ist jetzt für Eigentümer sichtbar." : undefined,
       });
       qc.invalidateQueries({ queryKey: ["building-resolutions", buildingId] });
     },
@@ -134,7 +149,21 @@ export const BuildingResolutionsTab = ({ buildingId }: BuildingResolutionsTabPro
                       >
                         {r.result === "passed" ? "Angenommen" : "Abgelehnt"}
                       </Badge>
-                      {!r.published && <Badge variant="outline" className="text-xs">Entwurf</Badge>}
+                      {r.published ? (
+                        <Badge variant="outline" className="text-xs gap-1 border-success/40 bg-success/10 text-success">
+                          <Eye className="h-3 w-3" /> Veröffentlicht
+                        </Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-xs gap-1 px-2"
+                          onClick={() => togglePublished.mutate({ id: r.id, value: true })}
+                          disabled={togglePublished.isPending}
+                        >
+                          <EyeOff className="h-3 w-3" /> Entwurf – jetzt veröffentlichen
+                        </Button>
+                      )}
                       {r.is_actionable && (
                         <Badge variant="outline" className="text-xs gap-1 border-primary/40 bg-primary/10 text-primary">
                           <Wrench className="h-3 w-3" /> Umzusetzen
