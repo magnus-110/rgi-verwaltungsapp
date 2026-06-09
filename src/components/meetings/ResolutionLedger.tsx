@@ -44,6 +44,24 @@ export const ResolutionLedger = ({ buildingFilter: externalBuildingFilter }: Res
     onError: (err: any) => toast({ title: "Fehler", description: err.message, variant: "destructive" }),
   });
 
+  const togglePublishedMutation = useMutation({
+    mutationFn: async ({ id, value }: { id: string; value: boolean }) => {
+      const { error } = await supabase
+        .from("etv_resolutions")
+        .update({ published: value } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      toast({
+        title: vars.value ? "Im Eigentümer-Portal veröffentlicht" : "Aus dem Portal entfernt",
+        description: vars.value ? "Der Beschluss ist jetzt für Eigentümer sichtbar." : undefined,
+      });
+      queryClient.invalidateQueries({ queryKey: ["etv-resolutions"] });
+    },
+    onError: (err: any) => toast({ title: "Fehler", description: err.message, variant: "destructive" }),
+  });
+
   const getResolutionDateMs = (resolution: any) => {
     const dateValue = resolution.resolved_at || resolution.etv_meetings?.meeting_date || resolution.created_at;
     const timestamp = dateValue ? new Date(dateValue).getTime() : 0;
