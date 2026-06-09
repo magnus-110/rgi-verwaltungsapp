@@ -82,6 +82,7 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
         voting_principle: item.voting_principle,
         resolved_at: meeting?.meeting_date,
         published: false,
+        is_actionable: !!item.is_actionable,
       }));
       if (resolutions.length === 0) return 0;
       await supabase.from("etv_resolutions").delete().eq("meeting_id", meetingId);
