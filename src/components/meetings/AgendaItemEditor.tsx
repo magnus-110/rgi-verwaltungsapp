@@ -1084,6 +1084,12 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
                     <Checkbox id="tpl-dq-rel" checked={dqRelevant} onCheckedChange={(c) => setDqRelevant(!!c)} />
                     <Label htmlFor="tpl-dq-rel" className="text-xs cursor-pointer">Doppelt qualifizierte Mehrheit relevant (Ergebnis anzeigen)</Label>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox id="tpl-actionable" checked={tplIsActionable} onCheckedChange={(c) => setTplIsActionable(!!c)} />
+                    <Label htmlFor="tpl-actionable" className="text-xs cursor-pointer flex items-center gap-1.5">
+                      <Wrench className="h-3 w-3" /> Beschluss ist umzusetzen (Vorgang automatisch anlegen)
+                    </Label>
+                  </div>
                 </>
               ) : (
                 <div className="flex items-start gap-2 text-xs text-muted-foreground bg-background rounded-md p-3 border">
