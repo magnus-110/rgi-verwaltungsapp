@@ -36,34 +36,51 @@ export const BuildingGeneralInfoCard = ({ buildingId }: Props) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("buildings")
-        .select("etv_default_location, heating_type, creditor_id")
+        .select("etv_default_location, heating_type, creditor_id, fiscal_year_start_month, fiscal_year_start_day")
         .eq("id", buildingId)
         .single();
       if (error) throw error;
-      return data as { etv_default_location: string | null; heating_type: string | null; creditor_id: string | null };
+      return data as {
+        etv_default_location: string | null;
+        heating_type: string | null;
+        creditor_id: string | null;
+        fiscal_year_start_month: number;
+        fiscal_year_start_day: number;
+      };
     },
   });
 
   const [etv, setEtv] = useState("");
   const [heating, setHeating] = useState("");
+  const [fyMonth, setFyMonth] = useState<number>(1);
+  const [fyDay, setFyDay] = useState<number>(1);
   const [savingMain, setSavingMain] = useState(false);
 
   useEffect(() => {
     if (building) {
       setEtv(building.etv_default_location || "");
       setHeating(building.heating_type || "");
+      setFyMonth(building.fiscal_year_start_month ?? 1);
+      setFyDay(building.fiscal_year_start_day ?? 1);
     }
   }, [building]);
 
   const isMainDirty =
     (building?.etv_default_location || "") !== etv ||
-    (building?.heating_type || "") !== heating;
+    (building?.heating_type || "") !== heating ||
+    (building?.fiscal_year_start_month ?? 1) !== fyMonth ||
+    (building?.fiscal_year_start_day ?? 1) !== fyDay;
 
   const handleSaveMain = async () => {
     setSavingMain(true);
     const { error } = await supabase
       .from("buildings")
-      .update({ etv_default_location: etv || null, heating_type: heating || null })
+      .update({
+        etv_default_location: etv || null,
+        heating_type: heating || null,
+        fiscal_year_start_month: fyMonth,
+        fiscal_year_start_day: fyDay,
+      })
       .eq("id", buildingId);
     setSavingMain(false);
     if (error) {
@@ -73,6 +90,9 @@ export const BuildingGeneralInfoCard = ({ buildingId }: Props) => {
     toast({ title: "Gespeichert" });
     qc.invalidateQueries({ queryKey: ["building-general-info", buildingId] });
     qc.invalidateQueries({ queryKey: ["building-detail", buildingId] });
+    qc.invalidateQueries({ queryKey: ["building-fy-cfg", buildingId] });
+    qc.invalidateQueries({ queryKey: ["annual-cycle-timeline", buildingId] });
+    qc.invalidateQueries({ queryKey: ["annual-cycle", buildingId] });
   };
 
   // ---- Notizen-Liste ----
