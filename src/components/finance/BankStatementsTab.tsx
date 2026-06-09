@@ -29,6 +29,7 @@ import { useTransactionAiPrefetch } from "@/hooks/useTransactionAiPrefetch";
 import { PdfViewerModal } from "@/components/documents/PdfViewerModal";
 import { BankAccountMappingDialog } from "./BankAccountMappingDialog";
 import { useBuildingBankAccounts } from "@/hooks/useBuildingBankAccounts";
+import { useFiscalYearContext } from "@/contexts/FiscalYearContext";
 const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   matched_invoice: { label: "Rechnung", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", icon: CheckCircle2 },
   matched_template: { label: "Vorlage", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", icon: LayoutTemplate },
@@ -80,16 +81,12 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
   const [reviewFlaggedFirst, setReviewFlaggedFirst] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [mappingDialog, setMappingDialog] = useState<{ iban: string; bankName?: string | null } | null>(null);
-  const [internalFiscalYear, setInternalFiscalYear] = useState<number>(() => {
-    try {
-      const stored = sessionStorage.getItem("bank-statements:fiscal-year");
-      return stored ? Number(stored) : new Date().getFullYear();
-    } catch { return new Date().getFullYear(); }
-  });
-  const fiscalYear = sharedFiscalYear ?? internalFiscalYear;
+  const fyCtx = useFiscalYearContext();
+  const fyFromContext = fyCtx.getFiscalYear(selectedBuilding || null);
+  const fiscalYear = sharedFiscalYear ?? fyFromContext ?? new Date().getFullYear();
   const setAndPersistFiscalYear = (y: number) => {
-    setInternalFiscalYear(y);
-    try { sessionStorage.setItem("bank-statements:fiscal-year", String(y)); } catch {}
+    if (selectedBuilding) fyCtx.setFiscalYear(selectedBuilding, y);
+    else fyCtx.setGlobalFiscalYear(y);
   };
 
   const { data: buildings = [] } = useQuery({
