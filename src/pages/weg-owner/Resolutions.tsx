@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Search, CheckCircle2, XCircle, Clock, AlertCircle, ChevronDown } from "lucide-react";
+import { Scale, Search, CheckCircle2, XCircle, Clock, AlertCircle, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
