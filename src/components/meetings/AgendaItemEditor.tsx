@@ -744,6 +744,17 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                 )}
               </div>
               {renderDoubleQualifiedCheckboxes(newRequiresDQ, setNewRequiresDQ, newDQRelevant, setNewDQRelevant)}
+              <div className="flex items-center justify-between rounded-md border p-3 bg-muted/10">
+                <div className="space-y-0.5">
+                  <Label className="text-xs font-medium flex items-center gap-1.5">
+                    <Wrench className="h-3.5 w-3.5" /> Beschluss ist umzusetzen
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Erstellt nach der Versammlung automatisch einen Vorgang zur Nachverfolgung. Eigentümer sehen ihn auf der Beschlüsse-Seite und im Dashboard.
+                  </p>
+                </div>
+                <Switch checked={newIsActionable} onCheckedChange={setNewIsActionable} />
+              </div>
             </>
           ) : (
             <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 rounded-md p-3 border">
