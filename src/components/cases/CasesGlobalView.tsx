@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAllCases, useUpdateCase, useDeleteCase, CASE_STATUS_LABEL, CASE_PRIORITY_LABEL, CASE_CATEGORY_LABEL, CaseStatus, CasePriority, CaseCategory, CaseWithBuilding } from "@/hooks/useCases";
+import { useAllCases, useUpdateCase, useDeleteCase, CASE_STATUS_LABEL, CaseStatus, CaseWithBuilding } from "@/hooks/useCases";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { CaseDetailView } from "./CaseDetailView";
 import { CreateCaseDialog } from "./CreateCaseDialog";
-import { Search, LayoutList, Columns, Plus, Building2, Clock, MessageSquare, Loader2, AlertCircle, Trash2, GitBranch } from "lucide-react";
+import { Search, LayoutList, Columns, Plus, Building2, Clock, MessageSquare, Loader2, AlertCircle, Trash2 } from "lucide-react";
 import { formatDistanceToNow, format, isPast } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -22,21 +22,16 @@ import { useQuery } from "@tanstack/react-query";
 
 type ViewMode = "list" | "board";
 
-const PRIORITY_DOT: Record<CasePriority, string> = {
-  low: "bg-success",
-  medium: "bg-warning",
-  high: "bg-destructive",
-  urgent: "bg-destructive",
-};
-
-const PRIORITY_BADGE: Record<CasePriority, { className: string; label: string }> = {
-  low: { className: "bg-success/15 text-success border-success/30", label: "Niedrig" },
-  medium: { className: "bg-warning/15 text-warning border-warning/30", label: "Mittel" },
-  high: { className: "bg-destructive/15 text-destructive border-destructive/30", label: "Hoch" },
-  urgent: { className: "bg-destructive text-destructive-foreground border-destructive", label: "Dringend" },
-};
-
 const STATUS_ORDER: CaseStatus[] = ["open", "in_progress", "waiting_external", "waiting_owner", "resolved"];
+
+const STATUS_DOT: Record<CaseStatus, string> = {
+  open: "bg-destructive",
+  in_progress: "bg-primary",
+  waiting_external: "bg-warning",
+  waiting_owner: "bg-warning",
+  resolved: "bg-success",
+  archived: "bg-muted-foreground",
+};
 
 const STATUS_BADGE: Record<CaseStatus, string> = {
   open: "bg-destructive/10 text-destructive border-destructive/30",
