@@ -911,7 +911,7 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
   const resetForm = () => {
     setTitle(""); setDescription(""); setResolutionText(""); setVotingPrinciple("mea");
     setCategory("sonstiges"); setRequiresResolution(true);
-    setRequiresDQ(false); setDqRelevant(false); setEditingId(null);
+    setRequiresDQ(false); setDqRelevant(false); setTplIsActionable(false); setEditingId(null);
   };
 
   const openCreate = () => { resetForm(); setDialogOpen(true); };
