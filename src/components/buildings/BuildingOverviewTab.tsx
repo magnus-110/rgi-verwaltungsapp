@@ -316,8 +316,6 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
         </CardContent>
       </Card>
 
-      {/* Allgemeine Infos (ETV-Ort, Heizungsart, Notizen) */}
-      <BuildingGeneralInfoCard buildingId={buildingId} />
 
       {/* Quick Actions */}
       <Card>
