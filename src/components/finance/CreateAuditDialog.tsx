@@ -14,6 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { format, addDays } from "date-fns";
 import { useManagementMode } from "@/hooks/useManagementMode";
+import { useFiscalYearContext } from "@/contexts/FiscalYearContext";
 import { cn } from "@/lib/utils";
 
 interface CreateAuditDialogProps {
@@ -30,6 +31,7 @@ interface DmsCandidate { id: string; display_name: string; file_path: string; ca
 export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDialogProps) {
   const queryClient = useQueryClient();
   const { managementMode } = useManagementMode();
+  const fyCtx = useFiscalYearContext();
   const isEdit = !!auditId;
 
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>("");
@@ -169,17 +171,29 @@ export function CreateAuditDialog({ open, onOpenChange, auditId }: CreateAuditDi
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, auditId]);
 
-  // Auto-select previous fiscal year only for create mode
+  // Auto-select fiscal year: bevorzugt globalen Context-Wert (so wird das
+  // einmal in Buchhaltung/Abrechnung/Jahreszyklus gewählte Jahr übernommen),
+  // sonst Vorjahr.
   useEffect(() => {
     if (isEdit) return;
     if (!periods.length || selectedPeriodId) return;
+    const ctxYear = selectedBuildingId ? fyCtx.getFiscalYear(selectedBuildingId) : null;
     const previousYear = new Date().getFullYear() - 1;
     const match =
-      periods.find((p: any) => p.fiscal_year === previousYear) ??
-      periods.find((p: any) => p.fiscal_year < new Date().getFullYear()) ??
+      (ctxYear != null && periods.find((p: any) => p.fiscal_year === ctxYear)) ||
+      periods.find((p: any) => p.fiscal_year === previousYear) ||
+      periods.find((p: any) => p.fiscal_year < new Date().getFullYear()) ||
       periods[0];
     if (match) setSelectedPeriodId(match.id);
-  }, [periods, selectedPeriodId, isEdit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periods, selectedPeriodId, isEdit, selectedBuildingId]);
+
+  // Auswahl in den Context zurückschreiben
+  useEffect(() => {
+    if (!selectedBuildingId || !selectedPeriod) return;
+    fyCtx.setBoth(selectedBuildingId, selectedPeriod.fiscal_year, selectedPeriod.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBuildingId, selectedPeriodId, selectedPeriod?.fiscal_year]);
 
   const addFiles = useCallback((files: File[], target: "statement" | "plan") => {
     const pdfs = files.filter((f) => f.type === "application/pdf");
