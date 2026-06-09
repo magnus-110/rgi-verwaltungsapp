@@ -275,6 +275,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       setNewRequiresDQ(template.requires_double_qualified || false);
       setNewDQRelevant(template.double_qualified_relevant || false);
       setNewRequiresResolution(template.requires_resolution !== false);
+      setNewIsActionable(template.is_actionable || false);
     } else {
       setEditItemTitle(template.title);
       setEditItemDescription(template.description || "");
@@ -284,6 +285,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       setEditRequiresDQ(template.requires_double_qualified || false);
       setEditDQRelevant(template.double_qualified_relevant || false);
       setEditRequiresResolution(template.requires_resolution !== false);
+      setEditIsActionable(template.is_actionable || false);
     }
     toast({ title: "Vorlage übernommen" });
   };
