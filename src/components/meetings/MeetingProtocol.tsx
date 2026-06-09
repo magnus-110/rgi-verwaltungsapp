@@ -39,7 +39,7 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
     queryFn: async () => {
       const { data, error } = await supabase
         .from("etv_agenda_items")
-        .select("id, status, resolution_text, result, yes_count, no_count, abstain_count, voting_principle")
+        .select("id, status, resolution_text, result, yes_count, no_count, abstain_count, voting_principle, is_actionable")
         .eq("meeting_id", meetingId)
         .order("sort_order");
       if (error) throw error;
@@ -82,6 +82,7 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
         voting_principle: item.voting_principle,
         resolved_at: meeting?.meeting_date,
         published: false,
+        is_actionable: !!item.is_actionable,
       }));
       if (resolutions.length === 0) return 0;
       await supabase.from("etv_resolutions").delete().eq("meeting_id", meetingId);

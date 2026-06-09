@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2, Check, BookTemplate, ChevronDown, ChevronUp, Settings, Gavel, Info, FolderOpen } from "lucide-react";
+import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2, Check, BookTemplate, ChevronDown, ChevronUp, Settings, Gavel, Info, FolderOpen, Wrench } from "lucide-react";
 import { DmsFilePickerDialog } from "./DmsFilePickerDialog";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel,
@@ -38,6 +38,7 @@ interface AgendaItem {
   requires_double_qualified: boolean;
   double_qualified_relevant: boolean;
   requires_resolution: boolean;
+  is_actionable: boolean;
 }
 
 const votingPrinciples = [
@@ -71,6 +72,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [editRequiresDQ, setEditRequiresDQ] = useState(false);
   const [editDQRelevant, setEditDQRelevant] = useState(false);
   const [editRequiresResolution, setEditRequiresResolution] = useState(true);
+  const [editIsActionable, setEditIsActionable] = useState(false);
 
   // New item form
   const [newTitle, setNewTitle] = useState("");
@@ -82,6 +84,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [newRequiresDQ, setNewRequiresDQ] = useState(false);
   const [newDQRelevant, setNewDQRelevant] = useState(false);
   const [newRequiresResolution, setNewRequiresResolution] = useState(true);
+  const [newIsActionable, setNewIsActionable] = useState(false);
 
   // AI suggestion state
   const [newAiSuggestion, setNewAiSuggestion] = useState<string | null>(null);
@@ -147,6 +150,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
         requires_double_qualified: newRequiresResolution ? newRequiresDQ : false,
         double_qualified_relevant: newRequiresResolution ? newDQRelevant : false,
         requires_resolution: newRequiresResolution,
+        is_actionable: newRequiresResolution ? newIsActionable : false,
       } as any);
       if (error) throw error;
     },
@@ -163,6 +167,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       setNewRequiresDQ(false);
       setNewDQRelevant(false);
       setNewRequiresResolution(true);
+      setNewIsActionable(false);
       toast({ title: "TOP hinzugefügt" });
     },
     onError: (err: any) => {
@@ -230,6 +235,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     setEditRequiresDQ(item.requires_double_qualified || false);
     setEditDQRelevant(item.double_qualified_relevant || false);
     setEditRequiresResolution(item.requires_resolution !== false);
+    setEditIsActionable((item as any).is_actionable || false);
   };
 
   const saveEdit = async () => {
@@ -252,6 +258,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       requires_double_qualified: editRequiresResolution ? editRequiresDQ : false,
       double_qualified_relevant: editRequiresResolution ? editDQRelevant : false,
       requires_resolution: editRequiresResolution,
+      is_actionable: editRequiresResolution ? editIsActionable : false,
     } as any);
     setEditingItemId(null);
     setEditNewFiles([]);
@@ -268,6 +275,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       setNewRequiresDQ(template.requires_double_qualified || false);
       setNewDQRelevant(template.double_qualified_relevant || false);
       setNewRequiresResolution(template.requires_resolution !== false);
+      setNewIsActionable(template.is_actionable || false);
     } else {
       setEditItemTitle(template.title);
       setEditItemDescription(template.description || "");
@@ -277,6 +285,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       setEditRequiresDQ(template.requires_double_qualified || false);
       setEditDQRelevant(template.double_qualified_relevant || false);
       setEditRequiresResolution(template.requires_resolution !== false);
+      setEditIsActionable(template.is_actionable || false);
     }
     toast({ title: "Vorlage übernommen" });
   };
@@ -550,6 +559,17 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                         )}
                                       </div>
                                       {renderDoubleQualifiedCheckboxes(editRequiresDQ, setEditRequiresDQ, editDQRelevant, setEditDQRelevant)}
+                                      <div className="flex items-center justify-between rounded-md border p-3 bg-muted/10">
+                                        <div className="space-y-0.5">
+                                          <Label className="text-xs font-medium flex items-center gap-1.5">
+                                            <Wrench className="h-3.5 w-3.5" /> Beschluss ist umzusetzen
+                                          </Label>
+                                          <p className="text-[11px] text-muted-foreground">
+                                            Erstellt nach der Versammlung automatisch einen Vorgang zur Nachverfolgung. Eigentümer sehen ihn auf der Beschlüsse-Seite und im Dashboard.
+                                          </p>
+                                        </div>
+                                        <Switch checked={editIsActionable} onCheckedChange={setEditIsActionable} />
+                                      </div>
                                     </>
                                   ) : (
                                     <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 rounded-md p-3 border">
@@ -586,6 +606,11 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                       {item.category && (
                                         <Badge variant="secondary" className="text-xs">
                                           {categories.find((c) => c.value === item.category)?.label || item.category}
+                                        </Badge>
+                                      )}
+                                      {item.is_actionable && (
+                                        <Badge variant="outline" className="text-xs gap-1 border-primary/40 bg-primary/10 text-primary">
+                                          <Wrench className="h-3 w-3" /> Umzusetzen
                                         </Badge>
                                       )}
                                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEditing(item)}>
@@ -724,6 +749,17 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                 )}
               </div>
               {renderDoubleQualifiedCheckboxes(newRequiresDQ, setNewRequiresDQ, newDQRelevant, setNewDQRelevant)}
+              <div className="flex items-center justify-between rounded-md border p-3 bg-muted/10">
+                <div className="space-y-0.5">
+                  <Label className="text-xs font-medium flex items-center gap-1.5">
+                    <Wrench className="h-3.5 w-3.5" /> Beschluss ist umzusetzen
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Erstellt nach der Versammlung automatisch einen Vorgang zur Nachverfolgung. Eigentümer sehen ihn auf der Beschlüsse-Seite und im Dashboard.
+                  </p>
+                </div>
+                <Switch checked={newIsActionable} onCheckedChange={setNewIsActionable} />
+              </div>
             </>
           ) : (
             <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 rounded-md p-3 border">
@@ -863,6 +899,7 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
   const [requiresResolution, setRequiresResolution] = useState(true);
   const [requiresDQ, setRequiresDQ] = useState(false);
   const [dqRelevant, setDqRelevant] = useState(false);
+  const [tplIsActionable, setTplIsActionable] = useState(false);
 
   const votingPrinciples = [
     { value: "mea", label: "MEA (Wertprinzip)" },
@@ -879,7 +916,7 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
   const resetForm = () => {
     setTitle(""); setDescription(""); setResolutionText(""); setVotingPrinciple("mea");
     setCategory("sonstiges"); setRequiresResolution(true);
-    setRequiresDQ(false); setDqRelevant(false); setEditingId(null);
+    setRequiresDQ(false); setDqRelevant(false); setTplIsActionable(false); setEditingId(null);
   };
 
   const openCreate = () => { resetForm(); setDialogOpen(true); };
@@ -893,6 +930,7 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
     setRequiresResolution(t.requires_resolution !== false);
     setRequiresDQ(t.requires_double_qualified || false);
     setDqRelevant(t.double_qualified_relevant || false);
+    setTplIsActionable(t.is_actionable || false);
     setDialogOpen(true);
   };
 
@@ -907,6 +945,7 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
         requires_resolution: requiresResolution,
         requires_double_qualified: requiresResolution ? requiresDQ : false,
         double_qualified_relevant: requiresResolution ? dqRelevant : false,
+        is_actionable: requiresResolution ? tplIsActionable : false,
       } as any;
       if (editingId) {
         const { error } = await supabase.from("etv_resolution_templates").update(payload).eq("id", editingId);
@@ -1049,6 +1088,12 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
                   <div className="flex items-center gap-2">
                     <Checkbox id="tpl-dq-rel" checked={dqRelevant} onCheckedChange={(c) => setDqRelevant(!!c)} />
                     <Label htmlFor="tpl-dq-rel" className="text-xs cursor-pointer">Doppelt qualifizierte Mehrheit relevant (Ergebnis anzeigen)</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox id="tpl-actionable" checked={tplIsActionable} onCheckedChange={(c) => setTplIsActionable(!!c)} />
+                    <Label htmlFor="tpl-actionable" className="text-xs cursor-pointer flex items-center gap-1.5">
+                      <Wrench className="h-3 w-3" /> Beschluss ist umzusetzen (Vorgang automatisch anlegen)
+                    </Label>
                   </div>
                 </>
               ) : (
