@@ -36,15 +36,37 @@ export interface FiscalYearOption {
   label: string;
 }
 
-export function buildFiscalYears(currentYear = new Date().getFullYear()): FiscalYearOption[] {
-  // Default: Kalenderjahr-basiert. Liefert 5 Jahre (2 vergangen, jetzt, 2 zukünftig).
+export interface FiscalYearOptions {
+  /** 1–12, Default 1 (Januar) */
+  startMonth?: number;
+  /** 1–28, Default 1 */
+  startDay?: number;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/** Liefert das Enddatum (YYYY-MM-DD) für einen Wirtschaftsjahr-Start (1 Jahr − 1 Tag). */
+function computeEnd(startYear: number, startMonth: number, startDay: number): string {
+  // start = startYear-startMonth-startDay, end = (gleiches Datum +1 Jahr) − 1 Tag
+  const endDate = new Date(Date.UTC(startYear + 1, startMonth - 1, startDay));
+  endDate.setUTCDate(endDate.getUTCDate() - 1);
+  return `${endDate.getUTCFullYear()}-${pad2(endDate.getUTCMonth() + 1)}-${pad2(endDate.getUTCDate())}`;
+}
+
+export function buildFiscalYears(
+  currentYear = new Date().getFullYear(),
+  opts: FiscalYearOptions = {}
+): FiscalYearOption[] {
+  const startMonth = Math.min(12, Math.max(1, opts.startMonth ?? 1));
+  const startDay = Math.min(28, Math.max(1, opts.startDay ?? 1));
+  const calendar = startMonth === 1 && startDay === 1;
+
   const years: FiscalYearOption[] = [];
   for (let y = currentYear - 2; y <= currentYear + 2; y++) {
-    years.push({
-      start: `${y}-01-01`,
-      end: `${y}-12-31`,
-      label: `${y}`,
-    });
+    const start = `${y}-${pad2(startMonth)}-${pad2(startDay)}`;
+    const end = calendar ? `${y}-12-31` : computeEnd(y, startMonth, startDay);
+    const label = calendar ? `${y}` : `${y}/${y + 1}`;
+    years.push({ start, end, label });
   }
   return years;
 }
