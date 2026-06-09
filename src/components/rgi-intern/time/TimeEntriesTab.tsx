@@ -77,7 +77,7 @@ export function TimeEntriesTab() {
                   disabled={billed || !e.billable}
                   onCheckedChange={() => toggle(e.id)}
                 />
-                <div className="text-sm font-mono w-20 shrink-0">{e.date}</div>
+                <div className="text-sm font-mono w-20 shrink-0 text-muted-foreground">{e.date ?? "—"}</div>
                 <div className="text-sm font-mono w-20 shrink-0">{fmtMin(e.minutes)}</div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm truncate">{e.description}</div>
