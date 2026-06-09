@@ -267,11 +267,13 @@ Deno.serve(async (req) => {
     }
     const docxBytes = doc.getZip().generate({ type: "uint8array" });
 
-    const baseName = `${sanitize(invoice.invoice_number || "Entwurf")}_${sanitize(invoice.client_name_snapshot || invoice.client?.name || "Kunde")}`;
+    const renderStamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+    const baseName = `${sanitize(invoice.invoice_number || "Entwurf")}_${sanitize(invoice.client_name_snapshot || invoice.client?.name || "Kunde")}_${renderStamp}`;
     const docxPath = `docx/${invoice.id}/${baseName}.docx`;
 
     const { error: docxUploadError } = await admin.storage.from("invoices").upload(docxPath, docxBytes, {
       contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      cacheControl: "0",
       upsert: true,
     });
     if (docxUploadError) return json({ error: `DOCX-Upload fehlgeschlagen: ${docxUploadError.message}` }, 500);
@@ -284,6 +286,7 @@ Deno.serve(async (req) => {
         pdfPath = `pdf/${invoice.id}/${baseName}.pdf`;
         const { error: pdfUploadError } = await admin.storage.from("invoices").upload(pdfPath, pdfBytes, {
           contentType: "application/pdf",
+          cacheControl: "0",
           upsert: true,
         });
         if (pdfUploadError) throw new Error(`PDF-Upload fehlgeschlagen: ${pdfUploadError.message}`);
