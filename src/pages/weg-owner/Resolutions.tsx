@@ -84,7 +84,7 @@ export const WegOwnerResolutions = () => {
     const meeting = r.etv_meetings;
     const status = statusBadge[r.actionable_status as string] || statusBadge.open;
     const StatusIcon = status.Icon;
-    const lastEdit = (lastEventByCase as Record<string, string>)[r.case_id] || r.cases?.updated_at;
+    const lastEdit = (lastEditByResolution as Record<string, string>)[r.id];
     return (
       <Card key={r.id}>
         <Collapsible>
