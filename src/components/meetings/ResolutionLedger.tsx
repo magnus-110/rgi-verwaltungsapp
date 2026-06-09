@@ -180,7 +180,21 @@ export const ResolutionLedger = ({ buildingFilter: externalBuildingFilter }: Res
                         >
                           {r.result === "passed" ? "Angenommen" : "Abgelehnt"}
                         </Badge>
-                        {!r.published && <Badge variant="outline" className="text-xs">Entwurf</Badge>}
+                        {r.published ? (
+                          <Badge variant="outline" className="text-xs gap-1 border-success/40 bg-success/10 text-success">
+                            <Eye className="h-3 w-3" /> Veröffentlicht
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-xs gap-1 px-2"
+                            onClick={() => togglePublishedMutation.mutate({ id: r.id, value: true })}
+                            disabled={togglePublishedMutation.isPending}
+                          >
+                            <EyeOff className="h-3 w-3" /> Entwurf – jetzt veröffentlichen
+                          </Button>
+                        )}
                         {r.is_actionable && (
                           <Badge variant="outline" className="text-xs gap-1 border-primary/40 bg-primary/10 text-primary">
                             <Wrench className="h-3 w-3" /> Umzusetzen
