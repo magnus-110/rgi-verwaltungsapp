@@ -213,11 +213,9 @@ export function Transfers() {
   // Suche: Name (Vendor / Verwendungszweck / Re-Nr.) oder Betrag
   const filteredInvoices = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return invoices;
-    // Betrag: erlaube "," als Dezimalzeichen
     const num = parseFloat(q.replace(/\./g, "").replace(",", "."));
-    const isNum = !isNaN(num);
-    return invoices.filter((inv: any) => {
+    const isNum = q && !isNaN(num);
+    const base = !q ? invoices : invoices.filter((inv: any) => {
       const bld = inv.building_id ? buildings.find((x: any) => x.id === inv.building_id) : null;
       const fields = [
         inv.vendor_name,
@@ -234,13 +232,27 @@ export function Transfers() {
       if (isNum) {
         const amt = Number(inv.gross_amount) || 0;
         if (Math.abs(amt - num) < 0.005) return true;
-        // auch Substring-Treffer auf der formatierten Zahl ("123,45")
         const amtStr = amt.toFixed(2).replace(".", ",");
         if (amtStr.includes(q)) return true;
       }
       return false;
     });
-  }, [invoices, searchTerm, buildings]);
+    if (!sortByBuilding) return base;
+    const labelOf = (inv: any) => {
+      if ((inv as any).is_company_invoice) return "\u0000RGI"; // group first
+      return (inv as any).buildings?.name || "zzz_kein";
+    };
+    return [...base].sort((a, b) => {
+      const la = labelOf(a);
+      const lb = labelOf(b);
+      const cmp = la.localeCompare(lb, "de");
+      if (cmp !== 0) return cmp;
+      // innerhalb einer Liegenschaft: nach Fälligkeit
+      const da = a.due_date ? new Date(a.due_date).getTime() : Infinity;
+      const db = b.due_date ? new Date(b.due_date).getTime() : Infinity;
+      return da - db;
+    });
+  }, [invoices, searchTerm, buildings, sortByBuilding]);
 
   const formatCurrency = (val: number | null) =>
     val == null ? "–" : new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(val);
