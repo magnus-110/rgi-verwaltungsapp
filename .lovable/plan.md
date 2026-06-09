@@ -1,37 +1,34 @@
-## Ziel
-Schon **bei der Versammlungsvorbereitung** (Agenda-TOP) markieren können, dass der spätere Beschluss umgesetzt werden muss. Beim Speichern der Beschlusssammlung wird die Markierung automatisch übernommen → Trigger legt Vorgang an → Eigentümer sehen ihn sofort auf Beschlüsse-Seite und Dashboard.
+## 1) Jahreszyklus wird beim Eigentümer nicht synchronisiert
 
-## 1) Datenbank-Migration
-Neue Spalte auf `etv_agenda_items`:
-- `is_actionable boolean NOT NULL DEFAULT false` — „Beschluss ist später umzusetzen".
+### Ursache
+`OwnerAnnualCycleWidget` liest direkt aus `annual_cycle_tasks` (gleiche Tabelle wie der Admin). Die RLS-SELECT-Policy nutzt `user_can_access_building(auth.uid(), building_id)`. Diese Funktion erlaubt nur:
+- Admins (`user_has_admin_access`)
+- Hausverwalter (`building_managers`)
 
-Optional in derselben Migration: gleiche Spalte auf `etv_resolution_templates` (`is_actionable boolean NOT NULL DEFAULT false`), damit Vorlagen die Markierung mitbringen.
+WEG-Eigentümer (Verknüpfung über `weg_owner_buildings`) sind nicht enthalten. Daher liefert das Query beim Eigentümer immer 0 Zeilen — die Kacheln bleiben grau, egal was der Admin setzt.
 
-Kein neuer Trigger nötig — bestehender `trg_resolution_actionable` auf `etv_resolutions` greift weiter und erzeugt den Vorgang sobald `is_actionable=true` beim Insert übergeben wird.
+### Fix
+Migration: SELECT-Policy auf `annual_cycle_tasks` erweitern, sodass auch WEG-Eigentümer ihre Gebäude lesen dürfen (read-only; Update/Delete/Insert bleiben Admin/Manager). Umsetzung über eine kleine Helper-Function `user_can_view_building_cycle(uid, building_id)` (SECURITY DEFINER), die zusätzlich `EXISTS (SELECT 1 FROM weg_owner_buildings wob JOIN weg_owners wo ON wo.id = wob.weg_owner_id WHERE wob.building_id = _building_id AND wo.user_id = _uid)` prüft. Anschließend `DROP POLICY annual_cycle_select` und neu mit der Helper-Funktion anlegen.
 
-## 2) UI: `AgendaItemEditor.tsx`
-Im Editor jedes TOPs (dort wo `resolution_text`/`voting_principle` gepflegt werden) eine kleine Switch-Zeile ergänzen:
+Damit zeigt das Owner-Widget exakt denselben Status wie der Admin.
 
-> 🔧 **Beschluss ist umzusetzen** — Erstellt nach der Versammlung automatisch einen Vorgang zur Nachverfolgung.
+## 2) Dokumente-Seite des Eigentümers: Ordner-Cards + Wirtschaftsjahr-Filter
 
-- Switch schreibt `is_actionable` auf `etv_agenda_items`.
-- Nur sichtbar wenn TOP überhaupt einen `resolution_text` hat (Abstimmungs-TOP).
-- In der Vorlagen-Verwaltung (`etv_resolution_templates`) analoge Checkbox, damit beim Übernehmen einer Vorlage in die Agenda das Flag mitgezogen wird.
+Datei: `src/pages/weg-owner/Files.tsx`
 
-## 3) Übernahme in Beschlusssammlung: `MeetingProtocol.tsx`
-In `saveResolutionsMutation` (Zeile 69–93):
-- `select(...)` um `is_actionable` erweitern.
-- Im `resolutions.map(...)` Payload `is_actionable: item.is_actionable ?? false` ergänzen.
+### Änderungen
+- **Ordner-Cards statt flacher Gruppen-Überschriften**: Einstiegsansicht zeigt pro Tab (Persönlich / Gebäude) ein Grid aus Karten — eine Karte je Kategorie mit Icon/Farbe (aus `building_file_categories`), Name und Dateianzahl. Klick auf Karte → Drill-down in die Dateiliste dieser Kategorie (mit „Zurück"-Button). Mobil 1 Spalte, Desktop 2–3 Spalten.
+- **Nur belegte Ordner anzeigen**: Karten werden nur gerendert, wenn `files.filter(f => f.category_id === cat.id).length > 0`. „Ohne Kategorie" nur, wenn solche Dateien existieren.
+- **Wirtschaftsjahr-Filter**: Select oben (neben Suche). Optionen werden dynamisch aus den geladenen Dateien gebildet (`building_files.fiscal_year`, distinct, absteigend) plus „Alle Jahre" und „Ohne Jahr". Filter wirkt vor der Gruppierung, sodass leere Ordner für das gewählte Jahr automatisch verschwinden.
+- Sucheingabe bleibt; sie filtert weiterhin über `display_name` und wirkt zusätzlich zum Jahresfilter.
+- Hierarchie der Kategorien (`parent_id`): vorerst flach lassen wie heute (alle Kategorien als Karten). Falls gewünscht, in einem Folgeschritt Top-Level-Karten mit Aufklappen der Unterordner — bitte bei Bedarf bestätigen.
 
-Damit wird beim „Beschlusssammlung speichern" der bestehende DB-Trigger `handle_resolution_actionable` ausgelöst → Vorgang in `cases` wird automatisch angelegt und mit Resolution verknüpft.
+### Technische Hinweise
+- `building_files.fiscal_year` existiert bereits → keine DB-Änderung nötig.
+- `building_file_categories` liefert `icon`, `color`, `name` für die Card-Darstellung.
+- Drill-down rein clientseitig per Local-State (`selectedCategoryId`), keine zusätzlichen Queries.
+- Keine Änderung an Sichtbarkeits-/RLS-Regeln der Dateien.
 
-## 4) Optionales Sichtbarmachen
-- In `MeetingEditor`/Agenda-Liste neben TOPs mit `is_actionable=true` ein kleines Wrench-Badge anzeigen, damit man im Überblick sieht, welche TOPs später Vorgänge erzeugen.
-- Im bestehenden `ResolutionLedger`-Switch ändert sich nichts — er bleibt als nachträgliche Korrektur­möglichkeit erhalten.
-
-## Was sich für Eigentümer ändert
-- Sobald „Beschlusssammlung speichern" + „Veröffentlichen" geklickt wurde, taucht der Beschluss bei Eigentümern unter **Beschlüsse → Tab „Umzusetzen"** und im **Dashboard-Widget** auf — ohne dass die Verwaltung den Switch noch einmal nachträglich umlegen muss.
-
-## Nicht im Scope
-- Änderungen am `handle_resolution_actionable`-Trigger.
-- Änderungen an der Cases-Detailansicht oder am Eigentümer-Dashboard-Layout.
+## Reihenfolge
+1. Migration für `annual_cycle_tasks`-SELECT-Policy (Owner-Sync).
+2. Refactor `src/pages/weg-owner/Files.tsx` (Cards, Jahresfilter, Empty-Folder-Hide).
