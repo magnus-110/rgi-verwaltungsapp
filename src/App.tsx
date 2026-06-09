@@ -10,6 +10,7 @@ import { ComposeEmailProvider } from "@/contexts/ComposeEmailContext";
 import { FloatingComposeWindow } from "@/components/email/FloatingComposeWindow";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { InAppNotificationsProvider } from "@/contexts/InAppNotificationsProvider";
+import { FiscalYearProvider } from "@/contexts/FiscalYearContext";
 
 // Eager: Entry, Auth, Layouts, Dashboard (häufigster Einstieg)
 import Index from "./pages/Index";
@@ -85,6 +86,7 @@ const App = () => (
       <BrowserRouter>
         <ScrollToTop />
         <AuthProvider>
+          <FiscalYearProvider>
           <ComposeEmailProvider>
             <UploadProvider>
               <InAppNotificationsProvider>
@@ -166,6 +168,7 @@ const App = () => (
               </InAppNotificationsProvider>
             </UploadProvider>
           </ComposeEmailProvider>
+          </FiscalYearProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
