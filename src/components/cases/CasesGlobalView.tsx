@@ -369,7 +369,7 @@ const CasesBoard = ({ items, onOpen, onChangeStatus, onDelete }: ListProps) => {
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                     <div className="flex items-start gap-2 pr-6">
-                      <span className={cn("h-2 w-2 rounded-full mt-1.5 shrink-0", PRIORITY_DOT[c.priority])} />
+                      <span className={cn("h-2 w-2 rounded-full mt-1.5 shrink-0", STATUS_DOT[c.status])} />
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium leading-snug line-clamp-2">{c.title}</div>
                         <div className="flex items-center gap-1 mt-1 text-[11px] text-muted-foreground min-w-0">
@@ -378,21 +378,18 @@ const CasesBoard = ({ items, onOpen, onChangeStatus, onDelete }: ListProps) => {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between gap-2 mt-2">
-                      <Badge variant="outline" className="text-[10px] h-4 font-normal">{CASE_CATEGORY_LABEL[c.category]}</Badge>
-                      <div className="flex items-center gap-2 text-[11px]">
-                        {c.events_count > 0 && (
-                          <span className="inline-flex items-center gap-0.5 text-muted-foreground">
-                            <MessageSquare className="h-3 w-3" />{c.events_count}
-                          </span>
-                        )}
-                        {c.due_at && (
-                          <span className={cn("inline-flex items-center gap-0.5", overdue ? "text-destructive font-medium" : "text-muted-foreground")}>
-                            <Clock className="h-3 w-3" />
-                            {format(new Date(c.due_at), "dd.MM.", { locale: de })}
-                          </span>
-                        )}
-                      </div>
+                    <div className="flex items-center justify-end gap-2 mt-2 text-[11px]">
+                      {c.events_count > 0 && (
+                        <span className="inline-flex items-center gap-0.5 text-muted-foreground">
+                          <MessageSquare className="h-3 w-3" />{c.events_count}
+                        </span>
+                      )}
+                      {c.due_at && (
+                        <span className={cn("inline-flex items-center gap-0.5", overdue ? "text-destructive font-medium" : "text-muted-foreground")}>
+                          <Clock className="h-3 w-3" />
+                          {format(new Date(c.due_at), "dd.MM.", { locale: de })}
+                        </span>
+                      )}
                     </div>
                     {/* Quick status change */}
                     <div onClick={(e) => e.stopPropagation()} className="mt-2">
