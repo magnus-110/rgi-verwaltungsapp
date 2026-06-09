@@ -50,3 +50,13 @@ export const VISIBILITY_LABELS: Record<VisibilityRole, string> = {
   alle: 'Alle',
   personen: 'Spezifische Eigentümer',
 };
+
+/**
+ * Resolve the storage bucket for a building_files row based on its source.
+ * Invoice-derived rows are stored in the `invoices` bucket, everything else
+ * lives in the `building-files` bucket.
+ */
+export function getFileBucket(source: FileSource | string | null | undefined): string {
+  if (source === 'invoice') return 'invoices';
+  return 'building-files';
+}

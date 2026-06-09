@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
-import { DocFile, VISIBILITY_LABELS } from "./types";
+import { DocFile, VISIBILITY_LABELS, getFileBucket } from "./types";
 
 interface DocumentFileListProps {
   buildingId: string;
@@ -215,7 +215,7 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
                   onClick={() => onSelect(f)}
                   onDoubleClick={async () => {
                     const { data, error } = await supabase.storage
-                      .from('building-files')
+                      .from(getFileBucket(f.source))
                       .createSignedUrl(f.file_path, 60);
                     if (!error && data) window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
                   }}
@@ -254,7 +254,7 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
                           onClick={async (e) => {
                             e.stopPropagation();
                             const { data, error } = await supabase.storage
-                              .from('building-files')
+                              .from(getFileBucket(f.source))
                               .createSignedUrl(f.file_path, 60);
                             if (!error && data) window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
                           }}
