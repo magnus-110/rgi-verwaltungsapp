@@ -27,7 +27,7 @@ export function buildRgiItemsFromTime(
   if (grouping === "per_entry") {
     return entries.map((e) => ({
       kind: "time",
-      description: `${e.date} — ${e.description}`,
+      description: e.date ? `${e.date} — ${e.description}` : e.description,
       quantity: Number((e.minutes / 60).toFixed(2)),
       unit: "Std",
       unit_price_net: getRgiRate(e, projects, clients, clientId),
