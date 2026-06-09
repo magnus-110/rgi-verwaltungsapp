@@ -894,6 +894,7 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
   const [requiresResolution, setRequiresResolution] = useState(true);
   const [requiresDQ, setRequiresDQ] = useState(false);
   const [dqRelevant, setDqRelevant] = useState(false);
+  const [tplIsActionable, setTplIsActionable] = useState(false);
 
   const votingPrinciples = [
     { value: "mea", label: "MEA (Wertprinzip)" },
