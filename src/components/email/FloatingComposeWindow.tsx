@@ -385,13 +385,20 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
 
   const filteredContacts = useMemo(() => {
     if (!contactSearch) return contactsWithEmails;
-    const s = contactSearch.toLowerCase();
-    return contactsWithEmails.filter(
-      (c) =>
-        c.displayName.toLowerCase().includes(s) ||
-        c.company_name?.toLowerCase().includes(s) ||
-        c.emails.some((e) => e.email.toLowerCase().includes(s)),
-    );
+    const tokens = contactSearch.toLowerCase().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return contactsWithEmails;
+    return contactsWithEmails.filter((c) => {
+      const haystack = [
+        c.displayName,
+        c.company_name || "",
+        c.first_name || "",
+        c.last_name || "",
+        ...c.emails.map((e) => e.email),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return tokens.every((t) => haystack.includes(t));
+    });
   }, [contactsWithEmails, contactSearch]);
 
   const addEmailToField = (email: string, field: "to" | "cc" | "bcc" = "to") => {
