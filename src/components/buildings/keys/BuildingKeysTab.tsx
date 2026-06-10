@@ -411,11 +411,12 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
-      <div className="p-3 flex items-center gap-3 bg-card">
+      <div className="p-3 flex flex-wrap items-center gap-3 bg-card">
         <button onClick={() => setExpanded(e => !e)} className="text-muted-foreground hover:text-foreground">
           {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </button>
         <div className="w-1.5 h-10 rounded-full shrink-0" style={{ background: type?.color_hex ?? "#999" }} />
+        {tag.photo_path && <TagThumb path={tag.photo_path} />}
         <div className="min-w-0 flex-1">
           <div className="font-mono font-semibold text-sm">{tag.tag_number}</div>
           <div className="text-xs text-muted-foreground truncate">
@@ -424,16 +425,16 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
           </div>
         </div>
         {loan && (
-          <div className="hidden md:flex flex-col items-end text-xs">
+          <div className="flex flex-col items-end text-xs order-3 lg:order-none w-full lg:w-auto">
             <Badge variant={overdue ? "destructive" : "secondary"}>
               {overdue ? <><AlertTriangle className="h-3 w-3 mr-1" /> Überfällig</> : openReturn ? "Verliehen (offen)" : "Verliehen"}
             </Badge>
-            <span className="text-muted-foreground mt-0.5">
+            <span className="text-muted-foreground mt-0.5 truncate max-w-full">
               an {loan.borrower_name ?? "—"} · {openReturn ? "offene Rückgabe" : `bis ${format(new Date(loan.due_at), "dd.MM.yyyy", { locale: de })}`}
             </span>
           </div>
         )}
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0 ml-auto">
           {loan ? (
             <>
               <Button size="sm" variant="outline" onClick={() => onReturn(loan.id)}><RotateCcw className="h-3 w-3 mr-1" /> Zurück</Button>
