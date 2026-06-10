@@ -247,6 +247,9 @@ export function BookingsTab({
     if (filterReview) {
       result = result.filter((b: any) => b.needs_review === true);
     }
+    if (filterUncertain) {
+      result = result.filter((b: any) => b.ai_confidence_unsicher === true);
+    }
     if (!searchQuery.trim()) return result;
     const q = searchQuery.toLowerCase();
     return result.filter((b: any) => {
@@ -267,7 +270,7 @@ export function BookingsTab({
       ];
       return fields.some(f => f && String(f).toLowerCase().includes(q));
     });
-  }, [searchQuery, filterReview]);
+  }, [searchQuery, filterReview, filterUncertain]);
 
   const sortByDate = useCallback((arr: any[]) => {
     return [...arr].sort((a, b) => {
