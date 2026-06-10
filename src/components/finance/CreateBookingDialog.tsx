@@ -174,9 +174,9 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     enabled: open && !!linkedTransactionId,
   });
 
-  // Flag-State (wird beim Speichern in needs_review/review_note geschrieben)
-  const [pendingFlag, setPendingFlag] = useState<{ flagged: boolean; note?: string }>({ flagged: false });
-  useEffect(() => { if (!open) setPendingFlag({ flagged: false }); }, [open]);
+  // Flag-State (wird beim Speichern in needs_review/ai_confidence_unsicher/review_note geschrieben)
+  const [pendingFlag, setPendingFlag] = useState<{ flagged: boolean; uncertain: boolean; note?: string }>({ flagged: false, uncertain: false });
+  useEffect(() => { if (!open) setPendingFlag({ flagged: false, uncertain: false }); }, [open]);
 
 
 
