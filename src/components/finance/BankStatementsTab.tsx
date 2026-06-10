@@ -722,7 +722,18 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                 <Tooltip>
                   <TooltipTrigger><Flag className="h-3.5 w-3.5 text-orange-500 fill-orange-500" /></TooltipTrigger>
                   <TooltipContent className="max-w-xs">
-                    <p className="text-xs font-medium">Zur Prüfung markiert</p>
+                    <p className="text-xs font-medium">Zur Prüfung (mittlere KI-Konfidenz)</p>
+                    {txn.bookings?.review_note && <p className="text-xs text-muted-foreground">{txn.bookings.review_note}</p>}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {txn.bookings?.ai_confidence_unsicher && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger><AlertTriangle className="h-3.5 w-3.5 text-red-600" /></TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="text-xs font-medium">Unsicher (niedrige KI-Konfidenz)</p>
                     {txn.bookings?.review_note && <p className="text-xs text-muted-foreground">{txn.bookings.review_note}</p>}
                   </TooltipContent>
                 </Tooltip>
