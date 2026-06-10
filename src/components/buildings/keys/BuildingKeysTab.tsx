@@ -459,6 +459,7 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
           {loan ? (
             <>
               <Button size="sm" variant="outline" onClick={() => onReturn(loan.id)}><RotateCcw className="h-3 w-3 mr-1" /> Zurück</Button>
+              <Button size="sm" variant="ghost" onClick={() => onEditLoan(loan)} title="Leihe bearbeiten"><Edit className="h-3 w-3 mr-1" /> Bearbeiten</Button>
               <Button size="sm" variant="ghost" className="text-destructive" onClick={() => onLost(loan.id)}>Verloren</Button>
             </>
           ) : (
