@@ -169,10 +169,7 @@ function FlagButton({ kind, active, note: initialNote, onToggle }: FlagButtonPro
           size="sm"
           variant="outline"
           title={tooltip}
-          className={cn(
-            "h-7 text-xs gap-1 shrink-0",
-            !isReview && "border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400",
-          )}
+          className="h-7 text-xs gap-1 shrink-0 text-muted-foreground"
         >
           <Icon className="h-3.5 w-3.5" />
           {labelInactive}
