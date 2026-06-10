@@ -105,7 +105,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
       if (!selectedBuilding) return [];
       const { data, error } = await supabase
         .from("bank_transactions")
-        .select("*, bookings!bank_transactions_booking_id_fkey(id, needs_review, review_note)")
+        .select("*, bookings!bank_transactions_booking_id_fkey(id, needs_review, review_note, ai_confidence_unsicher)")
         .eq("building_id", selectedBuilding)
         .gte("booking_date", `${fiscalYear}-01-01`)
         .lte("booking_date", `${fiscalYear}-12-31`)
