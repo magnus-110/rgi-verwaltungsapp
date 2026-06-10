@@ -53,7 +53,7 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
 
   return (
     <>
-      <div className="md:hidden">
+      <div className="lg:hidden">
         <MobileHeader 
           userRole="admin" 
           managementMode={managementMode}
@@ -61,20 +61,20 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
         />
       </div>
       <SidebarProvider>
-        <div className="min-h-screen flex w-full bg-background pt-16 md:pt-0 overflow-x-hidden" style={{ paddingTop: 'max(4rem, env(safe-area-inset-top))' }}>
+        <div className="min-h-screen flex w-full bg-background pt-16 lg:pt-0 overflow-x-hidden" style={{ paddingTop: 'max(4rem, env(safe-area-inset-top))' }}>
           <AdminSidebar 
             managementMode={managementMode} 
             onModeChange={setManagementMode} 
           />
           <main className="flex-1 flex flex-col overflow-hidden min-w-0">
-            <header className="h-16 border-b bg-background flex items-center px-4 shrink-0 hidden md:flex">
+            <header className="h-16 border-b bg-background flex items-center px-4 shrink-0 hidden lg:flex">
               <SidebarTrigger className="mr-4" />
               <h1 className="heading-primary text-xl font-semibold truncate">
                 {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
               </h1>
             </header>
             <div
-              className="flex-1 px-3 py-3 md:p-6 bg-muted/30 overflow-x-hidden overflow-y-auto min-w-0"
+              className="flex-1 px-3 py-3 lg:p-6 bg-muted/30 overflow-x-hidden overflow-y-auto min-w-0"
               style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
             >
               <div className="max-w-full min-w-0">
