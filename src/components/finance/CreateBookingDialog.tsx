@@ -223,7 +223,8 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       matched_template_id: form.matched_template_id || null,
       bank_transaction_id: linkedTransactionId || null,
       needs_review: pendingFlag.flagged,
-      review_note: pendingFlag.flagged ? (pendingFlag.note || null) : null,
+      ai_confidence_unsicher: pendingFlag.uncertain,
+      review_note: (pendingFlag.flagged || pendingFlag.uncertain) ? (pendingFlag.note || null) : null,
     } as any).select("id").single();
     setSaving(false);
     if (error) { toast.error("Fehler: " + error.message); return; }
