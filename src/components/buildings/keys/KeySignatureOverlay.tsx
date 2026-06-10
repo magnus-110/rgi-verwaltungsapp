@@ -4,9 +4,10 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { SignaturePad } from "./SignaturePad";
 import { RgiWordmark } from "@/components/onboarding/ui/RgiWordmark";
 import { KeyTag } from "./types";
-import { X, ShieldCheck } from "lucide-react";
+import { ShieldCheck, Image as ImageIcon } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   open: boolean;
@@ -16,6 +17,7 @@ interface Props {
   borrowerName: string;
   dueDate: string; // yyyy-MM-dd
   buildingLabel?: string;
+  photoPath?: string | null;
 }
 
 export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerName, dueDate, buildingLabel }: Props) => {
