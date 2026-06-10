@@ -588,13 +588,27 @@ export function BookingsTab({
           variant={filterReview ? "default" : "outline"}
           size="icon"
           className={cn("h-9 w-9 relative", filterReview && "bg-orange-500 hover:bg-orange-600 text-white")}
-          title="Prüfung"
+          title="Nur Prüfung (mittlere KI-Konfidenz)"
           onClick={() => { setFilterReview(f => !f); setCurrentPage(0); }}
         >
           <Flag className="h-4 w-4" />
           {pendingBookings.filter((b: any) => b.needs_review).length > 0 && (
             <Badge variant="secondary" className="absolute -top-1.5 -right-1.5 text-[10px] h-4 min-w-4 px-1 rounded-full">
               {pendingBookings.filter((b: any) => b.needs_review).length}
+            </Badge>
+          )}
+        </Button>
+        <Button
+          variant={filterUncertain ? "default" : "outline"}
+          size="icon"
+          className={cn("h-9 w-9 relative", filterUncertain && "bg-red-600 hover:bg-red-700 text-white")}
+          title="Nur Unsicher (niedrige KI-Konfidenz)"
+          onClick={() => { setFilterUncertain(f => !f); setCurrentPage(0); }}
+        >
+          <AlertTriangle className="h-4 w-4" />
+          {pendingBookings.filter((b: any) => b.ai_confidence_unsicher).length > 0 && (
+            <Badge variant="secondary" className="absolute -top-1.5 -right-1.5 text-[10px] h-4 min-w-4 px-1 rounded-full">
+              {pendingBookings.filter((b: any) => b.ai_confidence_unsicher).length}
             </Badge>
           )}
         </Button>
