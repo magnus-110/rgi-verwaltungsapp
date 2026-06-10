@@ -96,7 +96,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
   return (
     <>
       <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg w-[95vw] max-h-[90vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader><DialogTitle>Schlüssel ausgeben · <span className="font-mono">{tag.tag_number}</span></DialogTitle></DialogHeader>
           <div className="space-y-3">
           <div>
@@ -139,9 +139,9 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
               </PopoverContent>
             </Popover>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div><Label>Name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
-            <div><Label>E-Mail</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+          <div className="grid grid-cols-2 gap-2 min-w-0">
+            <div className="min-w-0"><Label>Name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
+            <div className="min-w-0"><Label>E-Mail</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
           </div>
           <div>
             <Label>Rückgabe bis {openReturn ? "" : "*"}</Label>
