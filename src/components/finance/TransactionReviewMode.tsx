@@ -441,6 +441,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       matched_template_id: currentTxn?.matched_template_id || null,
       booked: false,
       needs_review: false,
+      ai_confidence_unsicher: false,
       review_note: "",
       is_fuel_purchase: false,
       fuel_type: "",
