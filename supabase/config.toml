@@ -170,3 +170,6 @@ verify_jwt = false
 
 [functions.audit-signed-url]
 verify_jwt = false
+
+[functions.send-key-email]
+verify_jwt = true
