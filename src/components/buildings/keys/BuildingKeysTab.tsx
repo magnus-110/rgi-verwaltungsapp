@@ -420,10 +420,10 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
         {loan && (
           <div className="hidden md:flex flex-col items-end text-xs">
             <Badge variant={overdue ? "destructive" : "secondary"}>
-              {overdue ? <><AlertTriangle className="h-3 w-3 mr-1" /> Überfällig</> : "Verliehen"}
+              {overdue ? <><AlertTriangle className="h-3 w-3 mr-1" /> Überfällig</> : openReturn ? "Verliehen (offen)" : "Verliehen"}
             </Badge>
             <span className="text-muted-foreground mt-0.5">
-              an {loan.borrower_name ?? "—"} · bis {format(new Date(loan.due_at), "dd.MM.yyyy", { locale: de })}
+              an {loan.borrower_name ?? "—"} · {openReturn ? "offene Rückgabe" : `bis ${format(new Date(loan.due_at), "dd.MM.yyyy", { locale: de })}`}
             </span>
           </div>
         )}
