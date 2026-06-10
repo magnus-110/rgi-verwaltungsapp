@@ -272,6 +272,7 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                     onLoan={() => setLoanDialog({ open: true, tag })}
                     onReturn={markReturned}
                     onLost={markLost}
+                    onEditLoan={(loan) => setEditLoanDialog({ open: true, loan, tagNumber: tag.tag_number })}
                     onDownloadTemplate={
                       globalSettings?.tag_template_path
                         ? async () => {
