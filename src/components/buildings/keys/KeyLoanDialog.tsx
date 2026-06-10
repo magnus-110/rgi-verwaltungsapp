@@ -208,7 +208,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
       <KeySignatureOverlay
         open={signOpen}
         onCancel={() => setSignOpen(false)}
-        onConfirm={(png) => { setSignature(png); setSignOpen(false); }}
+        onConfirm={(png) => { setSignature(png); setSignOpen(false); persistLoan(png); }}
         tag={tag}
         borrowerName={name || contactLabel}
         dueDate={openReturn ? "" : dueDate}
