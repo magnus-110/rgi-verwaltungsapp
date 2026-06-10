@@ -1193,6 +1193,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         is_35a_relevant: row.is_35a_relevant,
         amount_35a: amount35a,
         needs_review: row.needs_review,
+        ai_confidence_unsicher: row.ai_confidence_unsicher,
         review_note: row.review_note || null,
         line_items_detail: row.line_items_detail || null,
       };
