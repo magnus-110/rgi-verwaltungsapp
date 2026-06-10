@@ -196,7 +196,9 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
                                   key={b.id}
                                   className={cn(
                                     "group cursor-pointer text-[13px] hover:bg-muted/60",
-                                    b.needs_review && "bg-orange-50 dark:bg-orange-950/20"
+                                    b.needs_review && !b.ai_confidence_unsicher && "bg-orange-50 dark:bg-orange-950/20",
+                                    b.ai_confidence_unsicher && "bg-red-50 dark:bg-red-950/20",
+                                    b.needs_review && b.ai_confidence_unsicher && "border-l-4 border-orange-400"
                                   )}
                                   onClick={() => {
                                     // Original-Datensatz an den Editor übergeben, aber die
