@@ -1172,11 +1172,13 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                         <CheckCircle2 className="h-4 w-4" />Gebuchte Transaktionen ({bookedTransactions.length})
                       </Label>
                     </div>
-                    {showBooked && bookedTransactions.some((t: any) => t.bookings?.needs_review) && (
+                    {showBooked && bookedTransactions.some((t: any) => t.bookings?.needs_review || t.bookings?.ai_confidence_unsicher) && (
                       <div className="flex items-center gap-2">
                         <Switch checked={reviewFlaggedFirst} onCheckedChange={setReviewFlaggedFirst} id="flagged-first" />
                         <Label htmlFor="flagged-first" className="text-sm text-muted-foreground cursor-pointer flex items-center gap-1.5">
-                          <Flag className="h-3.5 w-3.5 text-orange-500" />Markierte oben
+                          <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
+                          <Flag className="h-3.5 w-3.5 text-orange-500" />
+                          Markierte oben
                         </Label>
                       </div>
                     )}
