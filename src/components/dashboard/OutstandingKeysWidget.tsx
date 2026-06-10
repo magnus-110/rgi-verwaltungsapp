@@ -14,7 +14,7 @@ export const OutstandingKeysWidget = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("key_loans")
-        .select("id, building_id, borrower_name, issued_at, due_at, tag_id, key_tags(tag_number), buildings(name)")
+        .select("id, building_id, borrower_name, issued_at, due_at, tag_id, key_tags!key_loans_tag_id_fkey(tag_number), buildings(name)")
         .is("returned_at", null)
         .order("due_at", { ascending: true });
       if (error) throw error;
