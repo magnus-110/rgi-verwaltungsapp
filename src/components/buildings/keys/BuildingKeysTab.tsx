@@ -139,29 +139,35 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
   };
 
   const markReturned = async (loanId: string) => {
+    const { data: loan } = await supabase.from("key_loans").select("send_confirmation_email").eq("id", loanId).maybeSingle();
     const { error } = await supabase.from("key_loans").update({
       status: "returned",
       returned_at: new Date().toISOString(),
       returned_confirmed_by_user_id: user?.id,
     }).eq("id", loanId);
-    if (error) toast.error(error.message);
-    else {
-      qc.invalidateQueries({ queryKey: ["key-loans-active", buildingId] });
-      qc.invalidateQueries({ queryKey: ["key-tags", buildingId] });
-      qc.invalidateQueries({ queryKey: ["key-events", buildingId] });
-      qc.invalidateQueries({ queryKey: ["outstanding-key-loans"] });
-      toast.success("Rückgabe bestätigt");
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["key-loans-active", buildingId] });
+    qc.invalidateQueries({ queryKey: ["key-tags", buildingId] });
+    qc.invalidateQueries({ queryKey: ["key-events", buildingId] });
+    qc.invalidateQueries({ queryKey: ["outstanding-key-loans"] });
+    toast.success("Rückgabe bestätigt");
+    if (loan?.send_confirmation_email) {
+      supabase.functions.invoke("send-key-email", { body: { loan_id: loanId, event: "returned" } })
+        .then(({ error: e }) => { if (e) toast.warning("Rückgabe-Webhook fehlgeschlagen: " + e.message); });
     }
   };
 
   const markLost = async (loanId: string) => {
     if (!confirm("Schlüssel als verloren markieren?")) return;
+    const { data: loan } = await supabase.from("key_loans").select("send_confirmation_email").eq("id", loanId).maybeSingle();
     const { error } = await supabase.from("key_loans").update({ status: "lost", returned_at: new Date().toISOString(), returned_confirmed_by_user_id: user?.id }).eq("id", loanId);
-    if (error) toast.error(error.message);
-    else {
-      qc.invalidateQueries({ queryKey: ["key-loans-active", buildingId] });
-      qc.invalidateQueries({ queryKey: ["key-tags", buildingId] });
-      qc.invalidateQueries({ queryKey: ["outstanding-key-loans"] });
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["key-loans-active", buildingId] });
+    qc.invalidateQueries({ queryKey: ["key-tags", buildingId] });
+    qc.invalidateQueries({ queryKey: ["outstanding-key-loans"] });
+    if (loan?.send_confirmation_email) {
+      supabase.functions.invoke("send-key-email", { body: { loan_id: loanId, event: "lost" } })
+        .then(({ error: e }) => { if (e) toast.warning("Verlust-Webhook fehlgeschlagen: " + e.message); });
     }
   };
 
