@@ -26,6 +26,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
   const [contactSearch, setContactSearch] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [openReturn, setOpenReturn] = useState(false);
   const [dueDate, setDueDate] = useState(() => format(new Date(Date.now() + 7 * 86400000), "yyyy-MM-dd"));
   const [requiresSignature, setRequiresSignature] = useState(false);
   const [sendConfirmation, setSendConfirmation] = useState(false);
@@ -35,7 +36,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
   const [saving, setSaving] = useState(false);
   const [signOpen, setSignOpen] = useState(false);
 
-  useEffect(() => { if (open) { setContactId(null); setContactLabel(""); setName(""); setEmail(""); setSignature(null); setNotes(""); setRequiresSignature(false); setSendConfirmation(false); setSendOverdueReminder(false); setDueDate(format(new Date(Date.now() + 7 * 86400000), "yyyy-MM-dd")); }}, [open]);
+  useEffect(() => { if (open) { setContactId(null); setContactLabel(""); setName(""); setEmail(""); setSignature(null); setNotes(""); setRequiresSignature(false); setSendConfirmation(false); setSendOverdueReminder(false); setOpenReturn(false); setDueDate(format(new Date(Date.now() + 7 * 86400000), "yyyy-MM-dd")); }}, [open]);
 
   const { data: building } = useQuery({
     queryKey: ["building-label", buildingId],
@@ -47,7 +48,11 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
   const { data: contacts = [] } = useQuery({
     queryKey: ["contacts-search", contactSearch],
     queryFn: async () => {
-      const q = supabase.from("contacts").select("id, company_name, contact_persons(first_name, last_name, contact_emails(email))").limit(20);
+      const q = supabase
+        .from("contacts")
+        .select("id, company_name, contact_persons(first_name, last_name, is_primary, contact_emails(email))")
+        .limit(20)
+        .order("is_primary", { foreignTable: "contact_persons", ascending: false });
       if (contactSearch) q.ilike("company_name", `%${contactSearch}%`);
       return (await q).data ?? [];
     },
@@ -58,22 +63,28 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
     if (!contactId && !name) { toast.error("Kontakt oder Name angeben"); return; }
     if (requiresSignature && !signature) { toast.error("Unterschrift fehlt"); return; }
     setSaving(true);
-    const { error } = await supabase.from("key_loans").insert({
+    const { data: inserted, error } = await supabase.from("key_loans").insert({
       tag_id: tag.id,
       building_id: buildingId,
       borrower_contact_id: contactId,
       borrower_name: name || contactLabel || null,
       borrower_email: email || null,
-      due_at: new Date(dueDate + "T23:59:59").toISOString(),
+      due_at: openReturn ? null : new Date(dueDate + "T23:59:59").toISOString(),
       requires_signature: requiresSignature,
       signature_data: signature,
       send_confirmation_email: sendConfirmation,
-      send_overdue_reminder: sendOverdueReminder,
+      send_overdue_reminder: sendOverdueReminder && !openReturn,
       issued_by_user_id: user?.id,
       notes: notes || null,
-    });
+    }).select("id").maybeSingle();
     setSaving(false);
     if (error) { toast.error(error.message); return; }
+
+    if (sendConfirmation && inserted?.id) {
+      supabase.functions.invoke("send-key-email", { body: { loan_id: inserted.id, event: "issued" } })
+        .then(({ error: e }) => { if (e) toast.warning("Webhook-Versand fehlgeschlagen: " + e.message); });
+    }
+
     qc.invalidateQueries({ queryKey: ["key-loans-active", buildingId] });
     qc.invalidateQueries({ queryKey: ["key-tags", buildingId] });
     qc.invalidateQueries({ queryKey: ["key-events", buildingId] });
@@ -103,14 +114,23 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
                   <CommandList>
                     <CommandEmpty>Keine Treffer</CommandEmpty>
                     {contacts.map((c: any) => {
-                      const person = c.contact_persons?.[0];
-                      const label = c.company_name || [person?.first_name, person?.last_name].filter(Boolean).join(" ") || "—";
-                      const mail = person?.contact_emails?.[0]?.email;
+                      const persons = (c.contact_persons ?? []) as any[];
+                      const primary = persons.find((p) => p.is_primary) ?? persons[0];
+                      const personName = primary ? [primary.first_name, primary.last_name].filter(Boolean).join(" ") : "";
+                      const displayLabel = personName || c.company_name || "—";
+                      const subLabel = personName && c.company_name ? c.company_name : "";
+                      const mail = primary?.contact_emails?.[0]?.email;
                       return (
                         <CommandItem key={c.id} value={c.id} onSelect={() => {
-                          setContactId(c.id); setContactLabel(label); setName(label); setEmail(mail || "");
+                          setContactId(c.id);
+                          setContactLabel(displayLabel + (subLabel ? ` (${subLabel})` : ""));
+                          setName(personName || c.company_name || "");
+                          setEmail(mail || "");
                         }}>
-                          {label} {mail && <span className="text-xs text-muted-foreground ml-2">{mail}</span>}
+                          <div className="flex flex-col">
+                            <span>{displayLabel}{mail && <span className="text-xs text-muted-foreground ml-2">{mail}</span>}</span>
+                            {subLabel && <span className="text-xs text-muted-foreground">{subLabel}</span>}
+                          </div>
                         </CommandItem>
                       );
                     })}
@@ -124,14 +144,21 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
             <div><Label>E-Mail</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
           </div>
           <div>
-            <Label>Rückgabe bis *</Label>
-            <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-            <p className="text-xs text-muted-foreground mt-1">Standard: 1 Woche</p>
+            <Label>Rückgabe bis {openReturn ? "" : "*"}</Label>
+            <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} disabled={openReturn} />
+            <label className="flex items-center gap-2 text-sm mt-2">
+              <Checkbox checked={openReturn} onCheckedChange={(v) => setOpenReturn(!!v)} />
+              Offene Rückgabe (z.B. Hausmeister – kein festes Datum)
+            </label>
+            {!openReturn && <p className="text-xs text-muted-foreground mt-1">Standard: 1 Woche</p>}
           </div>
           <div className="space-y-2 pt-2 border-t border-border">
             <label className="flex items-center gap-2 text-sm"><Checkbox checked={requiresSignature} onCheckedChange={(v) => setRequiresSignature(!!v)} /> Unterschrift erforderlich</label>
-            <label className="flex items-center gap-2 text-sm"><Checkbox checked={sendConfirmation} onCheckedChange={(v) => setSendConfirmation(!!v)} /> Bestätigungs­mail senden</label>
-            <label className="flex items-center gap-2 text-sm"><Checkbox checked={sendOverdueReminder} onCheckedChange={(v) => setSendOverdueReminder(!!v)} /> Mahnmail bei Überfälligkeit</label>
+            <label className="flex items-center gap-2 text-sm"><Checkbox checked={sendConfirmation} onCheckedChange={(v) => setSendConfirmation(!!v)} /> Bestätigungs­mail senden (via Make.com)</label>
+            <label className={`flex items-center gap-2 text-sm ${openReturn ? "opacity-50" : ""}`}>
+              <Checkbox checked={sendOverdueReminder && !openReturn} disabled={openReturn} onCheckedChange={(v) => setSendOverdueReminder(!!v)} />
+              Mahnmail bei Überfälligkeit
+            </label>
           </div>
           {requiresSignature && (
             <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
@@ -182,7 +209,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
         onConfirm={(png) => { setSignature(png); setSignOpen(false); }}
         tag={tag}
         borrowerName={name || contactLabel}
-        dueDate={dueDate}
+        dueDate={openReturn ? "" : dueDate}
         buildingLabel={buildingLabel}
       />
     </>
