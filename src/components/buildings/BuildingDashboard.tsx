@@ -170,6 +170,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "people", label: "Personen" },
               { value: "cases", label: "Vorgänge" },
               { value: "documents", label: "Dokumente" },
+              { value: "notes", label: "Notizen" },
               { value: "forum", label: "Schwarzes Brett" },
               { value: "providers", label: "Dienstleister" },
               { value: "communication", label: "Kommunikation" },
