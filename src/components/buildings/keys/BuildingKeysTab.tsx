@@ -13,6 +13,7 @@ import { Plus, KeyRound, FileText, History, Trash2, Send, RotateCcw, AlertTriang
 import { KeyTag, KeyStorageLocation, KeyType, KeyEvent, KeyItem, KeySubjectType, KeyManufacturer } from "./types";
 import { KeyTagDialog } from "./KeyTagDialog";
 import { KeyLoanDialog } from "./KeyLoanDialog";
+import { EditKeyLoanDialog } from "./EditKeyLoanDialog";
 import { DropdownWithAdd } from "./DropdownWithAdd";
 import { HouseIcon } from "./IconPicker";
 import { downloadFilledTagTemplate } from "./tagTemplate";
