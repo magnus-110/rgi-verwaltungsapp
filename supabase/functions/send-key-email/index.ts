@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
         .from("key_loans")
         .select(`
           *,
-          key_tags(tag_number, photo_path, notes, key_type_id, key_types(name, color_hex)),
+          key_tags!key_loans_tag_id_fkey(tag_number, photo_path, notes, key_type_id, key_types(name, color_hex)),
           buildings(id, name),
           contacts(id, company_name, contact_persons(first_name, last_name, is_primary))
         `)
