@@ -215,6 +215,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
         borrowerName={name || contactLabel}
         dueDate={openReturn ? "" : dueDate}
         buildingLabel={buildingLabel}
+        photoPath={tag.photo_path}
       />
     </>
   );
