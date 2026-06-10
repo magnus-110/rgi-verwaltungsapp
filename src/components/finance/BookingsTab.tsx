@@ -423,7 +423,34 @@ export function BookingsTab({
                       <Flag className="h-3.5 w-3.5 text-orange-500 fill-orange-500" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent><p className="text-xs">Prüfung erledigt (Klick)</p></TooltipContent>
+                  <TooltipContent><p className="text-xs">Zur Prüfung (mittlere KI-Konfidenz) – Klick zum Erledigen</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {b.ai_confidence_unsicher && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-5 w-5 p-0"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const { error } = await supabase
+                          .from("bookings")
+                          .update({ ai_confidence_unsicher: false })
+                          .eq("id", b.id);
+                        if (error) { toast.error("Fehler: " + error.message); return; }
+                        toast.success("Unsicher-Flag entfernt");
+                        queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
+                        queryClient.invalidateQueries({ queryKey: ["bookings-manual"] });
+                      }}
+                    >
+                      <AlertTriangle className="h-3.5 w-3.5 text-red-600 fill-red-100" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">Unsicher (niedrige KI-Konfidenz) – Klick zum Entfernen</p></TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
