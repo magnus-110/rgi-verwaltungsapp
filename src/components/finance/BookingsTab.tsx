@@ -359,7 +359,9 @@ export function BookingsTab({
         data-booking-row="true"
         className={cn(
           "cursor-pointer text-[13px] hover:bg-muted/60 transition-colors",
-          b.needs_review && "bg-orange-50 dark:bg-orange-950/20",
+          b.needs_review && !b.ai_confidence_unsicher && "bg-orange-50 dark:bg-orange-950/20",
+          b.ai_confidence_unsicher && "bg-red-50 dark:bg-red-950/20",
+          b.needs_review && b.ai_confidence_unsicher && "border-l-4 border-orange-400",
           isSelected && "bg-primary/15 hover:bg-primary/20 ring-1 ring-inset ring-primary/40"
         )}
         onClick={(e) => handleRowClick(b, e)}
