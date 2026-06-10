@@ -90,9 +90,9 @@ export const Buildings = () => {
         <ResizablePanel defaultSize={25} minSize={18} maxSize={35}>
           <div className="relative h-full">
             <Button
-              size="icon"
-              variant="ghost"
-              className="absolute top-2 right-2 h-7 w-7 z-10"
+              size="sm"
+              variant="outline"
+              className="absolute top-3 right-14 h-8 gap-1 z-20 shadow-sm"
               onClick={() => setListCollapsed(true)}
               title="Gebäudeliste einklappen"
             >
