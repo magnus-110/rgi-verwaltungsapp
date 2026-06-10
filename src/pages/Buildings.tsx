@@ -53,12 +53,12 @@ export const Buildings = () => {
   // Desktop: collapsed list → narrow strip with expand button
   if (listCollapsed) {
     return (
-      <div className="h-[calc(100vh-4rem)] flex">
-        <div className="w-10 border-r border-border bg-card flex flex-col items-center py-2 gap-2 shrink-0">
+      <div className="h-[calc(100vh-8rem)] flex">
+        <div className="w-12 border-r border-border bg-card flex flex-col items-center py-3 gap-2 shrink-0">
           <Button
             size="icon"
-            variant="ghost"
-            className="h-8 w-8"
+            variant="outline"
+            className="h-9 w-9"
             onClick={() => setListCollapsed(false)}
             title="Gebäudeliste ausklappen"
           >
@@ -66,7 +66,7 @@ export const Buildings = () => {
           </Button>
           <Building2 className="h-4 w-4 text-muted-foreground mt-1" />
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 overflow-auto">
           {selectedBuildingId ? (
             <BuildingDashboard buildingId={selectedBuildingId} />
           ) : (
@@ -85,14 +85,14 @@ export const Buildings = () => {
 
   // Desktop: resizable split layout
   return (
-    <div className="h-[calc(100vh-4rem)]">
+    <div className="h-[calc(100vh-8rem)]">
       <ResizablePanelGroup direction="horizontal">
         <ResizablePanel defaultSize={25} minSize={18} maxSize={35}>
           <div className="relative h-full">
             <Button
-              size="icon"
-              variant="ghost"
-              className="absolute top-2 right-2 h-7 w-7 z-10"
+              size="sm"
+              variant="outline"
+              className="absolute top-3 right-14 h-8 gap-1 z-20 shadow-sm"
               onClick={() => setListCollapsed(true)}
               title="Gebäudeliste einklappen"
             >
