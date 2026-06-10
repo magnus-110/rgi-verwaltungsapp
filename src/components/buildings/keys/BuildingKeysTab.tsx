@@ -392,10 +392,11 @@ interface TagRowProps {
   onLoan: () => void;
   onReturn: (id: string) => void;
   onLost: (id: string) => void;
+  onEditLoan: (loan: any) => void;
   onDownloadTemplate?: () => void;
 }
 
-const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLost, onDownloadTemplate }: TagRowProps) => {
+const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLost, onEditLoan, onDownloadTemplate }: TagRowProps) => {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
