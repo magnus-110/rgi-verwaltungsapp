@@ -43,6 +43,15 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
     },
   });
 
+  // Globale Anhänger-Vorlage (für alle Liegenschaften)
+  const { data: globalSettings } = useQuery({
+    queryKey: ["key-global-settings"],
+    queryFn: async () => {
+      const { data } = await supabase.from("key_global_settings" as any).select("*").eq("id", "singleton").maybeSingle();
+      return data as any;
+    },
+  });
+
   useEffect(() => {
     if (settings === null) {
       (async () => {
@@ -51,6 +60,7 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
       })();
     }
   }, [settings, buildingId, qc]);
+
 
   useEffect(() => {
     if ((settings as any)?.closing_plan_number !== undefined) setPlanNumber((settings as any)?.closing_plan_number ?? "");
