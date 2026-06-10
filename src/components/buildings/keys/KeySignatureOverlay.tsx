@@ -91,6 +91,18 @@ export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerNa
               </p>
             </div>
 
+            {/* Schlüsselfoto */}
+            {photoUrl && (
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-1.5">
+                  <ImageIcon className="h-3.5 w-3.5" /> Schlüsselfoto
+                </div>
+                <div className="rounded-xl border border-border bg-muted/30 p-3 flex justify-center">
+                  <img src={photoUrl} alt="Schlüsselfoto" className="max-h-56 w-auto rounded-md object-contain" />
+                </div>
+              </div>
+            )}
+
             {/* Signatur */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
