@@ -1617,9 +1617,45 @@ export type Database = {
           },
         ]
       }
+      building_note_categories: {
+        Row: {
+          building_id: string
+          created_at: string
+          id: string
+          label: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          building_id: string
+          created_at?: string
+          id?: string
+          label: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          building_id?: string
+          created_at?: string
+          id?: string
+          label?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "building_note_categories_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       building_notes: {
         Row: {
           building_id: string
+          category: string
           content: string
           created_at: string
           created_by: string | null
@@ -1629,6 +1665,7 @@ export type Database = {
         }
         Insert: {
           building_id: string
+          category?: string
           content: string
           created_at?: string
           created_by?: string | null
@@ -1638,6 +1675,7 @@ export type Database = {
         }
         Update: {
           building_id?: string
+          category?: string
           content?: string
           created_at?: string
           created_by?: string | null
