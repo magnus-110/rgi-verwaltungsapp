@@ -104,7 +104,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
           <div className="space-y-3">
           <div>
             <Label>Kontakt (optional)</Label>
-            <Popover>
+            <Popover open={contactPopoverOpen} onOpenChange={setContactPopoverOpen}>
               <PopoverTrigger asChild>
                 <Button variant="outline" className="w-full justify-between font-normal">
                   {contactLabel || "Kontakt suchen…"}
