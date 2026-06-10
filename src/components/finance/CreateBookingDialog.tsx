@@ -320,7 +320,11 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                 needsReview={pendingFlag.flagged}
                 reviewNote={pendingFlag.note}
                 onToggleReview={(next, note) => {
-                  setPendingFlag({ flagged: next, note: next ? note : undefined });
+                  setPendingFlag(p => ({ ...p, flagged: next, note: next ? (note ?? p.note) : (p.uncertain ? p.note : undefined) }));
+                }}
+                uncertain={pendingFlag.uncertain}
+                onToggleUncertain={(next, note) => {
+                  setPendingFlag(p => ({ ...p, uncertain: next, note: next ? (note ?? p.note) : (p.flagged ? p.note : undefined) }));
                 }}
               />
             )}
