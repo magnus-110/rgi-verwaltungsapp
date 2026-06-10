@@ -129,6 +129,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
                           setContactLabel(displayLabel + (subLabel ? ` (${subLabel})` : ""));
                           setName(personName || c.company_name || "");
                           setEmail(mail || "");
+                          setContactPopoverOpen(false);
                         }}>
                           <div className="flex flex-col">
                             <span>{displayLabel}{mail && <span className="text-xs text-muted-foreground ml-2">{mail}</span>}</span>
