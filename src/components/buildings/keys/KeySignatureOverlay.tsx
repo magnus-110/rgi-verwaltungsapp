@@ -4,9 +4,10 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { SignaturePad } from "./SignaturePad";
 import { RgiWordmark } from "@/components/onboarding/ui/RgiWordmark";
 import { KeyTag } from "./types";
-import { X, ShieldCheck } from "lucide-react";
+import { ShieldCheck, Image as ImageIcon } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   open: boolean;
@@ -16,10 +17,19 @@ interface Props {
   borrowerName: string;
   dueDate: string; // yyyy-MM-dd
   buildingLabel?: string;
+  photoPath?: string | null;
 }
 
-export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerName, dueDate, buildingLabel }: Props) => {
+export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerName, dueDate, buildingLabel, photoPath }: Props) => {
   const [png, setPng] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || !photoPath) { setPhotoUrl(null); return; }
+    supabase.storage.from("key-files").createSignedUrl(photoPath, 600).then(({ data }) => {
+      setPhotoUrl(data?.signedUrl ?? null);
+    });
+  }, [open, photoPath]);
 
   useEffect(() => { if (open) setPng(null); }, [open]);
   useEffect(() => {
@@ -46,13 +56,6 @@ export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerNa
                 <div className="text-sm font-medium">Schlüssel-Quittung</div>
               </div>
             </div>
-            <button
-              onClick={onCancel}
-              className="text-muted-foreground hover:text-foreground transition-colors rounded-full p-1.5 hover:bg-muted"
-              aria-label="Schließen"
-            >
-              <X className="h-5 w-5" />
-            </button>
           </div>
 
           {/* Body */}
@@ -87,6 +90,18 @@ export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerNa
                 Schließanlage trage ich gemäß den gesetzlichen Bestimmungen.
               </p>
             </div>
+
+            {/* Schlüsselfoto */}
+            {photoUrl && (
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-1.5">
+                  <ImageIcon className="h-3.5 w-3.5" /> Schlüsselfoto
+                </div>
+                <div className="rounded-xl border border-border bg-muted/30 p-3 flex justify-center">
+                  <img src={photoUrl} alt="Schlüsselfoto" className="max-h-56 w-auto rounded-md object-contain" />
+                </div>
+              </div>
+            )}
 
             {/* Signatur */}
             <div className="space-y-3">

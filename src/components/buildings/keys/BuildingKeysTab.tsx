@@ -139,29 +139,35 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
   };
 
   const markReturned = async (loanId: string) => {
+    const { data: loan } = await supabase.from("key_loans").select("send_confirmation_email").eq("id", loanId).maybeSingle();
     const { error } = await supabase.from("key_loans").update({
       status: "returned",
       returned_at: new Date().toISOString(),
       returned_confirmed_by_user_id: user?.id,
     }).eq("id", loanId);
-    if (error) toast.error(error.message);
-    else {
-      qc.invalidateQueries({ queryKey: ["key-loans-active", buildingId] });
-      qc.invalidateQueries({ queryKey: ["key-tags", buildingId] });
-      qc.invalidateQueries({ queryKey: ["key-events", buildingId] });
-      qc.invalidateQueries({ queryKey: ["outstanding-key-loans"] });
-      toast.success("Rückgabe bestätigt");
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["key-loans-active", buildingId] });
+    qc.invalidateQueries({ queryKey: ["key-tags", buildingId] });
+    qc.invalidateQueries({ queryKey: ["key-events", buildingId] });
+    qc.invalidateQueries({ queryKey: ["outstanding-key-loans"] });
+    toast.success("Rückgabe bestätigt");
+    if (loan?.send_confirmation_email) {
+      supabase.functions.invoke("send-key-email", { body: { loan_id: loanId, event: "returned" } })
+        .then(({ error: e }) => { if (e) toast.warning("Rückgabe-Webhook fehlgeschlagen: " + e.message); });
     }
   };
 
   const markLost = async (loanId: string) => {
     if (!confirm("Schlüssel als verloren markieren?")) return;
+    const { data: loan } = await supabase.from("key_loans").select("send_confirmation_email").eq("id", loanId).maybeSingle();
     const { error } = await supabase.from("key_loans").update({ status: "lost", returned_at: new Date().toISOString(), returned_confirmed_by_user_id: user?.id }).eq("id", loanId);
-    if (error) toast.error(error.message);
-    else {
-      qc.invalidateQueries({ queryKey: ["key-loans-active", buildingId] });
-      qc.invalidateQueries({ queryKey: ["key-tags", buildingId] });
-      qc.invalidateQueries({ queryKey: ["outstanding-key-loans"] });
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["key-loans-active", buildingId] });
+    qc.invalidateQueries({ queryKey: ["key-tags", buildingId] });
+    qc.invalidateQueries({ queryKey: ["outstanding-key-loans"] });
+    if (loan?.send_confirmation_email) {
+      supabase.functions.invoke("send-key-email", { body: { loan_id: loanId, event: "lost" } })
+        .then(({ error: e }) => { if (e) toast.warning("Verlust-Webhook fehlgeschlagen: " + e.message); });
     }
   };
 
@@ -405,11 +411,12 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
-      <div className="p-3 flex items-center gap-3 bg-card">
+      <div className="p-3 flex flex-wrap items-center gap-3 bg-card">
         <button onClick={() => setExpanded(e => !e)} className="text-muted-foreground hover:text-foreground">
           {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </button>
         <div className="w-1.5 h-10 rounded-full shrink-0" style={{ background: type?.color_hex ?? "#999" }} />
+        {tag.photo_path && <TagThumb path={tag.photo_path} />}
         <div className="min-w-0 flex-1">
           <div className="font-mono font-semibold text-sm">{tag.tag_number}</div>
           <div className="text-xs text-muted-foreground truncate">
@@ -418,16 +425,16 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
           </div>
         </div>
         {loan && (
-          <div className="hidden md:flex flex-col items-end text-xs">
+          <div className="flex flex-col items-end text-xs order-3 lg:order-none w-full lg:w-auto">
             <Badge variant={overdue ? "destructive" : "secondary"}>
               {overdue ? <><AlertTriangle className="h-3 w-3 mr-1" /> Überfällig</> : openReturn ? "Verliehen (offen)" : "Verliehen"}
             </Badge>
-            <span className="text-muted-foreground mt-0.5">
+            <span className="text-muted-foreground mt-0.5 truncate max-w-full">
               an {loan.borrower_name ?? "—"} · {openReturn ? "offene Rückgabe" : `bis ${format(new Date(loan.due_at), "dd.MM.yyyy", { locale: de })}`}
             </span>
           </div>
         )}
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0 ml-auto">
           {loan ? (
             <>
               <Button size="sm" variant="outline" onClick={() => onReturn(loan.id)}><RotateCcw className="h-3 w-3 mr-1" /> Zurück</Button>
@@ -518,5 +525,22 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
         </div>
       )}
     </div>
+  );
+};
+
+const TagThumb = ({ path }: { path: string }) => {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    supabase.storage.from("key-files").createSignedUrl(path, 600).then(({ data }) => {
+      if (active) setUrl(data?.signedUrl ?? null);
+    });
+    return () => { active = false; };
+  }, [path]);
+  if (!url) return null;
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="shrink-0">
+      <img src={url} alt="Schlüsselfoto" className="h-10 w-10 rounded object-cover border border-border" />
+    </a>
   );
 };

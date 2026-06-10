@@ -35,6 +35,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [signOpen, setSignOpen] = useState(false);
+  const [contactPopoverOpen, setContactPopoverOpen] = useState(false);
 
   useEffect(() => { if (open) { setContactId(null); setContactLabel(""); setName(""); setEmail(""); setSignature(null); setNotes(""); setRequiresSignature(false); setSendConfirmation(false); setSendOverdueReminder(false); setOpenReturn(false); setDueDate(format(new Date(Date.now() + 7 * 86400000), "yyyy-MM-dd")); }}, [open]);
 
@@ -103,7 +104,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
           <div className="space-y-3">
           <div>
             <Label>Kontakt (optional)</Label>
-            <Popover>
+            <Popover open={contactPopoverOpen} onOpenChange={setContactPopoverOpen}>
               <PopoverTrigger asChild>
                 <Button variant="outline" className="w-full justify-between font-normal">
                   {contactLabel || "Kontakt suchen…"}
@@ -128,6 +129,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
                           setContactLabel(displayLabel + (subLabel ? ` (${subLabel})` : ""));
                           setName(personName || c.company_name || "");
                           setEmail(mail || "");
+                          setContactPopoverOpen(false);
                         }}>
                           <div className="flex flex-col">
                             <span>{displayLabel}{mail && <span className="text-xs text-muted-foreground ml-2">{mail}</span>}</span>
@@ -213,6 +215,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
         borrowerName={name || contactLabel}
         dueDate={openReturn ? "" : dueDate}
         buildingLabel={buildingLabel}
+        photoPath={tag.photo_path}
       />
     </>
   );
