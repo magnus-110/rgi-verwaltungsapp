@@ -901,6 +901,8 @@ export type Database = {
       bookings: {
         Row: {
           account_id: string | null
+          ai_confidence_mittel: boolean
+          ai_confidence_unsicher: boolean
           ai_warning: string | null
           amount: number
           amount_35a: number | null
@@ -939,6 +941,8 @@ export type Database = {
         }
         Insert: {
           account_id?: string | null
+          ai_confidence_mittel?: boolean
+          ai_confidence_unsicher?: boolean
           ai_warning?: string | null
           amount: number
           amount_35a?: number | null
@@ -977,6 +981,8 @@ export type Database = {
         }
         Update: {
           account_id?: string | null
+          ai_confidence_mittel?: boolean
+          ai_confidence_unsicher?: boolean
           ai_warning?: string | null
           amount?: number
           amount_35a?: number | null
