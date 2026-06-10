@@ -74,6 +74,7 @@ interface BookingRowData {
   matched_template_id: string | null;
   booked: boolean;
   needs_review: boolean;
+  ai_confidence_unsicher: boolean;
   review_note: string;
   is_fuel_purchase: boolean;
   fuel_type: string;
