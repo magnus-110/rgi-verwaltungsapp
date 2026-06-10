@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
-import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Link2Off, Send, RefreshCw, Landmark, FileWarning, Sparkles, Flag, AlertCircle, RotateCw, FileText, ExternalLink, FileCode, Trash2 } from "lucide-react";
+import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Link2Off, Send, RefreshCw, Landmark, FileWarning, Sparkles, Flag, AlertCircle, AlertTriangle, RotateCw, FileText, ExternalLink, FileCode, Trash2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -105,7 +105,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
       if (!selectedBuilding) return [];
       const { data, error } = await supabase
         .from("bank_transactions")
-        .select("*, bookings!bank_transactions_booking_id_fkey(id, needs_review, review_note)")
+        .select("*, bookings!bank_transactions_booking_id_fkey(id, needs_review, review_note, ai_confidence_unsicher)")
         .eq("building_id", selectedBuilding)
         .gte("booking_date", `${fiscalYear}-01-01`)
         .lte("booking_date", `${fiscalYear}-12-31`)
@@ -722,7 +722,18 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                 <Tooltip>
                   <TooltipTrigger><Flag className="h-3.5 w-3.5 text-orange-500 fill-orange-500" /></TooltipTrigger>
                   <TooltipContent className="max-w-xs">
-                    <p className="text-xs font-medium">Zur Prüfung markiert</p>
+                    <p className="text-xs font-medium">Zur Prüfung (mittlere KI-Konfidenz)</p>
+                    {txn.bookings?.review_note && <p className="text-xs text-muted-foreground">{txn.bookings.review_note}</p>}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {txn.bookings?.ai_confidence_unsicher && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger><AlertTriangle className="h-3.5 w-3.5 text-red-600" /></TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="text-xs font-medium">Unsicher (niedrige KI-Konfidenz)</p>
                     {txn.bookings?.review_note && <p className="text-xs text-muted-foreground">{txn.bookings.review_note}</p>}
                   </TooltipContent>
                 </Tooltip>
@@ -1161,11 +1172,13 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                         <CheckCircle2 className="h-4 w-4" />Gebuchte Transaktionen ({bookedTransactions.length})
                       </Label>
                     </div>
-                    {showBooked && bookedTransactions.some((t: any) => t.bookings?.needs_review) && (
+                    {showBooked && bookedTransactions.some((t: any) => t.bookings?.needs_review || t.bookings?.ai_confidence_unsicher) && (
                       <div className="flex items-center gap-2">
                         <Switch checked={reviewFlaggedFirst} onCheckedChange={setReviewFlaggedFirst} id="flagged-first" />
                         <Label htmlFor="flagged-first" className="text-sm text-muted-foreground cursor-pointer flex items-center gap-1.5">
-                          <Flag className="h-3.5 w-3.5 text-orange-500" />Markierte oben
+                          <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
+                          <Flag className="h-3.5 w-3.5 text-orange-500" />
+                          Markierte oben
                         </Label>
                       </div>
                     )}
@@ -1175,7 +1188,10 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                       {transactionTableHeader}
                       <TableBody>{
                         (reviewFlaggedFirst
-                          ? [...bookedTransactions].sort((a: any, b: any) => (b.bookings?.needs_review ? 1 : 0) - (a.bookings?.needs_review ? 1 : 0))
+                          ? [...bookedTransactions].sort((a: any, b: any) => {
+                              const score = (t: any) => (t.bookings?.ai_confidence_unsicher ? 2 : 0) + (t.bookings?.needs_review ? 1 : 0);
+                              return score(b) - score(a);
+                            })
                           : bookedTransactions
                         ).map(renderTransactionRow)
                       }</TableBody>

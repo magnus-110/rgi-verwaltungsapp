@@ -655,6 +655,18 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                     (booking as any).needs_review = next;
                     (booking as any).review_note = next ? (note || null) : null;
                   }}
+                  uncertain={!!(booking as any).ai_confidence_unsicher}
+                  onToggleUncertain={async (next, note) => {
+                    if (!booking) return;
+                    const update: any = { ai_confidence_unsicher: next };
+                    if (next && note) update.review_note = note;
+                    const { error } = await supabase.from("bookings").update(update).eq("id", booking.id);
+                    if (error) { toast.error("Fehler: " + error.message); return; }
+                    toast.success(next ? "Als unsicher markiert" : "Unsicher-Flag entfernt");
+                    queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("bookings") });
+                    (booking as any).ai_confidence_unsicher = next;
+                    if (next && note) (booking as any).review_note = note;
+                  }}
                 />
 
 

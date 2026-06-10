@@ -65,6 +65,7 @@ export function BookingsTab({
   const [manualOpen, setManualOpen] = useState(false);
   const [templateDetail, setTemplateDetail] = useState<any>(null);
   const [filterReview, setFilterReview] = useState(false);
+  const [filterUncertain, setFilterUncertain] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "plan">(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("bookings-view-mode") : null;
@@ -246,6 +247,9 @@ export function BookingsTab({
     if (filterReview) {
       result = result.filter((b: any) => b.needs_review === true);
     }
+    if (filterUncertain) {
+      result = result.filter((b: any) => b.ai_confidence_unsicher === true);
+    }
     if (!searchQuery.trim()) return result;
     const q = searchQuery.toLowerCase();
     return result.filter((b: any) => {
@@ -266,7 +270,7 @@ export function BookingsTab({
       ];
       return fields.some(f => f && String(f).toLowerCase().includes(q));
     });
-  }, [searchQuery, filterReview]);
+  }, [searchQuery, filterReview, filterUncertain]);
 
   const sortByDate = useCallback((arr: any[]) => {
     return [...arr].sort((a, b) => {
@@ -355,7 +359,9 @@ export function BookingsTab({
         data-booking-row="true"
         className={cn(
           "cursor-pointer text-[13px] hover:bg-muted/60 transition-colors",
-          b.needs_review && "bg-orange-50 dark:bg-orange-950/20",
+          b.needs_review && !b.ai_confidence_unsicher && "bg-orange-50 dark:bg-orange-950/20",
+          b.ai_confidence_unsicher && "bg-red-50 dark:bg-red-950/20",
+          b.needs_review && b.ai_confidence_unsicher && "border-l-4 border-orange-400",
           isSelected && "bg-primary/15 hover:bg-primary/20 ring-1 ring-inset ring-primary/40"
         )}
         onClick={(e) => handleRowClick(b, e)}
@@ -417,7 +423,34 @@ export function BookingsTab({
                       <Flag className="h-3.5 w-3.5 text-orange-500 fill-orange-500" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent><p className="text-xs">Prüfung erledigt (Klick)</p></TooltipContent>
+                  <TooltipContent><p className="text-xs">Zur Prüfung (mittlere KI-Konfidenz) – Klick zum Erledigen</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {b.ai_confidence_unsicher && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-5 w-5 p-0"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const { error } = await supabase
+                          .from("bookings")
+                          .update({ ai_confidence_unsicher: false })
+                          .eq("id", b.id);
+                        if (error) { toast.error("Fehler: " + error.message); return; }
+                        toast.success("Unsicher-Flag entfernt");
+                        queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
+                        queryClient.invalidateQueries({ queryKey: ["bookings-manual"] });
+                      }}
+                    >
+                      <AlertTriangle className="h-3.5 w-3.5 text-red-600 fill-red-100" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">Unsicher (niedrige KI-Konfidenz) – Klick zum Entfernen</p></TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
@@ -555,13 +588,27 @@ export function BookingsTab({
           variant={filterReview ? "default" : "outline"}
           size="icon"
           className={cn("h-9 w-9 relative", filterReview && "bg-orange-500 hover:bg-orange-600 text-white")}
-          title="Prüfung"
+          title="Nur Prüfung (mittlere KI-Konfidenz)"
           onClick={() => { setFilterReview(f => !f); setCurrentPage(0); }}
         >
           <Flag className="h-4 w-4" />
           {pendingBookings.filter((b: any) => b.needs_review).length > 0 && (
             <Badge variant="secondary" className="absolute -top-1.5 -right-1.5 text-[10px] h-4 min-w-4 px-1 rounded-full">
               {pendingBookings.filter((b: any) => b.needs_review).length}
+            </Badge>
+          )}
+        </Button>
+        <Button
+          variant={filterUncertain ? "default" : "outline"}
+          size="icon"
+          className={cn("h-9 w-9 relative", filterUncertain && "bg-red-600 hover:bg-red-700 text-white")}
+          title="Nur Unsicher (niedrige KI-Konfidenz)"
+          onClick={() => { setFilterUncertain(f => !f); setCurrentPage(0); }}
+        >
+          <AlertTriangle className="h-4 w-4" />
+          {pendingBookings.filter((b: any) => b.ai_confidence_unsicher).length > 0 && (
+            <Badge variant="secondary" className="absolute -top-1.5 -right-1.5 text-[10px] h-4 min-w-4 px-1 rounded-full">
+              {pendingBookings.filter((b: any) => b.ai_confidence_unsicher).length}
             </Badge>
           )}
         </Button>

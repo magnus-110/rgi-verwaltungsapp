@@ -74,6 +74,7 @@ interface BookingRowData {
   matched_template_id: string | null;
   booked: boolean;
   needs_review: boolean;
+  ai_confidence_unsicher: boolean;
   review_note: string;
   is_fuel_purchase: boolean;
   fuel_type: string;
@@ -440,6 +441,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       matched_template_id: currentTxn?.matched_template_id || null,
       booked: false,
       needs_review: false,
+      ai_confidence_unsicher: false,
       review_note: "",
       is_fuel_purchase: false,
       fuel_type: "",
@@ -755,6 +757,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           matched_template_id: s.template_id || null,
           booked: false,
           needs_review: false,
+          ai_confidence_unsicher: false,
           review_note: "",
           is_fuel_purchase: false,
           fuel_type: "",
@@ -1108,6 +1111,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
             is_35a_relevant: r.is_35a_relevant,
             amount_35a: a35a,
             needs_review: r.needs_review,
+            ai_confidence_unsicher: r.ai_confidence_unsicher,
             review_note: r.review_note || null,
             line_items_detail: r.line_items_detail || null,
           };
@@ -1189,6 +1193,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         is_35a_relevant: row.is_35a_relevant,
         amount_35a: amount35a,
         needs_review: row.needs_review,
+        ai_confidence_unsicher: row.ai_confidence_unsicher,
         review_note: row.review_note || null,
         line_items_detail: row.line_items_detail || null,
       };
@@ -2435,6 +2440,7 @@ function BookingRowCard({
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={e => { e.stopPropagation(); onUpdateField("needs_review", !row.needs_review); }}
+                title="Mittlere KI-Konfidenz – bitte gegenprüfen"
                 className={cn(
                   "flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors",
                   row.needs_review
@@ -2444,6 +2450,19 @@ function BookingRowCard({
               >
                 <Flag className="h-3.5 w-3.5" />
                 Prüfen
+              </button>
+              <button
+                onClick={e => { e.stopPropagation(); onUpdateField("ai_confidence_unsicher", !row.ai_confidence_unsicher); }}
+                title="Niedrige KI-Konfidenz – Buchung ist unsicher"
+                className={cn(
+                  "flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors",
+                  row.ai_confidence_unsicher
+                    ? "bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400"
+                    : "text-muted-foreground hover:bg-muted"
+                )}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Unsicher
               </button>
               <span className={cn("text-sm font-bold", row.booking_type === "income" ? "text-green-600" : "text-destructive")}>
                 {row.booking_type === "income" ? "+" : "−"}{formatCurrency(parseAmount(row.amount) || 0)}

@@ -196,7 +196,9 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
                                   key={b.id}
                                   className={cn(
                                     "group cursor-pointer text-[13px] hover:bg-muted/60",
-                                    b.needs_review && "bg-orange-50 dark:bg-orange-950/20"
+                                    b.needs_review && !b.ai_confidence_unsicher && "bg-orange-50 dark:bg-orange-950/20",
+                                    b.ai_confidence_unsicher && "bg-red-50 dark:bg-red-950/20",
+                                    b.needs_review && b.ai_confidence_unsicher && "border-l-4 border-orange-400"
                                   )}
                                   onClick={() => {
                                     // Original-Datensatz an den Editor übergeben, aber die
@@ -286,6 +288,33 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
                                               </Button>
                                             </TooltipTrigger>
                                             <TooltipContent><p className="text-xs">Prüfung erledigt (Klick)</p></TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
+                                      {b.ai_confidence_unsicher && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-5 w-5 p-0"
+                                                onClick={async (e) => {
+                                                  e.stopPropagation();
+                                                  const { error } = await supabase
+                                                    .from("bookings")
+                                                    .update({ ai_confidence_unsicher: false })
+                                                    .eq("id", b.id);
+                                                  if (error) { toast.error("Fehler: " + error.message); return; }
+                                                  toast.success("Unsicher-Flag entfernt");
+                                                  queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
+                                                  queryClient.invalidateQueries({ queryKey: ["bookings-manual"] });
+                                                }}
+                                              >
+                                                <AlertTriangle className="h-3 w-3 text-red-600" />
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent><p className="text-xs">Unsicher (niedrige KI-Konfidenz) – Klick zum Entfernen</p></TooltipContent>
                                           </Tooltip>
                                         </TooltipProvider>
                                       )}
