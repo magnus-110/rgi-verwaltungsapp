@@ -93,7 +93,7 @@ export const Buildings = () => {
             <button
               onClick={() => setListCollapsed(true)}
               title="Gebäudeliste einklappen"
-              className="absolute top-1/2 -translate-y-1/2 right-0 z-20 h-12 w-4 flex items-center justify-center rounded-l-md bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground opacity-50 hover:opacity-100 transition"
+              className="absolute top-3 right-0 z-20 h-8 w-4 flex items-center justify-center rounded-l-md bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground opacity-50 hover:opacity-100 transition"
             >
               <PanelLeftClose className="h-3 w-3" />
             </button>
