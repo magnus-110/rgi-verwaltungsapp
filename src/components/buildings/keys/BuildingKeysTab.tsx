@@ -265,12 +265,12 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                     onReturn={markReturned}
                     onLost={markLost}
                     onDownloadTemplate={
-                      (settings as any)?.tag_template_path
+                      globalSettings?.tag_template_path
                         ? async () => {
                             try {
                               await downloadFilledTagTemplate({
-                                templatePath: (settings as any).tag_template_path,
-                                templateName: (settings as any).tag_template_name,
+                                templatePath: globalSettings.tag_template_path,
+                                templateName: globalSettings.tag_template_name,
                                 tagNumber: tag.tag_number,
                                 typeName: types.find(t => t.id === tag.key_type_id)?.name,
                                 typeColorHex: types.find(t => t.id === tag.key_type_id)?.color_hex,
@@ -284,6 +284,7 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                           }
                         : undefined
                     }
+
                   />
                 ))
               )}
