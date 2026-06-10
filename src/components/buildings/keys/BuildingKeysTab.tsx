@@ -117,17 +117,20 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
 
   const uploadTagTemplate = async (file: File) => {
     if (!file.name.toLowerCase().endsWith(".docx")) { toast.error("Bitte eine .docx-Datei hochladen"); return; }
-    const path = `${buildingId}/tag-template-${Date.now()}-${file.name}`;
+    const path = `_global/tag-template-${Date.now()}-${file.name}`;
     const { error } = await supabase.storage.from("key-files").upload(path, file, { upsert: true });
     if (error) { toast.error(error.message); return; }
-    const { error: e2 } = await supabase.from("key_property_settings").update({
+    const { error: e2 } = await supabase.from("key_global_settings" as any).upsert({
+      id: "singleton",
       tag_template_path: path,
       tag_template_name: file.name,
       tag_template_uploaded_at: new Date().toISOString(),
-    } as any).eq("building_id", buildingId);
+      tag_template_uploaded_by: user?.id,
+    } as any);
     if (e2) toast.error(e2.message);
-    else { qc.invalidateQueries({ queryKey: ["key-settings", buildingId] }); toast.success("Anhänger-Vorlage hochgeladen"); }
+    else { qc.invalidateQueries({ queryKey: ["key-global-settings"] }); toast.success("Anhänger-Vorlage hochgeladen (gilt für alle Liegenschaften)"); }
   };
+
 
   const downloadClosingPlan = async () => {
     if (!settings?.closing_plan_path) return;
