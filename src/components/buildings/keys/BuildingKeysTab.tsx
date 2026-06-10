@@ -43,6 +43,15 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
     },
   });
 
+  // Globale Anhänger-Vorlage (für alle Liegenschaften)
+  const { data: globalSettings } = useQuery({
+    queryKey: ["key-global-settings"],
+    queryFn: async () => {
+      const { data } = await supabase.from("key_global_settings" as any).select("*").eq("id", "singleton").maybeSingle();
+      return data as any;
+    },
+  });
+
   useEffect(() => {
     if (settings === null) {
       (async () => {
@@ -51,6 +60,7 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
       })();
     }
   }, [settings, buildingId, qc]);
+
 
   useEffect(() => {
     if ((settings as any)?.closing_plan_number !== undefined) setPlanNumber((settings as any)?.closing_plan_number ?? "");
@@ -107,17 +117,20 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
 
   const uploadTagTemplate = async (file: File) => {
     if (!file.name.toLowerCase().endsWith(".docx")) { toast.error("Bitte eine .docx-Datei hochladen"); return; }
-    const path = `${buildingId}/tag-template-${Date.now()}-${file.name}`;
+    const path = `_global/tag-template-${Date.now()}-${file.name}`;
     const { error } = await supabase.storage.from("key-files").upload(path, file, { upsert: true });
     if (error) { toast.error(error.message); return; }
-    const { error: e2 } = await supabase.from("key_property_settings").update({
+    const { error: e2 } = await supabase.from("key_global_settings" as any).upsert({
+      id: "singleton",
       tag_template_path: path,
       tag_template_name: file.name,
       tag_template_uploaded_at: new Date().toISOString(),
-    } as any).eq("building_id", buildingId);
+      tag_template_uploaded_by: user?.id,
+    } as any);
     if (e2) toast.error(e2.message);
-    else { qc.invalidateQueries({ queryKey: ["key-settings", buildingId] }); toast.success("Anhänger-Vorlage hochgeladen"); }
+    else { qc.invalidateQueries({ queryKey: ["key-global-settings"] }); toast.success("Anhänger-Vorlage hochgeladen (gilt für alle Liegenschaften)"); }
   };
+
 
   const downloadClosingPlan = async () => {
     if (!settings?.closing_plan_path) return;
@@ -212,7 +225,7 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                     )}
                   </div>
                   <div className="md:col-span-2">
-                    <Label>Anhänger-Vorlage (Word .docx)</Label>
+                    <Label>Anhänger-Vorlage (Word .docx) <span className="text-xs font-normal text-muted-foreground">— gilt für alle Liegenschaften</span></Label>
                     <div className="flex items-center gap-2">
                       <Input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => e.target.files?.[0] && uploadTagTemplate(e.target.files[0])} />
                     </div>
@@ -221,9 +234,10 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                       <br />• <code className="font-mono">{"{g}"}</code> → wird mit der Nummer gefüllt, wenn der Schlüsseltyp <b>grün</b> ist (sonst leer)
                       <br />• <code className="font-mono">{"{r}"}</code> → wird mit der Nummer gefüllt, wenn der Schlüsseltyp <b>rot</b> ist (sonst leer)
                       <br />Format der Nummer: „1 / 0002 - 01". Formatierung (Größe, Farbe, Hintergrund) übernimmt Word aus der Vorlage.
-                      {(settings as any)?.tag_template_name && <> · Aktuell: {(settings as any).tag_template_name}</>}
+                      {globalSettings?.tag_template_name && <> · Aktuell (global): {globalSettings.tag_template_name}</>}
                     </p>
                   </div>
+
                 </CardContent>
               </CollapsibleContent>
             </Card>
@@ -251,12 +265,12 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                     onReturn={markReturned}
                     onLost={markLost}
                     onDownloadTemplate={
-                      (settings as any)?.tag_template_path
+                      globalSettings?.tag_template_path
                         ? async () => {
                             try {
                               await downloadFilledTagTemplate({
-                                templatePath: (settings as any).tag_template_path,
-                                templateName: (settings as any).tag_template_name,
+                                templatePath: globalSettings.tag_template_path,
+                                templateName: globalSettings.tag_template_name,
                                 tagNumber: tag.tag_number,
                                 typeName: types.find(t => t.id === tag.key_type_id)?.name,
                                 typeColorHex: types.find(t => t.id === tag.key_type_id)?.color_hex,
@@ -270,6 +284,7 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                           }
                         : undefined
                     }
+
                   />
                 ))
               )}
