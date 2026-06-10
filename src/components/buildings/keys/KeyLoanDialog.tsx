@@ -96,7 +96,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
   return (
     <>
       <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg w-[95vw] max-h-[90vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader><DialogTitle>Schlüssel ausgeben · <span className="font-mono">{tag.tag_number}</span></DialogTitle></DialogHeader>
           <div className="space-y-3">
           <div>
