@@ -5702,6 +5702,36 @@ export type Database = {
           },
         ]
       }
+      key_global_settings: {
+        Row: {
+          created_at: string
+          id: string
+          tag_template_name: string | null
+          tag_template_path: string | null
+          tag_template_uploaded_at: string | null
+          tag_template_uploaded_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          tag_template_name?: string | null
+          tag_template_path?: string | null
+          tag_template_uploaded_at?: string | null
+          tag_template_uploaded_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          tag_template_name?: string | null
+          tag_template_path?: string | null
+          tag_template_uploaded_at?: string | null
+          tag_template_uploaded_by?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       key_loans: {
         Row: {
           borrower_contact_id: string | null
