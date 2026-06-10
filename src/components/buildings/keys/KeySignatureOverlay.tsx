@@ -20,8 +20,16 @@ interface Props {
   photoPath?: string | null;
 }
 
-export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerName, dueDate, buildingLabel }: Props) => {
+export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerName, dueDate, buildingLabel, photoPath }: Props) => {
   const [png, setPng] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || !photoPath) { setPhotoUrl(null); return; }
+    supabase.storage.from("key-files").createSignedUrl(photoPath, 600).then(({ data }) => {
+      setPhotoUrl(data?.signedUrl ?? null);
+    });
+  }, [open, photoPath]);
 
   useEffect(() => { if (open) setPng(null); }, [open]);
   useEffect(() => {
