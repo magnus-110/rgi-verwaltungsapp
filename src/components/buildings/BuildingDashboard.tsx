@@ -21,6 +21,7 @@ import { BuildingResolutionsTab } from "./BuildingResolutionsTab";
 import { BuildingDistributionKeysTab } from "@/components/finance/BuildingDistributionKeysTab";
 import { BuildingServiceProvidersTab } from "./BuildingServiceProvidersTab";
 import { BuildingOverviewTab } from "./BuildingOverviewTab";
+import { BuildingNotesTab } from "./BuildingNotesTab";
 import { AnnualCycleBuildingTab } from "./AnnualCycleBuildingTab";
 import { BuildingOnboardingTab } from "./BuildingOnboardingTab";
 import { BuildingKeysTab } from "./keys/BuildingKeysTab";
