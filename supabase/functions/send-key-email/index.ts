@@ -113,9 +113,24 @@ Deno.serve(async (req) => {
         }
       }
 
+      const fmtDe = (iso: string | null | undefined) => {
+        if (!iso) return null;
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return null;
+        const parts = new Intl.DateTimeFormat("de-DE", {
+          timeZone: "Europe/Berlin",
+          day: "2-digit", month: "2-digit", year: "numeric",
+          hour: "2-digit", minute: "2-digit", hour12: false,
+        }).formatToParts(d);
+        const get = (t: string) => parts.find(p => p.type === t)?.value ?? "";
+        return `${get("day")}.${get("month")}.${get("year")}, ${get("hour")}:${get("minute")} Uhr`;
+      };
+      const nowIso = new Date().toISOString();
+
       payload = {
         event,
-        sent_at: new Date().toISOString(),
+        sent_at: nowIso,
+        sent_at_de: fmtDe(nowIso),
         loan_id: loan.id,
         tag: {
           number: loan.key_tags?.tag_number,
@@ -135,8 +150,11 @@ Deno.serve(async (req) => {
           company: loan.contacts?.company_name ?? null,
         },
         issued_at: loan.issued_at,
+        issued_at_de: fmtDe(loan.issued_at),
         due_at: loan.due_at,
+        due_at_de: fmtDe(loan.due_at),
         returned_at: loan.returned_at,
+        returned_at_de: fmtDe(loan.returned_at),
         open_return: loan.due_at === null,
         notes: loan.notes,
         signature_data_url: loan.signature_data,
