@@ -388,7 +388,8 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
     queryFn: async () => (await supabase.from("key_manufacturers").select("*").eq("is_active", true).order("name")).data ?? [],
   });
 
-  const overdue = loan && isPast(new Date(loan.due_at));
+  const overdue = loan && loan.due_at && isPast(new Date(loan.due_at));
+  const openReturn = loan && !loan.due_at;
 
   const addKey = async () => {
     const { error } = await supabase.from("keys").insert({ ...form, tag_id: tag.id });
