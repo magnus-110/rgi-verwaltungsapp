@@ -30,6 +30,7 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
   const { user } = useAuth();
   const [tagDialog, setTagDialog] = useState<{ open: boolean; tag?: KeyTag }>({ open: false });
   const [loanDialog, setLoanDialog] = useState<{ open: boolean; tag?: KeyTag }>({ open: false });
+  const [editLoanDialog, setEditLoanDialog] = useState<{ open: boolean; loan?: any; tagNumber?: string }>({ open: false });
   const [historyKeyFilter, setHistoryKeyFilter] = useState<string>("all");
   const [historyEventFilter, setHistoryEventFilter] = useState<string>("all");
   const [stammdatenOpen, setStammdatenOpen] = useState(false);
