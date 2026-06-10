@@ -65,6 +65,7 @@ export function BookingsTab({
   const [manualOpen, setManualOpen] = useState(false);
   const [templateDetail, setTemplateDetail] = useState<any>(null);
   const [filterReview, setFilterReview] = useState(false);
+  const [filterUncertain, setFilterUncertain] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "plan">(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("bookings-view-mode") : null;
