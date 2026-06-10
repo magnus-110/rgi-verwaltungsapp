@@ -13,6 +13,7 @@ import { Plus, KeyRound, FileText, History, Trash2, Send, RotateCcw, AlertTriang
 import { KeyTag, KeyStorageLocation, KeyType, KeyEvent, KeyItem, KeySubjectType, KeyManufacturer } from "./types";
 import { KeyTagDialog } from "./KeyTagDialog";
 import { KeyLoanDialog } from "./KeyLoanDialog";
+import { EditKeyLoanDialog } from "./EditKeyLoanDialog";
 import { DropdownWithAdd } from "./DropdownWithAdd";
 import { HouseIcon } from "./IconPicker";
 import { downloadFilledTagTemplate } from "./tagTemplate";
@@ -29,6 +30,7 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
   const { user } = useAuth();
   const [tagDialog, setTagDialog] = useState<{ open: boolean; tag?: KeyTag }>({ open: false });
   const [loanDialog, setLoanDialog] = useState<{ open: boolean; tag?: KeyTag }>({ open: false });
+  const [editLoanDialog, setEditLoanDialog] = useState<{ open: boolean; loan?: any; tagNumber?: string }>({ open: false });
   const [historyKeyFilter, setHistoryKeyFilter] = useState<string>("all");
   const [historyEventFilter, setHistoryEventFilter] = useState<string>("all");
   const [stammdatenOpen, setStammdatenOpen] = useState(false);
@@ -270,6 +272,7 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                     onLoan={() => setLoanDialog({ open: true, tag })}
                     onReturn={markReturned}
                     onLost={markLost}
+                    onEditLoan={(loan) => setEditLoanDialog({ open: true, loan, tagNumber: tag.tag_number })}
                     onDownloadTemplate={
                       globalSettings?.tag_template_path
                         ? async () => {
@@ -357,6 +360,15 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
           buildingId={buildingId}
         />
       )}
+      {editLoanDialog.loan && (
+        <EditKeyLoanDialog
+          open={editLoanDialog.open}
+          onClose={() => setEditLoanDialog({ open: false })}
+          loan={editLoanDialog.loan}
+          buildingId={buildingId}
+          tagNumber={editLoanDialog.tagNumber}
+        />
+      )}
     </div>
   );
 };
@@ -389,10 +401,11 @@ interface TagRowProps {
   onLoan: () => void;
   onReturn: (id: string) => void;
   onLost: (id: string) => void;
+  onEditLoan: (loan: any) => void;
   onDownloadTemplate?: () => void;
 }
 
-const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLost, onDownloadTemplate }: TagRowProps) => {
+const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLost, onEditLoan, onDownloadTemplate }: TagRowProps) => {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -455,6 +468,7 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
           {loan ? (
             <>
               <Button size="sm" variant="outline" onClick={() => onReturn(loan.id)}><RotateCcw className="h-3 w-3 mr-1" /> Zurück</Button>
+              <Button size="sm" variant="ghost" onClick={() => onEditLoan(loan)} title="Leihe bearbeiten"><Edit className="h-3 w-3 mr-1" /> Bearbeiten</Button>
               <Button size="sm" variant="ghost" className="text-destructive" onClick={() => onLost(loan.id)}>Verloren</Button>
             </>
           ) : (
