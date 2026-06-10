@@ -361,6 +361,23 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
   );
 };
 
+const TagThumb = ({ path }: { path: string }) => {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    supabase.storage.from("key-files").createSignedUrl(path, 600).then(({ data }) => {
+      if (active) setUrl(data?.signedUrl ?? null);
+    });
+    return () => { active = false; };
+  }, [path]);
+  if (!url) return null;
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="shrink-0">
+      <img src={url} alt="Schlüsselfoto" className="h-10 w-10 rounded object-cover border border-border" />
+    </a>
+  );
+};
+
 // ───────────────────── Sub-Component: Tag-Zeile mit eingeklappten Schlüsseln ─────────────────────
 
 interface TagRowProps {
