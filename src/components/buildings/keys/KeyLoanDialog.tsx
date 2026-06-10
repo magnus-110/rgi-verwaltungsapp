@@ -139,9 +139,9 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
               </PopoverContent>
             </Popover>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div><Label>Name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
-            <div><Label>E-Mail</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+          <div className="grid grid-cols-2 gap-2 min-w-0">
+            <div className="min-w-0"><Label>Name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
+            <div className="min-w-0"><Label>E-Mail</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
           </div>
           <div>
             <Label>Rückgabe bis {openReturn ? "" : "*"}</Label>
