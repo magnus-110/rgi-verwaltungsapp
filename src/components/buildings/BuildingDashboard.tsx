@@ -21,6 +21,7 @@ import { BuildingResolutionsTab } from "./BuildingResolutionsTab";
 import { BuildingDistributionKeysTab } from "@/components/finance/BuildingDistributionKeysTab";
 import { BuildingServiceProvidersTab } from "./BuildingServiceProvidersTab";
 import { BuildingOverviewTab } from "./BuildingOverviewTab";
+import { BuildingNotesTab } from "./BuildingNotesTab";
 import { AnnualCycleBuildingTab } from "./AnnualCycleBuildingTab";
 import { BuildingOnboardingTab } from "./BuildingOnboardingTab";
 import { BuildingKeysTab } from "./keys/BuildingKeysTab";
@@ -169,6 +170,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "people", label: "Personen" },
               { value: "cases", label: "Vorgänge" },
               { value: "documents", label: "Dokumente" },
+              { value: "notes", label: "Notizen" },
               { value: "forum", label: "Schwarzes Brett" },
               { value: "providers", label: "Dienstleister" },
               { value: "communication", label: "Kommunikation" },
@@ -218,6 +220,11 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           {/* Documents Tab */}
           <TabsContent value="documents" className="p-3 md:p-6 mt-0">
             <BuildingDocumentsTab buildingId={buildingId} managementMode={building.management_mode} />
+          </TabsContent>
+
+          {/* Notes Tab */}
+          <TabsContent value="notes" className="p-3 md:p-6 mt-0">
+            <BuildingNotesTab buildingId={buildingId} />
           </TabsContent>
 
           {/* Forum Tab */}
