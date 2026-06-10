@@ -1,0 +1,1 @@
+ALTER TABLE public.key_loans ADD COLUMN IF NOT EXISTS overdue_reminder_sent_at timestamptz;

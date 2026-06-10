@@ -5744,6 +5744,7 @@ export type Database = {
           issued_at: string
           issued_by_user_id: string | null
           notes: string | null
+          overdue_reminder_sent_at: string | null
           requires_signature: boolean
           returned_at: string | null
           returned_confirmed_by_user_id: string | null
@@ -5765,6 +5766,7 @@ export type Database = {
           issued_at?: string
           issued_by_user_id?: string | null
           notes?: string | null
+          overdue_reminder_sent_at?: string | null
           requires_signature?: boolean
           returned_at?: string | null
           returned_confirmed_by_user_id?: string | null
@@ -5786,6 +5788,7 @@ export type Database = {
           issued_at?: string
           issued_by_user_id?: string | null
           notes?: string | null
+          overdue_reminder_sent_at?: string | null
           requires_signature?: boolean
           returned_at?: string | null
           returned_confirmed_by_user_id?: string | null

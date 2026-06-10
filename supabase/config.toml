@@ -173,3 +173,6 @@ verify_jwt = false
 
 [functions.send-key-email]
 verify_jwt = true
+
+[functions.key-loan-check-overdue]
+verify_jwt = false
