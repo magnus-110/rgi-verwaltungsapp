@@ -132,7 +132,7 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
 
   return (
     <header
-      className="bg-white border-b border-border shadow-sm fixed top-0 left-0 right-0 z-50 md:hidden"
+      className="bg-white border-b border-border shadow-sm fixed top-0 left-0 right-0 z-50 lg:hidden"
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       <div className="flex items-center justify-between h-16 px-3">
