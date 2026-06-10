@@ -56,13 +56,6 @@ export const KeySignatureOverlay = ({ open, onCancel, onConfirm, tag, borrowerNa
                 <div className="text-sm font-medium">Schlüssel-Quittung</div>
               </div>
             </div>
-            <button
-              onClick={onCancel}
-              className="text-muted-foreground hover:text-foreground transition-colors rounded-full p-1.5 hover:bg-muted"
-              aria-label="Schließen"
-            >
-              <X className="h-5 w-5" />
-            </button>
           </div>
 
           {/* Body */}
