@@ -89,16 +89,14 @@ export const Buildings = () => {
       <ResizablePanelGroup direction="horizontal">
         <ResizablePanel defaultSize={25} minSize={18} maxSize={35}>
           <div className="relative h-full">
-            <Button
-              size="sm"
-              variant="outline"
-              className="absolute top-3 right-14 h-8 gap-1 z-20 shadow-sm"
+            <BuildingList selectedBuildingId={selectedBuildingId} onSelectBuilding={handleSelectBuilding} />
+            <button
               onClick={() => setListCollapsed(true)}
               title="Gebäudeliste einklappen"
+              className="absolute top-1/2 -translate-y-1/2 right-0 z-20 h-12 w-4 flex items-center justify-center rounded-l-md bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground opacity-50 hover:opacity-100 transition"
             >
-              <PanelLeftClose className="h-4 w-4" />
-            </Button>
-            <BuildingList selectedBuildingId={selectedBuildingId} onSelectBuilding={handleSelectBuilding} />
+              <PanelLeftClose className="h-3 w-3" />
+            </button>
           </div>
         </ResizablePanel>
         <ResizableHandle withHandle />
