@@ -360,6 +360,15 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
           buildingId={buildingId}
         />
       )}
+      {editLoanDialog.loan && (
+        <EditKeyLoanDialog
+          open={editLoanDialog.open}
+          onClose={() => setEditLoanDialog({ open: false })}
+          loan={editLoanDialog.loan}
+          buildingId={buildingId}
+          tagNumber={editLoanDialog.tagNumber}
+        />
+      )}
     </div>
   );
 };
