@@ -5739,7 +5739,7 @@ export type Database = {
           borrower_name: string | null
           building_id: string
           created_at: string
-          due_at: string
+          due_at: string | null
           id: string
           issued_at: string
           issued_by_user_id: string | null
@@ -5760,7 +5760,7 @@ export type Database = {
           borrower_name?: string | null
           building_id: string
           created_at?: string
-          due_at: string
+          due_at?: string | null
           id?: string
           issued_at?: string
           issued_by_user_id?: string | null
@@ -5781,7 +5781,7 @@ export type Database = {
           borrower_name?: string | null
           building_id?: string
           created_at?: string
-          due_at?: string
+          due_at?: string | null
           id?: string
           issued_at?: string
           issued_by_user_id?: string | null

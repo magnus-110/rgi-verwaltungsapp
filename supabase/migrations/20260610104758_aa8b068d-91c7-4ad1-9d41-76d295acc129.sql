@@ -1,0 +1,1 @@
+ALTER TABLE public.key_loans ALTER COLUMN due_at DROP NOT NULL;

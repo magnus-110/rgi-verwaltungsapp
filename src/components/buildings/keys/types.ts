@@ -35,7 +35,7 @@ export interface KeyLoan {
   borrower_name: string | null;
   borrower_email: string | null;
   issued_at: string;
-  due_at: string;
+  due_at: string | null;
   returned_at: string | null;
   status: KeyLoanStatus;
   requires_signature: boolean;
