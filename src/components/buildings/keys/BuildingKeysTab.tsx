@@ -225,7 +225,7 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                     )}
                   </div>
                   <div className="md:col-span-2">
-                    <Label>Anhänger-Vorlage (Word .docx)</Label>
+                    <Label>Anhänger-Vorlage (Word .docx) <span className="text-xs font-normal text-muted-foreground">— gilt für alle Liegenschaften</span></Label>
                     <div className="flex items-center gap-2">
                       <Input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => e.target.files?.[0] && uploadTagTemplate(e.target.files[0])} />
                     </div>
@@ -234,9 +234,10 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                       <br />• <code className="font-mono">{"{g}"}</code> → wird mit der Nummer gefüllt, wenn der Schlüsseltyp <b>grün</b> ist (sonst leer)
                       <br />• <code className="font-mono">{"{r}"}</code> → wird mit der Nummer gefüllt, wenn der Schlüsseltyp <b>rot</b> ist (sonst leer)
                       <br />Format der Nummer: „1 / 0002 - 01". Formatierung (Größe, Farbe, Hintergrund) übernimmt Word aus der Vorlage.
-                      {(settings as any)?.tag_template_name && <> · Aktuell: {(settings as any).tag_template_name}</>}
+                      {globalSettings?.tag_template_name && <> · Aktuell (global): {globalSettings.tag_template_name}</>}
                     </p>
                   </div>
+
                 </CardContent>
               </CollapsibleContent>
             </Card>
