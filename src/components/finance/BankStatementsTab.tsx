@@ -1186,7 +1186,10 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
                       {transactionTableHeader}
                       <TableBody>{
                         (reviewFlaggedFirst
-                          ? [...bookedTransactions].sort((a: any, b: any) => (b.bookings?.needs_review ? 1 : 0) - (a.bookings?.needs_review ? 1 : 0))
+                          ? [...bookedTransactions].sort((a: any, b: any) => {
+                              const score = (t: any) => (t.bookings?.ai_confidence_unsicher ? 2 : 0) + (t.bookings?.needs_review ? 1 : 0);
+                              return score(b) - score(a);
+                            })
                           : bookedTransactions
                         ).map(renderTransactionRow)
                       }</TableBody>
