@@ -1111,6 +1111,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
             is_35a_relevant: r.is_35a_relevant,
             amount_35a: a35a,
             needs_review: r.needs_review,
+            ai_confidence_unsicher: r.ai_confidence_unsicher,
             review_note: r.review_note || null,
             line_items_detail: r.line_items_detail || null,
           };
