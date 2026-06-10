@@ -59,9 +59,9 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
     enabled: open,
   });
 
-  const save = async () => {
+  const persistLoan = async (sig: string | null) => {
     if (!contactId && !name) { toast.error("Kontakt oder Name angeben"); return; }
-    if (requiresSignature && !signature) { toast.error("Unterschrift fehlt"); return; }
+    if (requiresSignature && !sig) { toast.error("Unterschrift fehlt"); return; }
     setSaving(true);
     const { data: inserted, error } = await supabase.from("key_loans").insert({
       tag_id: tag.id,
@@ -71,7 +71,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
       borrower_email: email || null,
       due_at: openReturn ? null : new Date(dueDate + "T23:59:59").toISOString(),
       requires_signature: requiresSignature,
-      signature_data: signature,
+      signature_data: sig,
       send_confirmation_email: sendConfirmation,
       send_overdue_reminder: sendOverdueReminder && !openReturn,
       issued_by_user_id: user?.id,
@@ -92,6 +92,8 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
     toast.success("Schlüssel ausgegeben");
     onClose();
   };
+
+  const save = () => persistLoan(signature);
 
   return (
     <>
