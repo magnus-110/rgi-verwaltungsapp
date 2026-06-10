@@ -523,8 +523,28 @@ export const Inbox = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const selectedEmail = selectedEmailMeta
-    ? { ...selectedEmailMeta, body_html: selectedEmailBody?.body_html ?? null, body_text: selectedEmailBody?.body_text ?? null }
+  // Fallback: lade vollständige Email-Metadaten direkt, falls die Email nicht in der aktuellen Liste ist
+  // (z.B. Deep-Link aus einem Vorgang in einen anderen Ordner / Account).
+  const { data: selectedEmailDirect } = useQuery({
+    queryKey: ["email-direct", selectedEmailId],
+    queryFn: async () => {
+      if (!selectedEmailId) return null;
+      const { data, error } = await supabase
+        .from("emails")
+        .select(EMAIL_COLUMNS)
+        .eq("id", selectedEmailId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedEmailId && !selectedEmailMeta,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const effectiveSelectedMeta = selectedEmailMeta || selectedEmailDirect;
+
+  const selectedEmail = effectiveSelectedMeta
+    ? { ...effectiveSelectedMeta, body_html: selectedEmailBody?.body_html ?? null, body_text: selectedEmailBody?.body_text ?? null }
     : undefined;
 
   // Auto-select inbox folder
