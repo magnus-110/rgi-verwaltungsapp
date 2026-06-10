@@ -222,6 +222,11 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
             <BuildingDocumentsTab buildingId={buildingId} managementMode={building.management_mode} />
           </TabsContent>
 
+          {/* Notes Tab */}
+          <TabsContent value="notes" className="p-3 md:p-6 mt-0">
+            <BuildingNotesTab buildingId={buildingId} />
+          </TabsContent>
+
           {/* Forum Tab */}
           <TabsContent value="forum" className="p-3 md:p-6 mt-0">
             <BuildingForumTab buildingId={buildingId} managementMode={building.management_mode} />
