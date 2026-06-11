@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     const resolved = await loadRecipients(
       admin,
       campaign.building_id,
-      { ...filter, require_email: false },
+      { ...filter, require_email: false, expand_all_emails: true },
       freeVars,
     );
 
