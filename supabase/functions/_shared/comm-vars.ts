@@ -8,6 +8,9 @@ export type RecipientFilter = {
   assignment_ids?: string[]; // explicit assignment selection (preferred — allows multi-unit owners to be deselected individually)
   unit_numbers?: string[];
   require_email?: boolean;
+  /** If true, emit one recipient per distinct email address on the contact
+   *  (contact_emails + every contact_persons.email). Used for Rundmails. */
+  expand_all_emails?: boolean;
 };
 
 export type ResolvedRecipient = {
