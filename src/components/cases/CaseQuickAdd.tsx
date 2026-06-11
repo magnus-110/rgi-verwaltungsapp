@@ -135,7 +135,7 @@ export const CaseQuickAdd = ({ caseId, buildingId, parentEventId, onDone }: Prop
           <span className="text-xs text-muted-foreground hidden sm:inline">⌘/Strg + Enter</span>
         </div>
         <Button size="sm" onClick={submit} disabled={(!text.trim() && files.length === 0) || addEvent.isPending}>
-          {addEvent.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          {addEvent.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
         </Button>
       </div>
     </div>
