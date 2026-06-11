@@ -6959,6 +6959,7 @@ export type Database = {
           id: string
           initial_password_set_at: string | null
           last_name: string | null
+          mfa_required: boolean
           must_change_password: boolean | null
           passkey_prompt_dismissed_at: string | null
           phone: string | null
@@ -6978,6 +6979,7 @@ export type Database = {
           id?: string
           initial_password_set_at?: string | null
           last_name?: string | null
+          mfa_required?: boolean
           must_change_password?: boolean | null
           passkey_prompt_dismissed_at?: string | null
           phone?: string | null
@@ -6997,6 +6999,7 @@ export type Database = {
           id?: string
           initial_password_set_at?: string | null
           last_name?: string | null
+          mfa_required?: boolean
           must_change_password?: boolean | null
           passkey_prompt_dismissed_at?: string | null
           phone?: string | null

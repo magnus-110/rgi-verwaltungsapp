@@ -24,6 +24,8 @@ import { TenantLayout } from "./components/TenantLayout";
 const ChangePassword = lazy(() => import("./pages/ChangePassword").then(m => ({ default: m.ChangePassword })));
 const MagicLinkLogin = lazy(() => import("./pages/MagicLinkLogin").then(m => ({ default: m.MagicLinkLogin })));
 const ConfirmEmailChange = lazy(() => import("./pages/ConfirmEmailChange").then(m => ({ default: m.ConfirmEmailChange })));
+const MfaEnroll = lazy(() => import("./pages/MfaEnroll").then(m => ({ default: m.MfaEnroll })));
+const MfaChallenge = lazy(() => import("./pages/MfaChallenge").then(m => ({ default: m.MfaChallenge })));
 const Tickets = lazy(() => import("./pages/Tickets").then(m => ({ default: m.Tickets })));
 const Buildings = lazy(() => import("./pages/Buildings").then(m => ({ default: m.Buildings })));
 const Settings = lazy(() => import("./pages/Settings").then(m => ({ default: m.Settings })));
@@ -100,6 +102,8 @@ const App = () => (
               <Route path="/change-password" element={<ChangePassword />} />
               <Route path="/login/magic/:token" element={<MagicLinkLogin />} />
               <Route path="/confirm-email-change/:token" element={<ConfirmEmailChange />} />
+              <Route path="/mfa-enroll" element={<MfaEnroll />} />
+              <Route path="/mfa-challenge" element={<MfaChallenge />} />
               
               {/* Admin Routes */}
               <Route path="/admin/change-password" element={<AdminLayout><ChangePassword /></AdminLayout>} />

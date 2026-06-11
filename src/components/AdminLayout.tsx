@@ -10,6 +10,7 @@ import { ErrorBoundary } from "./ErrorBoundary";
 import { DmsJobsProvider } from "@/contexts/DmsJobsProvider";
 import { DmsJobsTray } from "./finance/DmsJobsTray";
 import { PasskeyPromptDialog } from "./PasskeyPromptDialog";
+import { RequireMfa } from "./RequireMfa";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -79,7 +80,7 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
             >
               <div className="max-w-full min-w-0">
                 <ErrorBoundary fallbackTitle="Diese Seite konnte nicht geladen werden">
-                  {children}
+                  <RequireMfa>{children}</RequireMfa>
                 </ErrorBoundary>
               </div>
             </div>
