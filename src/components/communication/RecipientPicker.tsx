@@ -215,6 +215,14 @@ export const RecipientPicker = ({ buildingId, requireEmail, value, onChange, exc
         <div className="flex gap-2">
           <button type="button" onClick={selectAll} className="text-xs text-primary hover:underline">Alle</button>
           <button type="button" onClick={selectNone} className="text-xs text-primary hover:underline">Keine</button>
+          <button
+            type="button"
+            onClick={selectNoDuplicates}
+            className="text-xs text-primary hover:underline"
+            title="Kontakte mit mehreren Einheiten nur einmal auswählen (niedrigste Einheit)"
+          >
+            Kein Doppel
+          </button>
         </div>
       </div>
 
