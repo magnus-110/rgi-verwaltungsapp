@@ -152,6 +152,34 @@ export const RecipientPicker = ({ buildingId, requireEmail, value, onChange, exc
   const selectAll = () => onChange({ ...value, assignment_ids: [], contact_ids: [] });
   const selectNone = () => onChange({ ...value, assignment_ids: [NONE], contact_ids: [] });
 
+  const selectNoDuplicates = () => {
+    // Pro contact_id genau eine Zuordnung behalten — die mit der numerisch
+    // kleinsten unit_number (fehlende Einheit ans Ende). Basis ist die
+    // aktuell gefilterte Liste.
+    const groups = new Map<string, AssignmentRow[]>();
+    for (const a of filtered) {
+      const arr = groups.get(a.contact_id) || [];
+      arr.push(a);
+      groups.set(a.contact_id, arr);
+    }
+    const picked: string[] = [];
+    for (const arr of groups.values()) {
+      const sorted = [...arr].sort((x, y) => {
+        const xu = x.unit_number || "";
+        const yu = y.unit_number || "";
+        if (!xu && !yu) return 0;
+        if (!xu) return 1;
+        if (!yu) return -1;
+        return xu.localeCompare(yu, undefined, { numeric: true });
+      });
+      picked.push(sorted[0].id);
+    }
+    const cIds = Array.from(new Set(
+      assignments.filter((a) => picked.includes(a.id)).map((a) => a.contact_id),
+    ));
+    onChange({ ...value, assignment_ids: picked, contact_ids: cIds });
+  };
+
   const totalSelected = filtered.filter((a) => effectiveSelectedIds.has(a.id)).length;
 
   useEffect(() => {
