@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
       const filter = (campaign.recipient_filter || {}) as RecipientFilter;
       const freeVars = (campaign.free_vars || {}) as Record<string, string>;
       // First load WITHOUT email requirement to detect "selected but missing email" cases
-      const allSelected = await loadRecipients(admin, campaign.building_id, { ...filter, require_email: false }, freeVars);
+      const allSelected = await loadRecipients(admin, campaign.building_id, { ...filter, require_email: false, expand_all_emails: true }, freeVars);
       recipients = allSelected.filter((r) => !!r.email);
       const missing = allSelected.length - recipients.length;
       console.log(`[comm-send-bulk-email] campaign=${campaign_id} selected=${allSelected.length} withEmail=${recipients.length} missingEmail=${missing}`);
