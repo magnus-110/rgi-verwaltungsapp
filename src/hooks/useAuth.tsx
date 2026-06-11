@@ -16,6 +16,7 @@ interface Profile {
   role: 'admin' | 'weg_owner' | 'tenant' | 'employee';
   force_password_change: boolean;
   must_change_password?: boolean | null;
+  mfa_required?: boolean | null;
 }
 
 interface AuthContextType {
