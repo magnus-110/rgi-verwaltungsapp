@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Phone, StickyNote, Send, Loader2, Paperclip, X } from "lucide-react";
+import { Phone, StickyNote, Save, Loader2, Paperclip, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAddCaseEvent } from "@/hooks/useCases";
