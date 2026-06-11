@@ -8,6 +8,9 @@ export type RecipientFilter = {
   assignment_ids?: string[]; // explicit assignment selection (preferred — allows multi-unit owners to be deselected individually)
   unit_numbers?: string[];
   require_email?: boolean;
+  /** If true, emit one recipient per distinct email address on the contact
+   *  (contact_emails + every contact_persons.email). Used for Rundmails. */
+  expand_all_emails?: boolean;
 };
 
 export type ResolvedRecipient = {
@@ -144,94 +147,113 @@ export async function loadRecipients(
     const personList = personsByContact.get(a.contact_id) || [];
     const primaryPerson = personList.find((p) => p.is_primary) || personList[0] || null;
 
-    const firstName = primaryPerson?.first_name || c.first_name || "";
-    const lastName = primaryPerson?.last_name || c.last_name || "";
-    const salutation = primaryPerson?.salutation || c.salutation || "";
-    const titel = primaryPerson?.position || "";
-    const vollname = [firstName, lastName].filter(Boolean).join(" ").trim();
-
-    // Email selection: scan all stored emails (primary first), parse each value
-    // (handles "x@y.de (Name)", "a@x.de, b@x.de", "Name <x@y.de>"). Pick the
-    // first valid address from the merged list. Fall back to ANY person email
-    // (not just primary) if contact_emails has none.
+    // Build list of (email, person) candidates. Person is the one whose
+    // contact_persons.email matched; null if it came from contact_emails.
+    type EmailCandidate = { email: string; person: any | null };
+    const candidates: EmailCandidate[] = [];
+    const seen = new Set<string>();
+    const pushUnique = (raw: string | null | undefined, person: any | null) => {
+      for (const e of extractEmails(raw)) {
+        const key = e.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        candidates.push({ email: e, person });
+      }
+    };
+    // contact_emails first (primary first)
     const eList = emailsByContact.get(a.contact_id) || [];
     const sortedEmails = [...eList].sort((x, y) => Number(!!y.is_primary) - Number(!!x.is_primary));
-    let email: string | null = null;
-    for (const row of sortedEmails) {
-      const candidates = extractEmails(row?.email);
-      if (candidates.length > 0) { email = candidates[0]; break; }
-    }
-    if (!email) {
-      // Try every person attached to this contact (primary first)
-      const personSorted = [...personList].sort((x, y) => Number(!!y.is_primary) - Number(!!x.is_primary));
-      for (const p of personSorted) {
-        const v = firstValidEmail(p?.email);
-        if (v) { email = v; break; }
+    for (const row of sortedEmails) pushUnique(row?.email, null);
+    // person emails (primary first)
+    const personSorted = [...personList].sort((x, y) => Number(!!y.is_primary) - Number(!!x.is_primary));
+    for (const p of personSorted) pushUnique(p?.email, p);
+
+    // Heuristic: link contact_emails-only candidates to person by exact match on
+    // local-part vs first/last name — purely cosmetic for vars.vorname.
+    if (filter.expand_all_emails) {
+      for (const cand of candidates) {
+        if (cand.person) continue;
+        const local = cand.email.split("@")[0]?.toLowerCase() || "";
+        const match = personList.find((p) => {
+          const fn = (p.first_name || "").toLowerCase();
+          const ln = (p.last_name || "").toLowerCase();
+          return (fn && local.includes(fn)) || (ln && local.includes(ln));
+        });
+        if (match) cand.person = match;
       }
     }
 
-    if (filter.require_email && !email) continue;
+    // Decide which (email, person) pairs become recipients
+    let pairs: EmailCandidate[];
+    if (filter.expand_all_emails) {
+      pairs = candidates.length > 0 ? candidates : [{ email: "", person: primaryPerson }];
+    } else {
+      pairs = [{ email: candidates[0]?.email || "", person: primaryPerson }];
+    }
 
-    // Phone: just the primary person phone
-    const telefon = primaryPerson?.phone || "";
+    for (const pair of pairs) {
+      const personForVars = pair.person || primaryPerson;
+      const firstName = personForVars?.first_name || c.first_name || "";
+      const lastName = personForVars?.last_name || c.last_name || "";
+      const salutation = personForVars?.salutation || c.salutation || "";
+      const titel = personForVars?.position || "";
+      const vollname = [firstName, lastName].filter(Boolean).join(" ").trim();
+      const email = pair.email || null;
 
-    const firma = c.company_name || "";
-    const strasse = c.address_street || "";
-    const plz = c.address_zip || "";
-    const ort = c.address_city || "";
-    const adresseBlock = makeAdresseBlock({ firma, vollname, strasse, plz, ort });
+      if (filter.require_email && !email) continue;
 
-    const today = new Date();
+      const telefon = personForVars?.phone || "";
+      const firma = c.company_name || "";
+      const strasse = c.address_street || "";
+      const plz = c.address_zip || "";
+      const ort = c.address_city || "";
+      const adresseBlock = makeAdresseBlock({ firma, vollname, strasse, plz, ort });
+      const today = new Date();
 
-    const vars: Record<string, string> = {
-      // Person
-      anrede: salutation || "",
-      anrede_brief: makeAnredeBrief(salutation, lastName),
-      vorname: firstName,
-      nachname: lastName,
-      vollname,
-      titel,
-      // Adresse
-      firma,
-      strasse,
-      plz,
-      ort,
-      adresse_block: adresseBlock,
-      // Kontakt
-      email: email || "",
-      telefon,
-      // Gebäude
-      gebaeude_name: building.name || "",
-      gebaeude_strasse: building.address || "",
-      gebaeude_plz: "",
-      gebaeude_ort: "",
-      einheit: a.unit_number || "",
-      mea: (() => {
-        const shares = (a as any).contact_building_shares || [];
-        const m = shares.find((s: any) => s.share_type === "mea");
-        if (!m || m.share_value == null) return "";
-        const v = Number(m.share_value);
-        return Number.isFinite(v) ? v.toLocaleString("de-DE", { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : String(m.share_value);
-      })(),
-      rolle: a.role_in_building || "",
-      // Verwaltung
-      verwalter_name: managerDisplayName || building.manager_name || "",
-      verwalter_email: managerProfile?.email || "",
-      verwalter_telefon: managerProfile?.phone || "",
-      datum_heute: formatDateLong(today),
-      ort_datum: `Pfronten, ${formatDateShort(today)}`,
-      // Free vars (overrides)
-      ...freeVars,
-    };
+      const vars: Record<string, string> = {
+        anrede: salutation || "",
+        anrede_brief: makeAnredeBrief(salutation, lastName),
+        vorname: firstName,
+        nachname: lastName,
+        vollname,
+        titel,
+        firma,
+        strasse,
+        plz,
+        ort,
+        adresse_block: adresseBlock,
+        email: email || "",
+        telefon,
+        gebaeude_name: building.name || "",
+        gebaeude_strasse: building.address || "",
+        gebaeude_plz: "",
+        gebaeude_ort: "",
+        einheit: a.unit_number || "",
+        mea: (() => {
+          const shares = (a as any).contact_building_shares || [];
+          const m = shares.find((s: any) => s.share_type === "mea");
+          if (!m || m.share_value == null) return "";
+          const v = Number(m.share_value);
+          return Number.isFinite(v) ? v.toLocaleString("de-DE", { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : String(m.share_value);
+        })(),
+        rolle: a.role_in_building || "",
+        verwalter_name: managerDisplayName || building.manager_name || "",
+        verwalter_email: managerProfile?.email || "",
+        verwalter_telefon: managerProfile?.phone || "",
+        datum_heute: formatDateLong(today),
+        ort_datum: `Pfronten, ${formatDateShort(today)}`,
+        ...freeVars,
+      };
 
-    recipients.push({
-      contact_id: a.contact_id,
-      person_id: primaryPerson?.id || null,
-      building_id: buildingId,
-      display_name: vollname || firma || "(ohne Name)",
-      email,
-      vars,
-    });
+      recipients.push({
+        contact_id: a.contact_id,
+        person_id: personForVars?.id || null,
+        building_id: buildingId,
+        display_name: vollname || firma || "(ohne Name)",
+        email,
+        vars,
+      });
+    }
   }
 
   return recipients;
