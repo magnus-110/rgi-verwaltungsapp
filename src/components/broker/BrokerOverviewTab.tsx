@@ -41,7 +41,8 @@ export const BrokerOverviewTab = ({ property, onUpdated }: { property: any; onUp
     queryFn: async () => {
       const { data: persons } = await supabase.from('contact_persons').select('id').eq('contact_id', form.owner_contact_id);
       if (!persons?.length) return [];
-      const { data: emails } = await supabase.from('contact_emails').select('email').in('contact_person_id', persons.map((p: any) => p.id));
+      const personIds: string[] = persons.map((p: any) => p.id);
+      const { data: emails } = await (supabase.from('contact_emails') as any).select('email').in('contact_person_id', personIds);
       return emails || [];
     },
   });

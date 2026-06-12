@@ -39,9 +39,9 @@ export const BrokerDocumentsTab = ({ propertyId }: { propertyId: string }) => {
     queryKey: ['broker-files', propertyId, activeCategoryId],
     enabled: !!activeCategoryId,
     queryFn: async () => {
-      const { data } = await supabase.from('building_files')
+      const { data } = await (supabase.from('building_files') as any)
         .select('id, display_name, file_size, created_at')
-        .eq('broker_property_id' as any, propertyId)
+        .eq('broker_property_id', propertyId)
         .eq('category_id', activeCategoryId)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
