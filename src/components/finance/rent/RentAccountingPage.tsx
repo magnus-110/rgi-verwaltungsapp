@@ -252,6 +252,9 @@ export function RentAccountingPage({ buildingId, periodId, fiscalYear }: Props) 
 
       <RentBelegDropZone buildingId={buildingId} fiscalYear={fiscalYear} />
 
+      <TenantsInPeriodTable buildingId={buildingId} fiscalYear={fiscalYear} />
+
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Buchungen</CardTitle>
