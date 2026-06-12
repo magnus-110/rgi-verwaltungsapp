@@ -225,6 +225,12 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       needs_review: pendingFlag.flagged,
       ai_confidence_unsicher: pendingFlag.uncertain,
       review_note: (pendingFlag.flagged || pendingFlag.uncertain) ? (pendingFlag.note || null) : null,
+      // Vorbelegung umlagefähig aus dem Kostenkonto
+      umlagefaehig: (selectedAccountObj as any)?.umlagefaehig === true
+        ? "ja"
+        : (selectedAccountObj as any)?.umlagefaehig === false
+          ? null
+          : null,
     } as any).select("id").single();
     setSaving(false);
     if (error) { toast.error("Fehler: " + error.message); return; }

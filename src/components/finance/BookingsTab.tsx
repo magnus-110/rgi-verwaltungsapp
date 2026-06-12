@@ -384,6 +384,36 @@ export function BookingsTab({
         <TableCell className="py-2 px-3 max-w-[300px] truncate">
           {b.description || "–"}
         </TableCell>
+        <TableCell className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+          <Select
+            value={b.umlagefaehig || "unset"}
+            onValueChange={async (v) => {
+              const newVal = v === "unset" ? null : v;
+              const { error } = await supabase
+                .from("bookings")
+                .update({ umlagefaehig: newVal } as any)
+                .eq("id", b.id);
+              if (error) { toast.error("Fehler: " + error.message); return; }
+              queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
+              queryClient.invalidateQueries({ queryKey: ["bookings-manual"] });
+            }}
+          >
+            <SelectTrigger className={cn(
+              "h-7 w-[88px] text-[11px] px-2",
+              b.umlagefaehig === "ja" && "bg-green-50 border-green-300 text-green-800 dark:bg-green-950/30",
+              b.umlagefaehig === "nein" && "bg-muted text-muted-foreground",
+              b.umlagefaehig === "unklar" && "bg-amber-50 border-amber-300 text-amber-800 dark:bg-amber-950/30",
+            )}>
+              <SelectValue placeholder="–" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="unset">–</SelectItem>
+              <SelectItem value="ja">Ja</SelectItem>
+              <SelectItem value="nein">Nein</SelectItem>
+              <SelectItem value="unklar">Unklar</SelectItem>
+            </SelectContent>
+          </Select>
+        </TableCell>
         <TableCell className="py-2 px-3 font-mono tabular-nums">
           {b.counter_account?.account_number || "–"}
         </TableCell>
@@ -518,6 +548,7 @@ export function BookingsTab({
         <TableHead className="py-2.5 px-3 font-semibold">Konto</TableHead>
         <TableHead className="py-2.5 px-3 text-right font-semibold">Betrag</TableHead>
         <TableHead className="py-2.5 px-3 font-semibold">Buch-Text</TableHead>
+        <TableHead className="py-2.5 px-3 font-semibold" title="Umlagefähig auf Mieter">Uml.</TableHead>
         <TableHead className="py-2.5 px-3 font-semibold">G-Kto-Nr.</TableHead>
         <TableHead className="py-2.5 px-3 font-semibold">Gegen-Konto</TableHead>
         <TableHead className="py-2.5 px-3 w-[60px]"></TableHead>

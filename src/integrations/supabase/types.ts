@@ -935,6 +935,7 @@ export type Database = {
           split_part: number | null
           split_parts_total: number | null
           status: string
+          umlagefaehig: string | null
           updated_at: string
           vat_amount: number | null
           vat_rate: number | null
@@ -975,6 +976,7 @@ export type Database = {
           split_part?: number | null
           split_parts_total?: number | null
           status?: string
+          umlagefaehig?: string | null
           updated_at?: string
           vat_amount?: number | null
           vat_rate?: number | null
@@ -1015,6 +1017,7 @@ export type Database = {
           split_part?: number | null
           split_parts_total?: number | null
           status?: string
+          umlagefaehig?: string | null
           updated_at?: string
           vat_amount?: number | null
           vat_rate?: number | null
@@ -2684,6 +2687,7 @@ export type Database = {
           settlement_35a_type: string | null
           settlement_section: string | null
           sort_order: number | null
+          umlagefaehig: boolean
           updated_at: string
         }
         Insert: {
@@ -2708,6 +2712,7 @@ export type Database = {
           settlement_35a_type?: string | null
           settlement_section?: string | null
           sort_order?: number | null
+          umlagefaehig?: boolean
           updated_at?: string
         }
         Update: {
@@ -2732,6 +2737,7 @@ export type Database = {
           settlement_35a_type?: string | null
           settlement_section?: string | null
           sort_order?: number | null
+          umlagefaehig?: boolean
           updated_at?: string
         }
         Relationships: [

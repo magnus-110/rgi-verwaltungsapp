@@ -7,6 +7,7 @@ import { BillingTab } from "@/components/finance/BillingTab";
 import { BillingPeriodSelector } from "@/components/finance/BillingPeriodSelector";
 import { CashAuditTab } from "@/components/finance/CashAuditTab";
 import { BankReconciliationTab } from "@/components/finance/BankReconciliationTab";
+import { RentAccountingPage } from "@/components/finance/rent/RentAccountingPage";
 import { ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -87,6 +88,25 @@ export const Finance = () => {
     },
     enabled: !!selectedBuildingId,
   });
+
+  // Management-Modus der gewählten Liegenschaft
+  const { data: selectedBuilding } = useQuery({
+    queryKey: ["building-mode", selectedBuildingId],
+    queryFn: async () => {
+      if (!selectedBuildingId) return null;
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("management_mode")
+        .eq("id", selectedBuildingId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedBuildingId,
+  });
+  const isRentMode = (selectedBuilding as any)?.management_mode === "rent";
+  const selectedFiscalYear =
+    allPeriods.find((p: any) => p.id === selectedPeriodId)?.fiscal_year ?? null;
 
   // Auto-Default Wirtschaftsjahr je nach Tab:
   // - Abrechnung, Kassenprüfung → Vorjahr (currentYear - 1)
@@ -192,27 +212,37 @@ export const Finance = () => {
         </TabsList>
 
         <TabsContent value="buchen">
-          {activeSubTab === "templates" && (
-            <BookingTemplatesTab
-              sharedBuildingId={selectedBuildingId}
-              onBuildingChange={setSelectedBuildingId}
+          {isRentMode && selectedBuildingId ? (
+            <RentAccountingPage
+              buildingId={selectedBuildingId}
+              periodId={selectedPeriodId}
+              fiscalYear={selectedFiscalYear}
             />
-          )}
-          {activeSubTab === "statements" && (
-            <BankStatementsTab
-              sharedBuildingId={selectedBuildingId}
-              onBuildingChange={setSelectedBuildingId}
-              sharedFiscalYear={allPeriods.find((p: any) => p.id === selectedPeriodId)?.fiscal_year ?? null}
-            />
-          )}
-          {activeSubTab === "bookings" && (
-            <BookingsTab sharedBuildingId={selectedBuildingId} sharedPeriodId={selectedPeriodId} />
-          )}
-          {activeSubTab === "abgleich" && (
-            <BankReconciliationTab
-              sharedBuildingId={selectedBuildingId}
-              onBuildingChange={setSelectedBuildingId}
-            />
+          ) : (
+            <>
+              {activeSubTab === "templates" && (
+                <BookingTemplatesTab
+                  sharedBuildingId={selectedBuildingId}
+                  onBuildingChange={setSelectedBuildingId}
+                />
+              )}
+              {activeSubTab === "statements" && (
+                <BankStatementsTab
+                  sharedBuildingId={selectedBuildingId}
+                  onBuildingChange={setSelectedBuildingId}
+                  sharedFiscalYear={selectedFiscalYear}
+                />
+              )}
+              {activeSubTab === "bookings" && (
+                <BookingsTab sharedBuildingId={selectedBuildingId} sharedPeriodId={selectedPeriodId} />
+              )}
+              {activeSubTab === "abgleich" && (
+                <BankReconciliationTab
+                  sharedBuildingId={selectedBuildingId}
+                  onBuildingChange={setSelectedBuildingId}
+                />
+              )}
+            </>
           )}
         </TabsContent>
 
