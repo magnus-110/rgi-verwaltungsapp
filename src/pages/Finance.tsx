@@ -170,43 +170,53 @@ export const Finance = () => {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList variant="segment" className="grid w-full grid-cols-3 h-auto">
-          {/* Custom Buchen trigger with hover dropdown */}
-          <div
-            className="relative"
-            onMouseEnter={handleBuchenMouseEnter}
-            onMouseLeave={handleBuchenMouseLeave}
-          >
+          {isRentMode ? (
             <TabsTrigger
               variant="segment"
               value="buchen"
-              className="w-full flex items-center justify-center gap-1 md:gap-1.5 min-h-[44px] text-xs md:text-sm px-1 md:px-3"
+              className="w-full flex items-center justify-center min-h-[44px] text-xs md:text-sm px-1 md:px-3"
             >
-              <span className="truncate">
-                <span className="hidden sm:inline">Buchen · </span>
-                <span className="sm:hidden">Buch.</span>
-                <span className="hidden sm:inline">{subLabel}</span>
-              </span>
-              <ChevronDown className="h-3 w-3 opacity-50 flex-shrink-0" />
+              Buchen
             </TabsTrigger>
+          ) : (
+            /* Custom Buchen trigger with hover dropdown */
+            <div
+              className="relative"
+              onMouseEnter={handleBuchenMouseEnter}
+              onMouseLeave={handleBuchenMouseLeave}
+            >
+              <TabsTrigger
+                variant="segment"
+                value="buchen"
+                className="w-full flex items-center justify-center gap-1 md:gap-1.5 min-h-[44px] text-xs md:text-sm px-1 md:px-3"
+              >
+                <span className="truncate">
+                  <span className="hidden sm:inline">Buchen · </span>
+                  <span className="sm:hidden">Buch.</span>
+                  <span className="hidden sm:inline">{subLabel}</span>
+                </span>
+                <ChevronDown className="h-3 w-3 opacity-50 flex-shrink-0" />
+              </TabsTrigger>
 
-            {buchenHover && (
-              <div className="absolute top-full left-0 z-50 mt-1 min-w-[160px] rounded-md border bg-popover p-1 shadow-md animate-in fade-in-0 zoom-in-95 duration-100">
-                {SUB_TABS.map(sub => (
-                  <button
-                    key={sub.value}
-                    onClick={() => handleSubTabClick(sub.value)}
-                    className={`w-full text-left rounded-sm px-3 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground ${
-                      activeSubTab === sub.value && activeTab === "buchen"
-                        ? "bg-accent/50 font-medium text-foreground"
-                        : "text-muted-foreground"
-                    }`}
-                  >
-                    {sub.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+              {buchenHover && (
+                <div className="absolute top-full left-0 z-50 mt-1 min-w-[160px] rounded-md border bg-popover p-1 shadow-md animate-in fade-in-0 zoom-in-95 duration-100">
+                  {SUB_TABS.map(sub => (
+                    <button
+                      key={sub.value}
+                      onClick={() => handleSubTabClick(sub.value)}
+                      className={`w-full text-left rounded-sm px-3 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground ${
+                        activeSubTab === sub.value && activeTab === "buchen"
+                          ? "bg-accent/50 font-medium text-foreground"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {sub.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <TabsTrigger variant="segment" value="abrechnung" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3">Abrechnung</TabsTrigger>
           <TabsTrigger variant="segment" value="kassenpruefung" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3"><span className="hidden sm:inline">Kassenprüfung</span><span className="sm:hidden">Kasse</span></TabsTrigger>
