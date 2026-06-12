@@ -89,6 +89,25 @@ export const Finance = () => {
     enabled: !!selectedBuildingId,
   });
 
+  // Management-Modus der gewählten Liegenschaft
+  const { data: selectedBuilding } = useQuery({
+    queryKey: ["building-mode", selectedBuildingId],
+    queryFn: async () => {
+      if (!selectedBuildingId) return null;
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("management_mode")
+        .eq("id", selectedBuildingId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedBuildingId,
+  });
+  const isRentMode = (selectedBuilding as any)?.management_mode === "rent";
+  const selectedFiscalYear =
+    allPeriods.find((p: any) => p.id === selectedPeriodId)?.fiscal_year ?? null;
+
   // Auto-Default Wirtschaftsjahr je nach Tab:
   // - Abrechnung, Kassenprüfung → Vorjahr (currentYear - 1)
   // - Buchen → aktuelles Jahr
