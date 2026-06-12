@@ -8,6 +8,7 @@ import { BillingPeriodSelector } from "@/components/finance/BillingPeriodSelecto
 import { CashAuditTab } from "@/components/finance/CashAuditTab";
 import { BankReconciliationTab } from "@/components/finance/BankReconciliationTab";
 import { RentAccountingPage } from "@/components/finance/rent/RentAccountingPage";
+import { RentBillingPage } from "@/components/finance/rent/RentBillingPage";
 import { ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
