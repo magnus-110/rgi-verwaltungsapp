@@ -296,7 +296,7 @@ function StammdatenCard({ contact, onSaved }: { contact: Contact; onSaved: () =>
               <SelectContent>
                 <SelectItem value="none">—</SelectItem>
                 {SALUTATIONS.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
