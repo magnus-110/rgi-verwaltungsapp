@@ -44,6 +44,7 @@ const Meetings = lazy(() => import("./pages/Meetings").then(m => ({ default: m.M
 const EtvProxy = lazy(() => import("./pages/EtvProxy").then(m => ({ default: m.EtvProxy })));
 const CashAuditProxy = lazy(() => import("./pages/CashAuditProxy").then(m => ({ default: m.CashAuditProxy })));
 const Transfers = lazy(() => import("./pages/Transfers").then(m => ({ default: m.Transfers })));
+const BrokerProperties = lazy(() => import("./pages/BrokerProperties").then(m => ({ default: m.BrokerProperties })));
 
 const WegOwnerDashboard = lazy(() => import("./pages/weg-owner/Dashboard").then(m => ({ default: m.WegOwnerDashboard })));
 const WegOwnerReports = lazy(() => import("./pages/weg-owner/Reports").then(m => ({ default: m.WegOwnerReports })));
@@ -131,6 +132,8 @@ const App = () => (
               <Route path="/prozesse" element={<AdminLayout><Processes /></AdminLayout>} />
               <Route path="/jahreszyklus" element={<AdminLayout><Jahreszyklus /></AdminLayout>} />
               <Route path="/rgi-intern" element={<AdminLayout><RgiIntern /></AdminLayout>} />
+              <Route path="/makler/objekte" element={<AdminLayout><BrokerProperties /></AdminLayout>} />
+              <Route path="/makler/objekte/:id" element={<AdminLayout><BrokerProperties /></AdminLayout>} />
               
               
               {/* Legacy admin routes for compatibility */}
