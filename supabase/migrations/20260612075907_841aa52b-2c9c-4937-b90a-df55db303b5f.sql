@@ -1,0 +1,1 @@
+ALTER TABLE public.buildings ADD COLUMN IF NOT EXISTS billing_only BOOLEAN NOT NULL DEFAULT false;
