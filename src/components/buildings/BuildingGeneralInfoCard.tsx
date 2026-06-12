@@ -16,6 +16,7 @@ import { de } from "date-fns/locale";
 
 interface Props {
   buildingId: string;
+  managementMode?: 'weg' | 'rent';
 }
 
 interface Note {
