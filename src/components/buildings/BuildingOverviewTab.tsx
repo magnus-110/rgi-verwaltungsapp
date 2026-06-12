@@ -132,7 +132,7 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
       )}
 
       {/* Allgemeine Infos direkt unter Jahreszyklus */}
-      <BuildingGeneralInfoCard buildingId={buildingId} />
+      <BuildingGeneralInfoCard buildingId={buildingId} managementMode={managementMode} />
 
       {/* 2 Spalten Grid (Vorgänge + Meldungen) */}
       <div className="grid md:grid-cols-2 gap-3 md:gap-4">
@@ -217,7 +217,8 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
         </Card>
       </div>
 
-      {/* Eigentümer */}
+      {/* Eigentümer (nur WEG) */}
+      {managementMode === 'weg' && (
       <Card>
         <CardHeader className="p-3 md:p-4 pb-2 flex-row items-center justify-between space-y-0">
           <CardTitle className="text-sm md:text-base flex items-center gap-2">
@@ -268,6 +269,7 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Dienstleister */}
       <Card>

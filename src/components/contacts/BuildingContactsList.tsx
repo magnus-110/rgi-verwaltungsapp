@@ -257,16 +257,175 @@ function CopyableField({ label, value }: { label: string; value: string }) {
   );
 }
 
+interface TenantDeposit {
+  id: string;
+  assignment_id: string;
+  deposit_type: 'konto' | 'buergschaft';
+  amount: number;
+  bank_name: string | null;
+  iban: string | null;
+  guarantor: string | null;
+  guarantee_number: string | null;
+  guarantee_expiry: string | null;
+  received_on: string | null;
+  released_on: string | null;
+  notes: string | null;
+}
+
+function TenantDepositsSection({ assignmentId }: { assignmentId: string }) {
+  const queryClient = useQueryClient();
+  const { data: deposits = [] } = useQuery({
+    queryKey: ['tenant-deposits', assignmentId],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from('tenant_deposits')
+        .select('*')
+        .eq('assignment_id', assignmentId)
+        .order('created_at', { ascending: true });
+      return (data || []) as TenantDeposit[];
+    },
+  });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['tenant-deposits', assignmentId] });
+
+  const addDeposit = async () => {
+    await (supabase as any).from('tenant_deposits').insert({
+      assignment_id: assignmentId,
+      deposit_type: 'konto',
+      amount: 0,
+    });
+    refresh();
+  };
+  const updateDeposit = async (id: string, patch: Partial<TenantDeposit>) => {
+    await (supabase as any).from('tenant_deposits').update(patch).eq('id', id);
+    refresh();
+  };
+  const deleteDeposit = async (id: string) => {
+    await (supabase as any).from('tenant_deposits').delete().eq('id', id);
+    refresh();
+  };
+
+  return (
+    <div className="mt-6 pt-4 border-t">
+      <div className="flex items-center justify-between mb-3">
+        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Kaution</Label>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={addDeposit}>
+          <Plus className="h-3 w-3 mr-1" /> Kaution
+        </Button>
+      </div>
+      {deposits.length === 0 && <p className="text-xs text-muted-foreground">Keine Kaution hinterlegt</p>}
+      {deposits.map((d) => (
+        <div key={d.id} className="border rounded-md p-3 mb-2 space-y-2 bg-muted/30">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Select value={d.deposit_type} onValueChange={(v) => updateDeposit(d.id, { deposit_type: v as any })}>
+              <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="konto">Konto</SelectItem>
+                <SelectItem value="buergschaft">Bürgschaft</SelectItem>
+              </SelectContent>
+            </Select>
+            <BufferedNumberInput
+              value={d.amount}
+              onSave={(val) => updateDeposit(d.id, { amount: val })}
+              placeholder="0,00"
+              className="w-28 h-8 text-sm"
+            />
+            <span className="text-xs text-muted-foreground">€</span>
+            <div className="flex items-center gap-1">
+              <Label className="text-[10px] text-muted-foreground">erhalten</Label>
+              <Input
+                type="date"
+                value={d.received_on || ""}
+                onChange={(e) => updateDeposit(d.id, { received_on: e.target.value || null })}
+                className="w-[130px] h-8 text-xs"
+              />
+            </div>
+            <Button size="icon" variant="ghost" className="h-7 w-7 ml-auto" onClick={() => deleteDeposit(d.id)}>
+              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+            </Button>
+          </div>
+          {d.deposit_type === 'konto' && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Bank</Label>
+                <BufferedInput
+                  value={d.bank_name || ""}
+                  onSave={(val) => updateDeposit(d.id, { bank_name: val || null })}
+                  placeholder="z. B. Sparkasse"
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px] text-muted-foreground">IBAN</Label>
+                <BufferedInput
+                  value={d.iban || ""}
+                  onSave={(val) => updateDeposit(d.id, { iban: val || null })}
+                  placeholder="DE…"
+                  className="h-8 text-sm font-mono"
+                />
+              </div>
+            </div>
+          )}
+          {d.deposit_type === 'buergschaft' && (
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Bürge</Label>
+                <BufferedInput
+                  value={d.guarantor || ""}
+                  onSave={(val) => updateDeposit(d.id, { guarantor: val || null })}
+                  placeholder="Bank/Versicherung"
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Nr.</Label>
+                <BufferedInput
+                  value={d.guarantee_number || ""}
+                  onSave={(val) => updateDeposit(d.id, { guarantee_number: val || null })}
+                  className="h-8 text-sm font-mono"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px] text-muted-foreground">gültig bis</Label>
+                <Input
+                  type="date"
+                  value={d.guarantee_expiry || ""}
+                  onChange={(e) => updateDeposit(d.id, { guarantee_expiry: e.target.value || null })}
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+          )}
+          <div>
+            <Label className="text-[10px] text-muted-foreground">Notiz</Label>
+            <BufferedInput
+              value={d.notes || ""}
+              onSave={(val) => updateDeposit(d.id, { notes: val || null })}
+              className="h-8 text-sm"
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showAssign, setShowAssign] = useState(false);
   const [editAssignmentId, setEditAssignmentId] = useState<string | null>(null);
-  
+  const [mieterFilter, setMieterFilter] = useState<'current' | 'all'>('current');
+
   const [deleteTarget, setDeleteTarget] = useState<ContactAssignment | null>(null);
   // For inline editing/adding custom types - { id: record id, field: 'share_type'|'cost_type', value: string, mode: 'add'|'edit' }
   const [editingType, setEditingType] = useState<{ id: string; field: string; value: string; mode: 'add' | 'edit'; oldValue?: string } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const isTenantActive = (a: ContactAssignment) => {
+    if (a.valid_to && a.valid_to < todayIso) return false;
+    return true;
+  };
 
   // Load custom cost types and share types from DB
   const { data: customCostTypes = [] } = useQuery({
@@ -700,13 +859,54 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   };
 
   // Costs
+  // Rent-Modus: schließt ältere Kosten desselben Typs automatisch ab,
+  // sobald ein neues "gültig ab" gesetzt wird.
+  const closePreviousCostsForType = async (
+    assignmentId: string,
+    costType: string,
+    newValidFrom: string,
+    currentCostId: string,
+  ) => {
+    const newDate = new Date(newValidFrom);
+    if (isNaN(newDate.getTime())) return;
+    const cutoff = new Date(newDate.getTime() - 86400_000).toISOString().slice(0, 10);
+    const { data: others } = await supabase
+      .from("contact_building_costs")
+      .select("id, valid_from, valid_to")
+      .eq("assignment_id", assignmentId)
+      .eq("cost_type", costType)
+      .neq("id", currentCostId);
+    for (const o of (others || [])) {
+      const of = o.valid_from || null;
+      const ot = o.valid_to || null;
+      if (of && of >= newValidFrom) continue; // jünger / gleich -> nicht anfassen
+      if (ot && ot < newValidFrom) continue; // schon abgeschlossen vorher
+      await supabase.from("contact_building_costs").update({ valid_to: cutoff }).eq("id", o.id);
+    }
+  };
+
   const addCost = async (assignmentId: string) => {
     await flushPendingEdits();
-    await supabase.from("contact_building_costs").insert({ assignment_id: assignmentId, cost_type: "Hausgeld", amount: 0, interval: "monatlich" });
+    const payload: any = { assignment_id: assignmentId, cost_type: "Miete", amount: 0, interval: "monatlich" };
+    if (managementMode === 'rent') payload.valid_from = todayIso;
+    const { data: inserted } = await supabase.from("contact_building_costs").insert(payload).select("id").single();
+    if (managementMode === 'rent' && inserted?.id) {
+      await closePreviousCostsForType(assignmentId, "Miete", todayIso, inserted.id);
+    }
     await refetch();
   };
   const updateCost = async (id: string, field: string, value: any) => {
     await supabase.from("contact_building_costs").update({ [field]: value } as any).eq("id", id);
+    if (managementMode === 'rent' && (field === 'valid_from' || field === 'cost_type') && value) {
+      const { data: row } = await supabase
+        .from("contact_building_costs")
+        .select("assignment_id, cost_type, valid_from")
+        .eq("id", id)
+        .maybeSingle();
+      if (row?.valid_from) {
+        await closePreviousCostsForType(row.assignment_id, row.cost_type, row.valid_from, id);
+      }
+    }
     await refetch();
     if (field === "cost_type") queryClient.invalidateQueries({ queryKey: ["custom-cost-types"] });
   };
@@ -745,23 +945,50 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
   const roleLabel = managementMode === 'weg' ? 'Eigentümer' : 'Mieter';
 
+  // Mieter-Filter: nur aktuelle (default) vs. alle
+  const visibleAssignments = managementMode === 'rent' && mieterFilter === 'current'
+    ? assignments.filter(isTenantActive)
+    : assignments;
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-sm">Kontakte ({assignments.length})</h3>
-        <Button size="sm" variant="outline" onClick={() => setShowAssign(true)}>
-          <Plus className="h-3 w-3 mr-1" /> Kontakt zuordnen
-        </Button>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h3 className="font-semibold text-sm">
+          Kontakte ({visibleAssignments.length}{managementMode === 'rent' && mieterFilter === 'current' && assignments.length !== visibleAssignments.length ? ` von ${assignments.length}` : ''})
+        </h3>
+        <div className="flex items-center gap-2">
+          {managementMode === 'rent' && (
+            <div className="flex rounded-md border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setMieterFilter('current')}
+                className={cn("px-2.5 h-7 text-xs", mieterFilter === 'current' ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
+              >
+                Nur aktuelle
+              </button>
+              <button
+                type="button"
+                onClick={() => setMieterFilter('all')}
+                className={cn("px-2.5 h-7 text-xs border-l", mieterFilter === 'all' ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
+              >
+                Alle
+              </button>
+            </div>
+          )}
+          <Button size="sm" variant="outline" onClick={() => setShowAssign(true)}>
+            <Plus className="h-3 w-3 mr-1" /> Kontakt zuordnen
+          </Button>
+        </div>
       </div>
 
-      {assignments.length === 0 && (
+      {visibleAssignments.length === 0 && (
         <p className="text-sm text-muted-foreground py-4 text-center">Keine Kontakte zugeordnet</p>
       )}
 
       {(() => {
         // Hauptwohnungen + Sub-Units gruppieren (Sub-Units bekommen Einrückung)
-        const mains = assignments.filter((a) => isApartment((a as any).unit_kind));
-        const subsAll = assignments.filter((a) => !isApartment((a as any).unit_kind));
+        const mains = visibleAssignments.filter((a) => isApartment((a as any).unit_kind));
+        const subsAll = visibleAssignments.filter((a) => !isApartment((a as any).unit_kind));
         const subsByParent = new Map<string, ContactAssignment[]>();
         const looseSubs: ContactAssignment[] = [];
         for (const s of subsAll) {
@@ -815,6 +1042,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                   <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
                     {managementMode === 'weg' && isBeirat(a) && <Badge variant="secondary" className="text-xs">Beirat</Badge>}
                     {managementMode === 'weg' && isCashAuditor(a) && <Badge variant="secondary" className="text-xs">Kassenprüfung</Badge>}
+                    {managementMode === 'rent' && !isTenantActive(a) && <Badge variant="outline" className="text-xs bg-muted text-muted-foreground">Ausgezogen</Badge>}
                     {hausgeld !== null && <Badge variant="outline" className="text-xs">{hausgeld.toFixed(2)} €</Badge>}
                   </div>
                 </div>
@@ -973,6 +1201,30 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                           </div>
                         </div>
 
+                        {managementMode === 'rent' && (
+                          <div className="grid grid-cols-2 gap-3 pt-1">
+                            <div>
+                              <Label className="text-xs">Einzug</Label>
+                              <Input
+                                type="date"
+                                value={a.valid_from || ""}
+                                onChange={(e) => updateAssignment(a.id, "valid_from", e.target.value || null)}
+                                className="h-8 text-sm"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Auszug</Label>
+                              <Input
+                                type="date"
+                                value={a.valid_to || ""}
+                                onChange={(e) => updateAssignment(a.id, "valid_to", e.target.value || null)}
+                                className="h-8 text-sm"
+                                placeholder="—"
+                              />
+                            </div>
+                          </div>
+                        )}
+
                         {managementMode === 'weg' && (
                           <div className="flex items-center gap-2 pt-1">
                             <Checkbox
@@ -1099,8 +1351,10 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                         const xd = x.valid_from ? new Date(x.valid_from).getTime() : 0;
                         const yd = y.valid_from ? new Date(y.valid_from).getTime() : 0;
                         return yd - xd;
-                      }).map(c => (
-                        <div key={c.id} className="flex items-center gap-2 mt-2">
+                      }).map(c => {
+                        const isHistoric = managementMode === 'rent' && !!c.valid_to && c.valid_to < todayIso;
+                        return (
+                        <div key={c.id} className={cn("flex items-center gap-2 mt-2 flex-wrap", isHistoric && "opacity-50")}>
                           {editingType?.id === c.id && editingType.field === "cost_type" ? (
                             <div className="flex items-center gap-1">
                               <Input
@@ -1172,14 +1426,21 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                             title="Gültig ab"
                             placeholder="ab"
                           />
-                          <Input
-                            type="date"
-                            value={c.valid_to || ""}
-                            onChange={(e) => updateCost(c.id, "valid_to", e.target.value || null)}
-                            className="w-[130px] h-8 text-xs"
-                            title="Gültig bis"
-                            placeholder="bis"
-                          />
+                          {managementMode !== 'rent' && (
+                            <Input
+                              type="date"
+                              value={c.valid_to || ""}
+                              onChange={(e) => updateCost(c.id, "valid_to", e.target.value || null)}
+                              className="w-[130px] h-8 text-xs"
+                              title="Gültig bis"
+                              placeholder="bis"
+                            />
+                          )}
+                          {managementMode === 'rent' && c.valid_to && (
+                            <span className="text-[10px] text-muted-foreground italic">
+                              bis {new Date(c.valid_to).toLocaleDateString("de-DE")}
+                            </span>
+                          )}
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -1199,7 +1460,11 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                             <Trash2 className="h-3.5 w-3.5 text-destructive" />
                           </Button>
                         </div>
-                      ))}
+                        );
+                      })}
+                      {managementMode === 'rent' && (
+                        <TenantDepositsSection assignmentId={a.id} />
+                      )}
                     </TabsContent>
 
                     {/* Tab: Bank */}

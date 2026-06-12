@@ -7991,6 +7991,65 @@ export type Database = {
         }
         Relationships: []
       }
+      tenant_deposits: {
+        Row: {
+          amount: number
+          assignment_id: string
+          bank_name: string | null
+          created_at: string
+          deposit_type: string
+          guarantee_expiry: string | null
+          guarantee_number: string | null
+          guarantor: string | null
+          iban: string | null
+          id: string
+          notes: string | null
+          received_on: string | null
+          released_on: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          assignment_id: string
+          bank_name?: string | null
+          created_at?: string
+          deposit_type: string
+          guarantee_expiry?: string | null
+          guarantee_number?: string | null
+          guarantor?: string | null
+          iban?: string | null
+          id?: string
+          notes?: string | null
+          received_on?: string | null
+          released_on?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          assignment_id?: string
+          bank_name?: string | null
+          created_at?: string
+          deposit_type?: string
+          guarantee_expiry?: string | null
+          guarantee_number?: string | null
+          guarantor?: string | null
+          iban?: string | null
+          id?: string
+          notes?: string | null
+          received_on?: string | null
+          released_on?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_deposits_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "contact_building_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           building_id: string
