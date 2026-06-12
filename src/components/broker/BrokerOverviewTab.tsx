@@ -181,13 +181,13 @@ export const BrokerOverviewTab = ({ property, onUpdated }: { property: any; onUp
         <CardContent className="space-y-2">
           <Label>Kontakt</Label>
           <div className="flex gap-2">
-            <Select value={form.owner_contact_id || 'none'} onValueChange={v => upd('owner_contact_id', v === 'none' ? null : v)}>
-              <SelectTrigger className="flex-1"><SelectValue placeholder="Eigentümer auswählen…" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— Keiner —</SelectItem>
-                {contacts.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <ContactPicker
+              value={form.owner_contact_id}
+              options={contacts}
+              onChange={(id) => upd('owner_contact_id', id)}
+              placeholder="Eigentümer auswählen…"
+              className="flex-1"
+            />
             <Button type="button" variant="outline" size="sm" onClick={() => setContactDialogOpen(true)}>
               <UserPlus className="h-4 w-4 mr-1" />Neu
             </Button>
