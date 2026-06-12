@@ -167,13 +167,18 @@ export const BrokerOverviewTab = ({ property, onUpdated }: { property: any; onUp
         <CardHeader><CardTitle className="text-base">Eigentümer</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           <Label>Kontakt</Label>
-          <Select value={form.owner_contact_id || 'none'} onValueChange={v => upd('owner_contact_id', v === 'none' ? null : v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">— Keiner —</SelectItem>
-              {contacts.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.display_name}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <div className="flex gap-2">
+            <Select value={form.owner_contact_id || 'none'} onValueChange={v => upd('owner_contact_id', v === 'none' ? null : v)}>
+              <SelectTrigger className="flex-1"><SelectValue placeholder="Eigentümer auswählen…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— Keiner —</SelectItem>
+                {contacts.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.display_name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button type="button" variant="outline" size="sm" onClick={() => setContactDialogOpen(true)}>
+              <UserPlus className="h-4 w-4 mr-1" />Neu
+            </Button>
+          </div>
           {ownerEmails.length > 0 && (
             <p className="text-xs text-muted-foreground">
               Emails: {ownerEmails.map((e: any) => e.email).join(', ')}
@@ -181,6 +186,23 @@ export const BrokerOverviewTab = ({ property, onUpdated }: { property: any; onUp
           )}
         </CardContent>
       </Card>
+
+      <CreateContactDialog
+        open={contactDialogOpen}
+        onOpenChange={setContactDialogOpen}
+        onCreated={async () => {
+          const { data } = await qc.fetchQuery({
+            queryKey: ['contacts-latest'],
+            queryFn: async () => {
+              const { data } = await supabase.from('contacts')
+                .select('id').order('created_at', { ascending: false }).limit(1).maybeSingle();
+              return { data };
+            },
+          });
+          qc.invalidateQueries({ queryKey: ['contacts-min'] });
+          if (data?.id) upd('owner_contact_id', data.id);
+        }}
+      />
 
       <Card>
         <CardHeader><CardTitle className="text-base">Größen</CardTitle></CardHeader>
