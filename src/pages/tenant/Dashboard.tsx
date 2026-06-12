@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useStammdatenName } from "@/hooks/useStammdatenName";
 import { supabase } from "@/integrations/supabase/client";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 
@@ -44,6 +45,7 @@ interface ForumPost {
 
 export const TenantDashboard = () => {
   const { profile } = useAuth();
+  const { firstName } = useStammdatenName();
   const navigate = useNavigate();
   const hasVisibleFiles = useHasVisibleFiles(profile?.user_id);
   const [reports, setReports] = useState<Report[]>([]);
@@ -139,7 +141,7 @@ export const TenantDashboard = () => {
         {/* Welcome Section */}
         <div className="text-center space-y-4 py-8">
           <h1 className="text-4xl font-light text-foreground">
-            Willkommen zurück, {profile?.first_name}
+            Willkommen zurück, {firstName ?? profile?.first_name}
           </h1>
           
           {tenantInfo && (

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, MessageSquare, MessageCircle, FileText, Users, Scale, Phone, Mail, MapPin, Check, ChevronRight, ChevronDown, Building2, MessageSquarePlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useStammdatenName } from "@/hooks/useStammdatenName";
 import { supabase } from "@/integrations/supabase/client";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 import { OwnerAnnualCycleWidget } from "@/components/dashboard/OwnerAnnualCycleWidget";
@@ -44,6 +45,7 @@ const markSeen = (kind: "forum" | "files" | "meetings", userId: string) => {
 export const WegOwnerDashboard = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const { firstName } = useStammdatenName();
   const hasVisibleFiles = useHasVisibleFiles(profile?.user_id);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [contactOpen, setContactOpen] = useState(false);
@@ -172,7 +174,7 @@ export const WegOwnerDashboard = () => {
         {/* Welcome */}
         <div className="space-y-2 pt-1">
           <h1 className="font-display text-2xl font-semibold text-foreground leading-tight tracking-tight">
-            Willkommen zurück, {profile?.first_name}
+            Willkommen zurück, {firstName ?? profile?.first_name}
           </h1>
           {buildings.length > 0 && (
             <div className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
