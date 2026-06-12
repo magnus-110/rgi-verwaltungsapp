@@ -29,7 +29,7 @@ export const BrokerPropertyList = ({ listingType, selectedId, onSelect }: Props)
   const [search, setSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [editRow, setEditRow] = useState<Row | null>(null);
+  
   const qc = useQueryClient();
 
   const { data: items = [] } = useQuery({
