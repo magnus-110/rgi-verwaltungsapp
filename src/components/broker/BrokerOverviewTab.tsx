@@ -31,10 +31,15 @@ export const BrokerOverviewTab = ({ property, onUpdated }: { property: any; onUp
   const num = (v: string) => v === "" ? null : Number(v);
 
   const { data: contacts = [] } = useQuery({
-    queryKey: ['contacts-min'],
+    queryKey: ['broker-contacts-picker'],
     queryFn: async () => {
-      const { data } = await supabase.from('contacts').select('id, display_name').order('display_name');
-      return data || [];
+      const { data } = await supabase.from('contacts')
+        .select('id, short_name, company_name, first_name, last_name')
+        .order('short_name', { nullsFirst: false });
+      return (data || []).map((c: any) => ({
+        id: c.id,
+        label: c.short_name || c.company_name || [c.first_name, c.last_name].filter(Boolean).join(' ') || '(ohne Namen)',
+      }));
     },
   });
 
