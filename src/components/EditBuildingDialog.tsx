@@ -16,6 +16,7 @@ interface Building {
   manager_name?: string;
   unit_count?: number;
   creditor_id?: string | null;
+  billing_only?: boolean;
 }
 
 interface EditBuildingDialogProps {
