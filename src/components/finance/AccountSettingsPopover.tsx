@@ -68,6 +68,12 @@ const SETTINGS_FIELDS: SettingsField[] = [
     type: "checkbox",
   },
   {
+    key: "umlagefaehig",
+    label: "Umlagefähig (Mieter)",
+    info: "Kosten dieses Kontos sind auf Mieter umlagefähig (BetrKV). Wird in der Mieter-Nebenkostenabrechnung berücksichtigt und beim Anlegen neuer Buchungen vorbelegt.",
+    type: "checkbox",
+  },
+  {
     key: "is_billing_relevant",
     label: "Abrechnungsrelevant (Abr.)",
     info: "Erscheint in der Gesamtabrechnung / Einnahmen-Ausgaben-Übersicht. Beispiel: Alle Kosten- und Ertragskonten.",
@@ -113,6 +119,7 @@ const SETTINGS_FIELDS: SettingsField[] = [
 
 interface AccountSettings {
   is_distributable: boolean;
+  umlagefaehig?: boolean;
   is_billing_relevant: boolean;
   is_heating_relevant: boolean;
   is_wirtschaftsplan_relevant: boolean;

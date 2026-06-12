@@ -92,8 +92,6 @@ verify_jwt = false
 [functions.import-contacts-csv]
 verify_jwt = false
 
-[functions.suggest-match]
-verify_jwt = false
 
 [functions.suggest-templates]
 verify_jwt = false
