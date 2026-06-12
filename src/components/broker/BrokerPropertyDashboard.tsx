@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Home, ChevronLeft, Trash2 } from "lucide-react";
+import { Home, ChevronLeft, Trash2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,6 +12,7 @@ import { BrokerOverviewTab } from "./BrokerOverviewTab";
 import { BrokerDocumentsTab } from "./BrokerDocumentsTab";
 import { BrokerNotesTab } from "./BrokerNotesTab";
 import { BrokerLeadsTab } from "./BrokerLeadsTab";
+import { BrokerPropertyFormDialog } from "./BrokerPropertyList";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -24,6 +25,7 @@ interface Props {
 
 export const BrokerPropertyDashboard = ({ propertyId, onBack }: Props) => {
   const [tab, setTab] = useState("overview");
+  const [editOpen, setEditOpen] = useState(false);
   const qc = useQueryClient();
   const navigate = useNavigate();
 
@@ -85,28 +87,48 @@ export const BrokerPropertyDashboard = ({ propertyId, onBack }: Props) => {
               </div>
             </div>
           </div>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="icon" title="Löschen"
-                className="h-10 w-10 text-destructive hover:text-destructive hover:bg-destructive/10">
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Objekt löschen?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Das Objekt sowie alle zugehörigen Interessenten, Notizen und Verlaufseinträge werden unwiderruflich gelöscht. Dokumente bleiben im DMS verbleiben unverknüpft.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">Löschen</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" title="Bearbeiten"
+              className="h-10 w-10 text-muted-foreground hover:text-foreground"
+              onClick={() => setEditOpen(true)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" title="Löschen"
+                  className="h-10 w-10 text-destructive hover:text-destructive hover:bg-destructive/10">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Objekt löschen?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Das Objekt sowie alle zugehörigen Interessenten, Notizen und Verlaufseinträge werden unwiderruflich gelöscht. Dokumente bleiben im DMS verbleiben unverknüpft.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">Löschen</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
       </div>
+
+      <BrokerPropertyFormDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        listingType={prop.listing_type}
+        mode="edit"
+        initial={prop}
+        onSaved={() => {
+          qc.invalidateQueries({ queryKey: ['broker-properties'] });
+          qc.invalidateQueries({ queryKey: ['broker-property', propertyId] });
+          setEditOpen(false);
+        }}
+      />
 
       <Tabs value={tab} onValueChange={setTab} className="flex-1 flex flex-col min-h-0">
         <div className="px-2 md:px-6 bg-card border-b border-border overflow-x-auto scrollbar-hide">

@@ -25,16 +25,29 @@ export const BrokerOverviewTab = ({ property, onUpdated }: { property: any; onUp
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
   const qc = useQueryClient();
 
-  useEffect(() => { setForm(property); }, [property.id]);
+  useEffect(() => {
+    const next = { ...property };
+    if (property.listing_type === 'sale') {
+      if (next.commission_buyer_pct == null) next.commission_buyer_pct = 3;
+      if (next.commission_seller_pct == null) next.commission_seller_pct = 3;
+      if (!next.commission_note) next.commission_note = 'Standard: 3 % netto Käufer + 3 % netto Verkäufer';
+    }
+    setForm(next);
+  }, [property.id]);
 
   const upd = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
   const num = (v: string) => v === "" ? null : Number(v);
 
   const { data: contacts = [] } = useQuery({
-    queryKey: ['contacts-min'],
+    queryKey: ['broker-contacts-picker'],
     queryFn: async () => {
-      const { data } = await supabase.from('contacts').select('id, display_name').order('display_name');
-      return data || [];
+      const { data } = await supabase.from('contacts')
+        .select('id, short_name, company_name, first_name, last_name')
+        .order('short_name', { nullsFirst: false });
+      return (data || []).map((c: any) => ({
+        id: c.id,
+        label: c.short_name || c.company_name || [c.first_name, c.last_name].filter(Boolean).join(' ') || '(ohne Namen)',
+      }));
     },
   });
 
@@ -172,7 +185,7 @@ export const BrokerOverviewTab = ({ property, onUpdated }: { property: any; onUp
               <SelectTrigger className="flex-1"><SelectValue placeholder="Eigentümer auswählen…" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">— Keiner —</SelectItem>
-                {contacts.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.display_name}</SelectItem>)}
+                {contacts.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
             <Button type="button" variant="outline" size="sm" onClick={() => setContactDialogOpen(true)}>
@@ -191,15 +204,9 @@ export const BrokerOverviewTab = ({ property, onUpdated }: { property: any; onUp
         open={contactDialogOpen}
         onOpenChange={setContactDialogOpen}
         onCreated={async () => {
-          const { data } = await qc.fetchQuery({
-            queryKey: ['contacts-latest'],
-            queryFn: async () => {
-              const { data } = await supabase.from('contacts')
-                .select('id').order('created_at', { ascending: false }).limit(1).maybeSingle();
-              return { data };
-            },
-          });
-          qc.invalidateQueries({ queryKey: ['contacts-min'] });
+          await qc.invalidateQueries({ queryKey: ['broker-contacts-picker'] });
+          const { data } = await supabase.from('contacts')
+            .select('id').order('created_at', { ascending: false }).limit(1).maybeSingle();
           if (data?.id) upd('owner_contact_id', data.id);
         }}
       />

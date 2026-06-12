@@ -106,18 +106,22 @@ const CreateLeadDialog = ({ open, onOpenChange, propertyId, onCreated }: {
   const qc = useQueryClient();
 
   const { data: contacts = [] } = useQuery({
-    queryKey: ['contacts-min'],
+    queryKey: ['broker-contacts-picker'],
     queryFn: async () => {
-      const { data } = await supabase.from('contacts').select('id, display_name').order('display_name');
-      return data || [];
+      const { data } = await supabase.from('contacts')
+        .select('id, short_name, company_name, first_name, last_name')
+        .order('short_name', { nullsFirst: false });
+      return (data || []).map((c: any) => ({
+        id: c.id,
+        label: c.short_name || c.company_name || [c.first_name, c.last_name].filter(Boolean).join(' ') || '(ohne Namen)',
+      }));
     },
   });
 
   const pickContact = async (id: string) => {
     setContactId(id);
-    // Prefill from contact
-    const { data: c } = await (supabase.from('contacts') as any).select('display_name').eq('id', id).maybeSingle();
-    if (c?.display_name) setName(c.display_name);
+    const picked = contacts.find((c: any) => c.id === id);
+    if (picked?.label) setName(picked.label);
     const { data: persons } = await supabase.from('contact_persons').select('id').eq('contact_id', id).limit(1);
     const personIds: string[] = (persons || []).map((p: any) => p.id);
     if (personIds.length) {
@@ -159,7 +163,7 @@ const CreateLeadDialog = ({ open, onOpenChange, propertyId, onCreated }: {
                   <SelectTrigger className="flex-1"><SelectValue placeholder="Kontakt auswählen…" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">— Neu / Ad-hoc —</SelectItem>
-                    {contacts.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.display_name}</SelectItem>)}
+                    {contacts.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Button type="button" variant="outline" size="sm" onClick={() => setContactDialogOpen(true)}>
@@ -181,7 +185,7 @@ const CreateLeadDialog = ({ open, onOpenChange, propertyId, onCreated }: {
         open={contactDialogOpen}
         onOpenChange={setContactDialogOpen}
         onCreated={async () => {
-          qc.invalidateQueries({ queryKey: ['contacts-min'] });
+          await qc.invalidateQueries({ queryKey: ['broker-contacts-picker'] });
           const { data } = await supabase.from('contacts')
             .select('id').order('created_at', { ascending: false }).limit(1).maybeSingle();
           if (data?.id) await pickContact(data.id);

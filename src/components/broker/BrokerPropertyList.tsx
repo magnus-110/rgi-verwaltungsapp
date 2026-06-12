@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Home, Plus, Pencil } from "lucide-react";
+import { Search, Home, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -29,7 +29,7 @@ export const BrokerPropertyList = ({ listingType, selectedId, onSelect }: Props)
   const [search, setSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [editRow, setEditRow] = useState<Row | null>(null);
+  
   const qc = useQueryClient();
 
   const { data: items = [] } = useQuery({
@@ -86,50 +86,42 @@ export const BrokerPropertyList = ({ listingType, selectedId, onSelect }: Props)
           </div>
         )}
         {filtered.map((p) => (
-          <div
+          <button
             key={p.id}
+            onClick={() => onSelect(p.id)}
             className={cn(
-              "group w-full text-left p-3 rounded-lg transition-colors relative",
+              "w-full text-left p-3 rounded-lg transition-colors",
               selectedId === p.id
                 ? "bg-primary/10 border border-primary/20"
                 : "hover:bg-muted/50 border border-transparent"
             )}
           >
-            <button onClick={() => onSelect(p.id)} className="w-full text-left">
-              <div className="flex items-start gap-2">
-                <div className={cn(
-                  "p-1.5 rounded-md flex-shrink-0",
-                  selectedId === p.id ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
-                )}>
-                  <Home className="h-3.5 w-3.5" />
-                </div>
-                <div className="flex-1 min-w-0 pr-7">
-                  <div className="flex items-center gap-1.5">
-                    <p className={cn("text-sm font-medium truncate", selectedId === p.id && "text-primary")}>
-                      {p.title}
-                    </p>
-                    {!p.is_active && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                        inaktiv
-                      </span>
-                    )}
-                  </div>
-                  {(p.address || p.postal_code || p.city) && (
-                    <p className="text-xs text-muted-foreground truncate">
-                      {[p.address, [p.postal_code, p.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')}
-                    </p>
+            <div className="flex items-start gap-2">
+              <div className={cn(
+                "p-1.5 rounded-md flex-shrink-0",
+                selectedId === p.id ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
+              )}>
+                <Home className="h-3.5 w-3.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <p className={cn("text-sm font-medium truncate", selectedId === p.id && "text-primary")}>
+                    {p.title}
+                  </p>
+                  {!p.is_active && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                      inaktiv
+                    </span>
                   )}
                 </div>
+                {(p.address || p.postal_code || p.city) && (
+                  <p className="text-xs text-muted-foreground truncate">
+                    {[p.address, [p.postal_code, p.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')}
+                  </p>
+                )}
               </div>
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); setEditRow(p); }}
-              title="Bearbeiten"
-              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-          </div>
+            </div>
+          </button>
         ))}
       </div>
 
@@ -143,23 +135,12 @@ export const BrokerPropertyList = ({ listingType, selectedId, onSelect }: Props)
           if (id) onSelect(id);
         }}
       />
-      <BrokerPropertyFormDialog
-        open={!!editRow}
-        onOpenChange={(o) => { if (!o) setEditRow(null); }}
-        listingType={listingType}
-        mode="edit"
-        initial={editRow || undefined}
-        onSaved={() => {
-          qc.invalidateQueries({ queryKey: ['broker-properties'] });
-          qc.invalidateQueries({ queryKey: ['broker-property'] });
-          setEditRow(null);
-        }}
-      />
+
     </div>
   );
 };
 
-const BrokerPropertyFormDialog = ({ open, onOpenChange, listingType, mode, initial, onSaved }: {
+export const BrokerPropertyFormDialog = ({ open, onOpenChange, listingType, mode, initial, onSaved }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   listingType: 'rent' | 'sale';
