@@ -17,6 +17,7 @@ interface Profile {
   force_password_change: boolean;
   must_change_password?: boolean | null;
   mfa_required?: boolean | null;
+  broker_mode_enabled?: boolean | null;
 }
 
 interface AuthContextType {
