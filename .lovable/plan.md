@@ -1,52 +1,38 @@
-## Phase 4 — Mieter-Nebenkostenabrechnung (Read-Verteilung)
+## Bidirektionaler Name in Begrüßung
 
-### Prinzip
-- **Kostenbasis:** Alle Konten mit `chart_of_accounts.is_billing_relevant = true` im gewählten Wirtschaftsjahr (über v_account_movements / sumForAccount, wie bei der WEG).
-- **Verteilerschlüssel:** kommt aus `chart_of_accounts.default_distribution_key` (z.B. `qm`, `personen`, `einheit`, `verbrauch_wasser`, custom…).
-- **Anteil pro Mieter:** `contact_building_shares.share_value` für die zur `default_distribution_key` passende `share_type`.
-- **Zeitanteil:** Tag-genaue Überschneidung von Mieter-Zeitraum (`valid_from/valid_to`) mit dem Wirtschaftsjahr, gewichtet die Quote zusätzlich.
-- **NK-Vorz.:** aus `contact_building_costs` (cost_type ILIKE „nebenkosten", interval monatlich), wie bereits in Phase 3 berechnet.
-- **Saldo:** `Summe Umlage − Summe NK-Vorz. = Nachzahlung (>0) / Guthaben (<0)`.
+### Problem
+- Dashboards (`weg-owner/Dashboard.tsx`, `tenant/Dashboard.tsx`) zeigen `profile.first_name` aus der `profiles`-Tabelle.
+- Stammdaten werden aber im **Kontakt** gepflegt: Admin über `ContactDetail`, Eigentümer über `OwnerSelfServiceSection`. Diese schreiben in `contacts.first_name` bzw. `contact_building_assignments.first_name_override` — nie in `profiles`. Daher veraltet die Anzeige.
 
-### Validierung vor Verteilung
-Pro umlagefähigem Konto:
-1. `default_distribution_key` gesetzt? sonst Warnung „Konto X hat keinen Verteilerschlüssel".
-2. Mindestens ein Mieter im Zeitraum hat einen `contact_building_shares`-Eintrag mit passender `share_type`? sonst Warnung „Konto X verwendet Schlüssel 'Y', aber kein Mieter hat einen Y-Anteil gepflegt".
-3. Summe der Anteile > 0.
+### Lösung — Single Source of Truth = `contacts`
+Die Begrüßung liest den Vornamen direkt aus dem an den User gekoppelten Kontakt (`contacts.user_id = auth.uid()`). Beide Editier-Pfade (Admin & Owner) schreiben dorthin → automatisch bidirektional.
 
-Warnungen werden oben in einem `BillingValidationPanel`-ähnlichen Bereich gesammelt. Bei Fehlern wird trotzdem gerendert, das betroffene Konto bleibt aber unverteilt (Hinweis in Tabelle).
+#### 1. Neuer Hook `useStammdatenName`
+`src/hooks/useStammdatenName.ts`
+- Liest `contacts.first_name, last_name` für `user_id = profile.user_id`.
+- Realtime-Subscription auf `contacts`-Zeile (UPDATE) → Anzeige aktualisiert sich live, wenn Admin Änderungen speichert oder der User selbst speichert (in anderem Tab).
+- Fallback-Kette: `contacts.first_name` → `profile.first_name` → leer.
 
-### UI: neuer Tab `RentBillingPage`
-Eintrag im bestehenden Finance-Layout: wenn `isRentMode`, zeigt der „Abrechnung"-Tab nicht mehr `BillingTab` (WEG) sondern eine neue `RentBillingPage` (komplett getrennte Komponente).
+#### 2. Dashboards umstellen
+- `src/pages/weg-owner/Dashboard.tsx` Zeile 175 — `profile?.first_name` → `useStammdatenName().firstName`.
+- `src/pages/tenant/Dashboard.tsx` Zeile 142 — analog.
 
-Aufbau:
-1. **Header:** Gebäude, Wirtschaftsjahr, Anzahl Mieter im Zeitraum.
-2. **Validierungspanel** (Warnungen siehe oben).
-3. **Gesamtverteilung-Tabelle (read-only):**
-   - Zeilen: jedes umlagefähige Konto.
-   - Spalten: Kontonr · Bezeichnung · Saldo Periode · Schlüssel · Σ Anteile · davon umlagef.
-4. **Mieter-Einzelabrechnungen:** Accordion pro Mieter.
-   - Kopf: Name · Einheit · Zeitraum · Monate.
-   - Tabelle: Konto · Schlüssel · sein Anteil · Kontosumme · sein Zeitanteil (Monate/12) · **Umlage €**.
-   - Footer: Σ Umlage · Σ NK-Vorz. (aus Phase 3) · **Saldo (Nachzahlung/Guthaben)**.
+#### 3. Owner-Self-Service: globale Stammdaten editierbar
+`src/components/owner/OwnerSelfServiceSection.tsx`
+- Neue Card oben „Meine Stammdaten" mit Anrede / Vorname / Nachname / Firmenname / Adresse, die auf `contacts` (per `user_id`) schreibt.
+- Die bisherigen Pro-Wohnungs-Overrides bleiben unverändert (für abweichende Anschrift pro Objekt).
+- Speichern via vorhandener Edge Function-Logik oder direkter `supabase.from("contacts").update(...)` — RLS erlaubt UPDATE auf den eigenen Kontakt (`user_id = auth.uid()`); falls Policy fehlt, in derselben Aufgabe ergänzen.
 
-### Was NICHT enthalten ist
-- Keine Buchungen ins Hauptbuch (keine Sollstellung, keine 1700/1710-Logik).
-- Kein PDF, kein Versand, keine Sperre/Festschreibung.
-- Keine USt, kein settlement_note.
-- Kein Heizkosten-FIFO/Brunata (kommt in späterer Phase, separat).
+#### 4. RLS-Check (Migration falls nötig)
+- Vor Implementierung prüfen, ob `contacts` eine UPDATE-Policy `user_id = auth.uid()` für `authenticated` hat. Falls nicht → Migration mit Policy nur für die Felder, die Stammdaten betreffen (Postgres erlaubt keine spaltenscoped Policies; daher Update auf ganze Zeile + zusätzliche Trigger-Validierung verhindert Änderungen an Schutzspalten wie `user_id`).
 
-### Datenmodell
-- **Keine Schema-Änderungen.** Alles arbeitet auf vorhandenen Tabellen: `chart_of_accounts`, `bookings`/`v_account_movements`, `contact_building_assignments`, `contact_building_shares`, `contact_building_costs`.
+### Nicht im Scope
+- Kein Sync zurück nach `profiles.first_name` (bleibt nur für Auth-Anzeige in Settings).
+- Keine Änderung am Onboarding-Flow.
+- Keine Migration der bestehenden Pro-Wohnungs-Overrides.
 
 ### Dateien
-- Neu: `src/components/finance/rent/RentBillingPage.tsx` (Hauptseite).
-- Neu: `src/components/finance/rent/lib/computeRentSettlement.ts` (reine Funktion: nimmt Konten + Bookings + Mieter + Shares + Costs → liefert pro Mieter die Verteilungsmatrix).
-- Edit: `src/pages/Finance.tsx` — im Tab `abrechnung`: bei `isRentMode` → `RentBillingPage` statt `BillingTab`.
-
-### Testfälle
-1. Konto „Müllgebühr" 1.200 €, Schlüssel `qm`, 2 Mieter (50/50 qm, ganzes Jahr) → je 600 € Umlage.
-2. Mieter zog 1.7. ein → halbjährige Umlage (6/12), Restanteil bleibt beim Vermieter (nicht umlagefähig zu anderen Mietern).
-3. Konto ohne `default_distribution_key` → Warnung, Umlage 0.
-4. Konto mit Schlüssel `personen`, aber kein Mieter hat `personen`-Anteil → Warnung, Umlage 0.
-5. Mieter mit NK-Vorz. 150 €/M × 12 = 1.800 € und Σ Umlage 1.620 € → Guthaben 180 €.
+- Neu: `src/hooks/useStammdatenName.ts`
+- Edit: `src/pages/weg-owner/Dashboard.tsx`, `src/pages/tenant/Dashboard.tsx`
+- Edit: `src/components/owner/OwnerSelfServiceSection.tsx` (neue Stammdaten-Card)
+- Ggf. Migration: UPDATE-Policy + Trigger für geschützte Spalten auf `contacts`
