@@ -1049,6 +1049,30 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                           </div>
                         </div>
 
+                        {managementMode === 'rent' && (
+                          <div className="grid grid-cols-2 gap-3 pt-1">
+                            <div>
+                              <Label className="text-xs">Einzug</Label>
+                              <Input
+                                type="date"
+                                value={a.valid_from || ""}
+                                onChange={(e) => updateAssignment(a.id, "valid_from", e.target.value || null)}
+                                className="h-8 text-sm"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Auszug</Label>
+                              <Input
+                                type="date"
+                                value={a.valid_to || ""}
+                                onChange={(e) => updateAssignment(a.id, "valid_to", e.target.value || null)}
+                                className="h-8 text-sm"
+                                placeholder="—"
+                              />
+                            </div>
+                          </div>
+                        )}
+
                         {managementMode === 'weg' && (
                           <div className="flex items-center gap-2 pt-1">
                             <Checkbox
