@@ -177,7 +177,7 @@ export const BrokerOverviewTab = ({ property, onUpdated }: { property: any; onUp
               <SelectTrigger className="flex-1"><SelectValue placeholder="Eigentümer auswählen…" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">— Keiner —</SelectItem>
-                {contacts.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.display_name}</SelectItem>)}
+                {contacts.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
             <Button type="button" variant="outline" size="sm" onClick={() => setContactDialogOpen(true)}>
