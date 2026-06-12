@@ -45,6 +45,7 @@ const markSeen = (kind: "forum" | "files" | "meetings", userId: string) => {
 export const WegOwnerDashboard = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const { firstName } = useStammdatenName();
   const hasVisibleFiles = useHasVisibleFiles(profile?.user_id);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [contactOpen, setContactOpen] = useState(false);
