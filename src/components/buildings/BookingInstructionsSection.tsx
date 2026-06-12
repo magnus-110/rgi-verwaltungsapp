@@ -15,6 +15,7 @@ export function BookingInstructionsSection({ buildingId, initialValue }: Props) 
   const [value, setValue] = useState(initialValue || "");
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     setValue(initialValue || "");
@@ -44,28 +45,43 @@ export function BookingInstructionsSection({ buildingId, initialValue }: Props) 
             <Bot className="h-4 w-4 text-primary" />
             <CardTitle className="text-base">KI-Buchungshinweise</CardTitle>
           </div>
-          {hasChanges && (
-            <Button size="sm" onClick={handleSave} disabled={saving}>
-              <Save className="h-4 w-4 mr-1" />
-              {saving ? "Speichern..." : "Speichern"}
+          <div className="flex items-center gap-2">
+            {hasChanges && !collapsed && (
+              <Button size="sm" onClick={handleSave} disabled={saving}>
+                <Save className="h-4 w-4 mr-1" />
+                {saving ? "Speichern..." : "Speichern"}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCollapsed((c) => !c)}
+              title={collapsed ? "Aufklappen" : "Einklappen"}
+            >
+              {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
             </Button>
-          )}
+          </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Liegenschaftsspezifische Hinweise für die KI-Buchung. Diese fließen direkt in die KI-gestützte Kontenzuordnung ein und haben höchste Priorität.
-        </p>
+        {!collapsed && (
+          <p className="text-xs text-muted-foreground">
+            Liegenschaftsspezifische Hinweise für die KI-Buchung. Diese fließen direkt in die KI-gestützte Kontenzuordnung ein und haben höchste Priorität.
+          </p>
+        )}
       </CardHeader>
-      <CardContent>
-        <Textarea
-          placeholder={`Beispiele:\n• Stadtwerke Augsburg immer auf Konto 4100 buchen\n• Abschläge Gas auf Vorauszahlungskonto 1590\n• Hausmeister Müller ist §35a relevant\n• Versicherung Allianz: Konto 4120, kein Vorsteuerabzug`}
-          value={value}
-          onChange={(e) => {
-            setValue(e.target.value);
-            setHasChanges(true);
-          }}
-          className="min-h-[120px] text-sm"
-        />
-      </CardContent>
+      {!collapsed && (
+        <CardContent>
+          <Textarea
+            placeholder={`Beispiele:\n• Stadtwerke Augsburg immer auf Konto 4100 buchen\n• Abschläge Gas auf Vorauszahlungskonto 1590\n• Hausmeister Müller ist §35a relevant\n• Versicherung Allianz: Konto 4120, kein Vorsteuerabzug`}
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setHasChanges(true);
+            }}
+            className="min-h-[120px] text-sm"
+          />
+        </CardContent>
+      )}
     </Card>
   );
 }
