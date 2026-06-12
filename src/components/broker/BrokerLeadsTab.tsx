@@ -163,7 +163,7 @@ const CreateLeadDialog = ({ open, onOpenChange, propertyId, onCreated }: {
                   <SelectTrigger className="flex-1"><SelectValue placeholder="Kontakt auswählen…" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">— Neu / Ad-hoc —</SelectItem>
-                    {contacts.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.display_name}</SelectItem>)}
+                    {contacts.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Button type="button" variant="outline" size="sm" onClick={() => setContactDialogOpen(true)}>
