@@ -196,15 +196,9 @@ export const BrokerOverviewTab = ({ property, onUpdated }: { property: any; onUp
         open={contactDialogOpen}
         onOpenChange={setContactDialogOpen}
         onCreated={async () => {
-          const { data } = await qc.fetchQuery({
-            queryKey: ['contacts-latest'],
-            queryFn: async () => {
-              const { data } = await supabase.from('contacts')
-                .select('id').order('created_at', { ascending: false }).limit(1).maybeSingle();
-              return { data };
-            },
-          });
-          qc.invalidateQueries({ queryKey: ['contacts-min'] });
+          await qc.invalidateQueries({ queryKey: ['broker-contacts-picker'] });
+          const { data } = await supabase.from('contacts')
+            .select('id').order('created_at', { ascending: false }).limit(1).maybeSingle();
           if (data?.id) upd('owner_contact_id', data.id);
         }}
       />
