@@ -100,9 +100,11 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
     <UploadProvider>
       <DmsJobsProvider>
         <ManagementModeProvider>
-          <AdminLayoutContent>{children}</AdminLayoutContent>
-          <UploadProgressWidget />
-          <DmsJobsTray />
+          <BrokerModeProvider>
+            <AdminLayoutContent>{children}</AdminLayoutContent>
+            <UploadProgressWidget />
+            <DmsJobsTray />
+          </BrokerModeProvider>
         </ManagementModeProvider>
       </DmsJobsProvider>
     </UploadProvider>
