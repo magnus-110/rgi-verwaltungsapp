@@ -45,6 +45,7 @@ interface ForumPost {
 
 export const TenantDashboard = () => {
   const { profile } = useAuth();
+  const { firstName } = useStammdatenName();
   const navigate = useNavigate();
   const hasVisibleFiles = useHasVisibleFiles(profile?.user_id);
   const [reports, setReports] = useState<Report[]>([]);
