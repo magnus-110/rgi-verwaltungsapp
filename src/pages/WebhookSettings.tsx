@@ -97,30 +97,6 @@ export const WebhookSettings = () => {
     }
   };
 
-  const handleTestBookingWebhook = async () => {
-    setIsBookingTesting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('send-booking-data', {
-        body: { testMode: true }
-      });
-
-      if (error) throw error;
-
-      setLastBookingResult(data);
-      
-      if (data.success) {
-        toast.success(`Buchungs-Webhook erfolgreich: ${data.message}`);
-      } else {
-        toast.error(`Buchungs-Webhook fehlgeschlagen: ${data.error}`);
-      }
-    } catch (error: any) {
-      console.error("Booking webhook test error:", error);
-      setLastBookingResult({ success: false, error: error.message });
-      toast.error("Fehler beim Testen des Buchungs-Webhooks");
-    } finally {
-      setIsBookingTesting(false);
-    }
-  };
 
   return (
     <AdminLayout>
