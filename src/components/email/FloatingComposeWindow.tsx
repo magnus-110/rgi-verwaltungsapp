@@ -10,8 +10,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Send, Loader2, Paperclip, X, Users, Search, Minus, Maximize2, Minimize2,
-  ExternalLink, Wand2, Check, ChevronDown, ArrowLeft, CalendarClock,
+  ExternalLink, Wand2, Check, ChevronDown, ArrowLeft, CalendarClock, FolderOpen,
 } from "lucide-react";
+import { DmsFilePickerDialog, type DmsPickerItem } from "@/components/meetings/DmsFilePickerDialog";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useComposeEmail, type ComposeState } from "@/contexts/ComposeEmailContext";
@@ -172,6 +173,8 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   const [showCcBcc, setShowCcBcc] = useState(false);
 
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [dmsPickerOpen, setDmsPickerOpen] = useState(false);
+  const [dmsLoading, setDmsLoading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewMeta, setPreviewMeta] = useState<{ name: string; mimeType: string | null }>({ name: "", mimeType: null });
@@ -427,6 +430,54 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   const removeAttachment = (index: number) => {
     update({ attachments: compose.attachments.filter((_, i) => i !== index) });
   };
+
+  const handleDmsSelect = async (items: DmsPickerItem[]) => {
+    if (!items.length) return;
+    setDmsLoading(true);
+    const MAX_SIZE = 25 * 1024 * 1024;
+    try {
+      const added: { file: File; name: string; size: number }[] = [];
+      for (const item of items) {
+        try {
+          if (typeof item.size === "number" && item.size > MAX_SIZE) {
+            toast.error(`${item.name} ist zu groß (max. 25MB)`);
+            continue;
+          }
+          const { data: signed, error: signErr } = await supabase.storage
+            .from("building-files")
+            .createSignedUrl(item.path, 300);
+          if (signErr || !signed?.signedUrl) {
+            toast.error(`${item.name}: konnte nicht geladen werden`);
+            continue;
+          }
+          const res = await fetch(signed.signedUrl);
+          if (!res.ok) {
+            toast.error(`${item.name}: Download fehlgeschlagen`);
+            continue;
+          }
+          const blob = await res.blob();
+          if (blob.size > MAX_SIZE) {
+            toast.error(`${item.name} ist zu groß (max. 25MB)`);
+            continue;
+          }
+          const file = new File([blob], item.name, {
+            type: item.mimeType || blob.type || "application/octet-stream",
+          });
+          added.push({ file, name: item.name, size: file.size });
+        } catch (e: any) {
+          console.error("DMS attach failed", e);
+          toast.error(`${item.name}: ${e?.message ?? "Fehler"}`);
+        }
+      }
+      if (added.length) {
+        update({ attachments: [...compose.attachments, ...added] });
+        toast.success(`${added.length} Datei(en) aus DMS angehängt`);
+      }
+    } finally {
+      setDmsLoading(false);
+    }
+  };
+
 
   const handleSend = async () => {
     if (!compose.accountId || !compose.to.trim()) {
@@ -991,6 +1042,9 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" onClick={() => fileInputRef.current?.click()} aria-label="Anhang">
               <Paperclip className="h-5 w-5" />
             </Button>
+            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" onClick={() => setDmsPickerOpen(true)} disabled={dmsLoading} aria-label="Aus DMS anhängen" title="Aus DMS anhängen">
+              {dmsLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <FolderOpen className="h-5 w-5" />}
+            </Button>
             <EmailTemplatePicker
               context={{ to: compose.to, accountId: compose.accountId }}
               currentSubject={compose.subject}
@@ -1022,6 +1076,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         fileName={previewMeta.name}
         mimeType={previewMeta.mimeType}
       />
+      <DmsFilePickerDialog open={dmsPickerOpen} onOpenChange={setDmsPickerOpen} onSelectItems={handleDmsSelect} />
 
       </>
     );
@@ -1278,6 +1333,9 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
               <Button type="button" variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => fileInputRef.current?.click()}>
                 <Paperclip className="h-3 w-3" /> Anhang
               </Button>
+              <Button type="button" variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => setDmsPickerOpen(true)} disabled={dmsLoading}>
+                {dmsLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FolderOpen className="h-3 w-3" />} Aus DMS
+              </Button>
               <EmailTemplatePicker
                 context={{ to: compose.to, accountId: compose.accountId }}
                 currentSubject={compose.subject}
@@ -1352,6 +1410,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       fileName={previewMeta.name}
       mimeType={previewMeta.mimeType}
     />
+    <DmsFilePickerDialog open={dmsPickerOpen} onOpenChange={setDmsPickerOpen} onSelectItems={handleDmsSelect} />
 
     </>
   );
