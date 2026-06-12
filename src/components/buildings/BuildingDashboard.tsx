@@ -273,10 +273,12 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
             </TabsContent>
           )}
 
-          {/* Onboarding Tab */}
-          <TabsContent value="onboarding" className="p-3 md:p-6 mt-0">
-            <BuildingOnboardingTab buildingId={buildingId} />
-          </TabsContent>
+          {/* Onboarding Tab (WEG only) */}
+          {building.management_mode === 'weg' && (
+            <TabsContent value="onboarding" className="p-3 md:p-6 mt-0">
+              <BuildingOnboardingTab buildingId={buildingId} />
+            </TabsContent>
+          )}
         </ScrollArea>
       </Tabs>
 
