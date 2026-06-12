@@ -1199,8 +1199,10 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                         const xd = x.valid_from ? new Date(x.valid_from).getTime() : 0;
                         const yd = y.valid_from ? new Date(y.valid_from).getTime() : 0;
                         return yd - xd;
-                      }).map(c => (
-                        <div key={c.id} className="flex items-center gap-2 mt-2">
+                      }).map(c => {
+                        const isHistoric = managementMode === 'rent' && !!c.valid_to && c.valid_to < todayIso;
+                        return (
+                        <div key={c.id} className={cn("flex items-center gap-2 mt-2 flex-wrap", isHistoric && "opacity-50")}>
                           {editingType?.id === c.id && editingType.field === "cost_type" ? (
                             <div className="flex items-center gap-1">
                               <Input
