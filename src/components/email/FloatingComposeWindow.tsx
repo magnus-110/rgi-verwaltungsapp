@@ -431,6 +431,54 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     update({ attachments: compose.attachments.filter((_, i) => i !== index) });
   };
 
+  const handleDmsSelect = async (items: DmsPickerItem[]) => {
+    if (!items.length) return;
+    setDmsLoading(true);
+    const MAX_SIZE = 25 * 1024 * 1024;
+    try {
+      const added: { file: File; name: string; size: number }[] = [];
+      for (const item of items) {
+        try {
+          if (typeof item.size === "number" && item.size > MAX_SIZE) {
+            toast.error(`${item.name} ist zu groß (max. 25MB)`);
+            continue;
+          }
+          const { data: signed, error: signErr } = await supabase.storage
+            .from("building-files")
+            .createSignedUrl(item.path, 300);
+          if (signErr || !signed?.signedUrl) {
+            toast.error(`${item.name}: konnte nicht geladen werden`);
+            continue;
+          }
+          const res = await fetch(signed.signedUrl);
+          if (!res.ok) {
+            toast.error(`${item.name}: Download fehlgeschlagen`);
+            continue;
+          }
+          const blob = await res.blob();
+          if (blob.size > MAX_SIZE) {
+            toast.error(`${item.name} ist zu groß (max. 25MB)`);
+            continue;
+          }
+          const file = new File([blob], item.name, {
+            type: item.mimeType || blob.type || "application/octet-stream",
+          });
+          added.push({ file, name: item.name, size: file.size });
+        } catch (e: any) {
+          console.error("DMS attach failed", e);
+          toast.error(`${item.name}: ${e?.message ?? "Fehler"}`);
+        }
+      }
+      if (added.length) {
+        update({ attachments: [...compose.attachments, ...added] });
+        toast.success(`${added.length} Datei(en) aus DMS angehängt`);
+      }
+    } finally {
+      setDmsLoading(false);
+    }
+  };
+
+
   const handleSend = async () => {
     if (!compose.accountId || !compose.to.trim()) {
       toast.error("Bitte Absender und Empfänger angeben");
