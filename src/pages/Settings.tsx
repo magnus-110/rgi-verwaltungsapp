@@ -26,6 +26,7 @@ import { ChartOfAccountsTab } from "@/components/finance/ChartOfAccountsTab";
 import { ReportTemplateSettings } from "@/components/finance/ReportTemplateSettings";
 import { NotificationSettingsSection } from "@/components/settings/NotificationSettingsSection";
 import { PasskeysSection } from "@/components/settings/PasskeysSection";
+import { BrokerModeToggle } from "@/components/settings/BrokerModeToggle";
 
 interface AdminUser {
   user_id: string;
@@ -442,7 +443,8 @@ export const Settings = () => {
                           <div className="font-medium">{admin.first_name && admin.last_name ? `${admin.first_name} ${admin.last_name}` : admin.email}</div>
                           <div className="text-sm text-muted-foreground">{admin.email}</div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-3">
+                          <BrokerModeToggle userId={admin.user_id} />
                           <Button variant="outline" size="sm" onClick={() => { setEditingAdmin(admin); setEditAdminData({ first_name: admin.first_name||"", last_name: admin.last_name||"", email: admin.email, phone: admin.phone||"" }); }}><Edit className="w-4 h-4" /></Button>
                           <Button variant="outline" size="sm" onClick={() => handleDeleteAdmin(admin.user_id)} className="text-destructive hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
                         </div>
@@ -481,7 +483,8 @@ export const Settings = () => {
                           <div className="font-medium">{emp.first_name && emp.last_name ? `${emp.first_name} ${emp.last_name}` : emp.email}</div>
                           <div className="text-sm text-muted-foreground">{emp.email}</div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-3">
+                          <BrokerModeToggle userId={emp.user_id} />
                           <Button variant="outline" size="sm" onClick={() => { setEditingEmployee(emp); setEditEmployeeData({ first_name: emp.first_name||"", last_name: emp.last_name||"", email: emp.email, phone: emp.phone||"" }); }}><Edit className="w-4 h-4" /></Button>
                           <Button variant="outline" size="sm" onClick={() => handleDeleteEmployee(emp.user_id)} className="text-destructive hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
                         </div>
