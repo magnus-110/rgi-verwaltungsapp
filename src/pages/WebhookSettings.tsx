@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { AdminLayout } from "@/components/AdminLayout";
-import { AlertCircle, CheckCircle, Send, Settings, BookOpen } from "lucide-react";
+import { AlertCircle, CheckCircle, Send, Settings } from "lucide-react";
 
 export const WebhookSettings = () => {
   const { profile } = useAuth();
