@@ -1177,7 +1177,21 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
 
   return (
     <>
-    <div className={cn("bg-card flex flex-col overflow-hidden", containerClass)} style={containerStyle}>
+    <div
+      className={cn("bg-card flex flex-col overflow-hidden", containerClass)}
+      style={containerStyle}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {/* Drag overlay */}
+      {isDragOver && (
+        <div className="absolute inset-0 z-[100] bg-primary/10 border-2 border-dashed border-primary rounded-lg flex flex-col items-center justify-center gap-3 pointer-events-none">
+          <Upload className="h-10 w-10 text-primary" />
+          <span className="text-sm font-medium text-primary">Dateien hier ablegen</span>
+        </div>
+      )}
       {/* Title bar (draggable when docked) */}
       <div
         className={cn(
