@@ -27,7 +27,7 @@ interface Note {
   updated_at: string;
 }
 
-export const BuildingGeneralInfoCard = ({ buildingId }: Props) => {
+export const BuildingGeneralInfoCard = ({ buildingId, managementMode = 'weg' }: Props) => {
   const { toast } = useToast();
   const qc = useQueryClient();
 
