@@ -793,23 +793,50 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
   const roleLabel = managementMode === 'weg' ? 'Eigentümer' : 'Mieter';
 
+  // Mieter-Filter: nur aktuelle (default) vs. alle
+  const visibleAssignments = managementMode === 'rent' && mieterFilter === 'current'
+    ? assignments.filter(isTenantActive)
+    : assignments;
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-sm">Kontakte ({assignments.length})</h3>
-        <Button size="sm" variant="outline" onClick={() => setShowAssign(true)}>
-          <Plus className="h-3 w-3 mr-1" /> Kontakt zuordnen
-        </Button>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h3 className="font-semibold text-sm">
+          Kontakte ({visibleAssignments.length}{managementMode === 'rent' && mieterFilter === 'current' && assignments.length !== visibleAssignments.length ? ` von ${assignments.length}` : ''})
+        </h3>
+        <div className="flex items-center gap-2">
+          {managementMode === 'rent' && (
+            <div className="flex rounded-md border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setMieterFilter('current')}
+                className={cn("px-2.5 h-7 text-xs", mieterFilter === 'current' ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
+              >
+                Nur aktuelle
+              </button>
+              <button
+                type="button"
+                onClick={() => setMieterFilter('all')}
+                className={cn("px-2.5 h-7 text-xs border-l", mieterFilter === 'all' ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
+              >
+                Alle
+              </button>
+            </div>
+          )}
+          <Button size="sm" variant="outline" onClick={() => setShowAssign(true)}>
+            <Plus className="h-3 w-3 mr-1" /> Kontakt zuordnen
+          </Button>
+        </div>
       </div>
 
-      {assignments.length === 0 && (
+      {visibleAssignments.length === 0 && (
         <p className="text-sm text-muted-foreground py-4 text-center">Keine Kontakte zugeordnet</p>
       )}
 
       {(() => {
         // Hauptwohnungen + Sub-Units gruppieren (Sub-Units bekommen Einrückung)
-        const mains = assignments.filter((a) => isApartment((a as any).unit_kind));
-        const subsAll = assignments.filter((a) => !isApartment((a as any).unit_kind));
+        const mains = visibleAssignments.filter((a) => isApartment((a as any).unit_kind));
+        const subsAll = visibleAssignments.filter((a) => !isApartment((a as any).unit_kind));
         const subsByParent = new Map<string, ContactAssignment[]>();
         const looseSubs: ContactAssignment[] = [];
         for (const s of subsAll) {
