@@ -159,13 +159,14 @@ const CreateLeadDialog = ({ open, onOpenChange, propertyId, onCreated }: {
             <div>
               <Label>Bestehender Kontakt</Label>
               <div className="flex gap-2">
-                <Select value={contactId || 'none'} onValueChange={v => v === 'none' ? setContactId(null) : pickContact(v)}>
-                  <SelectTrigger className="flex-1"><SelectValue placeholder="Kontakt auswählen…" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— Neu / Ad-hoc —</SelectItem>
-                    {contacts.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <ContactPicker
+                  value={contactId}
+                  options={contacts}
+                  onChange={(id) => id ? pickContact(id) : setContactId(null)}
+                  placeholder="Kontakt auswählen…"
+                  noneLabel="— Neu / Ad-hoc —"
+                  className="flex-1"
+                />
                 <Button type="button" variant="outline" size="sm" onClick={() => setContactDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-1" />Neu
                 </Button>
