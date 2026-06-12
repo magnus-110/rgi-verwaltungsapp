@@ -177,6 +177,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "communication", label: "Kommunikation" },
               { value: "distribution", label: "Kontenrahmen" },
               ...(building.management_mode === 'weg' ? [{ value: "resolutions", label: "Beschlüsse" }] : []),
+              ...(building.management_mode === 'rent' ? [{ value: "deposits", label: "Kaution" }] : []),
               { value: "maintenance", label: "Wartung" },
               { value: "keys", label: "Schlüssel" },
               { value: "onboarding", label: "Onboarding" },
