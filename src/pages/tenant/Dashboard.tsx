@@ -141,7 +141,7 @@ export const TenantDashboard = () => {
         {/* Welcome Section */}
         <div className="text-center space-y-4 py-8">
           <h1 className="text-4xl font-light text-foreground">
-            Willkommen zurück, {profile?.first_name}
+            Willkommen zurück, {firstName ?? profile?.first_name}
           </h1>
           
           {tenantInfo && (
