@@ -52,7 +52,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [booking, setBooking] = useState(false);
-  const [bookingAll, setBookingAll] = useState(false);
+  
   const [internalBuilding, setInternalBuilding] = useState<string>("");
   const selectedBuilding = sharedBuildingId || internalBuilding;
   const setSelectedBuilding = (id: string) => {
@@ -70,7 +70,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
   const [manualAssignType, setManualAssignType] = useState<"invoice" | "template">("invoice");
   const [manualAssignId, setManualAssignId] = useState<string>("");
   const [showMatchedInvoices, setShowMatchedInvoices] = useState(false);
-  const [bookingSingleId, setBookingSingleId] = useState<string | null>(null);
+  
   const [rematching, setRematching] = useState(false);
   const [createBookingOpen, setCreateBookingOpen] = useState(false);
   const [bookingPrefill, setBookingPrefill] = useState<any>(null);
@@ -522,24 +522,6 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
     }
   };
 
-  const handleBookAll = async () => {
-    setBookingAll(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("send-booking-data", {
-        body: { bookAll: true },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      toast.success(data.message || "Alle Buchungen gesendet");
-      queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
-      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
-      queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
-    } catch (err: any) {
-      toast.error("Fehler beim Buchen: " + (err.message || "Unbekannter Fehler"));
-    } finally {
-      setBookingAll(false);
-    }
-  };
 
   const handleRematch = async () => {
     if (!selectedBuilding) return;
@@ -575,23 +557,6 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
     }
   };
 
-  const handleBookSingle = async (txnId: string) => {
-    setBookingSingleId(txnId);
-    try {
-      const { data, error } = await supabase.functions.invoke("send-booking-data", {
-        body: { transactionIds: [txnId] },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      toast.success(data.message || "Transaktion gebucht");
-      queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
-      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
-    } catch (err: any) {
-      toast.error("Fehler beim Buchen: " + (err.message || "Unbekannter Fehler"));
-    } finally {
-      setBookingSingleId(null);
-    }
-  };
 
   const openReviewAtTransaction = (txn: any) => {
     const idx = allUnbookedForReview.findIndex((t: any) => t.id === txn.id);

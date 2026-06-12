@@ -52,7 +52,7 @@ export function BookingInstructionsSection({ buildingId, initialValue }: Props) 
           )}
         </div>
         <p className="text-xs text-muted-foreground">
-          Liegenschaftsspezifische Hinweise für die KI-Buchung. Diese werden an Make.com gesendet und haben höchste Priorität bei der Kontenzuordnung.
+          Liegenschaftsspezifische Hinweise für die KI-Buchung. Diese fließen direkt in die KI-gestützte Kontenzuordnung ein und haben höchste Priorität.
         </p>
       </CardHeader>
       <CardContent>

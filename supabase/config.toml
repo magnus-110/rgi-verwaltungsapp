@@ -69,8 +69,6 @@ verify_jwt = false
 [functions.parse-bank-statement-pdf]
 verify_jwt = false
 
-[functions.send-booking-data]
-verify_jwt = false
 
 [functions.fetch-emails]
 verify_jwt = false

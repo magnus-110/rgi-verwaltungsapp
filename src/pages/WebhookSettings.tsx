@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { AdminLayout } from "@/components/AdminLayout";
-import { AlertCircle, CheckCircle, Send, Settings, BookOpen } from "lucide-react";
+import { AlertCircle, CheckCircle, Send, Settings } from "lucide-react";
 
 export const WebhookSettings = () => {
   const { profile } = useAuth();
@@ -18,9 +18,7 @@ export const WebhookSettings = () => {
   const [testPayload, setTestPayload] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
-  const [isBookingTesting, setIsBookingTesting] = useState(false);
   const [lastTestResult, setLastTestResult] = useState<any>(null);
-  const [lastBookingResult, setLastBookingResult] = useState<any>(null);
 
   useEffect(() => {
     // Set default test payload
@@ -99,30 +97,6 @@ export const WebhookSettings = () => {
     }
   };
 
-  const handleTestBookingWebhook = async () => {
-    setIsBookingTesting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('send-booking-data', {
-        body: { testMode: true }
-      });
-
-      if (error) throw error;
-
-      setLastBookingResult(data);
-      
-      if (data.success) {
-        toast.success(`Buchungs-Webhook erfolgreich: ${data.message}`);
-      } else {
-        toast.error(`Buchungs-Webhook fehlgeschlagen: ${data.error}`);
-      }
-    } catch (error: any) {
-      console.error("Booking webhook test error:", error);
-      setLastBookingResult({ success: false, error: error.message });
-      toast.error("Fehler beim Testen des Buchungs-Webhooks");
-    } finally {
-      setIsBookingTesting(false);
-    }
-  };
 
   return (
     <AdminLayout>
@@ -231,48 +205,6 @@ export const WebhookSettings = () => {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5" />
-              Buchungs-Webhook Testen
-            </CardTitle>
-            <CardDescription>
-              Eine fiktive Test-Transaktion (Abschlag Gas) an Make.com senden — ohne DB-Änderung
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Button onClick={handleTestBookingWebhook} disabled={isBookingTesting}>
-              {isBookingTesting ? "Sende Test-Buchung..." : "Test-Buchung an Make.com senden"}
-            </Button>
-
-            {lastBookingResult && (
-              <Alert className={lastBookingResult.success ? "border-green-200" : "border-red-200"}>
-                <div className="flex items-start gap-2">
-                  {lastBookingResult.success ? (
-                    <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                  ) : (
-                    <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
-                  )}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge variant={lastBookingResult.success ? "default" : "destructive"}>
-                        {lastBookingResult.success ? "Erfolgreich" : "Fehlgeschlagen"}
-                      </Badge>
-                    </div>
-                    <AlertDescription>
-                      {lastBookingResult.success ? (
-                        <strong>{lastBookingResult.message || `${lastBookingResult.bookedCount} Transaktionen gebucht`}</strong>
-                      ) : (
-                        <><strong>Fehler:</strong> {lastBookingResult.error}</>
-                      )}
-                    </AlertDescription>
-                  </div>
-                </div>
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
 
         <Card>
           <CardHeader>
