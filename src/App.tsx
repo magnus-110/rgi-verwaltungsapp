@@ -44,6 +44,7 @@ const Meetings = lazy(() => import("./pages/Meetings").then(m => ({ default: m.M
 const EtvProxy = lazy(() => import("./pages/EtvProxy").then(m => ({ default: m.EtvProxy })));
 const CashAuditProxy = lazy(() => import("./pages/CashAuditProxy").then(m => ({ default: m.CashAuditProxy })));
 const Transfers = lazy(() => import("./pages/Transfers").then(m => ({ default: m.Transfers })));
+const BrokerProperties = lazy(() => import("./pages/BrokerProperties").then(m => ({ default: m.BrokerProperties })));
 
 const WegOwnerDashboard = lazy(() => import("./pages/weg-owner/Dashboard").then(m => ({ default: m.WegOwnerDashboard })));
 const WegOwnerReports = lazy(() => import("./pages/weg-owner/Reports").then(m => ({ default: m.WegOwnerReports })));
