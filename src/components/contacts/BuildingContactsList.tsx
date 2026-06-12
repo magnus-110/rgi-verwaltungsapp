@@ -890,6 +890,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                   <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
                     {managementMode === 'weg' && isBeirat(a) && <Badge variant="secondary" className="text-xs">Beirat</Badge>}
                     {managementMode === 'weg' && isCashAuditor(a) && <Badge variant="secondary" className="text-xs">Kassenprüfung</Badge>}
+                    {managementMode === 'rent' && !isTenantActive(a) && <Badge variant="outline" className="text-xs bg-muted text-muted-foreground">Ausgezogen</Badge>}
                     {hausgeld !== null && <Badge variant="outline" className="text-xs">{hausgeld.toFixed(2)} €</Badge>}
                   </div>
                 </div>
