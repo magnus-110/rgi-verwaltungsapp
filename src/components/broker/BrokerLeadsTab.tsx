@@ -12,6 +12,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { CreateContactDialog } from "@/components/contacts/CreateContactDialog";
 
 const STATUS_OPTIONS = ['neu','kontaktiert','besichtigung','angebot','abschluss','absage'] as const;
 const STATUS_LABELS: Record<string, string> = {
