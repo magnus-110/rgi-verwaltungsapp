@@ -1,38 +1,51 @@
-## Bidirektionaler Name in Begrüßung
+# DMS-Filepicker für E-Mail-Anhänge überarbeiten
 
-### Problem
-- Dashboards (`weg-owner/Dashboard.tsx`, `tenant/Dashboard.tsx`) zeigen `profile.first_name` aus der `profiles`-Tabelle.
-- Stammdaten werden aber im **Kontakt** gepflegt: Admin über `ContactDetail`, Eigentümer über `OwnerSelfServiceSection`. Diese schreiben in `contacts.first_name` bzw. `contact_building_assignments.first_name_override` — nie in `profiles`. Daher veraltet die Anzeige.
+## Problem
+Der aktuelle `DmsFilePickerDialog` zeigt eine flache, nicht scrollbare Liste aller Dokumente. Es fehlt: Liegenschaftsauswahl, Ordnerstruktur (Kategorien), zuverlässiges Scrollen.
 
-### Lösung — Single Source of Truth = `contacts`
-Die Begrüßung liest den Vornamen direkt aus dem an den User gekoppelten Kontakt (`contacts.user_id = auth.uid()`). Beide Editier-Pfade (Admin & Owner) schreiben dorthin → automatisch bidirektional.
+## Ziel
+Picker spiegelt die Eigentümer-/Mieter-DMS-Ansicht (`src/pages/weg-owner/Files.tsx`) wider: erst Liegenschaft, dann nach Kategorien (Ordner) gegliederte Dokumente mit Multi-Select.
 
-#### 1. Neuer Hook `useStammdatenName`
-`src/hooks/useStammdatenName.ts`
-- Liest `contacts.first_name, last_name` für `user_id = profile.user_id`.
-- Realtime-Subscription auf `contacts`-Zeile (UPDATE) → Anzeige aktualisiert sich live, wenn Admin Änderungen speichert oder der User selbst speichert (in anderem Tab).
-- Fallback-Kette: `contacts.first_name` → `profile.first_name` → leer.
+## Änderungen
 
-#### 2. Dashboards umstellen
-- `src/pages/weg-owner/Dashboard.tsx` Zeile 175 — `profile?.first_name` → `useStammdatenName().firstName`.
-- `src/pages/tenant/Dashboard.tsx` Zeile 142 — analog.
+### `src/components/meetings/DmsFilePickerDialog.tsx` (Hauptarbeit)
 
-#### 3. Owner-Self-Service: globale Stammdaten editierbar
-`src/components/owner/OwnerSelfServiceSection.tsx`
-- Neue Card oben „Meine Stammdaten" mit Anrede / Vorname / Nachname / Firmenname / Adresse, die auf `contacts` (per `user_id`) schreibt.
-- Die bisherigen Pro-Wohnungs-Overrides bleiben unverändert (für abweichende Anschrift pro Objekt).
-- Speichern via vorhandener Edge Function-Logik oder direkter `supabase.from("contacts").update(...)` — RLS erlaubt UPDATE auf den eigenen Kontakt (`user_id = auth.uid()`); falls Policy fehlt, in derselben Aufgabe ergänzen.
+1. **Layout fix**: `DialogContent` mit `max-h-[85dvh] flex flex-col`, scrollbarer Mittelbereich (`flex-1 min-h-0 overflow-y-auto`) statt `ScrollArea` mit fixer Höhe — behebt das „nicht scrollbar"-Problem.
 
-#### 4. RLS-Check (Migration falls nötig)
-- Vor Implementierung prüfen, ob `contacts` eine UPDATE-Policy `user_id = auth.uid()` für `authenticated` hat. Falls nicht → Migration mit Policy nur für die Felder, die Stammdaten betreffen (Postgres erlaubt keine spaltenscoped Policies; daher Update auf ganze Zeile + zusätzliche Trigger-Validierung verhindert Änderungen an Schutzspalten wie `user_id`).
+2. **Schritt 1 — Liegenschaft wählen** (nur wenn `buildingId` nicht vorgegeben oder Nutzer mehrere Buildings hat):
+   - Lade Buildings, auf die der User Zugriff hat (`buildings` via RLS, oder über `building_users`/Manager-Zuordnung — gleiche Query wie in der DMS-Seite).
+   - Karten- oder Listenauswahl. Klick setzt internen `selectedBuildingId`.
+   - Wird `buildingId`-Prop übergeben (z. B. aus dem Kontext der E-Mail), Schritt überspringen, aber „Liegenschaft wechseln"-Button anzeigen.
 
-### Nicht im Scope
-- Kein Sync zurück nach `profiles.first_name` (bleibt nur für Auth-Anzeige in Settings).
-- Keine Änderung am Onboarding-Flow.
-- Keine Migration der bestehenden Pro-Wohnungs-Overrides.
+3. **Schritt 2 — Ordnerstruktur** (nach Wahl der Liegenschaft):
+   - Lade `building_file_categories` für das Gebäude (mit `parent_id`, `name`, `color`) und `building_files` (gleiche Felder wie heute).
+   - Baum-/Akkordeon-Darstellung analog `FilesBrowser` in `weg-owner/Files.tsx`:
+     - Kategorien als ausklappbare Ordner (mit `ChevronRight/Down`, `Folder`-Icon, Kindkategorien rekursiv).
+     - Unter jedem Ordner die zugehörigen Dateien mit Checkbox, Name, Größe, Datum.
+     - Eigene Sektion „Ohne Kategorie".
+   - Suchfeld filtert Dateien quer durch alle Ordner (öffnet betroffene Ordner automatisch).
+   - Optional: Jahresfilter (Select, analog DMS-Seite), defaultmäßig „Alle".
 
-### Dateien
-- Neu: `src/hooks/useStammdatenName.ts`
-- Edit: `src/pages/weg-owner/Dashboard.tsx`, `src/pages/tenant/Dashboard.tsx`
-- Edit: `src/components/owner/OwnerSelfServiceSection.tsx` (neue Stammdaten-Card)
-- Ggf. Migration: UPDATE-Policy + Trigger für geschützte Spalten auf `contacts`
+4. **Multi-Select**:
+   - Bereits vorhanden (`selected`-Map), bleibt erhalten.
+   - „Alle in Ordner auswählen"-Checkbox je Kategorie-Header.
+   - Badge „X ausgewählt" + `Übernehmen`-Button bleiben im Footer.
+   - `onSelectItems`-Payload unverändert (`path`, `name`, `mimeType`, `size`), damit `FloatingComposeWindow` ohne Änderung weiterläuft.
+
+5. **Zurück-Button**: Im Header (oder neben Titel) ein `Zurück`-Button bei Schritt 2, um zur Liegenschaftsauswahl zurückzukehren.
+
+### Keine weiteren Dateien
+- `FloatingComposeWindow.tsx` muss nicht geändert werden (gleicher Prop-Vertrag).
+- Keine DB-/RLS-Änderungen, keine Edge-Functions.
+
+## Nicht enthalten
+- Keine Anzeige von Dateien außerhalb einer Liegenschaft (persönliche Dokumente).
+- Keine Vorschau/Download im Picker (bleibt reine Auswahl).
+- Keine Drag&Drop-Sortierung.
+
+## Testfälle
+- Picker öffnen ohne `buildingId` → Liegenschaftsauswahl erscheint, Liste lässt sich scrollen.
+- Liegenschaft wählen → Ordnerbaum erscheint, Ordner aufklappbar.
+- Mehrere Dateien aus verschiedenen Ordnern auswählen → alle landen als Anhang in der E-Mail.
+- Suche „rechnung" → öffnet relevante Ordner und zeigt Treffer.
+- `buildingId`-Prop vorgegeben → Schritt 1 übersprungen, „wechseln"-Button funktioniert.
