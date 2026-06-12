@@ -212,27 +212,37 @@ export const Finance = () => {
         </TabsList>
 
         <TabsContent value="buchen">
-          {activeSubTab === "templates" && (
-            <BookingTemplatesTab
-              sharedBuildingId={selectedBuildingId}
-              onBuildingChange={setSelectedBuildingId}
+          {isRentMode && selectedBuildingId ? (
+            <RentAccountingPage
+              buildingId={selectedBuildingId}
+              periodId={selectedPeriodId}
+              fiscalYear={selectedFiscalYear}
             />
-          )}
-          {activeSubTab === "statements" && (
-            <BankStatementsTab
-              sharedBuildingId={selectedBuildingId}
-              onBuildingChange={setSelectedBuildingId}
-              sharedFiscalYear={allPeriods.find((p: any) => p.id === selectedPeriodId)?.fiscal_year ?? null}
-            />
-          )}
-          {activeSubTab === "bookings" && (
-            <BookingsTab sharedBuildingId={selectedBuildingId} sharedPeriodId={selectedPeriodId} />
-          )}
-          {activeSubTab === "abgleich" && (
-            <BankReconciliationTab
-              sharedBuildingId={selectedBuildingId}
-              onBuildingChange={setSelectedBuildingId}
-            />
+          ) : (
+            <>
+              {activeSubTab === "templates" && (
+                <BookingTemplatesTab
+                  sharedBuildingId={selectedBuildingId}
+                  onBuildingChange={setSelectedBuildingId}
+                />
+              )}
+              {activeSubTab === "statements" && (
+                <BankStatementsTab
+                  sharedBuildingId={selectedBuildingId}
+                  onBuildingChange={setSelectedBuildingId}
+                  sharedFiscalYear={selectedFiscalYear}
+                />
+              )}
+              {activeSubTab === "bookings" && (
+                <BookingsTab sharedBuildingId={selectedBuildingId} sharedPeriodId={selectedPeriodId} />
+              )}
+              {activeSubTab === "abgleich" && (
+                <BankReconciliationTab
+                  sharedBuildingId={selectedBuildingId}
+                  onBuildingChange={setSelectedBuildingId}
+                />
+              )}
+            </>
           )}
         </TabsContent>
 
