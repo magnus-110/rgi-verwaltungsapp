@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { EmailAttachments } from "@/components/email/EmailAttachments";
 import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
+import { AssignBrokerLeadDialog } from "@/components/email/AssignBrokerLeadDialog";
 import { AiEmailSearchDialog } from "@/components/email/AiEmailSearchDialog";
 
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
@@ -69,6 +70,7 @@ export const Inbox = () => {
   const [aiSearchOpen, setAiSearchOpen] = useState(false);
   const [showEmailDetails, setShowEmailDetails] = useState(false);
   const [archiveEmailId, setArchiveEmailId] = useState<string | null>(null);
+  const [brokerLeadEmailId, setBrokerLeadEmailId] = useState<string | null>(null);
   const [filterBuildingId, setFilterBuildingId] = useState<string>("all");
   const [filterContactId, setFilterContactId] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
@@ -1621,6 +1623,11 @@ export const Inbox = () => {
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openArchiveDialog(selectedEmail.id)} title="Zuordnen / Archivieren">
                               <Link2 className="h-4 w-4" />
                             </Button>
+                            {profile?.broker_mode_enabled && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBrokerLeadEmailId(selectedEmail.id)} title="Interessent zuordnen">
+                                <UserPlus className="h-4 w-4" />
+                              </Button>
+                            )}
                             
                             {selectedEmail.is_archived && (
                               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
