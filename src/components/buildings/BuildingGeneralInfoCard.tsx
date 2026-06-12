@@ -181,19 +181,21 @@ export const BuildingGeneralInfoCard = ({ buildingId, managementMode = 'weg' }: 
         </CardTitle>
       </CardHeader>
       <CardContent className="p-3 md:p-4 pt-1 space-y-4">
-        {/* ETV-Ort + Heizung */}
-        <div className="grid md:grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label className="text-xs flex items-center gap-1.5">
-              <MapPin className="h-3 w-3" /> ETV-Ort (Standard)
-            </Label>
-            <Input
-              value={etv}
-              onChange={(e) => setEtv(e.target.value)}
-              placeholder="z. B. Hotel Krone, Musterstraße 1"
-              className="h-9 text-sm"
-            />
-          </div>
+        {/* ETV-Ort (nur WEG) + Heizung */}
+        <div className={managementMode === 'rent' ? "" : "grid md:grid-cols-2 gap-3"}>
+          {managementMode !== 'rent' && (
+            <div className="space-y-1">
+              <Label className="text-xs flex items-center gap-1.5">
+                <MapPin className="h-3 w-3" /> ETV-Ort (Standard)
+              </Label>
+              <Input
+                value={etv}
+                onChange={(e) => setEtv(e.target.value)}
+                placeholder="z. B. Hotel Krone, Musterstraße 1"
+                className="h-9 text-sm"
+              />
+            </div>
+          )}
           <div className="space-y-1">
             <Label className="text-xs flex items-center gap-1.5">
               <Flame className="h-3 w-3" /> Heizungsart
@@ -206,6 +208,9 @@ export const BuildingGeneralInfoCard = ({ buildingId, managementMode = 'weg' }: 
             />
           </div>
         </div>
+
+        {/* Eigentümer (nur Mietverwaltung) */}
+        {managementMode === 'rent' && <RentOwnerBlock buildingId={buildingId} />}
 
         {/* Wirtschaftsjahr-Beginn */}
         <div className="space-y-1">
