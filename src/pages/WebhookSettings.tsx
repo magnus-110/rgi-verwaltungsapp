@@ -18,9 +18,7 @@ export const WebhookSettings = () => {
   const [testPayload, setTestPayload] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
-  const [isBookingTesting, setIsBookingTesting] = useState(false);
   const [lastTestResult, setLastTestResult] = useState<any>(null);
-  const [lastBookingResult, setLastBookingResult] = useState<any>(null);
 
   useEffect(() => {
     // Set default test payload
