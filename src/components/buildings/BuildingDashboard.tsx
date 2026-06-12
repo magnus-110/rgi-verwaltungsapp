@@ -266,6 +266,13 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
             <BuildingKeysTab buildingId={buildingId} />
           </TabsContent>
 
+          {/* Deposits Tab (Miete only) */}
+          {building.management_mode === 'rent' && (
+            <TabsContent value="deposits" className="p-3 md:p-6 mt-0">
+              <BuildingDepositsTab buildingId={buildingId} />
+            </TabsContent>
+          )}
+
           {/* Onboarding Tab */}
           <TabsContent value="onboarding" className="p-3 md:p-6 mt-0">
             <BuildingOnboardingTab buildingId={buildingId} />
