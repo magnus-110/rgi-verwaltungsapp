@@ -11,6 +11,7 @@ import { DmsJobsProvider } from "@/contexts/DmsJobsProvider";
 import { DmsJobsTray } from "./finance/DmsJobsTray";
 import { PasskeyPromptDialog } from "./PasskeyPromptDialog";
 import { RequireMfa } from "./RequireMfa";
+import { BrokerModeProvider } from "@/hooks/useBrokerMode";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
