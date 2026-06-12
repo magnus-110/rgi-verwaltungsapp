@@ -522,24 +522,6 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
     }
   };
 
-  const handleBookAll = async () => {
-    setBookingAll(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("send-booking-data", {
-        body: { bookAll: true },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      toast.success(data.message || "Alle Buchungen gesendet");
-      queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
-      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
-      queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
-    } catch (err: any) {
-      toast.error("Fehler beim Buchen: " + (err.message || "Unbekannter Fehler"));
-    } finally {
-      setBookingAll(false);
-    }
-  };
 
   const handleRematch = async () => {
     if (!selectedBuilding) return;
