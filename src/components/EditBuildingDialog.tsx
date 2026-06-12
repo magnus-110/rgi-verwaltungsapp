@@ -48,6 +48,7 @@ export const EditBuildingDialog = ({
         address: building.address || "",
         unit_count: building.unit_count?.toString() || "0",
         creditor_id: (building as any).creditor_id || "",
+        billing_only: (building as any).billing_only || false,
       });
     }
   }, [building]);
@@ -65,6 +66,7 @@ export const EditBuildingDialog = ({
           address: formData.address,
           unit_count: formData.unit_count ? parseInt(formData.unit_count) : 0,
           creditor_id: formData.creditor_id.trim() || null,
+          billing_only: formData.billing_only,
           updated_at: new Date().toISOString(),
         })
         .eq("id", building.id);
