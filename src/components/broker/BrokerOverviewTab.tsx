@@ -22,6 +22,8 @@ export const BrokerOverviewTab = ({ property, onUpdated }: { property: any; onUp
   const [form, setForm] = useState<any>(property);
   const [saving, setSaving] = useState(false);
   const [newFeature, setNewFeature] = useState("");
+  const [contactDialogOpen, setContactDialogOpen] = useState(false);
+  const qc = useQueryClient();
 
   useEffect(() => { setForm(property); }, [property.id]);
 
