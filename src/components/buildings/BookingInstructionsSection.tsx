@@ -4,7 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Save, Bot } from "lucide-react";
+import { Save, Bot, ChevronDown, ChevronUp } from "lucide-react";
 
 interface Props {
   buildingId: string;
