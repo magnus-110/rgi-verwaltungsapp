@@ -132,7 +132,7 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
       )}
 
       {/* Allgemeine Infos direkt unter Jahreszyklus */}
-      <BuildingGeneralInfoCard buildingId={buildingId} />
+      <BuildingGeneralInfoCard buildingId={buildingId} managementMode={managementMode} />
 
       {/* 2 Spalten Grid (Vorgänge + Meldungen) */}
       <div className="grid md:grid-cols-2 gap-3 md:gap-4">
