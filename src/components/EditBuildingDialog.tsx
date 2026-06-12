@@ -37,6 +37,7 @@ export const EditBuildingDialog = ({
     address: "",
     unit_count: "",
     creditor_id: "",
+    billing_only: false,
   });
   const [loading, setLoading] = useState(false);
 
