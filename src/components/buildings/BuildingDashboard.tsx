@@ -25,6 +25,7 @@ import { BuildingNotesTab } from "./BuildingNotesTab";
 import { AnnualCycleBuildingTab } from "./AnnualCycleBuildingTab";
 import { BuildingOnboardingTab } from "./BuildingOnboardingTab";
 import { BuildingKeysTab } from "./keys/BuildingKeysTab";
+import { BuildingDepositsTab } from "./BuildingDepositsTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -176,6 +177,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "communication", label: "Kommunikation" },
               { value: "distribution", label: "Kontenrahmen" },
               ...(building.management_mode === 'weg' ? [{ value: "resolutions", label: "Beschlüsse" }] : []),
+              ...(building.management_mode === 'rent' ? [{ value: "deposits", label: "Kaution" }] : []),
               { value: "maintenance", label: "Wartung" },
               { value: "keys", label: "Schlüssel" },
               { value: "onboarding", label: "Onboarding" },
@@ -263,6 +265,13 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           <TabsContent value="keys" className="p-3 md:p-6 mt-0">
             <BuildingKeysTab buildingId={buildingId} />
           </TabsContent>
+
+          {/* Deposits Tab (Miete only) */}
+          {building.management_mode === 'rent' && (
+            <TabsContent value="deposits" className="p-3 md:p-6 mt-0">
+              <BuildingDepositsTab buildingId={buildingId} />
+            </TabsContent>
+          )}
 
           {/* Onboarding Tab */}
           <TabsContent value="onboarding" className="p-3 md:p-6 mt-0">
