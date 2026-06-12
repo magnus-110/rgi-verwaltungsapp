@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Home, Plus, Pencil } from "lucide-react";
+import { Search, Home, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
