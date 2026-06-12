@@ -261,12 +261,19 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showAssign, setShowAssign] = useState(false);
   const [editAssignmentId, setEditAssignmentId] = useState<string | null>(null);
-  
+  const [mieterFilter, setMieterFilter] = useState<'current' | 'all'>('current');
+
   const [deleteTarget, setDeleteTarget] = useState<ContactAssignment | null>(null);
   // For inline editing/adding custom types - { id: record id, field: 'share_type'|'cost_type', value: string, mode: 'add'|'edit' }
   const [editingType, setEditingType] = useState<{ id: string; field: string; value: string; mode: 'add' | 'edit'; oldValue?: string } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const isTenantActive = (a: ContactAssignment) => {
+    if (a.valid_to && a.valid_to < todayIso) return false;
+    return true;
+  };
 
   // Load custom cost types and share types from DB
   const { data: customCostTypes = [] } = useQuery({
