@@ -189,6 +189,8 @@ export const OwnerSelfServiceSection = () => {
 
   return (
     <>
+      <StammdatenCard contact={contact} onSaved={load} />
+
       <Card>
         <CardHeader>
           <CardTitle>Meine Wohnungen</CardTitle>
