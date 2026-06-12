@@ -959,6 +959,12 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           onDragOver={handleDragOver}
           onDrop={handleDrop}
         >
+          {isDragOver && (
+            <div className="absolute inset-0 z-[100] bg-primary/10 border-2 border-dashed border-primary flex flex-col items-center justify-center gap-3 pointer-events-none">
+              <Upload className="h-10 w-10 text-primary" />
+              <span className="text-sm font-medium text-primary">Dateien hier ablegen</span>
+            </div>
+          )}
           <FieldRow label="Von">
             <Select value={compose.accountId} onValueChange={(v) => update({ accountId: v })}>
               <SelectTrigger className="h-12 border-0 px-0 shadow-none focus:ring-0 text-sm flex-1 min-w-0">
