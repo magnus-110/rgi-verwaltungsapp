@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { BookingInstructionsSection } from "@/components/buildings/BookingInstructionsSection";
 import { BookingsTab } from "@/components/finance/BookingsTab";
 import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
+import { TenantsInPeriodTable } from "@/components/finance/rent/TenantsInPeriodTable";
 
 interface Props {
   buildingId: string;
@@ -250,6 +251,9 @@ export function RentAccountingPage({ buildingId, periodId, fiscalYear }: Props) 
       />
 
       <RentBelegDropZone buildingId={buildingId} fiscalYear={fiscalYear} />
+
+      <TenantsInPeriodTable buildingId={buildingId} fiscalYear={fiscalYear} />
+
 
       <Card>
         <CardHeader className="pb-3">
