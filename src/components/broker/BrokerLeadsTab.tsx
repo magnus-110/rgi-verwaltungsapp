@@ -101,6 +101,8 @@ const CreateLeadDialog = ({ open, onOpenChange, propertyId, onCreated }: {
 }) => {
   const [name, setName] = useState(""); const [email, setEmail] = useState(""); const [phone, setPhone] = useState("");
   const [contactId, setContactId] = useState<string | null>(null);
+  const [contactDialogOpen, setContactDialogOpen] = useState(false);
+  const qc = useQueryClient();
 
   const { data: contacts = [] } = useQuery({
     queryKey: ['contacts-min'],
@@ -109,6 +111,23 @@ const CreateLeadDialog = ({ open, onOpenChange, propertyId, onCreated }: {
       return data || [];
     },
   });
+
+  const pickContact = async (id: string) => {
+    setContactId(id);
+    // Prefill from contact
+    const { data: c } = await supabase.from('contacts').select('display_name').eq('id', id).maybeSingle();
+    if (c?.display_name) setName(c.display_name);
+    const { data: persons } = await supabase.from('contact_persons').select('id').eq('contact_id', id).limit(1);
+    const personIds: string[] = (persons || []).map((p: any) => p.id);
+    if (personIds.length) {
+      const [{ data: em }, { data: ph }] = await Promise.all([
+        (supabase.from('contact_emails') as any).select('email').in('person_id', personIds).limit(1),
+        (supabase.from('contact_phones') as any).select('phone_number').in('person_id', personIds).limit(1),
+      ]);
+      if (em?.[0]?.email) setEmail(em[0].email);
+      if (ph?.[0]?.phone_number) setPhone(ph[0].phone_number);
+    }
+  };
 
   const submit = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -127,30 +146,47 @@ const CreateLeadDialog = ({ open, onOpenChange, propertyId, onCreated }: {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>Neuer Interessent</DialogTitle></DialogHeader>
-        <div className="space-y-3">
-          <div>
-            <Label>Bestehender Kontakt</Label>
-            <Select value={contactId || 'none'} onValueChange={v => setContactId(v === 'none' ? null : v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— Neu / Ad-hoc —</SelectItem>
-                {contacts.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.display_name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Neuer Interessent</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Bestehender Kontakt</Label>
+              <div className="flex gap-2">
+                <Select value={contactId || 'none'} onValueChange={v => v === 'none' ? setContactId(null) : pickContact(v)}>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder="Kontakt auswählen…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Neu / Ad-hoc —</SelectItem>
+                    {contacts.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.display_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Button type="button" variant="outline" size="sm" onClick={() => setContactDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-1" />Neu
+                </Button>
+              </div>
+            </div>
+            <div><Label>Name</Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
+            <div><Label>Email</Label><Input type="email" value={email} onChange={e => setEmail(e.target.value)} /></div>
+            <div><Label>Telefon</Label><Input value={phone} onChange={e => setPhone(e.target.value)} /></div>
           </div>
-          <div><Label>Name</Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
-          <div><Label>Email</Label><Input type="email" value={email} onChange={e => setEmail(e.target.value)} /></div>
-          <div><Label>Telefon</Label><Input value={phone} onChange={e => setPhone(e.target.value)} /></div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>
-          <Button onClick={submit}>Anlegen</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>
+            <Button onClick={submit}>Anlegen</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <CreateContactDialog
+        open={contactDialogOpen}
+        onOpenChange={setContactDialogOpen}
+        onCreated={async () => {
+          qc.invalidateQueries({ queryKey: ['contacts-min'] });
+          const { data } = await supabase.from('contacts')
+            .select('id').order('created_at', { ascending: false }).limit(1).maybeSingle();
+          if (data?.id) await pickContact(data.id);
+        }}
+      />
+    </>
   );
 };
 
