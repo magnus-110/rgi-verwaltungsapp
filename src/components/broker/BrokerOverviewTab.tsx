@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CreateContactDialog } from "@/components/contacts/CreateContactDialog";
+import { ContactPicker } from "./ContactPicker";
 
 const FEATURE_OPTIONS = [
   "Balkon","Terrasse","Garten","Garage","Stellplatz","Aufzug","Keller","Einbauküche",
