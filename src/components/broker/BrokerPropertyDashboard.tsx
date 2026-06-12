@@ -25,6 +25,7 @@ interface Props {
 
 export const BrokerPropertyDashboard = ({ propertyId, onBack }: Props) => {
   const [tab, setTab] = useState("overview");
+  const [editOpen, setEditOpen] = useState(false);
   const qc = useQueryClient();
   const navigate = useNavigate();
 
