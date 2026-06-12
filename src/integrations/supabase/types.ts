@@ -1064,6 +1064,279 @@ export type Database = {
           },
         ]
       }
+      broker_lead_events: {
+        Row: {
+          body: string | null
+          calendar_event_id: string | null
+          created_at: string
+          created_by: string | null
+          email_id: string | null
+          event_type: string
+          id: string
+          lead_id: string
+          occurred_at: string
+          title: string | null
+        }
+        Insert: {
+          body?: string | null
+          calendar_event_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          email_id?: string | null
+          event_type: string
+          id?: string
+          lead_id: string
+          occurred_at?: string
+          title?: string | null
+        }
+        Update: {
+          body?: string | null
+          calendar_event_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          email_id?: string | null
+          event_type?: string
+          id?: string
+          lead_id?: string
+          occurred_at?: string
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broker_lead_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "broker_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      broker_leads: {
+        Row: {
+          contact_id: string | null
+          created_at: string
+          created_by: string | null
+          external_email: string | null
+          external_name: string | null
+          external_phone: string | null
+          id: string
+          notes: string | null
+          property_id: string
+          rating: number | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          external_email?: string | null
+          external_name?: string | null
+          external_phone?: string | null
+          id?: string
+          notes?: string | null
+          property_id: string
+          rating?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          external_email?: string | null
+          external_name?: string | null
+          external_phone?: string | null
+          id?: string
+          notes?: string | null
+          property_id?: string
+          rating?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broker_leads_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broker_leads_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "broker_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      broker_properties: {
+        Row: {
+          address: string | null
+          available_from: string | null
+          bathrooms: number | null
+          bedrooms: number | null
+          city: string | null
+          cold_rent_eur: number | null
+          commission_buyer_pct: number | null
+          commission_note: string | null
+          commission_seller_pct: number | null
+          commission_tenant_pct: number | null
+          condition: string | null
+          created_at: string
+          created_by: string | null
+          deposit_eur: number | null
+          description: string | null
+          energy_class: string | null
+          energy_value: number | null
+          features: string[]
+          floor: number | null
+          heating_cost_eur: number | null
+          heating_type: string | null
+          id: string
+          internal_notes: string | null
+          is_active: boolean
+          listing_type: string
+          living_space_sqm: number | null
+          owner_contact_id: string | null
+          plot_size_sqm: number | null
+          postal_code: string | null
+          price_eur: number | null
+          primary_image_file_id: string | null
+          property_type: string | null
+          rooms: number | null
+          service_charge_eur: number | null
+          title: string
+          total_floors: number | null
+          updated_at: string
+          year_built: number | null
+        }
+        Insert: {
+          address?: string | null
+          available_from?: string | null
+          bathrooms?: number | null
+          bedrooms?: number | null
+          city?: string | null
+          cold_rent_eur?: number | null
+          commission_buyer_pct?: number | null
+          commission_note?: string | null
+          commission_seller_pct?: number | null
+          commission_tenant_pct?: number | null
+          condition?: string | null
+          created_at?: string
+          created_by?: string | null
+          deposit_eur?: number | null
+          description?: string | null
+          energy_class?: string | null
+          energy_value?: number | null
+          features?: string[]
+          floor?: number | null
+          heating_cost_eur?: number | null
+          heating_type?: string | null
+          id?: string
+          internal_notes?: string | null
+          is_active?: boolean
+          listing_type: string
+          living_space_sqm?: number | null
+          owner_contact_id?: string | null
+          plot_size_sqm?: number | null
+          postal_code?: string | null
+          price_eur?: number | null
+          primary_image_file_id?: string | null
+          property_type?: string | null
+          rooms?: number | null
+          service_charge_eur?: number | null
+          title: string
+          total_floors?: number | null
+          updated_at?: string
+          year_built?: number | null
+        }
+        Update: {
+          address?: string | null
+          available_from?: string | null
+          bathrooms?: number | null
+          bedrooms?: number | null
+          city?: string | null
+          cold_rent_eur?: number | null
+          commission_buyer_pct?: number | null
+          commission_note?: string | null
+          commission_seller_pct?: number | null
+          commission_tenant_pct?: number | null
+          condition?: string | null
+          created_at?: string
+          created_by?: string | null
+          deposit_eur?: number | null
+          description?: string | null
+          energy_class?: string | null
+          energy_value?: number | null
+          features?: string[]
+          floor?: number | null
+          heating_cost_eur?: number | null
+          heating_type?: string | null
+          id?: string
+          internal_notes?: string | null
+          is_active?: boolean
+          listing_type?: string
+          living_space_sqm?: number | null
+          owner_contact_id?: string | null
+          plot_size_sqm?: number | null
+          postal_code?: string | null
+          price_eur?: number | null
+          primary_image_file_id?: string | null
+          property_type?: string | null
+          rooms?: number | null
+          service_charge_eur?: number | null
+          title?: string
+          total_floors?: number | null
+          updated_at?: string
+          year_built?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broker_properties_owner_contact_id_fkey"
+            columns: ["owner_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      broker_property_notes: {
+        Row: {
+          body: string
+          created_at: string
+          created_by: string | null
+          id: string
+          property_id: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          property_id: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          property_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broker_property_notes_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "broker_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       building_account_overrides: {
         Row: {
           account_id: string
@@ -1446,6 +1719,7 @@ export type Database = {
       building_files: {
         Row: {
           assigned_user_id: string | null
+          broker_property_id: string | null
           building_id: string | null
           category_id: string | null
           created_at: string
@@ -1481,6 +1755,7 @@ export type Database = {
         }
         Insert: {
           assigned_user_id?: string | null
+          broker_property_id?: string | null
           building_id?: string | null
           category_id?: string | null
           created_at?: string
@@ -1516,6 +1791,7 @@ export type Database = {
         }
         Update: {
           assigned_user_id?: string | null
+          broker_property_id?: string | null
           building_id?: string | null
           category_id?: string | null
           created_at?: string
@@ -1550,6 +1826,13 @@ export type Database = {
           visible_to_users?: boolean
         }
         Relationships: [
+          {
+            foreignKeyName: "building_files_broker_property_id_fkey"
+            columns: ["broker_property_id"]
+            isOneToOne: false
+            referencedRelation: "broker_properties"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "building_files_building_id_fkey"
             columns: ["building_id"]
@@ -1941,6 +2224,8 @@ export type Database = {
       }
       calendar_events: {
         Row: {
+          broker_lead_id: string | null
+          broker_property_id: string | null
           category_id: string | null
           color: string | null
           created_at: string | null
@@ -1959,6 +2244,8 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          broker_lead_id?: string | null
+          broker_property_id?: string | null
           category_id?: string | null
           color?: string | null
           created_at?: string | null
@@ -1977,6 +2264,8 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          broker_lead_id?: string | null
+          broker_property_id?: string | null
           category_id?: string | null
           color?: string | null
           created_at?: string | null
@@ -4284,6 +4573,8 @@ export type Database = {
           bcc_addresses: Json | null
           body_html: string | null
           body_text: string | null
+          broker_lead_id: string | null
+          broker_property_id: string | null
           building_id: string | null
           case_id: string | null
           cc_addresses: Json | null
@@ -4328,6 +4619,8 @@ export type Database = {
           bcc_addresses?: Json | null
           body_html?: string | null
           body_text?: string | null
+          broker_lead_id?: string | null
+          broker_property_id?: string | null
           building_id?: string | null
           case_id?: string | null
           cc_addresses?: Json | null
@@ -4372,6 +4665,8 @@ export type Database = {
           bcc_addresses?: Json | null
           body_html?: string | null
           body_text?: string | null
+          broker_lead_id?: string | null
+          broker_property_id?: string | null
           building_id?: string | null
           case_id?: string | null
           cc_addresses?: Json | null
@@ -6954,6 +7249,7 @@ export type Database = {
       profiles: {
         Row: {
           auth_pseudo_email: string | null
+          broker_mode_enabled: boolean
           building_id: string | null
           created_at: string | null
           email: string
@@ -6974,6 +7270,7 @@ export type Database = {
         }
         Insert: {
           auth_pseudo_email?: string | null
+          broker_mode_enabled?: boolean
           building_id?: string | null
           created_at?: string | null
           email: string
@@ -6994,6 +7291,7 @@ export type Database = {
         }
         Update: {
           auth_pseudo_email?: string | null
+          broker_mode_enabled?: boolean
           building_id?: string | null
           created_at?: string | null
           email?: string
@@ -8791,6 +9089,10 @@ export type Database = {
         Args: { p_booking_id: string }
         Returns: Json
       }
+      ensure_broker_categories: {
+        Args: { p_property_id: string }
+        Returns: undefined
+      }
       ensure_stammakte_categories: {
         Args: { p_building_id: string }
         Returns: undefined
@@ -8947,6 +9249,7 @@ export type Database = {
         Args: { user_uuid: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      has_broker_access: { Args: { _user_id: string }; Returns: boolean }
       is_emergency_contact_for_user: {
         Args: { _contact_id: string; _user_id: string }
         Returns: boolean
@@ -9073,6 +9376,8 @@ export type Database = {
           bcc_addresses: Json | null
           body_html: string | null
           body_text: string | null
+          broker_lead_id: string | null
+          broker_property_id: string | null
           building_id: string | null
           case_id: string | null
           cc_addresses: Json | null
