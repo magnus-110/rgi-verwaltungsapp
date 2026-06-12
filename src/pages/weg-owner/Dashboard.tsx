@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, MessageSquare, MessageCircle, FileText, Users, Scale, Phone, Mail, MapPin, Check, ChevronRight, ChevronDown, Building2, MessageSquarePlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useStammdatenName } from "@/hooks/useStammdatenName";
 import { supabase } from "@/integrations/supabase/client";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 import { OwnerAnnualCycleWidget } from "@/components/dashboard/OwnerAnnualCycleWidget";
