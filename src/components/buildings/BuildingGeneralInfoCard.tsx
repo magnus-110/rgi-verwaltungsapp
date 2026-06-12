@@ -9,10 +9,52 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Info, Save, Loader2, Flame, MapPin, StickyNote, Plus, Trash2, Pencil, X, Check, Landmark, CalendarRange } from "lucide-react";
+import { Info, Save, Loader2, Flame, MapPin, StickyNote, Plus, Trash2, Pencil, X, Check, Landmark, CalendarRange, User as UserIcon, Mail, Phone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
+
+function RentOwnerBlock({ buildingId }: { buildingId: string }) {
+  const { data: owners = [] } = useQuery({
+    queryKey: ["rent-building-owner", buildingId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("contact_building_assignments")
+        .select("id, unit_number, contact:contacts(id, salutation, first_name, last_name, company_name)")
+        .eq("building_id", buildingId)
+        .eq("is_active", true)
+        .eq("role_in_building", "eigentuemer");
+      return (data || []) as any[];
+    },
+  });
+  if (owners.length === 0) {
+    return (
+      <div className="border-t pt-3">
+        <Label className="text-xs flex items-center gap-1.5 mb-1">
+          <UserIcon className="h-3 w-3" /> Eigentümer
+        </Label>
+        <p className="text-xs text-muted-foreground italic">Kein Eigentümer hinterlegt.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="border-t pt-3 space-y-1">
+      <Label className="text-xs flex items-center gap-1.5 mb-1">
+        <UserIcon className="h-3 w-3" /> Eigentümer ({owners.length})
+      </Label>
+      {owners.map((o: any) => {
+        const c = o.contact || {};
+        const name = c.company_name || [c.salutation, c.first_name, c.last_name].filter(Boolean).join(" ") || "Unbenannt";
+        return (
+          <div key={o.id} className="flex items-center justify-between py-1 border-b border-border/40 last:border-0">
+            <span className="text-sm">{name}</span>
+            {o.unit_number && <span className="text-[11px] text-muted-foreground">EH {o.unit_number}</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 interface Props {
   buildingId: string;
