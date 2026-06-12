@@ -1333,6 +1333,9 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
               <Button type="button" variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => fileInputRef.current?.click()}>
                 <Paperclip className="h-3 w-3" /> Anhang
               </Button>
+              <Button type="button" variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => setDmsPickerOpen(true)} disabled={dmsLoading}>
+                {dmsLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FolderOpen className="h-3 w-3" />} Aus DMS
+              </Button>
               <EmailTemplatePicker
                 context={{ to: compose.to, accountId: compose.accountId }}
                 currentSubject={compose.subject}
