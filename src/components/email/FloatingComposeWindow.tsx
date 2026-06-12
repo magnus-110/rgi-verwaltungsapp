@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Send, Loader2, Paperclip, X, Users, Search, Minus, Maximize2, Minimize2,
-  ExternalLink, Wand2, Check, ChevronDown, ArrowLeft, CalendarClock, FolderOpen,
+  ExternalLink, Wand2, Check, ChevronDown, ArrowLeft, CalendarClock, FolderOpen, Upload,
 } from "lucide-react";
 import { DmsFilePickerDialog, type DmsPickerItem } from "@/components/meetings/DmsFilePickerDialog";
 import { toast } from "sonner";
@@ -412,8 +412,10 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
+
+  const processFiles = (files: File[]) => {
     const maxSize = 25 * 1024 * 1024;
     const newAttachments = [...compose.attachments];
     for (const file of files) {
@@ -424,7 +426,46 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       newAttachments.push({ file, name: file.name, size: file.size });
     }
     update({ attachments: newAttachments });
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    processFiles(files);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragOver(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      processFiles(files);
+    }
   };
 
   const removeAttachment = (index: number) => {
@@ -911,7 +952,19 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           <span className="text-base font-medium truncate flex-1">{title}</span>
         </div>
 
-        <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
+        <div
+          className="flex-1 overflow-y-auto flex flex-col min-h-0 relative"
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {isDragOver && (
+            <div className="absolute inset-0 z-[100] bg-primary/10 border-2 border-dashed border-primary flex flex-col items-center justify-center gap-3 pointer-events-none">
+              <Upload className="h-10 w-10 text-primary" />
+              <span className="text-sm font-medium text-primary">Dateien hier ablegen</span>
+            </div>
+          )}
           <FieldRow label="Von">
             <Select value={compose.accountId} onValueChange={(v) => update({ accountId: v })}>
               <SelectTrigger className="h-12 border-0 px-0 shadow-none focus:ring-0 text-sm flex-1 min-w-0">
@@ -1130,7 +1183,21 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
 
   return (
     <>
-    <div className={cn("bg-card flex flex-col overflow-hidden", containerClass)} style={containerStyle}>
+    <div
+      className={cn("bg-card flex flex-col overflow-hidden", containerClass)}
+      style={containerStyle}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {/* Drag overlay */}
+      {isDragOver && (
+        <div className="absolute inset-0 z-[100] bg-primary/10 border-2 border-dashed border-primary rounded-lg flex flex-col items-center justify-center gap-3 pointer-events-none">
+          <Upload className="h-10 w-10 text-primary" />
+          <span className="text-sm font-medium text-primary">Dateien hier ablegen</span>
+        </div>
+      )}
       {/* Title bar (draggable when docked) */}
       <div
         className={cn(
