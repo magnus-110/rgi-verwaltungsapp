@@ -1076,6 +1076,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         fileName={previewMeta.name}
         mimeType={previewMeta.mimeType}
       />
+      <DmsFilePickerDialog open={dmsPickerOpen} onOpenChange={setDmsPickerOpen} onSelectItems={handleDmsSelect} />
 
       </>
     );
