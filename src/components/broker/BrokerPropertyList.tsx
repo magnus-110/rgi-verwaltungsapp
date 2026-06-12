@@ -159,7 +159,7 @@ export const BrokerPropertyList = ({ listingType, selectedId, onSelect }: Props)
   );
 };
 
-const BrokerPropertyFormDialog = ({ open, onOpenChange, listingType, mode, initial, onSaved }: {
+export const BrokerPropertyFormDialog = ({ open, onOpenChange, listingType, mode, initial, onSaved }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   listingType: 'rent' | 'sale';
