@@ -1823,6 +1823,14 @@ export const Inbox = () => {
         prefilledEtvMeetingId={archiveEmailId ? ((emails.find(e => e.id === archiveEmailId) as any)?.etv_meeting_id || null) : null}
       />
 
+      {profile?.broker_mode_enabled && brokerLeadEmailId && (
+        <AssignBrokerLeadDialog
+          open={!!brokerLeadEmailId}
+          onOpenChange={(o) => !o && setBrokerLeadEmailId(null)}
+          emailId={brokerLeadEmailId}
+        />
+      )}
+
       <PrintEmailDialog
         open={printDialogOpen}
         onOpenChange={setPrintDialogOpen}
