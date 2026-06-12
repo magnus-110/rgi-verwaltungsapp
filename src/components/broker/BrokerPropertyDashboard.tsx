@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Home, ChevronLeft, Trash2 } from "lucide-react";
+import { Home, ChevronLeft, Trash2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,6 +12,7 @@ import { BrokerOverviewTab } from "./BrokerOverviewTab";
 import { BrokerDocumentsTab } from "./BrokerDocumentsTab";
 import { BrokerNotesTab } from "./BrokerNotesTab";
 import { BrokerLeadsTab } from "./BrokerLeadsTab";
+import { BrokerPropertyFormDialog } from "./BrokerPropertyList";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
