@@ -52,7 +52,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [booking, setBooking] = useState(false);
-  const [bookingAll, setBookingAll] = useState(false);
+  
   const [internalBuilding, setInternalBuilding] = useState<string>("");
   const selectedBuilding = sharedBuildingId || internalBuilding;
   const setSelectedBuilding = (id: string) => {
