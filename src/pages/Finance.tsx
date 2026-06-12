@@ -248,12 +248,20 @@ export const Finance = () => {
         </TabsContent>
 
         <TabsContent value="abrechnung">
-          <BillingTab
-            sharedBuildingId={selectedBuildingId}
-            onBuildingChange={setSelectedBuildingId}
-            sharedPeriodId={selectedPeriodId}
-            onPeriodChange={setSelectedPeriodId}
-          />
+          {isRentMode ? (
+            <RentBillingPage
+              buildingId={selectedBuildingId}
+              periodId={selectedPeriodId}
+              fiscalYear={selectedFiscalYear}
+            />
+          ) : (
+            <BillingTab
+              sharedBuildingId={selectedBuildingId}
+              onBuildingChange={setSelectedBuildingId}
+              sharedPeriodId={selectedPeriodId}
+              onPeriodChange={setSelectedPeriodId}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="kassenpruefung">
