@@ -174,7 +174,7 @@ export const WegOwnerDashboard = () => {
         {/* Welcome */}
         <div className="space-y-2 pt-1">
           <h1 className="font-display text-2xl font-semibold text-foreground leading-tight tracking-tight">
-            Willkommen zurück, {profile?.first_name}
+            Willkommen zurück, {firstName ?? profile?.first_name}
           </h1>
           {buildings.length > 0 && (
             <div className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
