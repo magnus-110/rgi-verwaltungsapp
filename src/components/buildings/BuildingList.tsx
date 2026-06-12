@@ -18,6 +18,7 @@ interface BuildingRowData {
   id: string;
   name: string;
   unit_count: number;
+  billing_only?: boolean;
 }
 
 const BuildingRow = memo(function BuildingRow({
