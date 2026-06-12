@@ -707,13 +707,54 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   };
 
   // Costs
+  // Rent-Modus: schließt ältere Kosten desselben Typs automatisch ab,
+  // sobald ein neues "gültig ab" gesetzt wird.
+  const closePreviousCostsForType = async (
+    assignmentId: string,
+    costType: string,
+    newValidFrom: string,
+    currentCostId: string,
+  ) => {
+    const newDate = new Date(newValidFrom);
+    if (isNaN(newDate.getTime())) return;
+    const cutoff = new Date(newDate.getTime() - 86400_000).toISOString().slice(0, 10);
+    const { data: others } = await supabase
+      .from("contact_building_costs")
+      .select("id, valid_from, valid_to")
+      .eq("assignment_id", assignmentId)
+      .eq("cost_type", costType)
+      .neq("id", currentCostId);
+    for (const o of (others || [])) {
+      const of = o.valid_from || null;
+      const ot = o.valid_to || null;
+      if (of && of >= newValidFrom) continue; // jünger / gleich -> nicht anfassen
+      if (ot && ot < newValidFrom) continue; // schon abgeschlossen vorher
+      await supabase.from("contact_building_costs").update({ valid_to: cutoff }).eq("id", o.id);
+    }
+  };
+
   const addCost = async (assignmentId: string) => {
     await flushPendingEdits();
-    await supabase.from("contact_building_costs").insert({ assignment_id: assignmentId, cost_type: "Hausgeld", amount: 0, interval: "monatlich" });
+    const payload: any = { assignment_id: assignmentId, cost_type: "Miete", amount: 0, interval: "monatlich" };
+    if (managementMode === 'rent') payload.valid_from = todayIso;
+    const { data: inserted } = await supabase.from("contact_building_costs").insert(payload).select("id").single();
+    if (managementMode === 'rent' && inserted?.id) {
+      await closePreviousCostsForType(assignmentId, "Miete", todayIso, inserted.id);
+    }
     await refetch();
   };
   const updateCost = async (id: string, field: string, value: any) => {
     await supabase.from("contact_building_costs").update({ [field]: value } as any).eq("id", id);
+    if (managementMode === 'rent' && (field === 'valid_from' || field === 'cost_type') && value) {
+      const { data: row } = await supabase
+        .from("contact_building_costs")
+        .select("assignment_id, cost_type, valid_from")
+        .eq("id", id)
+        .maybeSingle();
+      if (row?.valid_from) {
+        await closePreviousCostsForType(row.assignment_id, row.cost_type, row.valid_from, id);
+      }
+    }
     await refetch();
     if (field === "cost_type") queryClient.invalidateQueries({ queryKey: ["custom-cost-types"] });
   };
