@@ -79,7 +79,7 @@ export const BuildingList = ({ selectedBuildingId, onSelectBuilding }: BuildingL
     queryFn: async () => {
       const { data, error } = await supabase
         .from("buildings")
-        .select("id, name, management_mode, unit_count")
+        .select("id, name, management_mode, unit_count, billing_only")
         .eq("management_mode", managementMode)
         .order("name");
       if (error) throw error;
