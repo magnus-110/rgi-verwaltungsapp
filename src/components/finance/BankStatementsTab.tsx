@@ -70,7 +70,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
   const [manualAssignType, setManualAssignType] = useState<"invoice" | "template">("invoice");
   const [manualAssignId, setManualAssignId] = useState<string>("");
   const [showMatchedInvoices, setShowMatchedInvoices] = useState(false);
-  const [bookingSingleId, setBookingSingleId] = useState<string | null>(null);
+  
   const [rematching, setRematching] = useState(false);
   const [createBookingOpen, setCreateBookingOpen] = useState(false);
   const [bookingPrefill, setBookingPrefill] = useState<any>(null);
