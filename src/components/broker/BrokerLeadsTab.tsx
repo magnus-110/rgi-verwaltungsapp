@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { CreateContactDialog } from "@/components/contacts/CreateContactDialog";
+import { ContactPicker } from "./ContactPicker";
 
 const STATUS_OPTIONS = ['neu','kontaktiert','besichtigung','angebot','abschluss','absage'] as const;
 const STATUS_LABELS: Record<string, string> = {
