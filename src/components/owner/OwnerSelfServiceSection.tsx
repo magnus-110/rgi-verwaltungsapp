@@ -245,6 +245,87 @@ export const OwnerSelfServiceSection = () => {
   );
 };
 
+function StammdatenCard({ contact, onSaved }: { contact: Contact; onSaved: () => void }) {
+  const [salutation, setSalutation] = useState(contact.salutation ?? "");
+  const [firstName, setFirstName] = useState(contact.first_name ?? "");
+  const [lastName, setLastName] = useState(contact.last_name ?? "");
+  const [companyName, setCompanyName] = useState(contact.company_name ?? "");
+  const [saving, setSaving] = useState(false);
+  const dirty =
+    (contact.salutation ?? "") !== salutation ||
+    (contact.first_name ?? "") !== firstName ||
+    (contact.last_name ?? "") !== lastName ||
+    (contact.company_name ?? "") !== companyName;
+
+  const save = async () => {
+    setSaving(true);
+    const { error } = await supabase
+      .from("contacts")
+      .update({
+        salutation: salutation || null,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        company_name: companyName || null,
+      })
+      .eq("id", contact.id);
+    setSaving(false);
+    if (error) {
+      toast({ title: "Fehler", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Stammdaten gespeichert" });
+    onSaved();
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <User className="w-4 h-4" /> Meine Stammdaten
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Diese Daten gelten allgemein und werden mit der Verwaltung synchronisiert.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <Label>Anrede</Label>
+            <Select value={salutation || "none"} onValueChange={(v) => setSalutation(v === "none" ? "" : v)}>
+              <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">—</SelectItem>
+                {SALUTATIONS.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Vorname</Label>
+            <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          </div>
+          <div>
+            <Label>Nachname</Label>
+            <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <Label>Firma (optional)</Label>
+          <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+        </div>
+        <div className="flex justify-end">
+          <Button onClick={save} disabled={!dirty || saving} size="sm">
+            {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Speichern...</> : "Speichern"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+
+
 function AssignmentEditor({
   assignment,
   bankOptions,
