@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CreateContactDialog } from "@/components/contacts/CreateContactDialog";
+import { ContactPicker } from "./ContactPicker";
 
 const FEATURE_OPTIONS = [
   "Balkon","Terrasse","Garten","Garage","Stellplatz","Aufzug","Keller","Einbauküche",
@@ -30,7 +31,6 @@ export const BrokerOverviewTab = ({ property, onUpdated }: { property: any; onUp
     if (property.listing_type === 'sale') {
       if (next.commission_buyer_pct == null) next.commission_buyer_pct = 3;
       if (next.commission_seller_pct == null) next.commission_seller_pct = 3;
-      if (!next.commission_note) next.commission_note = 'Standard: 3 % netto Käufer + 3 % netto Verkäufer';
     }
     setForm(next);
   }, [property.id]);
@@ -181,13 +181,13 @@ export const BrokerOverviewTab = ({ property, onUpdated }: { property: any; onUp
         <CardContent className="space-y-2">
           <Label>Kontakt</Label>
           <div className="flex gap-2">
-            <Select value={form.owner_contact_id || 'none'} onValueChange={v => upd('owner_contact_id', v === 'none' ? null : v)}>
-              <SelectTrigger className="flex-1"><SelectValue placeholder="Eigentümer auswählen…" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— Keiner —</SelectItem>
-                {contacts.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <ContactPicker
+              value={form.owner_contact_id}
+              options={contacts}
+              onChange={(id) => upd('owner_contact_id', id)}
+              placeholder="Eigentümer auswählen…"
+              className="flex-1"
+            />
             <Button type="button" variant="outline" size="sm" onClick={() => setContactDialogOpen(true)}>
               <UserPlus className="h-4 w-4 mr-1" />Neu
             </Button>
