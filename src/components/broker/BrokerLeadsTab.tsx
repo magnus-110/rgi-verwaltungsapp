@@ -116,7 +116,7 @@ const CreateLeadDialog = ({ open, onOpenChange, propertyId, onCreated }: {
   const pickContact = async (id: string) => {
     setContactId(id);
     // Prefill from contact
-    const { data: c } = await supabase.from('contacts').select('display_name').eq('id', id).maybeSingle();
+    const { data: c } = await (supabase.from('contacts') as any).select('display_name').eq('id', id).maybeSingle();
     if (c?.display_name) setName(c.display_name);
     const { data: persons } = await supabase.from('contact_persons').select('id').eq('contact_id', id).limit(1);
     const personIds: string[] = (persons || []).map((p: any) => p.id);
