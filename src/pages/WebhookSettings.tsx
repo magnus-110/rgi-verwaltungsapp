@@ -205,48 +205,6 @@ export const WebhookSettings = () => {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5" />
-              Buchungs-Webhook Testen
-            </CardTitle>
-            <CardDescription>
-              Eine fiktive Test-Transaktion (Abschlag Gas) an Make.com senden — ohne DB-Änderung
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Button onClick={handleTestBookingWebhook} disabled={isBookingTesting}>
-              {isBookingTesting ? "Sende Test-Buchung..." : "Test-Buchung an Make.com senden"}
-            </Button>
-
-            {lastBookingResult && (
-              <Alert className={lastBookingResult.success ? "border-green-200" : "border-red-200"}>
-                <div className="flex items-start gap-2">
-                  {lastBookingResult.success ? (
-                    <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                  ) : (
-                    <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
-                  )}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge variant={lastBookingResult.success ? "default" : "destructive"}>
-                        {lastBookingResult.success ? "Erfolgreich" : "Fehlgeschlagen"}
-                      </Badge>
-                    </div>
-                    <AlertDescription>
-                      {lastBookingResult.success ? (
-                        <strong>{lastBookingResult.message || `${lastBookingResult.bookedCount} Transaktionen gebucht`}</strong>
-                      ) : (
-                        <><strong>Fehler:</strong> {lastBookingResult.error}</>
-                      )}
-                    </AlertDescription>
-                  </div>
-                </div>
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
 
         <Card>
           <CardHeader>
