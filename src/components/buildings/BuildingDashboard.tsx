@@ -180,7 +180,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               ...(building.management_mode === 'rent' ? [{ value: "deposits", label: "Kaution" }] : []),
               { value: "maintenance", label: "Wartung" },
               { value: "keys", label: "Schlüssel" },
-              { value: "onboarding", label: "Onboarding" },
+              ...(building.management_mode === 'weg' ? [{ value: "onboarding", label: "Onboarding" }] : []),
             ].map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} variant="underline"
                 className="px-3 md:px-4 py-3 text-xs md:text-sm whitespace-nowrap min-h-[44px]">
@@ -273,10 +273,12 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
             </TabsContent>
           )}
 
-          {/* Onboarding Tab */}
-          <TabsContent value="onboarding" className="p-3 md:p-6 mt-0">
-            <BuildingOnboardingTab buildingId={buildingId} />
-          </TabsContent>
+          {/* Onboarding Tab (WEG only) */}
+          {building.management_mode === 'weg' && (
+            <TabsContent value="onboarding" className="p-3 md:p-6 mt-0">
+              <BuildingOnboardingTab buildingId={buildingId} />
+            </TabsContent>
+          )}
         </ScrollArea>
       </Tabs>
 
