@@ -1790,6 +1790,7 @@ export type Database = {
       buildings: {
         Row: {
           address: string
+          billing_only: boolean
           booking_instructions: string | null
           building_code: string
           created_at: string | null
@@ -1812,6 +1813,7 @@ export type Database = {
         }
         Insert: {
           address: string
+          billing_only?: boolean
           booking_instructions?: string | null
           building_code: string
           created_at?: string | null
@@ -1834,6 +1836,7 @@ export type Database = {
         }
         Update: {
           address?: string
+          billing_only?: boolean
           booking_instructions?: string | null
           building_code?: string
           created_at?: string | null

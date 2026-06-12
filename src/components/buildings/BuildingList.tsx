@@ -18,6 +18,7 @@ interface BuildingRowData {
   id: string;
   name: string;
   unit_count: number;
+  billing_only?: boolean;
 }
 
 const BuildingRow = memo(function BuildingRow({
@@ -47,13 +48,18 @@ const BuildingRow = memo(function BuildingRow({
           <Building2 className="h-4 w-4" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <p className={cn(
               "font-medium text-sm truncate",
               selected && "text-primary"
             )}>
               {building.name}
             </p>
+            {building.billing_only && (
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 whitespace-nowrap">
+                Nur Abrechnung
+              </span>
+            )}
             <IbanChangeBadge buildingId={building.id} compact />
           </div>
           <p className="text-xs text-muted-foreground">{building.unit_count} Einheiten</p>
@@ -73,7 +79,7 @@ export const BuildingList = ({ selectedBuildingId, onSelectBuilding }: BuildingL
     queryFn: async () => {
       const { data, error } = await supabase
         .from("buildings")
-        .select("id, name, management_mode, unit_count")
+        .select("id, name, management_mode, unit_count, billing_only")
         .eq("management_mode", managementMode)
         .order("name");
       if (error) throw error;

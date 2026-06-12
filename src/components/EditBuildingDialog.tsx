@@ -16,6 +16,7 @@ interface Building {
   manager_name?: string;
   unit_count?: number;
   creditor_id?: string | null;
+  billing_only?: boolean;
 }
 
 interface EditBuildingDialogProps {
@@ -36,6 +37,7 @@ export const EditBuildingDialog = ({
     address: "",
     unit_count: "",
     creditor_id: "",
+    billing_only: false,
   });
   const [loading, setLoading] = useState(false);
 
@@ -46,6 +48,7 @@ export const EditBuildingDialog = ({
         address: building.address || "",
         unit_count: building.unit_count?.toString() || "0",
         creditor_id: (building as any).creditor_id || "",
+        billing_only: (building as any).billing_only || false,
       });
     }
   }, [building]);
@@ -63,6 +66,7 @@ export const EditBuildingDialog = ({
           address: formData.address,
           unit_count: formData.unit_count ? parseInt(formData.unit_count) : 0,
           creditor_id: formData.creditor_id.trim() || null,
+          billing_only: formData.billing_only,
           updated_at: new Date().toISOString(),
         })
         .eq("id", building.id);
@@ -144,6 +148,25 @@ export const EditBuildingDialog = ({
                 Wird im SEPA-Mandat des Eigentümer-Onboardings angezeigt.
               </p>
             </div>
+
+            <div className="flex items-start gap-2 pt-2 border-t">
+              <input
+                id="billing_only"
+                type="checkbox"
+                checked={formData.billing_only}
+                onChange={(e) => setFormData({ ...formData, billing_only: e.target.checked })}
+                className="mt-1 h-4 w-4 rounded border-input"
+              />
+              <div className="flex-1">
+                <Label htmlFor="billing_only" className="cursor-pointer">
+                  Nur Abrechnung
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Für dieses Gebäude wird ausschließlich die Abrechnung erstellt (keine Vollverwaltung).
+                </p>
+              </div>
+            </div>
+
 
             <div className="flex justify-end space-x-2 pt-4">
               <Button type="button" variant="outline" onClick={onClose}>
