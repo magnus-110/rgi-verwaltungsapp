@@ -15,6 +15,12 @@ import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
 
 function RentOwnerBlock({ buildingId }: { buildingId: string }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [savingId, setSavingId] = useState<string | null>(null);
+
   const { data: owners = [] } = useQuery({
     queryKey: ["rent-building-owner", buildingId],
     queryFn: async () => {
@@ -27,31 +33,133 @@ function RentOwnerBlock({ buildingId }: { buildingId: string }) {
       return (data || []) as any[];
     },
   });
-  if (owners.length === 0) {
-    return (
-      <div className="border-t pt-3">
-        <Label className="text-xs flex items-center gap-1.5 mb-1">
-          <UserIcon className="h-3 w-3" /> Eigentümer
-        </Label>
-        <p className="text-xs text-muted-foreground italic">Kein Eigentümer hinterlegt.</p>
-      </div>
-    );
-  }
+
+  const { data: contacts = [] } = useQuery({
+    queryKey: ["contacts-picker-rent-owner"],
+    enabled: pickerOpen,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("contacts")
+        .select("id, salutation, first_name, last_name, company_name")
+        .order("last_name", { ascending: true })
+        .limit(500);
+      return (data || []) as any[];
+    },
+  });
+
+  const ownerContactIds = new Set(owners.map((o: any) => o.contact?.id).filter(Boolean));
+  const filtered = contacts
+    .filter((c: any) => !ownerContactIds.has(c.id))
+    .filter((c: any) => {
+      if (!search.trim()) return true;
+      const s = search.toLowerCase();
+      const name = `${c.company_name || ""} ${c.first_name || ""} ${c.last_name || ""}`.toLowerCase();
+      return name.includes(s);
+    })
+    .slice(0, 50);
+
+  const refresh = () => qc.invalidateQueries({ queryKey: ["rent-building-owner", buildingId] });
+
+  const addOwner = async (contactId: string) => {
+    setSavingId(contactId);
+    const { error } = await supabase.from("contact_building_assignments").insert({
+      contact_id: contactId,
+      building_id: buildingId,
+      role_in_building: "eigentuemer" as any,
+      billing_mode: "own_billing" as any,
+      parent_assignment_id: null,
+    } as any);
+    setSavingId(null);
+    if (error) {
+      toast({ title: "Fehler", description: error.message, variant: "destructive" });
+      return;
+    }
+    setPickerOpen(false);
+    setSearch("");
+    refresh();
+    toast({ title: "Eigentümer hinzugefügt" });
+  };
+
+  const removeOwner = async (assignmentId: string) => {
+    if (!confirm("Eigentümer entfernen?")) return;
+    const { error } = await supabase
+      .from("contact_building_assignments")
+      .delete()
+      .eq("id", assignmentId);
+    if (error) {
+      toast({ title: "Fehler", description: error.message, variant: "destructive" });
+      return;
+    }
+    refresh();
+  };
+
   return (
     <div className="border-t pt-3 space-y-1">
-      <Label className="text-xs flex items-center gap-1.5 mb-1">
-        <UserIcon className="h-3 w-3" /> Eigentümer ({owners.length})
-      </Label>
+      <div className="flex items-center justify-between mb-1">
+        <Label className="text-xs flex items-center gap-1.5">
+          <UserIcon className="h-3 w-3" /> Eigentümer{owners.length > 0 && ` (${owners.length})`}
+        </Label>
+        <Button size="sm" variant="ghost" className="h-7 px-2 gap-1" onClick={() => setPickerOpen((v) => !v)}>
+          <Plus className="h-3.5 w-3.5" /> Hinzufügen
+        </Button>
+      </div>
+
+      {owners.length === 0 && !pickerOpen && (
+        <p className="text-xs text-muted-foreground italic">Kein Eigentümer hinterlegt.</p>
+      )}
+
       {owners.map((o: any) => {
         const c = o.contact || {};
         const name = c.company_name || [c.salutation, c.first_name, c.last_name].filter(Boolean).join(" ") || "Unbenannt";
         return (
           <div key={o.id} className="flex items-center justify-between py-1 border-b border-border/40 last:border-0">
             <span className="text-sm">{name}</span>
-            {o.unit_number && <span className="text-[11px] text-muted-foreground">EH {o.unit_number}</span>}
+            <div className="flex items-center gap-2">
+              {o.unit_number && <span className="text-[11px] text-muted-foreground">EH {o.unit_number}</span>}
+              <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => removeOwner(o.id)} title="Entfernen">
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
         );
       })}
+
+      {pickerOpen && (
+        <div className="mt-2 p-2 rounded-md border bg-muted/30 space-y-2">
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Kontakt suchen…"
+            className="h-8 text-sm"
+            autoFocus
+          />
+          <div className="max-h-56 overflow-y-auto space-y-0.5">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-2 px-1">Keine passenden Kontakte.</p>
+            ) : (
+              filtered.map((c: any) => {
+                const name = c.company_name || [c.salutation, c.first_name, c.last_name].filter(Boolean).join(" ") || "Unbenannt";
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => addOwner(c.id)}
+                    disabled={savingId === c.id}
+                    className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent disabled:opacity-50"
+                  >
+                    {name}
+                  </button>
+                );
+              })
+            )}
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" variant="ghost" onClick={() => { setPickerOpen(false); setSearch(""); }}>
+              Schließen
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
