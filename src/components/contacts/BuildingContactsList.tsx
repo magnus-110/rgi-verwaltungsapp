@@ -1274,14 +1274,21 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                             title="Gültig ab"
                             placeholder="ab"
                           />
-                          <Input
-                            type="date"
-                            value={c.valid_to || ""}
-                            onChange={(e) => updateCost(c.id, "valid_to", e.target.value || null)}
-                            className="w-[130px] h-8 text-xs"
-                            title="Gültig bis"
-                            placeholder="bis"
-                          />
+                          {managementMode !== 'rent' && (
+                            <Input
+                              type="date"
+                              value={c.valid_to || ""}
+                              onChange={(e) => updateCost(c.id, "valid_to", e.target.value || null)}
+                              className="w-[130px] h-8 text-xs"
+                              title="Gültig bis"
+                              placeholder="bis"
+                            />
+                          )}
+                          {managementMode === 'rent' && c.valid_to && (
+                            <span className="text-[10px] text-muted-foreground italic">
+                              bis {new Date(c.valid_to).toLocaleDateString("de-DE")}
+                            </span>
+                          )}
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -1301,7 +1308,11 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                             <Trash2 className="h-3.5 w-3.5 text-destructive" />
                           </Button>
                         </div>
-                      ))}
+                        );
+                      })}
+                      {managementMode === 'rent' && (
+                        <TenantDepositsSection assignmentId={a.id} />
+                      )}
                     </TabsContent>
 
                     {/* Tab: Bank */}
