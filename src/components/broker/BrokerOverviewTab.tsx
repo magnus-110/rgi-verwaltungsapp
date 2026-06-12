@@ -25,7 +25,15 @@ export const BrokerOverviewTab = ({ property, onUpdated }: { property: any; onUp
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
   const qc = useQueryClient();
 
-  useEffect(() => { setForm(property); }, [property.id]);
+  useEffect(() => {
+    const next = { ...property };
+    if (property.listing_type === 'sale') {
+      if (next.commission_buyer_pct == null) next.commission_buyer_pct = 3;
+      if (next.commission_seller_pct == null) next.commission_seller_pct = 3;
+      if (!next.commission_note) next.commission_note = 'Standard: 3 % netto Käufer + 3 % netto Verkäufer';
+    }
+    setForm(next);
+  }, [property.id]);
 
   const upd = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
   const num = (v: string) => v === "" ? null : Number(v);
