@@ -173,6 +173,8 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   const [showCcBcc, setShowCcBcc] = useState(false);
 
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [dmsPickerOpen, setDmsPickerOpen] = useState(false);
+  const [dmsLoading, setDmsLoading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewMeta, setPreviewMeta] = useState<{ name: string; mimeType: string | null }>({ name: "", mimeType: null });
