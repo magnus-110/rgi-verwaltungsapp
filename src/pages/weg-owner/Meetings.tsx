@@ -726,10 +726,9 @@ export const WegOwnerMeetings = () => {
                                 )}
                               </div>
 
-                              {/* Teilnahmeabfrage — pro Einheit, nur für aktuelle Versammlungen vor dem Termin */}
+                              {/* Teilnahmeabfrage — pro Einheit für eingeladene/laufende Versammlungen */}
                               {["published", "in_progress"].includes(meeting.status) &&
-                                myAssignments.length > 0 &&
-                                new Date(meeting.meeting_date) > new Date() && (
+                                myAssignments.length > 0 && (
                                 <div
                                   className="mt-3 pt-3 border-t space-y-2"
                                   onClick={(e) => e.stopPropagation()}
