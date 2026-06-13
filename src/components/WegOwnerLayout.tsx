@@ -40,23 +40,51 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
  const [showTermsDialog, setShowTermsDialog] = useState(false);
  const [termsAccepted, setTermsAccepted] = useState<boolean | null>(null);
  
- useEffect(() => {
-   const checkTermsAcceptance = async () => {
-     if (profile?.user_id) {
-       const { data, error } = await supabase
-         .from("profiles")
-         .select("terms_accepted_at")
-         .eq("user_id", profile.user_id)
-         .single();
-       
-       if (!error && data) {
-         const accepted = !!data.terms_accepted_at;
-         setTermsAccepted(accepted);
-         setShowTermsDialog(!accepted);
-       }
-     }
-   };
-   checkTermsAcceptance();
+  useEffect(() => {
+    const checkTermsAcceptance = async () => {
+      if (!profile?.user_id) return;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("terms_accepted_at")
+        .eq("user_id", profile.user_id)
+        .single();
+      if (error || !data) return;
+
+      if (data.terms_accepted_at) {
+        setTermsAccepted(true);
+        setShowTermsDialog(false);
+        return;
+      }
+
+      // Wenn der Nutzer bereits einem Gebäude zugeordnet ist, gilt das als
+      // bereits erfolgte Einwilligung (Onboarding). Stillschweigend markieren,
+      // damit der Dialog nicht bei jedem Login erneut erscheint.
+      const { data: contact } = await supabase
+        .from("contacts")
+        .select("id")
+        .eq("user_id", profile.user_id)
+        .maybeSingle();
+      if (contact?.id) {
+        const { count } = await supabase
+          .from("contact_building_assignments")
+          .select("id", { count: "exact", head: true })
+          .eq("contact_id", contact.id)
+          .eq("is_active", true);
+        if ((count ?? 0) > 0) {
+          await supabase
+            .from("profiles")
+            .update({ terms_accepted_at: new Date().toISOString() })
+            .eq("user_id", profile.user_id);
+          setTermsAccepted(true);
+          setShowTermsDialog(false);
+          return;
+        }
+      }
+
+      setTermsAccepted(false);
+      setShowTermsDialog(true);
+    };
+    checkTermsAcceptance();
   }, [profile?.user_id]);
 
   // Check if user has active cash audit
