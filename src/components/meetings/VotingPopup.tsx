@@ -288,7 +288,44 @@ export const VotingPopup = () => {
     },
   });
 
-  if (!votingItem || profile?.role !== "weg_owner") return null;
+  // Render result dialog standalone if no active voting
+  const renderResultDialog = () => (
+    <Dialog open={!!resultDialog} onOpenChange={(o) => { if (!o) setResultDialog(null); }}>
+      <DialogContent className="text-center">
+        <DialogHeader><DialogTitle>Abstimmungsergebnis</DialogTitle></DialogHeader>
+        {resultDialog && (() => {
+          const isMea = resultDialog.voting_principle === "mea";
+          const fmt = (n: number) => Number(n || 0).toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+          const yesVal = isMea ? fmt(resultDialog.total_mea_yes) : resultDialog.yes_count;
+          const noVal = isMea ? fmt(resultDialog.total_mea_no) : resultDialog.no_count;
+          const absVal = isMea ? fmt(resultDialog.total_mea_abstain) : resultDialog.abstain_count;
+          const unitLbl = isMea ? "MEA" : "Köpfe";
+          return (
+            <div className="py-4 space-y-4">
+              <div className={resultDialog.result === "passed" ? "text-green-500" : "text-destructive"}>
+                {resultDialog.result === "passed" ? <CheckCircle2 className="h-16 w-16 mx-auto" /> : <XCircle className="h-16 w-16 mx-auto" />}
+              </div>
+              <h3 className="text-xl font-bold">{resultDialog.result === "passed" ? "Beschluss angenommen" : "Beschluss abgelehnt"}</h3>
+              <p className="text-sm text-muted-foreground">{resultDialog.title}</p>
+              <div className="flex justify-center gap-6 text-sm">
+                <div className="text-center"><div className="text-2xl font-bold text-green-600">{yesVal}</div><div className="text-muted-foreground">Ja ({unitLbl})</div></div>
+                <div className="text-center"><div className="text-2xl font-bold text-red-600">{noVal}</div><div className="text-muted-foreground">Nein ({unitLbl})</div></div>
+                <div className="text-center"><div className="text-2xl font-bold text-muted-foreground">{absVal}</div><div className="text-muted-foreground">Enthaltung ({unitLbl})</div></div>
+              </div>
+              {isMea && (
+                <div className="text-xs text-muted-foreground">
+                  Köpfe: {resultDialog.yes_count} Ja / {resultDialog.no_count} Nein / {resultDialog.abstain_count} Enth.
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </DialogContent>
+    </Dialog>
+  );
+
+  if (profile?.role !== "weg_owner") return null;
+  if (!votingItem) return renderResultDialog();
 
   const currentAssignment = myVotingAssignments[currentUnitIndex];
   const totalUnits = myVotingAssignments.length;
