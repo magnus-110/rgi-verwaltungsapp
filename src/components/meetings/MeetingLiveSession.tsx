@@ -932,7 +932,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                       <Play className="h-3 w-3" /> Abstimmung starten
                     </Button>
                   )}
-                  {isActive && (
+                  {isActive && !isClosed && !isVoted && (
                     <Button size="sm" variant="destructive" onClick={() => endVotingMutation.mutate(selectedItem.id)} className="gap-1">
                       <Square className="h-3 w-3" /> Beenden
                     </Button>
