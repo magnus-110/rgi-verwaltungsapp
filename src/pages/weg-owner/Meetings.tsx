@@ -204,6 +204,62 @@ export const WegOwnerMeetings = () => {
     enabled: !!selectedMeetingId && !!myContactId,
   });
 
+  // Fetch attendee records for ALL listed meetings (for card-footer attendance UI)
+  const meetingIds = (meetings as any[]).map((m: any) => m.id);
+  const assignmentIds = myAssignments.map((a: any) => a.id);
+  const { data: allMyAttendees = [], refetch: refetchAllAttendees } = useQuery({
+    queryKey: ["weg-owner-attendees-all", meetingIds.join(","), assignmentIds.join(",")],
+    queryFn: async () => {
+      if (!meetingIds.length || !assignmentIds.length) return [];
+      const { data, error } = await supabase
+        .from("etv_attendees")
+        .select("id, meeting_id, assignment_id, attendance_type, proxy_type, self_registered_at")
+        .in("meeting_id", meetingIds)
+        .in("assignment_id", assignmentIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: meetingIds.length > 0 && assignmentIds.length > 0,
+  });
+
+  // Owner sets attendance directly from the meeting card footer
+  const setAttendanceMutation = useMutation({
+    mutationFn: async ({ meetingId, assignmentId, type }: { meetingId: string; assignmentId: string; type: "present" | "absent" }) => {
+      const existing = (allMyAttendees as any[]).find((a) => a.meeting_id === meetingId && a.assignment_id === assignmentId);
+      const nowIso = new Date().toISOString();
+      if (existing) {
+        const { error } = await supabase
+          .from("etv_attendees")
+          .update({
+            attendance_type: type,
+            proxy_type: null,
+            proxy_contact_id: null,
+            proxy_token: null,
+            proxy_external_name: null,
+            self_registered_at: nowIso,
+          })
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("etv_attendees").insert({
+          meeting_id: meetingId,
+          assignment_id: assignmentId,
+          attendance_type: type,
+          self_registered_at: nowIso,
+        } as any);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      refetchAllAttendees();
+      refetchAttendees();
+      toast({ title: "Teilnahme gespeichert" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+    },
+  });
+
   useEffect(() => {
     if (!selectedMeetingId) return;
     const channel = supabase
