@@ -516,9 +516,19 @@ export const EtvProxy = () => {
           </CardContent>
         </Card>
 
+        <div className="flex items-center justify-between gap-2 px-1">
+          <p className="text-[11px] text-muted-foreground">
+            {lastUpdate ? `Aktualisiert ${lastUpdate.toLocaleTimeString("de-DE")}` : "—"}
+          </p>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => refetch()}>
+            Jetzt aktualisieren
+          </Button>
+        </div>
+
         <p className="text-xs text-center text-muted-foreground">
           Dieser Link wurde Ihnen von einem Eigentümer übermittelt. Bei Fragen wenden Sie sich bitte an die zuständige Hausverwaltung.
         </p>
+
       </div>
     </div>
   );
