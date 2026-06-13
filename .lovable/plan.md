@@ -1,33 +1,54 @@
+# Teilnahmeabfrage am Versammlungs-Kartenfuß (Eigentümer) + Admin-Markierung
+
 ## Ziel
-Vollmacht-Link `/etv-proxy/<token>` muss auch auf iPhone (Safari iOS) zuverlässig die laufende Abstimmung anzeigen — sowohl beim ersten Start einer Abstimmung als auch beim erneuten Öffnen.
+Eigentümer können direkt auf der Versammlungs-Karte (vor dem Öffnen des Dialogs) ihre Teilnahme vorab melden: **Anwesend / Vollmacht / Nicht anwesend**. Editierbar bis zum Versammlungs-Datum. Admin sieht in der Anwesenheitsliste ein Icon, das eine selbst gemeldete Teilnahme markiert.
 
-## Ursache (vermutet)
-iOS Safari pausiert/drosselt `setInterval`-basierte React-Query-Polls und beendet WebSocket-Verbindungen still, sobald der Tab kurz in den Hintergrund geht oder das Display dimmt. Beim Zurückkehren wird nicht automatisch neu gepollt. Auf Android Chrome funktioniert beides — daher Symptom „nur iPhone betroffen".
+## Datenbank (Migration)
+Neue Spalte auf `etv_attendees`:
+- `self_registered_at timestamptz NULL` — wird gesetzt, sobald der Eigentümer seine Teilnahme aktiv bestätigt/wählt. Bleibt `NULL` für rein automatisch angelegte Datensätze.
 
-## Lösung in `src/pages/EtvProxy.tsx`
+Kein Wechsel der Logik für `attendance_type`/`proxy_type` — diese Felder werden weiterhin genutzt; das neue Feld dient nur als Indikator "Eigentümer hat selbst gemeldet".
 
-1. **Eigener `setInterval`-Poll statt React-Query-Intervall**
-   - `refetchInterval` aus der useQuery entfernen.
-   - Eigener `useEffect` mit `setInterval(() => refetch(), 3000)`. Beim Unmount aufräumen.
+## Eigentümer-UI (`src/pages/weg-owner/Meetings.tsx`)
 
-2. **iOS-Safari-spezifische Wake-Up-Hooks**
-   - `document.addEventListener('visibilitychange', ...)` → bei `visibilityState === 'visible'` sofort `refetch()` aufrufen UND eine frische Realtime-Channel-Subscription neu aufbauen (alte schließen).
-   - `window.addEventListener('pageshow', ...)` → wichtig für iOS-Safari bfcache (zurück-Navigation, Tab-Wechsel). Bei `event.persisted === true` sofort `refetch()`.
-   - `window.addEventListener('focus', ...)` → zusätzliche Absicherung.
+### Neue Datenabfrage
+- Neue Query `weg-owner-attendees-all`: lädt Attendee-Records für **alle** in der Liste angezeigten Meetings (gefiltert nach `meeting_id IN (...)` und `assignment_id IN myAssignments`). Damit kann die Karte den aktuellen Status anzeigen, ohne den Detail-Dialog zu öffnen.
+- Realtime-Channel ergänzen (oder pro Liste eine), sodass Änderungen Live ankommen.
 
-3. **Realtime-Channel robuster machen**
-   - Channel auf `meeting-broadcast-<meetingId>` wird heute einmal aufgebaut. Wir packen ihn in eine `useEffect`, die bei Sichtbarkeitswechsel den Channel verwirft und neu anlegt (über einen `ref`-gesteuerten Re-Subscribe-Counter), damit nach iOS-Aufwachen wieder Empfang besteht.
+### Karten-Footer (für `published` / `in_progress` Meetings, vor Versammlungs-Datum)
+Am unteren Rand der Meeting-`Card` wird ein abgetrennter Bereich (`border-t pt-3 mt-2`) hinzugefügt:
 
-4. **Sichtbares „Live"-Indikator + Notlösung**
-   - Kleiner Hinweis unten („Aktualisiert: HH:mm:ss") aus dem letzten erfolgreichen Refetch-Zeitpunkt.
-   - „Jetzt aktualisieren"-Button (Sekundär), der `refetch()` manuell triggert — falls iOS doch mal alles einfriert, hat der Bevollmächtigte einen Notausstieg.
+```text
+Ihre Teilnahme:  [ Anwesend ]  [ Vollmacht ]  [ Nicht anwesend ]
+                  (aktive Auswahl visuell hervorgehoben)
+```
 
-5. **Diagnose-Logging**
-   - `console.info('[proxy] poll tick', new Date().toISOString())` und `console.info('[proxy] visibility', ...)` einbauen, damit ein eventueller Folgefehler über Safari-Web-Inspector schnell auffindbar ist.
+Verhalten:
+- Klicks innerhalb des Footers `stopPropagation`, damit der Karten-Klick (Dialog öffnen) nicht ausgelöst wird.
+- **Anwesend** → Mutation: `attendance_type='present'`, `proxy_type=null`, `self_registered_at=now()`.
+- **Nicht anwesend** → Mutation: `attendance_type='absent'`, `proxy_type=null`, `self_registered_at=now()`.
+- **Vollmacht** → öffnet den bestehenden Proxy-Dialog (gleiche Logik wie heute im Detail-Dialog). Beim Speichern der Vollmacht setzt die bestehende `setProxyMutation` zusätzlich `self_registered_at=now()`.
+- Bei mehreren Einheiten (mehrere `myAssignments`): pro Assignment eine Zeile (`Einheit X: [Buttons]`), damit jede Einheit separat gemeldet werden kann.
+- Für vergangene/abgeschlossene Meetings: Footer wird nicht gerendert.
+- Statt expliziter Zeitsperre wird die bestehende Logik (`isProxyLocked` = false) übernommen — bis zum Meeting-Termin bearbeitbar.
+
+### Detail-Dialog (bestehende „Ihre Teilnahme & Vollmacht"-Sektion)
+Bleibt unverändert, aber:
+- Die Anwesend-/Abwesend-Wahl bekommt zusätzlich die zwei neuen Buttons (Anwesend/Nicht anwesend) als kleines Toggle, damit der Eigentümer auch im Dialog ändern kann. Setzt ebenfalls `self_registered_at`.
+
+## Admin-UI (`src/components/meetings/AttendeeManager.tsx`)
+Neben dem Namen jedes Attendees ein neues Icon, wenn `self_registered_at IS NOT NULL`:
+- Icon: `UserCheck` (lucide), grün, mit Tooltip „Vom Eigentümer selbst gemeldet am <Datum>".
+- Position: direkt rechts neben dem Namen, vor den Badges.
+
+Keine Änderung an Mutations/Logik — nur Anzeige.
 
 ## Out of Scope
-- Keine Änderung an `cast-proxy-vote`, RPC `get_proxy_meeting_state`, MeetingLiveSession Broadcast oder Migrationen.
-- Keine PWA-/Service-Worker-Änderungen.
+- Push-/Email-Benachrichtigung bei Selbst-Meldung
+- Sperre kurz vor Meeting-Beginn (bleibt bei aktueller Logik: bis Meeting-Datum)
+- Änderungen am Proxy-Flow selbst (Schritte, Weisungen) — bestehender Dialog wird wiederverwendet
 
 ## Geänderte Dateien
-- `src/pages/EtvProxy.tsx` (UI + Hooks)
+- **Migration**: neue Spalte `self_registered_at` auf `etv_attendees`
+- **Bearbeitet**: `src/pages/weg-owner/Meetings.tsx`
+- **Bearbeitet**: `src/components/meetings/AttendeeManager.tsx`

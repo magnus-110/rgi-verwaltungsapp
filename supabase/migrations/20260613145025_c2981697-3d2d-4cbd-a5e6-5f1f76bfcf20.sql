@@ -1,0 +1,1 @@
+ALTER TABLE public.etv_attendees ADD COLUMN IF NOT EXISTS self_registered_at timestamptz NULL;
