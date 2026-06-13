@@ -20,6 +20,8 @@ import {
   ArrowLeft, ArrowRight, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Save, Shield, Copy, Lock, AlertTriangle,
   RefreshCw, StickyNote, FileText, Plus, Gavel, ArrowUp, ArrowDown
 } from "lucide-react";
+import { format } from "date-fns";
+import { de } from "date-fns/locale";
 import { AgendaItemEmailsSection } from "./AgendaItemEmailsSection";
 import { ProxyInstructionsMatrix } from "./ProxyInstructionsMatrix";
 
