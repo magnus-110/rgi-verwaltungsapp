@@ -382,10 +382,13 @@ export const VotingPopup = () => {
             {/* Live Results */}
             <div className="bg-muted rounded-lg p-5 space-y-4">
               <h3 className="font-semibold text-foreground text-center">Live-Ergebnis</h3>
-              <div className="flex justify-center gap-6 text-lg">
-                <span className="text-green-600 font-bold">Ja: {yesCount}</span>
-                <span className="text-red-600 font-bold">Nein: {noCount}</span>
-                <span className="text-muted-foreground font-semibold">Enth.: {abstainCount}</span>
+              <div className="flex justify-center gap-6 text-base">
+                <div className="text-center"><div className="text-xl font-bold text-green-600">{fmtMea(yesMea)}</div><div className="text-xs text-muted-foreground">Ja (MEA)</div></div>
+                <div className="text-center"><div className="text-xl font-bold text-red-600">{fmtMea(noMea)}</div><div className="text-xs text-muted-foreground">Nein (MEA)</div></div>
+                <div className="text-center"><div className="text-xl font-bold text-muted-foreground">{fmtMea(abstainMea)}</div><div className="text-xs text-muted-foreground">Enth. (MEA)</div></div>
+              </div>
+              <div className="text-xs text-center text-muted-foreground">
+                Köpfe: {yesCount} Ja / {noCount} Nein / {abstainCount} Enth.
               </div>
 
               {/* Public ballot: show who voted what */}
