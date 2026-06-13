@@ -61,8 +61,11 @@ export const EtvProxy = () => {
     }
   };
 
-  // Single source of truth: security-definer RPC, polled every 3s so reload + live updates always work
-  // even though the page is unauthenticated (anon has no SELECT on the underlying ETV tables).
+  // Single source of truth: security-definer RPC. We poll manually (not via React Query's
+  // refetchInterval) because Safari iOS throttles/pauses RQ's internal timer when the tab
+  // briefly loses focus or the display dims, and never resumes it. A bare setInterval +
+  // visibilitychange/pageshow/focus listeners is much more reliable on iPhone.
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const { data: state, isLoading, error, refetch } = useQuery({
     queryKey: ["proxy-state", token],
     queryFn: async () => {
@@ -70,12 +73,11 @@ export const EtvProxy = () => {
       const { data, error } = await supabase.rpc("get_proxy_meeting_state", { p_token: token });
       if (error) throw error;
       if (!data || (data as any).error === "INVALID_TOKEN") throw new Error("INVALID_TOKEN");
+      setLastUpdate(new Date());
       return data as any;
     },
     enabled: !!token,
     retry: false,
-    refetchInterval: 3000,
-    refetchIntervalInBackground: true,
   });
 
   // Track previous voting item id to reset local state on changes
@@ -89,18 +91,60 @@ export const EtvProxy = () => {
     }
   }, [activeVotingId]);
 
-  // Broadcast listener for instant push from admin (start/reopen voting)
+  // iOS-safe polling: own setInterval + wake-up hooks (visibilitychange / pageshow / focus)
+  const [channelEpoch, setChannelEpoch] = useState(0);
+  useEffect(() => {
+    if (!token) return;
+    const tick = () => {
+      console.info("[proxy] poll tick", new Date().toISOString());
+      refetch();
+    };
+    const interval = window.setInterval(tick, 3000);
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        console.info("[proxy] visibility -> visible, refetch + re-subscribe");
+        refetch();
+        setChannelEpoch((n) => n + 1);
+      }
+    };
+    const onPageShow = (e: PageTransitionEvent) => {
+      console.info("[proxy] pageshow persisted=", e.persisted);
+      refetch();
+      setChannelEpoch((n) => n + 1);
+    };
+    const onFocus = () => {
+      console.info("[proxy] window focus -> refetch");
+      refetch();
+    };
+
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [token, refetch]);
+
+  // Broadcast listener for instant push from admin (start/reopen voting).
+  // Re-subscribes whenever channelEpoch bumps (iOS wake-up).
   const meetingId: string | undefined = state?.meeting?.id;
   useEffect(() => {
     if (!meetingId) return;
     const channel = supabase
-      .channel(`meeting-broadcast-${meetingId}`)
+      .channel(`meeting-broadcast-${meetingId}-${channelEpoch}`)
       .on("broadcast", { event: "voting-changed" }, () => {
+        console.info("[proxy] broadcast -> voting-changed");
         refetch();
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [meetingId, refetch]);
+  }, [meetingId, refetch, channelEpoch]);
+
 
   const castVoteMutation = useMutation({
     mutationFn: async (vote: string) => {
@@ -270,6 +314,15 @@ export const EtvProxy = () => {
               <p className="text-xs text-center text-muted-foreground">
                 Ergebnisse werden live aktualisiert. Die Ansicht wechselt automatisch, wenn die Abstimmung beendet wird.
               </p>
+              <div className="flex items-center justify-between gap-2 px-1">
+                <p className="text-[11px] text-muted-foreground">
+                  {lastUpdate ? `Aktualisiert ${lastUpdate.toLocaleTimeString("de-DE")}` : "—"}
+                </p>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => refetch()}>
+                  Jetzt aktualisieren
+                </Button>
+              </div>
+
             </div>
           ) : (
             <>
@@ -472,9 +525,19 @@ export const EtvProxy = () => {
           </CardContent>
         </Card>
 
+        <div className="flex items-center justify-between gap-2 px-1">
+          <p className="text-[11px] text-muted-foreground">
+            {lastUpdate ? `Aktualisiert ${lastUpdate.toLocaleTimeString("de-DE")}` : "—"}
+          </p>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => refetch()}>
+            Jetzt aktualisieren
+          </Button>
+        </div>
+
         <p className="text-xs text-center text-muted-foreground">
           Dieser Link wurde Ihnen von einem Eigentümer übermittelt. Bei Fragen wenden Sie sich bitte an die zuständige Hausverwaltung.
         </p>
+
       </div>
     </div>
   );
