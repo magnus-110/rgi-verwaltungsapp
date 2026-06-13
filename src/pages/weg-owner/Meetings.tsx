@@ -366,6 +366,7 @@ export const WegOwnerMeetings = () => {
           proxy_token: token,
           proxy_external_name: type === "external" ? (externalName || null) : null,
           pre_vote_instructions: filteredInstructions,
+          self_registered_at: new Date().toISOString(),
         })
         .eq("id", attendeeId);
       if (error) throw error;
