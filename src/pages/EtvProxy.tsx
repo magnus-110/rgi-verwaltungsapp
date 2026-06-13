@@ -314,6 +314,15 @@ export const EtvProxy = () => {
               <p className="text-xs text-center text-muted-foreground">
                 Ergebnisse werden live aktualisiert. Die Ansicht wechselt automatisch, wenn die Abstimmung beendet wird.
               </p>
+              <div className="flex items-center justify-between gap-2 px-1">
+                <p className="text-[11px] text-muted-foreground">
+                  {lastUpdate ? `Aktualisiert ${lastUpdate.toLocaleTimeString("de-DE")}` : "—"}
+                </p>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => refetch()}>
+                  Jetzt aktualisieren
+                </Button>
+              </div>
+
             </div>
           ) : (
             <>
