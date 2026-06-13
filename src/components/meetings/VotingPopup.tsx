@@ -355,6 +355,8 @@ export const VotingPopup = () => {
   };
 
   return (
+    <>
+    {renderResultDialog()}
     <div className="fixed inset-0 z-[100] bg-background overflow-y-auto">
       <div className="min-h-full flex items-start sm:items-center justify-center p-4 py-6 sm:p-6">
         <div className="w-full max-w-xl space-y-4 sm:space-y-6">
