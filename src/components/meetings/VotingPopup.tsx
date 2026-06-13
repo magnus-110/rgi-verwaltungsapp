@@ -106,11 +106,15 @@ export const VotingPopup = () => {
 
         const { data: attendee } = await supabase
           .from("etv_attendees")
-          .select("id, attendance_type")
+          .select("id, attendance_type, proxy_contact_id")
           .eq("meeting_id", meeting.id)
           .eq("assignment_id", assignment.id)
           .maybeSingle();
-        if (!attendee || attendee.attendance_type === "proxy") continue;
+        if (!attendee) continue;
+        // Nur überspringen, wenn die Vollmacht wirklich an jemand anderen vergeben ist.
+        // Status "proxy" ohne proxy_contact_id ist ein unvollständiger Zustand —
+        // dann darf der Eigentümer weiterhin selbst abstimmen.
+        if (attendee.attendance_type === "proxy" && attendee.proxy_contact_id) continue;
 
         const { data: existingVote } = await supabase
           .from("etv_votes")
