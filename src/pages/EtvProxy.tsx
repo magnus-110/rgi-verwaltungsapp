@@ -357,6 +357,31 @@ export const EtvProxy = () => {
                 Abstimmung läuft
               </Badge>
 
+              {/* Live results during voting */}
+              {!isSecretBallot ? (
+                <Card>
+                  <CardContent className="p-3 space-y-2">
+                    <h3 className="font-semibold text-sm text-center">Live-Ergebnis</h3>
+                    <div className="flex justify-center gap-4 sm:gap-6 text-sm">
+                      <span className="text-green-600 font-bold">Ja: {counts.yes}</span>
+                      <span className="text-red-600 font-bold">Nein: {counts.no}</span>
+                      <span className="text-muted-foreground font-semibold">Enth.: {counts.abstain}</span>
+                    </div>
+                    {votingItem.voting_principle === "mea" && (
+                      <div className="flex justify-center gap-4 sm:gap-6 text-[11px] text-muted-foreground">
+                        <span>MEA Ja: {fmtMea(counts.yes_mea)}</span>
+                        <span>MEA Nein: {fmtMea(counts.no_mea)}</span>
+                        <span>MEA Enth.: {fmtMea(counts.abstain_mea)}</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="bg-muted rounded-lg p-3 text-center text-xs text-muted-foreground">
+                  Geheime Abstimmung — bisher {counts.yes + counts.no + counts.abstain} Stimme{(counts.yes + counts.no + counts.abstain) === 1 ? "" : "n"} eingegangen
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 {voteButtons.map(({ value, label, icon: Icon, className }) => (
                   <Button
