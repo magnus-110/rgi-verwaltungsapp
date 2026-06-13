@@ -152,7 +152,7 @@ export const VotingPopup = () => {
 
         const { data: assignment } = await supabase
           .from("contact_building_assignments")
-          .select("id, unit_number, unit_kind, billing_mode, contact_id, contact_building_shares(share_type, share_value)")
+          .select("id, unit_number, unit_kind, billing_mode, contact_id, contact_building_shares(share_type, share_value), contacts:contact_id(first_name, last_name, company_name)")
           .eq("id", pa.assignment_id)
           .single();
         if (!assignment) continue;
@@ -168,11 +168,18 @@ export const VotingPopup = () => {
           .eq("is_active", true);
         const extra = (extraRows || []).filter(isDistributionOnly).reduce((s: number, a: any) => s + meaOf(a), 0);
 
+        const ownerContact: any = (assignment as any).contacts;
+        const ownerName = ownerContact
+          ? (ownerContact.company_name || [ownerContact.first_name, ownerContact.last_name].filter(Boolean).join(" ") || null)
+          : null;
+
         validAssignments.push({
           id: assignment.id,
           unit_number: assignment.unit_number,
           attendee_id: pa.id,
           mea_weight: meaOf(assignment) + extra,
+          is_proxy: true,
+          proxy_for_name: ownerName,
         });
       }
     }
@@ -181,8 +188,7 @@ export const VotingPopup = () => {
 
     setMyVotingAssignments(validAssignments);
     setVotingItem(agendaItem);
-    setCurrentUnitIndex(0);
-    setSelectedVote(null);
+    setSelections(Object.fromEntries(validAssignments.map((a) => [a.id, null])));
     setAllDone(false);
     setDescOpen(false);
   }, [profile?.user_id]);
