@@ -725,6 +725,84 @@ export const WegOwnerMeetings = () => {
                                   </span>
                                 )}
                               </div>
+
+                              {/* Teilnahmeabfrage — pro Einheit, nur für aktuelle Versammlungen vor dem Termin */}
+                              {["published", "in_progress"].includes(meeting.status) &&
+                                myAssignments.length > 0 &&
+                                new Date(meeting.meeting_date) > new Date() && (
+                                <div
+                                  className="mt-3 pt-3 border-t space-y-2"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <p className="text-xs font-medium text-muted-foreground">Ihre Teilnahme</p>
+                                  {myAssignments.map((assignment: any) => {
+                                    const att = (allMyAttendees as any[]).find(
+                                      (a) => a.meeting_id === meeting.id && a.assignment_id === assignment.id
+                                    );
+                                    const current = att?.proxy_type
+                                      ? "proxy"
+                                      : att?.attendance_type === "present"
+                                      ? "present"
+                                      : att?.attendance_type === "absent" && att?.self_registered_at
+                                      ? "absent"
+                                      : null;
+                                    const isPending = setAttendanceMutation.isPending;
+                                    return (
+                                      <div
+                                        key={assignment.id}
+                                        className="flex flex-wrap items-center gap-2"
+                                      >
+                                        {myAssignments.length > 1 && (
+                                          <span className="text-xs text-muted-foreground min-w-[70px]">
+                                            {assignment.unit_number ? `Einheit ${assignment.unit_number}` : "Zuordnung"}
+                                          </span>
+                                        )}
+                                        <Button
+                                          size="sm"
+                                          variant={current === "present" ? "default" : "outline"}
+                                          className="h-8 gap-1.5"
+                                          disabled={isPending}
+                                          onClick={() =>
+                                            setAttendanceMutation.mutate({
+                                              meetingId: meeting.id,
+                                              assignmentId: assignment.id,
+                                              type: "present",
+                                            })
+                                          }
+                                        >
+                                          <CheckCircle2 className="h-3.5 w-3.5" />
+                                          Anwesend
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant={current === "proxy" ? "default" : "outline"}
+                                          className="h-8 gap-1.5"
+                                          onClick={() => setSelectedMeetingId(meeting.id)}
+                                        >
+                                          <Shield className="h-3.5 w-3.5" />
+                                          Vollmacht
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant={current === "absent" ? "default" : "outline"}
+                                          className="h-8 gap-1.5"
+                                          disabled={isPending}
+                                          onClick={() =>
+                                            setAttendanceMutation.mutate({
+                                              meetingId: meeting.id,
+                                              assignmentId: assignment.id,
+                                              type: "absent",
+                                            })
+                                          }
+                                        >
+                                          <XCircle className="h-3.5 w-3.5" />
+                                          Nicht anwesend
+                                        </Button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </CardContent>
                           </Card>
                         ))}
