@@ -195,6 +195,9 @@ export const EtvProxy = () => {
             {!isInvalid && (
               <Button size="sm" variant="outline" onClick={() => refetch()}>Erneut versuchen</Button>
             )}
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
