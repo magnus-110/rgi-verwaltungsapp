@@ -726,48 +726,53 @@ export const WegOwnerMeetings = () => {
                                 )}
                               </div>
 
-                              {/* Teilnahmeabfrage — pro Einheit für eingeladene/laufende Versammlungen */}
+                              {/* Teilnahmeabfrage — einmal pro Versammlung, gilt für alle Einheiten */}
                               {["published", "in_progress"].includes(meeting.status) &&
-                                myAssignments.length > 0 && (
-                                <div
-                                  className="mt-3 pt-3 border-t space-y-2"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <p className="text-xs font-medium text-muted-foreground">Ihre Teilnahme</p>
-                                  {myAssignments.map((assignment: any) => {
+                                myAssignments.length > 0 && (() => {
+                                  const states = myAssignments.map((assignment: any) => {
                                     const att = (allMyAttendees as any[]).find(
                                       (a) => a.meeting_id === meeting.id && a.assignment_id === assignment.id
                                     );
-                                    const current = att?.proxy_type
+                                    return att?.proxy_type
                                       ? "proxy"
                                       : att?.attendance_type === "present"
                                       ? "present"
                                       : att?.attendance_type === "absent" && att?.self_registered_at
                                       ? "absent"
                                       : null;
-                                    const isPending = setAttendanceMutation.isPending;
-                                    return (
-                                      <div
-                                        key={assignment.id}
-                                        className="flex flex-wrap items-center gap-2"
-                                      >
+                                  });
+                                  const allSame = states.every((s) => s === states[0]);
+                                  const current = allSame ? states[0] : null;
+                                  const isPending = setAttendanceMutation.isPending;
+                                  const setAll = (type: "present" | "absent") => {
+                                    myAssignments.forEach((assignment: any) => {
+                                      setAttendanceMutation.mutate({
+                                        meetingId: meeting.id,
+                                        assignmentId: assignment.id,
+                                        type,
+                                      });
+                                    });
+                                  };
+                                  return (
+                                    <div
+                                      className="mt-3 pt-3 border-t space-y-2"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <p className="text-xs font-medium text-muted-foreground">
+                                        Ihre Teilnahme
                                         {myAssignments.length > 1 && (
-                                          <span className="text-xs text-muted-foreground min-w-[70px]">
-                                            {assignment.unit_number ? `Einheit ${assignment.unit_number}` : "Zuordnung"}
+                                          <span className="ml-1 text-muted-foreground/70">
+                                            (gilt für alle {myAssignments.length} Einheiten)
                                           </span>
                                         )}
+                                      </p>
+                                      <div className="flex flex-wrap items-center gap-2">
                                         <Button
                                           size="sm"
                                           variant={current === "present" ? "default" : "outline"}
                                           className="h-8 gap-1.5"
                                           disabled={isPending}
-                                          onClick={() =>
-                                            setAttendanceMutation.mutate({
-                                              meetingId: meeting.id,
-                                              assignmentId: assignment.id,
-                                              type: "present",
-                                            })
-                                          }
+                                          onClick={() => setAll("present")}
                                         >
                                           <CheckCircle2 className="h-3.5 w-3.5" />
                                           Anwesend
@@ -786,22 +791,15 @@ export const WegOwnerMeetings = () => {
                                           variant={current === "absent" ? "default" : "outline"}
                                           className="h-8 gap-1.5"
                                           disabled={isPending}
-                                          onClick={() =>
-                                            setAttendanceMutation.mutate({
-                                              meetingId: meeting.id,
-                                              assignmentId: assignment.id,
-                                              type: "absent",
-                                            })
-                                          }
+                                          onClick={() => setAll("absent")}
                                         >
                                           <XCircle className="h-3.5 w-3.5" />
                                           Nicht anwesend
                                         </Button>
                                       </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
+                                    </div>
+                                  );
+                                })()}
                             </CardContent>
                           </Card>
                         ))}
