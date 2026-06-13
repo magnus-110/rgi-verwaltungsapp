@@ -34,6 +34,7 @@ interface Attendee {
   proxy_token_used: boolean | null;
   proxy_external_name: string | null;
   pre_vote_instructions: any;
+  self_registered_at: string | null;
   checked_in_at: string | null;
   voting_banned_items: string[] | null;
   contact_building_assignments: {
@@ -279,6 +280,14 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
                       <span className="font-medium text-sm truncate">
                         {cba.unit_number ? `${cba.unit_number} – ` : ""}{getContactName(contact)}
                       </span>
+                      {attendee.self_registered_at && (
+                        <span
+                          title={`Vom Eigentümer selbst gemeldet am ${format(new Date(attendee.self_registered_at), "dd.MM.yyyy 'um' HH:mm", { locale: de })}`}
+                          className="inline-flex"
+                        >
+                          <UserCheck className="h-3.5 w-3.5 text-green-600" />
+                        </span>
+                      )}
                       {attendee.proxy_type === "manager" && (
                         <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs">v.d. Verwalter</Badge>
                       )}

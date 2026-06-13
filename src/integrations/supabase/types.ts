@@ -4901,6 +4901,7 @@ export type Database = {
           proxy_token: string | null
           proxy_token_used: boolean | null
           proxy_type: string | null
+          self_registered_at: string | null
           voting_banned_items: string[] | null
         }
         Insert: {
@@ -4916,6 +4917,7 @@ export type Database = {
           proxy_token?: string | null
           proxy_token_used?: boolean | null
           proxy_type?: string | null
+          self_registered_at?: string | null
           voting_banned_items?: string[] | null
         }
         Update: {
@@ -4931,6 +4933,7 @@ export type Database = {
           proxy_token?: string | null
           proxy_token_used?: boolean | null
           proxy_type?: string | null
+          self_registered_at?: string | null
           voting_banned_items?: string[] | null
         }
         Relationships: [

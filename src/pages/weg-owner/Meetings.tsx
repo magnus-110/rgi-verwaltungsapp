@@ -204,6 +204,62 @@ export const WegOwnerMeetings = () => {
     enabled: !!selectedMeetingId && !!myContactId,
   });
 
+  // Fetch attendee records for ALL listed meetings (for card-footer attendance UI)
+  const meetingIds = (meetings as any[]).map((m: any) => m.id);
+  const assignmentIds = myAssignments.map((a: any) => a.id);
+  const { data: allMyAttendees = [], refetch: refetchAllAttendees } = useQuery({
+    queryKey: ["weg-owner-attendees-all", meetingIds.join(","), assignmentIds.join(",")],
+    queryFn: async () => {
+      if (!meetingIds.length || !assignmentIds.length) return [];
+      const { data, error } = await supabase
+        .from("etv_attendees")
+        .select("id, meeting_id, assignment_id, attendance_type, proxy_type, self_registered_at")
+        .in("meeting_id", meetingIds)
+        .in("assignment_id", assignmentIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: meetingIds.length > 0 && assignmentIds.length > 0,
+  });
+
+  // Owner sets attendance directly from the meeting card footer
+  const setAttendanceMutation = useMutation({
+    mutationFn: async ({ meetingId, assignmentId, type }: { meetingId: string; assignmentId: string; type: "present" | "absent" }) => {
+      const existing = (allMyAttendees as any[]).find((a) => a.meeting_id === meetingId && a.assignment_id === assignmentId);
+      const nowIso = new Date().toISOString();
+      if (existing) {
+        const { error } = await supabase
+          .from("etv_attendees")
+          .update({
+            attendance_type: type,
+            proxy_type: null,
+            proxy_contact_id: null,
+            proxy_token: null,
+            proxy_external_name: null,
+            self_registered_at: nowIso,
+          })
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("etv_attendees").insert({
+          meeting_id: meetingId,
+          assignment_id: assignmentId,
+          attendance_type: type,
+          self_registered_at: nowIso,
+        } as any);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      refetchAllAttendees();
+      refetchAttendees();
+      toast({ title: "Teilnahme gespeichert" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+    },
+  });
+
   useEffect(() => {
     if (!selectedMeetingId) return;
     const channel = supabase
@@ -310,6 +366,7 @@ export const WegOwnerMeetings = () => {
           proxy_token: token,
           proxy_external_name: type === "external" ? (externalName || null) : null,
           pre_vote_instructions: filteredInstructions,
+          self_registered_at: new Date().toISOString(),
         })
         .eq("id", attendeeId);
       if (error) throw error;
@@ -668,6 +725,84 @@ export const WegOwnerMeetings = () => {
                                   </span>
                                 )}
                               </div>
+
+                              {/* Teilnahmeabfrage — pro Einheit, nur für aktuelle Versammlungen vor dem Termin */}
+                              {["published", "in_progress"].includes(meeting.status) &&
+                                myAssignments.length > 0 &&
+                                new Date(meeting.meeting_date) > new Date() && (
+                                <div
+                                  className="mt-3 pt-3 border-t space-y-2"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <p className="text-xs font-medium text-muted-foreground">Ihre Teilnahme</p>
+                                  {myAssignments.map((assignment: any) => {
+                                    const att = (allMyAttendees as any[]).find(
+                                      (a) => a.meeting_id === meeting.id && a.assignment_id === assignment.id
+                                    );
+                                    const current = att?.proxy_type
+                                      ? "proxy"
+                                      : att?.attendance_type === "present"
+                                      ? "present"
+                                      : att?.attendance_type === "absent" && att?.self_registered_at
+                                      ? "absent"
+                                      : null;
+                                    const isPending = setAttendanceMutation.isPending;
+                                    return (
+                                      <div
+                                        key={assignment.id}
+                                        className="flex flex-wrap items-center gap-2"
+                                      >
+                                        {myAssignments.length > 1 && (
+                                          <span className="text-xs text-muted-foreground min-w-[70px]">
+                                            {assignment.unit_number ? `Einheit ${assignment.unit_number}` : "Zuordnung"}
+                                          </span>
+                                        )}
+                                        <Button
+                                          size="sm"
+                                          variant={current === "present" ? "default" : "outline"}
+                                          className="h-8 gap-1.5"
+                                          disabled={isPending}
+                                          onClick={() =>
+                                            setAttendanceMutation.mutate({
+                                              meetingId: meeting.id,
+                                              assignmentId: assignment.id,
+                                              type: "present",
+                                            })
+                                          }
+                                        >
+                                          <CheckCircle2 className="h-3.5 w-3.5" />
+                                          Anwesend
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant={current === "proxy" ? "default" : "outline"}
+                                          className="h-8 gap-1.5"
+                                          onClick={() => setSelectedMeetingId(meeting.id)}
+                                        >
+                                          <Shield className="h-3.5 w-3.5" />
+                                          Vollmacht
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant={current === "absent" ? "default" : "outline"}
+                                          className="h-8 gap-1.5"
+                                          disabled={isPending}
+                                          onClick={() =>
+                                            setAttendanceMutation.mutate({
+                                              meetingId: meeting.id,
+                                              assignmentId: assignment.id,
+                                              type: "absent",
+                                            })
+                                          }
+                                        >
+                                          <XCircle className="h-3.5 w-3.5" />
+                                          Nicht anwesend
+                                        </Button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </CardContent>
                           </Card>
                         ))}
