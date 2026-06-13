@@ -378,15 +378,17 @@ export const VotingPopup = () => {
             </div>
 
             {/* Live Results */}
-            <div className="bg-muted rounded-lg p-5 space-y-4">
+            <div className="bg-muted rounded-lg p-5 space-y-3">
               <h3 className="font-semibold text-foreground text-center">Live-Ergebnis</h3>
               <div className="flex justify-center gap-6 text-base">
-                <div className="text-center"><div className="text-xl font-bold text-green-600">{fmtMea(yesMea)}</div><div className="text-xs text-muted-foreground">Ja (MEA)</div></div>
-                <div className="text-center"><div className="text-xl font-bold text-red-600">{fmtMea(noMea)}</div><div className="text-xs text-muted-foreground">Nein (MEA)</div></div>
-                <div className="text-center"><div className="text-xl font-bold text-muted-foreground">{fmtMea(abstainMea)}</div><div className="text-xs text-muted-foreground">Enth. (MEA)</div></div>
+                <span className="text-green-600 font-bold">Ja: {yesCount}</span>
+                <span className="text-red-600 font-bold">Nein: {noCount}</span>
+                <span className="text-muted-foreground font-semibold">Enth.: {abstainCount}</span>
               </div>
-              <div className="text-xs text-center text-muted-foreground">
-                Köpfe: {yesCount} Ja / {noCount} Nein / {abstainCount} Enth.
+              <div className="flex justify-center gap-6 text-xs text-muted-foreground">
+                <span>MEA Ja: {fmtMea(yesMea)}</span>
+                <span>MEA Nein: {fmtMea(noMea)}</span>
+                <span>MEA Enth.: {fmtMea(abstainMea)}</span>
               </div>
 
               {/* Public ballot: show who voted what */}
@@ -478,12 +480,14 @@ export const VotingPopup = () => {
               <div className="bg-muted rounded-lg p-4 space-y-2">
                 <h3 className="font-semibold text-sm text-foreground text-center">Live-Ergebnis</h3>
                 <div className="flex justify-center gap-4 sm:gap-6 text-sm">
-                  <div className="text-center"><div className="text-base font-bold text-green-600">{fmtMea(yesMea)}</div><div className="text-[10px] text-muted-foreground">Ja (MEA)</div></div>
-                  <div className="text-center"><div className="text-base font-bold text-red-600">{fmtMea(noMea)}</div><div className="text-[10px] text-muted-foreground">Nein (MEA)</div></div>
-                  <div className="text-center"><div className="text-base font-bold text-muted-foreground">{fmtMea(abstainMea)}</div><div className="text-[10px] text-muted-foreground">Enth. (MEA)</div></div>
+                  <span className="text-green-600 font-bold">Ja: {yesCount}</span>
+                  <span className="text-red-600 font-bold">Nein: {noCount}</span>
+                  <span className="text-muted-foreground font-semibold">Enth.: {abstainCount}</span>
                 </div>
-                <div className="text-[11px] text-center text-muted-foreground">
-                  Köpfe: {yesCount} / {noCount} / {abstainCount}
+                <div className="flex justify-center gap-4 sm:gap-6 text-[11px] text-muted-foreground">
+                  <span>MEA Ja: {fmtMea(yesMea)}</span>
+                  <span>MEA Nein: {fmtMea(noMea)}</span>
+                  <span>MEA Enth.: {fmtMea(abstainMea)}</span>
                 </div>
               </div>
             ) : (
