@@ -26,6 +26,7 @@ export const VotingPopup = () => {
   const [descOpen, setDescOpen] = useState(false);
   const [meetingId, setMeetingId] = useState<string | null>(null);
   const [isSecretBallot, setIsSecretBallot] = useState(true);
+  const [resultDialog, setResultDialog] = useState<any>(null);
 
   // Live vote counts — active throughout the entire voting (not only after allDone)
   const { data: liveVotes = [] } = useQuery({
