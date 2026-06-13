@@ -13,6 +13,8 @@ interface VotingAssignment {
   unit_number: string | null;
   attendee_id: string;
   mea_weight: number;
+  is_proxy?: boolean;
+  proxy_for_name?: string | null;
 }
 
 export const VotingPopup = () => {
@@ -20,8 +22,7 @@ export const VotingPopup = () => {
   const queryClient = useQueryClient();
   const [votingItem, setVotingItem] = useState<any>(null);
   const [myVotingAssignments, setMyVotingAssignments] = useState<VotingAssignment[]>([]);
-  const [currentUnitIndex, setCurrentUnitIndex] = useState(0);
-  const [selectedVote, setSelectedVote] = useState<string | null>(null);
+  const [selections, setSelections] = useState<Record<string, "yes" | "no" | "abstain" | null>>({});
   const [allDone, setAllDone] = useState(false);
   const [descOpen, setDescOpen] = useState(false);
   const [meetingId, setMeetingId] = useState<string | null>(null);
@@ -124,6 +125,7 @@ export const VotingPopup = () => {
           unit_number: assignment.unit_number,
           attendee_id: attendee.id,
           mea_weight: meaOf(assignment) + extraPerMain,
+          is_proxy: false,
         });
       }
     }
@@ -150,7 +152,7 @@ export const VotingPopup = () => {
 
         const { data: assignment } = await supabase
           .from("contact_building_assignments")
-          .select("id, unit_number, unit_kind, billing_mode, contact_id, contact_building_shares(share_type, share_value)")
+          .select("id, unit_number, unit_kind, billing_mode, contact_id, contact_building_shares(share_type, share_value), contacts:contact_id(first_name, last_name, company_name)")
           .eq("id", pa.assignment_id)
           .single();
         if (!assignment) continue;
@@ -166,11 +168,18 @@ export const VotingPopup = () => {
           .eq("is_active", true);
         const extra = (extraRows || []).filter(isDistributionOnly).reduce((s: number, a: any) => s + meaOf(a), 0);
 
+        const ownerContact: any = (assignment as any).contacts;
+        const ownerName = ownerContact
+          ? (ownerContact.company_name || [ownerContact.first_name, ownerContact.last_name].filter(Boolean).join(" ") || null)
+          : null;
+
         validAssignments.push({
           id: assignment.id,
           unit_number: assignment.unit_number,
           attendee_id: pa.id,
           mea_weight: meaOf(assignment) + extra,
+          is_proxy: true,
+          proxy_for_name: ownerName,
         });
       }
     }
@@ -179,8 +188,7 @@ export const VotingPopup = () => {
 
     setMyVotingAssignments(validAssignments);
     setVotingItem(agendaItem);
-    setCurrentUnitIndex(0);
-    setSelectedVote(null);
+    setSelections(Object.fromEntries(validAssignments.map((a) => [a.id, null])));
     setAllDone(false);
     setDescOpen(false);
   }, [profile?.user_id]);
@@ -257,32 +265,28 @@ export const VotingPopup = () => {
     };
   }, [profile?.user_id, profile?.role, checkActiveVotes]);
 
-  const castVoteMutation = useMutation({
-    mutationFn: async (vote: string) => {
-      const assignment = myVotingAssignments[currentUnitIndex];
-      if (!votingItem || !assignment) throw new Error("Missing data");
-
-      const { error } = await supabase.from("etv_votes").upsert(
-        {
+  const castAllVotesMutation = useMutation({
+    mutationFn: async () => {
+      if (!votingItem) throw new Error("Missing data");
+      const now = new Date().toISOString();
+      const rows = myVotingAssignments.map((a) => {
+        const vote = selections[a.id];
+        if (!vote) throw new Error("Nicht alle Einheiten haben eine Auswahl");
+        return {
           agenda_item_id: votingItem.id,
-          assignment_id: assignment.id,
+          assignment_id: a.id,
           vote,
-          mea_weight: assignment.mea_weight,
-          voted_at: new Date().toISOString(),
-        },
-        { onConflict: "agenda_item_id,assignment_id" }
-      );
+          mea_weight: a.mea_weight,
+          voted_at: now,
+        };
+      });
+      const { error } = await supabase
+        .from("etv_votes")
+        .upsert(rows, { onConflict: "agenda_item_id,assignment_id" });
       if (error) throw error;
     },
     onSuccess: () => {
-      const nextIndex = currentUnitIndex + 1;
-      if (nextIndex < myVotingAssignments.length) {
-        setCurrentUnitIndex(nextIndex);
-        setSelectedVote(null);
-      } else {
-        setAllDone(true);
-        // Don't auto-close — show live results until voting ends
-      }
+      setAllDone(true);
     },
   });
 
@@ -325,14 +329,19 @@ export const VotingPopup = () => {
   if (profile?.role !== "weg_owner") return null;
   if (!votingItem) return renderResultDialog();
 
-  const currentAssignment = myVotingAssignments[currentUnitIndex];
   const totalUnits = myVotingAssignments.length;
+  const selectedCount = myVotingAssignments.filter((a) => !!selections[a.id]).length;
+  const allSelected = selectedCount === totalUnits && totalUnits > 0;
 
   const voteButtons = [
-    { value: "yes", label: "Ja", icon: CheckCircle2, className: "bg-green-600 hover:bg-green-700 text-white border-green-600" },
-    { value: "no", label: "Nein", icon: XCircle, className: "bg-red-600 hover:bg-red-700 text-white border-red-600" },
-    { value: "abstain", label: "Enthaltung", icon: MinusCircle, className: "" },
+    { value: "yes" as const, label: "Ja", icon: CheckCircle2, activeClass: "bg-green-600 hover:bg-green-700 text-white border-green-600" },
+    { value: "no" as const, label: "Nein", icon: XCircle, activeClass: "bg-red-600 hover:bg-red-700 text-white border-red-600" },
+    { value: "abstain" as const, label: "Enth.", icon: MinusCircle, activeClass: "bg-muted-foreground text-background border-muted-foreground" },
   ];
+
+  const setAll = (vote: "yes" | "no" | "abstain") => {
+    setSelections(Object.fromEntries(myVotingAssignments.map((a) => [a.id, vote])));
+  };
 
   const yesVotesLive = liveVotes.filter((v: any) => v.vote === "yes");
   const noVotesLive = liveVotes.filter((v: any) => v.vote === "no");
@@ -362,12 +371,13 @@ export const VotingPopup = () => {
           <div className="text-center space-y-2">
             <Vote className="h-8 w-8 sm:h-10 sm:w-10 text-primary mx-auto mb-2" />
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">Abstimmung</h1>
-            {!allDone && currentAssignment?.unit_number && (
+            {!allDone && totalUnits > 0 && (
               <Badge variant="outline" className="text-base px-4 py-1.5 border-primary/30">
-                Einheit {currentAssignment.unit_number}
+                {totalUnits === 1 ? "1 Stimme" : `${totalUnits} Stimmen`}
               </Badge>
             )}
           </div>
+
 
 
         {allDone ? (
@@ -430,21 +440,11 @@ export const VotingPopup = () => {
             {totalUnits > 1 && (
               <div className="flex items-center justify-between">
                 <Badge variant="secondary" className="text-sm px-3 py-1.5">
-                  Einheit {currentUnitIndex + 1} von {totalUnits}
+                  {selectedCount} von {totalUnits} ausgewählt
                 </Badge>
-                <div className="flex gap-2">
-                  {Array.from({ length: totalUnits }).map((_, i) => (
-                    <div
-                      key={i}
-                      className={`h-3 w-3 rounded-full transition-colors ${
-                        i < currentUnitIndex ? "bg-green-500" :
-                        i === currentUnitIndex ? "bg-primary" : "bg-muted-foreground/30"
-                      }`}
-                    />
-                  ))}
-                </div>
               </div>
             )}
+
 
             {/* TOP info */}
             <div>
@@ -496,40 +496,94 @@ export const VotingPopup = () => {
               </div>
             )}
 
-            {/* Vote selection buttons */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-4">
-              {voteButtons.map(({ value, label, icon: Icon, className }) => (
-                <Button
-                  key={value}
-                  size="lg"
-                  variant={value === "abstain" ? "outline" : "default"}
-                  className={`h-20 sm:h-28 flex-col gap-1.5 sm:gap-2 text-sm sm:text-lg transition-all ${
-                    value !== "abstain" ? className : ""
-                  } ${
-                    selectedVote === value
-                      ? "ring-4 ring-primary ring-offset-2 scale-105"
-                      : "opacity-80 hover:opacity-100"
-                  }`}
-                  onClick={() => setSelectedVote(value)}
-                  disabled={castVoteMutation.isPending}
-                >
-                  <Icon className="h-7 w-7 sm:h-10 sm:w-10" />
-                  <span>{label}</span>
+            {/* Bulk actions */}
+            {totalUnits > 1 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground mr-1">Alle setzen:</span>
+                <Button size="sm" variant="outline" className="h-8 border-green-600/40 text-green-700 hover:bg-green-50 dark:hover:bg-green-950" onClick={() => setAll("yes")} disabled={castAllVotesMutation.isPending}>
+                  <CheckCircle2 className="h-4 w-4 mr-1" /> Alle Ja
                 </Button>
-              ))}
+                <Button size="sm" variant="outline" className="h-8 border-red-600/40 text-red-700 hover:bg-red-50 dark:hover:bg-red-950" onClick={() => setAll("no")} disabled={castAllVotesMutation.isPending}>
+                  <XCircle className="h-4 w-4 mr-1" /> Alle Nein
+                </Button>
+                <Button size="sm" variant="outline" className="h-8" onClick={() => setAll("abstain")} disabled={castAllVotesMutation.isPending}>
+                  <MinusCircle className="h-4 w-4 mr-1" /> Alle Enth.
+                </Button>
+              </div>
+            )}
+
+            {/* Per-unit selection matrix */}
+            <div className="space-y-2 max-h-[55vh] overflow-y-auto pr-1 -mr-1">
+              {myVotingAssignments.map((a) => {
+                const selected = selections[a.id];
+                return (
+                  <div key={a.id} className="border border-border rounded-lg p-3 bg-card">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {a.is_proxy ? (
+                            <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 text-[11px]">
+                              Vollmacht
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[11px] border-primary/40 text-primary">
+                              Eigene Einheit
+                            </Badge>
+                          )}
+                          <span className="font-semibold text-sm">Einheit {a.unit_number || "—"}</span>
+                        </div>
+                        {a.is_proxy && a.proxy_for_name && (
+                          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                            für {a.proxy_for_name}
+                          </p>
+                        )}
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          MEA-Gewicht: {fmtMea(a.mea_weight)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                      {voteButtons.map(({ value, label, icon: Icon, activeClass }) => {
+                        const isActive = selected === value;
+                        return (
+                          <Button
+                            key={value}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className={`h-12 flex-col gap-0.5 text-xs transition-all ${
+                              isActive ? `${activeClass} ring-2 ring-primary ring-offset-1` : "opacity-80 hover:opacity-100"
+                            }`}
+                            onClick={() => setSelections((prev) => ({ ...prev, [a.id]: value }))}
+                            disabled={castAllVotesMutation.isPending}
+                          >
+                            <Icon className="h-4 w-4" />
+                            <span>{label}</span>
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
-            {/* Confirm button */}
-            {selectedVote && (
-              <Button
-                size="lg"
-                className="w-full h-14 sm:h-16 text-base sm:text-xl font-semibold"
-                onClick={() => castVoteMutation.mutate(selectedVote)}
-                disabled={castVoteMutation.isPending}
-              >
-                {castVoteMutation.isPending ? "Wird gespeichert…" : "Stimme bestätigen"}
-              </Button>
-            )}
+            {/* Confirm all */}
+            <Button
+              size="lg"
+              className="w-full h-14 sm:h-16 text-base sm:text-xl font-semibold"
+              onClick={() => castAllVotesMutation.mutate()}
+              disabled={!allSelected || castAllVotesMutation.isPending}
+            >
+              {castAllVotesMutation.isPending
+                ? "Wird gespeichert…"
+                : allSelected
+                ? totalUnits > 1
+                  ? `Alle ${totalUnits} Stimmen bestätigen`
+                  : "Stimme bestätigen"
+                : `Noch ${totalUnits - selectedCount} Auswahl${totalUnits - selectedCount === 1 ? "" : "en"} offen`}
+            </Button>
+
 
           </div>
         )}
