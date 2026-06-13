@@ -190,11 +190,11 @@ export const EtvProxy = () => {
             <p className="text-sm text-muted-foreground">
               {isInvalid
                 ? "Dieser Vollmacht-Link ist ungültig oder wurde zurückgezogen."
-                : "Ein unerwarteter Fehler ist aufgetreten."}
+                : ((error as any)?.message || "Ein unerwarteter Fehler ist aufgetreten.")}
             </p>
-          </CardContent>
-        </Card>
-      </div>
+            {!isInvalid && (
+              <Button size="sm" variant="outline" onClick={() => refetch()}>Erneut versuchen</Button>
+            )}
     );
   }
 
