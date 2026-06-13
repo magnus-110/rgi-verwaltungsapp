@@ -91,56 +91,56 @@ export const EtvProxy = () => {
     }
   }, [activeVotingId]);
 
-  // iOS-safe polling: own setInterval + wake-up hooks (visibilitychange / pageshow / focus)
+  // iOS-safe polling: own setInterval + wake-up hooks (visibilitychange / pageshow / focus / online)
   const [channelEpoch, setChannelEpoch] = useState(0);
+  const meetingStatus: string | undefined = state?.meeting?.status;
+  const isMeetingLive = meetingStatus === "in_progress";
   useEffect(() => {
     if (!token) return;
-    const tick = () => {
-      console.info("[proxy] poll tick", new Date().toISOString());
-      refetch();
-    };
-    const interval = window.setInterval(tick, 3000);
+    const intervalMs = isMeetingLive ? 2000 : 5000;
+    const tick = () => { refetch(); };
+    const interval = window.setInterval(tick, intervalMs);
 
-    const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        console.info("[proxy] visibility -> visible, refetch + re-subscribe");
-        refetch();
-        setChannelEpoch((n) => n + 1);
-      }
-    };
-    const onPageShow = (e: PageTransitionEvent) => {
-      console.info("[proxy] pageshow persisted=", e.persisted);
-      refetch();
-      setChannelEpoch((n) => n + 1);
-    };
-    const onFocus = () => {
-      console.info("[proxy] window focus -> refetch");
-      refetch();
-    };
+    const wake = () => { refetch(); setChannelEpoch((n) => n + 1); };
+    const onVisible = () => { if (document.visibilityState === "visible") wake(); };
+    const onPageShow = () => wake();
+    const onFocus = () => refetch();
+    const onOnline = () => wake();
 
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("pageshow", onPageShow);
     window.addEventListener("focus", onFocus);
+    window.addEventListener("online", onOnline);
 
     return () => {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("pageshow", onPageShow);
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("online", onOnline);
     };
-  }, [token, refetch]);
+  }, [token, refetch, isMeetingLive]);
 
   // Broadcast listener for instant push from admin (start/reopen voting).
-  // Re-subscribes whenever channelEpoch bumps (iOS wake-up).
   const meetingId: string | undefined = state?.meeting?.id;
   useEffect(() => {
     if (!meetingId) return;
     const channel = supabase
       .channel(`meeting-broadcast-${meetingId}-${channelEpoch}`)
-      .on("broadcast", { event: "voting-changed" }, () => {
-        console.info("[proxy] broadcast -> voting-changed");
-        refetch();
-      })
+      .on("broadcast", { event: "voting-changed" }, () => { refetch(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [meetingId, refetch, channelEpoch]);
+
+  // Postgres-Realtime fallback (same mechanism as the logged-in owner portal).
+  // More reliable on iOS Safari than broadcast alone.
+  useEffect(() => {
+    if (!meetingId) return;
+    const channel = supabase
+      .channel(`proxy-db-${meetingId}-${channelEpoch}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "etv_agenda_items", filter: `meeting_id=eq.${meetingId}` }, () => { refetch(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "etv_meetings", filter: `id=eq.${meetingId}` }, () => { refetch(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "etv_votes" }, () => { refetch(); })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [meetingId, refetch, channelEpoch]);
@@ -190,8 +190,11 @@ export const EtvProxy = () => {
             <p className="text-sm text-muted-foreground">
               {isInvalid
                 ? "Dieser Vollmacht-Link ist ungültig oder wurde zurückgezogen."
-                : "Ein unerwarteter Fehler ist aufgetreten."}
+                : ((error as any)?.message || "Ein unerwarteter Fehler ist aufgetreten.")}
             </p>
+            {!isInvalid && (
+              <Button size="sm" variant="outline" onClick={() => refetch()}>Erneut versuchen</Button>
+            )}
           </CardContent>
         </Card>
       </div>
