@@ -1297,16 +1297,31 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     : a.attendance_type === "proxy"
                     ? "border-l-blue-500"
                     : "border-l-muted-foreground/30";
+                  const selfBadge = a.self_registered_at
+                    ? a.attendance_type === "present"
+                      ? { label: "Selbst: Anwesend", cls: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" }
+                      : a.attendance_type === "proxy"
+                      ? { label: "Selbst: Vollmacht", cls: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" }
+                      : { label: "Selbst: Abwesend", cls: "bg-muted text-muted-foreground" }
+                    : null;
                   return (
                     <div
                       key={a.id}
-                      className={`flex items-center justify-between py-2 px-3 rounded-md border-l-[3px] ${borderColor} hover:bg-muted/30 transition-colors`}
+                      className={`flex items-center justify-between py-1 px-2 rounded-md border-l-[3px] ${borderColor} hover:bg-muted/30 transition-colors`}
                     >
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className="text-sm font-medium truncate">{getContactName(contact)}</span>
-                        {cba?.unit_number && <Badge variant="outline" className="text-[10px] shrink-0 px-1.5 py-0">{cba.unit_number}</Badge>}
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <span className="text-xs font-medium truncate">{getContactName(contact)}</span>
+                        {cba?.unit_number && <Badge variant="outline" className="text-[9px] shrink-0 px-1 py-0">{cba.unit_number}</Badge>}
+                        {selfBadge && (
+                          <Badge
+                            className={`${selfBadge.cls} text-[9px] shrink-0 px-1 py-0`}
+                            title={`Selbst gemeldet am ${format(new Date(a.self_registered_at), "dd.MM.yyyy HH:mm", { locale: de })}`}
+                          >
+                            {selfBadge.label}
+                          </Badge>
+                        )}
                         {a.proxy_type && (
-                          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-[10px] shrink-0">
+                          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-[9px] shrink-0 px-1 py-0">
                             v.d. {a.proxy_type === "manager" ? "Verwalter" : a.proxy_type === "owner" ? (() => {
                               const proxyContact = allContacts.find((c: any) => c.contacts.id === a.proxy_contact_id);
                               return proxyContact ? getContactName(proxyContact.contacts) : "Eigentümer";
