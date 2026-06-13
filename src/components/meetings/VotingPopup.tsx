@@ -440,21 +440,11 @@ export const VotingPopup = () => {
             {totalUnits > 1 && (
               <div className="flex items-center justify-between">
                 <Badge variant="secondary" className="text-sm px-3 py-1.5">
-                  Einheit {currentUnitIndex + 1} von {totalUnits}
+                  {selectedCount} von {totalUnits} ausgewählt
                 </Badge>
-                <div className="flex gap-2">
-                  {Array.from({ length: totalUnits }).map((_, i) => (
-                    <div
-                      key={i}
-                      className={`h-3 w-3 rounded-full transition-colors ${
-                        i < currentUnitIndex ? "bg-green-500" :
-                        i === currentUnitIndex ? "bg-primary" : "bg-muted-foreground/30"
-                      }`}
-                    />
-                  ))}
-                </div>
               </div>
             )}
+
 
             {/* TOP info */}
             <div>
