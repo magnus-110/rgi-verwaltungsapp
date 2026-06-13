@@ -265,32 +265,28 @@ export const VotingPopup = () => {
     };
   }, [profile?.user_id, profile?.role, checkActiveVotes]);
 
-  const castVoteMutation = useMutation({
-    mutationFn: async (vote: string) => {
-      const assignment = myVotingAssignments[currentUnitIndex];
-      if (!votingItem || !assignment) throw new Error("Missing data");
-
-      const { error } = await supabase.from("etv_votes").upsert(
-        {
+  const castAllVotesMutation = useMutation({
+    mutationFn: async () => {
+      if (!votingItem) throw new Error("Missing data");
+      const now = new Date().toISOString();
+      const rows = myVotingAssignments.map((a) => {
+        const vote = selections[a.id];
+        if (!vote) throw new Error("Nicht alle Einheiten haben eine Auswahl");
+        return {
           agenda_item_id: votingItem.id,
-          assignment_id: assignment.id,
+          assignment_id: a.id,
           vote,
-          mea_weight: assignment.mea_weight,
-          voted_at: new Date().toISOString(),
-        },
-        { onConflict: "agenda_item_id,assignment_id" }
-      );
+          mea_weight: a.mea_weight,
+          voted_at: now,
+        };
+      });
+      const { error } = await supabase
+        .from("etv_votes")
+        .upsert(rows, { onConflict: "agenda_item_id,assignment_id" });
       if (error) throw error;
     },
     onSuccess: () => {
-      const nextIndex = currentUnitIndex + 1;
-      if (nextIndex < myVotingAssignments.length) {
-        setCurrentUnitIndex(nextIndex);
-        setSelectedVote(null);
-      } else {
-        setAllDone(true);
-        // Don't auto-close — show live results until voting ends
-      }
+      setAllDone(true);
     },
   });
 
