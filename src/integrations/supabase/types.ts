@@ -9242,6 +9242,7 @@ export type Database = {
           resolution_id: string
         }[]
       }
+      get_proxy_meeting_state: { Args: { p_token: string }; Returns: Json }
       get_service_provider_pool: {
         Args: never
         Returns: {
