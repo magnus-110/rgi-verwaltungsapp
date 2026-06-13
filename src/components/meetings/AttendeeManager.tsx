@@ -34,6 +34,7 @@ interface Attendee {
   proxy_token_used: boolean | null;
   proxy_external_name: string | null;
   pre_vote_instructions: any;
+  self_registered_at: string | null;
   checked_in_at: string | null;
   voting_banned_items: string[] | null;
   contact_building_assignments: {
