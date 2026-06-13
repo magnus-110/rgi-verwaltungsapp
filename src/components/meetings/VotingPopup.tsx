@@ -13,6 +13,8 @@ interface VotingAssignment {
   unit_number: string | null;
   attendee_id: string;
   mea_weight: number;
+  is_proxy?: boolean;
+  proxy_for_name?: string | null;
 }
 
 export const VotingPopup = () => {
@@ -20,8 +22,7 @@ export const VotingPopup = () => {
   const queryClient = useQueryClient();
   const [votingItem, setVotingItem] = useState<any>(null);
   const [myVotingAssignments, setMyVotingAssignments] = useState<VotingAssignment[]>([]);
-  const [currentUnitIndex, setCurrentUnitIndex] = useState(0);
-  const [selectedVote, setSelectedVote] = useState<string | null>(null);
+  const [selections, setSelections] = useState<Record<string, "yes" | "no" | "abstain" | null>>({});
   const [allDone, setAllDone] = useState(false);
   const [descOpen, setDescOpen] = useState(false);
   const [meetingId, setMeetingId] = useState<string | null>(null);
