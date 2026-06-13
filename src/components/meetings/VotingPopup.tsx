@@ -371,12 +371,13 @@ export const VotingPopup = () => {
           <div className="text-center space-y-2">
             <Vote className="h-8 w-8 sm:h-10 sm:w-10 text-primary mx-auto mb-2" />
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">Abstimmung</h1>
-            {!allDone && currentAssignment?.unit_number && (
+            {!allDone && totalUnits > 0 && (
               <Badge variant="outline" className="text-base px-4 py-1.5 border-primary/30">
-                Einheit {currentAssignment.unit_number}
+                {totalUnits === 1 ? "1 Stimme" : `${totalUnits} Stimmen`}
               </Badge>
             )}
           </div>
+
 
 
         {allDone ? (
