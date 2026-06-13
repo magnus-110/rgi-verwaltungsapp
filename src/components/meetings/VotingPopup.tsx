@@ -223,21 +223,19 @@ export const VotingPopup = () => {
             if (votingItemIdRef.current !== newItem.id) {
               await checkVotingForItemRef.current(newItem);
             }
-          } else if (oldItem?.status === "voting" && newItem.status !== "voting") {
-            if (votingItemIdRef.current === newItem.id) {
-              // Fetch the finalized item to show the result dialog
-              const { data: finalItem } = await supabase
-                .from("etv_agenda_items")
-                .select("*")
-                .eq("id", newItem.id)
-                .maybeSingle();
-              if (finalItem && (finalItem as any).result) {
-                setResultDialog(finalItem);
-              }
-              setVotingItem(null);
-              setMyVotingAssignments([]);
-              setAllDone(false);
+          } else if (votingItemIdRef.current === newItem.id && newItem.status !== "voting") {
+            // Any status change away from voting (or confirmation to voted) closes the popup
+            const { data: finalItem } = await supabase
+              .from("etv_agenda_items")
+              .select("*")
+              .eq("id", newItem.id)
+              .maybeSingle();
+            if (finalItem && (finalItem as any).result) {
+              setResultDialog(finalItem);
             }
+            setVotingItem(null);
+            setMyVotingAssignments([]);
+            setAllDone(false);
           }
         }
       )
