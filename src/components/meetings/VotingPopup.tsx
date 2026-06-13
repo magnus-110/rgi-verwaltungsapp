@@ -35,7 +35,7 @@ export const VotingPopup = () => {
       if (!votingItem) return [];
       const { data, error } = await supabase
         .from("etv_votes")
-        .select("vote, assignment_id, contact_building_assignments:assignment_id(unit_number, contacts:contact_id(first_name, last_name, company_name))")
+        .select("vote, assignment_id, mea_weight, contact_building_assignments:assignment_id(unit_number, contacts:contact_id(first_name, last_name, company_name))")
         .eq("agenda_item_id", votingItem.id);
       if (error) throw error;
       return data || [];
