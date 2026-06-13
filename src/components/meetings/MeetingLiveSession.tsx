@@ -439,12 +439,23 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       setActiveVoteItem(itemId);
       queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
       queryClient.invalidateQueries({ queryKey: ["etv-votes-live", itemId] });
+      // Broadcast to proxy/owner sessions so they instantly refetch
+      try {
+        const ch = supabase.channel(`meeting-broadcast-${meetingId}`);
+        ch.subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            ch.send({ type: "broadcast", event: "voting-changed", payload: { itemId } });
+            setTimeout(() => supabase.removeChannel(ch), 500);
+          }
+        });
+      } catch (_) { /* ignore */ }
       toast({
         title: "Abstimmung gestartet",
         description: cast > 0 ? `${cast} Vorab-Weisung${cast === 1 ? "" : "en"} übernommen` : undefined,
       });
     },
   });
+
 
   const castVoteMutation = useMutation({
     mutationFn: async ({ itemId, assignmentId, vote, meaWeight, sqmWeight }: { itemId: string; assignmentId: string; vote: string; meaWeight: number; sqmWeight?: number }) => {
@@ -678,9 +689,19 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       setActiveVoteItem(itemId);
       queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
       queryClient.invalidateQueries({ queryKey: ["etv-votes-live", itemId] });
+      try {
+        const ch = supabase.channel(`meeting-broadcast-${meetingId}`);
+        ch.subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            ch.send({ type: "broadcast", event: "voting-changed", payload: { itemId, reopened: true } });
+            setTimeout(() => supabase.removeChannel(ch), 500);
+          }
+        });
+      } catch (_) { /* ignore */ }
       toast({ title: "Abstimmung erneut geöffnet", description: "Alle Eigentümer wurden zur erneuten Abstimmung aufgerufen." });
     },
   });
+
 
   // Reorder TOPs (swap sort_order with neighbor)
   const reorderMutation = useMutation({

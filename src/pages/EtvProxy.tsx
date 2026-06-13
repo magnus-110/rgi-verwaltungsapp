@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,9 +22,7 @@ export const EtvProxy = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [votingItem, setVotingItem] = useState<any>(null);
   const [selectedVote, setSelectedVote] = useState<string | null>(null);
-  const [hasVoted, setHasVoted] = useState(false);
   const [descOpen, setDescOpen] = useState(false);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [redeeming, setRedeeming] = useState(false);
@@ -63,187 +61,58 @@ export const EtvProxy = () => {
     }
   };
 
-  const { data, isLoading, error } = useQuery({
-
-    queryKey: ["etv-proxy", token],
+  // Single source of truth: security-definer RPC, polled every 3s so reload + live updates always work
+  // even though the page is unauthenticated (anon has no SELECT on the underlying ETV tables).
+  const { data: state, isLoading, error, refetch } = useQuery({
+    queryKey: ["proxy-state", token],
     queryFn: async () => {
       if (!token) throw new Error("Kein Token angegeben");
-      const { data: result, error: rpcErr } = await supabase
-        .rpc("get_attendee_by_proxy_token", { p_token: token });
-      if (rpcErr) throw rpcErr;
-      if (!result) throw new Error("INVALID_TOKEN");
-      return result as any;
+      const { data, error } = await supabase.rpc("get_proxy_meeting_state", { p_token: token });
+      if (error) throw error;
+      if (!data || (data as any).error === "INVALID_TOKEN") throw new Error("INVALID_TOKEN");
+      return data as any;
     },
     enabled: !!token,
     retry: false,
+    refetchInterval: 3000,
+    refetchIntervalInBackground: true,
   });
 
-  const meetingId = (data as any)?.etv_meetings?.id;
-  const assignmentId = (data as any)?.assignment_id;
-  const isSecretBallot = (data as any)?.etv_meetings?.is_secret_ballot ?? true;
-
-  // Live votes for the current voting item
-  const { data: liveVotes = [] } = useQuery({
-    queryKey: ["proxy-live-votes", votingItem?.id],
-    queryFn: async () => {
-      if (!votingItem) return [];
-      const { data, error } = await supabase
-        .from("etv_votes")
-        .select("vote, assignment_id, contact_building_assignments:assignment_id(unit_number, contacts:contact_id(first_name, last_name, company_name))")
-        .eq("agenda_item_id", votingItem.id);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!votingItem,
-  });
-
-  // Live attendees for dashboard
-  const { data: proxyAttendees = [] } = useQuery({
-    queryKey: ["proxy-live-attendees", meetingId],
-    queryFn: async () => {
-      if (!meetingId) return [];
-      const { data, error } = await supabase
-        .from("etv_attendees")
-        .select("id, attendance_type, checked_in_at")
-        .eq("meeting_id", meetingId);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!meetingId,
-  });
-
-  // Live agenda items
-  const { data: proxyAgendaItems = [] } = useQuery({
-    queryKey: ["proxy-live-agenda", meetingId],
-    queryFn: async () => {
-      if (!meetingId) return [];
-      const { data, error } = await supabase
-        .from("etv_agenda_items")
-        .select("id, title, status, result")
-        .eq("meeting_id", meetingId)
-        .order("sort_order");
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!meetingId,
-  });
-
-  // Unit number for this assignment
-  const { data: assignmentInfo } = useQuery({
-    queryKey: ["proxy-assignment-info", assignmentId],
-    queryFn: async () => {
-      if (!assignmentId) return null;
-      const { data, error } = await supabase
-        .from("contact_building_assignments")
-        .select("unit_number")
-        .eq("id", assignmentId)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!assignmentId,
-  });
-
-  // Check for active vote on load
+  // Track previous voting item id to reset local state on changes
+  const prevVotingIdRef = useRef<string | null>(null);
+  const activeVotingId: string | null = state?.active_voting_item?.id ?? null;
   useEffect(() => {
-    if (!meetingId) return;
-    const checkActive = async () => {
-      const { data: items } = await supabase
-        .from("etv_agenda_items")
-        .select("*")
-        .eq("meeting_id", meetingId)
-        .eq("status", "voting");
-      if (items && items.length > 0) {
-        const { data: existing } = await supabase
-          .from("etv_votes")
-          .select("id")
-          .eq("agenda_item_id", items[0].id)
-          .eq("assignment_id", assignmentId)
-          .maybeSingle();
-        if (!existing) {
-          setVotingItem(items[0]);
-          setHasVoted(false);
-          setSelectedVote(null);
-          setDescOpen(false);
-        } else {
-          // Already voted - show results
-          setVotingItem(items[0]);
-          setHasVoted(true);
-        }
-      }
-    };
-    checkActive();
-  }, [meetingId, assignmentId]);
+    if (prevVotingIdRef.current !== activeVotingId) {
+      setSelectedVote(null);
+      setDescOpen(false);
+      prevVotingIdRef.current = activeVotingId;
+    }
+  }, [activeVotingId]);
 
-  // Realtime listener for agenda items
+  // Broadcast listener for instant push from admin (start/reopen voting)
+  const meetingId: string | undefined = state?.meeting?.id;
   useEffect(() => {
     if (!meetingId) return;
     const channel = supabase
-      .channel(`proxy-voting-${token}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "etv_agenda_items" },
-        async (payload) => {
-          const newItem = payload.new as any;
-          if (newItem.meeting_id !== meetingId) return;
-          if (newItem.status === "voting") {
-            const { data: existing } = await supabase
-              .from("etv_votes")
-              .select("id")
-              .eq("agenda_item_id", newItem.id)
-              .eq("assignment_id", assignmentId)
-              .maybeSingle();
-            if (!existing) {
-              setVotingItem(newItem);
-              setHasVoted(false);
-              setSelectedVote(null);
-              setDescOpen(false);
-            } else {
-              setVotingItem(newItem);
-              setHasVoted(true);
-            }
-          } else if (
-            payload.old &&
-            (payload.old as any).status === "voting" &&
-            newItem.status !== "voting"
-          ) {
-            if (votingItem?.id === newItem.id) {
-              setVotingItem(null);
-              setHasVoted(false);
-            }
-          }
-          // Refresh agenda list
-          queryClient.invalidateQueries({ queryKey: ["proxy-live-agenda", meetingId] });
-        }
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [meetingId, assignmentId, token, votingItem?.id, queryClient]);
-
-  // Realtime for votes
-  useEffect(() => {
-    if (!votingItem?.id) return;
-    const channel = supabase
-      .channel(`proxy-votes-${votingItem.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "etv_votes", filter: `agenda_item_id=eq.${votingItem.id}` }, () => {
-        queryClient.invalidateQueries({ queryKey: ["proxy-live-votes", votingItem.id] });
+      .channel(`meeting-broadcast-${meetingId}`)
+      .on("broadcast", { event: "voting-changed" }, () => {
+        refetch();
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [votingItem?.id, queryClient]);
+  }, [meetingId, refetch]);
 
   const castVoteMutation = useMutation({
     mutationFn: async (vote: string) => {
-      if (!votingItem || !token) throw new Error("Missing data");
+      if (!activeVotingId || !token) throw new Error("Missing data");
       const res = await supabase.functions.invoke("cast-proxy-vote", {
-        body: { token, agenda_item_id: votingItem.id, vote },
+        body: { token, agenda_item_id: activeVotingId, vote },
       });
       if (res.error) throw res.error;
       if (res.data?.error) throw new Error(res.data.error);
     },
     onSuccess: () => {
-      setHasVoted(true);
-      // Don't auto-close - show live results
+      queryClient.invalidateQueries({ queryKey: ["proxy-state", token] });
     },
   });
 
@@ -264,7 +133,7 @@ export const EtvProxy = () => {
     );
   }
 
-  if (error || !data) {
+  if (error || !state) {
     const isInvalid = (error as any)?.message === "INVALID_TOKEN";
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -285,12 +154,20 @@ export const EtvProxy = () => {
     );
   }
 
-  const meeting = (data as any).etv_meetings;
-  const building = meeting?.buildings;
+  const meeting = state.meeting;
   const meetingDate = new Date(meeting.meeting_date);
   const isCompleted = meeting.status === "completed";
   const isActive = meeting.status === "in_progress";
-  const tokenUsed = (data as any).proxy_token_used === true;
+  const tokenUsed = state.proxy_token_used === true;
+  const assignmentInfo = state.assignment;
+  const isSecretBallot = meeting.is_secret_ballot ?? true;
+
+  const votingItem = state.active_voting_item;
+  const hasVoted = !!state.has_voted;
+  const counts = state.live_counts || { yes: 0, no: 0, abstain: 0, yes_mea: 0, no_mea: 0, abstain_mea: 0 };
+  const singleVotes: any[] = state.single_votes || [];
+  const agendaItems: any[] = state.agenda || [];
+  const attendeeStats = state.attendees || { present: 0, total: 0 };
 
   // Token bereits eingelöst → klare Sackgasse
   if (tokenUsed) {
@@ -316,16 +193,10 @@ export const EtvProxy = () => {
     { value: "abstain", label: "Enthaltung", icon: MinusCircle, className: "" },
   ];
 
-  const yesCount = liveVotes.filter((v: any) => v.vote === "yes").length;
-  const noCount = liveVotes.filter((v: any) => v.vote === "no").length;
-  const abstainCount = liveVotes.filter((v: any) => v.vote === "abstain").length;
+  const activeAgendaItem = agendaItems.find((i: any) => i.status === "voting");
+  const votedAgendaItems = agendaItems.filter((i: any) => i.status === "voted" || i.status === "closed");
 
-  const proxyPresentCount = proxyAttendees.filter(
-    (a: any) => a.attendance_type === "present" || (a.attendance_type === "proxy" && a.checked_in_at)
-  ).length;
-
-  const activeAgendaItem = proxyAgendaItems.find((i: any) => i.status === "voting");
-  const votedAgendaItems = proxyAgendaItems.filter((i: any) => i.status === "voted" || i.status === "closed");
+  const fmtMea = (n: number) => Number(n || 0).toLocaleString("de-DE", { maximumFractionDigits: 6 });
 
   // Fullscreen voting overlay
   if (votingItem) {
@@ -359,35 +230,38 @@ export const EtvProxy = () => {
                 <CardContent className="p-4 space-y-3">
                   <h3 className="font-semibold text-sm text-center">Live-Ergebnis</h3>
                   <div className="flex justify-center gap-6 text-base">
-                    <span className="text-green-600 font-bold">Ja: {yesCount}</span>
-                    <span className="text-red-600 font-bold">Nein: {noCount}</span>
-                    <span className="text-muted-foreground font-semibold">Enth.: {abstainCount}</span>
+                    <span className="text-green-600 font-bold">Ja: {counts.yes}</span>
+                    <span className="text-red-600 font-bold">Nein: {counts.no}</span>
+                    <span className="text-muted-foreground font-semibold">Enth.: {counts.abstain}</span>
                   </div>
+                  {votingItem.voting_principle === "mea" && (
+                    <div className="flex justify-center gap-6 text-xs text-muted-foreground">
+                      <span>MEA Ja: {fmtMea(counts.yes_mea)}</span>
+                      <span>MEA Nein: {fmtMea(counts.no_mea)}</span>
+                      <span>MEA Enth.: {fmtMea(counts.abstain_mea)}</span>
+                    </div>
+                  )}
 
-                  {!isSecretBallot && liveVotes.length > 0 && (
+                  {!isSecretBallot && singleVotes.length > 0 && (
                     <div className="space-y-1 pt-2 border-t border-border">
                       <p className="text-xs text-muted-foreground text-center">Einzelstimmen</p>
-                      {liveVotes.map((v: any, i: number) => {
-                        const cba = v.contact_building_assignments;
-                        const contact = cba?.contacts;
-                        return (
-                          <div key={i} className="flex items-center justify-between text-sm py-0.5">
-                            <div className="flex items-center gap-1.5">
-                              <span>{getContactName(contact)}</span>
-                              {cba?.unit_number && (
-                                <Badge variant="outline" className="text-[9px] px-1 py-0">E{cba.unit_number}</Badge>
-                              )}
-                            </div>
-                            <span className={
-                              v.vote === "yes" ? "text-green-600 font-semibold" :
-                              v.vote === "no" ? "text-red-600 font-semibold" :
-                              "text-muted-foreground"
-                            }>
-                              {v.vote === "yes" ? "Ja" : v.vote === "no" ? "Nein" : "Enthaltung"}
-                            </span>
+                      {singleVotes.map((v: any, i: number) => (
+                        <div key={i} className="flex items-center justify-between text-sm py-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <span>{getContactName(v)}</span>
+                            {v?.unit_number && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0">E{v.unit_number}</Badge>
+                            )}
                           </div>
-                        );
-                      })}
+                          <span className={
+                            v.vote === "yes" ? "text-green-600 font-semibold" :
+                            v.vote === "no" ? "text-red-600 font-semibold" :
+                            "text-muted-foreground"
+                          }>
+                            {v.vote === "yes" ? "Ja" : v.vote === "no" ? "Nein" : "Enthaltung"}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </CardContent>
@@ -475,9 +349,9 @@ export const EtvProxy = () => {
         <div className="text-center space-y-2">
           <Shield className="h-10 w-10 text-primary mx-auto" />
           <h1 className="text-xl font-bold text-foreground">Vollmacht zur Eigentümerversammlung</h1>
-          {data.proxy_external_name && (
+          {state.proxy_external_name && (
             <p className="text-muted-foreground">
-              Bevollmächtigt: <strong>{data.proxy_external_name}</strong>
+              Bevollmächtigt: <strong>{state.proxy_external_name}</strong>
             </p>
           )}
         </div>
@@ -506,10 +380,10 @@ export const EtvProxy = () => {
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center gap-2">
               <Building2 className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">{building?.name}</span>
+              <span className="text-sm font-medium">{meeting.building_name}</span>
             </div>
-            {building?.address && (
-              <p className="text-xs text-muted-foreground ml-6">{building.address}</p>
+            {meeting.building_address && (
+              <p className="text-xs text-muted-foreground ml-6">{meeting.building_address}</p>
             )}
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -541,7 +415,7 @@ export const EtvProxy = () => {
                 <h3 className="font-semibold text-sm text-foreground">Live-Dashboard</h3>
                 <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
                   <Users className="h-3 w-3" />
-                  {proxyPresentCount}/{proxyAttendees.length} anwesend
+                  {attendeeStats.present}/{attendeeStats.total} anwesend
                 </div>
               </div>
 
