@@ -658,15 +658,27 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   });
 
   // Reopen voting (closed → voting)
+  // Bestehende Stimmen werden gelöscht, damit alle Eigentümer erneut benachrichtigt werden
+  // (VotingPopup öffnet nur, wenn noch keine Stimme für die Einheit existiert).
   const reopenVotingMutation = useMutation({
     mutationFn: async (itemId: string) => {
+      // 1) Bestehende Stimmen löschen, damit Live-Popup bei allen Owner-Geräten neu auftaucht
+      const { error: delErr } = await supabase
+        .from("etv_votes")
+        .delete()
+        .eq("agenda_item_id", itemId);
+      if (delErr) throw delErr;
+      // 2) Status kurz auf "open" setzen und dann auf "voting" — erzwingt UPDATE-Event
+      // im Realtime-Stream, falls Geräte den ersten Zustandswechsel verpasst haben.
+      await supabase.from("etv_agenda_items").update({ status: "open", result: null }).eq("id", itemId);
       const { error } = await supabase.from("etv_agenda_items").update({ status: "voting", result: null }).eq("id", itemId);
       if (error) throw error;
     },
     onSuccess: (_, itemId) => {
       setActiveVoteItem(itemId);
       queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
-      toast({ title: "Abstimmung erneut geöffnet" });
+      queryClient.invalidateQueries({ queryKey: ["etv-votes-live", itemId] });
+      toast({ title: "Abstimmung erneut geöffnet", description: "Alle Eigentümer wurden zur erneuten Abstimmung aufgerufen." });
     },
   });
 
