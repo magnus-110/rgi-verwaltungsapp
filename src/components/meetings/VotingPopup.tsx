@@ -528,6 +528,8 @@ export const VotingPopup = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
+
 
