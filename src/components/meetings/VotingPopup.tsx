@@ -329,14 +329,19 @@ export const VotingPopup = () => {
   if (profile?.role !== "weg_owner") return null;
   if (!votingItem) return renderResultDialog();
 
-  const currentAssignment = myVotingAssignments[currentUnitIndex];
   const totalUnits = myVotingAssignments.length;
+  const selectedCount = myVotingAssignments.filter((a) => !!selections[a.id]).length;
+  const allSelected = selectedCount === totalUnits && totalUnits > 0;
 
   const voteButtons = [
-    { value: "yes", label: "Ja", icon: CheckCircle2, className: "bg-green-600 hover:bg-green-700 text-white border-green-600" },
-    { value: "no", label: "Nein", icon: XCircle, className: "bg-red-600 hover:bg-red-700 text-white border-red-600" },
-    { value: "abstain", label: "Enthaltung", icon: MinusCircle, className: "" },
+    { value: "yes" as const, label: "Ja", icon: CheckCircle2, activeClass: "bg-green-600 hover:bg-green-700 text-white border-green-600" },
+    { value: "no" as const, label: "Nein", icon: XCircle, activeClass: "bg-red-600 hover:bg-red-700 text-white border-red-600" },
+    { value: "abstain" as const, label: "Enth.", icon: MinusCircle, activeClass: "bg-muted-foreground text-background border-muted-foreground" },
   ];
+
+  const setAll = (vote: "yes" | "no" | "abstain") => {
+    setSelections(Object.fromEntries(myVotingAssignments.map((a) => [a.id, vote])));
+  };
 
   const yesVotesLive = liveVotes.filter((v: any) => v.vote === "yes");
   const noVotesLive = liveVotes.filter((v: any) => v.vote === "no");
