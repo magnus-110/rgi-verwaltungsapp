@@ -125,6 +125,7 @@ export const VotingPopup = () => {
           unit_number: assignment.unit_number,
           attendee_id: attendee.id,
           mea_weight: meaOf(assignment) + extraPerMain,
+          is_proxy: false,
         });
       }
     }
