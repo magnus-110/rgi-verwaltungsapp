@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CheckCircle2, XCircle, MinusCircle, Vote, ChevronDown } from "lucide-react";
 
 interface VotingAssignment {
@@ -25,6 +26,7 @@ export const VotingPopup = () => {
   const [descOpen, setDescOpen] = useState(false);
   const [meetingId, setMeetingId] = useState<string | null>(null);
   const [isSecretBallot, setIsSecretBallot] = useState(true);
+  const [resultDialog, setResultDialog] = useState<any>(null);
 
   // Live vote counts — active throughout the entire voting (not only after allDone)
   const { data: liveVotes = [] } = useQuery({
@@ -33,7 +35,7 @@ export const VotingPopup = () => {
       if (!votingItem) return [];
       const { data, error } = await supabase
         .from("etv_votes")
-        .select("vote, assignment_id, contact_building_assignments:assignment_id(unit_number, contacts:contact_id(first_name, last_name, company_name))")
+        .select("vote, assignment_id, mea_weight, contact_building_assignments:assignment_id(unit_number, contacts:contact_id(first_name, last_name, company_name))")
         .eq("agenda_item_id", votingItem.id);
       if (error) throw error;
       return data || [];
@@ -223,6 +225,15 @@ export const VotingPopup = () => {
             }
           } else if (oldItem?.status === "voting" && newItem.status !== "voting") {
             if (votingItemIdRef.current === newItem.id) {
+              // Fetch the finalized item to show the result dialog
+              const { data: finalItem } = await supabase
+                .from("etv_agenda_items")
+                .select("*")
+                .eq("id", newItem.id)
+                .maybeSingle();
+              if (finalItem && (finalItem as any).result) {
+                setResultDialog(finalItem);
+              }
               setVotingItem(null);
               setMyVotingAssignments([]);
               setAllDone(false);
@@ -277,7 +288,44 @@ export const VotingPopup = () => {
     },
   });
 
-  if (!votingItem || profile?.role !== "weg_owner") return null;
+  // Render result dialog standalone if no active voting
+  const renderResultDialog = () => (
+    <Dialog open={!!resultDialog} onOpenChange={(o) => { if (!o) setResultDialog(null); }}>
+      <DialogContent className="text-center">
+        <DialogHeader><DialogTitle>Abstimmungsergebnis</DialogTitle></DialogHeader>
+        {resultDialog && (() => {
+          const isMea = resultDialog.voting_principle === "mea";
+          const fmt = (n: number) => Number(n || 0).toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+          const yesVal = isMea ? fmt(resultDialog.total_mea_yes) : resultDialog.yes_count;
+          const noVal = isMea ? fmt(resultDialog.total_mea_no) : resultDialog.no_count;
+          const absVal = isMea ? fmt(resultDialog.total_mea_abstain) : resultDialog.abstain_count;
+          const unitLbl = isMea ? "MEA" : "Köpfe";
+          return (
+            <div className="py-4 space-y-4">
+              <div className={resultDialog.result === "passed" ? "text-green-500" : "text-destructive"}>
+                {resultDialog.result === "passed" ? <CheckCircle2 className="h-16 w-16 mx-auto" /> : <XCircle className="h-16 w-16 mx-auto" />}
+              </div>
+              <h3 className="text-xl font-bold">{resultDialog.result === "passed" ? "Beschluss angenommen" : "Beschluss abgelehnt"}</h3>
+              <p className="text-sm text-muted-foreground">{resultDialog.title}</p>
+              <div className="flex justify-center gap-6 text-sm">
+                <div className="text-center"><div className="text-2xl font-bold text-green-600">{yesVal}</div><div className="text-muted-foreground">Ja ({unitLbl})</div></div>
+                <div className="text-center"><div className="text-2xl font-bold text-red-600">{noVal}</div><div className="text-muted-foreground">Nein ({unitLbl})</div></div>
+                <div className="text-center"><div className="text-2xl font-bold text-muted-foreground">{absVal}</div><div className="text-muted-foreground">Enthaltung ({unitLbl})</div></div>
+              </div>
+              {isMea && (
+                <div className="text-xs text-muted-foreground">
+                  Köpfe: {resultDialog.yes_count} Ja / {resultDialog.no_count} Nein / {resultDialog.abstain_count} Enth.
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </DialogContent>
+    </Dialog>
+  );
+
+  if (profile?.role !== "weg_owner") return null;
+  if (!votingItem) return renderResultDialog();
 
   const currentAssignment = myVotingAssignments[currentUnitIndex];
   const totalUnits = myVotingAssignments.length;
@@ -288,9 +336,17 @@ export const VotingPopup = () => {
     { value: "abstain", label: "Enthaltung", icon: MinusCircle, className: "" },
   ];
 
-  const yesCount = liveVotes.filter((v: any) => v.vote === "yes").length;
-  const noCount = liveVotes.filter((v: any) => v.vote === "no").length;
-  const abstainCount = liveVotes.filter((v: any) => v.vote === "abstain").length;
+  const yesVotesLive = liveVotes.filter((v: any) => v.vote === "yes");
+  const noVotesLive = liveVotes.filter((v: any) => v.vote === "no");
+  const abstainVotesLive = liveVotes.filter((v: any) => v.vote === "abstain");
+  const yesCount = yesVotesLive.length;
+  const noCount = noVotesLive.length;
+  const abstainCount = abstainVotesLive.length;
+  const sumMea = (arr: any[]) => arr.reduce((s, v) => s + Number(v.mea_weight || 0), 0);
+  const yesMea = sumMea(yesVotesLive);
+  const noMea = sumMea(noVotesLive);
+  const abstainMea = sumMea(abstainVotesLive);
+  const fmtMea = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 
   const getContactName = (contact: any) => {
     if (!contact) return "Unbekannt";
@@ -299,6 +355,8 @@ export const VotingPopup = () => {
   };
 
   return (
+    <>
+    {renderResultDialog()}
     <div className="fixed inset-0 z-[100] bg-background overflow-y-auto">
       <div className="min-h-full flex items-start sm:items-center justify-center p-4 py-6 sm:p-6">
         <div className="w-full max-w-xl space-y-4 sm:space-y-6">
@@ -324,10 +382,13 @@ export const VotingPopup = () => {
             {/* Live Results */}
             <div className="bg-muted rounded-lg p-5 space-y-4">
               <h3 className="font-semibold text-foreground text-center">Live-Ergebnis</h3>
-              <div className="flex justify-center gap-6 text-lg">
-                <span className="text-green-600 font-bold">Ja: {yesCount}</span>
-                <span className="text-red-600 font-bold">Nein: {noCount}</span>
-                <span className="text-muted-foreground font-semibold">Enth.: {abstainCount}</span>
+              <div className="flex justify-center gap-6 text-base">
+                <div className="text-center"><div className="text-xl font-bold text-green-600">{fmtMea(yesMea)}</div><div className="text-xs text-muted-foreground">Ja (MEA)</div></div>
+                <div className="text-center"><div className="text-xl font-bold text-red-600">{fmtMea(noMea)}</div><div className="text-xs text-muted-foreground">Nein (MEA)</div></div>
+                <div className="text-center"><div className="text-xl font-bold text-muted-foreground">{fmtMea(abstainMea)}</div><div className="text-xs text-muted-foreground">Enth. (MEA)</div></div>
+              </div>
+              <div className="text-xs text-center text-muted-foreground">
+                Köpfe: {yesCount} Ja / {noCount} Nein / {abstainCount} Enth.
               </div>
 
               {/* Public ballot: show who voted what */}
@@ -416,12 +477,15 @@ export const VotingPopup = () => {
 
             {/* Live results during voting */}
             {!isSecretBallot ? (
-              <div className="bg-muted rounded-lg p-4 space-y-3">
+              <div className="bg-muted rounded-lg p-4 space-y-2">
                 <h3 className="font-semibold text-sm text-foreground text-center">Live-Ergebnis</h3>
-                <div className="flex justify-center gap-4 sm:gap-6 text-base">
-                  <span className="text-green-600 font-bold">Ja: {yesCount}</span>
-                  <span className="text-red-600 font-bold">Nein: {noCount}</span>
-                  <span className="text-muted-foreground font-semibold">Enth.: {abstainCount}</span>
+                <div className="flex justify-center gap-4 sm:gap-6 text-sm">
+                  <div className="text-center"><div className="text-base font-bold text-green-600">{fmtMea(yesMea)}</div><div className="text-[10px] text-muted-foreground">Ja (MEA)</div></div>
+                  <div className="text-center"><div className="text-base font-bold text-red-600">{fmtMea(noMea)}</div><div className="text-[10px] text-muted-foreground">Nein (MEA)</div></div>
+                  <div className="text-center"><div className="text-base font-bold text-muted-foreground">{fmtMea(abstainMea)}</div><div className="text-[10px] text-muted-foreground">Enth. (MEA)</div></div>
+                </div>
+                <div className="text-[11px] text-center text-muted-foreground">
+                  Köpfe: {yesCount} / {noCount} / {abstainCount}
                 </div>
               </div>
             ) : (
@@ -470,6 +534,8 @@ export const VotingPopup = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
+
 
