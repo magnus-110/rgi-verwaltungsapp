@@ -299,9 +299,17 @@ export const VotingPopup = () => {
     { value: "abstain", label: "Enthaltung", icon: MinusCircle, className: "" },
   ];
 
-  const yesCount = liveVotes.filter((v: any) => v.vote === "yes").length;
-  const noCount = liveVotes.filter((v: any) => v.vote === "no").length;
-  const abstainCount = liveVotes.filter((v: any) => v.vote === "abstain").length;
+  const yesVotesLive = liveVotes.filter((v: any) => v.vote === "yes");
+  const noVotesLive = liveVotes.filter((v: any) => v.vote === "no");
+  const abstainVotesLive = liveVotes.filter((v: any) => v.vote === "abstain");
+  const yesCount = yesVotesLive.length;
+  const noCount = noVotesLive.length;
+  const abstainCount = abstainVotesLive.length;
+  const sumMea = (arr: any[]) => arr.reduce((s, v) => s + Number(v.mea_weight || 0), 0);
+  const yesMea = sumMea(yesVotesLive);
+  const noMea = sumMea(noVotesLive);
+  const abstainMea = sumMea(abstainVotesLive);
+  const fmtMea = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 
   const getContactName = (contact: any) => {
     if (!contact) return "Unbekannt";
