@@ -1,54 +1,33 @@
-# Teilnahmeabfrage am Versammlungs-Kartenfuß (Eigentümer) + Admin-Markierung
-
 ## Ziel
-Eigentümer können direkt auf der Versammlungs-Karte (vor dem Öffnen des Dialogs) ihre Teilnahme vorab melden: **Anwesend / Vollmacht / Nicht anwesend**. Editierbar bis zum Versammlungs-Datum. Admin sieht in der Anwesenheitsliste ein Icon, das eine selbst gemeldete Teilnahme markiert.
+Die Live-Abstimmung soll über den öffentlichen Proxy-Link auf iPhone/Safari zuverlässig erscheinen – genauso wie im eingeloggten Owner-Portal.
 
-## Datenbank (Migration)
-Neue Spalte auf `etv_attendees`:
-- `self_registered_at timestamptz NULL` — wird gesetzt, sobald der Eigentümer seine Teilnahme aktiv bestätigt/wählt. Bleibt `NULL` für rein automatisch angelegte Datensätze.
+## Beobachtete Ursache
+Der eingeloggte Bereich bekommt Live-Updates über normale Datenbank-Realtime-Events. Der Proxy-Link nutzt dagegen eine eigene RPC-Abfrage plus Broadcast/Polling. Auf iPhone/Safari ist dieser Push-Pfad weiterhin unzuverlässig; außerdem zeigt die Fehleransicht aktuell keine konkrete Fehlermeldung, wodurch die Diagnose erschwert wird.
 
-Kein Wechsel der Logik für `attendance_type`/`proxy_type` — diese Felder werden weiterhin genutzt; das neue Feld dient nur als Indikator "Eigentümer hat selbst gemeldet".
+## Umsetzung
+1. **Proxy-Link auf DB-Realtime statt Broadcast absichern**
+   - In `EtvProxy.tsx` zusätzlich zu Polling/Broadcast eine Realtime-Subscription auf `etv_agenda_items` für die Meeting-ID einbauen.
+   - Bei Änderungen an TOP-Status (`voting`, `closed`, `voted`, `open`) sofort `refetch()` auslösen.
+   - Cleanup mit `supabase.removeChannel(channel)` beibehalten.
 
-## Eigentümer-UI (`src/pages/weg-owner/Meetings.tsx`)
+2. **Polling robuster machen**
+   - Polling kurzzeitig beschleunigen, wenn die Versammlung läuft oder eine Abstimmung aktiv ist.
+   - iPhone-Wake-Events (`visibilitychange`, `pageshow`, `focus`) bleiben erhalten.
+   - Optional zusätzliche `online`-Refetch-Logik ergänzen.
 
-### Neue Datenabfrage
-- Neue Query `weg-owner-attendees-all`: lädt Attendee-Records für **alle** in der Liste angezeigten Meetings (gefiltert nach `meeting_id IN (...)` und `assignment_id IN myAssignments`). Damit kann die Karte den aktuellen Status anzeigen, ohne den Detail-Dialog zu öffnen.
-- Realtime-Channel ergänzen (oder pro Liste eine), sodass Änderungen Live ankommen.
+3. **Fehler sichtbar machen**
+   - In der Proxy-Fehlerkarte die echte Fehlermeldung anzeigen, z. B. RPC-/Netzwerkfehler statt nur „Ein unerwarteter Fehler ist aufgetreten“.
+   - Dadurch sieht man beim nächsten iPhone-Test sofort, ob es ein Token-, RPC-, Netzwerk- oder Berechtigungsproblem ist.
 
-### Karten-Footer (für `published` / `in_progress` Meetings, vor Versammlungs-Datum)
-Am unteren Rand der Meeting-`Card` wird ein abgetrennter Bereich (`border-t pt-3 mt-2`) hinzugefügt:
+4. **Admin-Senden vereinheitlichen**
+   - Beim Starten/erneuten Öffnen/Beenden einer Abstimmung weiterhin Query-Invalidation nutzen.
+   - Broadcast bleibt als Zusatz bestehen, aber die Proxy-Seite verlässt sich nicht mehr ausschließlich darauf.
 
-```text
-Ihre Teilnahme:  [ Anwesend ]  [ Vollmacht ]  [ Nicht anwesend ]
-                  (aktive Auswahl visuell hervorgehoben)
-```
+## Dateien
+- `src/pages/EtvProxy.tsx`
+- ggf. kleiner Zusatz in `src/components/meetings/MeetingLiveSession.tsx`, falls das Beenden der Abstimmung ebenfalls einen expliziten Push auslösen soll.
 
-Verhalten:
-- Klicks innerhalb des Footers `stopPropagation`, damit der Karten-Klick (Dialog öffnen) nicht ausgelöst wird.
-- **Anwesend** → Mutation: `attendance_type='present'`, `proxy_type=null`, `self_registered_at=now()`.
-- **Nicht anwesend** → Mutation: `attendance_type='absent'`, `proxy_type=null`, `self_registered_at=now()`.
-- **Vollmacht** → öffnet den bestehenden Proxy-Dialog (gleiche Logik wie heute im Detail-Dialog). Beim Speichern der Vollmacht setzt die bestehende `setProxyMutation` zusätzlich `self_registered_at=now()`.
-- Bei mehreren Einheiten (mehrere `myAssignments`): pro Assignment eine Zeile (`Einheit X: [Buttons]`), damit jede Einheit separat gemeldet werden kann.
-- Für vergangene/abgeschlossene Meetings: Footer wird nicht gerendert.
-- Statt expliziter Zeitsperre wird die bestehende Logik (`isProxyLocked` = false) übernommen — bis zum Meeting-Termin bearbeitbar.
-
-### Detail-Dialog (bestehende „Ihre Teilnahme & Vollmacht"-Sektion)
-Bleibt unverändert, aber:
-- Die Anwesend-/Abwesend-Wahl bekommt zusätzlich die zwei neuen Buttons (Anwesend/Nicht anwesend) als kleines Toggle, damit der Eigentümer auch im Dialog ändern kann. Setzt ebenfalls `self_registered_at`.
-
-## Admin-UI (`src/components/meetings/AttendeeManager.tsx`)
-Neben dem Namen jedes Attendees ein neues Icon, wenn `self_registered_at IS NOT NULL`:
-- Icon: `UserCheck` (lucide), grün, mit Tooltip „Vom Eigentümer selbst gemeldet am <Datum>".
-- Position: direkt rechts neben dem Namen, vor den Badges.
-
-Keine Änderung an Mutations/Logik — nur Anzeige.
-
-## Out of Scope
-- Push-/Email-Benachrichtigung bei Selbst-Meldung
-- Sperre kurz vor Meeting-Beginn (bleibt bei aktueller Logik: bis Meeting-Datum)
-- Änderungen am Proxy-Flow selbst (Schritte, Weisungen) — bestehender Dialog wird wiederverwendet
-
-## Geänderte Dateien
-- **Migration**: neue Spalte `self_registered_at` auf `etv_attendees`
-- **Bearbeitet**: `src/pages/weg-owner/Meetings.tsx`
-- **Bearbeitet**: `src/components/meetings/AttendeeManager.tsx`
+## Nicht enthalten
+- Keine Änderung am Abstimmungsmodell.
+- Keine Änderung an Vollmacht-Erstellung oder Einlösung.
+- Keine neue Datenbanktabelle.
