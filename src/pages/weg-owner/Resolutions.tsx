@@ -83,14 +83,18 @@ export const WegOwnerResolutions = () => {
   });
 
   const filtered = useMemo(() => {
-    if (!search) return resolutions;
+    let list = resolutions as any[];
+    if (selectedBuildingId && buildings.length > 1) {
+      list = list.filter((r: any) => r.building_id === selectedBuildingId);
+    }
+    if (!search) return list;
     const s = search.toLowerCase();
-    return resolutions.filter((r: any) =>
+    return list.filter((r: any) =>
       r.resolution_text?.toLowerCase().includes(s) ||
       r.resolution_number?.toLowerCase().includes(s) ||
       r.etv_meetings?.title?.toLowerCase().includes(s)
     );
-  }, [resolutions, search]);
+  }, [resolutions, search, selectedBuildingId, buildings.length]);
 
   const actionable = filtered.filter((r: any) => r.is_actionable && r.actionable_status !== "completed");
   const all = filtered;
