@@ -553,14 +553,20 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const totalOperatingDistRelevant = getSectionDistributable("operating_distributable");
   const totalOperatingNonDistRelevant = getSectionDistributable("operating_non_distributable");
   const totalHeatingRelevant = getSectionDistributable("heating");
+  // IHR-Zuführung wird über die Sektion "reserve" (Konto 193x bzw. die in der
+  // Sektion eingehängten Konten) ein einziges Mal gezählt — KEIN zusätzlicher
+  // Aufschlag aus economicPlan.total_reserve mehr, da das zu Doppelzählung
+  // gegenüber dem PDF (sumVerteilbar) führte.
+  const totalReserveRelevant = getSectionDistributable("reserve");
   // Abgrenzungen vorzeichenrichtig (4100/4180 negativ, 4120/4160 positiv)
   const totalAccrualRelevant = (sectionAccounts["accrual"] || [])
     .reduce((s: number, a: any) => s + (a.totalAbs || 0) * getAccrualDisplaySign(a.account_number), 0);
+  // Einheitliche Abrechnungssumme — identisch zu sumVerteilbar im PDF-Payload.
   const abrechnungssumme =
       totalOperatingDistRelevant
     + totalOperatingNonDistRelevant
     + totalHeatingRelevant
-    + totalReserve            // Plan-IHR (Konto 193x / economicPlan)
+    + totalReserveRelevant
     - totalReserveWithdrawal; // Entnahmen mindern
   // Hinweis: totalAccrualRelevant ist bewusst NICHT Teil der Abrechnungssumme.
   // Abgrenzungen werden nur nachrichtlich ausgewiesen (Vermögensbericht).
