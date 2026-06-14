@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,6 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Scale, Search, CheckCircle2, XCircle, Clock, AlertCircle, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { BuildingFilterChips, BuildingChip } from "@/components/shared/BuildingFilterChips";
 
 const statusBadge: Record<string, { label: string; cls: string; Icon: any }> = {
   open: { label: "Offen", cls: "bg-orange-500/15 text-orange-700 border-orange-500/30", Icon: AlertCircle },
