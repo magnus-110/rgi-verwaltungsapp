@@ -747,7 +747,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     // Distributable accounts
     // Inline-Toggle "Abrechnungsrelevant" respektieren: explizit false → ausblenden
     const distributableAccounts = accounts.filter(
-      (a) => a.is_distributable && !isAccrualBalanceAccount(a) && (a as any).is_billing_relevant !== false
+      (a) =>
+        (a.is_distributable || a.settlement_section === "reserve")
+        && !isAccrualBalanceAccount(a)
+        && (a as any).is_billing_relevant !== false
     );
     distributableAccounts.forEach((acc) => {
       // IHR-Zuführung (reserve section): nimm WP-Wert 1:1 statt Buchungs-Summe
