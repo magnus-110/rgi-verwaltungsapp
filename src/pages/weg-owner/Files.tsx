@@ -94,50 +94,37 @@ function FolderNode({ node, depth, onOpenFile, downloading }: {
   onOpenFile: (f: FileItem) => void;
   downloading: string | null;
 }) {
-  const [open, setOpen] = useState(depth === 0 ? false : true);
+  const [open, setOpen] = useState(false);
   return (
-    <div>
+    <Card className="overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className={depth === 0
-          ? "w-full p-4 hover:bg-muted/50 transition-colors flex items-center gap-3 text-left"
-          : "w-full py-2 px-3 hover:bg-muted/50 transition-colors flex items-center gap-2 text-left rounded-md"}
-        style={depth > 0 ? { paddingLeft: `${depth * 16 + 8}px` } : undefined}
+        className="w-full p-4 hover:bg-muted/50 transition-colors flex items-center gap-3 text-left"
       >
-        {depth === 0 ? (
-          <div className="h-11 w-11 rounded-lg bg-muted text-muted-foreground flex items-center justify-center shrink-0">
-            <Folder className="h-5 w-5" />
-          </div>
-        ) : (
-          <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
-        )}
-        <div className="flex-1 min-w-0">
-          <p className={depth === 0 ? "text-sm font-semibold truncate" : "text-sm truncate"}>{node.name}</p>
-          {depth === 0 && (
-            <p className="text-xs text-muted-foreground">
-              {node.totalCount} {node.totalCount === 1 ? "Dokument" : "Dokumente"}
-            </p>
-          )}
+        <div className="h-11 w-11 rounded-lg bg-muted text-muted-foreground flex items-center justify-center shrink-0">
+          <Folder className="h-5 w-5" />
         </div>
-        {depth > 0 && (
-          <span className="text-[11px] text-muted-foreground">{node.totalCount}</span>
-        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold truncate">{node.name}</p>
+          <p className="text-xs text-muted-foreground">
+            {node.totalCount} {node.totalCount === 1 ? "Dokument" : "Dokumente"}
+          </p>
+        </div>
         {open
           ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
           : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
       </button>
 
       {open && (
-        <div className={depth === 0 ? "border-t px-2 py-2 space-y-1" : "space-y-1"}>
+        <div className="border-t p-3 space-y-2 bg-muted/20">
           {node.files.map(file => (
             <button
               key={file.id}
               type="button"
               onClick={() => { if (downloading !== file.id) onOpenFile(file); }}
               disabled={downloading === file.id}
-              className="w-full text-left flex items-center gap-3 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors cursor-pointer disabled:cursor-wait disabled:opacity-70"
-              style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
+              className="w-full text-left flex items-center gap-3 py-2 px-3 rounded-md bg-card hover:bg-muted/50 transition-colors cursor-pointer disabled:cursor-wait disabled:opacity-70 border border-border/60"
             >
               <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               <div className="flex-1 min-w-0">
@@ -165,9 +152,10 @@ function FolderNode({ node, depth, onOpenFile, downloading }: {
           ))}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
+
 
 function FilesBrowser({ files, categories, search }: { files: FileItem[]; categories: Category[]; search: string }) {
   const [downloading, setDownloading] = useState<string | null>(null);
@@ -238,9 +226,7 @@ function FilesBrowser({ files, categories, search }: { files: FileItem[]; catego
       ) : (
         <div className="space-y-2">
           {tree.map(node => (
-            <Card key={node.id} className="overflow-hidden">
-              <FolderNode node={node} depth={0} onOpenFile={handleOpen} downloading={downloading} />
-            </Card>
+            <FolderNode key={node.id} node={node} depth={0} onOpenFile={handleOpen} downloading={downloading} />
           ))}
         </div>
       )}
