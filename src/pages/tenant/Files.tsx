@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Building2, Search, FileText, Download, Loader2 } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { User, Building2, Search, FileText, Download, Loader2, Folder, ChevronRight, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -18,13 +19,18 @@ interface FileItem {
   visible_to_users: boolean;
   created_at: string;
   category_id: string | null;
+  building_id: string;
 }
 
 interface Category {
   id: string;
   name: string;
-  color: string | null;
+  parent_id: string | null;
+  sort_order: number | null;
+  building_id: string;
 }
+
+const NO_CAT = "__none__";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -32,30 +38,139 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function FilesByCategory({ files, categories, search }: { files: FileItem[]; categories: Category[]; search: string }) {
+interface TreeNode {
+  id: string;
+  name: string;
+  files: FileItem[];
+  children: TreeNode[];
+  totalCount: number;
+}
+
+function buildTree(categories: Category[], files: FileItem[]): TreeNode[] {
+  const filesByCat = new Map<string, FileItem[]>();
+  const orphan: FileItem[] = [];
+  for (const f of files) {
+    if (!f.category_id) { orphan.push(f); continue; }
+    if (!filesByCat.has(f.category_id)) filesByCat.set(f.category_id, []);
+    filesByCat.get(f.category_id)!.push(f);
+  }
+  const childrenOf = new Map<string | null, Category[]>();
+  for (const c of categories) {
+    const key = c.parent_id ?? null;
+    if (!childrenOf.has(key)) childrenOf.set(key, []);
+    childrenOf.get(key)!.push(c);
+  }
+  for (const arr of childrenOf.values()) {
+    arr.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name));
+  }
+  const build = (parent: string | null): TreeNode[] => {
+    const list = childrenOf.get(parent) || [];
+    const nodes: TreeNode[] = [];
+    for (const c of list) {
+      const own = filesByCat.get(c.id) || [];
+      const children = build(c.id);
+      const total = own.length + children.reduce((s, n) => s + n.totalCount, 0);
+      if (total === 0) continue;
+      nodes.push({ id: c.id, name: c.name, files: own, children, totalCount: total });
+    }
+    return nodes;
+  };
+  const top = build(null);
+  if (orphan.length > 0) {
+    top.push({ id: NO_CAT, name: "Ohne Kategorie", files: orphan, children: [], totalCount: orphan.length });
+  }
+  return top;
+}
+
+function FolderNode({ node, depth, onOpenFile, downloading }: {
+  node: TreeNode;
+  depth: number;
+  onOpenFile: (f: FileItem) => void;
+  downloading: string | null;
+}) {
+  const [open, setOpen] = useState(depth === 0 ? false : true);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={depth === 0
+          ? "w-full p-4 hover:bg-muted/50 transition-colors flex items-center gap-3 text-left"
+          : "w-full py-2 px-3 hover:bg-muted/50 transition-colors flex items-center gap-2 text-left rounded-md"}
+        style={depth > 0 ? { paddingLeft: `${depth * 16 + 8}px` } : undefined}
+      >
+        {depth === 0 ? (
+          <div className="h-11 w-11 rounded-lg bg-muted text-muted-foreground flex items-center justify-center shrink-0">
+            <Folder className="h-5 w-5" />
+          </div>
+        ) : (
+          <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
+        )}
+        <div className="flex-1 min-w-0">
+          <p className={depth === 0 ? "text-sm font-semibold truncate" : "text-sm truncate"}>{node.name}</p>
+          {depth === 0 && (
+            <p className="text-xs text-muted-foreground">
+              {node.totalCount} {node.totalCount === 1 ? "Dokument" : "Dokumente"}
+            </p>
+          )}
+        </div>
+        {depth > 0 && (
+          <span className="text-[11px] text-muted-foreground">{node.totalCount}</span>
+        )}
+        {open
+          ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+      </button>
+
+      {open && (
+        <div className={depth === 0 ? "border-t px-2 py-2 space-y-1" : "space-y-1"}>
+          {node.files.map(file => (
+            <button
+              key={file.id}
+              type="button"
+              onClick={() => { if (downloading !== file.id) onOpenFile(file); }}
+              disabled={downloading === file.id}
+              className="w-full text-left flex items-center gap-3 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors cursor-pointer disabled:cursor-wait disabled:opacity-70"
+              style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
+            >
+              <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{file.display_name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatFileSize(file.file_size)} · {format(new Date(file.created_at), "dd.MM.yyyy", { locale: de })}
+                </p>
+              </div>
+              {downloading === file.id ? (
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground flex-shrink-0" />
+              ) : (
+                <Download className="w-4 h-4 text-muted-foreground" />
+              )}
+            </button>
+          ))}
+          {node.children.map(child => (
+            <FolderNode
+              key={child.id}
+              node={child}
+              depth={depth + 1}
+              onOpenFile={onOpenFile}
+              downloading={downloading}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilesBrowser({ files, categories, search }: { files: FileItem[]; categories: Category[]; search: string }) {
   const [downloading, setDownloading] = useState<string | null>(null);
 
-  const filtered = useMemo(() =>
-    files.filter(f => f.display_name.toLowerCase().includes(search.toLowerCase())),
-    [files, search]
-  );
+  const filtered = useMemo(() => {
+    const s = search.toLowerCase();
+    return s ? files.filter(f => f.display_name.toLowerCase().includes(s)) : files;
+  }, [files, search]);
 
-  const grouped = useMemo(() => {
-    const map = new Map<string | null, { name: string; files: FileItem[] }>();
-    for (const file of filtered) {
-      const catId = file.category_id;
-      if (!map.has(catId)) {
-        const cat = categories.find(c => c.id === catId);
-        map.set(catId, { name: cat?.name || "Ohne Kategorie", files: [] });
-      }
-      map.get(catId)!.files.push(file);
-    }
-    return Array.from(map.entries()).sort(([aId], [bId]) => {
-      if (!aId) return 1;
-      if (!bId) return -1;
-      return 0;
-    });
-  }, [filtered, categories]);
+  const tree = useMemo(() => buildTree(categories, filtered), [categories, filtered]);
 
   const handleDownload = async (file: FileItem) => {
     const targetWindow = window.open("", "_blank", "noopener");
@@ -65,11 +180,8 @@ function FilesByCategory({ files, categories, search }: { files: FileItem[]; cat
         body: { filePath: file.file_path },
       });
       if (error) throw error;
-      if (targetWindow) {
-        targetWindow.location.href = data.signedUrl;
-      } else {
-        window.location.href = data.signedUrl;
-      }
+      if (targetWindow) targetWindow.location.href = data.signedUrl;
+      else window.location.href = data.signedUrl;
     } catch {
       targetWindow?.close();
       toast.error("Download fehlgeschlagen");
@@ -78,7 +190,7 @@ function FilesByCategory({ files, categories, search }: { files: FileItem[]; cat
     }
   };
 
-  if (filtered.length === 0) {
+  if (tree.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
         <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
@@ -88,40 +200,11 @@ function FilesByCategory({ files, categories, search }: { files: FileItem[]; cat
   }
 
   return (
-    <div className="space-y-6">
-      {grouped.map(([catId, group]) => (
-        <div key={catId || "__none__"}>
-          <h3 className="text-sm font-semibold text-primary uppercase tracking-wide mb-3 px-1 flex items-center gap-2">
-            <div className="w-1 h-4 rounded-full bg-primary" />
-            {group.name}
-          </h3>
-          <div className="space-y-1">
-            {group.files.map((file) => (
-              <button
-                key={file.id}
-                onClick={() => {
-                  if (downloading === file.id) return;
-                  handleDownload(file);
-                }}
-                disabled={downloading === file.id}
-                className="w-full text-left flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors group cursor-pointer disabled:cursor-wait disabled:opacity-70"
-              >
-                <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{file.display_name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatFileSize(file.file_size)} · {format(new Date(file.created_at), "dd.MM.yyyy", { locale: de })}
-                  </p>
-                </div>
-                {downloading === file.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground flex-shrink-0" />
-                ) : (
-                  <Download className="h-4 w-4 text-muted-foreground flex-shrink-0 opacity-60 group-hover:opacity-100" />
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
+    <div className="space-y-2">
+      {tree.map(node => (
+        <Card key={node.id} className="overflow-hidden">
+          <FolderNode node={node} depth={0} onOpenFile={handleDownload} downloading={downloading} />
+        </Card>
       ))}
     </div>
   );
@@ -141,7 +224,8 @@ export function TenantFiles() {
 
   const fetchFiles = async () => {
     setLoading(true);
-    const [personalRes, buildingRes, catRes] = await Promise.all([
+
+    const [personalRes, buildingRes] = await Promise.all([
       supabase
         .from("building_files")
         .select("*")
@@ -154,15 +238,24 @@ export function TenantFiles() {
         .is("assigned_user_id", null)
         .eq("visible_to_users", true)
         .order("created_at", { ascending: false }),
-      supabase
-        .from("building_file_categories")
-        .select("*")
-        .eq("management_mode", "rent")
-        .order("sort_order"),
     ]);
-    if (personalRes.data) setPersonalFiles(personalRes.data);
-    if (buildingRes.data) setBuildingFiles(buildingRes.data);
-    if (catRes.data) setCategories(catRes.data);
+
+    const personal = (personalRes.data || []) as FileItem[];
+    const building = (buildingRes.data || []) as FileItem[];
+    setPersonalFiles(personal);
+    setBuildingFiles(building);
+
+    const buildingIds = Array.from(new Set([...personal, ...building].map(f => f.building_id).filter(Boolean)));
+    if (buildingIds.length > 0) {
+      const { data: catRes } = await supabase
+        .from("building_file_categories")
+        .select("id, name, parent_id, sort_order, building_id")
+        .in("building_id", buildingIds)
+        .order("sort_order");
+      setCategories((catRes || []) as Category[]);
+    } else {
+      setCategories([]);
+    }
     setLoading(false);
   };
 
@@ -199,10 +292,10 @@ export function TenantFiles() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="personal" className="mt-4">
-          <FilesByCategory files={personalFiles} categories={categories} search={search} />
+          <FilesBrowser files={personalFiles} categories={categories} search={search} />
         </TabsContent>
         <TabsContent value="building" className="mt-4">
-          <FilesByCategory files={buildingFiles} categories={categories} search={search} />
+          <FilesBrowser files={buildingFiles} categories={categories} search={search} />
         </TabsContent>
       </Tabs>
     </div>
