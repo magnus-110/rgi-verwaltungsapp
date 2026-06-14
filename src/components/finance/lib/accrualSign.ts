@@ -10,15 +10,15 @@
  *   4120–4139  Einnahmen lfd. J. für Vorjahr                    → +1
  *   4160–4179  Ausgaben Folgejahr für lfd. J.   (PRA-Bildung)   → +1
  *   4180–4199  Einnahmen Folgejahr für lfd. J.                  → -1
- *   4020 / sonstige Abgrenzung (z. B. WEG-Sollstellung)         → -1
+ *   4020 WEG-Sollstellung                                       → +1
  */
 export function getAccrualDisplaySign(accountNumber: string | null | undefined): 1 | -1 {
   if (!accountNumber) return -1;
   const n = parseInt(String(accountNumber), 10);
   if (Number.isNaN(n)) return -1;
-  // 4020 WEG-Sollstellung: in der Gesamtabrechnung als negative Position
-  // darstellen (Sollstellungen mindern die abzurechnende Summe).
-  if (n === 4020) return -1;
+  // 4020 WEG-Sollstellung: positive Position in der Abrechnung
+  // (Sollstellungen sind die an Eigentümer gestellten Forderungen).
+  if (n === 4020) return 1;
   if (n >= 4100 && n <= 4119) return -1;
   if (n >= 4120 && n <= 4139) return 1;
   if (n >= 4160 && n <= 4179) return 1;
