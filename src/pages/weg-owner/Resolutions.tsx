@@ -21,18 +21,32 @@ const statusBadge: Record<string, { label: string; cls: string; Icon: any }> = {
 export const WegOwnerResolutions = () => {
   const { profile } = useAuth();
   const [search, setSearch] = useState("");
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
 
-  const { data: buildingIds = [] } = useQuery({
-    queryKey: ["weg-owner-building-ids", profile?.user_id],
+  const { data: buildings = [] } = useQuery({
+    queryKey: ["weg-owner-buildings-with-names", profile?.user_id],
     queryFn: async () => {
       const { data } = await supabase
         .from("weg_owner_buildings")
-        .select("building_id")
+        .select("building_id, buildings:building_id ( id, name )")
         .eq("user_id", profile?.user_id);
-      return (data || []).map((r: any) => r.building_id as string);
+      const list: BuildingChip[] = (data || [])
+        .map((r: any) => r.buildings)
+        .filter(Boolean)
+        .map((b: any) => ({ id: b.id as string, name: b.name as string }));
+      list.sort((a, b) => a.name.localeCompare(b.name));
+      return list;
     },
     enabled: !!profile?.user_id,
   });
+
+  const buildingIds = useMemo(() => buildings.map(b => b.id), [buildings]);
+
+  useEffect(() => {
+    if (!selectedBuildingId && buildings.length > 0) {
+      setSelectedBuildingId(buildings[0].id);
+    }
+  }, [buildings, selectedBuildingId]);
 
   const { data: resolutions = [], isLoading } = useQuery({
     queryKey: ["weg-owner-resolutions", buildingIds.join(",")],
