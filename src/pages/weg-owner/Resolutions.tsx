@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,6 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Scale, Search, CheckCircle2, XCircle, Clock, AlertCircle, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { BuildingFilterChips, BuildingChip } from "@/components/shared/BuildingFilterChips";
 
 const statusBadge: Record<string, { label: string; cls: string; Icon: any }> = {
   open: { label: "Offen", cls: "bg-orange-500/15 text-orange-700 border-orange-500/30", Icon: AlertCircle },
@@ -20,18 +21,32 @@ const statusBadge: Record<string, { label: string; cls: string; Icon: any }> = {
 export const WegOwnerResolutions = () => {
   const { profile } = useAuth();
   const [search, setSearch] = useState("");
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
 
-  const { data: buildingIds = [] } = useQuery({
-    queryKey: ["weg-owner-building-ids", profile?.user_id],
+  const { data: buildings = [] } = useQuery({
+    queryKey: ["weg-owner-buildings-with-names", profile?.user_id],
     queryFn: async () => {
       const { data } = await supabase
         .from("weg_owner_buildings")
-        .select("building_id")
+        .select("building_id, buildings:building_id ( id, name )")
         .eq("user_id", profile?.user_id);
-      return (data || []).map((r: any) => r.building_id as string);
+      const list: BuildingChip[] = (data || [])
+        .map((r: any) => r.buildings)
+        .filter(Boolean)
+        .map((b: any) => ({ id: b.id as string, name: b.name as string }));
+      list.sort((a, b) => a.name.localeCompare(b.name));
+      return list;
     },
     enabled: !!profile?.user_id,
   });
+
+  const buildingIds = useMemo(() => buildings.map(b => b.id), [buildings]);
+
+  useEffect(() => {
+    if (!selectedBuildingId && buildings.length > 0) {
+      setSelectedBuildingId(buildings[0].id);
+    }
+  }, [buildings, selectedBuildingId]);
 
   const { data: resolutions = [], isLoading } = useQuery({
     queryKey: ["weg-owner-resolutions", buildingIds.join(",")],
@@ -68,14 +83,18 @@ export const WegOwnerResolutions = () => {
   });
 
   const filtered = useMemo(() => {
-    if (!search) return resolutions;
+    let list = resolutions as any[];
+    if (selectedBuildingId && buildings.length > 1) {
+      list = list.filter((r: any) => r.building_id === selectedBuildingId);
+    }
+    if (!search) return list;
     const s = search.toLowerCase();
-    return resolutions.filter((r: any) =>
+    return list.filter((r: any) =>
       r.resolution_text?.toLowerCase().includes(s) ||
       r.resolution_number?.toLowerCase().includes(s) ||
       r.etv_meetings?.title?.toLowerCase().includes(s)
     );
-  }, [resolutions, search]);
+  }, [resolutions, search, selectedBuildingId, buildings.length]);
 
   const actionable = filtered.filter((r: any) => r.is_actionable && r.actionable_status !== "completed");
   const all = filtered;
@@ -148,6 +167,12 @@ export const WegOwnerResolutions = () => {
           <h1 className="text-2xl font-bold">Beschlüsse</h1>
           <p className="text-sm text-muted-foreground">Beschlusssammlung Ihrer WEG</p>
         </div>
+
+        <BuildingFilterChips
+          buildings={buildings}
+          selectedId={selectedBuildingId}
+          onSelect={setSelectedBuildingId}
+        />
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
