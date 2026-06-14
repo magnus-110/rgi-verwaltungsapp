@@ -381,14 +381,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     const billingFlag = (acc as any).is_billing_relevant;
     if (billingFlag === false) return;
     const total = getAccountBookingTotal(acc.id);
-    // Reserve immer sichtbar; explizit als abrechnungsrelevant markierte Konten
-    // (z. B. 4020 WEG-Sollstellung, Abgrenzungs-Konten) ebenfalls — auch mit Saldo 0.
-    if (
-      Math.abs(total) < 0.005 &&
-      section !== "reserve" &&
-      billingFlag !== true &&
-      !showZeroBalanceAccounts
-    ) return;
+    if (Math.abs(total) < 0.005 && section !== "reserve" && !showZeroBalanceAccounts) return;
     if (!sectionAccounts[section]) sectionAccounts[section] = [];
     sectionAccounts[section].push({
       ...acc,
