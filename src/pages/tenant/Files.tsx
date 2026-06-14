@@ -189,9 +189,7 @@ function FilesBrowser({ files, categories, search }: { files: FileItem[]; catego
   return (
     <div className="space-y-2">
       {tree.map(node => (
-        <Card key={node.id} className="overflow-hidden">
-          <FolderNode node={node} depth={0} onOpenFile={handleDownload} downloading={downloading} />
-        </Card>
+        <FolderNode key={node.id} node={node} depth={0} onOpenFile={handleDownload} downloading={downloading} />
       ))}
     </div>
   );
