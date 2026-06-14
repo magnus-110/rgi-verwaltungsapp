@@ -1,32 +1,48 @@
+# Einzelabrechnung: IHR in „Kostenanteil" einrechnen
+
 ## Problem
 
-In `BillingSettlement.tsx` filtert `getSectionDistributable` Konten `/^193\d$/` (Plan-IHR) als „Bilanzkonto" pauschal weg. Damit fällt das einzige Konto in der Sektion `reserve` (1930) raus, `totalReserveRelevant = 0` und die Abrechnungssumme zeigt nur `13.995,96 + 2.763,74 = 16.759,70 €` statt `20.509,70 €`.
+In der Einzelabrechnungs-Tabelle (Tirolerstr. 142, 2025) zeigt die Spalte „Kostenanteil" weiterhin **16.759,70 €** statt der korrekten **20.509,70 €** (inkl. IHR 3.750 €). Damit stimmen auch die Ergebnis-Spalte und der Gesamtsaldo nicht mit der Gesamtabrechnung überein.
 
-## Fix
+Die Gesamtabrechnung wurde bereits gefixt (Reserve-Sektion umgeht den `isBalanceSheetAccount`-Filter). Die Einzelabrechnung hat einen analogen, aber eigenen Filter, der nicht angepasst wurde.
 
-Den `isBalanceSheetAccount`-Filter **nur außerhalb der Sektion `reserve`** anwenden. Innerhalb von `reserve` ist 193x genau das verteilungsrelevante Konto, das einmal gezählt werden soll (Begründung steht bereits im Kommentar oben).
+## Ursache
 
-### Change (1 Stelle)
-
-`src/components/finance/BillingSettlement.tsx` – `getSectionDistributable` nimmt optional die Section entgegen und überspringt den 193x-Filter, wenn `section === "reserve"`:
+In `src/components/finance/BillingSettlement.tsx`, Funktion `computeOwnerResult` (~Zeile 749):
 
 ```ts
-const getSectionDistributable = (section: string) =>
-  (sectionAccounts[section] || [])
-    .filter((a: any) =>
-         a.is_distributable
-      && !isAccrualBalanceAccount(a)
-      && !isHeatingPrepayAccount(a)
-      && (section === "reserve" ? true : !isBalanceSheetAccount(a)))
-    .reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
+const distributableAccounts = accounts.filter(
+  (a) => a.is_distributable && !isAccrualBalanceAccount(a) && (a as any).is_billing_relevant !== false
+);
 ```
+
+Das IHR-Konto **1930** hat in der Regel `is_distributable = false` (es ist Bilanzkonto, kein Aufwand). Damit fällt es hier raus und der Pro-Owner-Kostenanteil enthält die IHR nicht — obwohl die WP-Logik im darunter liegenden Block (`isReserveAcc → economicPlan.total_reserve`) genau darauf vorbereitet ist.
+
+## Fix (1 Stelle)
+
+`distributableAccounts` so erweitern, dass **Reserve-Sektion-Konten** zusätzlich aufgenommen werden, auch wenn `is_distributable=false`. Konsistent mit dem Gesamt-Fix in `getSectionDistributable`.
+
+```ts
+const distributableAccounts = accounts.filter(
+  (a) =>
+    (a.is_distributable || a.settlement_section === "reserve")
+    && !isAccrualBalanceAccount(a)
+    && (a as any).is_billing_relevant !== false
+);
+```
+
+Die bestehende Logik in der Schleife (Zeilen 753–791) verwendet für `isReserveAcc` bereits `economicPlan.total_reserve` als Verteil-Basis und den korrekten `distKey` (Default MEA, falls per `default_distribution_key` nichts anderes gesetzt ist) — es muss dort nichts geändert werden.
 
 ## Erwartetes Ergebnis (Tirolerstr. 142, 2025)
 
-- Umlagefähig: 13.995,96
-- Nicht umlagefähig (verteilungsrelevant): 2.763,74
-- IHR (Sektion reserve, 1930): 3.750,00
-- **Abrechnungssumme: 20.509,70 €**
-- Vorschuss Soll: 20.337,00 → **Abrechnungsspitze −172,70 € (Nachzahlung)**
+- Spalte „Kostenanteil" je Eigentümer enthält jetzt anteilige IHR (3.750 € verteilt nach distKey von 1930).
+- Summe „Kosten" im Banner: **20.509,70 €** (statt 16.759,70 €).
+- „Vorschüsse: 20.337,00 €" → Banner-Saldo: **Nachzahlung 172,70 €**.
+- Pro-Owner-Ergebnis (Spalte „Ergebnis") verschiebt sich konsistent: aus mehreren „Guthaben" werden teils Nachzahlungen, passend zur Gesamtabrechnung.
+- PDF (`buildOwnerPayload` in `buildBillingPayload.ts`) profitiert automatisch, da es dieselben `accountBreakdown`-Daten konsumiert.
 
-PDF (`buildBillingPayload.ts`) übernimmt automatisch, da `sumVerteilbar = totals.abrechnungssumme`.
+## Nicht im Scope
+
+- Keine Änderung an `is_distributable`-Flags in der Datenbank.
+- Keine Änderung an `getSectionDistributable` oder Gesamt-Logik (bereits gefixt).
+- Keine Anpassung am Sollstellungs-Vorzeichen 4020 (bereits gefixt).
