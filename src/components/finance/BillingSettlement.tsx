@@ -548,7 +548,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
            a.is_distributable
         && !isAccrualBalanceAccount(a)
         && !isHeatingPrepayAccount(a)
-        && !isBalanceSheetAccount(a))
+        // In der Sektion "reserve" ist 193x das verteilungsrelevante Konto und
+        // muss genau einmal gezählt werden — nicht als Bilanzkonto wegfiltern.
+        && (section === "reserve" ? true : !isBalanceSheetAccount(a)))
       .reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
   const totalOperatingDistRelevant = getSectionDistributable("operating_distributable");
   const totalOperatingNonDistRelevant = getSectionDistributable("operating_non_distributable");
