@@ -780,7 +780,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       monthly_advance: fmtEUR(monthlyAdvance),
       monthly_total: fmtEUR(monthlyTotal),
       // Monatliche Vorschüsse — Jahreswerte/12
-      owner_total_monthly: fmtEUR(monthlyOwnerTotal),
+      owner_total_monthly: fmtEUR(monthlyAdvance),
+      owner_burden_monthly: fmtEUR(monthlyOwnerTotal),
       owner_reserve_monthly: fmtEUR(monthlyReserve),
       owner_advance_monthly: fmtEUR(monthlyAdvance),
       owner_hausgeld_monthly: fmtEUR(monthlyHausgeld),
