@@ -27,12 +27,11 @@ function tourForPath(pathname: string): string | null {
 }
 
 export function HelpButton() {
-  const { startTour, isDisabled } = useGuidedTour();
+  const { startTour, isDisabled, disableTours } = useGuidedTour();
   const location = useLocation();
   const currentTour = tourForPath(location.pathname);
 
   if (isDisabled()) return null;
-
 
   return (
     <DropdownMenu>
@@ -56,15 +55,12 @@ export function HelpButton() {
         <DropdownMenuLabel className="text-base">Erste Schritte</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {currentTour && (
-          <>
-            <DropdownMenuItem
-              className="py-3 text-base cursor-pointer"
-              onClick={() => startTour(currentTour)}
-            >
-              ▶ Diese Seite erklären
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
+          <DropdownMenuItem
+            className="py-3 text-base cursor-pointer"
+            onClick={() => startTour(currentTour)}
+          >
+            ▶ Diese Seite erklären
+          </DropdownMenuItem>
         )}
         <DropdownMenuItem
           className="py-3 text-base cursor-pointer"
@@ -73,18 +69,12 @@ export function HelpButton() {
           Komplette Einführung starten
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuLabel className="text-xs text-muted-foreground">
-          Einzelne Bereiche
-        </DropdownMenuLabel>
-        {ALL_TOURS.filter((t) => t.id !== "global").map((t) => (
-          <DropdownMenuItem
-            key={t.id}
-            className="py-2.5 text-sm cursor-pointer"
-            onClick={() => startTour(t.id)}
-          >
-            {t.title}
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuItem
+          className="py-2.5 text-sm cursor-pointer text-muted-foreground"
+          onClick={() => disableTours()}
+        >
+          Hilfe dauerhaft ausblenden
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
