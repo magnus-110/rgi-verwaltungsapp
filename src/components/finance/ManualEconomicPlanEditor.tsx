@@ -573,7 +573,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       const name = c?.company_name || [c?.first_name, c?.last_name].filter(Boolean).join(" ") || "–";
       const meaValue = ownerShareValue(a, "mea", a.contact_id);
       const proportion = meaValue / meaTotal;
-      return { id: a.id, name, unitNumber: a.unit_number || "–", meaValue, proportion, raw: a };
+      return { id: a.id, name, unitNumber: a.unit_number || "–", unitLocation: a.floor_location || "", meaValue, proportion, raw: a };
     });
   }, [assignments, shareTotals]); // eslint-disable-line react-hooks/exhaustive-deps
 
