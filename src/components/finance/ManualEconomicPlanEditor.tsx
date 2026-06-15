@@ -757,7 +757,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     const ownerAdvanceTotal = monthlyAdvance * 12;
     const ownerDistributableYear = sumAbs(distributable);
     const ownerReserveYear = sumAbs(reserve);
-    const ownerHausgeldYear = Math.max(ownerAdvanceTotal - ownerReserveYear, 0);
+    const ownerHausgeldYear = ownerAdvanceTotal - ownerReserveYear;
     // Monatliche Werte (Jahreswerte / 12) für den Abschnitt "Monatliche Vorschüsse"
     const monthlyOwnerTotal = ownerDistributableYear / 12;
     const monthlyReserve = ownerReserveYear / 12;
