@@ -334,7 +334,7 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       {termsAccepted === true && <OnboardingFAB />}
       {/* Erklärvideo erst NACH Onboarding-Abschluss */}
       <IntroVideoDialog open={showIntroVideo} onClose={dismissIntroVideo} />
-      {/* Geführte „Erste Schritte"-Tour, jederzeit über den Hilfe-Knopf */}
+      {/* Geführte Hilfe-Tour, jederzeit über den Hilfe-Knopf */}
       {termsAccepted === true && <HelpButton />}
     </div>
     </GuidedTourProvider>
