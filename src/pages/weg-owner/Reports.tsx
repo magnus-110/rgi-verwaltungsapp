@@ -479,7 +479,7 @@ export const WegOwnerReports = () => {
         {/* Create Button */}
         <Dialog open={isCreateReportOpen} onOpenChange={setIsCreateReportOpen}>
           <DialogTrigger asChild>
-            <Button className="w-full h-12 rounded-[14px] bg-primary text-primary-foreground hover:bg-primary/90 text-[15px] font-medium shadow-sm">
+            <Button data-tour="reports-new" className="w-full h-12 rounded-[14px] bg-primary text-primary-foreground hover:bg-primary/90 text-[15px] font-medium shadow-sm">
               <Plus className="h-5 w-5 mr-2" />
               Neue Meldung
             </Button>

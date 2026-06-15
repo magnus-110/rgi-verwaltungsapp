@@ -15,11 +15,11 @@ import { ALL_TOURS } from "./tours";
 /** Bestimmt anhand der aktuellen Route die passende Seiten-Tour. */
 function tourForPath(pathname: string): string | null {
   if (pathname === "/weg-owner") return "dashboard";
-  if (pathname.startsWith("/weg-owner/meetings")) return "meetings";
-  if (pathname.startsWith("/weg-owner/resolutions")) return "resolutions";
   if (pathname.startsWith("/weg-owner/reports")) return "reports";
   if (pathname.startsWith("/weg-owner/files")) return "files";
+  if (pathname.startsWith("/weg-owner/resolutions")) return "resolutions";
   if (pathname.startsWith("/weg-owner/forum")) return "forum";
+  if (pathname.startsWith("/weg-owner/meetings")) return "meetings";
   if (pathname.startsWith("/weg-owner/chatbot")) return "chatbot";
   if (pathname.startsWith("/weg-owner/settings")) return "settings";
   if (pathname.startsWith("/weg-owner/kassenpruefung")) return "cash-audit";
