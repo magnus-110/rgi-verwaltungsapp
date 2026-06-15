@@ -89,13 +89,25 @@ export const WegOwnerResolutions = () => {
     if (selectedBuildingId && buildings.length > 1) {
       list = list.filter((r: any) => r.building_id === selectedBuildingId);
     }
-    if (!search) return list;
-    const s = search.toLowerCase();
-    return list.filter((r: any) =>
-      r.resolution_text?.toLowerCase().includes(s) ||
-      r.resolution_number?.toLowerCase().includes(s) ||
-      r.etv_meetings?.title?.toLowerCase().includes(s)
-    );
+    if (search) {
+      const s = search.toLowerCase();
+      list = list.filter((r: any) =>
+        r.resolution_text?.toLowerCase().includes(s) ||
+        r.resolution_number?.toLowerCase().includes(s) ||
+        r.etv_meetings?.title?.toLowerCase().includes(s)
+      );
+    }
+    // Neueste Beschlüsse zuerst (nach Beschlussdatum oder Versammlungsdatum)
+    list.sort((a: any, b: any) => {
+      const dateA = new Date(a.resolved_at || a.etv_meetings?.meeting_date || a.cases?.updated_at || 0);
+      const dateB = new Date(b.resolved_at || b.etv_meetings?.meeting_date || b.cases?.updated_at || 0);
+      const diff = dateB.getTime() - dateA.getTime();
+      if (diff !== 0) return diff;
+      const numA = parseInt(a.resolution_number, 10) || 0;
+      const numB = parseInt(b.resolution_number, 10) || 0;
+      return numB - numA;
+    });
+    return list;
   }, [resolutions, search, selectedBuildingId, buildings.length]);
 
   const actionable = filtered.filter((r: any) => r.is_actionable && r.actionable_status !== "completed");
