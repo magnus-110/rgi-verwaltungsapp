@@ -404,15 +404,17 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const totalOperatingDist = getSectionTotal("operating_distributable");
   const totalOperatingNonDist = getSectionTotal("operating_non_distributable");
   const totalAccrual = getSectionTotal("accrual");
-  // IHR-Zuführung kommt 1:1 aus dem Wirtschaftsplan (Beschluss der ETV).
-  // Fallback: NUR Plan-IHR-Konten (193x = Planmäßige IHR), niemals Bestandskonten
+  // IHR-Zuführung kommt aus der tatsächlich gebuchten Rücklagenbildung.
+  // Fallback: WP-Wert, falls noch keine Buchung auf Plan-IHR-Konten (193x) vorliegt.
+  // NUR Plan-IHR-Konten (193x = Planmäßige IHR), niemals Bestandskonten
   // (1810/1820 = Rücklagenkonto / Bestand) — diese gehören in den Vermögensbericht,
   // nicht in die Abrechnungssumme.
   const isPlanIhrAccount = (a: any) => /^193\d$/.test(String(a.account_number || ""));
   const reserveFromBookings = (sectionAccounts["reserve"] || [])
     .filter(isPlanIhrAccount)
     .reduce((s: number, a: any) => s + (a.totalAbs || 0), 0);
-  const totalReserve = economicPlan?.total_reserve != null ? Number(economicPlan.total_reserve) : reserveFromBookings;
+  const planReserveTotal = Number(economicPlan?.total_reserve) || 0;
+  const totalReserve = reserveFromBookings > 0 ? reserveFromBookings : planReserveTotal;
   // Bug 4 fix: rücklagenfinanzierte Aufwandskonten via Flag erkennen (z. B. Konto 1920),
   // statt fragiler reserve_withdrawal-Section. Skaliert auf zukünftige Konten (z. B. 1921).
   // Erkennung: reserve_role='withdrawal' (neu, generisch) ODER is_reserve_funded (Legacy).
@@ -753,11 +755,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         && (a as any).is_billing_relevant !== false
     );
     distributableAccounts.forEach((acc) => {
-      // IHR-Zuführung (reserve section): nimm WP-Wert 1:1 statt Buchungs-Summe
+      // IHR-Zuführung (reserve section): gebuchte Rücklagenbildung bevorzugen,
+      // WP-Wert nur als Fallback, wenn keine Buchung auf dem Rücklagenkonto vorliegt.
       const isReserveAcc = acc.settlement_section === "reserve";
-      const total = isReserveAcc && economicPlan?.total_reserve != null
-        ? Number(economicPlan.total_reserve)
-        : getAccountAbsTotal(acc.id);
+      const bookedAbs = getAccountAbsTotal(acc.id);
+      const planReserve = Number(economicPlan?.total_reserve) || 0;
+      const total = isReserveAcc
+        ? (bookedAbs > 0 ? bookedAbs : planReserve)
+        : bookedAbs;
       if (total === 0) return;
 
       const distKey = getDistKey(acc.id, acc.default_distribution_key);
@@ -1451,9 +1456,11 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
     for (const acc of distributableAccounts) {
       const isReserveAcc = acc.settlement_section === "reserve";
-      const total = isReserveAcc && economicPlan?.total_reserve != null
-        ? Number(economicPlan.total_reserve)
-        : getAccountBookingTotal(acc.id);
+      const bookedSigned = getAccountBookingTotal(acc.id);
+      const planReserve = Number(economicPlan?.total_reserve) || 0;
+      const total = isReserveAcc
+        ? (Math.abs(bookedSigned) > 0 ? bookedSigned : planReserve)
+        : bookedSigned;
       const absTotal = Math.abs(total);
       if (absTotal < 0.005) continue;
 
