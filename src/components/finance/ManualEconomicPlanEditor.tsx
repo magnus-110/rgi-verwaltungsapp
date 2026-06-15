@@ -787,6 +787,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       // deutsch
       eigentuemer_name: o?.name || "",
       einheit_nr: o?.unitNumber || "",
+      einheit_lage: (o as any)?.unitLocation || "",
+      unit_location: (o as any)?.unitLocation || "",
       konten: accountsList,
       summe_gesamt: fmtEUR(sumAbs(unitRows)),
       summe_umlagefaehig: fmtEUR(ownerDistributableYear),
