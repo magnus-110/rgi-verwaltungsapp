@@ -236,7 +236,9 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
           element: s.element,
           popover: {
             title: s.title,
-            description: s.description,
+            description: s.mediaUrl
+              ? `${s.description}<video src="${s.mediaUrl}" autoplay muted loop playsinline class="rgi-tour-video" style="margin-top:0.75rem;width:100%;border-radius:10px;border:1px solid hsl(var(--border));background:hsl(var(--muted));display:block;"></video>`
+              : s.description,
             // Bevorzugt unten; driver.js positioniert automatisch um, wenn zu wenig Platz
             side: s.element ? "bottom" : "over",
             align: "center",
