@@ -101,7 +101,11 @@ export const WegOwnerResolutions = () => {
     list.sort((a: any, b: any) => {
       const dateA = new Date(a.resolved_at || a.etv_meetings?.meeting_date || a.cases?.updated_at || 0);
       const dateB = new Date(b.resolved_at || b.etv_meetings?.meeting_date || b.cases?.updated_at || 0);
-      return dateB.getTime() - dateA.getTime();
+      const diff = dateB.getTime() - dateA.getTime();
+      if (diff !== 0) return diff;
+      const numA = parseInt(a.resolution_number, 10) || 0;
+      const numB = parseInt(b.resolution_number, 10) || 0;
+      return numB - numA;
     });
     return list;
   }, [resolutions, search, selectedBuildingId, buildings.length]);
