@@ -240,7 +240,7 @@ export const WegOwnerSettings = () => {
          </CardContent>
        </Card>
 
-       <PasskeysSection />
+       <div data-tour="settings-passkeys"><PasskeysSection /></div>
  
        <div className="flex justify-center gap-4 pt-4 pb-8">
          <button 
