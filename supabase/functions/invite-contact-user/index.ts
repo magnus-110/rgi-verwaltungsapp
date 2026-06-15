@@ -6,8 +6,29 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-function generateNumericPassword(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString()
+const WORDS = [
+  "Apfel","Birne","Brunnen","Berg","Wolke","Wald","Wiese","Sonne","Mond",
+  "Feder","Garten","Hafen","Insel","Kanal","Krone","Lampe","Leuchte",
+  "Magnet","Anker","Pfeil","Pinsel","Quelle","Regen","Stern","Tiger",
+  "Turm","Ufer","Vogel","Wagen","Zeder","Zelt","Bruecke","Fluss",
+]
+function generateFriendlyPassword(): string {
+  const pick = () => WORDS[Math.floor(Math.random() * WORDS.length)]
+  const num = Math.floor(Math.random() * 90) + 10
+  return `${pick()}-${pick()}-${pick()}-${num}`
+}
+
+async function setPasswordWithRetry(
+  admin: any,
+  userId: string,
+): Promise<{ password: string; error: any | null }> {
+  for (let i = 0; i < 3; i++) {
+    const pw = generateFriendlyPassword()
+    const { error } = await admin.auth.admin.updateUserById(userId, { password: pw })
+    if (!error) return { password: pw, error: null }
+    console.error(`updateUserById attempt ${i + 1} failed:`, error)
+  }
+  return { password: '', error: new Error('Konnte Passwort nach 3 Versuchen nicht setzen') }
 }
 
 async function sendToMakeWebhook(data: any) {
