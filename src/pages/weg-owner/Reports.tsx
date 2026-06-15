@@ -623,7 +623,7 @@ export const WegOwnerReports = () => {
           </Dialog>
 
         {/* Reports List */}
-        <section>
+        <section data-tour="reports-list">
           <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.6px] text-muted-foreground/80 px-1 mb-2">
             Ihre Meldungen
           </h2>
