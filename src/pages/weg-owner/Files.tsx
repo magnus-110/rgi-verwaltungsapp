@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { User, Building2, Search, FileText, Download, Loader2, Folder, ChevronRight, ChevronDown } from "lucide-react";
+import { User, Building2, Search, FileText, Eye, Loader2, Folder, ChevronRight, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -138,7 +138,7 @@ function FolderNode({ node, depth, onOpenFile, downloading }: {
               {downloading === file.id ? (
                 <Loader2 className="w-4 h-4 animate-spin text-muted-foreground flex-shrink-0" />
               ) : (
-                <Download className="w-4 h-4 text-muted-foreground" />
+                <Eye className="w-4 h-4 text-muted-foreground" />
               )}
             </button>
           ))}

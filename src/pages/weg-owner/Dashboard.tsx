@@ -214,7 +214,7 @@ export const WegOwnerDashboard = () => {
         )}
 
         {/* Quick actions */}
-        <section>
+        <section data-tour="dashboard-quick">
           <SectionLabel>Schnellzugriff</SectionLabel>
           {hasVisibleFiles === null ? (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
