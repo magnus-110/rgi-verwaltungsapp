@@ -276,7 +276,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       const { data, error } = await supabase
         .from("contact_building_assignments")
         .select(`
-          id, unit_number, contact_id, unit_kind, billing_mode, parent_assignment_id, area_sqm_override,
+          id, unit_number, floor_location, contact_id, unit_kind, billing_mode, parent_assignment_id, area_sqm_override,
           contacts(first_name, last_name, company_name),
           contact_building_shares(share_type, share_value)
         `)
