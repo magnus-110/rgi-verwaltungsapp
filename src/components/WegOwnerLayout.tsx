@@ -9,6 +9,8 @@ import { VotingPopup } from "@/components/meetings/VotingPopup";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 import { OnboardingFAB } from "@/components/onboarding/OnboardingFAB";
 import { useOnboardingContext } from "@/components/onboarding/useOnboardingContext";
+import { GuidedTourProvider } from "@/components/weg-owner/onboarding/GuidedTourProvider";
+import { HelpButton } from "@/components/weg-owner/onboarding/HelpButton";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { 
@@ -225,11 +227,13 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
   };
 
   return (
+    <GuidedTourProvider>
     <div className="min-h-screen bg-background">
       <header className="bg-white border-b border-border shadow-sm fixed top-0 left-0 right-0 z-50">
         <div className="flex items-center justify-between h-16 px-4">
           <div className="flex items-center">
             <img 
+              data-tour="logo"
               src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png" 
               alt="RGI Immobilien Logo" 
               className="h-12 w-auto object-contain cursor-pointer"
@@ -239,7 +243,7 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
 
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
+              <Button data-tour="menu-button" variant="ghost" size="icon" aria-label="Menü öffnen">
                 <Menu className="w-5 h-5" />
               </Button>
             </SheetTrigger>
@@ -330,6 +334,9 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       {termsAccepted === true && <OnboardingFAB />}
       {/* Erklärvideo erst NACH Onboarding-Abschluss */}
       <IntroVideoDialog open={showIntroVideo} onClose={dismissIntroVideo} />
+      {/* Geführte „Erste Schritte"-Tour, jederzeit über den Hilfe-Knopf */}
+      {termsAccepted === true && <HelpButton />}
     </div>
+    </GuidedTourProvider>
   );
 };
