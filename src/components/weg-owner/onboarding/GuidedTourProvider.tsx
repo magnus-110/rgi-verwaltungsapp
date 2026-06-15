@@ -18,68 +18,75 @@ interface GuidedTourContextValue {
   hasSeen: (tourId: string) => boolean;
   isActive: () => boolean;
   loading: boolean;
+  isDisabled: () => boolean;
+  enableTours: () => void;
 }
 
 const GuidedTourContext = createContext<GuidedTourContextValue | null>(null);
 
-/**
- * Styles für die Sprechblase – senior-tauglich, an die App-Designtokens angelehnt.
- * Eigene Klasse `.rgi-tour-popover`, damit driver.js Defaults nicht stören.
- */
+const DISABLE_KEY = "rgi:tour-disabled";
+
+const isToursDisabled = () => {
+  try {
+    return localStorage.getItem(DISABLE_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+
 const SENIOR_STYLES = `
   .driver-overlay {
-    backdrop-filter: blur(3px);
+    /* kein Backdrop-Blur – fokussiertes Element bleibt gestochen scharf */
   }
 
   .driver-popover.rgi-tour-popover {
     font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
-    max-width: 380px;
-    width: calc(100vw - 32px);
-    border-radius: 20px;
-    border: 1px solid hsl(var(--border) / 0.6);
+    max-width: 320px;
+    width: calc(100vw - 28px);
+    border-radius: 16px;
+    border: 1px solid hsl(var(--border) / 0.7);
     box-shadow:
-      0 32px 80px -24px hsl(0 0% 0% / 0.35),
-      0 12px 32px -12px hsl(0 0% 0% / 0.18),
-      0 0 0 1px hsl(0 0% 100% / 0.04) inset;
+      0 24px 60px -20px hsl(0 0% 0% / 0.32),
+      0 8px 20px -8px hsl(0 0% 0% / 0.16);
     padding: 0;
     overflow: hidden;
     background: hsl(var(--card));
-    animation: rgi-tour-pop 280ms cubic-bezier(0.16, 1, 0.3, 1);
+    animation: rgi-tour-pop 260ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   @keyframes rgi-tour-pop {
-    0%   { opacity: 0; transform: scale(0.97) translateY(8px); }
+    0%   { opacity: 0; transform: scale(0.97) translateY(6px); }
     100% { opacity: 1; transform: scale(1) translateY(0); }
   }
 
   .driver-popover.rgi-tour-popover::before {
     content: "";
     display: block;
-    height: 3px;
-    background: linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.4) 100%);
+    height: 2px;
+    background: linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.35) 100%);
   }
 
   .driver-popover.rgi-tour-popover .driver-popover-title {
     font-family: 'Instrument Serif', 'Cormorant Garamond', Georgia, serif;
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     font-weight: 400;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.005em;
     line-height: 1.2;
     color: hsl(var(--foreground));
-    padding: 1.25rem 1.5rem 0.35rem;
+    padding: 1rem 1.15rem 0.3rem;
+    padding-right: 2.5rem;
   }
 
   .driver-popover.rgi-tour-popover .driver-popover-description {
-    font-size: 0.95rem;
-    line-height: 1.6;
-    letter-spacing: 0.005em;
+    font-size: 0.875rem;
+    line-height: 1.55;
     color: hsl(var(--muted-foreground));
-    padding: 0.25rem 1.5rem 1rem;
+    padding: 0.25rem 1.15rem 0.85rem;
   }
 
   .driver-popover.rgi-tour-popover .driver-popover-footer {
-    gap: 0.5rem;
-    padding: 0.85rem 1.5rem 1.1rem;
+    gap: 0.45rem;
+    padding: 0.7rem 1.15rem 0.9rem;
     margin-top: 0;
     border-top: 1px solid hsl(var(--border) / 0.5);
     background: hsl(var(--muted) / 0.18);
@@ -87,11 +94,10 @@ const SENIOR_STYLES = `
   }
 
   .driver-popover.rgi-tour-popover .driver-popover-footer button {
-    min-height: 38px;
-    padding: 0 0.95rem;
-    font-size: 0.875rem;
+    min-height: 34px;
+    padding: 0 0.85rem;
+    font-size: 0.82rem;
     font-weight: 500;
-    letter-spacing: 0.01em;
     border-radius: 8px;
     transition: all 160ms cubic-bezier(0.16, 1, 0.3, 1);
     border: none;
@@ -101,12 +107,11 @@ const SENIOR_STYLES = `
   .driver-popover.rgi-tour-popover .driver-popover-next-btn {
     background: hsl(var(--primary));
     color: hsl(var(--primary-foreground));
-    box-shadow: 0 2px 8px -2px hsl(var(--primary) / 0.4);
+    box-shadow: 0 2px 6px -2px hsl(var(--primary) / 0.4);
   }
   .driver-popover.rgi-tour-popover .driver-popover-next-btn:hover {
     background: hsl(var(--primary) / 0.92);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px -2px hsl(var(--primary) / 0.5);
   }
 
   .driver-popover.rgi-tour-popover .driver-popover-prev-btn {
@@ -120,14 +125,15 @@ const SENIOR_STYLES = `
   }
 
   .driver-popover.rgi-tour-popover .driver-popover-close-btn {
-    color: hsl(var(--muted-foreground) / 0.6);
-    font-size: 1.1rem;
-    width: 28px;
-    height: 28px;
-    top: 10px;
-    right: 10px;
+    color: hsl(var(--muted-foreground) / 0.55);
+    font-size: 1rem;
+    width: 26px;
+    height: 26px;
+    top: 9px;
+    right: 9px;
     border-radius: 6px;
     transition: all 140ms ease;
+    line-height: 1;
   }
   .driver-popover.rgi-tour-popover .driver-popover-close-btn:hover {
     background: hsl(var(--muted));
@@ -135,11 +141,35 @@ const SENIOR_STYLES = `
   }
 
   .driver-popover.rgi-tour-popover .driver-popover-progress-text {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 500;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: hsl(var(--muted-foreground) / 0.7);
+    color: hsl(var(--muted-foreground) / 0.65);
+  }
+
+  /* Dauerhaft-Schließen Link */
+  .rgi-tour-dismiss-row {
+    display: flex;
+    justify-content: center;
+    padding: 0.4rem 1.15rem 0.7rem;
+    background: hsl(var(--muted) / 0.18);
+    border-top: 1px dashed hsl(var(--border) / 0.5);
+  }
+  .rgi-tour-dismiss-btn {
+    background: transparent;
+    border: none;
+    color: hsl(var(--muted-foreground) / 0.8);
+    font-size: 0.72rem;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    transition: color 140ms ease, background 140ms ease;
+  }
+  .rgi-tour-dismiss-btn:hover {
+    color: hsl(var(--foreground));
+    background: hsl(var(--muted) / 0.6);
   }
 
   .driver-active-element,
@@ -147,6 +177,8 @@ const SENIOR_STYLES = `
     z-index: 10000;
   }
 `;
+
+const STYLE_ID = "rgi-tour-styles-v3";
 
 function waitForElement(selector: string, timeoutMs = 1500): Promise<Element | null> {
   return new Promise((resolve) => {
@@ -169,29 +201,57 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
   const driverRef = useRef<Driver | null>(null);
   const activeTourRef = useRef<string | null>(null);
   const [activeTick, setActiveTick] = useState(0);
+  const [disabledTick, setDisabledTick] = useState(0);
 
-  // CSS einmal injizieren
+  // CSS injizieren (versionierte ID, damit Updates wirken)
   useEffect(() => {
-    if (document.getElementById("rgi-tour-styles")) return;
+    // Alte Style-Tags entfernen
+    document.querySelectorAll('style[id^="rgi-tour-styles"]').forEach((el) => {
+      if (el.id !== STYLE_ID) el.remove();
+    });
+    if (document.getElementById(STYLE_ID)) return;
     const style = document.createElement("style");
-    style.id = "rgi-tour-styles";
+    style.id = STYLE_ID;
     style.innerHTML = SENIOR_STYLES;
     document.head.appendChild(style);
   }, []);
+
+  const disableTours = useCallback(() => {
+    try {
+      localStorage.setItem(DISABLE_KEY, "1");
+    } catch {
+      /* noop */
+    }
+    setDisabledTick((t) => t + 1);
+    try {
+      driverRef.current?.destroy();
+    } catch {
+      /* noop */
+    }
+  }, []);
+
+  const enableTours = useCallback(() => {
+    try {
+      localStorage.removeItem(DISABLE_KEY);
+    } catch {
+      /* noop */
+    }
+    setDisabledTick((t) => t + 1);
+  }, []);
+
+  const isDisabled = useCallback(() => isToursDisabled(), [disabledTick]);
 
   const startTour = useCallback(
     async (tourId: string) => {
       const tour = TOURS_BY_ID[tourId];
       if (!tour || tour.steps.length === 0) return;
 
-      // Vorhandene Instanz aufräumen
       try {
         driverRef.current?.destroy();
       } catch {
         /* noop */
       }
 
-      // Schritte: nur die behalten, deren Element existiert (oder zentriert ohne element)
       const resolvedSteps: TourStep[] = [];
       for (const step of tour.steps) {
         if (!step.element) {
@@ -202,7 +262,6 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
         if (el) resolvedSteps.push(step);
       }
       if (resolvedSteps.length === 0) {
-        // Wenigstens das erste Modal zeigen, damit etwas erscheint
         resolvedSteps.push(tour.steps[0]);
       }
 
@@ -211,10 +270,10 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
       const d = driver({
         showProgress: true,
         allowClose: true,
-        overlayOpacity: 0.6,
-        stagePadding: 10,
+        overlayOpacity: 0.55,
+        stagePadding: 8,
         stageRadius: 10,
-        popoverOffset: 18,
+        popoverOffset: 14,
         smoothScroll: true,
         popoverClass: "rgi-tour-popover",
         nextBtnText: "Weiter →",
@@ -226,9 +285,24 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
           popover: {
             title: s.title,
             description: s.description,
-            // Bevorzugt unten; driver.js positioniert automatisch um, wenn zu wenig Platz
             side: s.element ? "bottom" : "over",
             align: "center",
+            onPopoverRender: (popover: any) => {
+              const root = popover?.wrapper as HTMLElement | undefined;
+              if (!root) return;
+              if (root.querySelector(".rgi-tour-dismiss-row")) return;
+              const row = document.createElement("div");
+              row.className = "rgi-tour-dismiss-row";
+              const btn = document.createElement("button");
+              btn.type = "button";
+              btn.className = "rgi-tour-dismiss-btn";
+              btn.textContent = "Hilfe dauerhaft ausblenden";
+              btn.addEventListener("click", () => {
+                disableTours();
+              });
+              row.appendChild(btn);
+              root.appendChild(row);
+            },
           },
         })),
         onDestroyStarted: () => {
@@ -258,7 +332,15 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
       driverRef.current = d;
       d.drive();
     },
-    [markTour]
+    [markTour, disableTours]
+  );
+
+  const guardedStartTour = useCallback(
+    (tourId: string) => {
+      if (isToursDisabled()) return;
+      void startTour(tourId);
+    },
+    [startTour]
   );
 
   const hasSeen = useCallback(
@@ -268,16 +350,15 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
 
   const isActive = useCallback(() => activeTourRef.current !== null, [activeTick]);
 
-  // Globale Tour beim ersten Login automatisch starten
   useEffect(() => {
     if (loading || !user?.id || !progress) return;
+    if (isToursDisabled()) return;
     if (!progress.global) {
-      const t = window.setTimeout(() => startTour("global"), 800);
+      const t = window.setTimeout(() => guardedStartTour("global"), 800);
       return () => window.clearTimeout(t);
     }
-  }, [loading, user?.id, progress, startTour]);
+  }, [loading, user?.id, progress, guardedStartTour]);
 
-  // Aufräumen bei Unmount
   useEffect(() => {
     return () => {
       try {
@@ -289,8 +370,15 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const value = useMemo<GuidedTourContextValue>(
-    () => ({ startTour, hasSeen, isActive, loading }),
-    [startTour, hasSeen, isActive, loading]
+    () => ({
+      startTour: guardedStartTour,
+      hasSeen,
+      isActive,
+      loading,
+      isDisabled,
+      enableTours,
+    }),
+    [guardedStartTour, hasSeen, isActive, loading, isDisabled, enableTours]
   );
 
   return (
@@ -306,26 +394,23 @@ export function useGuidedTour() {
       hasSeen: () => false,
       isActive: () => false,
       loading: true,
+      isDisabled: () => false,
+      enableTours: () => undefined,
     } as GuidedTourContextValue;
   }
   return ctx;
 }
 
-/**
- * Startet automatisch beim ersten Aufruf einer Seite die jeweilige Tour.
- * - läuft nur, wenn der Nutzer die Tour noch nie gesehen hat
- * - wartet, bis die globale Einführungstour beendet ist
- */
 export function useAutoStartPageTour(tourId: string, options?: { delayMs?: number }) {
-  const { startTour, hasSeen, isActive, loading } = useGuidedTour();
+  const { startTour, hasSeen, isActive, loading, isDisabled } = useGuidedTour();
   const started = useRef(false);
   useEffect(() => {
     if (loading || started.current) return;
+    if (isDisabled()) return;
     if (hasSeen(tourId)) return;
-    // Wenn aktuell eine Tour läuft (z. B. die globale Einführung), warten und später erneut prüfen
     if (isActive()) {
       const poll = window.setInterval(() => {
-        if (!isActive() && !started.current && !hasSeen(tourId)) {
+        if (!isActive() && !started.current && !hasSeen(tourId) && !isDisabled()) {
           window.clearInterval(poll);
           started.current = true;
           window.setTimeout(() => startTour(tourId), options?.delayMs ?? 600);
@@ -336,5 +421,5 @@ export function useAutoStartPageTour(tourId: string, options?: { delayMs?: numbe
     started.current = true;
     const t = window.setTimeout(() => startTour(tourId), options?.delayMs ?? 800);
     return () => window.clearTimeout(t);
-  }, [loading, hasSeen, isActive, startTour, tourId, options?.delayMs]);
+  }, [loading, hasSeen, isActive, startTour, tourId, options?.delayMs, isDisabled]);
 }

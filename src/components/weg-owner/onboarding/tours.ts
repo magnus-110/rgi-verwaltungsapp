@@ -77,6 +77,12 @@ export const DASHBOARD_TOUR: TourDefinition = {
       description:
         "Von hier springen Sie direkt zu Dokumenten, KI-Chat, Schwarzem Brett und Versammlungen. Eine kleine farbige Zahl signalisiert: hier gibt es etwas Neues.",
     },
+    {
+      element: '[data-tour="dashboard-contact"]',
+      title: "Im Notfall",
+      description:
+        "Unten finden Sie immer die Kontaktdaten Ihrer Hausverwaltung. Telefon, E-Mail und Adresse – mit einem Klick erreichbar.",
+    },
   ],
 };
 
