@@ -140,19 +140,22 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Generate new password
-    const newPassword = generateNumericPassword()
-
-    // Update user password
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-      existingUser.id,
-      { password: newPassword }
-    )
-
-    if (updateError) {
-      console.error('Password update error:', updateError)
+    // Try to set a new password — retry with a fresh one if Supabase rejects it (e.g. HIBP leak check).
+    let newPassword = ''
+    let lastUpdateError: any = null
+    for (let i = 0; i < 3; i++) {
+      const candidate = generateFriendlyPassword()
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        existingUser.id,
+        { password: candidate }
+      )
+      if (!updateError) { newPassword = candidate; break }
+      lastUpdateError = updateError
+      console.error(`Password update attempt ${i + 1} failed:`, updateError)
+    }
+    if (!newPassword) {
       return new Response(
-        JSON.stringify({ error: 'Fehler beim Zurücksetzen des Passworts' }),
+        JSON.stringify({ error: 'Fehler beim Zurücksetzen des Passworts: ' + (lastUpdateError?.message ?? 'unbekannt') }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
