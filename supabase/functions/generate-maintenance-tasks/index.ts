@@ -154,13 +154,20 @@ Deno.serve(async (req) => {
       // Fetch existing maintenance tasks for this building
       const { data: existingTasks } = await supabase
         .from("todos")
-        .select("id, maintenance_type, due_date")
+        .select("id, maintenance_type, due_date, status")
         .eq("is_maintenance_task", true)
         .eq("building_id", bId)
         .gte("due_date", formatDate(today));
 
       const existingSet = new Set(
         (existingTasks || []).map((t) => `${t.maintenance_type}_${t.due_date}`)
+      );
+      // Dedup pro Wartungstyp: wenn bereits ein offener zukünftiger Task existiert,
+      // keinen weiteren anlegen (verhindert tägliches Neu-Erzeugen bei fehlendem last_maintenance_date).
+      const openTypeSet = new Set(
+        (existingTasks || [])
+          .filter((t) => t.status !== "done" && t.status !== "cancelled")
+          .map((t) => t.maintenance_type)
       );
 
       const tasksToInsert: any[] = [];
@@ -170,18 +177,23 @@ Deno.serve(async (req) => {
         const typeDef = isCustom ? null : getTypeDef(config.maintenance_type);
         if (!isCustom && !typeDef) continue;
 
+        // Skip wenn bereits offener Task für diesen Wartungstyp im Zeitfenster existiert
+        if (openTypeSet.has(config.maintenance_type)) continue;
+
         const defaultInterval = typeDef?.defaultIntervalMonths ?? 12;
         const defaultLead = typeDef?.defaultLeadTimeDays ?? 14;
         const intervalMonths = config.custom_interval_months || defaultInterval;
         const leadTimeDays = config.custom_lead_time_days || defaultLead;
         const label = typeDef?.label || config.custom_label || "Eigene Wartung";
 
-        // Generate due dates: if last_maintenance_date is set, start from there + interval
+        // Generate due dates: if last_maintenance_date is set, start from there + interval.
+        // Sonst: ersten Task um ein volles Intervall in die Zukunft legen (nicht "heute"),
+        // damit nicht jeden Tag ein neuer Task entsteht.
         let cursor: Date;
         if (config.last_maintenance_date) {
           cursor = addMonths(new Date(config.last_maintenance_date), intervalMonths);
         } else {
-          cursor = new Date(today);
+          cursor = addMonths(new Date(today), intervalMonths);
         }
 
         let iterations = 0;
@@ -214,8 +226,13 @@ Deno.serve(async (req) => {
                 status: "open",
               });
               existingSet.add(key);
+              openTypeSet.add(config.maintenance_type);
+              break; // Nur den nächsten anstehenden Task pro Typ pro Lauf anlegen
             }
           }
+
+          cursor = addMonths(cursor, intervalMonths);
+
 
           cursor = addMonths(cursor, intervalMonths);
           iterations++;
