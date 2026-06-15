@@ -258,7 +258,6 @@ export const CASH_AUDIT_TOUR: TourDefinition = {
  * über TOURS_BY_ID erreichbar (für Auto-Start auf der Kassenprüfungsseite).
  */
 export const ALL_TOURS: TourDefinition[] = [
-  GLOBAL_TOUR,
   DASHBOARD_TOUR,
   REPORTS_TOUR,
   FILES_TOUR,
@@ -270,5 +269,5 @@ export const ALL_TOURS: TourDefinition[] = [
 ];
 
 export const TOURS_BY_ID: Record<string, TourDefinition> = Object.fromEntries(
-  [...ALL_TOURS, CASH_AUDIT_TOUR].map((t) => [t.id, t])
+  [...ALL_TOURS, CASH_AUDIT_TOUR, { ...DASHBOARD_TOUR, id: "global" }].map((t) => [t.id, t])
 );
