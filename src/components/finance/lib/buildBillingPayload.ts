@@ -519,7 +519,14 @@ export function buildOwnerPayload(inp: BillingPayloadInputs, ownerId: string) {
 
     // Abrechnungsspitze (zweispaltig + GH/NZ)
     abrechnungsspitze_gesamt: fmtEUR(Math.abs(totals.abrechnungsspitze)),
+    abrechnungsspitze_gesamt_label: ghnz(totals.abrechnungsspitze),
+    abrechnungsspitze_gesamt_guthaben: totals.abrechnungsspitze >= 0,
+    abrechnungsspitze_gesamt_nachzahlung: totals.abrechnungsspitze < 0,
     abrechnungsspitze_ihre: fmtEUR(Math.abs(ownerSpitze)),
+    abrechnungsspitze_ihre_label: ghnz(ownerSpitze),
+    abrechnungsspitze_ihre_guthaben: ownerSpitze >= 0,
+    abrechnungsspitze_ihre_nachzahlung: ownerSpitze < 0,
+    // Alt (Rückwärtskompatibilität) — bezieht sich auf den Eigentümer-Saldo
     abrechnungsspitze_label: ghnz(ownerSpitze),
     abrechnungsspitze_guthaben: ownerSpitze >= 0,
     abrechnungsspitze_nachzahlung: ownerSpitze < 0,
@@ -534,10 +541,18 @@ export function buildOwnerPayload(inp: BillingPayloadInputs, ownerId: string) {
     ueberzahlung_wpl_gesamt: fmtEUR(0),
     ueberzahlung_wpl_ihre: fmtEUR(ownerUeberzahlung),
     abrechnungssaldo_gesamt: fmtEUR(Math.abs(wegSaldo)),
+    abrechnungssaldo_gesamt_label: ghnz(wegSaldo),
+    abrechnungssaldo_gesamt_guthaben: wegSaldo >= 0,
+    abrechnungssaldo_gesamt_nachzahlung: wegSaldo < 0,
     abrechnungssaldo_ihre: fmtEUR(Math.abs(ownerSaldo)),
+    abrechnungssaldo_ihre_label: ghnz(ownerSaldo),
+    abrechnungssaldo_ihre_guthaben: ownerSaldo >= 0,
+    abrechnungssaldo_ihre_nachzahlung: ownerSaldo < 0,
+    // Alt (Rückwärtskompatibilität) — bezieht sich auf den Eigentümer-Saldo
     abrechnungssaldo_label: ghnz(ownerSaldo),
     abrechnungssaldo_guthaben: ownerSaldo >= 0,
     abrechnungssaldo_nachzahlung: ownerSaldo < 0,
+
 
 
     // Aliase (Rückwärtskompatibilität)
