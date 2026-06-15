@@ -180,13 +180,12 @@ export const WegOwnerChatbot = () => {
         </div>
       )}
       
-      <div data-tour="chatbot-input">
-        <ChatInput
-          onSendMessage={handleSendMessage}
-          isLoading={isTyping}
-          setIsHelpOpen={setIsHelpOpen}
-        />
-      </div>
+      <ChatInput
+        onSendMessage={handleSendMessage}
+        isLoading={isTyping}
+        setIsHelpOpen={setIsHelpOpen}
+      />
+
       
       {isHelpOpen && (
         <HelpFab 
