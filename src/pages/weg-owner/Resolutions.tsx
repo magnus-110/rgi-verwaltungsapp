@@ -181,7 +181,7 @@ export const WegOwnerResolutions = () => {
           <Input placeholder="Beschlüsse durchsuchen…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
 
-        <Tabs defaultValue="open" className="space-y-4">
+        <Tabs defaultValue="open" className="space-y-4" data-tour="resolutions-list">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="open">Umzusetzen ({actionable.length})</TabsTrigger>
             <TabsTrigger value="all">Alle Beschlüsse ({all.length})</TabsTrigger>
