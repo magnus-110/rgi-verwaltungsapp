@@ -20,6 +20,7 @@ interface GuidedTourContextValue {
   loading: boolean;
   isDisabled: () => boolean;
   enableTours: () => void;
+  disableTours: () => void;
 }
 
 const GuidedTourContext = createContext<GuidedTourContextValue | null>(null);
