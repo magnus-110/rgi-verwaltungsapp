@@ -185,7 +185,7 @@ export const WegOwnerDashboard = () => {
         </div>
 
         {/* Stat tiles */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3" data-tour="dashboard-tiles">
           <StatTile
             icon={AlertTriangle}
             label="Offene Meldungen"
@@ -205,7 +205,11 @@ export const WegOwnerDashboard = () => {
         </div>
 
         {/* Annual cycle */}
-        {buildings.length > 0 && <OwnerAnnualCycleWidget buildings={buildings} />}
+        {buildings.length > 0 && (
+          <div data-tour="dashboard-cycle">
+            <OwnerAnnualCycleWidget buildings={buildings} />
+          </div>
+        )}
 
         {/* Quick actions */}
         <section>
@@ -248,7 +252,7 @@ export const WegOwnerDashboard = () => {
 
 
         {/* Contact & emergency */}
-        <section>
+        <section data-tour="dashboard-contact">
           <SectionLabel>Kontakt & Notfall</SectionLabel>
           <div className="bg-card rounded-[14px] border border-border/60 overflow-hidden shadow-sm">
             <button
