@@ -67,15 +67,15 @@ export const DASHBOARD_TOUR: TourDefinition = {
     },
     {
       element: '[data-tour="dashboard-tiles"]',
-      title: "Schnellzugriff",
+      title: "Offene Vorgänge",
       description:
-        "Die Kacheln führen Sie direkt zu Ihren Versammlungen, Beschlüssen, Meldungen und Dokumenten. Eine kleine farbige Zahl bedeutet: hier gibt es etwas Neues.",
+        "Diese Kacheln zeigen Ihnen, welche Vorgänge bei Ihrer Hausverwaltung gerade offen sind – etwa noch nicht bearbeitete Meldungen oder Beschlüsse, die der Umsetzung harren.",
     },
     {
-      element: '[data-tour="dashboard-contact"]',
-      title: "Im Notfall",
+      element: '[data-tour="dashboard-quick"]',
+      title: "Schnellzugriff",
       description:
-        "Unten finden Sie immer die Kontaktdaten Ihrer Hausverwaltung. Telefon, E-Mail und Adresse – mit einem Klick erreichbar.",
+        "Von hier springen Sie direkt zu Dokumenten, KI-Chat, Schwarzem Brett und Versammlungen. Eine kleine farbige Zahl signalisiert: hier gibt es etwas Neues.",
     },
   ],
 };
@@ -94,7 +94,6 @@ export const REPORTS_TOUR: TourDefinition = {
       title: "Neue Meldung",
       description:
         "Über diesen Knopf erstellen Sie eine neue Meldung. Beschreiben Sie kurz, worum es geht – Fotos können Sie direkt anhängen.",
-      mediaUrl: "/tour-videos/new-report.mp4",
     },
     {
       element: '[data-tour="reports-list"]',
@@ -183,7 +182,6 @@ export const MEETINGS_TOUR: TourDefinition = {
       title: "Live-Abstimmung",
       description:
         "Während der Versammlung können Sie hier in Echtzeit zu jedem Tagesordnungspunkt abstimmen – auch von zuhause aus.",
-      mediaUrl: "/tour-videos/voting.mp4",
     },
   ],
 };
