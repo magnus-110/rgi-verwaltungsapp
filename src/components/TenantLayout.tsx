@@ -256,7 +256,7 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
      {profile?.user_id && (
        <PasskeyPromptDialog userId={profile.user_id} enabled={termsAccepted === true} />
      )}
-     <IntroVideoDialog open={showIntroVideo} onClose={dismissIntroVideo} />
+     
     </div>
   );
 };
