@@ -40,7 +40,7 @@ export function HelpButton() {
           data-tour="help-button"
           size="lg"
           className="fixed bottom-6 left-6 z-40 h-14 rounded-full pl-4 pr-5 shadow-lg gap-2 text-base"
-          aria-label="Hilfe und Erste Schritte"
+          aria-label="Hilfe"
         >
           <HelpCircle className="h-6 w-6" />
           Hilfe
@@ -52,22 +52,16 @@ export function HelpButton() {
         className="w-72 text-base"
         sideOffset={12}
       >
-        <DropdownMenuLabel className="text-base">Erste Schritte</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-base">Hilfe</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {currentTour && (
           <DropdownMenuItem
             className="py-3 text-base cursor-pointer"
             onClick={() => startTour(currentTour)}
           >
-            ▶ Diese Seite erklären
+            Diese Seite erklären
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem
-          className="py-3 text-base cursor-pointer"
-          onClick={() => startTour("dashboard")}
-        >
-          Komplette Einführung starten
-        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="py-2.5 text-sm cursor-pointer text-muted-foreground"
