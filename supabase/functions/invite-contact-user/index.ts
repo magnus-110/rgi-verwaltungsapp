@@ -17,7 +17,7 @@ async function setPasswordWithRetry(
   userId: string,
 ): Promise<{ password: string; error: any | null }> {
   for (let i = 0; i < 3; i++) {
-    const pw = generateFriendlyPassword()
+    const pw = generateNumericPassword()
     const { error } = await admin.auth.admin.updateUserById(userId, { password: pw })
     if (!error) return { password: pw, error: null }
     console.error(`updateUserById attempt ${i + 1} failed:`, error)
@@ -216,7 +216,7 @@ Deno.serve(async (req) => {
         let createdUserId: string | null = null
         let lastCreateError: any = null
         for (let i = 0; i < 3; i++) {
-          const candidate = generateFriendlyPassword()
+          const candidate = generateNumericPassword()
           const { data: newUserData, error: createError } = await supabaseAdmin.auth.admin.createUser({
             email,
             password: candidate,

@@ -16,7 +16,7 @@ const WORDS = [
   "Magnet","Anker","Pfeil","Pinsel","Quelle","Regen","Stern","Tiger",
   "Turm","Ufer","Vogel","Wagen","Zeder","Zelt","Bruecke","Fluss",
 ]
-function generateFriendlyPassword(): string {
+function generateNumericPassword(): string {
   const pick = () => WORDS[Math.floor(Math.random() * WORDS.length)]
   const num = Math.floor(Math.random() * 90) + 10
   return `${pick()}-${pick()}-${pick()}-${num}`
@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
     let newPassword = ''
     let lastUpdateError: any = null
     for (let i = 0; i < 3; i++) {
-      const candidate = generateFriendlyPassword()
+      const candidate = generateNumericPassword()
       const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
         existingUser.id,
         { password: candidate }
