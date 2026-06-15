@@ -647,14 +647,15 @@ export function buildAssetReportPayload(inp: BillingPayloadInputs) {
   // ============================================================
   // Sektion 4: Forderungen zum Jahresende
   //   = AUFLÖSUNG der Abgrenzungen aus dem Vorjahr im lfd. Jahr
-  //     (Konten 4100–4139). Im Vermögensbericht stets positiv dargestellt
-  //     (Forderung der WEG gegen Eigentümer aus Vorjahr = Vermögen).
+  //     (Konten 4100–4139). 4120–4139 (Einnahmen lfd. Jahr für Vorjahr)
+  //     werden im Vermögensbericht negativ ausgewiesen und mindern die Summe.
   //   Eine Zeile PRO Konto mit echtem account_name.
   // ============================================================
   const forderungAccs = accsInRange(4100, 4139);
   const forderungenRows = forderungAccs
     .map((a: any) => {
-      const raw = Math.abs(a.totalAbs || 0);
+      const n = parseInt(String(a.account_number), 10);
+      const raw = Math.abs(a.totalAbs || 0) * (n >= 4120 && n <= 4139 ? -1 : 1);
       return {
         konto_nr: a.account_number,
         bezeichnung: a.account_name,
