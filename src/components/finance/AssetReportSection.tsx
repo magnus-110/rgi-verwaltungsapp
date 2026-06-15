@@ -217,9 +217,13 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear, ownerResu
   //  Sektion 5: Forderungen zum Jahresende (Vorjahres-Bezug)
   // ============================================================
   const forderungAccs = relevantAccs.filter(isForderung).sort((a, b) => a.account_number.localeCompare(b.account_number));
-  const forderungLines: SectionLine[] = forderungAccs.map(a => ({
-    key: a.id, label: accrualLabel(a), account_number: a.account_number, amount: closingFor(a),
-  }));
+  const forderungLines: SectionLine[] = forderungAccs.map(a => {
+    // 4120–4139 (Einnahmen lfd. J. für Vorjahr) sind Verbindlichkeiten/Minderungen
+    // → in der Abrechnung negativ, daher auch im Vermögensbericht mit gedrehtem Vorzeichen
+    const n = accNum(a);
+    const flip = n >= 4120 && n <= 4139 ? -1 : 1;
+    return { key: a.id, label: accrualLabel(a), account_number: a.account_number, amount: flip * closingFor(a) };
+  });
 
   // ============================================================
   //  Sektion 6: Sonstige Vermögensposten — alle weiteren Flag-Konten
