@@ -242,7 +242,31 @@ export const SETTINGS_TOUR: TourDefinition = {
     {
       title: "Ihre Einstellungen",
       description:
-        "Hier ändern Sie Ihr Passwort, verwalten Benachrichtigungen und sehen, welche Daten zu Ihrem Konto gespeichert sind.",
+        "Hier verwalten Sie Ihre Stammdaten, Ihre Wohnungen und alles rund um Ihre Anmeldung.",
+    },
+    {
+      element: '[data-tour="settings-units"]',
+      title: "Meine Wohnungen",
+      description:
+        "Klicken Sie auf eine Wohnung, um je Gebäude individuelle Informationen (z. B. Anrede, Adresse, Kontaktdaten) zu hinterlegen und Ihre Bankverbindung für diese Einheit zu ändern.",
+    },
+    {
+      element: '[data-tour="settings-login-email"]',
+      title: "Login-E-Mail",
+      description:
+        'Mit dieser E-Mail-Adresse melden Sie sich an und nutzen die Funktion „Passwort vergessen". Eine Änderung wird per Bestätigungslink an die neue Adresse abgesichert.',
+    },
+    {
+      element: '[data-tour="settings-password"]',
+      title: "Passwort",
+      description:
+        "Ändern Sie hier jederzeit Ihr Anmeldepasswort. Wir empfehlen mindestens 8 Zeichen mit Zahlen und Sonderzeichen.",
+    },
+    {
+      element: '[data-tour="settings-passkeys"]',
+      title: "Passkeys",
+      description:
+        "Passkeys ermöglichen die passwortlose Anmeldung per Fingerabdruck, Face ID oder Sicherheitsschlüssel – schneller und sicherer als ein Passwort.",
     },
   ],
 };
