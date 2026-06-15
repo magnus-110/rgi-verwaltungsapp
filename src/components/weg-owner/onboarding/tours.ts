@@ -94,6 +94,7 @@ export const REPORTS_TOUR: TourDefinition = {
       title: "Neue Meldung",
       description:
         "Über diesen Knopf erstellen Sie eine neue Meldung. Beschreiben Sie kurz, worum es geht – Fotos können Sie direkt anhängen.",
+      mediaUrl: "/tour-videos/new-report.mp4",
     },
     {
       element: '[data-tour="reports-list"]',
@@ -182,6 +183,7 @@ export const MEETINGS_TOUR: TourDefinition = {
       title: "Live-Abstimmung",
       description:
         "Während der Versammlung können Sie hier in Echtzeit zu jedem Tagesordnungspunkt abstimmen – auch von zuhause aus.",
+      mediaUrl: "/tour-videos/voting.mp4",
     },
   ],
 };
