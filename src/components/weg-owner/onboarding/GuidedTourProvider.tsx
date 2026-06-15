@@ -20,6 +20,7 @@ interface GuidedTourContextValue {
   loading: boolean;
   isDisabled: () => boolean;
   enableTours: () => void;
+  disableTours: () => void;
 }
 
 const GuidedTourContext = createContext<GuidedTourContextValue | null>(null);
@@ -379,8 +380,9 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
       loading,
       isDisabled,
       enableTours,
+      disableTours,
     }),
-    [guardedStartTour, hasSeen, isActive, loading, isDisabled, enableTours]
+    [guardedStartTour, hasSeen, isActive, loading, isDisabled, enableTours, disableTours]
   );
 
   return (
@@ -398,6 +400,7 @@ export function useGuidedTour() {
       loading: true,
       isDisabled: () => false,
       enableTours: () => undefined,
+      disableTours: () => undefined,
     } as GuidedTourContextValue;
   }
   return ctx;
