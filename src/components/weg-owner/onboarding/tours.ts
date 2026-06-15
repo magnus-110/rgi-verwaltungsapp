@@ -230,7 +230,7 @@ export const CHATBOT_TOUR: TourDefinition = {
       element: '[data-tour="chatbot-input"]',
       title: "So fragen Sie",
       description:
-        "Tippen Sie Ihre Frage einfach in das Textfeld – ganz so, als würden Sie jemandem schreiben. Beispiel: 'Wann ist die nächste Versammlung?' oder 'Wo finde ich meine Abrechnung 2024?'",
+        "Tippen Sie Ihre Frage einfach in das Textfeld – ganz so, als würden Sie jemandem schreiben.",
     },
   ],
 };

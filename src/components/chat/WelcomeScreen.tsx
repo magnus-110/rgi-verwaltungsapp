@@ -14,14 +14,8 @@ const getGreeting = () => {
 };
 
 const SUGGESTIONS: Record<'tenant' | 'weg_owner', string[]> = {
-  weg_owner: [
-    "Wer ist der Hausmeister?",
-    "Wie viel Hausgeld muss ich zahlen?",
-  ],
-  tenant: [
-    "Wer ist der Hausmeister?",
-    "Wann ist die nächste Müllabfuhr?",
-  ],
+  weg_owner: [],
+  tenant: [],
 };
 
 export const WelcomeScreen = ({ userName, userType, onSuggestionClick }: WelcomeScreenProps) => {
