@@ -154,12 +154,18 @@ Deno.serve(async (req) => {
     const role = isOwnerSomewhere ? 'weg_owner' : 'tenant'
     let authUserId = contact.user_id
     let isNewUser = false
-    const password = generateNumericPassword()
+    let password = ''
 
     if (authUserId) {
       // Existing user — only rotate password if credentials will be sent out.
       if (shouldResetExistingPassword) {
-        await supabaseAdmin.auth.admin.updateUserById(authUserId, { password })
+        const { password: pw, error: pwErr } = await setPasswordWithRetry(supabaseAdmin, authUserId)
+        if (pwErr) {
+          return new Response(JSON.stringify({ error: `Passwort konnte nicht gesetzt werden: ${pwErr.message}` }), {
+            status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+        password = pw
       }
       await supabaseAdmin.from('profiles').update({
         force_password_change: false,
@@ -169,7 +175,6 @@ Deno.serve(async (req) => {
       }).eq('user_id', authUserId)
     } else {
       // Check if auth user with this email exists.
-      // listUsers() is paginated to 50 — unreliable. Look up via profiles first.
       let existingUser: { id: string } | null = null
       const { data: profileMatch } = await supabaseAdmin
         .from('profiles')
@@ -179,7 +184,6 @@ Deno.serve(async (req) => {
       if (profileMatch?.user_id) {
         existingUser = { id: profileMatch.user_id }
       } else {
-        // Fallback: paginate through auth.users
         let page = 1
         while (!existingUser) {
           const { data: pageData, error: pageErr } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 200 })
@@ -194,9 +198,14 @@ Deno.serve(async (req) => {
       if (existingUser) {
         authUserId = existingUser.id
         if (shouldResetExistingPassword) {
-          await supabaseAdmin.auth.admin.updateUserById(authUserId, { password })
+          const { password: pw, error: pwErr } = await setPasswordWithRetry(supabaseAdmin, authUserId)
+          if (pwErr) {
+            return new Response(JSON.stringify({ error: `Passwort konnte nicht gesetzt werden: ${pwErr.message}` }), {
+              status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+          }
+          password = pw
         }
-        // Update profile
         await supabaseAdmin.from('profiles').upsert({
           user_id: authUserId,
           email,
@@ -208,25 +217,36 @@ Deno.serve(async (req) => {
           terms_accepted_at: null,
         }, { onConflict: 'user_id' })
       } else {
-        // Create new auth user
+        // Create new auth user — retry with fresh password if Supabase rejects (HIBP etc.)
         isNewUser = true
-        const { data: newUserData, error: createError } = await supabaseAdmin.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: true,
-          user_metadata: {
-            first_name: contact.first_name,
-            last_name: contact.last_name,
+        let createdUserId: string | null = null
+        let lastCreateError: any = null
+        for (let i = 0; i < 3; i++) {
+          const candidate = generateFriendlyPassword()
+          const { data: newUserData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+            email,
+            password: candidate,
+            email_confirm: true,
+            user_metadata: {
+              first_name: contact.first_name,
+              last_name: contact.last_name,
+            }
+          })
+          if (!createError && newUserData?.user) {
+            createdUserId = newUserData.user.id
+            password = candidate
+            break
           }
-        })
-        if (createError) {
-          return new Response(JSON.stringify({ error: createError.message }), {
+          lastCreateError = createError
+          console.error(`createUser attempt ${i + 1} failed:`, createError)
+        }
+        if (!createdUserId) {
+          return new Response(JSON.stringify({ error: lastCreateError?.message || 'Konnte Nutzer nicht anlegen' }), {
             status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
         }
-        authUserId = newUserData.user!.id
+        authUserId = createdUserId
 
-        // Profile is auto-created by trigger, but update role + building
         await supabaseAdmin.from('profiles').update({
           role,
           building_id: management_mode === 'rent' ? building_id : null,
@@ -235,7 +255,6 @@ Deno.serve(async (req) => {
         }).eq('user_id', authUserId)
       }
 
-      // Link user_id to contact
       await supabaseAdmin.from('contacts').update({ user_id: authUserId }).eq('id', contact_id)
     }
 
