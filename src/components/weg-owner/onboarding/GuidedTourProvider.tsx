@@ -28,117 +28,106 @@ const GuidedTourContext = createContext<GuidedTourContextValue | null>(null);
  */
 const SENIOR_STYLES = `
   .driver-overlay {
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(3px);
   }
 
   .driver-popover.rgi-tour-popover {
-    font-family: inherit;
-    max-width: 360px;
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    max-width: 380px;
     width: calc(100vw - 32px);
-    border-radius: 18px;
-    border: 1px solid hsl(var(--border));
+    border-radius: 20px;
+    border: 1px solid hsl(var(--border) / 0.6);
     box-shadow:
-      0 24px 60px -12px hsl(0 0% 0% / 0.28),
-      0 8px 24px -8px hsl(0 0% 0% / 0.18);
+      0 32px 80px -24px hsl(0 0% 0% / 0.35),
+      0 12px 32px -12px hsl(0 0% 0% / 0.18),
+      0 0 0 1px hsl(0 0% 100% / 0.04) inset;
     padding: 0;
     overflow: hidden;
     background: hsl(var(--card));
-    animation: rgi-tour-pop 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    animation: rgi-tour-pop 280ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   @keyframes rgi-tour-pop {
-    0%   { opacity: 0; transform: scale(0.96) translateY(6px); }
+    0%   { opacity: 0; transform: scale(0.97) translateY(8px); }
     100% { opacity: 1; transform: scale(1) translateY(0); }
   }
 
-  /* Akzent-Streifen oben */
   .driver-popover.rgi-tour-popover::before {
     content: "";
     display: block;
-    height: 4px;
-    background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--primary) / 0.55));
+    height: 3px;
+    background: linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.4) 100%);
   }
 
   .driver-popover.rgi-tour-popover .driver-popover-title {
-    font-size: 1.2rem;
-    font-weight: 700;
-    line-height: 1.3;
+    font-family: 'Instrument Serif', 'Cormorant Garamond', Georgia, serif;
+    font-size: 1.5rem;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
     color: hsl(var(--foreground));
-    padding: 1rem 1.25rem 0.25rem;
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-  }
-
-  .driver-popover.rgi-tour-popover .driver-popover-title::before {
-    content: "";
-    display: inline-block;
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    background: hsl(var(--primary) / 0.12);
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ea580c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5'/><path d='M9 18h6'/><path d='M10 22h4'/></svg>");
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 18px 18px;
-    flex-shrink: 0;
+    padding: 1.25rem 1.5rem 0.35rem;
   }
 
   .driver-popover.rgi-tour-popover .driver-popover-description {
-    font-size: 1rem;
-    line-height: 1.55;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    letter-spacing: 0.005em;
     color: hsl(var(--muted-foreground));
-    padding: 0.25rem 1.25rem 0.75rem;
+    padding: 0.25rem 1.5rem 1rem;
   }
 
   .driver-popover.rgi-tour-popover .driver-popover-footer {
     gap: 0.5rem;
-    padding: 0.75rem 1.25rem 1rem;
+    padding: 0.85rem 1.5rem 1.1rem;
     margin-top: 0;
-    border-top: 1px solid hsl(var(--border) / 0.6);
-    background: hsl(var(--muted) / 0.25);
+    border-top: 1px solid hsl(var(--border) / 0.5);
+    background: hsl(var(--muted) / 0.18);
+    align-items: center;
   }
 
   .driver-popover.rgi-tour-popover .driver-popover-footer button {
-    min-height: 44px;
-    padding: 0 1rem;
-    font-size: 0.95rem;
-    font-weight: 600;
-    border-radius: 10px;
-    transition: transform 120ms ease, opacity 120ms ease, background 120ms ease;
+    min-height: 38px;
+    padding: 0 0.95rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    border-radius: 8px;
+    transition: all 160ms cubic-bezier(0.16, 1, 0.3, 1);
     border: none;
     text-shadow: none;
-  }
-  .driver-popover.rgi-tour-popover .driver-popover-footer button:hover {
-    transform: translateY(-1px);
   }
 
   .driver-popover.rgi-tour-popover .driver-popover-next-btn {
     background: hsl(var(--primary));
     color: hsl(var(--primary-foreground));
+    box-shadow: 0 2px 8px -2px hsl(var(--primary) / 0.4);
   }
   .driver-popover.rgi-tour-popover .driver-popover-next-btn:hover {
     background: hsl(var(--primary) / 0.92);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px -2px hsl(var(--primary) / 0.5);
   }
 
   .driver-popover.rgi-tour-popover .driver-popover-prev-btn {
-    background: hsl(var(--card));
-    color: hsl(var(--foreground));
+    background: transparent;
+    color: hsl(var(--muted-foreground));
     border: 1px solid hsl(var(--border));
   }
   .driver-popover.rgi-tour-popover .driver-popover-prev-btn:hover {
-    background: hsl(var(--muted));
+    background: hsl(var(--muted) / 0.5);
+    color: hsl(var(--foreground));
   }
 
   .driver-popover.rgi-tour-popover .driver-popover-close-btn {
-    color: hsl(var(--muted-foreground));
-    font-size: 1.2rem;
-    width: 32px;
-    height: 32px;
-    top: 8px;
-    right: 8px;
-    border-radius: 8px;
-    transition: background 120ms ease, color 120ms ease;
+    color: hsl(var(--muted-foreground) / 0.6);
+    font-size: 1.1rem;
+    width: 28px;
+    height: 28px;
+    top: 10px;
+    right: 10px;
+    border-radius: 6px;
+    transition: all 140ms ease;
   }
   .driver-popover.rgi-tour-popover .driver-popover-close-btn:hover {
     background: hsl(var(--muted));
@@ -146,13 +135,13 @@ const SENIOR_STYLES = `
   }
 
   .driver-popover.rgi-tour-popover .driver-popover-progress-text {
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     font-weight: 500;
-    color: hsl(var(--muted-foreground));
-    letter-spacing: 0.01em;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground) / 0.7);
   }
 
-  /* Spotlight-Aussparung: dezenter Glow */
   .driver-active-element,
   .driver-active-element * {
     z-index: 10000;
@@ -236,9 +225,7 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
           element: s.element,
           popover: {
             title: s.title,
-            description: s.mediaUrl
-              ? `${s.description}<video src="${s.mediaUrl}" autoplay muted loop playsinline class="rgi-tour-video" style="margin-top:0.75rem;width:100%;border-radius:10px;border:1px solid hsl(var(--border));background:hsl(var(--muted));display:block;"></video>`
-              : s.description,
+            description: s.description,
             // Bevorzugt unten; driver.js positioniert automatisch um, wenn zu wenig Platz
             side: s.element ? "bottom" : "over",
             align: "center",
