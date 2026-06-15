@@ -68,7 +68,7 @@ export function HelpButton() {
         )}
         <DropdownMenuItem
           className="py-3 text-base cursor-pointer"
-          onClick={() => startTour("global")}
+          onClick={() => startTour("dashboard")}
         >
           Komplette Einführung starten
         </DropdownMenuItem>
