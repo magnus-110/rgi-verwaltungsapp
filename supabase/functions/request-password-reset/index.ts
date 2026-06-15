@@ -9,9 +9,17 @@ interface ResetRequest {
   email: string
 }
 
-// Generate 6-digit numeric password
-function generateNumericPassword(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString()
+// Friendly password generator: Word-Word-Word-NN (avoids HIBP/leaked password rejection)
+const WORDS = [
+  "Apfel","Birne","Brunnen","Berg","Wolke","Wald","Wiese","Sonne","Mond",
+  "Feder","Garten","Hafen","Insel","Kanal","Krone","Lampe","Leuchte",
+  "Magnet","Anker","Pfeil","Pinsel","Quelle","Regen","Stern","Tiger",
+  "Turm","Ufer","Vogel","Wagen","Zeder","Zelt","Bruecke","Fluss",
+]
+function generateFriendlyPassword(): string {
+  const pick = () => WORDS[Math.floor(Math.random() * WORDS.length)]
+  const num = Math.floor(Math.random() * 90) + 10
+  return `${pick()}-${pick()}-${pick()}-${num}`
 }
 
 // Send data to Make.com webhook
