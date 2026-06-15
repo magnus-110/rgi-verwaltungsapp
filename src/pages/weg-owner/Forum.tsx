@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { EmergencyContactsWidget } from "@/components/forum/EmergencyContactsWidget";
 import { cn } from "@/lib/utils";
+import { useAutoStartPageTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
 
 interface Building {
   id: string;
@@ -31,6 +32,7 @@ const SectionLabel = ({ children }: { children: React.ReactNode }) => (
 );
 
 export const WegOwnerForum = () => {
+  useAutoStartPageTour("forum");
   const { user } = useAuth();
   const [posts, setPosts] = useState<ForumPost[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);

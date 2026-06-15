@@ -8734,6 +8734,24 @@ export type Database = {
           },
         ]
       }
+      user_tour_progress: {
+        Row: {
+          progress: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          progress?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          progress?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       utility_contracts: {
         Row: {
           building_id: string
