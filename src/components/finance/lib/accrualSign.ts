@@ -7,7 +7,7 @@
  *
  * Bezogen auf die Abrechnungssumme des LFD. Jahres:
  *   4100–4119  Ausgaben lfd. J. für Vorjahr     (ARA-Auflösung) → -1
- *   4120–4139  Einnahmen lfd. J. für Vorjahr                    → +1
+ *   4120–4139  Einnahmen lfd. J. für Vorjahr                    → -1
  *   4160–4179  Ausgaben Folgejahr für lfd. J.   (PRA-Bildung)   → +1
  *   4180–4199  Einnahmen Folgejahr für lfd. J.                  → -1
  *   4020 WEG-Sollstellung                                       → +1
