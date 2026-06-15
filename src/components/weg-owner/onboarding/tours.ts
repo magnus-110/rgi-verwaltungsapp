@@ -39,7 +39,7 @@ export const GLOBAL_TOUR: TourDefinition = {
       element: '[data-tour="menu-button"]',
       title: "Das Menü",
       description:
-        "Über diesen Knopf öffnen Sie das Menü. Dort finden Sie alle Bereiche: Versammlungen, Beschlüsse, Dokumente, das Schwarze Brett und vieles mehr.",
+        "Über diesen Knopf öffnen Sie das Menü. Dort finden Sie alle Bereiche: Meldungen, Dokumente, Beschlüsse, Schwarzes Brett, Versammlungen und den Chat.",
     },
     {
       element: '[data-tour="help-button"]',
@@ -80,6 +80,84 @@ export const DASHBOARD_TOUR: TourDefinition = {
   ],
 };
 
+export const REPORTS_TOUR: TourDefinition = {
+  id: "reports",
+  title: "Meine Meldungen",
+  steps: [
+    {
+      title: "Etwas mitteilen",
+      description:
+        "Hier können Sie der Verwaltung Schäden, Anliegen oder Fragen melden. Wir bearbeiten jede Meldung und Sie sehen jederzeit den aktuellen Stand.",
+    },
+    {
+      element: '[data-tour="reports-new"]',
+      title: "Neue Meldung",
+      description:
+        "Über diesen Knopf erstellen Sie eine neue Meldung. Beschreiben Sie kurz, worum es geht – Fotos können Sie direkt anhängen.",
+    },
+    {
+      element: '[data-tour="reports-list"]',
+      title: "Ihre Meldungen",
+      description:
+        "Hier sehen Sie alle Ihre bisherigen Meldungen. Farbige Punkte zeigen den Status: orange = offen, blau = in Bearbeitung, grün = erledigt.",
+    },
+  ],
+};
+
+export const FILES_TOUR: TourDefinition = {
+  id: "files",
+  title: "Dokumente",
+  steps: [
+    {
+      title: "Ihr Dokumenten-Ordner",
+      description:
+        "Alle Unterlagen, die Sie als Eigentümer betreffen, liegen hier: Abrechnungen, Wirtschaftspläne, Protokolle, Verträge.",
+    },
+    {
+      element: '[data-tour="files-tree"]',
+      title: "So navigieren Sie",
+      description:
+        "Klicken Sie auf einen Ordner, um ihn zu öffnen. Ein Klick auf ein Dokument zeigt die Vorschau. Über den Download-Knopf speichern Sie es auf Ihrem Gerät.",
+    },
+  ],
+};
+
+export const RESOLUTIONS_TOUR: TourDefinition = {
+  id: "resolutions",
+  title: "Beschlüsse",
+  steps: [
+    {
+      title: "Die Beschluss-Sammlung",
+      description:
+        "Hier finden Sie alle gefassten Beschlüsse Ihrer Gemeinschaft – jederzeit nachlesbar.",
+    },
+    {
+      element: '[data-tour="resolutions-list"]',
+      title: "Grün und Rot",
+      description:
+        "Ein grüner Punkt bedeutet: angenommen. Ein roter Punkt bedeutet: abgelehnt. Klicken Sie einen Beschluss an, um den genauen Wortlaut zu lesen.",
+    },
+  ],
+};
+
+export const FORUM_TOUR: TourDefinition = {
+  id: "forum",
+  title: "Schwarzes Brett",
+  steps: [
+    {
+      title: "Das Schwarze Brett",
+      description:
+        "Hier veröffentlicht Ihre Hausverwaltung wichtige Informationen, Aushänge und Mitteilungen rund um Ihre Liegenschaft.",
+    },
+    {
+      element: '[data-tour="forum-list"]',
+      title: "Aktuelle Aushänge",
+      description:
+        "Neue Beiträge stehen ganz oben. Tippen Sie einen Eintrag an, um den vollständigen Text und mögliche Anhänge zu sehen.",
+    },
+  ],
+};
+
 export const MEETINGS_TOUR: TourDefinition = {
   id: "meetings",
   title: "Versammlungen",
@@ -108,81 +186,9 @@ export const MEETINGS_TOUR: TourDefinition = {
   ],
 };
 
-export const RESOLUTIONS_TOUR: TourDefinition = {
-  id: "resolutions",
-  title: "Beschlüsse",
-  steps: [
-    {
-      title: "Die Beschluss-Sammlung",
-      description:
-        "Hier finden Sie alle gefassten Beschlüsse Ihrer Gemeinschaft – das ist Ihre rechtssichere Übersicht.",
-    },
-    {
-      element: '[data-tour="resolutions-list"]',
-      title: "Grün und Rot",
-      description:
-        "Ein grüner Punkt bedeutet: angenommen. Ein roter Punkt bedeutet: abgelehnt. Klicken Sie einen Beschluss an, um den genauen Wortlaut zu lesen.",
-    },
-  ],
-};
-
-export const REPORTS_TOUR: TourDefinition = {
-  id: "reports",
-  title: "Meine Meldungen",
-  steps: [
-    {
-      title: "Etwas mitteilen",
-      description:
-        "Hier können Sie der Verwaltung Schäden, Anliegen oder Fragen melden. Wir bearbeiten jede Meldung und Sie sehen den aktuellen Stand.",
-    },
-    {
-      element: '[data-tour="reports-new"]',
-      title: "Neue Meldung",
-      description:
-        "Über diesen Knopf erstellen Sie eine neue Meldung. Beschreiben Sie kurz, worum es geht – Fotos können Sie direkt anhängen.",
-    },
-  ],
-};
-
-export const FILES_TOUR: TourDefinition = {
-  id: "files",
-  title: "Dokumente",
-  steps: [
-    {
-      title: "Ihr Dokumenten-Ordner",
-      description:
-        "Alle Unterlagen, die Sie als Eigentümer betreffen, liegen hier: Abrechnungen, Wirtschaftspläne, Protokolle, Verträge.",
-    },
-    {
-      element: '[data-tour="files-tree"]',
-      title: "So navigieren Sie",
-      description:
-        "Klicken Sie auf einen Ordner, um ihn zu öffnen. Ein Klick auf ein Dokument zeigt die Vorschau. Über den Download-Knopf speichern Sie es auf Ihrem Gerät.",
-    },
-  ],
-};
-
-export const FORUM_TOUR: TourDefinition = {
-  id: "forum",
-  title: "Schwarzes Brett",
-  steps: [
-    {
-      title: "Das Schwarze Brett",
-      description:
-        "Hier können Sie mit Ihren Miteigentümern Informationen austauschen – wie an einem echten Schwarzen Brett im Hausflur, nur digital.",
-    },
-    {
-      element: '[data-tour="forum-new"]',
-      title: "Beitrag schreiben",
-      description:
-        "Mit diesem Knopf verfassen Sie einen neuen Beitrag. Bleiben Sie freundlich – alle Eigentümer Ihrer Liegenschaft können mitlesen.",
-    },
-  ],
-};
-
 export const CHATBOT_TOUR: TourDefinition = {
   id: "chatbot",
-  title: "Hilfe-Chat",
+  title: "Chat",
   steps: [
     {
       title: "Ihr persönlicher Assistent",
@@ -222,19 +228,23 @@ export const CASH_AUDIT_TOUR: TourDefinition = {
   ],
 };
 
+/**
+ * Reihenfolge analog zur Sidebar-Navigation im WegOwnerLayout.
+ * Kassenprüfung ist absichtlich NICHT im Hauptmenü gelistet, bleibt aber
+ * über TOURS_BY_ID erreichbar (für Auto-Start auf der Kassenprüfungsseite).
+ */
 export const ALL_TOURS: TourDefinition[] = [
   GLOBAL_TOUR,
   DASHBOARD_TOUR,
-  MEETINGS_TOUR,
-  RESOLUTIONS_TOUR,
   REPORTS_TOUR,
   FILES_TOUR,
+  RESOLUTIONS_TOUR,
   FORUM_TOUR,
+  MEETINGS_TOUR,
   CHATBOT_TOUR,
   SETTINGS_TOUR,
-  CASH_AUDIT_TOUR,
 ];
 
 export const TOURS_BY_ID: Record<string, TourDefinition> = Object.fromEntries(
-  ALL_TOURS.map((t) => [t.id, t])
+  [...ALL_TOURS, CASH_AUDIT_TOUR].map((t) => [t.id, t])
 );
