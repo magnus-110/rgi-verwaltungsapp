@@ -28,8 +28,8 @@ export const FirstLoginWelcomeDialog = ({
   onClose,
 }: FirstLoginWelcomeDialogProps) => {
   const passkeySupported = useMemo(() => browserSupportsPasskeys(), []);
-  const pages = useMemo(
-    () => (passkeySupported ? ["terms", "passkey", "start"] : ["terms", "start"]) as const,
+  const pages = useMemo<("terms" | "passkey" | "start")[]>(
+    () => (passkeySupported ? ["terms", "passkey", "start"] : ["terms", "start"]),
     [passkeySupported],
   );
 
