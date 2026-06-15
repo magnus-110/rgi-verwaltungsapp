@@ -254,7 +254,7 @@ export const SETTINGS_TOUR: TourDefinition = {
       element: '[data-tour="settings-login-email"]',
       title: "Login-E-Mail",
       description:
-        "Mit dieser E-Mail-Adresse melden Sie sich an und nutzen die Funktion „Passwort vergessen". Eine Änderung wird per Bestätigungslink an die neue Adresse abgesichert.",
+        'Mit dieser E-Mail-Adresse melden Sie sich an und nutzen die Funktion „Passwort vergessen". Eine Änderung wird per Bestätigungslink an die neue Adresse abgesichert.',
     },
     {
       element: '[data-tour="settings-password"]',
