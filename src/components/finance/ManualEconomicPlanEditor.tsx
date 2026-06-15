@@ -754,14 +754,16 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       umlagefaehig: r.isDistributable ? "ja" : "nein",
       ruecklage: r.isReserve ? "ja" : "nein",
     }));
-    const ownerAdvanceTotal = monthlyAdvance * 12;
+    const ownerAdvanceTotal = Math.abs(monthlyAdvance) * 12;
     const ownerDistributableYear = sumAbs(distributable);
     const ownerReserveYear = sumAbs(reserve);
     const ownerHausgeldYear = ownerAdvanceTotal - ownerReserveYear;
-    // Monatliche Werte (Jahreswerte / 12) für den Abschnitt "Monatliche Vorschüsse"
+    // Monatliche Werte (Jahreswerte / 12) für den Abschnitt "Monatliche Vorschüsse" — immer positiv
+    const monthlyAdvanceAbs = Math.abs(monthlyAdvance);
     const monthlyOwnerTotal = ownerDistributableYear / 12;
-    const monthlyReserve = ownerReserveYear / 12;
-    const monthlyHausgeld = ownerHausgeldYear / 12;
+    const monthlyReserve = Math.abs(ownerReserveYear / 12);
+    const monthlyHausgeld = Math.abs(ownerHausgeldYear / 12);
+
     return {
       ...buildBaseContext(),
       // englisch
