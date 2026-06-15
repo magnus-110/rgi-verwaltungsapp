@@ -195,7 +195,7 @@ export const WegOwnerSettings = () => {
         </CardContent>
       </Card>
 
-       <Card>
+       <Card data-tour="settings-password">
          <CardHeader>
            <CardTitle>Passwort ändern</CardTitle>
            <CardDescription>
