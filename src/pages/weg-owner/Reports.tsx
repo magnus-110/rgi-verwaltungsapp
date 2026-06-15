@@ -486,31 +486,40 @@ export const WegOwnerReports = () => {
               Neue Meldung
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
-              <DialogTitle className="font-display tracking-tight">Neue Meldung erstellen</DialogTitle>
+          <DialogContent className="sm:max-w-[560px] p-0 overflow-hidden bg-[hsl(35_25%_96%)]">
+            <DialogHeader className="px-5 pt-5 pb-3 bg-card border-b border-border/40">
+              <DialogTitle className="font-display !font-normal text-[20px] leading-tight tracking-tight">
+                Neue Meldung
+              </DialogTitle>
+              <p className="text-[13px] text-muted-foreground mt-0.5">
+                Beschreiben Sie kurz, worum es geht — wir kümmern uns darum.
+              </p>
             </DialogHeader>
-              <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1">
-                {/* Collapsible contact section */}
-                <div className="bg-muted/30 rounded-xl p-4">
-                  <Collapsible open={contactOpen} onOpenChange={setContactOpen}>
-                    <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-lg">
-                          {reportForm.contact_name?.charAt(0)?.toUpperCase() || "?"}
-                        </div>
-                        <div>
-                          <p className="text-base font-medium text-foreground">{reportForm.contact_name || "Name nicht gesetzt"}</p>
-                          <p className="text-xs text-muted-foreground">Ihre Kontaktdaten</p>
-                        </div>
+
+            <div className="max-h-[70vh] overflow-y-auto px-4 py-4 space-y-3">
+              {/* Kontakt */}
+              <SectionCard label="Kontakt" flat>
+                <Collapsible open={contactOpen} onOpenChange={setContactOpen}>
+                  <CollapsibleTrigger className="flex items-center justify-between w-full text-left px-4 py-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-[15px] shrink-0">
+                        {reportForm.contact_name?.charAt(0)?.toUpperCase() || "?"}
                       </div>
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <span className="text-xs">Details</span>
-                        <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${contactOpen ? 'rotate-180' : ''}`} />
+                      <div className="min-w-0">
+                        <p className="text-[14px] font-medium text-foreground truncate">
+                          {reportForm.contact_name || "Name nicht gesetzt"}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">Ihre Kontaktdaten</p>
                       </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="mt-3 space-y-1 border-t border-border/50 pt-3">
-                      <p className="text-xs text-muted-foreground mb-2">Zum Bearbeiten auf ein Feld tippen</p>
+                    </div>
+                    <div className="flex items-center gap-1 text-[12px] text-muted-foreground shrink-0">
+                      <span>Details</span>
+                      <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${contactOpen ? 'rotate-180' : ''}`} />
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="px-4 pb-3 pt-1 space-y-2 border-t border-border/40">
+                      <p className="text-[11px] text-muted-foreground pt-2">Zum Bearbeiten auf ein Feld tippen</p>
                       <InlineEditField
                         label="Name"
                         value={reportForm.contact_name}
@@ -529,100 +538,129 @@ export const WegOwnerReports = () => {
                         type="tel"
                       />
                       {buildings.length === 1 && (
-                        <div className="flex items-center gap-2 py-1 px-2 -mx-2">
-                          <span className="text-sm text-muted-foreground min-w-[70px]">Gebäude:</span>
-                          <span className="text-base text-foreground">{buildings[0].name} - {buildings[0].address}</span>
+                        <div className="flex items-center gap-2 py-1">
+                          <span className="text-[13px] text-muted-foreground min-w-[70px]">Gebäude</span>
+                          <span className="text-[14px] text-foreground truncate">{buildings[0].name}</span>
                         </div>
                       )}
-                    </CollapsibleContent>
-                  </Collapsible>
-                </div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </SectionCard>
 
-                {/* Building select - only if multiple buildings */}
-                {buildings.length > 1 && (
-                  <div>
-                    <Label htmlFor="building" className="text-base font-medium">Gebäude auswählen *</Label>
-                    <Select 
-                      value={reportForm.building_id} 
+              {/* Gebäudeauswahl bei mehreren */}
+              {buildings.length > 1 && (
+                <SectionCard label="Gebäude">
+                  <div className="px-4 py-3">
+                    <Select
+                      value={reportForm.building_id}
                       onValueChange={(value) => {
                         const selectedBuilding = buildings.find(b => b.id === value);
-                        setReportForm(prev => ({ 
-                          ...prev, 
+                        setReportForm(prev => ({
+                          ...prev,
                           building_id: value,
                           contact_address: selectedBuilding ? `${selectedBuilding.name} - ${selectedBuilding.address}` : ''
                         }));
                       }}
                     >
-                      <SelectTrigger className="mt-1.5 h-12 text-base">
+                      <SelectTrigger className="w-full bg-[hsl(var(--input))] border-0 rounded-lg h-11 text-[14px] focus:ring-0 focus:ring-offset-0">
                         <SelectValue placeholder="Bitte wählen Sie ein Gebäude" />
                       </SelectTrigger>
                       <SelectContent>
                         {buildings.map((building) => (
                           <SelectItem key={building.id} value={building.id}>
-                            {building.name} - {building.address}
+                            {building.name} — {building.address}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                )}
+                </SectionCard>
+              )}
 
-                {/* Main form fields - prominent */}
-                <div>
-                  <Label htmlFor="title" className="text-base font-medium">Was ist das Problem? *</Label>
-                  <Input
+              {/* Meldung */}
+              <SectionCard label="Ihre Meldung">
+                <div className="px-4 py-3 space-y-2.5">
+                  <label className="block text-[12px] text-muted-foreground">
+                    Was ist das Problem? <span className="text-primary">*</span>
+                  </label>
+                  <EmbeddedInput
                     id="title"
                     value={reportForm.title}
                     onChange={(e) => setReportForm(prev => ({ ...prev, title: e.target.value }))}
-                    placeholder="z.B. Heizung funktioniert nicht"
-                    className="mt-1.5 text-base h-12"
+                    placeholder="z. B. Heizung funktioniert nicht"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="description" className="text-base font-medium">Beschreibung *</Label>
-                  <Textarea
+                <div className="px-4 py-3 space-y-2.5">
+                  <label className="block text-[12px] text-muted-foreground">
+                    Beschreibung <span className="text-primary">*</span>
+                  </label>
+                  <textarea
                     id="description"
                     value={reportForm.description}
                     onChange={(e) => setReportForm(prev => ({ ...prev, description: e.target.value }))}
                     placeholder="Beschreiben Sie das Problem so genau wie möglich"
                     rows={4}
-                    className="mt-1.5 text-base"
+                    className="w-full bg-[hsl(var(--input))] rounded-lg px-3 py-2.5 text-[14px] text-foreground border-0 outline-none focus:bg-[hsl(35_25%_92%)] transition-colors placeholder:text-muted-foreground/60 resize-y"
                   />
                 </div>
+              </SectionCard>
 
-                {/* Attachments */}
-                <div>
-                  <Label htmlFor="attachments" className="text-base font-medium">Fotos oder Dokumente</Label>
-                  <div className="space-y-2 mt-1.5">
-                    <Input
-                      id="attachments"
-                      type="file"
-                      multiple
-                      accept="image/*,.pdf,.doc,.docx"
-                      onChange={handleFileChange}
-                      className="cursor-pointer"
-                    />
-                    {attachments.length > 0 && (
-                      <div className="space-y-2">
-                        {attachments.map((file, index) => (
-                          <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
-                            <span className="text-sm">{file.name}</span>
-                            <Button variant="ghost" size="sm" onClick={() => removeAttachment(index)}>
-                              <X className="h-4 w-4" />
-                            </Button>
+              {/* Anhänge */}
+              <SectionCard label="Fotos oder Dokumente">
+                <div className="px-4 py-3 space-y-2">
+                  <label
+                    htmlFor="attachments"
+                    className="flex items-center justify-center gap-2 w-full bg-[hsl(var(--input))] rounded-lg px-3 py-3 text-[13px] text-foreground/80 cursor-pointer hover:bg-[hsl(35_25%_92%)] transition-colors"
+                  >
+                    <Upload className="h-4 w-4" />
+                    {attachments.length > 0
+                      ? `${attachments.length} Datei${attachments.length === 1 ? "" : "en"} ausgewählt`
+                      : "Dateien auswählen"}
+                  </label>
+                  <input
+                    id="attachments"
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf,.doc,.docx"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                  {attachments.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      {attachments.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between gap-2 rounded-lg bg-[hsl(var(--input))] px-3 py-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="text-[13px] truncate">{file.name}</span>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                          <button
+                            type="button"
+                            onClick={() => removeAttachment(index)}
+                            className="text-muted-foreground hover:text-foreground"
+                            aria-label="Anhang entfernen"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
+              </SectionCard>
+            </div>
 
-                <Button onClick={createReport} className="w-full h-12 text-base font-medium rounded-[14px]" disabled={uploading}>
-                  {uploading ? "Wird erstellt..." : "Meldung absenden"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+            <div className="bg-card border-t border-border/60 px-4 py-3">
+              <Button
+                onClick={createReport}
+                className="w-full h-12 text-[15px] font-medium rounded-[14px]"
+                disabled={uploading}
+              >
+                {uploading ? "Wird gesendet…" : "Meldung absenden"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Reports List */}
         <section data-tour="reports-list">
