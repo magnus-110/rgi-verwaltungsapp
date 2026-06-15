@@ -98,6 +98,39 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     },
   });
 
+  // ── Overrides aus plan.adjustments laden (einmalig pro Plan) ──────
+  const overridesLoadedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!plan?.id || overridesLoadedRef.current === plan.id) return;
+    const adj: any = (plan as any).adjustments || {};
+    if (adj.monthlyTotalOverrides && typeof adj.monthlyTotalOverrides === "object") {
+      setMonthlyTotalOverrides(adj.monthlyTotalOverrides);
+    }
+    if (adj.monthlyAdvanceOverrides && typeof adj.monthlyAdvanceOverrides === "object") {
+      setMonthlyAdvanceOverrides(adj.monthlyAdvanceOverrides);
+    }
+    overridesLoadedRef.current = plan.id;
+  }, [plan?.id]);
+
+  // ── Overrides persistieren (debounced) ────────────────────────────
+  useEffect(() => {
+    if (!plan?.id || overridesLoadedRef.current !== plan.id) return;
+    const t = setTimeout(async () => {
+      const { error } = await supabase
+        .from("economic_plans" as any)
+        .update({
+          adjustments: { monthlyTotalOverrides, monthlyAdvanceOverrides },
+        } as any)
+        .eq("id", plan.id);
+      if (error) {
+        toast.error("Speichern fehlgeschlagen: " + error.message);
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [plan?.id, monthlyTotalOverrides, monthlyAdvanceOverrides]);
+
+
+
   // ── Alle Konten der Liegenschaft (Filter erfolgt clientseitig) ────
   const { data: allAccounts = [] } = useQuery({
     queryKey: ["wp-accounts-manual-all", buildingId],
