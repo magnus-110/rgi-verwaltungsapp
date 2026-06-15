@@ -753,11 +753,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         && (a as any).is_billing_relevant !== false
     );
     distributableAccounts.forEach((acc) => {
-      // IHR-Zuführung (reserve section): nimm WP-Wert 1:1 statt Buchungs-Summe
+      // IHR-Zuführung (reserve section): gebuchte Rücklagenbildung bevorzugen,
+      // WP-Wert nur als Fallback, wenn keine Buchung auf dem Rücklagenkonto vorliegt.
       const isReserveAcc = acc.settlement_section === "reserve";
-      const total = isReserveAcc && economicPlan?.total_reserve != null
-        ? Number(economicPlan.total_reserve)
-        : getAccountAbsTotal(acc.id);
+      const bookedAbs = getAccountAbsTotal(acc.id);
+      const planReserve = Number(economicPlan?.total_reserve) || 0;
+      const total = isReserveAcc
+        ? (bookedAbs > 0 ? bookedAbs : planReserve)
+        : bookedAbs;
       if (total === 0) return;
 
       const distKey = getDistKey(acc.id, acc.default_distribution_key);
@@ -1451,9 +1454,11 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
     for (const acc of distributableAccounts) {
       const isReserveAcc = acc.settlement_section === "reserve";
-      const total = isReserveAcc && economicPlan?.total_reserve != null
-        ? Number(economicPlan.total_reserve)
-        : getAccountBookingTotal(acc.id);
+      const bookedSigned = getAccountBookingTotal(acc.id);
+      const planReserve = Number(economicPlan?.total_reserve) || 0;
+      const total = isReserveAcc
+        ? (Math.abs(bookedSigned) > 0 ? bookedSigned : planReserve)
+        : bookedSigned;
       const absTotal = Math.abs(total);
       if (absTotal < 0.005) continue;
 
