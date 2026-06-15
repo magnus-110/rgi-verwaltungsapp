@@ -195,7 +195,7 @@ export const OwnerSelfServiceSection = () => {
         <CardHeader>
           <CardTitle>Meine Wohnungen</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Klicken Sie auf eine Wohnung, um Ihre Daten für diese Einheit zu bearbeiten.
+            Hier sehen Sie alle Ihnen zugeordneten Wohnungen. Klicken Sie auf eine Wohnung, um je Gebäude individuelle Informationen (z. B. Anrede, Adresse, Kontaktdaten) und Ihre Bankverbindung für diese Einheit zu hinterlegen oder zu ändern.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
