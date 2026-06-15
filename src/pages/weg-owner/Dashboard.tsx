@@ -286,7 +286,7 @@ export const WegOwnerDashboard = () => {
 
 
         {buildingIds.length > 0 && (
-          <section>
+          <section data-tour="dashboard-emergency">
             <SectionLabel>Notfallkontakte</SectionLabel>
             <EmergencyContactsWidget buildingIds={buildingIds} />
           </section>

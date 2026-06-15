@@ -81,13 +81,19 @@ export const DASHBOARD_TOUR: TourDefinition = {
       element: '[data-tour="dashboard-cycle"]',
       title: "Der Verwaltungs-Kreislauf",
       description:
-        "Dieser Bereich zeigt Ihnen den jährlichen Ablauf: Wirtschaftsplan, Versammlung, Abrechnung. So wissen Sie immer, was als nächstes ansteht.",
+        "Der jährliche Verwaltungskreislauf zeigt Ihnen, wo Ihre Hausverwaltung gerade steht: Beschlüsse umsetzen, Heizkostenabrechnung einreichen, Abrechnung erstellen, Kassenprüfung bereitstellen und Eigentümerversammlung durchführen.",
     },
     {
       element: '[data-tour="dashboard-quick"]',
       title: "Schnellzugriff",
       description:
         "Von hier springen Sie direkt zu Dokumenten, KI-Chat, Schwarzem Brett und Versammlungen. Eine kleine farbige Zahl signalisiert: hier gibt es etwas Neues.",
+    },
+    {
+      element: '[data-tour="dashboard-emergency"]',
+      title: "Notfallkontakte",
+      description:
+        "Hier hat Ihre Hausverwaltung zuständige Handwerker für Ihre Wohnanlage hinterlegt, die Sie im Notfall kontaktieren können, wenn die Hausverwaltung selbst nicht erreichbar ist.",
     },
     {
       element: '[data-tour="dashboard-contact"]',
@@ -99,7 +105,7 @@ export const DASHBOARD_TOUR: TourDefinition = {
       element: '[data-tour="help-button"]',
       title: "Hilfe – jederzeit",
       description:
-        "Sind Sie einmal unsicher, klicken Sie auf diesen Hilfe-Knopf. Hier können Sie die Einführung für jede Seite erneut starten.",
+        "Sind Sie einmal unsicher, klicken Sie auf diesen Hilfe-Knopf. Hier können Sie die Erklärung für die aktuelle Seite erneut starten.",
     },
   ],
 };
