@@ -276,7 +276,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       const { data, error } = await supabase
         .from("contact_building_assignments")
         .select(`
-          id, unit_number, contact_id, unit_kind, billing_mode, parent_assignment_id, area_sqm_override,
+          id, unit_number, floor_location, contact_id, unit_kind, billing_mode, parent_assignment_id, area_sqm_override,
           contacts(first_name, last_name, company_name),
           contact_building_shares(share_type, share_value)
         `)
@@ -573,7 +573,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       const name = c?.company_name || [c?.first_name, c?.last_name].filter(Boolean).join(" ") || "–";
       const meaValue = ownerShareValue(a, "mea", a.contact_id);
       const proportion = meaValue / meaTotal;
-      return { id: a.id, name, unitNumber: a.unit_number || "–", meaValue, proportion, raw: a };
+      return { id: a.id, name, unitNumber: a.unit_number || "–", unitLocation: a.floor_location || "", meaValue, proportion, raw: a };
     });
   }, [assignments, shareTotals]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -787,6 +787,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       // deutsch
       eigentuemer_name: o?.name || "",
       einheit_nr: o?.unitNumber || "",
+      einheit_lage: (o as any)?.unitLocation || "",
+      unit_location: (o as any)?.unitLocation || "",
       konten: accountsList,
       summe_gesamt: fmtEUR(sumAbs(unitRows)),
       summe_umlagefaehig: fmtEUR(ownerDistributableYear),
