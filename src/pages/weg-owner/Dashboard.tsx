@@ -48,7 +48,7 @@ export const WegOwnerDashboard = () => {
   const { profile } = useAuth();
   const { firstName } = useStammdatenName();
   const hasVisibleFiles = useHasVisibleFiles(profile?.user_id);
-  useAutoStartPageTour("dashboard", { delayMs: 1200 });
+  // Dashboard-Tour ist gleichzeitig die globale Einführung und wird vom Provider automatisch gestartet
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [contactOpen, setContactOpen] = useState(false);
   const [openReports, setOpenReports] = useState(0);

@@ -355,8 +355,8 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (loading || !user?.id || !progress) return;
     if (isToursDisabled()) return;
-    if (!progress.global) {
-      const t = window.setTimeout(() => guardedStartTour("global"), 800);
+    if (!progress.dashboard) {
+      const t = window.setTimeout(() => guardedStartTour("dashboard"), 800);
       return () => window.clearTimeout(t);
     }
   }, [loading, user?.id, progress, guardedStartTour]);
