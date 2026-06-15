@@ -22,6 +22,16 @@ export const OnboardingFAB = () => {
     }
   }, [loading, progress, autoOpened]);
 
+  // Allow other components (e.g. FirstLoginWelcomeDialog) to open the wizard
+  useEffect(() => {
+    const handler = () => {
+      setMinimized(false);
+      setOpen(true);
+    };
+    window.addEventListener("open-onboarding-wizard", handler);
+    return () => window.removeEventListener("open-onboarding-wizard", handler);
+  }, []);
+
   if (loading || !isActive || !progress) return null;
   if (progress.fully_completed_at) return null;
   // Defensive: step 5 done implies the whole onboarding is done,

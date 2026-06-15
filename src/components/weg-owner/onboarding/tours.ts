@@ -90,16 +90,16 @@ export const DASHBOARD_TOUR: TourDefinition = {
         "Von hier springen Sie direkt zu Dokumenten, KI-Chat, Schwarzem Brett und Versammlungen. Eine kleine farbige Zahl signalisiert: hier gibt es etwas Neues.",
     },
     {
+      element: '[data-tour="dashboard-contact"]',
+      title: "Kontakt zur Hausverwaltung",
+      description:
+        "Hier finden Sie jederzeit die Kontaktdaten Ihrer Hausverwaltung – Telefon, E-Mail und Adresse, mit einem Klick erreichbar.",
+    },
+    {
       element: '[data-tour="dashboard-emergency"]',
       title: "Notfallkontakte",
       description:
         "Hier hat Ihre Hausverwaltung zuständige Handwerker für Ihre Wohnanlage hinterlegt, die Sie im Notfall kontaktieren können, wenn die Hausverwaltung selbst nicht erreichbar ist.",
-    },
-    {
-      element: '[data-tour="dashboard-contact"]',
-      title: "Kontakt & Notfall",
-      description:
-        "Hier finden Sie jederzeit die Kontaktdaten Ihrer Hausverwaltung – Telefon, E-Mail und Adresse, mit einem Klick erreichbar.",
     },
     {
       element: '[data-tour="help-button"]',

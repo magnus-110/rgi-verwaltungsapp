@@ -1,14 +1,11 @@
  import { useState, useEffect } from "react";
 import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
- import { TermsAcceptanceDialog } from "@/components/TermsAcceptanceDialog";
- import { IntroVideoDialog } from "@/components/IntroVideoDialog";
- import { PasskeyPromptDialog } from "@/components/PasskeyPromptDialog";
+ import { FirstLoginWelcomeDialog } from "@/components/weg-owner/FirstLoginWelcomeDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { VotingPopup } from "@/components/meetings/VotingPopup";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 import { OnboardingFAB } from "@/components/onboarding/OnboardingFAB";
-import { useOnboardingContext } from "@/components/onboarding/useOnboardingContext";
 import { GuidedTourProvider } from "@/components/weg-owner/onboarding/GuidedTourProvider";
 import { HelpButton } from "@/components/weg-owner/onboarding/HelpButton";
 import { Button } from "@/components/ui/button";
@@ -113,31 +110,10 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
     checkAudit();
   }, [profile?.user_id]);
  
- const handleTermsAccepted = () => {
-   setTermsAccepted(true);
-   setShowTermsDialog(false);
- };
-
- // Intro-Video erst NACH abgeschlossenem Onboarding-Wizard zeigen
- const onboarding = useOnboardingContext();
- const videoSeenKey = profile?.user_id ? `intro_video_seen_${profile.user_id}` : null;
- const [videoDismissed, setVideoDismissed] = useState(false);
- useEffect(() => {
-   if (videoSeenKey && localStorage.getItem(videoSeenKey) === "1") {
-     setVideoDismissed(true);
-   }
- }, [videoSeenKey]);
- const onboardingDone =
-   !onboarding.loading &&
-   (!onboarding.isActive ||
-     !!onboarding.progress?.fully_completed_at ||
-     !!onboarding.progress?.step5_completed_at);
- const showIntroVideo =
-   termsAccepted === true && onboardingDone && !videoDismissed;
- const dismissIntroVideo = () => {
-   if (videoSeenKey) localStorage.setItem(videoSeenKey, "1");
-   setVideoDismissed(true);
- };
+  const handleTermsAccepted = () => {
+    setTermsAccepted(true);
+    setShowTermsDialog(false);
+  };
 
   if (loading) {
     return (
@@ -320,20 +296,15 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       </main>
      
       {profile?.user_id && (
-        <TermsAcceptanceDialog 
-          open={showTermsDialog} 
+        <FirstLoginWelcomeDialog
+          open={showTermsDialog}
           userId={profile.user_id}
-          onAccepted={handleTermsAccepted}
+          onClose={handleTermsAccepted}
         />
       )}
       <VotingPopup />
-      {profile?.user_id && (
-        <PasskeyPromptDialog userId={profile.user_id} enabled={termsAccepted === true} />
-      )}
       {/* Onboarding-Wizard erst zeigen, wenn AGB akzeptiert wurden */}
       {termsAccepted === true && <OnboardingFAB />}
-      {/* Erklärvideo erst NACH Onboarding-Abschluss */}
-      <IntroVideoDialog open={showIntroVideo} onClose={dismissIntroVideo} />
       {/* Geführte Hilfe-Tour, jederzeit über den Hilfe-Knopf */}
       {termsAccepted === true && <HelpButton />}
     </div>
