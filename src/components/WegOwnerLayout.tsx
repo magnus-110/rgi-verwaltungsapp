@@ -110,31 +110,10 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
     checkAudit();
   }, [profile?.user_id]);
  
- const handleTermsAccepted = () => {
-   setTermsAccepted(true);
-   setShowTermsDialog(false);
- };
-
- // Intro-Video erst NACH abgeschlossenem Onboarding-Wizard zeigen
- const onboarding = useOnboardingContext();
- const videoSeenKey = profile?.user_id ? `intro_video_seen_${profile.user_id}` : null;
- const [videoDismissed, setVideoDismissed] = useState(false);
- useEffect(() => {
-   if (videoSeenKey && localStorage.getItem(videoSeenKey) === "1") {
-     setVideoDismissed(true);
-   }
- }, [videoSeenKey]);
- const onboardingDone =
-   !onboarding.loading &&
-   (!onboarding.isActive ||
-     !!onboarding.progress?.fully_completed_at ||
-     !!onboarding.progress?.step5_completed_at);
- const showIntroVideo =
-   termsAccepted === true && onboardingDone && !videoDismissed;
- const dismissIntroVideo = () => {
-   if (videoSeenKey) localStorage.setItem(videoSeenKey, "1");
-   setVideoDismissed(true);
- };
+  const handleTermsAccepted = () => {
+    setTermsAccepted(true);
+    setShowTermsDialog(false);
+  };
 
   if (loading) {
     return (
