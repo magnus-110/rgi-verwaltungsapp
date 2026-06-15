@@ -27,9 +27,12 @@ function tourForPath(pathname: string): string | null {
 }
 
 export function HelpButton() {
-  const { startTour } = useGuidedTour();
+  const { startTour, isDisabled } = useGuidedTour();
   const location = useLocation();
   const currentTour = tourForPath(location.pathname);
+
+  if (isDisabled()) return null;
+
 
   return (
     <DropdownMenu>
