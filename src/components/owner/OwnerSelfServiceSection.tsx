@@ -191,7 +191,8 @@ export const OwnerSelfServiceSection = () => {
     <>
       <StammdatenCard contact={contact} onSaved={load} />
 
-      <Card>
+      <Card data-tour="settings-units">
+
         <CardHeader>
           <CardTitle>Meine Wohnungen</CardTitle>
           <p className="text-sm text-muted-foreground">
