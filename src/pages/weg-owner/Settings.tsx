@@ -143,7 +143,8 @@ export const WegOwnerSettings = () => {
          </p>
        </div>
 
-      <Card>
+      <Card data-tour="settings-login-email">
+
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Mail className="w-5 h-5" /> Login-E-Mail
