@@ -669,7 +669,7 @@ export const WegOwnerMeetings = () => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="meetings" className="mt-4">
+        <TabsContent value="meetings" className="mt-4" data-tour="meetings-list">
           {loadingMeetings ? (
             <div className="space-y-3">
               {[1, 2].map((i) => <Skeleton key={i} className="h-20 w-full" />)}

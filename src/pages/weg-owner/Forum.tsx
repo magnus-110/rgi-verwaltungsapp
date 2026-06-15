@@ -131,7 +131,7 @@ export const WegOwnerForum = () => {
         )}
 
         {/* Posts */}
-        <section>
+        <section data-tour="forum-list">
           <SectionLabel>Beiträge</SectionLabel>
           {buildings.length === 0 ? (
             <EmptyState

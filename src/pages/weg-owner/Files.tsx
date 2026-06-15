@@ -225,7 +225,7 @@ function FilesBrowser({ files, categories, search }: { files: FileItem[]; catego
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2" data-tour="files-tree">
           {tree.map(node => (
             <FolderNode key={node.id} node={node} depth={0} onOpenFile={handleOpen} downloading={downloading} />
           ))}
