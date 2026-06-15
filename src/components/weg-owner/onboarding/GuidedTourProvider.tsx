@@ -35,12 +35,14 @@ const isToursDisabled = () => {
 };
 
 const SENIOR_STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&display=swap');
+
   .driver-overlay {
     /* kein Backdrop-Blur – fokussiertes Element bleibt gestochen scharf */
   }
 
   .driver-popover.rgi-tour-popover {
-    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-family: 'Work Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
     max-width: 320px;
     width: calc(100vw - 28px);
     border-radius: 16px;
@@ -67,11 +69,11 @@ const SENIOR_STYLES = `
   }
 
   .driver-popover.rgi-tour-popover .driver-popover-title {
-    font-family: 'Instrument Serif', 'Cormorant Garamond', Georgia, serif;
-    font-size: 1.25rem;
-    font-weight: 400;
-    letter-spacing: -0.005em;
-    line-height: 1.2;
+    font-family: 'Century Gothic', 'URW Gothic', 'AppleGothic', 'CenturyGothic', 'Avant Garde', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: 0.005em;
+    line-height: 1.25;
     color: hsl(var(--foreground));
     padding: 1rem 1.15rem 0.3rem;
     padding-right: 2.5rem;
@@ -178,7 +180,7 @@ const SENIOR_STYLES = `
   }
 `;
 
-const STYLE_ID = "rgi-tour-styles-v3";
+const STYLE_ID = "rgi-tour-styles-v4";
 
 function waitForElement(selector: string, timeoutMs = 1500): Promise<Element | null> {
   return new Promise((resolve) => {
@@ -353,8 +355,8 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (loading || !user?.id || !progress) return;
     if (isToursDisabled()) return;
-    if (!progress.global) {
-      const t = window.setTimeout(() => guardedStartTour("global"), 800);
+    if (!progress.dashboard) {
+      const t = window.setTimeout(() => guardedStartTour("dashboard"), 800);
       return () => window.clearTimeout(t);
     }
   }, [loading, user?.id, progress, guardedStartTour]);
