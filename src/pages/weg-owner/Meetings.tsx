@@ -19,6 +19,7 @@ import { format as formatDate } from "date-fns";
 import { de } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useAutoStartPageTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
 
 const statusLabels: Record<string, string> = {
   published: "Eingeladen",
@@ -34,6 +35,7 @@ const topStatusLabels: Record<string, { label: string; variant: "default" | "sec
 };
 
 export const WegOwnerMeetings = () => {
+  useAutoStartPageTour("meetings");
   const { profile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();

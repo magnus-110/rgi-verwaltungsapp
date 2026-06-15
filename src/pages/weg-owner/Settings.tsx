@@ -10,8 +10,10 @@ import { OwnerSelfServiceSection } from "@/components/owner/OwnerSelfServiceSect
 import { supabase } from "@/integrations/supabase/client";
 import { Mail, Info } from "lucide-react";
 import { PasskeysSection } from "@/components/settings/PasskeysSection";
+import { useAutoStartPageTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
 
 export const WegOwnerSettings = () => {
+  useAutoStartPageTour("settings");
   const { profile, updatePassword } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");

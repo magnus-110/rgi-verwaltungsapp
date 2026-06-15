@@ -4,8 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { CashAuditWizard } from "@/components/finance/CashAuditWizard";
 import { Card, CardContent } from "@/components/ui/card";
+import { useAutoStartPageTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
 
 export const WegOwnerCashAudit = () => {
+  useAutoStartPageTour("cash-audit");
   const { profile } = useAuth();
 
   const { data: audit, isLoading } = useQuery({
