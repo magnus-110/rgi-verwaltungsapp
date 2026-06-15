@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export type TourStatus = "completed" | "skipped";
-export type TourProgress = Record<string, TourStatus> & { version?: number };
+export type TourProgress = { version?: number } & { [tourId: string]: TourStatus | number | undefined };
 
 export const TOUR_VERSION = 1;
 
