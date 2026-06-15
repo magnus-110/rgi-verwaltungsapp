@@ -9,6 +9,7 @@ import { OwnerAnnualCycleWidget } from "@/components/dashboard/OwnerAnnualCycleW
 import { EmergencyContactsWidget } from "@/components/forum/EmergencyContactsWidget";
 import { PROPERTY_MANAGER_FALLBACK } from "@/lib/emergencyContactInfo";
 import { cn } from "@/lib/utils";
+import { useAutoStartPageTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
 
 interface Building { id: string; name: string; address: string | null }
 
@@ -47,6 +48,7 @@ export const WegOwnerDashboard = () => {
   const { profile } = useAuth();
   const { firstName } = useStammdatenName();
   const hasVisibleFiles = useHasVisibleFiles(profile?.user_id);
+  useAutoStartPageTour("dashboard", { delayMs: 1200 });
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [contactOpen, setContactOpen] = useState(false);
   const [openReports, setOpenReports] = useState(0);
