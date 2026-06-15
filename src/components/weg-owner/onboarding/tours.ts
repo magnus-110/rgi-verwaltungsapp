@@ -183,6 +183,7 @@ export const MEETINGS_TOUR: TourDefinition = {
       title: "Live-Abstimmung",
       description:
         "Während der Versammlung können Sie hier in Echtzeit zu jedem Tagesordnungspunkt abstimmen – auch von zuhause aus.",
+      mediaUrl: "/tour-videos/voting.mp4",
     },
   ],
 };
