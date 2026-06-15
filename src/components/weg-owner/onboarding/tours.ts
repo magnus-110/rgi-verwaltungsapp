@@ -198,20 +198,21 @@ export const MEETINGS_TOUR: TourDefinition = {
         "Hier sehen Sie alle vergangenen und kommenden Eigentümerversammlungen Ihrer WEG.",
     },
     {
+      element: '[data-tour="meetings-submit-top"]',
+      title: "Anträge einreichen",
+      description:
+        "Vor einer Versammlung können Sie hier eigene Tagesordnungspunkte oder Anträge einreichen. Ihre Hausverwaltung prüft diese und nimmt sie gegebenenfalls in die Tagesordnung auf.",
+    },
+    {
       element: '[data-tour="meetings-list"]',
       title: "Die Versammlungs-Liste",
       description:
-        "Klicken Sie auf einen Eintrag, um die Einladung, die Tagesordnung und – nach der Versammlung – das Protokoll zu öffnen.",
+        "Klicken Sie auf einen Eintrag, um die Einladung und die Tagesordnung zu öffnen.",
     },
     {
       title: "Vollmacht erteilen",
       description:
         "Können Sie nicht teilnehmen? In der Versammlungs-Ansicht finden Sie den Knopf 'Vollmacht erteilen'. Sie können eine andere Person bevollmächtigen oder uns als Verwaltung mit konkreten Anweisungen beauftragen.",
-    },
-    {
-      title: "Live-Abstimmung",
-      description:
-        "Während der Versammlung können Sie hier in Echtzeit zu jedem Tagesordnungspunkt abstimmen – auch von zuhause aus.",
     },
   ],
 };

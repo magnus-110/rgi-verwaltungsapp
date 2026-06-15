@@ -646,7 +646,7 @@ export const WegOwnerMeetings = () => {
           <h1 className="text-2xl font-bold text-foreground">Versammlungen</h1>
           <p className="text-muted-foreground">{selectedBuilding?.name} — {selectedBuilding?.address}</p>
         </div>
-        <Button onClick={() => setShowSubmitTop(true)} className="gap-2">
+        <Button onClick={() => setShowSubmitTop(true)} className="gap-2" data-tour="meetings-submit-top">
           <Plus className="h-4 w-4" />
           TOP einreichen
         </Button>
