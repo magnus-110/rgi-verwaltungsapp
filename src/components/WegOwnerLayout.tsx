@@ -1,14 +1,11 @@
  import { useState, useEffect } from "react";
 import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
- import { TermsAcceptanceDialog } from "@/components/TermsAcceptanceDialog";
- import { IntroVideoDialog } from "@/components/IntroVideoDialog";
- import { PasskeyPromptDialog } from "@/components/PasskeyPromptDialog";
+ import { FirstLoginWelcomeDialog } from "@/components/weg-owner/FirstLoginWelcomeDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { VotingPopup } from "@/components/meetings/VotingPopup";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 import { OnboardingFAB } from "@/components/onboarding/OnboardingFAB";
-import { useOnboardingContext } from "@/components/onboarding/useOnboardingContext";
 import { GuidedTourProvider } from "@/components/weg-owner/onboarding/GuidedTourProvider";
 import { HelpButton } from "@/components/weg-owner/onboarding/HelpButton";
 import { Button } from "@/components/ui/button";
