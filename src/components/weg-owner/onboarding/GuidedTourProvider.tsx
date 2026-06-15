@@ -400,6 +400,7 @@ export function useGuidedTour() {
       loading: true,
       isDisabled: () => false,
       enableTours: () => undefined,
+      disableTours: () => undefined,
     } as GuidedTourContextValue;
   }
   return ctx;
