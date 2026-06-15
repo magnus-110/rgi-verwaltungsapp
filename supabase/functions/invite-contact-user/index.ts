@@ -277,8 +277,8 @@ Deno.serve(async (req) => {
       }, { onConflict: 'user_id,building_id' })
     }
 
-    // Send webhook only if send_email is true
-    if (send_email) {
+    // Send webhook only if send_email is true AND we actually set a password
+    if (send_email && password) {
       await sendToMakeWebhook({
         event: 'user_created',
         email,
