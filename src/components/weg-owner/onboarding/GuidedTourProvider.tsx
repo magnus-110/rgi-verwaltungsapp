@@ -380,8 +380,9 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
       loading,
       isDisabled,
       enableTours,
+      disableTours,
     }),
-    [guardedStartTour, hasSeen, isActive, loading, isDisabled, enableTours]
+    [guardedStartTour, hasSeen, isActive, loading, isDisabled, enableTours, disableTours]
   );
 
   return (
