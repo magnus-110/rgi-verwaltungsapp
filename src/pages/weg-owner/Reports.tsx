@@ -8,10 +8,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { SectionCard } from "@/components/onboarding/ui/SectionCard";
+import { EmbeddedInput } from "@/components/onboarding/ui/InlineField";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { Plus, X, AlertCircle, FileText, ChevronDown, Pencil } from "lucide-react";
+import { Plus, X, AlertCircle, FileText, ChevronDown, Pencil, Paperclip, Upload } from "lucide-react";
 import { useAutoStartPageTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
 
 interface Report {
