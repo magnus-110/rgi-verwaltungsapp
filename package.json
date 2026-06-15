@@ -51,6 +51,7 @@
     "date-fns": "^4.1.0",
     "docxtemplater": "^3.68.7",
     "dompurify": "^3.2.0",
+    "driver.js": "^1.4.0",
     "embla-carousel-react": "^8.3.0",
     "html2canvas": "^1.4.1",
     "input-otp": "^1.2.4",
