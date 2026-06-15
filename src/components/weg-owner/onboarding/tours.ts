@@ -55,21 +55,33 @@ export const DASHBOARD_TOUR: TourDefinition = {
   title: "Dashboard",
   steps: [
     {
-      title: "Ihre Übersicht",
+      title: "Herzlich willkommen!",
       description:
-        "Das ist Ihre persönliche Startseite. Hier sehen Sie auf einen Blick, was neu ist und worum Sie sich gegebenenfalls kümmern sollten.",
+        "Schön, dass Sie da sind. In den nächsten Schritten zeige ich Ihnen, wie Sie sich in Ihrem Eigentümer-Portal zurechtfinden. Sie können diese Einführung jederzeit über den Hilfe-Knopf neu starten.",
+    },
+    {
+      element: '[data-tour="logo"]',
+      title: "Zur Startseite",
+      description:
+        "Ein Klick auf das Logo bringt Sie immer zurück zur Übersicht – egal, wo Sie sich gerade befinden.",
+    },
+    {
+      element: '[data-tour="menu-button"]',
+      title: "Das Menü",
+      description:
+        "Über diesen Knopf öffnen Sie das Menü. Dort finden Sie alle Bereiche: Meldungen, Dokumente, Beschlüsse, Schwarzes Brett, Versammlungen und den Chat.",
+    },
+    {
+      element: '[data-tour="dashboard-tiles"]',
+      title: "Offene Vorgänge",
+      description:
+        "Diese Kacheln zeigen Ihnen, welche Vorgänge bei Ihrer Hausverwaltung gerade offen sind – etwa noch nicht bearbeitete Meldungen oder Beschlüsse.",
     },
     {
       element: '[data-tour="dashboard-cycle"]',
       title: "Der Verwaltungs-Kreislauf",
       description:
         "Dieser Bereich zeigt Ihnen den jährlichen Ablauf: Wirtschaftsplan, Versammlung, Abrechnung. So wissen Sie immer, was als nächstes ansteht.",
-    },
-    {
-      element: '[data-tour="dashboard-tiles"]',
-      title: "Offene Vorgänge",
-      description:
-        "Diese Kacheln zeigen Ihnen, welche Vorgänge bei Ihrer Hausverwaltung gerade offen sind – etwa noch nicht bearbeitete Meldungen oder Beschlüsse, die der Umsetzung harren.",
     },
     {
       element: '[data-tour="dashboard-quick"]',
@@ -79,9 +91,15 @@ export const DASHBOARD_TOUR: TourDefinition = {
     },
     {
       element: '[data-tour="dashboard-contact"]',
-      title: "Im Notfall",
+      title: "Kontakt & Notfall",
       description:
-        "Unten finden Sie immer die Kontaktdaten Ihrer Hausverwaltung. Telefon, E-Mail und Adresse – mit einem Klick erreichbar.",
+        "Hier finden Sie jederzeit die Kontaktdaten Ihrer Hausverwaltung – Telefon, E-Mail und Adresse, mit einem Klick erreichbar.",
+    },
+    {
+      element: '[data-tour="help-button"]',
+      title: "Hilfe – jederzeit",
+      description:
+        "Sind Sie einmal unsicher, klicken Sie auf diesen Hilfe-Knopf. Hier können Sie die Einführung für jede Seite erneut starten.",
     },
   ],
 };
