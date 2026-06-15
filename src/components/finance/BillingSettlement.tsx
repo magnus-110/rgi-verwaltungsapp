@@ -404,15 +404,17 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const totalOperatingDist = getSectionTotal("operating_distributable");
   const totalOperatingNonDist = getSectionTotal("operating_non_distributable");
   const totalAccrual = getSectionTotal("accrual");
-  // IHR-Zuführung kommt 1:1 aus dem Wirtschaftsplan (Beschluss der ETV).
-  // Fallback: NUR Plan-IHR-Konten (193x = Planmäßige IHR), niemals Bestandskonten
+  // IHR-Zuführung kommt aus der tatsächlich gebuchten Rücklagenbildung.
+  // Fallback: WP-Wert, falls noch keine Buchung auf Plan-IHR-Konten (193x) vorliegt.
+  // NUR Plan-IHR-Konten (193x = Planmäßige IHR), niemals Bestandskonten
   // (1810/1820 = Rücklagenkonto / Bestand) — diese gehören in den Vermögensbericht,
   // nicht in die Abrechnungssumme.
   const isPlanIhrAccount = (a: any) => /^193\d$/.test(String(a.account_number || ""));
   const reserveFromBookings = (sectionAccounts["reserve"] || [])
     .filter(isPlanIhrAccount)
     .reduce((s: number, a: any) => s + (a.totalAbs || 0), 0);
-  const totalReserve = economicPlan?.total_reserve != null ? Number(economicPlan.total_reserve) : reserveFromBookings;
+  const planReserveTotal = Number(economicPlan?.total_reserve) || 0;
+  const totalReserve = reserveFromBookings > 0 ? reserveFromBookings : planReserveTotal;
   // Bug 4 fix: rücklagenfinanzierte Aufwandskonten via Flag erkennen (z. B. Konto 1920),
   // statt fragiler reserve_withdrawal-Section. Skaliert auf zukünftige Konten (z. B. 1921).
   // Erkennung: reserve_role='withdrawal' (neu, generisch) ODER is_reserve_funded (Legacy).
