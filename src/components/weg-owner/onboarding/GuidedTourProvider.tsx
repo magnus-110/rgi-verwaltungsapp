@@ -288,8 +288,8 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
           popover: {
             title: s.title,
             description: s.description,
-            side: s.element ? "bottom" : "over",
-            align: "center",
+            ...(s.element ? {} : { side: "over" as const, align: "center" as const }),
+
             onPopoverRender: (popover: any) => {
               const root = popover?.wrapper as HTMLElement | undefined;
               if (!root) return;
