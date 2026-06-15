@@ -296,20 +296,15 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       </main>
      
       {profile?.user_id && (
-        <TermsAcceptanceDialog 
-          open={showTermsDialog} 
+        <FirstLoginWelcomeDialog
+          open={showTermsDialog}
           userId={profile.user_id}
-          onAccepted={handleTermsAccepted}
+          onClose={handleTermsAccepted}
         />
       )}
       <VotingPopup />
-      {profile?.user_id && (
-        <PasskeyPromptDialog userId={profile.user_id} enabled={termsAccepted === true} />
-      )}
       {/* Onboarding-Wizard erst zeigen, wenn AGB akzeptiert wurden */}
       {termsAccepted === true && <OnboardingFAB />}
-      {/* Erklärvideo erst NACH Onboarding-Abschluss */}
-      <IntroVideoDialog open={showIntroVideo} onClose={dismissIntroVideo} />
       {/* Geführte Hilfe-Tour, jederzeit über den Hilfe-Knopf */}
       {termsAccepted === true && <HelpButton />}
     </div>
