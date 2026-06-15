@@ -134,7 +134,14 @@ export const WegOwnerSettings = () => {
          <h1 className="text-2xl font-bold text-foreground">Einstellungen</h1>
          <p className="text-muted-foreground">Verwalten Sie Ihre Kontodaten und Wohnungen</p>
        </div>
-      <OwnerSelfServiceSection />
+       <OwnerSelfServiceSection />
+
+       <div className="space-y-1 mt-8">
+         <h2 className="text-lg font-semibold">Login & Sicherheit</h2>
+         <p className="text-sm text-muted-foreground">
+           Diese drei Punkte steuern, wie Sie sich anmelden: Die E-Mail-Adresse ist Ihr Benutzername, das Passwort schützt Ihren Account und Passkeys ermöglichen eine bequeme, passwortlose Anmeldung per Fingerabdruck, Face ID oder Sicherheitsschlüssel.
+         </p>
+       </div>
 
       <Card>
         <CardHeader>
