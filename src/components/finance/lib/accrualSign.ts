@@ -20,7 +20,7 @@ export function getAccrualDisplaySign(accountNumber: string | null | undefined):
   // (Sollstellungen sind die an Eigentümer gestellten Forderungen).
   if (n === 4020) return 1;
   if (n >= 4100 && n <= 4119) return -1;
-  if (n >= 4120 && n <= 4139) return 1;
+  if (n >= 4120 && n <= 4139) return -1;
   if (n >= 4160 && n <= 4179) return 1;
   if (n >= 4180 && n <= 4199) return -1;
   return -1;
