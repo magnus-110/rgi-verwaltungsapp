@@ -10,16 +10,10 @@ interface ResetRequest {
 }
 
 // Friendly password generator: Word-Word-Word-NN (avoids HIBP/leaked password rejection)
-const WORDS = [
-  "Apfel","Birne","Brunnen","Berg","Wolke","Wald","Wiese","Sonne","Mond",
-  "Feder","Garten","Hafen","Insel","Kanal","Krone","Lampe","Leuchte",
-  "Magnet","Anker","Pfeil","Pinsel","Quelle","Regen","Stern","Tiger",
-  "Turm","Ufer","Vogel","Wagen","Zeder","Zelt","Bruecke","Fluss",
-]
-function generateFriendlyPassword(): string {
-  const pick = () => WORDS[Math.floor(Math.random() * WORDS.length)]
-  const num = Math.floor(Math.random() * 90) + 10
-  return `${pick()}-${pick()}-${pick()}-${num}`
+// 6-stellige numerische Passwörter. Bei HIBP-Rejection wird in der Retry-Schleife
+// einfach ein neues generiert.
+function generateNumericPassword(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString()
 }
 
 // Send data to Make.com webhook
@@ -144,7 +138,7 @@ Deno.serve(async (req) => {
     let newPassword = ''
     let lastUpdateError: any = null
     for (let i = 0; i < 3; i++) {
-      const candidate = generateFriendlyPassword()
+      const candidate = generateNumericPassword()
       const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
         existingUser.id,
         { password: candidate }
