@@ -25,15 +25,6 @@ interface GuidedTourContextValue {
 
 const GuidedTourContext = createContext<GuidedTourContextValue | null>(null);
 
-const DISABLE_KEY = "rgi:tour-disabled";
-
-const isToursDisabled = () => {
-  try {
-    return localStorage.getItem(DISABLE_KEY) === "1";
-  } catch {
-    return false;
-  }
-};
 
 const SENIOR_STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&display=swap');
@@ -200,11 +191,12 @@ function waitForElement(selector: string, timeoutMs = 1500): Promise<Element | n
 
 export function GuidedTourProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const { progress, loading, markTour } = useTourProgress(user?.id);
+  const { progress, loading, markTour, setDisabled } = useTourProgress(user?.id);
   const driverRef = useRef<Driver | null>(null);
   const activeTourRef = useRef<string | null>(null);
   const [activeTick, setActiveTick] = useState(0);
-  const [disabledTick, setDisabledTick] = useState(0);
+
+  const disabled = progress?.tours_disabled === true;
 
   // CSS injizieren (versionierte ID, damit Updates wirken)
   useEffect(() => {
@@ -220,29 +212,20 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const disableTours = useCallback(() => {
-    try {
-      localStorage.setItem(DISABLE_KEY, "1");
-    } catch {
-      /* noop */
-    }
-    setDisabledTick((t) => t + 1);
+    void setDisabled(true);
     try {
       driverRef.current?.destroy();
     } catch {
       /* noop */
     }
-  }, []);
+  }, [setDisabled]);
 
   const enableTours = useCallback(() => {
-    try {
-      localStorage.removeItem(DISABLE_KEY);
-    } catch {
-      /* noop */
-    }
-    setDisabledTick((t) => t + 1);
-  }, []);
+    void setDisabled(false);
+  }, [setDisabled]);
 
-  const isDisabled = useCallback(() => isToursDisabled(), [disabledTick]);
+  const isDisabled = useCallback(() => disabled, [disabled]);
+
 
   const startTour = useCallback(
     async (tourId: string) => {
