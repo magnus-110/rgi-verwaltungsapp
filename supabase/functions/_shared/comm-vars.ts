@@ -11,6 +11,12 @@ export type RecipientFilter = {
   /** If true, emit one recipient per distinct email address on the contact
    *  (contact_emails + every contact_persons.email). Used for Rundmails. */
   expand_all_emails?: boolean;
+  /** If true, alle Assignments (= Wohneinheiten) desselben Eigentümers im
+   *  Gebäude werden zu EINEM Empfänger zusammengefasst. Variablen `einheit`/`mea`
+   *  enthalten dann die Komma-Liste bzw. die Summe; zusätzlich werden
+   *  `einheiten`, `einheiten_count`, `mea_summe` und das Loop-Array
+   *  `einheiten_liste` befüllt. */
+  group_by_contact?: boolean;
 };
 
 export type ResolvedRecipient = {
