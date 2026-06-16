@@ -35,7 +35,7 @@ export const FirstLoginWelcomeDialog = ({
 
   const [pageIdx, setPageIdx] = useState(0);
   const [agbAccepted, setAgbAccepted] = useState(false);
-  const [datenschutzAccepted, setDatenschutzAccepted] = useState(false);
+  const [datenschutzAcknowledged, setDatenschutzAcknowledged] = useState(false);
   const [savingTerms, setSavingTerms] = useState(false);
   const [registering, setRegistering] = useState(false);
 
@@ -43,7 +43,7 @@ export const FirstLoginWelcomeDialog = ({
     if (open) {
       setPageIdx(0);
       setAgbAccepted(false);
-      setDatenschutzAccepted(false);
+      setDatenschutzAcknowledged(false);
     }
   }, [open]);
 
@@ -54,20 +54,17 @@ export const FirstLoginWelcomeDialog = ({
   const goBack = () => setPageIdx((i) => Math.max(i - 1, 0));
 
   const handleAcceptTerms = async () => {
-    if (!agbAccepted || !datenschutzAccepted) {
-      toast.error("Bitte akzeptieren Sie beide Dokumente.");
+    if (!agbAccepted || !datenschutzAcknowledged) {
+      toast.error("Bitte bestätigen Sie beide Punkte.");
       return;
     }
     setSavingTerms(true);
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ terms_accepted_at: new Date().toISOString() })
-        .eq("user_id", userId);
-      if (error) throw error;
+      const { recordLegalAcceptance } = await import("@/lib/legalAcceptance");
+      await recordLegalAcceptance(userId);
       goNext();
     } catch (e) {
-      console.error("terms accept failed", e);
+      console.error("legal acceptance failed", e);
       toast.error("Fehler beim Speichern. Bitte erneut versuchen.");
     } finally {
       setSavingTerms(false);
@@ -154,9 +151,9 @@ export const FirstLoginWelcomeDialog = ({
         {currentPage === "terms" && (
           <>
             <DialogHeader>
-              <DialogTitle>Willkommen – bitte AGB & Datenschutz akzeptieren</DialogTitle>
+              <DialogTitle>Willkommen – rechtliche Hinweise</DialogTitle>
               <DialogDescription>
-                Damit Sie die App nutzen können, benötigen wir einmalig Ihre Zustimmung.
+                Damit Sie die App nutzen können, benötigen wir einmalig Ihre Bestätigung.
               </DialogDescription>
             </DialogHeader>
 
@@ -168,83 +165,43 @@ export const FirstLoginWelcomeDialog = ({
 
               <TabsContent value="agb">
                 <div className="w-full rounded-md border p-4 max-h-[40vh] overflow-y-auto">
-                  <div className="prose prose-sm max-w-none">
-                    <h2 className="text-lg font-bold mb-4">Allgemeine Geschäftsbedingungen (AGB)</h2>
-                    <p className="text-sm text-muted-foreground mb-4">für die Nutzung der RGI-Immobilien App</p>
-
-                    <h3 className="font-semibold mt-4 mb-2">§ 1 Geltungsbereich und Anbieter</h3>
-                    <p className="text-sm mb-2">(1) Diese AGB regeln die Nutzung der RGI-Immobilien App, bereitgestellt von der RGI-Immobilien GmbH & Co. KG.</p>
-                    <p className="text-sm mb-2">(2) Die App dient der Kommunikation, dem Dokumentenmanagement sowie der Bereitstellung von Informationen für Nutzer, die in einem direkten Verwaltungs- oder Mietverhältnis zur RGI stehen.</p>
-
-                    <h3 className="font-semibold mt-4 mb-2">§ 2 Nutzungsberechtigung und Zugang</h3>
-                    <p className="text-sm mb-2">Die Nutzung der App ist Mietern in direkter RGI-Mietverwaltung sowie Wohnungseigentümern in einer RGI-WEG-Verwaltung vorbehalten. Mieter von Sondereigentümern (WEG-Mieter) sind ausgeschlossen.</p>
-
-                    <h3 className="font-semibold mt-4 mb-2">§ 3 Leistungsumfang</h3>
-                    <p className="text-sm mb-2">Schadensmeldungen, Einsicht in objektbezogene Dokumente, digitales Schwarzes Brett und KI-Chatbot.</p>
-
-                    <h3 className="font-semibold mt-4 mb-2">§ 4 KI-Chatbot (Mistral AI)</h3>
-                    <p className="text-sm mb-2">Antworten werden automatisiert erstellt. RGI übernimmt keine Gewähr für Richtigkeit. Chatverläufe können zur Qualitätssicherung von Mitarbeitern eingesehen werden.</p>
-
-                    <h3 className="font-semibold mt-4 mb-2">§ 5–9 Schwarzes Brett, Haftung, Pflichten, Datenschutz, Schlussbestimmungen</h3>
-                    <p className="text-sm mb-2">Die vollständigen Bestimmungen finden Sie jederzeit unter „Einstellungen → Rechtliches". Es gilt deutsches Recht. Backend auf Supabase (Frankfurt, EU), verschlüsselte Übertragung.</p>
-                  </div>
+                  <AgbText />
                 </div>
               </TabsContent>
 
               <TabsContent value="datenschutz">
                 <div className="w-full rounded-md border p-4 max-h-[40vh] overflow-y-auto">
-                  <div className="prose prose-sm max-w-none">
-                    <h2 className="text-lg font-bold mb-4">Datenschutzerklärung</h2>
-                    <p className="text-sm mb-4">Wir nehmen den Schutz Ihrer Daten sehr ernst und verarbeiten diese gemäß DSGVO.</p>
-
-                    <h3 className="font-semibold mt-4 mb-2">1. Verantwortlicher</h3>
-                    <p className="text-sm mb-2">RGI-Immobilien GmbH & Co. KG, Andreas Göttinger, Schützenstraße 16, 87459 Pfronten · info@rgi-immobilien.de</p>
-
-                    <h3 className="font-semibold mt-4 mb-2">2. Ihre Rechte</h3>
-                    <p className="text-sm mb-2">Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit, Widerspruch, Beschwerde bei einer Aufsichtsbehörde.</p>
-
-                    <h3 className="font-semibold mt-4 mb-2">3. Datenerhebung in der App</h3>
-                    <p className="text-sm mb-2">Bestandsdaten, Kontaktdaten und Objektzuordnung. Zugang nur für direkte Mieter und Eigentümer der RGI. Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO.</p>
-
-                    <h3 className="font-semibold mt-4 mb-2">4. KI-Chatbot (Mistral AI)</h3>
-                    <p className="text-sm mb-2">Eingaben werden an Mistral AI (Paris, EU) übertragen. Chatverläufe können durch RGI-Mitarbeiter eingesehen werden. Protokolle werden nach 6 Monaten gelöscht.</p>
-
-                    <h3 className="font-semibold mt-4 mb-2">5. Hosting</h3>
-                    <p className="text-sm mb-2">Backend: Supabase, Serverstandort Frankfurt am Main. TLS-Verschlüsselung. AV-Vertrag gem. Art. 28 DSGVO liegt vor.</p>
-
-                    <h3 className="font-semibold mt-4 mb-2">6. Speicherdauer</h3>
-                    <p className="text-sm mb-2">Allg. Chat-Daten: 6 Monate · Makler-Unterlagen: 5 Jahre (§ 14 MaBV) · Steuerlich relevante Unterlagen: 10 Jahre (§ 147 AO).</p>
-                  </div>
+                  <DatenschutzText />
                 </div>
               </TabsContent>
             </Tabs>
 
             <div className="space-y-3 pt-4 border-t">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-start space-x-2">
                 <Checkbox
                   id="welcome-agb"
                   checked={agbAccepted}
                   onCheckedChange={(c) => setAgbAccepted(c === true)}
                 />
-                <label htmlFor="welcome-agb" className="text-sm">
-                  Ich habe die <strong>AGB</strong> gelesen und akzeptiere diese.
+                <label htmlFor="welcome-agb" className="text-sm leading-snug">
+                  Ich habe die <strong>Allgemeinen Geschäftsbedingungen (AGB)</strong> gelesen und akzeptiere sie.
                 </label>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-start space-x-2">
                 <Checkbox
                   id="welcome-ds"
-                  checked={datenschutzAccepted}
-                  onCheckedChange={(c) => setDatenschutzAccepted(c === true)}
+                  checked={datenschutzAcknowledged}
+                  onCheckedChange={(c) => setDatenschutzAcknowledged(c === true)}
                 />
-                <label htmlFor="welcome-ds" className="text-sm">
-                  Ich habe die <strong>Datenschutzerklärung</strong> gelesen und akzeptiere diese.
+                <label htmlFor="welcome-ds" className="text-sm leading-snug">
+                  Ich habe die <strong>Datenschutzerklärung</strong> zur Kenntnis genommen.
                 </label>
               </div>
 
               <div className="flex justify-end">
                 <Button
                   onClick={handleAcceptTerms}
-                  disabled={!agbAccepted || !datenschutzAccepted || savingTerms}
+                  disabled={!agbAccepted || !datenschutzAcknowledged || savingTerms}
                 >
                   {savingTerms ? "Wird gespeichert…" : "Weiter"}
                   <ArrowRight className="ml-2 h-4 w-4" />

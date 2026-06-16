@@ -43,22 +43,15 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
   useEffect(() => {
     const checkTermsAcceptance = async () => {
       if (!profile?.user_id) return;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("terms_accepted_at")
-        .eq("user_id", profile.user_id)
-        .single();
-      if (error || !data) return;
-
-      if (data.terms_accepted_at) {
+      const { hasAcceptedCurrentLegal } = await import("@/lib/legalAcceptance");
+      const ok = await hasAcceptedCurrentLegal(profile.user_id);
+      if (ok) {
         setTermsAccepted(true);
         setShowTermsDialog(false);
-        return;
+      } else {
+        setTermsAccepted(false);
+        setShowTermsDialog(true);
       }
-
-      // Neue Eigentümer: AGB/Datenschutz/Passkey-Willkommens-Dialog zeigen.
-      setTermsAccepted(false);
-      setShowTermsDialog(true);
     };
     checkTermsAcceptance();
   }, [profile?.user_id]);
