@@ -8,19 +8,50 @@ import { toast } from "@/hooks/use-toast";
 import { LegalDocumentsSheet } from "@/components/LegalDocumentsSheet";
 import { OwnerSelfServiceSection } from "@/components/owner/OwnerSelfServiceSection";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Info } from "lucide-react";
+import { Mail, Info, User, HelpCircle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { PasskeysSection } from "@/components/settings/PasskeysSection";
-import { useAutoStartPageTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
+import { useAutoStartPageTour, useGuidedTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
+
 
 export const WegOwnerSettings = () => {
   useAutoStartPageTour("settings");
   const { profile, updatePassword } = useAuth();
+  const { isDisabled, enableTours, disableTours } = useGuidedTour();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [legalSheetOpen, setLegalSheetOpen] = useState(false);
   const [legalSheetTab, setLegalSheetTab] = useState<"agb" | "datenschutz">("agb");
+
+  // Name
+  const [firstName, setFirstName] = useState<string>("");
+  const [lastName, setLastName] = useState<string>("");
+  const [isUpdatingName, setIsUpdatingName] = useState(false);
+
+  useEffect(() => {
+    setFirstName(profile?.first_name ?? "");
+    setLastName(profile?.last_name ?? "");
+  }, [profile?.first_name, profile?.last_name]);
+
+  const handleNameSave = async () => {
+    if (!profile?.user_id) return;
+    setIsUpdatingName(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ first_name: firstName.trim() || null, last_name: lastName.trim() || null })
+        .eq("user_id", profile.user_id);
+      if (error) throw error;
+      toast({ title: "Gespeichert", description: "Ihr Name wurde aktualisiert." });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e?.message || "Name konnte nicht gespeichert werden.", variant: "destructive" });
+    } finally {
+      setIsUpdatingName(false);
+    }
+  };
+
 
   // Login email change
   const [currentLoginEmail, setCurrentLoginEmail] = useState<string>("");
@@ -135,6 +166,65 @@ export const WegOwnerSettings = () => {
          <p className="text-muted-foreground">Verwalten Sie Ihre Kontodaten und Wohnungen</p>
        </div>
        <OwnerSelfServiceSection />
+
+       <Card>
+         <CardHeader>
+           <CardTitle className="flex items-center gap-2">
+             <User className="w-5 h-5" /> Ihr Name
+           </CardTitle>
+           <CardDescription>
+             So werden Sie in der App und gegenüber der Hausverwaltung angezeigt. Änderungen werden sofort beim Admin sichtbar.
+           </CardDescription>
+         </CardHeader>
+         <CardContent className="space-y-4">
+           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+             <div className="space-y-2">
+               <Label htmlFor="first-name" className="text-xs">Vorname</Label>
+               <Input id="first-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+             </div>
+             <div className="space-y-2">
+               <Label htmlFor="last-name" className="text-xs">Nachname</Label>
+               <Input id="last-name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+             </div>
+           </div>
+           <Button
+             onClick={handleNameSave}
+             disabled={isUpdatingName || (firstName === (profile?.first_name ?? "") && lastName === (profile?.last_name ?? ""))}
+             className="w-full"
+           >
+             {isUpdatingName ? "Wird gespeichert..." : "Namen speichern"}
+           </Button>
+         </CardContent>
+       </Card>
+
+       <Card>
+         <CardHeader>
+           <CardTitle className="flex items-center gap-2">
+             <HelpCircle className="w-5 h-5" /> Hilfe-Touren
+           </CardTitle>
+           <CardDescription>
+             Steuern Sie, ob der Hilfe-Button und die geführten Touren angezeigt werden.
+           </CardDescription>
+         </CardHeader>
+         <CardContent>
+           <div className="flex items-center justify-between gap-4">
+             <div className="space-y-0.5">
+               <Label className="text-sm">Hilfe-Touren anzeigen</Label>
+               <p className="text-xs text-muted-foreground">
+                 Wenn aktiviert, erscheint links unten der Hilfe-Button und neue Seiten starten kurze Erklär-Touren.
+               </p>
+             </div>
+             <Switch
+               checked={!isDisabled()}
+               onCheckedChange={(checked) => {
+                 if (checked) enableTours();
+                 else disableTours();
+               }}
+             />
+           </div>
+         </CardContent>
+       </Card>
+
 
        <div className="space-y-1 mt-8">
          <h2 className="text-lg font-semibold">Login & Sicherheit</h2>
