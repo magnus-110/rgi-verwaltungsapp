@@ -8,19 +8,50 @@ import { toast } from "@/hooks/use-toast";
 import { LegalDocumentsSheet } from "@/components/LegalDocumentsSheet";
 import { OwnerSelfServiceSection } from "@/components/owner/OwnerSelfServiceSection";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Info } from "lucide-react";
+import { Mail, Info, User, HelpCircle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { PasskeysSection } from "@/components/settings/PasskeysSection";
-import { useAutoStartPageTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
+import { useAutoStartPageTour, useGuidedTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
+
 
 export const WegOwnerSettings = () => {
   useAutoStartPageTour("settings");
   const { profile, updatePassword } = useAuth();
+  const { isDisabled, enableTours, disableTours } = useGuidedTour();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [legalSheetOpen, setLegalSheetOpen] = useState(false);
   const [legalSheetTab, setLegalSheetTab] = useState<"agb" | "datenschutz">("agb");
+
+  // Name
+  const [firstName, setFirstName] = useState<string>("");
+  const [lastName, setLastName] = useState<string>("");
+  const [isUpdatingName, setIsUpdatingName] = useState(false);
+
+  useEffect(() => {
+    setFirstName(profile?.first_name ?? "");
+    setLastName(profile?.last_name ?? "");
+  }, [profile?.first_name, profile?.last_name]);
+
+  const handleNameSave = async () => {
+    if (!profile?.user_id) return;
+    setIsUpdatingName(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ first_name: firstName.trim() || null, last_name: lastName.trim() || null })
+        .eq("user_id", profile.user_id);
+      if (error) throw error;
+      toast({ title: "Gespeichert", description: "Ihr Name wurde aktualisiert." });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e?.message || "Name konnte nicht gespeichert werden.", variant: "destructive" });
+    } finally {
+      setIsUpdatingName(false);
+    }
+  };
+
 
   // Login email change
   const [currentLoginEmail, setCurrentLoginEmail] = useState<string>("");
