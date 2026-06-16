@@ -25,7 +25,7 @@ export type ResolvedRecipient = {
   building_id: string;
   display_name: string;
   email: string | null;
-  vars: Record<string, string>;
+  vars: Record<string, any>;
 };
 
 const monthsDe = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
