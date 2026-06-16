@@ -36,46 +36,15 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
   useEffect(() => {
     const checkTermsAcceptance = async () => {
       if (!profile?.user_id) return;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("terms_accepted_at")
-        .eq("user_id", profile.user_id)
-        .single();
-      if (error || !data) return;
-
-      if (data.terms_accepted_at) {
+      const { hasAcceptedCurrentLegal } = await import("@/lib/legalAcceptance");
+      const ok = await hasAcceptedCurrentLegal(profile.user_id);
+      if (ok) {
         setTermsAccepted(true);
         setShowTermsDialog(false);
-        return;
+      } else {
+        setTermsAccepted(false);
+        setShowTermsDialog(true);
       }
-
-      // Wenn der Mieter bereits einem Gebäude zugeordnet ist, gilt das als
-      // bereits erfolgte Einwilligung. Stillschweigend markieren, damit der
-      // Dialog nicht bei jedem Login erneut erscheint.
-      const { data: contact } = await supabase
-        .from("contacts")
-        .select("id")
-        .eq("user_id", profile.user_id)
-        .maybeSingle();
-      if (contact?.id) {
-        const { count } = await supabase
-          .from("contact_building_assignments")
-          .select("id", { count: "exact", head: true })
-          .eq("contact_id", contact.id)
-          .eq("is_active", true);
-        if ((count ?? 0) > 0) {
-          await supabase
-            .from("profiles")
-            .update({ terms_accepted_at: new Date().toISOString() })
-            .eq("user_id", profile.user_id);
-          setTermsAccepted(true);
-          setShowTermsDialog(false);
-          return;
-        }
-      }
-
-      setTermsAccepted(false);
-      setShowTermsDialog(true);
     };
     checkTermsAcceptance();
   }, [profile?.user_id]);
