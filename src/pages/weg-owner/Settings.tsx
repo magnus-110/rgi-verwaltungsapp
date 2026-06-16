@@ -167,6 +167,65 @@ export const WegOwnerSettings = () => {
        </div>
        <OwnerSelfServiceSection />
 
+       <Card>
+         <CardHeader>
+           <CardTitle className="flex items-center gap-2">
+             <User className="w-5 h-5" /> Ihr Name
+           </CardTitle>
+           <CardDescription>
+             So werden Sie in der App und gegenüber der Hausverwaltung angezeigt. Änderungen werden sofort beim Admin sichtbar.
+           </CardDescription>
+         </CardHeader>
+         <CardContent className="space-y-4">
+           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+             <div className="space-y-2">
+               <Label htmlFor="first-name" className="text-xs">Vorname</Label>
+               <Input id="first-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+             </div>
+             <div className="space-y-2">
+               <Label htmlFor="last-name" className="text-xs">Nachname</Label>
+               <Input id="last-name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+             </div>
+           </div>
+           <Button
+             onClick={handleNameSave}
+             disabled={isUpdatingName || (firstName === (profile?.first_name ?? "") && lastName === (profile?.last_name ?? ""))}
+             className="w-full"
+           >
+             {isUpdatingName ? "Wird gespeichert..." : "Namen speichern"}
+           </Button>
+         </CardContent>
+       </Card>
+
+       <Card>
+         <CardHeader>
+           <CardTitle className="flex items-center gap-2">
+             <HelpCircle className="w-5 h-5" /> Hilfe-Touren
+           </CardTitle>
+           <CardDescription>
+             Steuern Sie, ob der Hilfe-Button und die geführten Touren angezeigt werden.
+           </CardDescription>
+         </CardHeader>
+         <CardContent>
+           <div className="flex items-center justify-between gap-4">
+             <div className="space-y-0.5">
+               <Label className="text-sm">Hilfe-Touren anzeigen</Label>
+               <p className="text-xs text-muted-foreground">
+                 Wenn aktiviert, erscheint links unten der Hilfe-Button und neue Seiten starten kurze Erklär-Touren.
+               </p>
+             </div>
+             <Switch
+               checked={!isDisabled()}
+               onCheckedChange={(checked) => {
+                 if (checked) enableTours();
+                 else disableTours();
+               }}
+             />
+           </div>
+         </CardContent>
+       </Card>
+
+
        <div className="space-y-1 mt-8">
          <h2 className="text-lg font-semibold">Login & Sicherheit</h2>
          <p className="text-sm text-muted-foreground">
