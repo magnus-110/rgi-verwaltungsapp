@@ -105,6 +105,7 @@ Deno.serve(async (req) => {
     const { data: bookings } = await admin
       .from("bookings")
       .select("account_id, counter_account_id, amount")
+      .eq("building_id", buildingId)
       .gte("booking_date", period.period_from)
       .lte("booking_date", period.period_to);
 
