@@ -8,7 +8,6 @@ import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
 import { HelpFab } from "@/components/chat/HelpFab";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useAutoStartPageTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
 
 interface Message {
   id: string;
@@ -25,7 +24,6 @@ interface WegOwnerBuilding {
 }
 
 export const WegOwnerChatbot = () => {
-  useAutoStartPageTour("chatbot");
   const { profile } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);

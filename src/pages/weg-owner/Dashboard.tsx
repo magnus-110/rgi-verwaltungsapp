@@ -9,7 +9,6 @@ import { OwnerAnnualCycleWidget } from "@/components/dashboard/OwnerAnnualCycleW
 import { EmergencyContactsWidget } from "@/components/forum/EmergencyContactsWidget";
 import { PROPERTY_MANAGER_FALLBACK } from "@/lib/emergencyContactInfo";
 import { cn } from "@/lib/utils";
-import { useAutoStartPageTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
 
 interface Building { id: string; name: string; address: string | null }
 

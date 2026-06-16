@@ -10,7 +10,6 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { BuildingFilterChips, BuildingChip } from "@/components/shared/BuildingFilterChips";
-import { useAutoStartPageTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
 
 interface FileItem {
   id: string;
@@ -236,7 +235,6 @@ function FilesBrowser({ files, categories, search }: { files: FileItem[]; catego
 }
 
 export function WegOwnerFiles() {
-  useAutoStartPageTour("files");
   const { profile } = useAuth();
   const [buildings, setBuildings] = useState<BuildingChip[]>([]);
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
