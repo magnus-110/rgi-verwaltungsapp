@@ -250,6 +250,21 @@ export function BillingPeriodSelector({
               <Button size="sm" variant="outline" onClick={openEditDialog} className="h-11 md:h-10 px-3" title="Wirtschaftsjahr bearbeiten">
                 <Pencil className="h-4 w-4" />
               </Button>
+              {(() => {
+                const isFinal = selectedPeriod.status === "completed" || selectedPeriod.status === "closed";
+                return (
+                  <Button
+                    size="sm"
+                    variant={isFinal ? "outline" : "default"}
+                    onClick={togglePeriodFinalized}
+                    className="h-11 md:h-10 px-3"
+                    title={isFinal ? "Abrechnung wieder öffnen" : "Abrechnung finalisieren (für Eigentümer freischalten)"}
+                  >
+                    {isFinal ? <Unlock className="h-4 w-4 md:mr-1" /> : <Lock className="h-4 w-4 md:mr-1" />}
+                    <span className="hidden md:inline">{isFinal ? "Öffnen" : "Finalisieren"}</span>
+                  </Button>
+                );
+              })()}
               <Button
                 size="sm"
                 variant="outline"
