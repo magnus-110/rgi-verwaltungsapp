@@ -68,11 +68,11 @@ export async function getOwnerBillingPositions(
   // 2. MEA-Anteil dieser Wohnung
   const { data: shares } = await supabase
     .from("contact_building_shares")
-    .select("share_type_id, share_value, building_share_types(code)")
+    .select("share_type, share_value")
     .eq("assignment_id", assignmentId);
 
   const meaRow = (shares ?? []).find(
-    (s: any) => s.building_share_types?.code === "mea",
+    (s: any) => (s.share_type ?? "").toLowerCase() === "mea",
   );
   const ownMea = Number(meaRow?.share_value ?? 0);
 
@@ -80,9 +80,9 @@ export async function getOwnerBillingPositions(
   const { data: allShares } = await supabase
     .from("contact_building_shares")
     .select(
-      "share_value, building_share_types(code), contact_building_assignments!inner(building_id, is_active)",
+      "share_value, share_type, contact_building_assignments!inner(building_id, is_active)",
     )
-    .eq("building_share_types.code", "mea")
+    .eq("share_type", "mea")
     .eq("contact_building_assignments.building_id", period.building_id)
     .eq("contact_building_assignments.is_active", true);
 
