@@ -22,7 +22,8 @@ import {
   FolderOpen,
   Users,
   ClipboardCheck,
-  Scale
+  Scale,
+  Store
 } from "lucide-react";
 
 interface WegOwnerLayoutProps {
@@ -165,6 +166,12 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       label: "Versammlungen", 
       path: '/weg-owner/meetings',
       active: location.pathname.startsWith('/weg-owner/meetings')
+    },
+    { 
+      icon: Store, 
+      label: "Service-Hub", 
+      path: '/weg-owner/service-hub',
+      active: location.pathname.startsWith('/weg-owner/service-hub')
     },
     { 
       icon: Sparkles, 

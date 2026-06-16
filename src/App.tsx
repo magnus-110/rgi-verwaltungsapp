@@ -55,6 +55,11 @@ const WegOwnerFiles = lazy(() => import("./pages/weg-owner/Files").then(m => ({ 
 const WegOwnerMeetings = lazy(() => import("./pages/weg-owner/Meetings").then(m => ({ default: m.WegOwnerMeetings })));
 const WegOwnerCashAudit = lazy(() => import("./pages/weg-owner/CashAudit").then(m => ({ default: m.WegOwnerCashAudit })));
 const WegOwnerResolutions = lazy(() => import("./pages/weg-owner/Resolutions").then(m => ({ default: m.WegOwnerResolutions })));
+const WegOwnerServiceHub = lazy(() => import("./pages/weg-owner/ServiceHub").then(m => ({ default: m.WegOwnerServiceHub })));
+const WegOwnerNebenkostenTool = lazy(() => import("./pages/weg-owner/NebenkostenTool").then(m => ({ default: m.WegOwnerNebenkostenTool })));
+const WegOwnerServiceHubSuccess = lazy(() => import("./pages/weg-owner/ServiceHubSuccess").then(m => ({ default: m.WegOwnerServiceHubSuccess })));
+const LegalAGB = lazy(() => import("./pages/legal/AGB"));
+const LegalDatenschutz = lazy(() => import("./pages/legal/Datenschutz"));
 
 const TenantDashboard = lazy(() => import("./pages/tenant/Dashboard").then(m => ({ default: m.TenantDashboard })));
 const TenantReports = lazy(() => import("./pages/tenant/Reports").then(m => ({ default: m.TenantReports })));
@@ -156,6 +161,11 @@ const App = () => (
               <Route path="/weg-owner/meetings" element={<WegOwnerLayout><WegOwnerMeetings /></WegOwnerLayout>} />
               <Route path="/weg-owner/kassenpruefung" element={<WegOwnerLayout><WegOwnerCashAudit /></WegOwnerLayout>} />
               <Route path="/weg-owner/resolutions" element={<WegOwnerLayout><WegOwnerResolutions /></WegOwnerLayout>} />
+              <Route path="/weg-owner/service-hub" element={<WegOwnerLayout><WegOwnerServiceHub /></WegOwnerLayout>} />
+              <Route path="/weg-owner/service-hub/nebenkosten" element={<WegOwnerLayout><WegOwnerNebenkostenTool /></WegOwnerLayout>} />
+              <Route path="/weg-owner/service-hub/erfolg" element={<WegOwnerLayout><WegOwnerServiceHubSuccess /></WegOwnerLayout>} />
+              <Route path="/legal/agb" element={<LegalAGB />} />
+              <Route path="/legal/datenschutz" element={<LegalDatenschutz />} />
               
               {/* Tenant Routes */}
               <Route path="/tenant/change-password" element={<TenantLayout><ChangePassword /></TenantLayout>} />
