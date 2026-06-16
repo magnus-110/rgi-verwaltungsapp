@@ -783,11 +783,15 @@ export const WegOwnerMeetings = () => {
                                           size="sm"
                                           variant={current === "proxy" ? "default" : "outline"}
                                           className="h-8 gap-1.5"
-                                          onClick={() => setSelectedMeetingId(meeting.id)}
+                                          onClick={() => {
+                                            setSelectedMeetingId(meeting.id);
+                                            setPendingProxyMeetingId(meeting.id);
+                                          }}
                                         >
                                           <Shield className="h-3.5 w-3.5" />
                                           Vollmacht
                                         </Button>
+
                                         <Button
                                           size="sm"
                                           variant={current === "absent" ? "default" : "outline"}
