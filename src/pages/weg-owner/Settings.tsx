@@ -11,11 +11,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Mail, Info, User, HelpCircle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { PasskeysSection } from "@/components/settings/PasskeysSection";
-import { useAutoStartPageTour, useGuidedTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
+import { useGuidedTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
 
 
 export const WegOwnerSettings = () => {
-  useAutoStartPageTour("settings");
   const { profile, updatePassword } = useAuth();
   const { isDisabled, enableTours, disableTours } = useGuidedTour();
   const [currentPassword, setCurrentPassword] = useState("");

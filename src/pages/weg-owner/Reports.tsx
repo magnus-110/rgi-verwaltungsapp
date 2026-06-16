@@ -14,7 +14,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Plus, X, AlertCircle, FileText, ChevronDown, Pencil, Paperclip, Upload } from "lucide-react";
-import { useAutoStartPageTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
 
 interface Report {
   id: string;
@@ -89,7 +88,6 @@ const InlineEditField = ({ label, value, onChange, type = "text" }: { label: str
 };
 
 export const WegOwnerReports = () => {
-  useAutoStartPageTour("reports");
   const { profile } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
   const [buildings, setBuildings] = useState<any[]>([]);

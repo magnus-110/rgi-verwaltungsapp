@@ -11,7 +11,6 @@ import { Scale, Search, CheckCircle2, XCircle, Clock, AlertCircle, ChevronDown }
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { BuildingFilterChips, BuildingChip } from "@/components/shared/BuildingFilterChips";
-import { useAutoStartPageTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
 
 const statusBadge: Record<string, { label: string; cls: string; Icon: any }> = {
   open: { label: "Offen", cls: "bg-orange-500/15 text-orange-700 border-orange-500/30", Icon: AlertCircle },
@@ -20,7 +19,6 @@ const statusBadge: Record<string, { label: string; cls: string; Icon: any }> = {
 };
 
 export const WegOwnerResolutions = () => {
-  useAutoStartPageTour("resolutions");
   const { profile } = useAuth();
   const [search, setSearch] = useState("");
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
