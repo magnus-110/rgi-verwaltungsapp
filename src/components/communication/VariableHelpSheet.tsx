@@ -140,6 +140,25 @@ export const VariableHelpSheet = ({ open, onOpenChange }: VariableHelpSheetProps
           ))}
 
           <div className="border-t pt-4 mt-6">
+            <h4 className="text-sm font-semibold mb-2">Mehrere Einheiten pro Eigentümer auflisten</h4>
+            <p className="text-xs text-muted-foreground mb-2">
+              Hat ein Eigentümer mehrere Wohnungen, bekommt er <strong>eine</strong> Einladung.
+              Mit folgendem Schleifen-Block können Sie alle seine Einheiten auflisten:
+            </p>
+            <pre className="text-xs bg-muted p-3 rounded whitespace-pre-wrap">{`Betrifft Ihre Einheiten:
+{{#einheiten_liste}}
+  • Einheit {{einheit}} — MEA {{mea}}
+{{/einheiten_liste}}
+
+Gesamt-MEA: {{mea_summe}}   ({{einheiten_count}} Einheiten)`}</pre>
+            <p className="text-xs text-muted-foreground mt-2">
+              Wichtig: <code>{"{{#einheiten_liste}}"}</code> und <code>{"{{/einheiten_liste}}"}</code> jeweils
+              auf <strong>eigener Zeile</strong> (oder in eigener Tabellenzeile) platzieren — dann wird der Block
+              pro Einheit wiederholt.
+            </p>
+          </div>
+
+          <div className="border-t pt-4 mt-6">
             <h4 className="text-sm font-semibold mb-2">So gehts in Word</h4>
             <ol className="text-sm text-muted-foreground space-y-1 list-decimal pl-4">
               <li>Word-Dokument wie gewohnt schreiben.</li>
