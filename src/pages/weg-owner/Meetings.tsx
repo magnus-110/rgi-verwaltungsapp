@@ -330,6 +330,33 @@ export const WegOwnerMeetings = () => {
     }
   }, [selectedMeetingId, myAssignments.length, myAttendees.length, selectedMeetingForAutoReg?.status]);
 
+  // Auto-open Vollmacht dialog when user clicked "Vollmacht" on a meeting card.
+  // Waits until agenda items and attendee record are loaded for the meeting.
+  useEffect(() => {
+    if (!pendingProxyMeetingId) return;
+    if (pendingProxyMeetingId !== selectedMeetingId) return;
+    if (myAssignments.length === 0) return;
+    if (agendaItems.length === 0) return;
+    // Need an attendee row for this assignment to attach the proxy to
+    const assignment = myAssignments[0];
+    const attendee = myAttendees.find((a: any) => a.assignment_id === assignment.id);
+    if (!attendee) return;
+
+    setProxyAssignmentId(assignment.id);
+    setProxyType("manager");
+    setProxyContactId("");
+    setProxyExternalName("");
+    setCreatedProxyToken(null);
+    const initial: Record<string, string> = {};
+    agendaItems.forEach((item: any) => { initial[item.id] = "frei"; });
+    setVotingInstructions(initial);
+    setProxyStep(1);
+    setExpandedTopIds(new Set());
+    setShowProxyDialog(true);
+    setPendingProxyMeetingId(null);
+  }, [pendingProxyMeetingId, selectedMeetingId, myAssignments, myAttendees, agendaItems]);
+
+
   // Load other owners for proxy selection
   const myAssignmentIds = myAssignments.map(a => a.id);
   const { data: otherOwners = [] } = useQuery({
