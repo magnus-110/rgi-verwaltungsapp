@@ -323,7 +323,7 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
 
   const guardedStartTour = useCallback(
     (tourId: string) => {
-      if (isToursDisabled()) return;
+      if (isDisabled()) return;
       void startTour(tourId);
     },
     [startTour]
@@ -338,7 +338,7 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (loading || !user?.id || !progress) return;
-    if (isToursDisabled()) return;
+    if (isDisabled()) return;
     if (!progress.dashboard) {
       const t = window.setTimeout(() => guardedStartTour("dashboard"), 800);
       return () => window.clearTimeout(t);
