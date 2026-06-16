@@ -121,9 +121,13 @@ export const FirstLoginWelcomeDialog = ({
 
   const finishAndOpenTour = () => {
     onClose();
+    // Kurze Verzögerung, damit Dialog vollständig geschlossen ist
+    // und Tour-Targets im DOM gemountet sind.
     setTimeout(() => {
-      window.dispatchEvent(new CustomEvent("open-onboarding-wizard"));
-    }, 200);
+      window.dispatchEvent(
+        new CustomEvent("start-guided-tour", { detail: { tourId: "dashboard" } }),
+      );
+    }, 300);
   };
 
   const finishAndClose = () => {
