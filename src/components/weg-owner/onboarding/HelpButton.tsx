@@ -74,17 +74,8 @@ export function HelpButton() {
               Diese Seite erklären
             </DropdownMenuItem>
           )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="py-2.5 text-sm cursor-pointer text-muted-foreground"
-            onSelect={(e) => {
-              e.preventDefault();
-              setConfirmOpen(true);
-            }}
-          >
-            Hilfe dauerhaft ausblenden
-          </DropdownMenuItem>
         </DropdownMenuContent>
+
       </DropdownMenu>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
