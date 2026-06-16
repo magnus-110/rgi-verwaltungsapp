@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Fingerprint, ShieldCheck, Zap, Sparkles, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { AgbText, DatenschutzText } from "@/components/legal/LegalTexts";
 
 interface FirstLoginWelcomeDialogProps {
   open: boolean;
