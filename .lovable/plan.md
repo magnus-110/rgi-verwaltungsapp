@@ -1,44 +1,64 @@
 ## Ziel
-1. Andrej Javornik (und alle Eigentümer) sehen ihre Wohnung im Nebenkosten-Tool zuverlässig.
-2. Die geführten Touren starten **nicht mehr automatisch** beim Öffnen einer Unterseite — Eigentümer rufen sie aktiv über den Hilfe-Button auf.
+Wenn ein Eigentümer mehrere Wohneinheiten im selben Gebäude hat, soll er **eine einzige Einladung** zur Eigentümerversammlung bekommen — mit einer Auflistung aller seiner Einheiten und der zugehörigen MEA-Anteile, statt mehrerer separater Briefe.
 
----
+## Aktuelles Verhalten (kurz)
+`comm-render-letters` läuft über `loadRecipients()` in `supabase/functions/_shared/comm-vars.ts`. Dort wird **pro `contact_building_assignments`-Zeile** (= pro Einheit) ein Empfänger erzeugt. Ein Eigentümer mit 3 Einheiten → 3 Briefe mit `{{einheit}}` = jeweils 1 Einheit.
 
-## 1. Wohnung wird nicht angezeigt
+## Lösung
 
-### Diagnose
-- Die DB-Daten sind vorhanden: Andrej (`user_id 9efd…2731b`) hat Contact `c9685…591081` mit aktivem Assignment in Gebäude „Tirolerstr. 142", Whg. `0001`.
-- RLS auf `contacts`, `contact_building_assignments` und `buildings` erlaubt den Lesezugriff für `weg_owner`.
-- Die aktuelle Frontend-Abfrage in `NebenkostenTool.tsx` macht **zwei getrennte Roundtrips** (`contacts` → `contact_building_assignments`) und joint zusätzlich `buildings(...)`. Wenn einer dieser Calls leer / null zurückkommt (z. B. weil `is_active` Flag bei Migration nicht gesetzt war, oder die Buildings-RLS bei seltenen Edge-Cases greift), zeigt der Selector lautlos "Bitte wählen" — es gibt kein sichtbares Fehler-/Leer-Feedback.
+### 1. Neuer Modus „Gruppieren nach Eigentümer"
+- Filter-Erweiterung `RecipientFilter.group_by_contact?: boolean` in `comm-vars.ts`.
+- Wenn aktiv: alle Assignments mit derselben `contact_id` zu **einem** Empfänger zusammenfassen.
+- `MeetingInvitationPdf.tsx` (ETV-Einladung) setzt `group_by_contact: true` als festen Default — für ETV ist das immer korrekt (Stimmrecht hängt am Eigentümer, nicht an der Einheit).
+- Andere Serienbriefe (LetterCampaignWizard) bleiben unverändert (kann optional später Checkbox bekommen).
 
-### Fix
-- **Neue Edge Function** `list-owner-units` (service-role): liefert für den eingeloggten User alle aktiven Wohnungen inkl. Gebäudename/-adresse in **einem** RPC, robust gegen RLS-Edge-Cases und gibt sprechende Fehler zurück.
-- `NebenkostenTool.tsx`:
-  - Daten via `supabase.functions.invoke("list-owner-units")` laden statt zwei getrennter Queries.
-  - **Empty-State**-Karte unter dem Auswahl-Block, wenn `assignments.length === 0`: Hinweis „Für Ihren Account ist aktuell keine Wohnung hinterlegt — bitte info@rgi-immobilien.de / 08363 960656 kontaktieren."
-  - Console-Log bei Fehler / leerem Resultat (hilft Debug künftiger Fälle).
+### 2. Neue / erweiterte Platzhalter im DOCX
+Zusätzlich zu den bestehenden Variablen (`einheit`, `mea` etc.) werden bei Gruppierung folgende **neuen** Variablen geliefert:
 
----
+| Platzhalter | Inhalt (Beispiel) |
+|---|---|
+| `{{einheiten}}` | Komma-Liste, z. B. `"WE 1, WE 3, WE 7"` |
+| `{{einheiten_count}}` | Anzahl, z. B. `"3"` |
+| `{{mea_summe}}` | Summe der MEA aller Einheiten, formatiert `"0,3456"` |
+| `{{#einheiten_liste}} … {{/einheiten_liste}}` | Loop-Block für eine Tabelle/Liste |
 
-## 2. Auto-Start der Touren deaktivieren
+Innerhalb des Loops verfügbar:
+- `{{einheit}}` – Einheitsnummer
+- `{{mea}}` – MEA dieser Einheit
+- `{{rolle}}` – Rolle für diese Einheit (i. d. R. „eigentuemer")
 
-### Fix
-- `useAutoStartPageTour(...)`-Aufrufe entfernen in:
-  `Dashboard.tsx`, `Reports.tsx`, `Files.tsx`, `Resolutions.tsx`, `Forum.tsx`, `Meetings.tsx`, `Chatbot.tsx`, `Settings.tsx`, `CashAudit.tsx`.
-- In `GuidedTourProvider.tsx` den automatischen Dashboard-Tour-Start (`useEffect` Zeile 340–347) entfernen.
-- `useAutoStartPageTour` Hook bleibt vorerst exportiert (rückwärtskompatibel), wird aber nicht mehr genutzt — kann später entfernt werden.
-- Hilfe-Button (FAB) und die manuelle „Diese Seite erklären"-Aktion bleiben **unverändert**: Touren laufen nur noch on demand.
+Abwärtskompatibilität: `{{einheit}}` und `{{mea}}` auf Top-Level bleiben gefüllt — bei Mehrfach-Einheit mit `einheiten` (Komma-Liste) bzw. `mea_summe`, damit alte Vorlagen nicht brechen.
 
----
+### 3. Anpassung der Word-Vorlage (Anleitung für den Nutzer)
+Zwei Varianten — beide funktionieren mit derselben Vorlage:
+
+**Variante A — einfache Komma-Liste (1 Zeile):**
+```
+Betrifft Ihre Einheit(en): {{einheiten}}
+Gesamt-MEA: {{mea_summe}}
+```
+
+**Variante B — Tabelle/Aufzählung mit Loop:**
+```
+Betrifft Ihre Einheiten:
+{{#einheiten_liste}}
+  • Einheit {{einheit}} — MEA {{mea}}
+{{/einheiten_liste}}
+
+Gesamt-MEA: {{mea_summe}}   ({{einheiten_count}} Einheiten)
+```
+
+Wichtig für DOCX:
+- `{{#einheiten_liste}}` und `{{/einheiten_liste}}` müssen jeweils auf **eigenen Zeilen / in eigenen Tabellenzellen** stehen, damit der Loop-Block die richtige Granularität (Zeile bzw. Tabellenzeile) wiederholt — sonst wird der Inhalt inline mehrfach kopiert.
+
+### 4. UI-Hinweise
+- Im VariableHelpSheet die neuen Platzhalter mit kurzem Beispiel-Snippet ergänzen.
+- Im Generierungs-Dialog Counter umstellen: statt „X Einladungen" wird jetzt „X Eigentümer (Y Einheiten)" angezeigt, damit der Nutzer den Effekt der Zusammenführung sieht.
 
 ## Technische Details
+**Geänderte Dateien:**
+- `supabase/functions/_shared/comm-vars.ts` — `group_by_contact` implementieren, beim Gruppieren neue Vars + Loop-Array aufbauen.
+- `src/components/meetings/MeetingInvitationPdf.tsx` — `recipient_filter: { ..., group_by_contact: true }` setzen; Anzeige „X Eigentümer".
+- `src/components/communication/VariableHelpSheet.tsx` — neue Platzhalter dokumentieren.
 
-**Neue Datei**: `supabase/functions/list-owner-units/index.ts`
-- Auth-Check via Bearer Token.
-- Service-Role-Query: `contacts` (user_id = me) → `contact_building_assignments` (is_active) → `buildings`.
-- Response: `{ units: [{ id, unit_number, building_id, building_name, building_address }] }`.
-
-**Geänderte Dateien**:
-- `src/pages/weg-owner/NebenkostenTool.tsx` — Auswahl-Loader auf Edge Function umstellen + Empty-State.
-- `src/components/weg-owner/onboarding/GuidedTourProvider.tsx` — Auto-Start-`useEffect` entfernen.
-- 9× `src/pages/weg-owner/*.tsx` — `useAutoStartPageTour(...)`-Aufrufe und Imports entfernen.
+**Keine DB-Migration nötig.**
