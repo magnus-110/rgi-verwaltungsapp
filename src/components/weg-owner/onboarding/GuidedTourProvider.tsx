@@ -340,6 +340,19 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
   // Auto-Start der Dashboard-Tour wurde entfernt – Touren laufen nur noch
   // on demand über den Hilfe-Button.
 
+  // Externer Trigger: andere Komponenten können eine Tour starten,
+  // z. B. der FirstLoginWelcomeDialog beim Klick auf "Einführung starten".
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ tourId?: string }>).detail;
+      const tourId = detail?.tourId ?? "dashboard";
+      void startTour(tourId);
+    };
+    window.addEventListener("start-guided-tour", handler as EventListener);
+    return () => window.removeEventListener("start-guided-tour", handler as EventListener);
+  }, [startTour]);
+
+
 
   useEffect(() => {
     return () => {
