@@ -6426,6 +6426,36 @@ export type Database = {
           },
         ]
       }
+      legal_acceptances: {
+        Row: {
+          accepted_at: string
+          document_type: string
+          document_version: string
+          id: string
+          ip_address: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string
+          document_type: string
+          document_version: string
+          id?: string
+          ip_address?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string
+          document_type?: string
+          document_version?: string
+          id?: string
+          ip_address?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       maintenance_configs: {
         Row: {
           building_id: string
@@ -8280,6 +8310,172 @@ export type Database = {
         }
         Relationships: []
       }
+      service_orders: {
+        Row: {
+          agb_version: string
+          assignment_id: string | null
+          created_at: string
+          currency: string
+          document_error: string | null
+          document_ready_at: string | null
+          document_storage_path: string | null
+          fiscal_year: number | null
+          id: string
+          input_snapshot: Json
+          ip_address: string | null
+          paid_at: string | null
+          price_cents: number
+          privacy_version: string
+          service_type: Database["public"]["Enums"]["service_type_enum"]
+          status: Database["public"]["Enums"]["service_order_status_enum"]
+          stripe_invoice_hosted_url: string | null
+          stripe_invoice_id: string | null
+          stripe_invoice_pdf_url: string | null
+          stripe_payment_intent_id: string | null
+          stripe_session_id: string | null
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+          widerruf_waiver_confirmed: boolean
+        }
+        Insert: {
+          agb_version: string
+          assignment_id?: string | null
+          created_at?: string
+          currency?: string
+          document_error?: string | null
+          document_ready_at?: string | null
+          document_storage_path?: string | null
+          fiscal_year?: number | null
+          id?: string
+          input_snapshot?: Json
+          ip_address?: string | null
+          paid_at?: string | null
+          price_cents: number
+          privacy_version: string
+          service_type: Database["public"]["Enums"]["service_type_enum"]
+          status?: Database["public"]["Enums"]["service_order_status_enum"]
+          stripe_invoice_hosted_url?: string | null
+          stripe_invoice_id?: string | null
+          stripe_invoice_pdf_url?: string | null
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          user_id: string
+          widerruf_waiver_confirmed?: boolean
+        }
+        Update: {
+          agb_version?: string
+          assignment_id?: string | null
+          created_at?: string
+          currency?: string
+          document_error?: string | null
+          document_ready_at?: string | null
+          document_storage_path?: string | null
+          fiscal_year?: number | null
+          id?: string
+          input_snapshot?: Json
+          ip_address?: string | null
+          paid_at?: string | null
+          price_cents?: number
+          privacy_version?: string
+          service_type?: Database["public"]["Enums"]["service_type_enum"]
+          status?: Database["public"]["Enums"]["service_order_status_enum"]
+          stripe_invoice_hosted_url?: string | null
+          stripe_invoice_id?: string | null
+          stripe_invoice_pdf_url?: string | null
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+          widerruf_waiver_confirmed?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_orders_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "contact_building_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_owner_costs: {
+        Row: {
+          amount: number
+          assignment_id: string
+          cost_type: string
+          created_at: string
+          fiscal_year: number
+          id: string
+          label: string | null
+          note: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          assignment_id: string
+          cost_type: string
+          created_at?: string
+          fiscal_year: number
+          id?: string
+          label?: string | null
+          note?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          assignment_id?: string
+          cost_type?: string
+          created_at?: string
+          fiscal_year?: number
+          id?: string
+          label?: string | null
+          note?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_owner_costs_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "contact_building_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_pricing: {
+        Row: {
+          active: boolean
+          currency: string
+          price_cents: number
+          service_type: Database["public"]["Enums"]["service_type_enum"]
+          tax_behavior: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          currency?: string
+          price_cents: number
+          service_type: Database["public"]["Enums"]["service_type_enum"]
+          tax_behavior?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          currency?: string
+          price_cents?: number
+          service_type?: Database["public"]["Enums"]["service_type_enum"]
+          tax_behavior?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       service_provider_categories: {
         Row: {
           created_at: string
@@ -8300,6 +8496,59 @@ export type Database = {
           sort_order?: number
         }
         Relationships: []
+      }
+      service_tenancies: {
+        Row: {
+          assignment_id: string
+          created_at: string
+          id: string
+          move_in: string | null
+          move_out: string | null
+          nk_prepayment_monthly: number | null
+          note: string | null
+          persons: number | null
+          tenant_address: string | null
+          tenant_name: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assignment_id: string
+          created_at?: string
+          id?: string
+          move_in?: string | null
+          move_out?: string | null
+          nk_prepayment_monthly?: number | null
+          note?: string | null
+          persons?: number | null
+          tenant_address?: string | null
+          tenant_name?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assignment_id?: string
+          created_at?: string
+          id?: string
+          move_in?: string | null
+          move_out?: string | null
+          nk_prepayment_monthly?: number | null
+          note?: string | null
+          persons?: number | null
+          tenant_address?: string | null
+          tenant_name?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_tenancies_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "contact_building_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tenant_deposits: {
         Row: {
@@ -9562,6 +9811,13 @@ export type Database = {
         | "cancelled"
       rgi_project_status: "active" | "paused" | "closed"
       rgi_sparte: "weg" | "rent" | "sales" | "letting" | "other"
+      service_order_status_enum:
+        | "pending"
+        | "paid"
+        | "failed"
+        | "refunded"
+        | "document_ready"
+      service_type_enum: "nebenkosten" | "anlage_v" | "mietvertrag"
       unit_kind:
         | "apartment"
         | "parking_garage"
@@ -9788,6 +10044,14 @@ export const Constants = {
       ],
       rgi_project_status: ["active", "paused", "closed"],
       rgi_sparte: ["weg", "rent", "sales", "letting", "other"],
+      service_order_status_enum: [
+        "pending",
+        "paid",
+        "failed",
+        "refunded",
+        "document_ready",
+      ],
+      service_type_enum: ["nebenkosten", "anlage_v", "mietvertrag"],
       unit_kind: [
         "apartment",
         "parking_garage",
