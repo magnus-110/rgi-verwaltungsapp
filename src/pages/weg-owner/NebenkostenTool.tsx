@@ -411,6 +411,16 @@ export function WegOwnerNebenkostenTool() {
                 </Select>
               </div>
             </div>
+            {assignments.length === 0 && (
+              <Alert variant="destructive">
+                <AlertCircle className="w-4 h-4" />
+                <AlertDescription>
+                  Für Ihren Account ist aktuell keine Wohnung hinterlegt. Bitte
+                  kontaktieren Sie die Verwaltung
+                  (info@rgi-immobilien.de / 08363&nbsp;960656).
+                </AlertDescription>
+              </Alert>
+            )}
             {assignmentId && periods.length === 0 && (
               <Alert variant="destructive">
                 <AlertCircle className="w-4 h-4" />
@@ -421,6 +431,7 @@ export function WegOwnerNebenkostenTool() {
                 </AlertDescription>
               </Alert>
             )}
+
           </Card>
 
           {assignmentId && periodId && (
