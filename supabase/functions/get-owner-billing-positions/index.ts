@@ -89,8 +89,8 @@ Deno.serve(async (req) => {
     // Konten
     const { data: accounts } = await admin
       .from("chart_of_accounts")
-      .select("id, account_number, account_name, default_distribution_key")
-      .eq("building_id", buildingId)
+      .select("id, account_number, account_name, default_distribution_key, building_id")
+      .or(`building_id.eq.${buildingId},building_id.is.null`)
       .eq("is_distributable", true)
       .eq("is_reserve_funded", false);
     const heatingNumbers = new Set(["1400", "1410", "1450"]);
@@ -105,6 +105,7 @@ Deno.serve(async (req) => {
     const { data: bookings } = await admin
       .from("bookings")
       .select("account_id, counter_account_id, amount")
+      .eq("building_id", buildingId)
       .gte("booking_date", period.period_from)
       .lte("booking_date", period.period_to);
 
