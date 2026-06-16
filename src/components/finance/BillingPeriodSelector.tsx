@@ -190,6 +190,23 @@ export function BillingPeriodSelector({
     queryClient.invalidateQueries({ queryKey: ["billing-periods"] });
   };
 
+  const togglePeriodFinalized = async () => {
+    if (!selectedPeriod) return;
+    const isFinal = selectedPeriod.status === "completed" || selectedPeriod.status === "closed";
+    const nextStatus = isFinal ? "in_progress" : "completed";
+    const msg = isFinal
+      ? `Abrechnung ${selectedPeriod.fiscal_year} wieder öffnen?\n\nDer Zeitraum wird für Eigentümer im Service-Hub nicht mehr sichtbar sein.`
+      : `Abrechnung ${selectedPeriod.fiscal_year} finalisieren?\n\nDer Zeitraum wird damit für Eigentümer im Service-Hub freigeschaltet (Nebenkostenabrechnung).`;
+    if (!window.confirm(msg)) return;
+    const { error } = await supabase
+      .from("billing_periods")
+      .update({ status: nextStatus })
+      .eq("id", selectedPeriod.id);
+    if (error) { toast.error("Fehler: " + error.message); return; }
+    toast.success(isFinal ? "Abrechnung wieder geöffnet" : "Abrechnung finalisiert – im Service-Hub verfügbar");
+    queryClient.invalidateQueries({ queryKey: ["billing-periods"] });
+  };
+
   const statusInfo = selectedPeriod ? STATUS_LABELS[selectedPeriod.status] || STATUS_LABELS.draft : null;
 
   const formatPeriodLabel = (p: any) => {
