@@ -42,7 +42,7 @@ const GROUPS: { title: string; vars: { key: string; desc: string }[] }[] = [
       { key: "einheit", desc: "Wohnungs-/Einheits-Nr. (bei mehreren Einheiten desselben Eigentümers: Komma-Liste)" },
       { key: "rolle", desc: "Eigentümer / Mieter" },
       { key: "mea", desc: "Miteigentumsanteil (bei mehreren Einheiten: Summe)" },
-      { key: "einheiten", desc: "Komma-Liste aller Einheiten des Eigentümers, z. B. „1, 3, 7"" },
+      { key: "einheiten", desc: 'Komma-Liste aller Einheiten des Eigentümers, z. B. „1, 3, 7"' },
       { key: "einheiten_count", desc: "Anzahl der Einheiten des Eigentümers" },
       { key: "mea_summe", desc: "Summe der MEA aller Einheiten" },
     ],
