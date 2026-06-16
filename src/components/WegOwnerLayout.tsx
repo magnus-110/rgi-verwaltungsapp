@@ -22,7 +22,8 @@ import {
   FolderOpen,
   Users,
   ClipboardCheck,
-  Scale
+  Scale,
+  Store
 } from "lucide-react";
 
 interface WegOwnerLayoutProps {
