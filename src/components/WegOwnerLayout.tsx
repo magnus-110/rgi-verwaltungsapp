@@ -167,12 +167,13 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       path: '/weg-owner/meetings',
       active: location.pathname.startsWith('/weg-owner/meetings')
     },
-    { 
-      icon: Store, 
-      label: "Service-Hub", 
-      path: '/weg-owner/service-hub',
-      active: location.pathname.startsWith('/weg-owner/service-hub')
-    },
+    // Service-Hub vorübergehend deaktiviert – wird erst nach Freigabe wieder eingeblendet
+    // {
+    //   icon: Store,
+    //   label: "Service-Hub",
+    //   path: '/weg-owner/service-hub',
+    //   active: location.pathname.startsWith('/weg-owner/service-hub')
+    // },
     { 
       icon: Sparkles, 
       label: "Chat", 
