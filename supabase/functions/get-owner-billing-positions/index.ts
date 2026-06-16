@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
       .from("chart_of_accounts")
       .select("id, account_number, account_name, default_distribution_key")
       .eq("building_id", buildingId)
-      .eq("umlagefaehig", true)
+      .eq("is_distributable", true)
       .eq("is_reserve_funded", false);
     const heatingNumbers = new Set(["1400", "1410", "1450"]);
     const relevant = (accounts ?? []).filter(
