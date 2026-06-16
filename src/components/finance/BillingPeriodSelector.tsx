@@ -6,7 +6,7 @@ import { useFiscalYearContext } from "@/contexts/FiscalYearContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Lock, Unlock } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -190,6 +190,23 @@ export function BillingPeriodSelector({
     queryClient.invalidateQueries({ queryKey: ["billing-periods"] });
   };
 
+  const togglePeriodFinalized = async () => {
+    if (!selectedPeriod) return;
+    const isFinal = selectedPeriod.status === "completed" || selectedPeriod.status === "closed";
+    const nextStatus = isFinal ? "in_progress" : "completed";
+    const msg = isFinal
+      ? `Abrechnung ${selectedPeriod.fiscal_year} wieder öffnen?\n\nDer Zeitraum wird für Eigentümer im Service-Hub nicht mehr sichtbar sein.`
+      : `Abrechnung ${selectedPeriod.fiscal_year} finalisieren?\n\nDer Zeitraum wird damit für Eigentümer im Service-Hub freigeschaltet (Nebenkostenabrechnung).`;
+    if (!window.confirm(msg)) return;
+    const { error } = await supabase
+      .from("billing_periods")
+      .update({ status: nextStatus })
+      .eq("id", selectedPeriod.id);
+    if (error) { toast.error("Fehler: " + error.message); return; }
+    toast.success(isFinal ? "Abrechnung wieder geöffnet" : "Abrechnung finalisiert – im Service-Hub verfügbar");
+    queryClient.invalidateQueries({ queryKey: ["billing-periods"] });
+  };
+
   const statusInfo = selectedPeriod ? STATUS_LABELS[selectedPeriod.status] || STATUS_LABELS.draft : null;
 
   const formatPeriodLabel = (p: any) => {
@@ -233,6 +250,21 @@ export function BillingPeriodSelector({
               <Button size="sm" variant="outline" onClick={openEditDialog} className="h-11 md:h-10 px-3" title="Wirtschaftsjahr bearbeiten">
                 <Pencil className="h-4 w-4" />
               </Button>
+              {(() => {
+                const isFinal = selectedPeriod.status === "completed" || selectedPeriod.status === "closed";
+                return (
+                  <Button
+                    size="sm"
+                    variant={isFinal ? "outline" : "default"}
+                    onClick={togglePeriodFinalized}
+                    className="h-11 md:h-10 px-3"
+                    title={isFinal ? "Abrechnung wieder öffnen" : "Abrechnung finalisieren (für Eigentümer freischalten)"}
+                  >
+                    {isFinal ? <Unlock className="h-4 w-4 md:mr-1" /> : <Lock className="h-4 w-4 md:mr-1" />}
+                    <span className="hidden md:inline">{isFinal ? "Öffnen" : "Finalisieren"}</span>
+                  </Button>
+                );
+              })()}
               <Button
                 size="sm"
                 variant="outline"
