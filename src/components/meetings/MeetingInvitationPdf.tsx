@@ -100,7 +100,7 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
         type: "letter",
         template_id: selected.id,
         building_id: buildingId,
-        recipient_filter: { roles: ["eigentuemer"], contact_ids: [], assignment_ids: [] },
+        recipient_filter: { roles: ["eigentuemer"], contact_ids: [], assignment_ids: [], group_by_contact: true },
         status: "draft",
         created_by: userId,
       }).select().single();
