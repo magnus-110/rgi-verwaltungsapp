@@ -742,7 +742,7 @@ export const WegOwnerMeetings = () => {
                                 <h3 className="font-semibold">{meeting.title}</h3>
                                 <Badge variant="secondary">{statusLabels[meeting.status] || meeting.status}</Badge>
                               </div>
-                              <div className="flex gap-4 text-xs text-muted-foreground">
+                              <div className="space-y-1 text-xs text-muted-foreground">
                                 <span className="flex items-center gap-1">
                                   <Calendar className="h-3 w-3" />
                                   {formatDate(new Date(meeting.meeting_date), "dd.MM.yyyy 'um' HH:mm 'Uhr'", { locale: de })}
