@@ -45,18 +45,23 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
   });
 
 
-  const { data: ownerCount = 0 } = useQuery({
-    queryKey: ["etv-owner-count", buildingId],
+  const { data: ownerStats = { owners: 0, units: 0 } } = useQuery({
+    queryKey: ["etv-owner-stats", buildingId],
     queryFn: async () => {
-      const { count, error } = await supabase
+      const { data, error } = await supabase
         .from("contact_building_assignments")
-        .select("id", { count: "exact", head: true })
+        .select("contact_id")
         .eq("building_id", buildingId)
-        .eq("role_in_building", "eigentuemer");
+        .eq("role_in_building", "eigentuemer")
+        .or("is_active.is.null,is_active.eq.true");
       if (error) throw error;
-      return count || 0;
+      const units = data?.length || 0;
+      const owners = new Set((data || []).map((r: any) => r.contact_id)).size;
+      return { owners, units };
     },
   });
+  const ownerCount = ownerStats.owners;
+  const unitCount = ownerStats.units;
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["comm-templates", buildingId, "letter", "etv_invitation"],
@@ -95,7 +100,7 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
         type: "letter",
         template_id: selected.id,
         building_id: buildingId,
-        recipient_filter: { roles: ["eigentuemer"], contact_ids: [], assignment_ids: [] },
+        recipient_filter: { roles: ["eigentuemer"], contact_ids: [], assignment_ids: [], group_by_contact: true },
         status: "draft",
         created_by: userId,
       }).select().single();
@@ -156,7 +161,7 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
             </div>
             <div className="flex items-center gap-1.5">
               <Users className="h-3.5 w-3.5" />
-              {ownerCount} Eigentümer
+              {ownerCount} Eigentümer ({unitCount} Einheiten)
             </div>
           </div>
 
@@ -246,8 +251,14 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-primary" />
                   <strong>{ownerCount}</strong> Eigentümer als Empfänger
+                  {unitCount > ownerCount && (
+                    <span className="text-xs text-muted-foreground">
+                      ({unitCount} Einheiten zusammengefasst)
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground pl-6">
+                  Mehrere Einheiten desselben Eigentümers werden in <strong>einer</strong> Einladung gebündelt.
                   ETV-Daten ({meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString("de-DE") : "—"},{" "}
                   {meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "—"}, {meeting?.location}) werden automatisch eingesetzt.
                 </p>

@@ -11,6 +11,12 @@ export type RecipientFilter = {
   /** If true, emit one recipient per distinct email address on the contact
    *  (contact_emails + every contact_persons.email). Used for Rundmails. */
   expand_all_emails?: boolean;
+  /** If true, alle Assignments (= Wohneinheiten) desselben Eigentümers im
+   *  Gebäude werden zu EINEM Empfänger zusammengefasst. Variablen `einheit`/`mea`
+   *  enthalten dann die Komma-Liste bzw. die Summe; zusätzlich werden
+   *  `einheiten`, `einheiten_count`, `mea_summe` und das Loop-Array
+   *  `einheiten_liste` befüllt. */
+  group_by_contact?: boolean;
 };
 
 export type ResolvedRecipient = {
@@ -19,7 +25,7 @@ export type ResolvedRecipient = {
   building_id: string;
   display_name: string;
   email: string | null;
-  vars: Record<string, string>;
+  vars: Record<string, any>;
 };
 
 const monthsDe = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
@@ -140,11 +146,42 @@ export async function loadRecipients(
 
   const recipients: ResolvedRecipient[] = [];
 
-  for (const a of assignments) {
-    const c = contactMap.get(a.contact_id);
+  // Helper: MEA value (as number) for an assignment
+  const meaValueOf = (a: any): number => {
+    const shares = (a as any).contact_building_shares || [];
+    const m = shares.find((s: any) => s.share_type === "mea");
+    if (!m || m.share_value == null) return 0;
+    const v = Number(m.share_value);
+    return Number.isFinite(v) ? v : 0;
+  };
+  const formatMea = (v: number): string =>
+    v > 0 ? v.toLocaleString("de-DE", { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : "";
+
+  // Build iteration groups: one group of assignments per recipient.
+  // - group_by_contact = true  → 1 Gruppe pro contact_id (alle Einheiten zusammen)
+  // - sonst                    → 1 Gruppe pro Assignment (Legacy-Verhalten)
+  type Group = { contact_id: string; assignments: any[] };
+  const groups: Group[] = [];
+  if (filter.group_by_contact) {
+    const byContact = new Map<string, any[]>();
+    for (const a of assignments) {
+      const arr = byContact.get(a.contact_id) || [];
+      arr.push(a);
+      byContact.set(a.contact_id, arr);
+    }
+    for (const [contact_id, arr] of byContact.entries()) {
+      groups.push({ contact_id, assignments: arr });
+    }
+  } else {
+    for (const a of assignments) groups.push({ contact_id: a.contact_id, assignments: [a] });
+  }
+
+  for (const group of groups) {
+    const a = group.assignments[0]; // primary assignment (für Kontakt-Bezug)
+    const c = contactMap.get(group.contact_id);
     if (!c) continue;
 
-    const personList = personsByContact.get(a.contact_id) || [];
+    const personList = personsByContact.get(group.contact_id) || [];
     const primaryPerson = personList.find((p) => p.is_primary) || personList[0] || null;
 
     // Build list of (email, person) candidates. Person is the one whose
@@ -161,7 +198,7 @@ export async function loadRecipients(
       }
     };
     // contact_emails first (primary first)
-    const eList = emailsByContact.get(a.contact_id) || [];
+    const eList = emailsByContact.get(group.contact_id) || [];
     const sortedEmails = [...eList].sort((x, y) => Number(!!y.is_primary) - Number(!!x.is_primary));
     for (const row of sortedEmails) pushUnique(row?.email, null);
     // person emails (primary first)
@@ -191,6 +228,15 @@ export async function loadRecipients(
       pairs = [{ email: candidates[0]?.email || "", person: primaryPerson }];
     }
 
+    // Aggregierte Einheiten-Infos (sinnvoll auch für Single-Gruppen)
+    const einheiten_liste = group.assignments.map((ag) => ({
+      einheit: ag.unit_number || "",
+      mea: formatMea(meaValueOf(ag)),
+      rolle: ag.role_in_building || "",
+    }));
+    const einheitenStr = einheiten_liste.map((e) => e.einheit).filter(Boolean).join(", ");
+    const meaSumStr = formatMea(group.assignments.reduce((s, ag) => s + meaValueOf(ag), 0));
+
     for (const pair of pairs) {
       const personForVars = pair.person || primaryPerson;
       const firstName = personForVars?.first_name || c.first_name || "";
@@ -210,7 +256,16 @@ export async function loadRecipients(
       const adresseBlock = makeAdresseBlock({ firma, vollname, strasse, plz, ort });
       const today = new Date();
 
-      const vars: Record<string, string> = {
+      // Bei Gruppierung: einheit/mea als Komma-Liste / Summe ausgeben, damit
+      // alte Vorlagen mit {{einheit}} / {{mea}} weiterhin funktionieren.
+      const einheitVar = filter.group_by_contact && group.assignments.length > 1
+        ? einheitenStr
+        : (a.unit_number || "");
+      const meaVar = filter.group_by_contact && group.assignments.length > 1
+        ? meaSumStr
+        : formatMea(meaValueOf(a));
+
+      const vars: Record<string, any> = {
         anrede: salutation || "",
         anrede_brief: makeAnredeBrief(salutation, lastName),
         vorname: firstName,
@@ -228,14 +283,12 @@ export async function loadRecipients(
         gebaeude_strasse: building.address || "",
         gebaeude_plz: "",
         gebaeude_ort: "",
-        einheit: a.unit_number || "",
-        mea: (() => {
-          const shares = (a as any).contact_building_shares || [];
-          const m = shares.find((s: any) => s.share_type === "mea");
-          if (!m || m.share_value == null) return "";
-          const v = Number(m.share_value);
-          return Number.isFinite(v) ? v.toLocaleString("de-DE", { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : String(m.share_value);
-        })(),
+        einheit: einheitVar,
+        mea: meaVar,
+        einheiten: einheitenStr,
+        einheiten_count: String(group.assignments.length),
+        mea_summe: meaSumStr,
+        einheiten_liste,
         rolle: a.role_in_building || "",
         verwalter_name: managerDisplayName || building.manager_name || "",
         verwalter_email: managerProfile?.email || "",
@@ -246,7 +299,7 @@ export async function loadRecipients(
       };
 
       recipients.push({
-        contact_id: a.contact_id,
+        contact_id: group.contact_id,
         person_id: personForVars?.id || null,
         building_id: buildingId,
         display_name: vollname || firma || "(ohne Name)",
