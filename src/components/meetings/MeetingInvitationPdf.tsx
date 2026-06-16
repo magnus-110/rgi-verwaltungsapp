@@ -161,7 +161,7 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
             </div>
             <div className="flex items-center gap-1.5">
               <Users className="h-3.5 w-3.5" />
-              {ownerCount} Eigentümer
+              {ownerCount} Eigentümer ({unitCount} Einheiten)
             </div>
           </div>
 
