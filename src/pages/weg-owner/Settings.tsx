@@ -167,35 +167,6 @@ export const WegOwnerSettings = () => {
        </div>
        <OwnerSelfServiceSection />
 
-       <Card>
-         <CardHeader>
-           <CardTitle className="flex items-center gap-2">
-             <User className="w-5 h-5" /> Ihr Name
-           </CardTitle>
-           <CardDescription>
-             So werden Sie in der App und gegenüber der Hausverwaltung angezeigt. Änderungen werden sofort beim Admin sichtbar.
-           </CardDescription>
-         </CardHeader>
-         <CardContent className="space-y-4">
-           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-             <div className="space-y-2">
-               <Label htmlFor="first-name" className="text-xs">Vorname</Label>
-               <Input id="first-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-             </div>
-             <div className="space-y-2">
-               <Label htmlFor="last-name" className="text-xs">Nachname</Label>
-               <Input id="last-name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
-             </div>
-           </div>
-           <Button
-             onClick={handleNameSave}
-             disabled={isUpdatingName || (firstName === (profile?.first_name ?? "") && lastName === (profile?.last_name ?? ""))}
-             className="w-full"
-           >
-             {isUpdatingName ? "Wird gespeichert..." : "Namen speichern"}
-           </Button>
-         </CardContent>
-       </Card>
 
        <Card>
          <CardHeader>
