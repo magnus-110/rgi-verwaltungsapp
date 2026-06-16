@@ -326,8 +326,9 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
       if (isDisabled()) return;
       void startTour(tourId);
     },
-    [startTour]
+    [startTour, isDisabled]
   );
+
 
   const hasSeen = useCallback(
     (tourId: string) => Boolean(progress?.[tourId]),
