@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   ChevronDown,
@@ -37,6 +37,12 @@ interface EmergencyAssignment {
   } | null;
 }
 
+interface BuildingSummary {
+  id: string;
+  name: string;
+  address: string | null;
+}
+
 interface EntryRow {
   key: string;
   title: string;
@@ -44,6 +50,8 @@ interface EntryRow {
   email?: string;
   hint?: string | null;
   category?: string;
+  sortOrder?: number;
+  buildingId?: string;
 }
 
 const SectionHeading = ({ children }: { children: React.ReactNode }) => (
@@ -174,67 +182,88 @@ function PublicEmergencyEntry({
   );
 }
 
+const getName = (c: EmergencyAssignment["contact"]) =>
+  c?.company_name || [c?.first_name, c?.last_name].filter(Boolean).join(" ") || "Dienstleister";
+
+const buildRow = (a: EmergencyAssignment, fallbackCat: string): EntryRow | null => {
+  const c = a.contact;
+  if (!c) return null;
+  const phone = (c.contact_phones || [])[0]?.phone_number;
+  const primaryEmail =
+    (c.contact_emails || []).find((e) => e.is_primary)?.email ||
+    (c.contact_emails || [])[0]?.email;
+  const cat = a.service_category || fallbackCat;
+  return {
+    key: a.id,
+    buildingId: a.building_id,
+    sortOrder: a.emergency_sort_order ?? 999,
+    title: getName(c),
+    category: cat,
+    phone,
+    email: primaryEmail,
+    hint: a.emergency_note || getCategoryHint(cat),
+  };
+};
+
 export function EmergencyContactsWidget({ buildingIds }: Props) {
   const [open, setOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<EmergencyAssignment[]>([]);
+  const [buildings, setBuildings] = useState<BuildingSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       if (!buildingIds || buildingIds.length === 0) {
         setAssignments([]);
+        setBuildings([]);
         setLoading(false);
         return;
       }
       setLoading(true);
-      const { data: aData } = await supabase
-        .from("contact_building_assignments")
-        .select(`
-          id, building_id, service_category, emergency_note, emergency_sort_order,
-          contact:contacts(
-            id, company_name, first_name, last_name,
-            contact_phones(phone_number, label),
-            contact_emails(email, label, is_primary)
-          )
-        `)
-        .in("building_id", buildingIds)
-        .eq("is_active", true)
-        .eq("is_emergency_contact", true);
-      setAssignments((aData || []) as any[]);
+      const [assignmentsRes, buildingsRes] = await Promise.all([
+        supabase
+          .from("contact_building_assignments")
+          .select(`
+            id, building_id, service_category, emergency_note, emergency_sort_order,
+            contact:contacts(
+              id, company_name, first_name, last_name,
+              contact_phones(phone_number, label),
+              contact_emails(email, label, is_primary)
+            )
+          `)
+          .in("building_id", buildingIds)
+          .eq("is_active", true)
+          .eq("is_emergency_contact", true),
+        supabase
+          .from("buildings")
+          .select("id, name, address")
+          .in("id", buildingIds),
+      ]);
+      setAssignments((assignmentsRes.data || []) as any[]);
+      setBuildings((buildingsRes.data || []) as any[]);
       setLoading(false);
     };
     load();
   }, [JSON.stringify(buildingIds)]);
 
-  const getName = (c: EmergencyAssignment["contact"]) =>
-    c?.company_name || [c?.first_name, c?.last_name].filter(Boolean).join(" ") || "Dienstleister";
-
-  const sortedAssignments = [...assignments].sort(
-    (x, y) => (x.emergency_sort_order ?? 999) - (y.emergency_sort_order ?? 999)
-  );
-
-  const buildRow = (a: EmergencyAssignment, fallbackCat: string): EntryRow | null => {
-    const c = a.contact;
-    if (!c) return null;
-    const phone = (c.contact_phones || [])[0]?.phone_number;
-    const primaryEmail =
-      (c.contact_emails || []).find((e) => e.is_primary)?.email ||
-      (c.contact_emails || [])[0]?.email;
-    const cat = a.service_category || fallbackCat;
-    return {
-      key: a.id,
-      title: getName(c),
-      category: cat,
-      phone,
-      email: primaryEmail,
-      hint: a.emergency_note || getCategoryHint(cat),
-    };
-  };
-
-  const dienstleisterRows: EntryRow[] = sortedAssignments
-    .map((a) => buildRow(a, "Sonstiges"))
-    .filter((r): r is EntryRow => r !== null);
+  const groups = useMemo(() => {
+    const rowsByBuilding = new Map<string, EntryRow[]>();
+    assignments.forEach((a) => {
+      const row = buildRow(a, "Sonstiges");
+      if (!row) return;
+      const list = rowsByBuilding.get(a.building_id) || [];
+      list.push(row);
+      rowsByBuilding.set(a.building_id, list);
+    });
+    return buildings
+      .filter((b) => rowsByBuilding.has(b.id))
+      .sort((a, b) => a.name.localeCompare(b.name, "de"))
+      .map((b) => ({
+        building: b,
+        rows: rowsByBuilding.get(b.id)!.sort((x, y) => (x.sortOrder ?? 999) - (y.sortOrder ?? 999)),
+      }));
+  }, [assignments, buildings]);
 
   const notrufRows: EntryRow[] = PUBLIC_EMERGENCY_NUMBERS.map((n, idx) => ({
     key: `notruf-${idx}`,
@@ -287,31 +316,38 @@ export function EmergencyContactsWidget({ buildingIds }: Props) {
                 </p>
               </div>
 
-              {/* Dienstleister */}
+              {/* Dienstleister, gruppiert nach Gebäude */}
               <div className="h-px bg-foreground/[0.055]" />
-              <SectionHeading>
-                <span className="inline-flex items-center gap-1.5">
-                  <Wrench className="h-3 w-3" />
-                  Dienstleister
-                </span>
-              </SectionHeading>
-              {dienstleisterRows.length === 0 ? (
+              {groups.length === 0 ? (
                 <div className="px-4 py-3.5 text-[13px] text-muted-foreground">
                   Keine Dienstleister als Notfallkontakt freigeschaltet.
                 </div>
               ) : (
-                dienstleisterRows.map((row, idx) => (
-                  <div key={row.key}>
-                    {idx > 0 && <div className="h-px bg-foreground/[0.055] ml-[60px]" />}
-                    <ServiceProviderEntry
-                      row={row}
-                      iconBg="bg-orange-500/10"
-                      iconColor="text-orange-600"
-                      expanded={expandedId === row.key}
-                      onToggle={() =>
-                        setExpandedId((cur) => (cur === row.key ? null : row.key))
-                      }
-                    />
+                groups.map((group, groupIndex) => (
+                  <div key={group.building.id}>
+                    <SectionHeading>
+                      <span className="inline-flex items-center gap-1.5">
+                        <Wrench className="h-3 w-3" />
+                        Dienstleister – {group.building.name}
+                      </span>
+                    </SectionHeading>
+                    {group.rows.map((row, idx) => (
+                      <div key={row.key}>
+                        {idx > 0 && <div className="h-px bg-foreground/[0.055] ml-[60px]" />}
+                        <ServiceProviderEntry
+                          row={row}
+                          iconBg="bg-orange-500/10"
+                          iconColor="text-orange-600"
+                          expanded={expandedId === row.key}
+                          onToggle={() =>
+                            setExpandedId((cur) => (cur === row.key ? null : row.key))
+                          }
+                        />
+                      </div>
+                    ))}
+                    {groupIndex < groups.length - 1 && (
+                      <div className="h-px bg-foreground/[0.055]" />
+                    )}
                   </div>
                 ))
               )}
