@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
     const { data: assignments, error: aErr } = await admin
       .from("contact_building_assignments")
       .select(
-        "id, unit_number, building_id, is_active, buildings(name, address_street, address_zip, address_city)",
+        "id, unit_number, building_id, is_active, buildings(name, address)",
       )
       .in("contact_id", contactIds)
       .eq("is_active", true);
@@ -51,14 +51,7 @@ Deno.serve(async (req) => {
       unit_number: r.unit_number,
       building_id: r.building_id,
       building_name: r.buildings?.name ?? "Gebäude",
-      building_address: [
-        r.buildings?.address_street,
-        [r.buildings?.address_zip, r.buildings?.address_city]
-          .filter(Boolean)
-          .join(" "),
-      ]
-        .filter(Boolean)
-        .join(", "),
+      building_address: r.buildings?.address ?? "",
     }));
 
     return json({ units });
