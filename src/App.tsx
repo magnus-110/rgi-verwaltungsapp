@@ -161,6 +161,11 @@ const App = () => (
               <Route path="/weg-owner/meetings" element={<WegOwnerLayout><WegOwnerMeetings /></WegOwnerLayout>} />
               <Route path="/weg-owner/kassenpruefung" element={<WegOwnerLayout><WegOwnerCashAudit /></WegOwnerLayout>} />
               <Route path="/weg-owner/resolutions" element={<WegOwnerLayout><WegOwnerResolutions /></WegOwnerLayout>} />
+              <Route path="/weg-owner/service-hub" element={<WegOwnerLayout><WegOwnerServiceHub /></WegOwnerLayout>} />
+              <Route path="/weg-owner/service-hub/nebenkosten" element={<WegOwnerLayout><WegOwnerNebenkostenTool /></WegOwnerLayout>} />
+              <Route path="/weg-owner/service-hub/erfolg" element={<WegOwnerLayout><WegOwnerServiceHubSuccess /></WegOwnerLayout>} />
+              <Route path="/legal/agb" element={<LegalAGB />} />
+              <Route path="/legal/datenschutz" element={<LegalDatenschutz />} />
               
               {/* Tenant Routes */}
               <Route path="/tenant/change-password" element={<TenantLayout><ChangePassword /></TenantLayout>} />
