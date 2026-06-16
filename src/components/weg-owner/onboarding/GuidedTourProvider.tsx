@@ -337,14 +337,9 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
 
   const isActive = useCallback(() => activeTourRef.current !== null, [activeTick]);
 
-  useEffect(() => {
-    if (loading || !user?.id || !progress) return;
-    if (isDisabled()) return;
-    if (!progress.dashboard) {
-      const t = window.setTimeout(() => guardedStartTour("dashboard"), 800);
-      return () => window.clearTimeout(t);
-    }
-  }, [loading, user?.id, progress, guardedStartTour]);
+  // Auto-Start der Dashboard-Tour wurde entfernt – Touren laufen nur noch
+  // on demand über den Hilfe-Button.
+
 
   useEffect(() => {
     return () => {

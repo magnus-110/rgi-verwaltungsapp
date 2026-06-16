@@ -91,41 +91,26 @@ export function WegOwnerNebenkostenTool() {
   const selectedAssignment = assignments.find((a) => a.id === assignmentId);
   const selectedPeriod = periods.find((p) => p.id === periodId);
 
-  // 1. Wohnungen laden
+  // 1. Wohnungen laden (via Edge Function – umgeht RLS-Edge-Cases)
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data: contacts } = await supabase
-        .from("contacts")
-        .select("id")
-        .eq("user_id", user.id);
-      const cIds = (contacts ?? []).map((c) => c.id);
-      if (cIds.length === 0) return;
-      const { data } = await supabase
-        .from("contact_building_assignments")
-        .select(
-          "id, unit_number, building_id, buildings(name, address_street, address_zip, address_city)",
-        )
-        .in("contact_id", cIds)
-        .eq("is_active", true);
-      const mapped: Assignment[] = (data ?? []).map((r: any) => ({
-        id: r.id,
-        unit_number: r.unit_number,
-        building_id: r.building_id,
-        building_name: r.buildings?.name,
-        building_address: [
-          r.buildings?.address_street,
-          [r.buildings?.address_zip, r.buildings?.address_city]
-            .filter(Boolean)
-            .join(" "),
-        ]
-          .filter(Boolean)
-          .join(", "),
-      }));
-      setAssignments(mapped);
-      if (mapped.length === 1) setAssignmentId(mapped[0].id);
+      try {
+        const { data, error } = await supabase.functions.invoke("list-owner-units");
+        if (error) throw error;
+        const units = (data?.units ?? []) as Assignment[];
+        if (units.length === 0) {
+          console.warn("[NebenkostenTool] keine Wohnungen für user", user.id);
+        }
+        setAssignments(units);
+        if (units.length === 1) setAssignmentId(units[0].id);
+      } catch (e) {
+        console.error("[NebenkostenTool] list-owner-units error", e);
+        toast.error("Wohnungen konnten nicht geladen werden.");
+      }
     })();
   }, [user]);
+
 
   // 2. Perioden laden
   useEffect(() => {
