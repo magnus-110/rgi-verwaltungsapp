@@ -89,14 +89,17 @@ Deno.serve(async (req) => {
     // Konten
     const { data: accounts } = await admin
       .from("chart_of_accounts")
-      .select("id, account_number, account_name, default_distribution_key, building_id")
+      .select("id, account_number, account_name, default_distribution_key, building_id, category")
       .or(`building_id.eq.${buildingId},building_id.is.null`)
       .eq("is_distributable", true)
       .eq("is_reserve_funded", false);
     const heatingNumbers = new Set(["1400", "1410", "1450"]);
-    const relevant = (accounts ?? []).filter(
-      (a: any) => !heatingNumbers.has(a.account_number),
-    );
+    // Nur mieterumlagefähige Kosten (BetrKV): Kategorien "1. Umlagefähige Betriebskosten" und "2. Heizung & Warme BK"
+    const relevant = (accounts ?? []).filter((a: any) => {
+      if (heatingNumbers.has(a.account_number)) return false;
+      const cat = String(a.category ?? "");
+      return cat.startsWith("1.") || cat.startsWith("2.");
+    });
     if (relevant.length === 0) return json({ positions: [] });
 
     const relevantIds = relevant.map((a: any) => a.id);
