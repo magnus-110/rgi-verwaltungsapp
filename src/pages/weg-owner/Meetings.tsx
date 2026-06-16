@@ -66,6 +66,8 @@ export const WegOwnerMeetings = () => {
   const [expandedTopIds, setExpandedTopIds] = useState<Set<string>>(new Set());
   const [redeemDialogOpen, setRedeemDialogOpen] = useState(false);
   const [redeemInput, setRedeemInput] = useState("");
+  const [pendingProxyMeetingId, setPendingProxyMeetingId] = useState<string | null>(null);
+
 
   // TOP submission form
   const [topTitle, setTopTitle] = useState("");
@@ -327,6 +329,33 @@ export const WegOwnerMeetings = () => {
       autoRegisterRef.current = false;
     }
   }, [selectedMeetingId, myAssignments.length, myAttendees.length, selectedMeetingForAutoReg?.status]);
+
+  // Auto-open Vollmacht dialog when user clicked "Vollmacht" on a meeting card.
+  // Waits until agenda items and attendee record are loaded for the meeting.
+  useEffect(() => {
+    if (!pendingProxyMeetingId) return;
+    if (pendingProxyMeetingId !== selectedMeetingId) return;
+    if (myAssignments.length === 0) return;
+    if (agendaItems.length === 0) return;
+    // Need an attendee row for this assignment to attach the proxy to
+    const assignment = myAssignments[0];
+    const attendee = myAttendees.find((a: any) => a.assignment_id === assignment.id);
+    if (!attendee) return;
+
+    setProxyAssignmentId(assignment.id);
+    setProxyType("manager");
+    setProxyContactId("");
+    setProxyExternalName("");
+    setCreatedProxyToken(null);
+    const initial: Record<string, string> = {};
+    agendaItems.forEach((item: any) => { initial[item.id] = "frei"; });
+    setVotingInstructions(initial);
+    setProxyStep(1);
+    setExpandedTopIds(new Set());
+    setShowProxyDialog(true);
+    setPendingProxyMeetingId(null);
+  }, [pendingProxyMeetingId, selectedMeetingId, myAssignments, myAttendees, agendaItems]);
+
 
   // Load other owners for proxy selection
   const myAssignmentIds = myAssignments.map(a => a.id);
@@ -781,11 +810,15 @@ export const WegOwnerMeetings = () => {
                                           size="sm"
                                           variant={current === "proxy" ? "default" : "outline"}
                                           className="h-8 gap-1.5"
-                                          onClick={() => setSelectedMeetingId(meeting.id)}
+                                          onClick={() => {
+                                            setSelectedMeetingId(meeting.id);
+                                            setPendingProxyMeetingId(meeting.id);
+                                          }}
                                         >
                                           <Shield className="h-3.5 w-3.5" />
                                           Vollmacht
                                         </Button>
+
                                         <Button
                                           size="sm"
                                           variant={current === "absent" ? "default" : "outline"}
