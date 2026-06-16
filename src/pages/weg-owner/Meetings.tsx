@@ -66,6 +66,8 @@ export const WegOwnerMeetings = () => {
   const [expandedTopIds, setExpandedTopIds] = useState<Set<string>>(new Set());
   const [redeemDialogOpen, setRedeemDialogOpen] = useState(false);
   const [redeemInput, setRedeemInput] = useState("");
+  const [pendingProxyMeetingId, setPendingProxyMeetingId] = useState<string | null>(null);
+
 
   // TOP submission form
   const [topTitle, setTopTitle] = useState("");
