@@ -251,8 +251,14 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-primary" />
                   <strong>{ownerCount}</strong> Eigentümer als Empfänger
+                  {unitCount > ownerCount && (
+                    <span className="text-xs text-muted-foreground">
+                      ({unitCount} Einheiten zusammengefasst)
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground pl-6">
+                  Mehrere Einheiten desselben Eigentümers werden in <strong>einer</strong> Einladung gebündelt.
                   ETV-Daten ({meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString("de-DE") : "—"},{" "}
                   {meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "—"}, {meeting?.location}) werden automatisch eingesetzt.
                 </p>
