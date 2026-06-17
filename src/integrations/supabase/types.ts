@@ -8412,6 +8412,7 @@ export type Database = {
           id: string
           label: string | null
           note: string | null
+          prorata_exempt: boolean
           updated_at: string
           user_id: string
         }
@@ -8424,6 +8425,7 @@ export type Database = {
           id?: string
           label?: string | null
           note?: string | null
+          prorata_exempt?: boolean
           updated_at?: string
           user_id: string
         }
@@ -8436,6 +8438,7 @@ export type Database = {
           id?: string
           label?: string | null
           note?: string | null
+          prorata_exempt?: boolean
           updated_at?: string
           user_id?: string
         }

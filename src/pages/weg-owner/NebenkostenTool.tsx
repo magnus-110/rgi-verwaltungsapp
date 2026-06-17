@@ -67,6 +67,7 @@ type ExtraCost = {
   cost_type: string;
   label: string;
   amount: number;
+  prorata_exempt?: boolean;
 };
 
 const DEFAULT_EXTRA_COST_TYPES = [
@@ -216,6 +217,7 @@ export function WegOwnerNebenkostenTool() {
           cost_type: c.cost_type,
           label: c.label ?? c.cost_type,
           amount: Number(c.amount),
+          prorata_exempt: !!c.prorata_exempt,
         }));
         setExtraCosts(ec);
       } catch (e) {
@@ -253,7 +255,10 @@ export function WegOwnerNebenkostenTool() {
   };
 
   const addExtraCost = (type = "sonstige", label = "Neue Position") => {
-    setExtraCosts((prev) => [...prev, { cost_type: type, label, amount: 0 }]);
+    setExtraCosts((prev) => [
+      ...prev,
+      { cost_type: type, label, amount: 0, prorata_exempt: false },
+    ]);
   };
   const removeExtraCost = async (idx: number) => {
     const ec = extraCosts[idx];
@@ -275,6 +280,7 @@ export function WegOwnerNebenkostenTool() {
       cost_type: c.cost_type,
       label: c.label,
       amount: c.amount,
+      prorata_exempt: !!c.prorata_exempt,
     };
     if (c.id) {
       await supabase.from("service_owner_costs").update(payload).eq("id", c.id);
@@ -288,11 +294,25 @@ export function WegOwnerNebenkostenTool() {
     }
   };
 
-  // Effektiver Betrag je Position (Override hat Vorrang)
+  // Tagesgenaue Pro-Rata bei Mieterwechsel
+  const prorata = useMemo(
+    () => computeProrata(moveIn, moveOut, tenantChanged, selectedPeriod),
+    [moveIn, moveOut, tenantChanged, selectedPeriod],
+  );
+
+  // Faktor für eine Auto-Position (verbrauchsabhängige bleiben ungekürzt)
+  const factorForAuto = (p: AutoPosition) =>
+    prorata.active && !p.consumption_based ? prorata.factor : 1;
+
+  // Effektiver Betrag je Position: Override hat Vorrang, sonst share × Faktor
   const effectivePositionAmount = (p: AutoPosition) => {
     const ov = positionOverrides[p.account_number];
-    return ov !== undefined ? ov : p.share_amount;
+    if (ov !== undefined) return ov;
+    return round2(p.share_amount * factorForAuto(p));
   };
+
+  const effectiveExtraAmount = (c: ExtraCost) =>
+    prorata.active && !c.prorata_exempt ? round2(c.amount * prorata.factor) : c.amount;
 
   // Summen
   const totals = useMemo(() => {
@@ -300,12 +320,22 @@ export function WegOwnerNebenkostenTool() {
       .filter((p) => !disabledAccounts.has(p.account_number))
       .reduce((s, p) => s + effectivePositionAmount(p), 0);
     const heatingValue = Number(heatingOverride) || 0;
-    const extraSum = extraCosts.reduce((s, c) => s + (c.amount || 0), 0);
+    const extraSum = extraCosts.reduce((s, c) => s + effectiveExtraAmount(c), 0);
     const costSum = autoSum + heatingValue + extraSum;
-    const months = monthsInPeriod(moveIn, moveOut, selectedPeriod);
-    const prepaySum = (Number(prepayMonthly) || 0) * months;
+    // Vorauszahlung: 12 Monatsraten anteilig auf die Mietzeit (tagesgenau)
+    const prepayFull = (Number(prepayMonthly) || 0) * 12;
+    const prepaySum = prorata.active ? prepayFull * prorata.factor : prepayFull;
     const result = costSum - prepaySum;
-    return { autoSum, heatingValue, extraSum, costSum, prepaySum, result, months };
+    return {
+      autoSum,
+      heatingValue,
+      extraSum,
+      costSum,
+      prepaySum: round2(prepaySum),
+      result: round2(result),
+      months: prorata.tenantDays / 30.42, // Info-Wert
+      prorata,
+    };
   }, [
     autoPositions,
     positionOverrides,
@@ -313,9 +343,7 @@ export function WegOwnerNebenkostenTool() {
     heatingOverride,
     extraCosts,
     prepayMonthly,
-    moveIn,
-    moveOut,
-    selectedPeriod,
+    prorata,
   ]);
 
   const canBuy = !!(
@@ -359,10 +387,12 @@ export function WegOwnerNebenkostenTool() {
             account_name: p.account_name,
             total_amount: p.total_amount,
             share_amount: effectivePositionAmount(p),
+            full_share_amount: p.share_amount,
             distribution_key: p.distribution_key,
             consumption_based: !!p.consumption_based,
             user_adjusted:
               positionOverrides[p.account_number] !== undefined,
+            prorata_factor: factorForAuto(p),
           })),
         heating: heating
           ? {
@@ -377,8 +407,19 @@ export function WegOwnerNebenkostenTool() {
         extra_costs: extraCosts.map((c) => ({
           cost_type: c.cost_type,
           label: c.label,
-          amount: c.amount,
+          amount: effectiveExtraAmount(c),
+          full_amount: c.amount,
+          prorata_exempt: !!c.prorata_exempt,
+          prorata_factor: prorata.active && !c.prorata_exempt ? prorata.factor : 1,
         })),
+        prorata: {
+          active: prorata.active,
+          tenant_days: prorata.tenantDays,
+          period_days: prorata.periodDays,
+          factor: prorata.factor,
+          from: prorata.fromISO,
+          to: prorata.toISO,
+        },
         totals,
       };
 
@@ -667,6 +708,26 @@ export function WegOwnerNebenkostenTool() {
                 )}
               </SectionCard>
 
+              {/* Pro-Rata-Banner bei Mieterwechsel */}
+              {prorata.active && (
+                <div
+                  className="mt-4 rounded-xl px-4 py-3 text-xs flex items-start gap-2"
+                  style={{ background: RGI.amberBg, color: RGI.amber, border: `1px solid ${RGI.border}` }}
+                >
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <div>
+                    <strong>Zeitanteilige Abrechnung:</strong>{" "}
+                    {prorata.fromISO && prorata.toISO && (
+                      <>vom {formatDe(prorata.fromISO)} bis {formatDe(prorata.toISO)} – </>
+                    )}
+                    {prorata.tenantDays} von {prorata.periodDays} Tagen (
+                    {(prorata.factor * 100).toLocaleString("de-DE", { maximumFractionDigits: 1 })} %).
+                    Beträge sind tagesgenau gekürzt; verbrauchsabhängige Posten
+                    und die Heizkostenabrechnung des Messdienstes bleiben unverändert.
+                  </div>
+                </div>
+              )}
+
               {/* 4. Umlagefähige Kosten */}
               <SectionCard num={4} title="Umlagefähige Kosten" icon={Receipt}>
                 <div
@@ -688,8 +749,9 @@ export function WegOwnerNebenkostenTool() {
                       const disabled = disabledAccounts.has(p.account_number);
                       const consumption = !!p.consumption_based;
                       const override = positionOverrides[p.account_number];
-                      const value =
-                        override !== undefined ? override : p.share_amount;
+                      const autoValue = round2(p.share_amount * factorForAuto(p));
+                      const value = override !== undefined ? override : autoValue;
+                      const prorataApplied = prorata.active && !consumption;
                       return (
                         <div
                           key={p.account_number}
@@ -734,6 +796,14 @@ export function WegOwnerNebenkostenTool() {
                                     style={{ background: "#fff", color: RGI.amber }}
                                   >
                                     nach Verbrauch
+                                  </span>
+                                )}
+                                {prorataApplied && override === undefined && (
+                                  <span
+                                    className="px-1.5 py-0.5 rounded-full text-[10px] font-medium ml-1"
+                                    style={{ background: "#fff", color: RGI.amber }}
+                                  >
+                                    zeitanteilig
                                   </span>
                                 )}
                               </div>
@@ -784,53 +854,110 @@ export function WegOwnerNebenkostenTool() {
                 <p className="text-xs mb-3" style={{ color: RGI.muted }}>
                   Direkt bei Ihnen angefallene umlagefähige Kosten (Grundsteuer,
                   Kabel-TV, Wartung Sondereigentum, einzelne Reparaturen …).
+                  {prorata.active && (
+                    <>
+                      {" "}Standardmäßig werden diese tagesgenau gekürzt. Bei
+                      Einmalkosten den Schalter „ganzjährig" aktivieren, damit
+                      der volle Betrag berechnet wird.
+                    </>
+                  )}
                 </p>
                 <div className="space-y-2">
-                  {extraCosts.map((c, idx) => (
-                    <div
-                      key={idx}
-                      className="rounded-lg p-3"
-                      style={{
-                        background: RGI.amberBg,
-                        border: `1px solid ${RGI.border}`,
-                      }}
-                    >
-                      <div className="flex items-start gap-2">
-                        <div className="flex-1 space-y-2">
-                          <Input
-                            className="h-11"
-                            value={c.label}
-                            onChange={(e) =>
-                              updateExtraCost(idx, { label: e.target.value })
-                            }
-                            onBlur={() => saveExtraCost(idx)}
-                            placeholder="Bezeichnung"
-                          />
-                          <Input
-                            type="number"
-                            step="0.01"
-                            className="h-11 text-right font-semibold"
-                            value={c.amount}
-                            onChange={(e) =>
-                              updateExtraCost(idx, {
-                                amount: Number(e.target.value),
-                              })
-                            }
-                            onBlur={() => saveExtraCost(idx)}
-                            placeholder="0,00 €"
-                          />
+                  {extraCosts.map((c, idx) => {
+                    const exempt = !!c.prorata_exempt;
+                    const effective = effectiveExtraAmount(c);
+                    const prorataApplied = prorata.active && !exempt;
+                    return (
+                      <div
+                        key={c.id ?? `new-${idx}`}
+                        className="rounded-xl px-4 py-3 transition-all"
+                        style={{
+                          border: `1px solid transparent`,
+                          background: RGI.amberBg,
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            aria-label="Position entfernen"
+                            className="shrink-0 h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/60 transition"
+                            onClick={() => removeExtraCost(idx)}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <input
+                              type="text"
+                              value={c.label}
+                              placeholder="Bezeichnung"
+                              className="w-full bg-transparent border-0 outline-none font-semibold text-sm leading-tight focus:ring-0 placeholder:text-muted-foreground/60"
+                              style={{ color: RGI.text }}
+                              onChange={(e) =>
+                                updateExtraCost(idx, { label: e.target.value })
+                              }
+                              onBlur={() => saveExtraCost(idx)}
+                            />
+                            <div
+                              className="text-[11px] mt-0.5 flex items-center gap-1.5 flex-wrap"
+                              style={{ color: RGI.muted }}
+                            >
+                              <span>Schlüssel DIREKT</span>
+                              {prorataApplied && (
+                                <>
+                                  <span>·</span>
+                                  <span>
+                                    Vollbetrag {c.amount.toFixed(2)} € →{" "}
+                                    {effective.toFixed(2)} €
+                                  </span>
+                                </>
+                              )}
+                              <label className="ml-auto inline-flex items-center gap-1 cursor-pointer">
+                                <Checkbox
+                                  checked={exempt}
+                                  className="h-3.5 w-3.5"
+                                  onCheckedChange={(v) => {
+                                    updateExtraCost(idx, { prorata_exempt: !!v });
+                                    setTimeout(() => saveExtraCost(idx), 0);
+                                  }}
+                                />
+                                <span className="text-[10px] uppercase tracking-wide">
+                                  ganzjährig
+                                </span>
+                              </label>
+                            </div>
+                          </div>
+                          <div
+                            className="flex items-baseline gap-1 shrink-0 pl-2"
+                            style={{ borderLeft: `1px solid rgba(0,0,0,0.08)` }}
+                          >
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              aria-label={`Betrag ${c.label}`}
+                              className="w-24 bg-transparent border-0 outline-none text-right text-lg font-semibold tabular-nums focus:ring-0"
+                              style={{ color: RGI.text }}
+                              value={c.amount.toLocaleString("de-DE", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                              onChange={(e) => {
+                                const raw = e.target.value
+                                  .replace(/\./g, "")
+                                  .replace(",", ".");
+                                const num = raw === "" ? 0 : Number(raw);
+                                if (Number.isNaN(num)) return;
+                                updateExtraCost(idx, { amount: num });
+                              }}
+                              onBlur={() => saveExtraCost(idx)}
+                            />
+                            <span className="text-sm font-medium" style={{ color: RGI.muted }}>
+                              €
+                            </span>
+                          </div>
                         </div>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-11 w-11"
-                          onClick={() => removeExtraCost(idx)}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {DEFAULT_EXTRA_COST_TYPES.map((d) => (
@@ -856,6 +983,8 @@ export function WegOwnerNebenkostenTool() {
                   </Button>
                 </div>
               </SectionCard>
+
+
 
               {/* Haftungs-Hinweis */}
               <div
@@ -1103,22 +1232,74 @@ function LoadingRow() {
   );
 }
 
-function monthsInPeriod(
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function formatDe(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}.${m}.${y}`;
+}
+
+
+function parseISODate(s: string): Date | null {
+  if (!s) return null;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function daysBetweenInclusive(from: Date, to: Date): number {
+  const ms = to.getTime() - from.getTime();
+  return Math.max(0, Math.round(ms / 86400000) + 1);
+}
+
+export type ProrataInfo = {
+  active: boolean;
+  factor: number;
+  tenantDays: number;
+  periodDays: number;
+  fromISO: string | null;
+  toISO: string | null;
+};
+
+function computeProrata(
   moveIn: string,
   moveOut: string,
+  enabled: boolean,
   period?: FinalizedPeriod | undefined,
-): number {
-  if (!period) return 0;
-  const pFrom = new Date(period.period_from);
-  const pTo = new Date(period.period_to);
-  const from = moveIn ? new Date(moveIn) : pFrom;
-  const to = moveOut ? new Date(moveOut) : pTo;
-  const start = from > pFrom ? from : pFrom;
-  const end = to < pTo ? to : pTo;
-  if (end < start) return 0;
-  const months =
-    (end.getFullYear() - start.getFullYear()) * 12 +
-    (end.getMonth() - start.getMonth()) +
-    1;
-  return Math.max(0, Math.min(12, months));
+): ProrataInfo {
+  const empty: ProrataInfo = {
+    active: false,
+    factor: 1,
+    tenantDays: 0,
+    periodDays: 0,
+    fromISO: null,
+    toISO: null,
+  };
+  if (!period) return empty;
+  const pFrom = parseISODate(period.period_from);
+  const pTo = parseISODate(period.period_to);
+  if (!pFrom || !pTo) return empty;
+  const periodDays = daysBetweenInclusive(pFrom, pTo);
+  if (!enabled || (!moveIn && !moveOut)) {
+    return { ...empty, periodDays, tenantDays: periodDays, factor: 1 };
+  }
+  const mIn = parseISODate(moveIn) ?? pFrom;
+  const mOut = parseISODate(moveOut) ?? pTo;
+  const from = mIn > pFrom ? mIn : pFrom;
+  const to = mOut < pTo ? mOut : pTo;
+  if (to < from) {
+    return { ...empty, periodDays, tenantDays: 0, factor: 0, active: true };
+  }
+  const tenantDays = daysBetweenInclusive(from, to);
+  const factor = periodDays > 0 ? tenantDays / periodDays : 1;
+  return {
+    active: factor < 1,
+    factor,
+    tenantDays,
+    periodDays,
+    fromISO: from.toISOString().slice(0, 10),
+    toISO: to.toISOString().slice(0, 10),
+  };
 }
+
