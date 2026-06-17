@@ -88,6 +88,8 @@ const RGI = {
   greenBg: "#e8f5ec",
   amber: "#a86b00",
   amberBg: "#fdf3dc",
+  orange: "#c2410c",
+  orangeBg: "#fff7ed",
 };
 
 const headingFont = "Century Gothic, Arial, sans-serif";
