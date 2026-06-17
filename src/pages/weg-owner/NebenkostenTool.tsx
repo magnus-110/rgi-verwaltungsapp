@@ -637,6 +637,10 @@ export function WegOwnerNebenkostenTool() {
                         className="h-11"
                         style={fieldStyle(heating?.source === "messdienst")}
                         value={heatingOverride}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                        onKeyDown={(e) => {
+                          if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
+                        }}
                         placeholder={
                           heating?.source === "missing"
                             ? "Bitte Betrag aus der Heizkostenabrechnung eintragen"
