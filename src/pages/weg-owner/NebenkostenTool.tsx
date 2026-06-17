@@ -1076,7 +1076,7 @@ function Field({
 
 function fieldStyle(filled: boolean): React.CSSProperties {
   return {
-    background: filled ? RGI.greenBg : RGI.amberBg,
+    background: filled ? RGI.greenBg : RGI.orangeBg,
     borderColor: RGI.border,
   };
 }
