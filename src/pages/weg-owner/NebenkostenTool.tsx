@@ -676,16 +676,31 @@ export function WegOwnerNebenkostenTool() {
                   <div className="space-y-3">
                     <p className="text-xs" style={{ color: RGI.muted }}>
                       Dieser Wert kommt aus der Heizkostenabrechnung des
-                      Messdienstes – inkl. anteiliger Verteilung bei einem
-                      Mieterwechsel und inkl. der Heiz-Nebenkonten
-                      (Kaminkehrer, Heizungswartung etc.).
+                      Messdienstes – inkl. der Heiz-Nebenkonten (Kaminkehrer,
+                      Heizungswartung etc.).
                     </p>
+                    {tenantChanged ? (
+                      <Alert>
+                        <AlertCircle className="w-4 h-4" />
+                        <AlertDescription className="text-xs">
+                          <strong>Mieterwechsel im Zeitraum:</strong> Bitte
+                          tragen Sie hier die <strong>anteilige Summe</strong>{" "}
+                          für diesen Mieter aus der Heizkostenabrechnung des
+                          Messdienstes ein. Das Feld wird bei einem
+                          Mieterwechsel <em>nicht</em> automatisch vorbefüllt,
+                          da der Messdienst die Aufteilung verbrauchsgenau
+                          ermittelt.
+                        </AlertDescription>
+                      </Alert>
+                    ) : null}
                     <Field
                       label={heating?.label ?? "Heizung / Warmwasser / Wasser"}
                       badge={
-                        heating?.source === "messdienst"
-                          ? "auto"
-                          : "ergänzen"
+                        tenantChanged
+                          ? "ergänzen"
+                          : heating?.source === "messdienst"
+                            ? "auto"
+                            : "ergänzen"
                       }
                       tooltip="Ihr Anteil aus der Heizkostenabrechnung des Messdienstes (z. B. Brunata, Techem, ista)."
                     >
@@ -693,16 +708,18 @@ export function WegOwnerNebenkostenTool() {
                         type="number"
                         step="0.01"
                         className="h-11"
-                        style={fieldStyle(heating?.source === "messdienst")}
+                        style={fieldStyle(!tenantChanged && heating?.source === "messdienst")}
                         value={heatingOverride}
                         onWheel={(e) => (e.target as HTMLInputElement).blur()}
                         onKeyDown={(e) => {
                           if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
                         }}
                         placeholder={
-                          heating?.source === "missing"
-                            ? "Bitte Betrag aus der Heizkostenabrechnung eintragen"
-                            : ""
+                          tenantChanged
+                            ? "Anteilige Summe aus Heizkostenabrechnung eintragen"
+                            : heating?.source === "missing"
+                              ? "Bitte Betrag aus der Heizkostenabrechnung eintragen"
+                              : ""
                         }
                         onChange={(e) =>
                           setHeatingOverride(
@@ -711,7 +728,7 @@ export function WegOwnerNebenkostenTool() {
                         }
                       />
                     </Field>
-                    {heating?.source === "missing" && (
+                    {!tenantChanged && heating?.source === "missing" && (
                       <Alert>
                         <AlertCircle className="w-4 h-4" />
                         <AlertDescription className="text-xs">
