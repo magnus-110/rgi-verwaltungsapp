@@ -1025,7 +1025,7 @@ function Field({
   children,
 }: {
   label: string;
-  badge?: "auto" | "ergänzen";
+  badge?: "auto" | "ergänzen" | "Pflicht";
   tooltip?: string;
   children: React.ReactNode;
 }) {
