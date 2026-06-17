@@ -708,6 +708,26 @@ export function WegOwnerNebenkostenTool() {
                 )}
               </SectionCard>
 
+              {/* Pro-Rata-Banner bei Mieterwechsel */}
+              {prorata.active && (
+                <div
+                  className="mt-4 rounded-xl px-4 py-3 text-xs flex items-start gap-2"
+                  style={{ background: RGI.amberBg, color: RGI.amber, border: `1px solid ${RGI.border}` }}
+                >
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <div>
+                    <strong>Zeitanteilige Abrechnung:</strong>{" "}
+                    {prorata.fromISO && prorata.toISO && (
+                      <>vom {formatDe(prorata.fromISO)} bis {formatDe(prorata.toISO)} – </>
+                    )}
+                    {prorata.tenantDays} von {prorata.periodDays} Tagen (
+                    {(prorata.factor * 100).toLocaleString("de-DE", { maximumFractionDigits: 1 })} %).
+                    Beträge sind tagesgenau gekürzt; verbrauchsabhängige Posten
+                    und die Heizkostenabrechnung des Messdienstes bleiben unverändert.
+                  </div>
+                </div>
+              )}
+
               {/* 4. Umlagefähige Kosten */}
               <SectionCard num={4} title="Umlagefähige Kosten" icon={Receipt}>
                 <div
@@ -729,8 +749,9 @@ export function WegOwnerNebenkostenTool() {
                       const disabled = disabledAccounts.has(p.account_number);
                       const consumption = !!p.consumption_based;
                       const override = positionOverrides[p.account_number];
-                      const value =
-                        override !== undefined ? override : p.share_amount;
+                      const autoValue = round2(p.share_amount * factorForAuto(p));
+                      const value = override !== undefined ? override : autoValue;
+                      const prorataApplied = prorata.active && !consumption;
                       return (
                         <div
                           key={p.account_number}
@@ -775,6 +796,14 @@ export function WegOwnerNebenkostenTool() {
                                     style={{ background: "#fff", color: RGI.amber }}
                                   >
                                     nach Verbrauch
+                                  </span>
+                                )}
+                                {prorataApplied && override === undefined && (
+                                  <span
+                                    className="px-1.5 py-0.5 rounded-full text-[10px] font-medium ml-1"
+                                    style={{ background: "#fff", color: RGI.amber }}
+                                  >
+                                    zeitanteilig
                                   </span>
                                 )}
                               </div>
@@ -825,53 +854,110 @@ export function WegOwnerNebenkostenTool() {
                 <p className="text-xs mb-3" style={{ color: RGI.muted }}>
                   Direkt bei Ihnen angefallene umlagefähige Kosten (Grundsteuer,
                   Kabel-TV, Wartung Sondereigentum, einzelne Reparaturen …).
+                  {prorata.active && (
+                    <>
+                      {" "}Standardmäßig werden diese tagesgenau gekürzt. Bei
+                      Einmalkosten den Schalter „ganzjährig" aktivieren, damit
+                      der volle Betrag berechnet wird.
+                    </>
+                  )}
                 </p>
                 <div className="space-y-2">
-                  {extraCosts.map((c, idx) => (
-                    <div
-                      key={idx}
-                      className="rounded-lg p-3"
-                      style={{
-                        background: RGI.amberBg,
-                        border: `1px solid ${RGI.border}`,
-                      }}
-                    >
-                      <div className="flex items-start gap-2">
-                        <div className="flex-1 space-y-2">
-                          <Input
-                            className="h-11"
-                            value={c.label}
-                            onChange={(e) =>
-                              updateExtraCost(idx, { label: e.target.value })
-                            }
-                            onBlur={() => saveExtraCost(idx)}
-                            placeholder="Bezeichnung"
-                          />
-                          <Input
-                            type="number"
-                            step="0.01"
-                            className="h-11 text-right font-semibold"
-                            value={c.amount}
-                            onChange={(e) =>
-                              updateExtraCost(idx, {
-                                amount: Number(e.target.value),
-                              })
-                            }
-                            onBlur={() => saveExtraCost(idx)}
-                            placeholder="0,00 €"
-                          />
+                  {extraCosts.map((c, idx) => {
+                    const exempt = !!c.prorata_exempt;
+                    const effective = effectiveExtraAmount(c);
+                    const prorataApplied = prorata.active && !exempt;
+                    return (
+                      <div
+                        key={c.id ?? `new-${idx}`}
+                        className="rounded-xl px-4 py-3 transition-all"
+                        style={{
+                          border: `1px solid transparent`,
+                          background: RGI.amberBg,
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            aria-label="Position entfernen"
+                            className="shrink-0 h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/60 transition"
+                            onClick={() => removeExtraCost(idx)}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <input
+                              type="text"
+                              value={c.label}
+                              placeholder="Bezeichnung"
+                              className="w-full bg-transparent border-0 outline-none font-semibold text-sm leading-tight focus:ring-0 placeholder:text-muted-foreground/60"
+                              style={{ color: RGI.text }}
+                              onChange={(e) =>
+                                updateExtraCost(idx, { label: e.target.value })
+                              }
+                              onBlur={() => saveExtraCost(idx)}
+                            />
+                            <div
+                              className="text-[11px] mt-0.5 flex items-center gap-1.5 flex-wrap"
+                              style={{ color: RGI.muted }}
+                            >
+                              <span>Schlüssel DIREKT</span>
+                              {prorataApplied && (
+                                <>
+                                  <span>·</span>
+                                  <span>
+                                    Vollbetrag {c.amount.toFixed(2)} € →{" "}
+                                    {effective.toFixed(2)} €
+                                  </span>
+                                </>
+                              )}
+                              <label className="ml-auto inline-flex items-center gap-1 cursor-pointer">
+                                <Checkbox
+                                  checked={exempt}
+                                  className="h-3.5 w-3.5"
+                                  onCheckedChange={(v) => {
+                                    updateExtraCost(idx, { prorata_exempt: !!v });
+                                    setTimeout(() => saveExtraCost(idx), 0);
+                                  }}
+                                />
+                                <span className="text-[10px] uppercase tracking-wide">
+                                  ganzjährig
+                                </span>
+                              </label>
+                            </div>
+                          </div>
+                          <div
+                            className="flex items-baseline gap-1 shrink-0 pl-2"
+                            style={{ borderLeft: `1px solid rgba(0,0,0,0.08)` }}
+                          >
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              aria-label={`Betrag ${c.label}`}
+                              className="w-24 bg-transparent border-0 outline-none text-right text-lg font-semibold tabular-nums focus:ring-0"
+                              style={{ color: RGI.text }}
+                              value={c.amount.toLocaleString("de-DE", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                              onChange={(e) => {
+                                const raw = e.target.value
+                                  .replace(/\./g, "")
+                                  .replace(",", ".");
+                                const num = raw === "" ? 0 : Number(raw);
+                                if (Number.isNaN(num)) return;
+                                updateExtraCost(idx, { amount: num });
+                              }}
+                              onBlur={() => saveExtraCost(idx)}
+                            />
+                            <span className="text-sm font-medium" style={{ color: RGI.muted }}>
+                              €
+                            </span>
+                          </div>
                         </div>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-11 w-11"
-                          onClick={() => removeExtraCost(idx)}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {DEFAULT_EXTRA_COST_TYPES.map((d) => (
@@ -897,6 +983,8 @@ export function WegOwnerNebenkostenTool() {
                   </Button>
                 </div>
               </SectionCard>
+
+
 
               {/* Haftungs-Hinweis */}
               <div
