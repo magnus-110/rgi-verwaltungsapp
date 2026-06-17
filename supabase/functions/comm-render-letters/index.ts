@@ -3,9 +3,43 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import PizZip from "https://esm.sh/pizzip@3.1.7";
 import Docxtemplater from "https://esm.sh/docxtemplater@3.50.0";
-import { loadRecipients, RecipientFilter, formatDateLong, formatDateShort } from "../_shared/comm-vars.ts";
+import { loadRecipients, RecipientFilter } from "../_shared/comm-vars.ts";
 
-const weekdaysDe = ["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
+const MEETING_TIME_ZONE = "Europe/Berlin";
+const monthsDe = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+
+function meetingDateParts(d: Date): Record<string, string> {
+  return Object.fromEntries(
+    new Intl.DateTimeFormat("de-DE", {
+      timeZone: MEETING_TIME_ZONE,
+      weekday: "long",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(d)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+}
+
+function formatMeetingDateLong(d: Date): string {
+  const parts = meetingDateParts(d);
+  return `${Number(parts.day)}. ${monthsDe[Number(parts.month) - 1]} ${parts.year}`;
+}
+
+function formatMeetingDateShort(d: Date): string {
+  const parts = meetingDateParts(d);
+  return `${parts.day}.${parts.month}.${parts.year}`;
+}
+
+function formatMeetingTime(d: Date): string {
+  const parts = meetingDateParts(d);
+  return `${parts.hour}:${parts.minute}`;
+}
 
 async function loadMeetingVars(admin: any, meetingId: string): Promise<Record<string,string>> {
   const { data: meeting } = await admin.from("etv_meetings").select("*").eq("id", meetingId).maybeSingle();
@@ -18,10 +52,10 @@ async function loadMeetingVars(admin: any, meetingId: string): Promise<Record<st
   const md = meeting.meeting_date ? new Date(meeting.meeting_date) : null;
   return {
     meeting_title: meeting.title || "",
-    meeting_date: md ? formatDateLong(md) : "",
-    meeting_date_short: md ? formatDateShort(md) : "",
-    meeting_weekday: md ? weekdaysDe[md.getDay()] : "",
-    meeting_time: md ? `${String(md.getHours()).padStart(2,"0")}:${String(md.getMinutes()).padStart(2,"0")}` : "",
+    meeting_date: md ? formatMeetingDateLong(md) : "",
+    meeting_date_short: md ? formatMeetingDateShort(md) : "",
+    meeting_weekday: md ? meetingDateParts(md).weekday || "" : "",
+    meeting_time: md ? formatMeetingTime(md) : "",
     meeting_location: meeting.location || "",
     meeting_chair: meeting.meeting_chair || "",
     minutes_taker: meeting.minutes_taker || "",
