@@ -117,6 +117,7 @@ export function WegOwnerNebenkostenTool() {
   const [persons, setPersons] = useState<number | "">("");
   const [moveIn, setMoveIn] = useState("");
   const [moveOut, setMoveOut] = useState("");
+  const [tenantChanged, setTenantChanged] = useState(false);
   const [prepayMonthly, setPrepayMonthly] = useState<number | "">("");
 
   // Direkte Eigentümerkosten
