@@ -318,8 +318,9 @@ export function WegOwnerNebenkostenTool() {
     assignmentId &&
     periodId &&
     tenantName &&
-    tenantAddress &&
     persons &&
+    prepayMonthly !== "" &&
+    Number(prepayMonthly) > 0 &&
     !loadingData
   );
 
