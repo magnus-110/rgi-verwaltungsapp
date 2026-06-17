@@ -149,11 +149,11 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-1.5">
               <CalendarDays className="h-3.5 w-3.5" />
-              {meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString("de-DE") : "—"}
+              {meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" }) : "—"}
             </div>
             <div className="flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5" />
-              {meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "—"}
+              {meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }) : "—"}
             </div>
             <div className="flex items-center gap-1.5 truncate">
               <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
@@ -259,8 +259,8 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
                 </div>
                 <p className="text-xs text-muted-foreground pl-6">
                   Mehrere Einheiten desselben Eigentümers werden in <strong>einer</strong> Einladung gebündelt.
-                  ETV-Daten ({meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString("de-DE") : "—"},{" "}
-                  {meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "—"}, {meeting?.location}) werden automatisch eingesetzt.
+                  ETV-Daten ({meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" }) : "—"},{" "}
+                  {meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }) : "—"}, {meeting?.location}) werden automatisch eingesetzt.
                 </p>
 
               </div>

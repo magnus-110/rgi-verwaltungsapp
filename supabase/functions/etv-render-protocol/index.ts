@@ -65,7 +65,7 @@ async function appendSignaturePage(
       }
       page.drawLine({ start: { x: margin, y }, end: { x: margin + 260, y }, thickness: 0.7, color: rgb(0.3, 0.3, 0.3) });
       y -= 14;
-      const signedAt = sig.signed_at ? new Date(sig.signed_at).toLocaleString("de-DE") : "";
+      const signedAt = sig.signed_at ? new Date(sig.signed_at).toLocaleString("de-DE", { timeZone: "Europe/Berlin" }) : "";
       page.drawText(`${sig.signer_name}${signedAt ? " — " + signedAt : ""}`, {
         x: margin, y, size: 9, font, color: rgb(0.3, 0.3, 0.3),
       });
@@ -86,17 +86,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const TZ = "Europe/Berlin";
 function fmtDate(d?: string | null): string {
   if (!d) return "";
   const dt = new Date(d);
   if (isNaN(dt.getTime())) return d;
-  return dt.toLocaleDateString("de-DE");
+  return dt.toLocaleDateString("de-DE", { timeZone: TZ });
 }
 function fmtTime(d?: string | null): string {
   if (!d) return "";
   const dt = new Date(d);
   if (isNaN(dt.getTime())) return "";
-  return dt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  return dt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
 }
 function fmtMea(n: number): string {
   return n.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
