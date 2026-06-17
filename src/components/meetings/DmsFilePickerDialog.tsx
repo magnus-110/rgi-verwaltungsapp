@@ -149,6 +149,7 @@ export const DmsFilePickerDialog = ({
           )
           .eq("building_id", selectedBuildingId!)
           .eq("is_current_version", true)
+          .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .limit(3000),
         supabase
