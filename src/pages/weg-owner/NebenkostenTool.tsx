@@ -67,6 +67,7 @@ type ExtraCost = {
   cost_type: string;
   label: string;
   amount: number;
+  prorata_exempt?: boolean;
 };
 
 const DEFAULT_EXTRA_COST_TYPES = [
