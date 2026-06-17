@@ -88,6 +88,8 @@ const RGI = {
   greenBg: "#e8f5ec",
   amber: "#a86b00",
   amberBg: "#fdf3dc",
+  orange: "#c2410c",
+  orangeBg: "#fff7ed",
 };
 
 const headingFont = "Century Gothic, Arial, sans-serif";
@@ -1049,8 +1051,18 @@ function Field({
           <span
             className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded"
             style={{
-              background: badge === "auto" ? RGI.greenBg : RGI.amberBg,
-              color: badge === "auto" ? RGI.green : RGI.amber,
+              background:
+                badge === "auto"
+                  ? RGI.greenBg
+                  : badge === "Pflicht"
+                    ? RGI.orangeBg
+                    : RGI.amberBg,
+              color:
+                badge === "auto"
+                  ? RGI.green
+                  : badge === "Pflicht"
+                    ? RGI.orange
+                    : RGI.amber,
             }}
           >
             {badge}
@@ -1064,7 +1076,7 @@ function Field({
 
 function fieldStyle(filled: boolean): React.CSSProperties {
   return {
-    background: filled ? RGI.greenBg : RGI.amberBg,
+    background: filled ? RGI.greenBg : RGI.orangeBg,
     borderColor: RGI.border,
   };
 }
