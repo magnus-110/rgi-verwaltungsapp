@@ -387,10 +387,12 @@ export function WegOwnerNebenkostenTool() {
             account_name: p.account_name,
             total_amount: p.total_amount,
             share_amount: effectivePositionAmount(p),
+            full_share_amount: p.share_amount,
             distribution_key: p.distribution_key,
             consumption_based: !!p.consumption_based,
             user_adjusted:
               positionOverrides[p.account_number] !== undefined,
+            prorata_factor: factorForAuto(p),
           })),
         heating: heating
           ? {
@@ -405,8 +407,19 @@ export function WegOwnerNebenkostenTool() {
         extra_costs: extraCosts.map((c) => ({
           cost_type: c.cost_type,
           label: c.label,
-          amount: c.amount,
+          amount: effectiveExtraAmount(c),
+          full_amount: c.amount,
+          prorata_exempt: !!c.prorata_exempt,
+          prorata_factor: prorata.active && !c.prorata_exempt ? prorata.factor : 1,
         })),
+        prorata: {
+          active: prorata.active,
+          tenant_days: prorata.tenantDays,
+          period_days: prorata.periodDays,
+          factor: prorata.factor,
+          from: prorata.fromISO,
+          to: prorata.toISO,
+        },
         totals,
       };
 
