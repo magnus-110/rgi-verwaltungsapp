@@ -942,10 +942,6 @@ export function WegOwnerNebenkostenTool() {
                               )}
                             </div>
                           </div>
-                                </span>
-                              </label>
-                            </div>
-                          </div>
                           <div
                             className="flex items-baseline gap-1 shrink-0 pl-2"
                             style={{ borderLeft: `1px solid rgba(0,0,0,0.08)` }}
