@@ -889,11 +889,7 @@ export function WegOwnerNebenkostenTool() {
                   Direkt bei Ihnen angefallene umlagefähige Kosten (Grundsteuer,
                   Kabel-TV, Wartung Sondereigentum, einzelne Reparaturen …).
                   {prorata.active && (
-                    <>
-                      {" "}Standardmäßig werden diese tagesgenau gekürzt. Bei
-                      Einmalkosten den Schalter „ganzjährig" aktivieren, damit
-                      der volle Betrag berechnet wird.
-                    </>
+                    <> Bei einem Mieterwechsel werden diese Beträge automatisch tagesgenau auf den Abrechnungszeitraum dieses Mieters umgelegt.</>
                   )}
                 </p>
                 <div className="space-y-2">
