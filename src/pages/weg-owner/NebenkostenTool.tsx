@@ -255,7 +255,10 @@ export function WegOwnerNebenkostenTool() {
   };
 
   const addExtraCost = (type = "sonstige", label = "Neue Position") => {
-    setExtraCosts((prev) => [...prev, { cost_type: type, label, amount: 0 }]);
+    setExtraCosts((prev) => [
+      ...prev,
+      { cost_type: type, label, amount: 0, prorata_exempt: false },
+    ]);
   };
   const removeExtraCost = async (idx: number) => {
     const ec = extraCosts[idx];
@@ -277,6 +280,7 @@ export function WegOwnerNebenkostenTool() {
       cost_type: c.cost_type,
       label: c.label,
       amount: c.amount,
+      prorata_exempt: !!c.prorata_exempt,
     };
     if (c.id) {
       await supabase.from("service_owner_costs").update(payload).eq("id", c.id);
