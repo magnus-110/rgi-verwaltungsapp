@@ -194,8 +194,12 @@ export function WegOwnerNebenkostenTool() {
         setPositionOverrides({});
         setDisabledAccounts(new Set());
         setHeating(result.heating);
+        // Nur vorbefüllen, wenn KEIN Mieterwechsel – sonst muss der Eigentümer
+        // den anteiligen Wert aus der Heizkostenabrechnung manuell eintragen.
         setHeatingOverride(
-          result.heating.source === "messdienst" ? result.heating.amount : "",
+          result.heating.source === "messdienst" && !tenantChanged
+            ? result.heating.amount
+            : "",
         );
 
         const t = tenancyRes.data;
@@ -300,6 +304,19 @@ export function WegOwnerNebenkostenTool() {
     [moveIn, moveOut, tenantChanged, selectedPeriod],
   );
 
+  // Heizungs-Vorbefüllung an Mieterwechsel koppeln:
+  // Bei Mieterwechsel wird das Feld geleert, damit der Eigentümer den
+  // anteiligen Wert aus der Heizkostenabrechnung manuell überträgt.
+  useEffect(() => {
+    if (!heating) return;
+    if (tenantChanged) {
+      setHeatingOverride("");
+    } else if (heating.source === "messdienst") {
+      setHeatingOverride(heating.amount);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantChanged]);
+
   // Faktor für eine Auto-Position (verbrauchsabhängige bleiben ungekürzt)
   const factorForAuto = (p: AutoPosition) =>
     prorata.active && !p.consumption_based ? prorata.factor : 1;
@@ -312,7 +329,7 @@ export function WegOwnerNebenkostenTool() {
   };
 
   const effectiveExtraAmount = (c: ExtraCost) =>
-    prorata.active && !c.prorata_exempt ? round2(c.amount * prorata.factor) : c.amount;
+    prorata.active ? round2(c.amount * prorata.factor) : c.amount;
 
   // Summen
   const totals = useMemo(() => {
@@ -659,16 +676,31 @@ export function WegOwnerNebenkostenTool() {
                   <div className="space-y-3">
                     <p className="text-xs" style={{ color: RGI.muted }}>
                       Dieser Wert kommt aus der Heizkostenabrechnung des
-                      Messdienstes – inkl. anteiliger Verteilung bei einem
-                      Mieterwechsel und inkl. der Heiz-Nebenkonten
-                      (Kaminkehrer, Heizungswartung etc.).
+                      Messdienstes – inkl. der Heiz-Nebenkonten (Kaminkehrer,
+                      Heizungswartung etc.).
                     </p>
+                    {tenantChanged ? (
+                      <Alert>
+                        <AlertCircle className="w-4 h-4" />
+                        <AlertDescription className="text-xs">
+                          <strong>Mieterwechsel im Zeitraum:</strong> Bitte
+                          tragen Sie hier die <strong>anteilige Summe</strong>{" "}
+                          für diesen Mieter aus der Heizkostenabrechnung des
+                          Messdienstes ein. Das Feld wird bei einem
+                          Mieterwechsel <em>nicht</em> automatisch vorbefüllt,
+                          da der Messdienst die Aufteilung verbrauchsgenau
+                          ermittelt.
+                        </AlertDescription>
+                      </Alert>
+                    ) : null}
                     <Field
                       label={heating?.label ?? "Heizung / Warmwasser / Wasser"}
                       badge={
-                        heating?.source === "messdienst"
-                          ? "auto"
-                          : "ergänzen"
+                        tenantChanged
+                          ? "ergänzen"
+                          : heating?.source === "messdienst"
+                            ? "auto"
+                            : "ergänzen"
                       }
                       tooltip="Ihr Anteil aus der Heizkostenabrechnung des Messdienstes (z. B. Brunata, Techem, ista)."
                     >
@@ -676,16 +708,18 @@ export function WegOwnerNebenkostenTool() {
                         type="number"
                         step="0.01"
                         className="h-11"
-                        style={fieldStyle(heating?.source === "messdienst")}
+                        style={fieldStyle(!tenantChanged && heating?.source === "messdienst")}
                         value={heatingOverride}
                         onWheel={(e) => (e.target as HTMLInputElement).blur()}
                         onKeyDown={(e) => {
                           if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
                         }}
                         placeholder={
-                          heating?.source === "missing"
-                            ? "Bitte Betrag aus der Heizkostenabrechnung eintragen"
-                            : ""
+                          tenantChanged
+                            ? "Anteilige Summe aus Heizkostenabrechnung eintragen"
+                            : heating?.source === "missing"
+                              ? "Bitte Betrag aus der Heizkostenabrechnung eintragen"
+                              : ""
                         }
                         onChange={(e) =>
                           setHeatingOverride(
@@ -694,7 +728,7 @@ export function WegOwnerNebenkostenTool() {
                         }
                       />
                     </Field>
-                    {heating?.source === "missing" && (
+                    {!tenantChanged && heating?.source === "missing" && (
                       <Alert>
                         <AlertCircle className="w-4 h-4" />
                         <AlertDescription className="text-xs">
@@ -855,18 +889,13 @@ export function WegOwnerNebenkostenTool() {
                   Direkt bei Ihnen angefallene umlagefähige Kosten (Grundsteuer,
                   Kabel-TV, Wartung Sondereigentum, einzelne Reparaturen …).
                   {prorata.active && (
-                    <>
-                      {" "}Standardmäßig werden diese tagesgenau gekürzt. Bei
-                      Einmalkosten den Schalter „ganzjährig" aktivieren, damit
-                      der volle Betrag berechnet wird.
-                    </>
+                    <> Bei einem Mieterwechsel werden diese Beträge automatisch tagesgenau auf den Abrechnungszeitraum dieses Mieters umgelegt.</>
                   )}
                 </p>
                 <div className="space-y-2">
                   {extraCosts.map((c, idx) => {
-                    const exempt = !!c.prorata_exempt;
                     const effective = effectiveExtraAmount(c);
-                    const prorataApplied = prorata.active && !exempt;
+                    const prorataApplied = prorata.active;
                     return (
                       <div
                         key={c.id ?? `new-${idx}`}
@@ -906,24 +935,11 @@ export function WegOwnerNebenkostenTool() {
                                 <>
                                   <span>·</span>
                                   <span>
-                                    Vollbetrag {c.amount.toFixed(2)} € →{" "}
+                                    Vollbetrag {c.amount.toFixed(2)} € → tagesanteilig{" "}
                                     {effective.toFixed(2)} €
                                   </span>
                                 </>
                               )}
-                              <label className="ml-auto inline-flex items-center gap-1 cursor-pointer">
-                                <Checkbox
-                                  checked={exempt}
-                                  className="h-3.5 w-3.5"
-                                  onCheckedChange={(v) => {
-                                    updateExtraCost(idx, { prorata_exempt: !!v });
-                                    setTimeout(() => saveExtraCost(idx), 0);
-                                  }}
-                                />
-                                <span className="text-[10px] uppercase tracking-wide">
-                                  ganzjährig
-                                </span>
-                              </label>
                             </div>
                           </div>
                           <div
