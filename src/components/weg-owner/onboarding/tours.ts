@@ -55,6 +55,29 @@ export const DASHBOARD_TOUR: TourDefinition = {
   title: "Dashboard",
   steps: [
     {
+      title: "📱 App auf den Startbildschirm",
+      description:
+        `<div style="display:flex;flex-direction:column;gap:0.65rem;">
+          <div>Damit sich unser Portal wie eine echte App anfühlt, können Sie es zu Ihrem Startbildschirm hinzufügen – ein Tipp aufs Symbol genügt dann zum Öffnen.</div>
+          <div style="display:flex;align-items:center;gap:0.6rem;padding:0.55rem 0.7rem;border:1px solid hsl(var(--border));border-radius:10px;background:hsl(var(--muted)/0.35);">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:hsl(var(--primary)/0.12);flex-shrink:0;animation:rgi-dots-pulse 1.8s ease-in-out infinite;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--primary))" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+            </span>
+            <div style="font-size:0.82rem;line-height:1.4;"><b>Android:</b> Oben rechts auf die <b>drei Punkte</b> tippen → <b>„Zum Startbildschirm hinzufügen"</b>.</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.6rem;padding:0.55rem 0.7rem;border:1px solid hsl(var(--border));border-radius:10px;background:hsl(var(--muted)/0.35);">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:hsl(var(--primary)/0.12);flex-shrink:0;animation:rgi-share-bounce 1.6s ease-in-out infinite;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--primary))" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
+            </span>
+            <div style="font-size:0.82rem;line-height:1.4;"><b>iPhone:</b> Unten auf das <b>Teilen-Symbol</b> tippen → <b>„Zum Home-Bildschirm"</b>.</div>
+          </div>
+          <style>
+            @keyframes rgi-share-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+            @keyframes rgi-dots-pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.12);opacity:0.75}}
+          </style>
+        </div>`,
+    },
+    {
       title: "Herzlich willkommen!",
       description:
         "Schön, dass Sie da sind. In den nächsten Schritten zeige ich Ihnen, wie Sie sich in Ihrem Eigentümer-Portal zurechtfinden. Sie können diese Einführung jederzeit über den Hilfe-Knopf neu starten.",
