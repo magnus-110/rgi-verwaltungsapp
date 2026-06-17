@@ -8,15 +8,14 @@ import {
   getOwnerBillingPositions,
   type FinalizedPeriod,
   type AutoPosition,
+  type HeatingPosition,
 } from "@/lib/services/nebenkosten";
 import { CURRENT_LEGAL_VERSION } from "@/lib/legal";
 
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
@@ -33,7 +32,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Lock, Plus, Trash2, AlertCircle, ArrowLeft } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Loader2,
+  Lock,
+  Plus,
+  Trash2,
+  AlertCircle,
+  ArrowLeft,
+  HelpCircle,
+  Flame,
+  Home as HomeIcon,
+  Users,
+  Receipt,
+  Wrench,
+} from "lucide-react";
 import { toast } from "sonner";
 
 type Assignment = {
@@ -57,6 +75,24 @@ const DEFAULT_EXTRA_COST_TYPES = [
   { type: "wartung_se", label: "Wartung Sondereigentum" },
 ];
 
+// RGI Look – lokal im Tool, ohne globale Token-Änderung
+const RGI = {
+  primary: "#ee7202",
+  primaryDark: "#c95e02",
+  bg: "#faf8f5",
+  card: "#ffffff",
+  border: "#e7e0d8",
+  text: "#1f1a14",
+  muted: "#7a6f63",
+  green: "#22863a",
+  greenBg: "#e8f5ec",
+  amber: "#a86b00",
+  amberBg: "#fdf3dc",
+};
+
+const headingFont = "Century Gothic, Arial, sans-serif";
+const bodyFont = "'Work Sans', system-ui, sans-serif";
+
 export function WegOwnerNebenkostenTool() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -68,7 +104,10 @@ export function WegOwnerNebenkostenTool() {
   const [periods, setPeriods] = useState<FinalizedPeriod[]>([]);
   const [periodId, setPeriodId] = useState<string | null>(null);
   const [autoPositions, setAutoPositions] = useState<AutoPosition[]>([]);
+  const [positionOverrides, setPositionOverrides] = useState<Record<string, number>>({});
   const [disabledAccounts, setDisabledAccounts] = useState<Set<string>>(new Set());
+  const [heating, setHeating] = useState<HeatingPosition | null>(null);
+  const [heatingOverride, setHeatingOverride] = useState<number | "">("");
   const [loadingData, setLoadingData] = useState(false);
 
   // Mieter-Daten
@@ -91,7 +130,7 @@ export function WegOwnerNebenkostenTool() {
   const selectedAssignment = assignments.find((a) => a.id === assignmentId);
   const selectedPeriod = periods.find((p) => p.id === periodId);
 
-  // 1. Wohnungen laden (via Edge Function – umgeht RLS-Edge-Cases)
+  // 1. Wohnungen laden
   useEffect(() => {
     if (!user) return;
     (async () => {
@@ -99,9 +138,6 @@ export function WegOwnerNebenkostenTool() {
         const { data, error } = await supabase.functions.invoke("list-owner-units");
         if (error) throw error;
         const units = (data?.units ?? []) as Assignment[];
-        if (units.length === 0) {
-          console.warn("[NebenkostenTool] keine Wohnungen für user", user.id);
-        }
         setAssignments(units);
         if (units.length === 1) setAssignmentId(units[0].id);
       } catch (e) {
@@ -110,7 +146,6 @@ export function WegOwnerNebenkostenTool() {
       }
     })();
   }, [user]);
-
 
   // 2. Perioden laden
   useEffect(() => {
@@ -131,13 +166,13 @@ export function WegOwnerNebenkostenTool() {
       });
   }, [selectedAssignment?.building_id]);
 
-  // 3. Positionen + Mieter + Extra-Kosten laden
+  // 3. Positionen + Heizung + Mieter + Extra-Kosten laden
   useEffect(() => {
     if (!assignmentId || !periodId || !selectedPeriod || !user) return;
     setLoadingData(true);
     (async () => {
       try {
-        const [positions, tenancyRes, costsRes] = await Promise.all([
+        const [result, tenancyRes, costsRes] = await Promise.all([
           getOwnerBillingPositions(assignmentId, periodId),
           supabase
             .from("service_tenancies")
@@ -151,8 +186,13 @@ export function WegOwnerNebenkostenTool() {
             .eq("fiscal_year", selectedPeriod.fiscal_year),
         ]);
 
-        setAutoPositions(positions);
+        setAutoPositions(result.positions);
+        setPositionOverrides({});
         setDisabledAccounts(new Set());
+        setHeating(result.heating);
+        setHeatingOverride(
+          result.heating.source === "messdienst" ? result.heating.amount : "",
+        );
 
         const t = tenancyRes.data;
         if (t) {
@@ -183,7 +223,7 @@ export function WegOwnerNebenkostenTool() {
     })();
   }, [assignmentId, periodId, selectedPeriod?.fiscal_year, user]);
 
-  // Speicherfunktionen (Save on blur)
+  // Speicherfunktionen
   const saveTenancy = async () => {
     if (!assignmentId || !user) return;
     const payload = {
@@ -244,18 +284,35 @@ export function WegOwnerNebenkostenTool() {
     }
   };
 
+  // Effektiver Betrag je Position (Override hat Vorrang)
+  const effectivePositionAmount = (p: AutoPosition) => {
+    const ov = positionOverrides[p.account_number];
+    return ov !== undefined ? ov : p.share_amount;
+  };
+
   // Summen
   const totals = useMemo(() => {
     const autoSum = autoPositions
       .filter((p) => !disabledAccounts.has(p.account_number))
-      .reduce((s, p) => s + p.share_amount, 0);
+      .reduce((s, p) => s + effectivePositionAmount(p), 0);
+    const heatingValue = Number(heatingOverride) || 0;
     const extraSum = extraCosts.reduce((s, c) => s + (c.amount || 0), 0);
-    const costSum = autoSum + extraSum;
+    const costSum = autoSum + heatingValue + extraSum;
     const months = monthsInPeriod(moveIn, moveOut, selectedPeriod);
     const prepaySum = (Number(prepayMonthly) || 0) * months;
     const result = costSum - prepaySum;
-    return { autoSum, extraSum, costSum, prepaySum, result, months };
-  }, [autoPositions, disabledAccounts, extraCosts, prepayMonthly, moveIn, moveOut, selectedPeriod]);
+    return { autoSum, heatingValue, extraSum, costSum, prepaySum, result, months };
+  }, [
+    autoPositions,
+    positionOverrides,
+    disabledAccounts,
+    heatingOverride,
+    extraCosts,
+    prepayMonthly,
+    moveIn,
+    moveOut,
+    selectedPeriod,
+  ]);
 
   const canBuy = !!(
     assignmentId &&
@@ -270,7 +327,6 @@ export function WegOwnerNebenkostenTool() {
     if (!user || !selectedPeriod || !assignmentId || !waiverChecked) return;
     setSubmitting(true);
     try {
-      // Tenancy/Costs noch sichern
       await saveTenancy();
       for (let i = 0; i < extraCosts.length; i++) await saveExtraCost(i);
 
@@ -297,9 +353,22 @@ export function WegOwnerNebenkostenTool() {
             account_number: p.account_number,
             account_name: p.account_name,
             total_amount: p.total_amount,
-            share_amount: p.share_amount,
+            share_amount: effectivePositionAmount(p),
             distribution_key: p.distribution_key,
+            consumption_based: !!p.consumption_based,
+            user_adjusted:
+              positionOverrides[p.account_number] !== undefined,
           })),
+        heating: heating
+          ? {
+              label: heating.label,
+              amount: Number(heatingOverride) || 0,
+              source: heating.source,
+              user_adjusted:
+                heating.source !== "messdienst" ||
+                Number(heatingOverride) !== heating.amount,
+            }
+          : null,
         extra_costs: extraCosts.map((c) => ({
           cost_type: c.cost_type,
           label: c.label,
@@ -337,41 +406,41 @@ export function WegOwnerNebenkostenTool() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => navigate("/weg-owner/service-hub")}
-        className="mb-4"
+    <TooltipProvider delayDuration={150}>
+      <div
+        className="min-h-screen pb-32"
+        style={{ background: RGI.bg, color: RGI.text, fontFamily: bodyFont }}
       >
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Zurück zum Service-Hub
-      </Button>
-      <h1
-        className="text-2xl font-bold mb-1"
-        style={{ fontFamily: "Century Gothic, sans-serif" }}
-      >
-        Nebenkostenabrechnung für Mieter
-      </h1>
-      <p className="text-muted-foreground text-sm mb-6">
-        Felder mit grünem Hintergrund stammen aus Ihren Stammdaten bzw. der
-        WEG-Abrechnung. Gelbe Felder bitte ergänzen.
-      </p>
+        <div className="max-w-2xl mx-auto px-4 pt-4 pb-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/weg-owner/service-hub")}
+            className="mb-3 -ml-2 h-11"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Zurück zum Service-Hub
+          </Button>
+          <h1
+            className="text-2xl font-bold leading-tight"
+            style={{ fontFamily: headingFont }}
+          >
+            Nebenkostenabrechnung für Mieter
+          </h1>
+          <p className="text-sm mt-2" style={{ color: RGI.muted }}>
+            Grüne Felder sind vorbefüllt, gelbe Felder bitte ergänzen. Wir nutzen
+            Ihre WEG-Abrechnung und die Werte des Messdienstes.
+          </p>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Linke Spalte: Formular */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Auswahl */}
-          <Card className="p-5 space-y-4">
-            <h2 className="font-semibold text-lg">Auswahl</h2>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <Label>Wohnung</Label>
+          {/* 1. Wohnung */}
+          <SectionCard num={1} title="Wohnung & Abrechnungsjahr" icon={HomeIcon}>
+            <div className="space-y-3">
+              <Field label="Wohnung">
                 <Select
                   value={assignmentId ?? ""}
                   onValueChange={(v) => setAssignmentId(v)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11">
                     <SelectValue placeholder="Bitte wählen" />
                   </SelectTrigger>
                   <SelectContent>
@@ -382,15 +451,14 @@ export function WegOwnerNebenkostenTool() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div>
-                <Label>Abrechnungsjahr</Label>
+              </Field>
+              <Field label="Abrechnungsjahr">
                 <Select
                   value={periodId ?? ""}
                   onValueChange={(v) => setPeriodId(v)}
                   disabled={!assignmentId || periods.length === 0}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11">
                     <SelectValue
                       placeholder={
                         !assignmentId
@@ -409,93 +477,103 @@ export function WegOwnerNebenkostenTool() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-            </div>
-            {assignments.length === 0 && (
-              <Alert variant="destructive">
-                <AlertCircle className="w-4 h-4" />
-                <AlertDescription>
-                  Für Ihren Account ist aktuell keine Wohnung hinterlegt. Bitte
-                  kontaktieren Sie die Verwaltung
-                  (info@rgi-immobilien.de / 08363&nbsp;960656).
-                </AlertDescription>
-              </Alert>
-            )}
-            {assignmentId && periods.length === 0 && (
-              <Alert variant="destructive">
-                <AlertCircle className="w-4 h-4" />
-                <AlertDescription>
-                  Für diese Wohnung ist noch keine WEG-Abrechnung finalisiert.
-                  Bitte wenden Sie sich an die Verwaltung
-                  (info@rgi-immobilien.de / 08363&nbsp;960656).
-                </AlertDescription>
-              </Alert>
-            )}
+              </Field>
 
-          </Card>
+              {assignments.length === 0 && (
+                <Alert variant="destructive">
+                  <AlertCircle className="w-4 h-4" />
+                  <AlertDescription>
+                    Für Ihren Account ist aktuell keine Wohnung hinterlegt. Bitte
+                    kontaktieren Sie die Verwaltung
+                    (info@rgi-immobilien.de / 08363&nbsp;960656).
+                  </AlertDescription>
+                </Alert>
+              )}
+              {assignmentId && periods.length === 0 && (
+                <Alert variant="destructive">
+                  <AlertCircle className="w-4 h-4" />
+                  <AlertDescription>
+                    Für diese Wohnung ist noch keine WEG-Abrechnung finalisiert.
+                    Bitte wenden Sie sich an die Verwaltung
+                    (info@rgi-immobilien.de / 08363&nbsp;960656).
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          </SectionCard>
 
           {assignmentId && periodId && (
             <>
-              {/* Mieter-Daten */}
-              <Card className="p-5 space-y-4">
-                <h2 className="font-semibold text-lg">Mieter</h2>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Name des Mieters *</Label>
+              {/* 2. Mieter */}
+              <SectionCard num={2} title="Mieter" icon={Users}>
+                <div className="space-y-3">
+                  <Field
+                    label="Name des Mieters"
+                    badge={tenantName ? "auto" : "ergänzen"}
+                  >
                     <Input
-                      className="bg-amber-50"
+                      className="h-11"
+                      style={fieldStyle(!!tenantName)}
                       value={tenantName}
                       onChange={(e) => setTenantName(e.target.value)}
                       onBlur={saveTenancy}
                     />
-                  </div>
-                  <div>
-                    <Label>Anzahl Personen *</Label>
+                  </Field>
+                  <Field
+                    label="Anzahl Personen"
+                    badge={persons ? "auto" : "ergänzen"}
+                  >
                     <Input
                       type="number"
-                      className="bg-amber-50"
+                      className="h-11"
+                      style={fieldStyle(!!persons)}
                       value={persons}
                       onChange={(e) =>
                         setPersons(e.target.value === "" ? "" : Number(e.target.value))
                       }
                       onBlur={saveTenancy}
                     />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <Label>Adresse *</Label>
+                  </Field>
+                  <Field
+                    label="Adresse"
+                    badge={tenantAddress ? "auto" : "ergänzen"}
+                  >
                     <Input
-                      className="bg-amber-50"
+                      className="h-11"
+                      style={fieldStyle(!!tenantAddress)}
                       value={tenantAddress}
                       onChange={(e) => setTenantAddress(e.target.value)}
                       onBlur={saveTenancy}
                     />
+                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Einzug">
+                      <Input
+                        type="date"
+                        className="h-11"
+                        value={moveIn}
+                        onChange={(e) => setMoveIn(e.target.value)}
+                        onBlur={saveTenancy}
+                      />
+                    </Field>
+                    <Field label="Auszug">
+                      <Input
+                        type="date"
+                        className="h-11"
+                        value={moveOut}
+                        onChange={(e) => setMoveOut(e.target.value)}
+                        onBlur={saveTenancy}
+                      />
+                    </Field>
                   </div>
-                  <div>
-                    <Label>Einzug</Label>
-                    <Input
-                      type="date"
-                      className="bg-amber-50"
-                      value={moveIn}
-                      onChange={(e) => setMoveIn(e.target.value)}
-                      onBlur={saveTenancy}
-                    />
-                  </div>
-                  <div>
-                    <Label>Auszug</Label>
-                    <Input
-                      type="date"
-                      className="bg-amber-50"
-                      value={moveOut}
-                      onChange={(e) => setMoveOut(e.target.value)}
-                      onBlur={saveTenancy}
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <Label>NK-Vorauszahlung pro Monat (€)</Label>
+                  <Field
+                    label="NK-Vorauszahlung pro Monat (€)"
+                    tooltip="Monatliche Nebenkosten-Vorauszahlung laut Mietvertrag."
+                  >
                     <Input
                       type="number"
                       step="0.01"
-                      className="bg-amber-50"
+                      className="h-11"
                       value={prepayMonthly}
                       onChange={(e) =>
                         setPrepayMonthly(
@@ -504,277 +582,475 @@ export function WegOwnerNebenkostenTool() {
                       }
                       onBlur={saveTenancy}
                     />
-                  </div>
+                  </Field>
                 </div>
-              </Card>
+              </SectionCard>
 
-              {/* Automatische Positionen */}
-              <Card className="p-5 space-y-3">
-                <h2 className="font-semibold text-lg">
-                  Positionen aus der WEG-Abrechnung
-                </h2>
+              {/* 3. Heizkosten */}
+              <SectionCard num={3} title="Heizung / Warmwasser / Wasser" icon={Flame}>
                 {loadingData ? (
-                  <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                    <Loader2 className="w-4 h-4 animate-spin" /> Lade Positionen…
+                  <LoadingRow />
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-xs" style={{ color: RGI.muted }}>
+                      Dieser Wert kommt aus der Heizkostenabrechnung des
+                      Messdienstes – inkl. anteiliger Verteilung bei einem
+                      Mieterwechsel und inkl. der Heiz-Nebenkonten
+                      (Kaminkehrer, Heizungswartung etc.).
+                    </p>
+                    <Field
+                      label={heating?.label ?? "Heizung / Warmwasser / Wasser"}
+                      badge={
+                        heating?.source === "messdienst"
+                          ? "auto"
+                          : "ergänzen"
+                      }
+                      tooltip="Ihr Anteil aus der Heizkostenabrechnung des Messdienstes (z. B. Brunata, Techem, ista)."
+                    >
+                      <Input
+                        type="number"
+                        step="0.01"
+                        className="h-11"
+                        style={fieldStyle(heating?.source === "messdienst")}
+                        value={heatingOverride}
+                        placeholder={
+                          heating?.source === "missing"
+                            ? "Bitte Betrag aus der Heizkostenabrechnung eintragen"
+                            : ""
+                        }
+                        onChange={(e) =>
+                          setHeatingOverride(
+                            e.target.value === "" ? "" : Number(e.target.value),
+                          )
+                        }
+                      />
+                    </Field>
+                    {heating?.source === "missing" && (
+                      <Alert>
+                        <AlertCircle className="w-4 h-4" />
+                        <AlertDescription className="text-xs">
+                          Für diese Wohnung liegt noch keine Heizkostenabrechnung
+                          vom Messdienst vor. Bitte tragen Sie den Betrag aus
+                          Ihrer Abrechnung manuell ein.
+                        </AlertDescription>
+                      </Alert>
+                    )}
                   </div>
+                )}
+              </SectionCard>
+
+              {/* 4. Umlagefähige Kosten */}
+              <SectionCard num={4} title="Umlagefähige Kosten" icon={Receipt}>
+                <div
+                  className="text-xs px-3 py-2 rounded mb-3"
+                  style={{ background: RGI.amberBg, color: RGI.amber }}
+                >
+                  Wasser, das bereits in der Heizkostenabrechnung enthalten ist,
+                  bitte nicht zusätzlich ansetzen.
+                </div>
+                {loadingData ? (
+                  <LoadingRow />
                 ) : autoPositions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Keine umlagefähigen Positionen gefunden.
+                  <p className="text-sm" style={{ color: RGI.muted }}>
+                    Keine weiteren umlagefähigen Positionen gefunden.
                   </p>
                 ) : (
                   <div className="space-y-2">
                     {autoPositions.map((p) => {
                       const disabled = disabledAccounts.has(p.account_number);
+                      const consumption = !!p.consumption_based;
+                      const override = positionOverrides[p.account_number];
+                      const value =
+                        override !== undefined ? override : p.share_amount;
                       return (
                         <div
                           key={p.account_number}
-                          className={`flex items-center gap-3 p-2 rounded ${
-                            disabled ? "bg-muted/30 opacity-60" : "bg-green-50/60"
-                          }`}
+                          className="rounded-lg p-3"
+                          style={{
+                            border: `1px solid ${RGI.border}`,
+                            background: disabled
+                              ? "#f3efea"
+                              : consumption
+                                ? RGI.amberBg
+                                : RGI.greenBg,
+                            opacity: disabled ? 0.55 : 1,
+                          }}
                         >
-                          <Checkbox
-                            checked={!disabled}
-                            onCheckedChange={(c) => {
-                              setDisabledAccounts((prev) => {
-                                const n = new Set(prev);
-                                c ? n.delete(p.account_number) : n.add(p.account_number);
-                                return n;
-                              });
-                            }}
-                          />
-                          <div className="flex-1 text-sm">
-                            <div className="font-medium">{p.account_name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              Konto {p.account_number} · Schlüssel{" "}
-                              {p.distribution_key.toUpperCase()}
+                          <div className="flex items-start gap-3">
+                            <Checkbox
+                              checked={!disabled}
+                              className="mt-1 h-5 w-5"
+                              onCheckedChange={(c) => {
+                                setDisabledAccounts((prev) => {
+                                  const n = new Set(prev);
+                                  if (c) n.delete(p.account_number);
+                                  else n.add(p.account_number);
+                                  return n;
+                                });
+                              }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm">
+                                {p.account_name}
+                              </div>
+                              <div
+                                className="text-xs mt-0.5"
+                                style={{ color: RGI.muted }}
+                              >
+                                Konto {p.account_number} · Schlüssel{" "}
+                                {p.distribution_key.toUpperCase()} · gesamt{" "}
+                                {p.total_amount.toFixed(2)} €
+                              </div>
+                              {consumption && (
+                                <div
+                                  className="text-[11px] mt-1 inline-block px-2 py-0.5 rounded-full"
+                                  style={{
+                                    background: "#fff",
+                                    color: RGI.amber,
+                                    border: `1px solid ${RGI.border}`,
+                                  }}
+                                >
+                                  nach Verbrauch – bitte prüfen
+                                </div>
+                              )}
                             </div>
                           </div>
-                          <div className="text-right text-sm">
-                            <div className="font-semibold">
-                              {p.share_amount.toFixed(2)} €
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              gesamt {p.total_amount.toFixed(2)} €
-                            </div>
+                          <div className="mt-2 flex items-center gap-2">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              disabled={disabled}
+                              className="h-10 text-right font-semibold"
+                              value={value}
+                              onChange={(e) =>
+                                setPositionOverrides((prev) => ({
+                                  ...prev,
+                                  [p.account_number]:
+                                    e.target.value === "" ? 0 : Number(e.target.value),
+                                }))
+                              }
+                            />
+                            <span className="text-sm" style={{ color: RGI.muted }}>
+                              €
+                            </span>
                           </div>
                         </div>
                       );
                     })}
                   </div>
                 )}
-              </Card>
+              </SectionCard>
 
-              {/* Eigene Kosten */}
-              <Card className="p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="font-semibold text-lg">
-                    Direkte Eigentümer-Kosten
-                  </h2>
-                  <div className="flex gap-1">
-                    {DEFAULT_EXTRA_COST_TYPES.map((d) => (
-                      <Button
-                        key={d.type}
-                        size="sm"
-                        variant="outline"
-                        onClick={() => addExtraCost(d.type, d.label)}
-                      >
-                        <Plus className="w-3 h-3 mr-1" />
-                        {d.label}
-                      </Button>
-                    ))}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => addExtraCost("sonstige", "Sonstige")}
+              {/* 5. Weitere Kosten */}
+              <SectionCard num={5} title="Weitere Kosten" icon={Wrench}>
+                <p className="text-xs mb-3" style={{ color: RGI.muted }}>
+                  Direkt bei Ihnen angefallene umlagefähige Kosten (Grundsteuer,
+                  Kabel-TV, Wartung Sondereigentum, einzelne Reparaturen …).
+                </p>
+                <div className="space-y-2">
+                  {extraCosts.map((c, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded-lg p-3"
+                      style={{
+                        background: RGI.amberBg,
+                        border: `1px solid ${RGI.border}`,
+                      }}
                     >
-                      <Plus className="w-3 h-3 mr-1" />
-                      Freie Position
-                    </Button>
-                  </div>
-                </div>
-                {extraCosts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Hier können Sie Kosten ergänzen, die direkt bei Ihnen
-                    angefallen sind (Grundsteuer, Kabel-TV, Wartung …).
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {extraCosts.map((c, idx) => (
-                      <div
-                        key={idx}
-                        className="grid grid-cols-[1fr_140px_40px] gap-2 items-center bg-amber-50 p-2 rounded"
-                      >
-                        <Input
-                          value={c.label}
-                          onChange={(e) =>
-                            updateExtraCost(idx, { label: e.target.value })
-                          }
-                          onBlur={() => saveExtraCost(idx)}
-                          placeholder="Bezeichnung"
-                        />
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={c.amount}
-                          onChange={(e) =>
-                            updateExtraCost(idx, { amount: Number(e.target.value) })
-                          }
-                          onBlur={() => saveExtraCost(idx)}
-                          placeholder="€"
-                        />
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 space-y-2">
+                          <Input
+                            className="h-11"
+                            value={c.label}
+                            onChange={(e) =>
+                              updateExtraCost(idx, { label: e.target.value })
+                            }
+                            onBlur={() => saveExtraCost(idx)}
+                            placeholder="Bezeichnung"
+                          />
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="h-11 text-right font-semibold"
+                            value={c.amount}
+                            onChange={(e) =>
+                              updateExtraCost(idx, {
+                                amount: Number(e.target.value),
+                              })
+                            }
+                            onBlur={() => saveExtraCost(idx)}
+                            placeholder="0,00 €"
+                          />
+                        </div>
                         <Button
                           size="icon"
                           variant="ghost"
+                          className="h-11 w-11"
                           onClick={() => removeExtraCost(idx)}
                         >
                           <Trash2 className="w-4 h-4 text-destructive" />
                         </Button>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {DEFAULT_EXTRA_COST_TYPES.map((d) => (
+                    <Button
+                      key={d.type}
+                      size="sm"
+                      variant="outline"
+                      className="h-10"
+                      onClick={() => addExtraCost(d.type, d.label)}
+                    >
+                      <Plus className="w-3 h-3 mr-1" />
+                      {d.label}
+                    </Button>
+                  ))}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-10"
+                    onClick={() => addExtraCost("sonstige", "Sonstige")}
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    Freie Position
+                  </Button>
+                </div>
+              </SectionCard>
+
+              {/* Haftungs-Hinweis */}
+              <div
+                className="mt-4 rounded-lg p-3 text-xs"
+                style={{
+                  background: "#fff",
+                  border: `1px solid ${RGI.border}`,
+                  color: RGI.muted,
+                }}
+              >
+                Dieses Dokument wird automatisiert erstellt und stellt keine
+                Rechts- oder Steuerberatung dar. Die Verantwortung für die
+                Richtigkeit der Eingaben liegt beim Nutzer. Für die Inhalte des
+                erzeugten Dokuments wird keine Haftung übernommen.
+              </div>
             </>
           )}
         </div>
 
-        {/* Rechte Spalte: Preview */}
-        <div>
-          <Card className="p-5 sticky top-20 space-y-3">
-            <h2 className="font-semibold text-lg">Vorschau</h2>
-            {!assignmentId || !periodId ? (
-              <p className="text-sm text-muted-foreground">
-                Wählen Sie zuerst Wohnung und Jahr.
-              </p>
-            ) : (
-              <>
+        {/* Sticky Bottom Bar */}
+        {assignmentId && periodId && (
+          <div
+            className="fixed bottom-0 left-0 right-0 z-40"
+            style={{
+              background: "#fff",
+              borderTop: `1px solid ${RGI.border}`,
+              boxShadow: "0 -4px 16px rgba(0,0,0,0.06)",
+            }}
+          >
+            <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] uppercase tracking-wide" style={{ color: RGI.muted }}>
+                  Ergebnis (nach Kauf sichtbar)
+                </div>
+                <div
+                  className="text-lg font-bold flex items-center gap-1"
+                  style={{ fontFamily: headingFont }}
+                >
+                  <Lock className="w-4 h-4" style={{ color: RGI.muted }} />
+                  *.*** €
+                </div>
+              </div>
+              <Button
+                className="h-12 px-5 font-semibold"
+                style={{
+                  background: canBuy ? RGI.primary : "#d4cfc8",
+                  color: "#fff",
+                }}
+                disabled={!canBuy}
+                onClick={() => setBuyOpen(true)}
+              >
+                {price ? formatPrice(price.price_cents, price.currency) : "Jetzt erstellen"}
+                <span className="ml-2">›</span>
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <Dialog open={buyOpen} onOpenChange={setBuyOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle style={{ fontFamily: headingFont }}>
+                Zahlungspflichtig bestellen
+              </DialogTitle>
+              <DialogDescription>
+                Nach erfolgreicher Zahlung erstellen wir Ihre
+                Nebenkostenabrechnung als PDF und stellen sie hier zum Download
+                bereit.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <div className="bg-muted p-3 rounded text-sm space-y-1">
+                <div className="flex justify-between">
+                  <span>Nebenkostenabrechnung {selectedPeriod?.fiscal_year}</span>
+                  <span className="font-bold">
+                    {price && formatPrice(price.price_cents, price.currency)}
+                  </span>
+                </div>
                 <div className="text-xs text-muted-foreground">
-                  Wohnung Nr. {selectedAssignment?.unit_number} · {selectedPeriod?.fiscal_year}
+                  Wohnung Nr. {selectedAssignment?.unit_number}, Mieter:{" "}
+                  {tenantName}
                 </div>
-                <div className="space-y-1 text-sm">
-                  <Row label="Anteil WEG-Kosten" value={totals.autoSum} />
-                  <Row label="Direkte Kosten" value={totals.extraSum} />
-                  <div className="border-t pt-1">
-                    <Row
-                      label="Summe Nebenkosten"
-                      value={totals.costSum}
-                      bold
-                    />
-                  </div>
-                  <Row
-                    label={`Vorauszahlungen (${totals.months} Monate)`}
-                    value={-totals.prepaySum}
-                  />
-                </div>
-                <div className="bg-muted rounded p-3 flex items-center justify-between">
-                  <div>
-                    <div className="text-xs text-muted-foreground">
-                      Ergebnis
-                    </div>
-                    <div className="text-lg font-bold flex items-center gap-1">
-                      <Lock className="w-4 h-4 text-muted-foreground" />
-                      XX,** €
-                    </div>
-                  </div>
-                  <Badge variant="secondary">nach Kauf</Badge>
-                </div>
+              </div>
 
-                {price && (
-                  <div className="border-t pt-3 space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Preis</span>
-                      <span className="font-bold">
-                        {formatPrice(price.price_cents, price.currency)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      inkl. 19&nbsp;% USt. Rechnung kommt per E-Mail von Stripe.
-                    </p>
-                    <Button
-                      className="w-full"
-                      disabled={!canBuy}
-                      onClick={() => setBuyOpen(true)}
-                    >
-                      Jetzt kaufen
-                    </Button>
-                    {!canBuy && (
-                      <p className="text-xs text-muted-foreground">
-                        Bitte alle Pflichtfelder (Mieter, Adresse, Personen) ausfüllen.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </Card>
-        </div>
-      </div>
-
-      <Dialog open={buyOpen} onOpenChange={setBuyOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Zahlungspflichtig bestellen</DialogTitle>
-            <DialogDescription>
-              Nach erfolgreicher Zahlung erstellen wir Ihre Nebenkostenabrechnung
-              als PDF und stellen sie hier zum Download bereit.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3">
-            <div className="bg-muted p-3 rounded text-sm space-y-1">
-              <div className="flex justify-between">
-                <span>Nebenkostenabrechnung {selectedPeriod?.fiscal_year}</span>
-                <span className="font-bold">
-                  {price && formatPrice(price.price_cents, price.currency)}
+              <label className="flex items-start gap-2 text-sm bg-amber-50 p-3 rounded cursor-pointer">
+                <Checkbox
+                  checked={waiverChecked}
+                  onCheckedChange={(c) => setWaiverChecked(!!c)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <strong>Ich verlange ausdrücklich</strong>, dass mit der
+                  Erstellung des Dokuments sofort nach Zahlungseingang begonnen
+                  wird, und bestätige, dass mein Widerrufsrecht mit
+                  vollständiger Ausführung erlischt.
                 </span>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Wohnung Nr. {selectedAssignment?.unit_number}, Mieter: {tenantName}
-              </div>
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Mit dem Kauf akzeptieren Sie unsere{" "}
+                <a href="/legal/agb" target="_blank" className="underline">
+                  AGB
+                </a>{" "}
+                und die{" "}
+                <a href="/legal/datenschutz" target="_blank" className="underline">
+                  Datenschutzerklärung
+                </a>{" "}
+                (Version {CURRENT_LEGAL_VERSION}).
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Dieses Dokument wird automatisiert erstellt und stellt keine
+                Rechts- oder Steuerberatung dar. Die Verantwortung für die
+                Eingaben liegt beim Nutzer; für die Inhalte wird keine Haftung
+                übernommen.
+              </p>
             </div>
 
-            <label className="flex items-start gap-2 text-sm bg-amber-50 p-3 rounded cursor-pointer">
-              <Checkbox
-                checked={waiverChecked}
-                onCheckedChange={(c) => setWaiverChecked(!!c)}
-                className="mt-0.5"
-              />
-              <span>
-                <strong>Ich verlange ausdrücklich</strong>, dass mit der Erstellung
-                des Dokuments sofort nach Zahlungseingang begonnen wird, und bestätige,
-                dass mein Widerrufsrecht mit vollständiger Ausführung erlischt.
-              </span>
-            </label>
-            <p className="text-xs text-muted-foreground">
-              Mit dem Kauf akzeptieren Sie unsere{" "}
-              <a href="/legal/agb" target="_blank" className="underline">AGB</a> und die{" "}
-              <a href="/legal/datenschutz" target="_blank" className="underline">
-                Datenschutzerklärung
-              </a>{" "}
-              (Version {CURRENT_LEGAL_VERSION}).
-            </p>
-          </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setBuyOpen(false)}>
+                Abbrechen
+              </Button>
+              <Button
+                onClick={handleBuy}
+                disabled={!waiverChecked || submitting}
+                style={{ background: RGI.primary, color: "#fff" }}
+              >
+                {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Zahlungspflichtig bestellen
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </TooltipProvider>
+  );
+}
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBuyOpen(false)}>
-              Abbrechen
-            </Button>
-            <Button onClick={handleBuy} disabled={!waiverChecked || submitting}>
-              {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Zahlungspflichtig bestellen
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+// ---------- Helper components ----------
+
+function SectionCard({
+  num,
+  title,
+  icon: Icon,
+  children,
+}: {
+  num: number;
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="mt-4 rounded-2xl p-4"
+      style={{
+        background: RGI.card,
+        border: `1px solid ${RGI.border}`,
+        boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+      }}
+    >
+      <div className="flex items-center gap-3 mb-3">
+        <div
+          className="h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm"
+          style={{ background: RGI.primary, color: "#fff", fontFamily: headingFont }}
+        >
+          {num}
+        </div>
+        <div className="flex items-center gap-2">
+          <Icon className="w-4 h-4" />
+          <h2 className="font-semibold text-base" style={{ fontFamily: headingFont }}>
+            {title}
+          </h2>
+        </div>
+      </div>
+      {children}
     </div>
   );
 }
 
-function Row({ label, value, bold }: { label: string; value: number; bold?: boolean }) {
+function Field({
+  label,
+  badge,
+  tooltip,
+  children,
+}: {
+  label: string;
+  badge?: "auto" | "ergänzen";
+  tooltip?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className={`flex justify-between ${bold ? "font-semibold" : ""}`}>
-      <span>{label}</span>
-      <span>{value.toFixed(2)} €</span>
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <Label className="text-sm flex items-center gap-1.5">
+          {label}
+          {tooltip && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" aria-label="Erklärung">
+                  <HelpCircle className="w-3.5 h-3.5" style={{ color: RGI.muted }} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs">{tooltip}</TooltipContent>
+            </Tooltip>
+          )}
+        </Label>
+        {badge && (
+          <span
+            className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded"
+            style={{
+              background: badge === "auto" ? RGI.greenBg : RGI.amberBg,
+              color: badge === "auto" ? RGI.green : RGI.amber,
+            }}
+          >
+            {badge}
+          </span>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function fieldStyle(filled: boolean): React.CSSProperties {
+  return {
+    background: filled ? RGI.greenBg : RGI.amberBg,
+    borderColor: RGI.border,
+  };
+}
+
+function LoadingRow() {
+  return (
+    <div className="flex items-center gap-2 text-sm" style={{ color: RGI.muted }}>
+      <Loader2 className="w-4 h-4 animate-spin" /> Lade…
     </div>
   );
 }
