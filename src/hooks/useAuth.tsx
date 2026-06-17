@@ -66,22 +66,44 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         .from('profiles')
         .select('*')
         .eq('user_id', targetUserId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching profile:', error);
-        setLoading(false); // Stop loading even on error
+        setLoading(false);
         return;
       }
 
-      
+      if (!data) {
+        // Profile no longer exists (e.g. account deleted while logged in).
+        // Force a clean sign-out to avoid an infinite "Profil wird geladen..." spinner.
+        console.warn('No profile found for user — signing out.');
+        try {
+          await supabase.auth.signOut({ scope: 'global' });
+        } catch (e) {
+          console.warn('signOut after missing profile failed', e);
+        }
+        Object.keys(localStorage).forEach((key) => {
+          if (key.startsWith('supabase.auth.') || key.includes('sb-')) {
+            localStorage.removeItem(key);
+          }
+        });
+        setProfile(null);
+        setUser(null);
+        setSession(null);
+        setLoading(false);
+        navigate('/login', { replace: true });
+        return;
+      }
+
       setProfile(data);
-      setLoading(false); // Profile loaded successfully
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching profile:', error);
-      setLoading(false); // Stop loading on error
+      setLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, navigate]);
+
 
   useEffect(() => {
     let mounted = true;
