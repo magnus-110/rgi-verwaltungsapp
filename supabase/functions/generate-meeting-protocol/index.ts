@@ -120,7 +120,7 @@ Admin-Notizen/Diskussion: ${item.admin_notes || 'Keine Notizen'}`;
     }).join('\n\n');
 
     const meetingDate = meeting.meeting_date
-      ? new Date(meeting.meeting_date).toLocaleDateString('de-DE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      ? new Date(meeting.meeting_date).toLocaleDateString('de-DE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' })
       : 'Datum unbekannt';
 
     const prompt = `Du bist ein juristischer Protokollführer für WEG-Eigentümerversammlungen in Deutschland. Erstelle ein formelles, rechtssicheres Niederschrift/Protokoll nach § 24 Abs. 6 WEG.
