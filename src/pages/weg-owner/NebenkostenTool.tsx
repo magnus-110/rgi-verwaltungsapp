@@ -637,6 +637,10 @@ export function WegOwnerNebenkostenTool() {
                         className="h-11"
                         style={fieldStyle(heating?.source === "messdienst")}
                         value={heatingOverride}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                        onKeyDown={(e) => {
+                          if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
+                        }}
                         placeholder={
                           heating?.source === "missing"
                             ? "Bitte Betrag aus der Heizkostenabrechnung eintragen"
@@ -689,9 +693,9 @@ export function WegOwnerNebenkostenTool() {
                       return (
                         <div
                           key={p.account_number}
-                          className="rounded-lg p-3"
+                          className="rounded-xl px-4 py-3 transition-all"
                           style={{
-                            border: `1px solid ${RGI.border}`,
+                            border: `1px solid ${disabled ? RGI.border : "transparent"}`,
                             background: disabled
                               ? "#f3efea"
                               : consumption
@@ -700,10 +704,10 @@ export function WegOwnerNebenkostenTool() {
                             opacity: disabled ? 0.55 : 1,
                           }}
                         >
-                          <div className="flex items-start gap-3">
+                          <div className="flex items-center gap-3">
                             <Checkbox
                               checked={!disabled}
-                              className="mt-1 h-5 w-5"
+                              className="h-5 w-5 shrink-0"
                               onCheckedChange={(c) => {
                                 setDisabledAccounts((prev) => {
                                   const n = new Set(prev);
@@ -714,49 +718,59 @@ export function WegOwnerNebenkostenTool() {
                               }}
                             />
                             <div className="flex-1 min-w-0">
-                              <div className="font-medium text-sm">
+                              <div className="font-semibold text-sm leading-tight truncate">
                                 {p.account_name}
                               </div>
                               <div
-                                className="text-xs mt-0.5"
+                                className="text-[11px] mt-0.5 flex items-center gap-1.5 flex-wrap"
                                 style={{ color: RGI.muted }}
                               >
-                                Konto {p.account_number} · Schlüssel{" "}
-                                {p.distribution_key.toUpperCase()} · gesamt{" "}
-                                {p.total_amount.toFixed(2)} €
+                                <span>Schlüssel {p.distribution_key.toUpperCase()}</span>
+                                <span>·</span>
+                                <span>Gesamt {p.total_amount.toFixed(2)} €</span>
+                                {consumption && (
+                                  <span
+                                    className="px-1.5 py-0.5 rounded-full text-[10px] font-medium ml-1"
+                                    style={{ background: "#fff", color: RGI.amber }}
+                                  >
+                                    nach Verbrauch
+                                  </span>
+                                )}
                               </div>
-                              {consumption && (
-                                <div
-                                  className="text-[11px] mt-1 inline-block px-2 py-0.5 rounded-full"
-                                  style={{
-                                    background: "#fff",
-                                    color: RGI.amber,
-                                    border: `1px solid ${RGI.border}`,
-                                  }}
-                                >
-                                  nach Verbrauch – bitte prüfen
-                                </div>
-                              )}
                             </div>
-                          </div>
-                          <div className="mt-2 flex items-center gap-2">
-                            <Input
-                              type="number"
-                              step="0.01"
-                              disabled={disabled}
-                              className="h-10 text-right font-semibold"
-                              value={value}
-                              onChange={(e) =>
-                                setPositionOverrides((prev) => ({
-                                  ...prev,
-                                  [p.account_number]:
-                                    e.target.value === "" ? 0 : Number(e.target.value),
-                                }))
-                              }
-                            />
-                            <span className="text-sm" style={{ color: RGI.muted }}>
-                              €
-                            </span>
+                            <div
+                              className="flex items-baseline gap-1 shrink-0 pl-2"
+                              style={{ borderLeft: `1px solid ${disabled ? RGI.border : "rgba(0,0,0,0.08)"}` }}
+                            >
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                disabled={disabled}
+                                aria-label={`Mieteranteil ${p.account_name}`}
+                                className="w-24 bg-transparent border-0 outline-none text-right text-lg font-semibold tabular-nums focus:ring-0 disabled:cursor-not-allowed"
+                                style={{ color: RGI.text }}
+                                value={
+                                  typeof value === "number"
+                                    ? value.toLocaleString("de-DE", {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                      })
+                                    : ""
+                                }
+                                onChange={(e) => {
+                                  const raw = e.target.value.replace(/\./g, "").replace(",", ".");
+                                  const num = raw === "" ? 0 : Number(raw);
+                                  if (Number.isNaN(num)) return;
+                                  setPositionOverrides((prev) => ({
+                                    ...prev,
+                                    [p.account_number]: num,
+                                  }));
+                                }}
+                              />
+                              <span className="text-sm font-medium" style={{ color: RGI.muted }}>
+                                €
+                              </span>
+                            </div>
                           </div>
                         </div>
                       );
