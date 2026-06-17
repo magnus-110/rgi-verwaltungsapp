@@ -1144,22 +1144,68 @@ function LoadingRow() {
   );
 }
 
-function monthsInPeriod(
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function parseISODate(s: string): Date | null {
+  if (!s) return null;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function daysBetweenInclusive(from: Date, to: Date): number {
+  const ms = to.getTime() - from.getTime();
+  return Math.max(0, Math.round(ms / 86400000) + 1);
+}
+
+export type ProrataInfo = {
+  active: boolean;
+  factor: number;
+  tenantDays: number;
+  periodDays: number;
+  fromISO: string | null;
+  toISO: string | null;
+};
+
+function computeProrata(
   moveIn: string,
   moveOut: string,
+  enabled: boolean,
   period?: FinalizedPeriod | undefined,
-): number {
-  if (!period) return 0;
-  const pFrom = new Date(period.period_from);
-  const pTo = new Date(period.period_to);
-  const from = moveIn ? new Date(moveIn) : pFrom;
-  const to = moveOut ? new Date(moveOut) : pTo;
-  const start = from > pFrom ? from : pFrom;
-  const end = to < pTo ? to : pTo;
-  if (end < start) return 0;
-  const months =
-    (end.getFullYear() - start.getFullYear()) * 12 +
-    (end.getMonth() - start.getMonth()) +
-    1;
-  return Math.max(0, Math.min(12, months));
+): ProrataInfo {
+  const empty: ProrataInfo = {
+    active: false,
+    factor: 1,
+    tenantDays: 0,
+    periodDays: 0,
+    fromISO: null,
+    toISO: null,
+  };
+  if (!period) return empty;
+  const pFrom = parseISODate(period.period_from);
+  const pTo = parseISODate(period.period_to);
+  if (!pFrom || !pTo) return empty;
+  const periodDays = daysBetweenInclusive(pFrom, pTo);
+  if (!enabled || (!moveIn && !moveOut)) {
+    return { ...empty, periodDays, tenantDays: periodDays, factor: 1 };
+  }
+  const mIn = parseISODate(moveIn) ?? pFrom;
+  const mOut = parseISODate(moveOut) ?? pTo;
+  const from = mIn > pFrom ? mIn : pFrom;
+  const to = mOut < pTo ? mOut : pTo;
+  if (to < from) {
+    return { ...empty, periodDays, tenantDays: 0, factor: 0, active: true };
+  }
+  const tenantDays = daysBetweenInclusive(from, to);
+  const factor = periodDays > 0 ? tenantDays / periodDays : 1;
+  return {
+    active: factor < 1,
+    factor,
+    tenantDays,
+    periodDays,
+    fromISO: from.toISOString().slice(0, 10),
+    toISO: to.toISOString().slice(0, 10),
+  };
 }
+
