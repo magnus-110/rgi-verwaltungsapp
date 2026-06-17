@@ -259,8 +259,8 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
                 </div>
                 <p className="text-xs text-muted-foreground pl-6">
                   Mehrere Einheiten desselben Eigentümers werden in <strong>einer</strong> Einladung gebündelt.
-                  ETV-Daten ({meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString("de-DE") : "—"},{" "}
-                  {meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "—"}, {meeting?.location}) werden automatisch eingesetzt.
+                  ETV-Daten ({meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" }) : "—"},{" "}
+                  {meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }) : "—"}, {meeting?.location}) werden automatisch eingesetzt.
                 </p>
 
               </div>
