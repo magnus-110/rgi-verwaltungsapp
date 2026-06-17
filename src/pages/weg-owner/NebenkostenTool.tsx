@@ -217,6 +217,7 @@ export function WegOwnerNebenkostenTool() {
           cost_type: c.cost_type,
           label: c.label ?? c.cost_type,
           amount: Number(c.amount),
+          prorata_exempt: !!c.prorata_exempt,
         }));
         setExtraCosts(ec);
       } catch (e) {
