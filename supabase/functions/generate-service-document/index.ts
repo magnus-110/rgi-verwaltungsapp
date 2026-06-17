@@ -208,7 +208,7 @@ Deno.serve(async (req) => {
     const doc = new Docxtemplater(zip, {
       paragraphLoop: true,
       linebreaks: true,
-      delimiters: { start: "{", end: "}" },
+      delimiters: { start: "{{", end: "}}" },
       nullGetter: () => "",
     });
     doc.render(payload);
