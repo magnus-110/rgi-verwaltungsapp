@@ -42,7 +42,10 @@ type Scope =
   | "economic_plan_single"
   | "asset_report"
   | "paragraph_35a"
-  | "combined_report";
+  | "combined_report"
+  | "service_nebenkosten"
+  | "service_anlage_v"
+  | "service_mietvertrag";
 
 const SLOTS: { scope: Scope; title: string; desc: string }[] = [
   { scope: "overall", title: "Gesamtabrechnung", desc: "Eine Datei für die gesamte Liegenschaft" },
@@ -54,6 +57,12 @@ const SLOTS: { scope: Scope; title: string; desc: string }[] = [
   { scope: "combined_report", title: "Sammelbericht", desc: "Alle Berichte (Abrechnung + Wirtschaftsplan + Vermögen + §35a) pro Eigentümer (ZIP)" },
 ];
 
+const SERVICE_SLOTS: { scope: Scope; title: string; desc: string }[] = [
+  { scope: "service_nebenkosten", title: "Nebenkostenabrechnung (Mieter)", desc: "Vorlage für den Service-Hub der Eigentümer" },
+  { scope: "service_anlage_v", title: "Anlage V (Steuererklärung)", desc: "Vorlage für den Service-Hub der Eigentümer" },
+  { scope: "service_mietvertrag", title: "Mietvertrag", desc: "Vorlage für den Service-Hub der Eigentümer" },
+];
+
 const SCOPE_TO_TARGET: Record<Scope, string> = {
   overall: "overall",
   single: "all",
@@ -62,7 +71,12 @@ const SCOPE_TO_TARGET: Record<Scope, string> = {
   asset_report: "asset_report",
   paragraph_35a: "paragraph_35a",
   combined_report: "combined_report",
+  service_nebenkosten: "service_nebenkosten",
+  service_anlage_v: "service_anlage_v",
+  service_mietvertrag: "service_mietvertrag",
 };
+
+const SERVICE_SCOPES: Scope[] = ["service_nebenkosten", "service_anlage_v", "service_mietvertrag"];
 
 interface Props {
   open: boolean;
@@ -166,11 +180,34 @@ export function FinanceDocumentsDialog({
               onDownload={(fmt) => requestDownload(s.scope, fmt)}
             />
           ))}
+
+          <div className="pt-4 pb-1">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Service-Hub (Eigentümer-Dokumente)
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Diese .docx-Vorlagen werden verwendet, wenn ein Eigentümer im Service-Hub eines
+              dieser Dokumente bestellt. Globale Vorlage — gilt für alle Liegenschaften.
+            </p>
+          </div>
+          {SERVICE_SLOTS.map((s) => (
+            <SlotCard
+              key={s.scope}
+              scope={s.scope}
+              title={s.title}
+              description={s.desc}
+              template={defaultBy[s.scope] as any}
+              onChanged={() => qc.invalidateQueries({ queryKey: ["billing-templates"] })}
+              onDownload={(fmt) => requestDownload(s.scope, fmt)}
+              uploadOnly
+            />
+          ))}
         </div>
       </DialogContent>
     </Dialog>
   );
 }
+
 
 /* ---------------- Slot Card ---------------- */
 
@@ -181,6 +218,7 @@ function SlotCard({
   template,
   onChanged,
   onDownload,
+  uploadOnly = false,
 }: {
   scope: Scope;
   title: string;
@@ -188,6 +226,7 @@ function SlotCard({
   template?: { id: string; name: string; storage_path: string } | null;
   onChanged: () => void;
   onDownload: (fmt: Format) => void;
+  uploadOnly?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -339,39 +378,44 @@ function SlotCard({
               <Trash2 className="h-4 w-4 text-muted-foreground" />
             </Button>
           )}
-          <div className="w-px h-6 bg-border mx-1" />
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!template}
-            onClick={() => onDownload("docx")}
-            title="Als DOCX herunterladen"
-          >
-            <FileType className="h-4 w-4 mr-1" />
-            DOCX
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!template}
-            onClick={() => onDownload("pdf")}
-            title="Als PDF herunterladen"
-          >
-            <FileText className="h-4 w-4 mr-1" />
-            PDF
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!template}
-            onClick={() => onDownload("dms")}
-            title="PDF erzeugen und im DMS ablegen (pro Eigentümer, falls Einzeldokument)"
-          >
-            <FolderUp className="h-4 w-4 mr-1" />
-            DMS
-          </Button>
+          {!uploadOnly && (
+            <>
+              <div className="w-px h-6 bg-border mx-1" />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!template}
+                onClick={() => onDownload("docx")}
+                title="Als DOCX herunterladen"
+              >
+                <FileType className="h-4 w-4 mr-1" />
+                DOCX
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!template}
+                onClick={() => onDownload("pdf")}
+                title="Als PDF herunterladen"
+              >
+                <FileText className="h-4 w-4 mr-1" />
+                PDF
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!template}
+                onClick={() => onDownload("dms")}
+                title="PDF erzeugen und im DMS ablegen (pro Eigentümer, falls Einzeldokument)"
+              >
+                <FolderUp className="h-4 w-4 mr-1" />
+                DMS
+              </Button>
+            </>
+          )}
         </div>
       </div>
+
 
       {!template && (
         <div className="mt-2 text-[11px] text-muted-foreground italic">
