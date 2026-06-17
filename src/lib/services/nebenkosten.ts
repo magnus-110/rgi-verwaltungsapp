@@ -22,6 +22,22 @@ export type AutoPosition = {
   total_amount: number;
   share_amount: number;
   distribution_key: string;
+  consumption_based?: boolean;
+};
+
+export type HeatingPosition = {
+  label: string;
+  amount: number;
+  source: "messdienst" | "missing";
+  note: string | null;
+};
+
+export type OwnerBillingResult = {
+  positions: AutoPosition[];
+  heating: HeatingPosition;
+  mea_share: number;
+  einheiten_share: number;
+  unit_count: number;
 };
 
 export async function loadFinalizedPeriods(
@@ -38,11 +54,22 @@ export async function loadFinalizedPeriods(
 export async function getOwnerBillingPositions(
   assignmentId: string,
   periodId: string,
-): Promise<AutoPosition[]> {
+): Promise<OwnerBillingResult> {
   const { data, error } = await supabase.functions.invoke(
     "get-owner-billing-positions",
     { body: { assignment_id: assignmentId, period_id: periodId } },
   );
   if (error) throw error;
-  return (data?.positions ?? []) as AutoPosition[];
+  return {
+    positions: (data?.positions ?? []) as AutoPosition[],
+    heating: (data?.heating ?? {
+      label: "Heizung / Warmwasser / Wasser (Messdienst)",
+      amount: 0,
+      source: "missing",
+      note: null,
+    }) as HeatingPosition,
+    mea_share: Number(data?.mea_share ?? 0),
+    einheiten_share: Number(data?.einheiten_share ?? 0),
+    unit_count: Number(data?.unit_count ?? 0),
+  };
 }
