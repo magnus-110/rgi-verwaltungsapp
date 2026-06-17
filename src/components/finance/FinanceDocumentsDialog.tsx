@@ -42,7 +42,10 @@ type Scope =
   | "economic_plan_single"
   | "asset_report"
   | "paragraph_35a"
-  | "combined_report";
+  | "combined_report"
+  | "service_nebenkosten"
+  | "service_anlage_v"
+  | "service_mietvertrag";
 
 const SLOTS: { scope: Scope; title: string; desc: string }[] = [
   { scope: "overall", title: "Gesamtabrechnung", desc: "Eine Datei für die gesamte Liegenschaft" },
@@ -54,6 +57,12 @@ const SLOTS: { scope: Scope; title: string; desc: string }[] = [
   { scope: "combined_report", title: "Sammelbericht", desc: "Alle Berichte (Abrechnung + Wirtschaftsplan + Vermögen + §35a) pro Eigentümer (ZIP)" },
 ];
 
+const SERVICE_SLOTS: { scope: Scope; title: string; desc: string }[] = [
+  { scope: "service_nebenkosten", title: "Nebenkostenabrechnung (Mieter)", desc: "Vorlage für den Service-Hub der Eigentümer" },
+  { scope: "service_anlage_v", title: "Anlage V (Steuererklärung)", desc: "Vorlage für den Service-Hub der Eigentümer" },
+  { scope: "service_mietvertrag", title: "Mietvertrag", desc: "Vorlage für den Service-Hub der Eigentümer" },
+];
+
 const SCOPE_TO_TARGET: Record<Scope, string> = {
   overall: "overall",
   single: "all",
@@ -62,7 +71,12 @@ const SCOPE_TO_TARGET: Record<Scope, string> = {
   asset_report: "asset_report",
   paragraph_35a: "paragraph_35a",
   combined_report: "combined_report",
+  service_nebenkosten: "service_nebenkosten",
+  service_anlage_v: "service_anlage_v",
+  service_mietvertrag: "service_mietvertrag",
 };
+
+const SERVICE_SCOPES: Scope[] = ["service_nebenkosten", "service_anlage_v", "service_mietvertrag"];
 
 interface Props {
   open: boolean;
