@@ -538,45 +538,15 @@ export function WegOwnerNebenkostenTool() {
                     />
                   </Field>
                   <Field
-                    label="Adresse"
-                    badge={tenantAddress ? "auto" : "ergänzen"}
-                  >
-                    <Input
-                      className="h-11"
-                      style={fieldStyle(!!tenantAddress)}
-                      value={tenantAddress}
-                      onChange={(e) => setTenantAddress(e.target.value)}
-                      onBlur={saveTenancy}
-                    />
-                  </Field>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Einzug">
-                      <Input
-                        type="date"
-                        className="h-11"
-                        value={moveIn}
-                        onChange={(e) => setMoveIn(e.target.value)}
-                        onBlur={saveTenancy}
-                      />
-                    </Field>
-                    <Field label="Auszug">
-                      <Input
-                        type="date"
-                        className="h-11"
-                        value={moveOut}
-                        onChange={(e) => setMoveOut(e.target.value)}
-                        onBlur={saveTenancy}
-                      />
-                    </Field>
-                  </div>
-                  <Field
                     label="NK-Vorauszahlung pro Monat (€)"
-                    tooltip="Monatliche Nebenkosten-Vorauszahlung laut Mietvertrag."
+                    tooltip="Monatliche Nebenkosten-Vorauszahlung laut Mietvertrag. Pflichtfeld."
+                    badge={prepayMonthly !== "" && Number(prepayMonthly) > 0 ? undefined : "Pflicht"}
                   >
                     <Input
                       type="number"
                       step="0.01"
                       className="h-11"
+                      style={fieldStyle(prepayMonthly !== "" && Number(prepayMonthly) > 0)}
                       value={prepayMonthly}
                       onChange={(e) =>
                         setPrepayMonthly(
@@ -584,8 +554,57 @@ export function WegOwnerNebenkostenTool() {
                         )
                       }
                       onBlur={saveTenancy}
+                      required
                     />
                   </Field>
+
+                  <div className="flex items-start gap-2 rounded-md border p-3" style={{ borderColor: "#e5e0d8" }}>
+                    <Checkbox
+                      id="tenant-changed"
+                      checked={tenantChanged}
+                      onCheckedChange={(c) => {
+                        const v = !!c;
+                        setTenantChanged(v);
+                        if (!v) {
+                          setMoveIn("");
+                          setMoveOut("");
+                          // sofort speichern (Felder zurücksetzen)
+                          setTimeout(saveTenancy, 0);
+                        }
+                      }}
+                    />
+                    <div className="space-y-0.5">
+                      <Label htmlFor="tenant-changed" className="cursor-pointer text-sm font-medium">
+                        Mieterwechsel im Wirtschaftsjahr
+                      </Label>
+                      <p className="text-xs" style={{ color: RGI.muted }}>
+                        Aktivieren, falls der Mieter innerhalb des Abrechnungszeitraums ein- oder ausgezogen ist.
+                      </p>
+                    </div>
+                  </div>
+
+                  {tenantChanged && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Einzug">
+                        <Input
+                          type="date"
+                          className="h-11"
+                          value={moveIn}
+                          onChange={(e) => setMoveIn(e.target.value)}
+                          onBlur={saveTenancy}
+                        />
+                      </Field>
+                      <Field label="Auszug">
+                        <Input
+                          type="date"
+                          className="h-11"
+                          value={moveOut}
+                          onChange={(e) => setMoveOut(e.target.value)}
+                          onBlur={saveTenancy}
+                        />
+                      </Field>
+                    </div>
+                  )}
                 </div>
               </SectionCard>
 
