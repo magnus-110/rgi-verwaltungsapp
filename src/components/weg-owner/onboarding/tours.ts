@@ -55,7 +55,7 @@ export const DASHBOARD_TOUR: TourDefinition = {
   title: "Dashboard",
   steps: [
     {
-      title: "📱 App auf den Startbildschirm",
+      title: "App auf den Startbildschirm",
       description:
         `<div style="display:flex;flex-direction:column;gap:0.65rem;">
           <div>Damit sich unser Portal wie eine echte App anfühlt, können Sie es zu Ihrem Startbildschirm hinzufügen – ein Tipp aufs Symbol genügt dann zum Öffnen.</div>
