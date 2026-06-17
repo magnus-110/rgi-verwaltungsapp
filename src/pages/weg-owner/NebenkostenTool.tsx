@@ -203,6 +203,7 @@ export function WegOwnerNebenkostenTool() {
           setPersons(t.persons ?? "");
           setMoveIn(t.move_in ?? "");
           setMoveOut(t.move_out ?? "");
+          setTenantChanged(!!(t.move_in || t.move_out));
           setPrepayMonthly(t.nk_prepayment_monthly ?? "");
         } else {
           setTenancyId(null);
