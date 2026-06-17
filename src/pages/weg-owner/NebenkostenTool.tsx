@@ -316,7 +316,7 @@ export function WegOwnerNebenkostenTool() {
   };
 
   const effectiveExtraAmount = (c: ExtraCost) =>
-    prorata.active && !c.prorata_exempt ? round2(c.amount * prorata.factor) : c.amount;
+    prorata.active ? round2(c.amount * prorata.factor) : c.amount;
 
   // Summen
   const totals = useMemo(() => {
