@@ -86,17 +86,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const TZ = "Europe/Berlin";
 function fmtDate(d?: string | null): string {
   if (!d) return "";
   const dt = new Date(d);
   if (isNaN(dt.getTime())) return d;
-  return dt.toLocaleDateString("de-DE");
+  return dt.toLocaleDateString("de-DE", { timeZone: TZ });
 }
 function fmtTime(d?: string | null): string {
   if (!d) return "";
   const dt = new Date(d);
   if (isNaN(dt.getTime())) return "";
-  return dt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  return dt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
 }
 function fmtMea(n: number): string {
   return n.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
