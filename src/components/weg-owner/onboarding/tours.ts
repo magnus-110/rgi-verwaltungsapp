@@ -55,6 +55,11 @@ export const DASHBOARD_TOUR: TourDefinition = {
   title: "Dashboard",
   steps: [
     {
+      title: "Herzlich willkommen!",
+      description:
+        "Schön, dass Sie da sind. In den nächsten Schritten zeigen wir Ihnen, wie Sie sich in Ihrem Eigentümer-Portal zurechtfinden. Sie können diese Einführung jederzeit über den Hilfe-Knopf neu starten.",
+    },
+    {
       title: "App auf den Startbildschirm",
       description:
         `<div style="display:flex;flex-direction:column;gap:0.65rem;">
@@ -76,11 +81,6 @@ export const DASHBOARD_TOUR: TourDefinition = {
             @keyframes rgi-dots-pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.12);opacity:0.75}}
           </style>
         </div>`,
-    },
-    {
-      title: "Herzlich willkommen!",
-      description:
-        "Schön, dass Sie da sind. In den nächsten Schritten zeige ich Ihnen, wie Sie sich in Ihrem Eigentümer-Portal zurechtfinden. Sie können diese Einführung jederzeit über den Hilfe-Knopf neu starten.",
     },
     {
       element: '[data-tour="logo"]',
