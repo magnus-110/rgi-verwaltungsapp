@@ -1,54 +1,39 @@
-## 1. UI: "Weitere Kosten" angleichen an Section 4 (Auto-Positionen)
+## Befund (geprüft in Auth + Kontakten)
 
-Karten in Section 5 sollen exakt aussehen wie in Section 4 (siehe Screenshot):
+Achweg 3-5 → die 6 Einheiten teilen sich nur **zwei** Kontakte:
 
-- `rounded-xl px-4 py-3`, amber Hintergrund (`RGI.amberBg`), 1px transparent border
-- **Eine Zeile** statt zwei Inputs:
-  - Links: Trash-Icon (klein, muted) + Bezeichnung als transparentes Input ohne Border, fett — Titel-Look wie bei den Auto-Positionen
-  - Darunter Mini-Zeile: `Schlüssel DIREKT · Mieteranteil` (muted, 11px)
-  - Rechts (mit `border-left` Separator): gleiches Beträge-Pattern wie Section 4 — `inputMode="decimal"`, `w-24 bg-transparent border-0 outline-none text-right text-lg font-semibold tabular-nums`, kein Spinner, kein Scrollwheel-Change, deutsches Komma-Format, `€` daneben
-- Buttons "+ Grundsteuer / Kabel TV / Wartung SE / Freie Position" bleiben darunter unverändert
+| Einheiten | Kontakt | aktuelle Primär-Mail (Login) | gewünschte Mail |
+|---|---|---|---|
+| 0005, 0006, 0010, 0021, 0026 | Lothar Schüttler | `gecarroll@outlook.com` ✗ | `lschuettler@outlook.com` |
+| 0025 | Sandra Bronold | `sandra.bronold@t-online.de` ✗ | `tina.bronold@broki.de` |
 
-## 2. Rechen-Logik prüfen
+Beide gewünschten Adressen sind als **Privat / nicht primär** beim Kontakt hinterlegt. Die alten Adressen sind als „Geschäftlich / primär" markiert und es existieren bereits **Auth-Accounts** dafür (beide haben sich noch **nie eingeloggt**, `last_sign_in_at = null`). `contact.user_id` zeigt jeweils auf diese alten Accounts.
 
-Status der aktuellen Logik (`totals` in `NebenkostenTool.tsx` Z. 298-319):
+Die Edge Function `invite-contact-user` nimmt immer den `is_primary = true`-Eintrag und versendet die Zugangsdaten dorthin → ohne Korrektur würden die Einladungen weiter an die falschen Adressen gehen, und selbst wenn man die Primär-Mail nur am Kontakt umflaggt, würde der Login weiterhin auf die alte Auth-Mail laufen.
 
-| Frage | Status |
-|---|---|
-| Extra-Positionen mitgerechnet? | ✅ `extraSum` fließt in `costSum` und in den Snapshot |
-| Vorauszahlungs-Abgleich? | ✅ `result = costSum − prepayMonthly × Tage/Periode` (siehe Pkt. 3) |
-| Abmarkierte Position raus? | ✅ via `disabledAccounts.has(...)` aus Summe **und** Snapshot |
-| Heizung mit Override? | ✅ `heatingOverride` ersetzt den Messdienst-Wert in Snapshot |
+## Korrektur (zwei Schritte, dann Versand)
 
-## 3. Tagesgenaue Pro-Rata-Verteilung bei Mieterwechsel
+**Schritt 1 — Datenbank in einen konsistenten Zustand bringen** (per `supabase--insert`, da nur Daten-Updates, kein Schema):
 
-Aktuell rechnet `monthsInPeriod()` nur ganze Monate (Z. 1106-1124). Umstellung auf **tagesgenau**:
+1. `contact_emails`: Primär-Flag umsetzen
+   - Schüttler: `lschuettler@outlook.com` → `is_primary = true`, `gecarroll@outlook.com` → `false`
+   - Bronold: `tina.bronold@broki.de` → `is_primary = true`, `sandra.bronold@t-online.de` → `false`
+   - Alte Adressen bleiben am Kontakt (nur demoten, nicht löschen).
+2. `auth.users` für die beiden bereits angelegten User-IDs:
+   - `ec3c0dbc-…` (Schüttler) → `email = 'lschuettler@outlook.com'`, `email_confirmed_at = now()`
+   - `acb3fc73-…` (Bronold) → `email = 'tina.bronold@broki.de'`, `email_confirmed_at = now()`
+   - Sicher, weil noch nie eingeloggt.
+3. `profiles.email` analog auf die neuen Adressen setzen, damit Profil/Auth synchron sind.
 
-```text
-days_in_period   = (period_to − period_from) + 1
-tenant_days      = (min(period_to, move_out) − max(period_from, move_in)) + 1
-factor           = tenant_days / days_in_period      // 0..1
-```
+**Schritt 2 — Verifikation** per `read_query`:
+- `auth.users` + `profiles` + `contact_emails` für beide Kontakte gegenprüfen (neue Mail = primär + Auth + Profil).
 
-`factor` wird angewendet auf:
+**Schritt 3 — Einladung versenden** (durch dich im UI in Achweg 3-5):
+- Pro Kontakt einmal „Einladen / Zugangsdaten senden" auslösen — die Funktion findet den bestehenden Auth-User, rotiert das Passwort und versendet Login + neues Passwort an die jetzt korrekte Primär-Mail. Für Einheiten desselben Kontakts (Schüttler hat 5 Einheiten) reicht **ein** Versand.
 
-- jede **Auto-Position** außer `consumption_based` (Verbrauchspositionen kommen schon anteilig vom Messdienst)
-- **Heizung** bleibt unverändert (Messdienst rechnet bereits anteilig — Hinweistext sagt das bereits)
-- **Extra-Kosten**: standardmäßig anteilig, mit pro-Position-Toggle "ganzjährig" für Einmalkosten wie z. B. eine einzelne Reparatur (Default Pro-Rata, Grundsteuer/Kabel-TV laufen also automatisch tagesanteilig)
-- **NK-Vorauszahlung**: `prepayMonthly × 12 × factor` (Tagesbasis statt Monatsbasis — entspricht den 12 Monatsraten anteilig auf die Mietzeit)
+## Technische Hinweise
+- Keine neue Migration nötig — reine Daten-Updates über `supabase--insert` (Update-Statements).
+- Keine Code-Änderung an `invite-contact-user` nötig: die Logik ist korrekt, nur die Daten waren es nicht.
+- Falls du die alten Adressen ganz vom Kontakt entfernen willst, sag Bescheid — standardmäßig lasse ich sie als Sekundär-Mail stehen.
 
-Sichtbar im UI:
-
-- Wenn `tenantChanged` aktiv: kleines Banner über Section 4 und 5: "Beträge zeitanteilig vom 14.03. bis 31.10. (232 von 365 Tagen, Faktor 63,6 %)"
-- Beträge-Input zeigt direkt den gekürzten Wert (Override des Nutzers überschreibt weiterhin)
-- Im Snapshot pro Position zusätzlich `prorata_days`, `period_days`, `prorata_factor` für die PDF
-
-## 4. Was nicht geändert wird
-
-- Sections 1–3, Bottom-Bar, Checkout, Edge Function `get-owner-billing-positions`
-- DB-Schema bekommt nur ein optionales Bool `prorata_exempt boolean default false` auf `service_owner_costs` (für den Toggle "ganzjährig") inkl. GRANT-Block
-
-## Files
-
-- `src/pages/weg-owner/NebenkostenTool.tsx` — Section-5-UI, `monthsInPeriod` → `daysFactor`, `totals`-Memo, Snapshot, Banner
-- `supabase/migrations/<ts>_owner_costs_prorata_exempt.sql` — Spalte + GRANTs
+OK, dann setze ich Schritt 1 + 2 um, und du löst danach den Versand im UI aus?
