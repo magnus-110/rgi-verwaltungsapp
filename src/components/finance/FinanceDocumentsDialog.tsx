@@ -378,39 +378,44 @@ function SlotCard({
               <Trash2 className="h-4 w-4 text-muted-foreground" />
             </Button>
           )}
-          <div className="w-px h-6 bg-border mx-1" />
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!template}
-            onClick={() => onDownload("docx")}
-            title="Als DOCX herunterladen"
-          >
-            <FileType className="h-4 w-4 mr-1" />
-            DOCX
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!template}
-            onClick={() => onDownload("pdf")}
-            title="Als PDF herunterladen"
-          >
-            <FileText className="h-4 w-4 mr-1" />
-            PDF
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!template}
-            onClick={() => onDownload("dms")}
-            title="PDF erzeugen und im DMS ablegen (pro Eigentümer, falls Einzeldokument)"
-          >
-            <FolderUp className="h-4 w-4 mr-1" />
-            DMS
-          </Button>
+          {!uploadOnly && (
+            <>
+              <div className="w-px h-6 bg-border mx-1" />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!template}
+                onClick={() => onDownload("docx")}
+                title="Als DOCX herunterladen"
+              >
+                <FileType className="h-4 w-4 mr-1" />
+                DOCX
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!template}
+                onClick={() => onDownload("pdf")}
+                title="Als PDF herunterladen"
+              >
+                <FileText className="h-4 w-4 mr-1" />
+                PDF
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!template}
+                onClick={() => onDownload("dms")}
+                title="PDF erzeugen und im DMS ablegen (pro Eigentümer, falls Einzeldokument)"
+              >
+                <FolderUp className="h-4 w-4 mr-1" />
+                DMS
+              </Button>
+            </>
+          )}
         </div>
       </div>
+
 
       {!template && (
         <div className="mt-2 text-[11px] text-muted-foreground italic">
