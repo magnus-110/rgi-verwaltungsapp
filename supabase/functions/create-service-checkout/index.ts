@@ -82,13 +82,9 @@ Deno.serve(async (req) => {
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
     const origin = req.headers.get("origin") ?? "https://rgi-immobilien.app";
 
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      customer_email: email ?? undefined,
-      automatic_tax: { enabled: true },
-      invoice_creation: { enabled: true },
-      line_items: [
-        {
+    const lineItem = pricing.stripe_price_id
+      ? { price: pricing.stripe_price_id as string, quantity: 1 }
+      : {
           price_data: {
             currency: pricing.currency,
             unit_amount: pricing.price_cents,
@@ -99,9 +95,20 @@ Deno.serve(async (req) => {
             },
           },
           quantity: 1,
-        },
-      ],
-      metadata: { order_id: order.id, user_id: userId, service_type },
+        };
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      customer_email: email ?? undefined,
+      automatic_tax: { enabled: true },
+      invoice_creation: { enabled: true },
+      line_items: [lineItem as any],
+      metadata: {
+        order_id: order.id,
+        user_id: userId,
+        service_type,
+        fiscal_year: fiscal_year ? String(fiscal_year) : "",
+      },
       success_url: `${origin}/weg-owner/service-hub/erfolg?order_id=${order.id}`,
       cancel_url: `${origin}/weg-owner/service-hub`,
     });

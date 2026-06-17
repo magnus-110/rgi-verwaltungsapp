@@ -1,0 +1,1 @@
+ALTER TABLE public.service_pricing ADD COLUMN IF NOT EXISTS stripe_price_id text;

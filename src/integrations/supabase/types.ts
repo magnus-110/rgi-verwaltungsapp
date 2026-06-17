@@ -8455,6 +8455,7 @@ export type Database = {
           currency: string
           price_cents: number
           service_type: Database["public"]["Enums"]["service_type_enum"]
+          stripe_price_id: string | null
           tax_behavior: string
           updated_at: string
         }
@@ -8463,6 +8464,7 @@ export type Database = {
           currency?: string
           price_cents: number
           service_type: Database["public"]["Enums"]["service_type_enum"]
+          stripe_price_id?: string | null
           tax_behavior?: string
           updated_at?: string
         }
@@ -8471,6 +8473,7 @@ export type Database = {
           currency?: string
           price_cents?: number
           service_type?: Database["public"]["Enums"]["service_type_enum"]
+          stripe_price_id?: string | null
           tax_behavior?: string
           updated_at?: string
         }
