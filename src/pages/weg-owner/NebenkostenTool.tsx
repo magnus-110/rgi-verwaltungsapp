@@ -1051,8 +1051,18 @@ function Field({
           <span
             className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded"
             style={{
-              background: badge === "auto" ? RGI.greenBg : RGI.amberBg,
-              color: badge === "auto" ? RGI.green : RGI.amber,
+              background:
+                badge === "auto"
+                  ? RGI.greenBg
+                  : badge === "Pflicht"
+                    ? RGI.orangeBg
+                    : RGI.amberBg,
+              color:
+                badge === "auto"
+                  ? RGI.green
+                  : badge === "Pflicht"
+                    ? RGI.orange
+                    : RGI.amber,
             }}
           >
             {badge}
