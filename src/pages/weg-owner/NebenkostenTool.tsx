@@ -1236,6 +1236,12 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+function formatDe(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}.${m}.${y}`;
+}
+
+
 function parseISODate(s: string): Date | null {
   if (!s) return null;
   const d = new Date(s);
