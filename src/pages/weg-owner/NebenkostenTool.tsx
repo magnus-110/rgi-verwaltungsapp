@@ -294,11 +294,25 @@ export function WegOwnerNebenkostenTool() {
     }
   };
 
-  // Effektiver Betrag je Position (Override hat Vorrang)
+  // Tagesgenaue Pro-Rata bei Mieterwechsel
+  const prorata = useMemo(
+    () => computeProrata(moveIn, moveOut, tenantChanged, selectedPeriod),
+    [moveIn, moveOut, tenantChanged, selectedPeriod],
+  );
+
+  // Faktor für eine Auto-Position (verbrauchsabhängige bleiben ungekürzt)
+  const factorForAuto = (p: AutoPosition) =>
+    prorata.active && !p.consumption_based ? prorata.factor : 1;
+
+  // Effektiver Betrag je Position: Override hat Vorrang, sonst share × Faktor
   const effectivePositionAmount = (p: AutoPosition) => {
     const ov = positionOverrides[p.account_number];
-    return ov !== undefined ? ov : p.share_amount;
+    if (ov !== undefined) return ov;
+    return round2(p.share_amount * factorForAuto(p));
   };
+
+  const effectiveExtraAmount = (c: ExtraCost) =>
+    prorata.active && !c.prorata_exempt ? round2(c.amount * prorata.factor) : c.amount;
 
   // Summen
   const totals = useMemo(() => {
@@ -306,12 +320,22 @@ export function WegOwnerNebenkostenTool() {
       .filter((p) => !disabledAccounts.has(p.account_number))
       .reduce((s, p) => s + effectivePositionAmount(p), 0);
     const heatingValue = Number(heatingOverride) || 0;
-    const extraSum = extraCosts.reduce((s, c) => s + (c.amount || 0), 0);
+    const extraSum = extraCosts.reduce((s, c) => s + effectiveExtraAmount(c), 0);
     const costSum = autoSum + heatingValue + extraSum;
-    const months = monthsInPeriod(moveIn, moveOut, selectedPeriod);
-    const prepaySum = (Number(prepayMonthly) || 0) * months;
+    // Vorauszahlung: 12 Monatsraten anteilig auf die Mietzeit (tagesgenau)
+    const prepayFull = (Number(prepayMonthly) || 0) * 12;
+    const prepaySum = prorata.active ? prepayFull * prorata.factor : prepayFull;
     const result = costSum - prepaySum;
-    return { autoSum, heatingValue, extraSum, costSum, prepaySum, result, months };
+    return {
+      autoSum,
+      heatingValue,
+      extraSum,
+      costSum,
+      prepaySum: round2(prepaySum),
+      result: round2(result),
+      months: prorata.tenantDays / 30.42, // Info-Wert
+      prorata,
+    };
   }, [
     autoPositions,
     positionOverrides,
@@ -319,9 +343,7 @@ export function WegOwnerNebenkostenTool() {
     heatingOverride,
     extraCosts,
     prepayMonthly,
-    moveIn,
-    moveOut,
-    selectedPeriod,
+    prorata,
   ]);
 
   const canBuy = !!(
