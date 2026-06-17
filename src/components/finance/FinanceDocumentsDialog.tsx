@@ -218,6 +218,7 @@ function SlotCard({
   template,
   onChanged,
   onDownload,
+  uploadOnly = false,
 }: {
   scope: Scope;
   title: string;
@@ -225,6 +226,7 @@ function SlotCard({
   template?: { id: string; name: string; storage_path: string } | null;
   onChanged: () => void;
   onDownload: (fmt: Format) => void;
+  uploadOnly?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
