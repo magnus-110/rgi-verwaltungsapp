@@ -304,6 +304,19 @@ export function WegOwnerNebenkostenTool() {
     [moveIn, moveOut, tenantChanged, selectedPeriod],
   );
 
+  // Heizungs-Vorbefüllung an Mieterwechsel koppeln:
+  // Bei Mieterwechsel wird das Feld geleert, damit der Eigentümer den
+  // anteiligen Wert aus der Heizkostenabrechnung manuell überträgt.
+  useEffect(() => {
+    if (!heating) return;
+    if (tenantChanged) {
+      setHeatingOverride("");
+    } else if (heating.source === "messdienst") {
+      setHeatingOverride(heating.amount);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantChanged]);
+
   // Faktor für eine Auto-Position (verbrauchsabhängige bleiben ungekürzt)
   const factorForAuto = (p: AutoPosition) =>
     prorata.active && !p.consumption_based ? prorata.factor : 1;
