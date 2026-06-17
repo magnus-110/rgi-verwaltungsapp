@@ -180,11 +180,34 @@ export function FinanceDocumentsDialog({
               onDownload={(fmt) => requestDownload(s.scope, fmt)}
             />
           ))}
+
+          <div className="pt-4 pb-1">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Service-Hub (Eigentümer-Dokumente)
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Diese .docx-Vorlagen werden verwendet, wenn ein Eigentümer im Service-Hub eines
+              dieser Dokumente bestellt. Globale Vorlage — gilt für alle Liegenschaften.
+            </p>
+          </div>
+          {SERVICE_SLOTS.map((s) => (
+            <SlotCard
+              key={s.scope}
+              scope={s.scope}
+              title={s.title}
+              description={s.desc}
+              template={defaultBy[s.scope] as any}
+              onChanged={() => qc.invalidateQueries({ queryKey: ["billing-templates"] })}
+              onDownload={(fmt) => requestDownload(s.scope, fmt)}
+              uploadOnly
+            />
+          ))}
         </div>
       </DialogContent>
     </Dialog>
   );
 }
+
 
 /* ---------------- Slot Card ---------------- */
 
