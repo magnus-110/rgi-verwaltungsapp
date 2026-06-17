@@ -65,7 +65,7 @@ async function appendSignaturePage(
       }
       page.drawLine({ start: { x: margin, y }, end: { x: margin + 260, y }, thickness: 0.7, color: rgb(0.3, 0.3, 0.3) });
       y -= 14;
-      const signedAt = sig.signed_at ? new Date(sig.signed_at).toLocaleString("de-DE") : "";
+      const signedAt = sig.signed_at ? new Date(sig.signed_at).toLocaleString("de-DE", { timeZone: "Europe/Berlin" }) : "";
       page.drawText(`${sig.signer_name}${signedAt ? " — " + signedAt : ""}`, {
         x: margin, y, size: 9, font, color: rgb(0.3, 0.3, 0.3),
       });
