@@ -894,9 +894,8 @@ export function WegOwnerNebenkostenTool() {
                 </p>
                 <div className="space-y-2">
                   {extraCosts.map((c, idx) => {
-                    const exempt = !!c.prorata_exempt;
                     const effective = effectiveExtraAmount(c);
-                    const prorataApplied = prorata.active && !exempt;
+                    const prorataApplied = prorata.active;
                     return (
                       <div
                         key={c.id ?? `new-${idx}`}
@@ -936,22 +935,13 @@ export function WegOwnerNebenkostenTool() {
                                 <>
                                   <span>·</span>
                                   <span>
-                                    Vollbetrag {c.amount.toFixed(2)} € →{" "}
+                                    Vollbetrag {c.amount.toFixed(2)} € → tagesanteilig{" "}
                                     {effective.toFixed(2)} €
                                   </span>
                                 </>
                               )}
-                              <label className="ml-auto inline-flex items-center gap-1 cursor-pointer">
-                                <Checkbox
-                                  checked={exempt}
-                                  className="h-3.5 w-3.5"
-                                  onCheckedChange={(v) => {
-                                    updateExtraCost(idx, { prorata_exempt: !!v });
-                                    setTimeout(() => saveExtraCost(idx), 0);
-                                  }}
-                                />
-                                <span className="text-[10px] uppercase tracking-wide">
-                                  ganzjährig
+                            </div>
+                          </div>
                                 </span>
                               </label>
                             </div>
