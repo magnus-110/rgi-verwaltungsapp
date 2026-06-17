@@ -194,8 +194,12 @@ export function WegOwnerNebenkostenTool() {
         setPositionOverrides({});
         setDisabledAccounts(new Set());
         setHeating(result.heating);
+        // Nur vorbefüllen, wenn KEIN Mieterwechsel – sonst muss der Eigentümer
+        // den anteiligen Wert aus der Heizkostenabrechnung manuell eintragen.
         setHeatingOverride(
-          result.heating.source === "messdienst" ? result.heating.amount : "",
+          result.heating.source === "messdienst" && !tenantChanged
+            ? result.heating.amount
+            : "",
         );
 
         const t = tenancyRes.data;
