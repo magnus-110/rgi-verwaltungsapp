@@ -1106,7 +1106,55 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
                     {/* Tab: Übersicht */}
                     <TabsContent value="overview" className="space-y-4 mt-0">
-                      {/* Telefon */}
+                      {/* Personen */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Personen</p>
+                          <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => addPerson(a.contact_id)}>
+                            <Plus className="h-3 w-3 mr-1" /> Person
+                          </Button>
+                        </div>
+                        {a.persons.length === 0 && <p className="text-xs text-muted-foreground italic">Keine Person hinterlegt</p>}
+                        {a.persons.map((p) => (
+                          <div key={p.id} className="flex items-center gap-2">
+                            <Select value={p.salutation || "__none__"} onValueChange={(v) => updatePerson(p.id, "salutation", v === "__none__" ? null : v)}>
+                              <SelectTrigger className="w-20 h-7 text-xs"><SelectValue placeholder="Anrede" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">—</SelectItem>
+                                <SelectItem value="Frau">Frau</SelectItem>
+                                <SelectItem value="Herr">Herr</SelectItem>
+                                <SelectItem value="Divers">Divers</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <BufferedInput
+                              value={p.first_name || ""}
+                              onSave={(val) => updatePerson(p.id, "first_name", val)}
+                              placeholder="Vorname"
+                              className="h-7 text-sm flex-1"
+                            />
+                            <BufferedInput
+                              value={p.last_name || ""}
+                              onSave={(val) => updatePerson(p.id, "last_name", val)}
+                              placeholder="Nachname"
+                              className="h-7 text-sm flex-1"
+                            />
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6"
+                              title={p.is_primary ? "Primärkontakt" : "Als primär markieren"}
+                              onClick={() => setPrimaryPerson(a.contact_id, p.id)}
+                            >
+                              <Star className={cn("h-3.5 w-3.5", p.is_primary ? "fill-primary text-primary" : "text-muted-foreground")} />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => deletePerson(p.id)}>
+                              <Trash2 className="h-3 w-3 text-destructive" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+
+
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Telefon</p>
