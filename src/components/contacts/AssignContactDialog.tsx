@@ -23,6 +23,8 @@ interface Props {
   managementMode?: "weg" | "rent";
   /** Wenn gesetzt: Dialog läuft im Edit-Modus für dieses Assignment (Kontakt ist fix). */
   editAssignmentId?: string | null;
+  /** Wenn gesetzt: Neuer Datensatz wird als Mit-Eigentümer zu diesem Assignment angelegt. */
+  coOwnerParent?: { id: string; unit_number: string | null; floor_location: string | null; unit_kind: UnitKind } | null;
 }
 
 interface ContactPerson {
