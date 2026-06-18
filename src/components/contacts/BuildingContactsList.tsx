@@ -530,12 +530,22 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
   const getDisplayName = (a: ContactAssignment) => {
     const c = a.contact;
+
+    // Override am Assignment hat Vorrang vor Kontakt-Stammdaten
+    const overrideCompany = a.company_name_override?.trim();
+    const overrideFn = a.first_name_override?.trim();
+    const overrideLn = a.last_name_override?.trim();
+    const overrideSal = a.salutation_override?.trim();
+    if (overrideCompany) return overrideCompany;
+    if (overrideFn || overrideLn || overrideSal) {
+      return [overrideSal, overrideFn, overrideLn].filter(Boolean).join(" ");
+    }
+
     if (c.company_name) return c.company_name;
 
     // Wenn mehrere Personen am Kontakt hängen (z. B. Eheleute), alle sinnvoll kombinieren.
     const persons = (a.persons || []).filter(p => p.first_name || p.last_name);
     if (persons.length > 1) {
-      // Gruppiere nach Nachname für kompakte Darstellung: "Anna und Peter Müller" / "Müller, Anna und Schmidt, Peter"
       const byLastName = new Map<string, string[]>();
       const order: string[] = [];
       for (const p of persons) {
