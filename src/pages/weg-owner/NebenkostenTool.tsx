@@ -505,6 +505,10 @@ export function WegOwnerNebenkostenTool() {
               user_adjusted:
                 heating.source !== "messdienst" ||
                 Number(heatingOverride) !== heating.amount,
+              ai_assisted: aiAssisted.used,
+              ai_confidence: aiAssisted.used ? aiAssisted.confidence ?? null : null,
+              ai_source_quote: aiAssisted.used ? aiAssisted.source_quote ?? null : null,
+              ai_suggested_value: aiAssisted.used ? aiAssisted.suggested_value ?? null : null,
             }
           : null,
         extra_costs: extraCosts.map((c) => ({
