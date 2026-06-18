@@ -214,15 +214,6 @@ interface ContactAssignment {
   is_active: boolean;
   valid_from: string | null;
   valid_to: string | null;
-  parent_assignment_id: string | null;
-  address_as_separate_letter: boolean;
-  salutation_override: string | null;
-  first_name_override: string | null;
-  last_name_override: string | null;
-  company_name_override: string | null;
-  address_street_override: string | null;
-  address_zip_override: string | null;
-  address_city_override: string | null;
   contact: {
     id: string;
     salutation: string | null;
@@ -422,7 +413,6 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showAssign, setShowAssign] = useState(false);
   const [editAssignmentId, setEditAssignmentId] = useState<string | null>(null);
-  const [coOwnerParent, setCoOwnerParent] = useState<{ id: string; unit_number: string | null; floor_location: string | null; unit_kind: UnitKind } | null>(null);
   const [mieterFilter, setMieterFilter] = useState<'current' | 'all'>('current');
 
   const [deleteTarget, setDeleteTarget] = useState<ContactAssignment | null>(null);
@@ -530,22 +520,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
   const getDisplayName = (a: ContactAssignment) => {
     const c = a.contact;
-
-    // Override am Assignment hat Vorrang vor Kontakt-Stammdaten
-    const overrideCompany = a.company_name_override?.trim();
-    const overrideFn = a.first_name_override?.trim();
-    const overrideLn = a.last_name_override?.trim();
-    const overrideSal = a.salutation_override?.trim();
-    if (overrideCompany) return overrideCompany;
-    if (overrideFn || overrideLn || overrideSal) {
-      return [overrideSal, overrideFn, overrideLn].filter(Boolean).join(" ");
-    }
-
     if (c.company_name) return c.company_name;
 
     // Wenn mehrere Personen am Kontakt hängen (z. B. Eheleute), alle sinnvoll kombinieren.
     const persons = (a.persons || []).filter(p => p.first_name || p.last_name);
     if (persons.length > 1) {
+      // Gruppiere nach Nachname für kompakte Darstellung: "Anna und Peter Müller" / "Müller, Anna und Schmidt, Peter"
       const byLastName = new Map<string, string[]>();
       const order: string[] = [];
       for (const p of persons) {
@@ -592,9 +572,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const isCashAuditor = (a: ContactAssignment) => (a as any).is_cash_auditor === true;
 
   const updateAssignment = async (id: string, field: string, value: any) => {
-    // Booleans und explizite null/"" durchreichen; nur leere Strings -> null konvertieren
-    const payload = typeof value === "boolean" ? value : (value === "" ? null : value);
-    await supabase.from("contact_building_assignments").update({ [field]: payload } as any).eq("id", id);
+    await supabase.from("contact_building_assignments").update({ [field]: value || null } as any).eq("id", id);
     refetch();
   };
 
@@ -1008,17 +986,10 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
       )}
 
       {(() => {
-        // Hauptwohnungen (apartment ohne parent) + Sub-Units (Stellplatz/Keller…)
-        // + Mit-Eigentümer (apartment MIT parent_assignment_id) gruppieren.
-        const mains = visibleAssignments.filter(
-          (a) => isApartment((a as any).unit_kind) && !a.parent_assignment_id
-        );
-        const apartmentCoOwners = visibleAssignments.filter(
-          (a) => isApartment((a as any).unit_kind) && !!a.parent_assignment_id
-        );
+        // Hauptwohnungen + Sub-Units gruppieren (Sub-Units bekommen Einrückung)
+        const mains = visibleAssignments.filter((a) => isApartment((a as any).unit_kind));
         const subsAll = visibleAssignments.filter((a) => !isApartment((a as any).unit_kind));
         const subsByParent = new Map<string, ContactAssignment[]>();
-        const coOwnersByParent = new Map<string, ContactAssignment[]>();
         const looseSubs: ContactAssignment[] = [];
         for (const s of subsAll) {
           const pid = (s as any).parent_assignment_id as string | null;
@@ -1030,37 +1001,20 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
             looseSubs.push(s);
           }
         }
-        for (const co of apartmentCoOwners) {
-          const pid = co.parent_assignment_id!;
-          if (mains.some((m) => m.id === pid)) {
-            const arr = coOwnersByParent.get(pid) || [];
-            arr.push(co);
-            coOwnersByParent.set(pid, arr);
-          } else {
-            looseSubs.push(co);
-          }
-        }
-        const flat: { a: ContactAssignment; isSub: boolean; isCoOwner: boolean }[] = [];
+        const flat: { a: ContactAssignment; isSub: boolean }[] = [];
         mains.forEach((m) => {
-          flat.push({ a: m, isSub: false, isCoOwner: false });
-          (coOwnersByParent.get(m.id) || []).forEach((co) =>
-            flat.push({ a: co, isSub: true, isCoOwner: true })
-          );
-          (subsByParent.get(m.id) || []).forEach((s) =>
-            flat.push({ a: s, isSub: true, isCoOwner: false })
-          );
+          flat.push({ a: m, isSub: false });
+          (subsByParent.get(m.id) || []).forEach((s) => flat.push({ a: s, isSub: true }));
         });
-        looseSubs.forEach((s) => flat.push({ a: s, isSub: false, isCoOwner: false }));
+        looseSubs.forEach((s) => flat.push({ a: s, isSub: false }));
 
-
-        return flat.map(({ a, isSub, isCoOwner }) => {
+        return flat.map(({ a, isSub }) => {
         const isExpanded = expanded === a.id;
         const hausgeld = getHausgeld(a);
         const kind = ((a as any).unit_kind || "apartment") as UnitKind;
         const billingMode = ((a as any).billing_mode || "own_billing") as "own_billing" | "distribution_only";
         const kindLabel = UNIT_KIND_LABELS[kind] || "Einheit";
         const kindIcon = UNIT_KIND_ICONS[kind] ?? "";
-        const canHaveCoOwners = managementMode === 'weg' && isApartment(kind) && !isCoOwner;
 
         return (
           <Card key={a.id} className={`overflow-hidden ${isSub ? "ml-6 border-l-2 border-l-primary/30" : ""}`}>
@@ -1086,11 +1040,6 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                     )}
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
-                    {isCoOwner && (
-                      <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20">
-                        Mit-Eigentümer{a.address_as_separate_letter === false ? " · gemeinsam" : ""}
-                      </Badge>
-                    )}
                     {managementMode === 'weg' && isBeirat(a) && <Badge variant="secondary" className="text-xs">Beirat</Badge>}
                     {managementMode === 'weg' && isCashAuditor(a) && <Badge variant="secondary" className="text-xs">Kassenprüfung</Badge>}
                     {managementMode === 'rent' && !isTenantActive(a) && <Badge variant="outline" className="text-xs bg-muted text-muted-foreground">Ausgezogen</Badge>}
@@ -1098,21 +1047,6 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  {canHaveCoOwners && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs gap-1 text-primary hover:text-primary"
-                      title="Mit-Eigentümer für diese Wohnung hinzufügen"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCoOwnerParent({ id: a.id, unit_number: a.unit_number, floor_location: a.floor_location, unit_kind: kind });
-                        setShowAssign(true);
-                      }}
-                    >
-                      <Plus className="h-3 w-3" /> Mit-Eigentümer
-                    </Button>
-                  )}
                   <Button
                     size="icon"
                     variant="ghost"
@@ -1133,7 +1067,6 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                   {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                 </div>
               </div>
-
 
               {/* Expanded details */}
               {isExpanded && (
@@ -1214,97 +1147,19 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                         ))}
                       </div>
 
-                      {/* Name & Adresse — Overrides für dieses Gebäude */}
-                      <div className="bg-muted/40 rounded-lg p-3 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name & Anschrift (für dieses Gebäude)</p>
-                          {((a.salutation_override || a.first_name_override || a.last_name_override || a.company_name_override || a.address_street_override || a.address_zip_override || a.address_city_override)) && (
-                            <Badge variant="outline" className="text-[10px]">überschrieben</Badge>
-                          )}
+                      {/* Adresse (read-only) */}
+                      {(a.contact.address_street || a.contact.address_zip || a.contact.address_city) && (
+                        <div className="bg-muted/40 rounded-lg p-3 space-y-1">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Adresse</p>
+                          <div className="flex items-center gap-2 text-sm">
+                            <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                            <span>
+                              {[a.contact.address_street, [a.contact.address_zip, a.contact.address_city].filter(Boolean).join(" ")].filter(Boolean).join(", ")}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">Adresse wird über die Kontaktseite verwaltet</p>
                         </div>
-                        <div className="grid grid-cols-12 gap-2">
-                          <div className="col-span-3">
-                            <Label className="text-[10px] text-muted-foreground">Anrede</Label>
-                            <Select
-                              value={a.salutation_override || a.contact.salutation || ""}
-                              onValueChange={(v) => updateAssignment(a.id, "salutation_override", v || null)}
-                            >
-                              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="—" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Frau">Frau</SelectItem>
-                                <SelectItem value="Herr">Herr</SelectItem>
-                                <SelectItem value="Firma">Firma</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="col-span-4">
-                            <Label className="text-[10px] text-muted-foreground">Vorname</Label>
-                            <BufferedInput
-                              value={a.first_name_override ?? a.contact.first_name ?? ""}
-                              onSave={(val) => updateAssignment(a.id, "first_name_override", val || null)}
-                              className="h-8 text-sm"
-                            />
-                          </div>
-                          <div className="col-span-5">
-                            <Label className="text-[10px] text-muted-foreground">Nachname</Label>
-                            <BufferedInput
-                              value={a.last_name_override ?? a.contact.last_name ?? ""}
-                              onSave={(val) => updateAssignment(a.id, "last_name_override", val || null)}
-                              className="h-8 text-sm"
-                            />
-                          </div>
-                          <div className="col-span-12">
-                            <Label className="text-[10px] text-muted-foreground">Firma (optional)</Label>
-                            <BufferedInput
-                              value={a.company_name_override ?? a.contact.company_name ?? ""}
-                              onSave={(val) => updateAssignment(a.id, "company_name_override", val || null)}
-                              className="h-8 text-sm"
-                            />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-12 gap-2">
-                          <div className="col-span-12">
-                            <Label className="text-[10px] text-muted-foreground">Straße</Label>
-                            <BufferedInput
-                              value={a.address_street_override ?? a.contact.address_street ?? ""}
-                              onSave={(val) => updateAssignment(a.id, "address_street_override", val || null)}
-                              className="h-8 text-sm"
-                            />
-                          </div>
-                          <div className="col-span-4">
-                            <Label className="text-[10px] text-muted-foreground">PLZ</Label>
-                            <BufferedInput
-                              value={a.address_zip_override ?? a.contact.address_zip ?? ""}
-                              onSave={(val) => updateAssignment(a.id, "address_zip_override", val || null)}
-                              className="h-8 text-sm"
-                            />
-                          </div>
-                          <div className="col-span-8">
-                            <Label className="text-[10px] text-muted-foreground">Ort</Label>
-                            <BufferedInput
-                              value={a.address_city_override ?? a.contact.address_city ?? ""}
-                              onSave={(val) => updateAssignment(a.id, "address_city_override", val || null)}
-                              className="h-8 text-sm"
-                            />
-                          </div>
-                        </div>
-                        <p className="text-[10px] text-muted-foreground">
-                          Änderungen gelten nur für dieses Gebäude (Anschreiben, Rundmails). Die globalen Kontaktdaten bleiben unverändert.
-                        </p>
-
-                        {isCoOwner && (
-                          <div className="flex items-center gap-2 pt-2 border-t">
-                            <Checkbox
-                              id={`sep-letter-${a.id}`}
-                              checked={a.address_as_separate_letter !== false}
-                              onCheckedChange={(v) => updateAssignment(a.id, "address_as_separate_letter", !!v)}
-                            />
-                            <Label htmlFor={`sep-letter-${a.id}`} className="text-sm cursor-pointer">
-                              Eigenes Anschreiben/Rundmail erhalten
-                            </Label>
-                          </div>
-                        )}
-                      </div>
+                      )}
 
                       {/* Assignment fields */}
                       <div className="space-y-3">
@@ -1664,18 +1519,13 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
       <AssignContactDialog
         open={showAssign}
-        onOpenChange={(o) => {
-          setShowAssign(o);
-          if (!o) { setEditAssignmentId(null); setCoOwnerParent(null); }
-        }}
+        onOpenChange={(o) => { setShowAssign(o); if (!o) setEditAssignmentId(null); }}
         buildingId={buildingId}
-        onAssigned={() => { refetch(); setEditAssignmentId(null); setCoOwnerParent(null); }}
-        existingContactIds={coOwnerParent ? [] : assignments.map(a => a.contact_id)}
+        onAssigned={() => { refetch(); setEditAssignmentId(null); }}
+        existingContactIds={assignments.map(a => a.contact_id)}
         managementMode={managementMode as "weg" | "rent"}
         editAssignmentId={editAssignmentId}
-        coOwnerParent={coOwnerParent}
       />
-
     </div>
   );
 }
