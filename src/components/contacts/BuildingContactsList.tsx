@@ -1006,10 +1006,17 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
       )}
 
       {(() => {
-        // Hauptwohnungen + Sub-Units gruppieren (Sub-Units bekommen Einrückung)
-        const mains = visibleAssignments.filter((a) => isApartment((a as any).unit_kind));
+        // Hauptwohnungen (apartment ohne parent) + Sub-Units (Stellplatz/Keller…)
+        // + Mit-Eigentümer (apartment MIT parent_assignment_id) gruppieren.
+        const mains = visibleAssignments.filter(
+          (a) => isApartment((a as any).unit_kind) && !a.parent_assignment_id
+        );
+        const apartmentCoOwners = visibleAssignments.filter(
+          (a) => isApartment((a as any).unit_kind) && !!a.parent_assignment_id
+        );
         const subsAll = visibleAssignments.filter((a) => !isApartment((a as any).unit_kind));
         const subsByParent = new Map<string, ContactAssignment[]>();
+        const coOwnersByParent = new Map<string, ContactAssignment[]>();
         const looseSubs: ContactAssignment[] = [];
         for (const s of subsAll) {
           const pid = (s as any).parent_assignment_id as string | null;
@@ -1021,12 +1028,28 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
             looseSubs.push(s);
           }
         }
-        const flat: { a: ContactAssignment; isSub: boolean }[] = [];
+        for (const co of apartmentCoOwners) {
+          const pid = co.parent_assignment_id!;
+          if (mains.some((m) => m.id === pid)) {
+            const arr = coOwnersByParent.get(pid) || [];
+            arr.push(co);
+            coOwnersByParent.set(pid, arr);
+          } else {
+            looseSubs.push(co);
+          }
+        }
+        const flat: { a: ContactAssignment; isSub: boolean; isCoOwner: boolean }[] = [];
         mains.forEach((m) => {
-          flat.push({ a: m, isSub: false });
-          (subsByParent.get(m.id) || []).forEach((s) => flat.push({ a: s, isSub: true }));
+          flat.push({ a: m, isSub: false, isCoOwner: false });
+          (coOwnersByParent.get(m.id) || []).forEach((co) =>
+            flat.push({ a: co, isSub: true, isCoOwner: true })
+          );
+          (subsByParent.get(m.id) || []).forEach((s) =>
+            flat.push({ a: s, isSub: true, isCoOwner: false })
+          );
         });
-        looseSubs.forEach((s) => flat.push({ a: s, isSub: false }));
+        looseSubs.forEach((s) => flat.push({ a: s, isSub: false, isCoOwner: false }));
+
 
         return flat.map(({ a, isSub }) => {
         const isExpanded = expanded === a.id;
