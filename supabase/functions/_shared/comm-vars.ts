@@ -92,7 +92,7 @@ export async function loadRecipients(
   // Building -> contact assignments
   let q = admin
     .from("contact_building_assignments")
-    .select("id, contact_id, unit_number, role_in_building, is_active, contact_building_shares(share_type, share_value)")
+    .select("id, contact_id, unit_number, role_in_building, is_active, parent_assignment_id, address_as_separate_letter, salutation_override, first_name_override, last_name_override, company_name_override, address_street_override, address_zip_override, address_city_override, unit_kind, contact_building_shares(share_type, share_value)")
     .eq("building_id", buildingId)
     .or("is_active.is.null,is_active.eq.true");
 
@@ -100,6 +100,23 @@ export async function loadRecipients(
   if (aErr) throw aErr;
 
   let assignments = (assigns || []);
+  // Mit-Eigentümer-Map (parent_assignment_id -> co-owner rows). Wird gleich befüllt,
+  // unabhängig von Filtern: ein Filter auf den Haupt-Eigentümer soll dessen
+  // Mit-Eigentümer automatisch mit einbeziehen.
+  const allAssignmentsById = new Map<string, any>(assignments.map((a: any) => [a.id, a]));
+  const coOwnersByParent = new Map<string, any[]>();
+  for (const a of assignments) {
+    if (a.parent_assignment_id && allAssignmentsById.has(a.parent_assignment_id)) {
+      const arr = coOwnersByParent.get(a.parent_assignment_id) || [];
+      arr.push(a);
+      coOwnersByParent.set(a.parent_assignment_id, arr);
+    }
+  }
+  // Für die Empfänger-Erzeugung: nur "Haupt"-Zuordnungen iterieren (kein parent).
+  // Co-Owner werden weiter unten pro Haupt-Zuordnung entweder mit-adressiert
+  // oder als eigener Empfänger emittiert.
+  assignments = assignments.filter((a: any) => !a.parent_assignment_id);
+
   if (filter.roles && filter.roles.length > 0) {
     assignments = assignments.filter((a: any) => a.role_in_building && filter.roles!.includes(a.role_in_building));
   }
@@ -121,7 +138,13 @@ export async function loadRecipients(
 
   if (assignments.length === 0) return [];
 
-  const contactIds = Array.from(new Set(assignments.map((a: any) => a.contact_id)));
+  // Contact-IDs sammeln — inkl. Mit-Eigentümer-Kontakte
+  const contactIdSet = new Set<string>();
+  for (const a of assignments) {
+    contactIdSet.add(a.contact_id);
+    for (const co of coOwnersByParent.get(a.id) || []) contactIdSet.add(co.contact_id);
+  }
+  const contactIds = Array.from(contactIdSet);
 
   // Load contacts, persons, emails in batch
   const [{ data: contacts }, { data: persons }, { data: emails }] = await Promise.all([
