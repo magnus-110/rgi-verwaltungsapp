@@ -214,6 +214,15 @@ interface ContactAssignment {
   is_active: boolean;
   valid_from: string | null;
   valid_to: string | null;
+  parent_assignment_id: string | null;
+  address_as_separate_letter: boolean;
+  salutation_override: string | null;
+  first_name_override: string | null;
+  last_name_override: string | null;
+  company_name_override: string | null;
+  address_street_override: string | null;
+  address_zip_override: string | null;
+  address_city_override: string | null;
   contact: {
     id: string;
     salutation: string | null;
