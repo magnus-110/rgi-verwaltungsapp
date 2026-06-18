@@ -296,11 +296,21 @@ export async function loadRecipients(
     const einheitenStr = einheiten_liste.map((e) => e.einheit).filter(Boolean).join(", ");
     const meaSumStr = formatMea(group.assignments.reduce((s, ag) => s + meaValueOf(ag), 0));
 
+    // Override-Helfer: pro Assignment dürfen Name/Adresse gebäudespezifisch überschrieben sein
+    const ov = (val: any) => (val == null || val === "" ? null : val);
+    const overrideFirst = ov(a.first_name_override);
+    const overrideLast = ov(a.last_name_override);
+    const overrideSal = ov(a.salutation_override);
+    const overrideCompany = ov(a.company_name_override);
+    const overrideStreet = ov(a.address_street_override);
+    const overrideZip = ov(a.address_zip_override);
+    const overrideCity = ov(a.address_city_override);
+
     for (const pair of pairs) {
       const personForVars = pair.person || primaryPerson;
-      const firstName = personForVars?.first_name || c.first_name || "";
-      const lastName = personForVars?.last_name || c.last_name || "";
-      const salutation = personForVars?.salutation || c.salutation || "";
+      const firstName = overrideFirst || personForVars?.first_name || c.first_name || "";
+      const lastName = overrideLast || personForVars?.last_name || c.last_name || "";
+      const salutation = overrideSal || personForVars?.salutation || c.salutation || "";
       const titel = personForVars?.position || "";
       const vollname = [firstName, lastName].filter(Boolean).join(" ").trim();
       const email = pair.email || null;
@@ -308,11 +318,55 @@ export async function loadRecipients(
       if (filter.require_email && !email) continue;
 
       const telefon = personForVars?.phone || "";
-      const firma = c.company_name || "";
-      const strasse = c.address_street || "";
-      const plz = c.address_zip || "";
-      const ort = c.address_city || "";
-      const adresseBlock = makeAdresseBlock({ firma, vollname, strasse, plz, ort });
+      const firma = overrideCompany || c.company_name || "";
+      const strasse = overrideStreet || c.address_street || "";
+      const plz = overrideZip || c.address_zip || "";
+      const ort = overrideCity || c.address_city || "";
+
+      // Mit-Eigentümer-Namen (nur für die "Haupt"-Gruppe relevant; bei
+      // separater Mit-Eigentümer-Gruppe ist mergedCoOwnerAssignments leer).
+      const mergedCoOwners = group.mergedCoOwnerAssignments || [];
+      const coOwnerLines: string[] = [];
+      const coOwnerLastNames: string[] = [];
+      for (const co of mergedCoOwners) {
+        const cc = contactMap.get(co.contact_id);
+        if (!cc) continue;
+        const coPersons = personsByContact.get(co.contact_id) || [];
+        const coPrim = coPersons.find((p: any) => p.is_primary) || coPersons[0] || null;
+        const coFn = ov(co.first_name_override) || coPrim?.first_name || cc.first_name || "";
+        const coLn = ov(co.last_name_override) || coPrim?.last_name || cc.last_name || "";
+        const coSal = ov(co.salutation_override) || coPrim?.salutation || cc.salutation || "";
+        const coCompany = ov(co.company_name_override) || cc.company_name || "";
+        const coFull = coCompany || [coSal, coFn, coLn].filter(Boolean).join(" ").trim();
+        if (coFull) coOwnerLines.push(coFull);
+        if (coLn) coOwnerLastNames.push(coLn);
+      }
+
+      // adresse_block: Haupt-Empfänger + mit-adressierte Mit-Eigentümer (jeder in eigener Zeile)
+      const primaryAdresseeLine = firma || vollname || "";
+      const adresseLines: string[] = [];
+      if (firma) adresseLines.push(firma);
+      if (vollname && vollname !== firma) adresseLines.push(vollname);
+      for (const line of coOwnerLines) adresseLines.push(line);
+      if (strasse) adresseLines.push(strasse);
+      const ortLine = [plz, ort].filter(Boolean).join(" ").trim();
+      if (ortLine) adresseLines.push(ortLine);
+      const adresseBlock = adresseLines.join("\n");
+
+      // anrede_brief: Haupt + Mit-Eigentümer in einer Anrede zusammenfassen
+      let anredeBrief = makeAnredeBrief(salutation, lastName);
+      if (coOwnerLines.length > 0) {
+        const parts = [makeAnredeBrief(salutation, lastName).replace(/,$/, "")];
+        for (const co of mergedCoOwners) {
+          const coPersons = personsByContact.get(co.contact_id) || [];
+          const coPrim = coPersons.find((p: any) => p.is_primary) || coPersons[0] || null;
+          const coLn = ov(co.last_name_override) || coPrim?.last_name || contactMap.get(co.contact_id)?.last_name || "";
+          const coSal = ov(co.salutation_override) || coPrim?.salutation || contactMap.get(co.contact_id)?.salutation || "";
+          parts.push(makeAnredeBrief(coSal, coLn).replace(/,$/, ""));
+        }
+        anredeBrief = parts.join(", ") + ",";
+      }
+
       const today = new Date();
 
       // Bei Gruppierung: einheit/mea als Komma-Liste / Summe ausgeben, damit
@@ -326,7 +380,7 @@ export async function loadRecipients(
 
       const vars: Record<string, any> = {
         anrede: salutation || "",
-        anrede_brief: makeAnredeBrief(salutation, lastName),
+        anrede_brief: anredeBrief,
         vorname: firstName,
         nachname: lastName,
         vollname,
@@ -349,6 +403,8 @@ export async function loadRecipients(
         mea_summe: meaSumStr,
         einheiten_liste,
         rolle: a.role_in_building || "",
+        mit_eigentuemer_namen: coOwnerLines.join(", "),
+        mit_eigentuemer_anrede: coOwnerLines.length > 0 ? anredeBrief : "",
         verwalter_name: managerDisplayName || building.manager_name || "",
         verwalter_email: managerProfile?.email || "",
         verwalter_telefon: managerProfile?.phone || "",
