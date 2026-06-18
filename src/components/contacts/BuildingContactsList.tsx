@@ -1220,19 +1220,35 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                         ))}
                       </div>
 
-                      {/* Adresse (read-only) */}
-                      {(a.contact.address_street || a.contact.address_zip || a.contact.address_city) && (
-                        <div className="bg-muted/40 rounded-lg p-3 space-y-1">
+                      {/* Adresse (editierbar – wirkt auf den globalen Kontakt) */}
+                      <div className="bg-muted/40 rounded-lg p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Adresse</p>
-                          <div className="flex items-center gap-2 text-sm">
-                            <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                            <span>
-                              {[a.contact.address_street, [a.contact.address_zip, a.contact.address_city].filter(Boolean).join(" ")].filter(Boolean).join(", ")}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground">Adresse wird über die Kontaktseite verwaltet</p>
                         </div>
-                      )}
+                        <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_1fr] gap-2">
+                          <BufferedInput
+                            value={a.contact.address_street || ""}
+                            onSave={(val) => updateContact(a.contact_id, "address_street", val)}
+                            placeholder="Straße & Hausnummer"
+                            className="h-8 text-sm"
+                          />
+                          <BufferedInput
+                            value={a.contact.address_zip || ""}
+                            onSave={(val) => updateContact(a.contact_id, "address_zip", val)}
+                            placeholder="PLZ"
+                            className="h-8 text-sm"
+                          />
+                          <BufferedInput
+                            value={a.contact.address_city || ""}
+                            onSave={(val) => updateContact(a.contact_id, "address_city", val)}
+                            placeholder="Ort"
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">Änderungen wirken auf den globalen Kontakt.</p>
+                      </div>
+
 
                       {/* Assignment fields */}
                       <div className="space-y-3">
