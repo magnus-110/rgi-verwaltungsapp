@@ -306,11 +306,21 @@ export async function loadRecipients(
 
     for (const pair of pairs) {
       const personForVars = pair.person || primaryPerson;
-      const firstName = personForVars?.first_name || c.first_name || "";
-      const lastName = personForVars?.last_name || c.last_name || "";
-      const salutation = personForVars?.salutation || c.salutation || "";
+
+      // Bei "ein Empfänger pro Kontakt" (Briefe, Standard-Rundmails) alle Personen
+      // gemeinsam adressieren: "Christina und Sandra Bronold" / "Sehr geehrte Frauen Bronold,".
+      // Bei expand_all_emails (eine Mail pro E-Mail-Adresse) bleibt eine Person pro Empfänger.
+      const useCombined = !filter.expand_all_emails && personList.length > 1;
+      const combined = useCombined
+        ? combinePersons(personList)
+        : null;
+
+      const firstName = combined?.vorname || personForVars?.first_name || c.first_name || "";
+      const lastName = combined?.nachname || personForVars?.last_name || c.last_name || "";
+      const salutation = combined?.anrede ?? (personForVars?.salutation || c.salutation || "");
       const titel = personForVars?.position || "";
-      const vollname = [firstName, lastName].filter(Boolean).join(" ").trim();
+      const vollname = combined?.vollname || [firstName, lastName].filter(Boolean).join(" ").trim();
+      const anredeBrief = combined?.anrede_brief || makeAnredeBrief(salutation, lastName);
       const email = pair.email || null;
 
       if (filter.require_email && !email) continue;
