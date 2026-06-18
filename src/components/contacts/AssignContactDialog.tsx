@@ -323,7 +323,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
         floor_location: floorLocation || null,
         unit_kind: unitKind as any,
         billing_mode: 'own_billing' as any,
-        parent_assignment_id: null,
+        parent_assignment_id: coOwnerParent?.id || null,
       } as any);
       error = res.error;
     }
