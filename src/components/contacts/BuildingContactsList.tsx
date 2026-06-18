@@ -1051,13 +1051,14 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         looseSubs.forEach((s) => flat.push({ a: s, isSub: false, isCoOwner: false }));
 
 
-        return flat.map(({ a, isSub }) => {
+        return flat.map(({ a, isSub, isCoOwner }) => {
         const isExpanded = expanded === a.id;
         const hausgeld = getHausgeld(a);
         const kind = ((a as any).unit_kind || "apartment") as UnitKind;
         const billingMode = ((a as any).billing_mode || "own_billing") as "own_billing" | "distribution_only";
         const kindLabel = UNIT_KIND_LABELS[kind] || "Einheit";
         const kindIcon = UNIT_KIND_ICONS[kind] ?? "";
+        const canHaveCoOwners = managementMode === 'weg' && isApartment(kind) && !isCoOwner;
 
         return (
           <Card key={a.id} className={`overflow-hidden ${isSub ? "ml-6 border-l-2 border-l-primary/30" : ""}`}>
@@ -1083,6 +1084,11 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                     )}
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
+                    {isCoOwner && (
+                      <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20">
+                        Mit-Eigentümer{a.address_as_separate_letter === false ? " · gemeinsam" : ""}
+                      </Badge>
+                    )}
                     {managementMode === 'weg' && isBeirat(a) && <Badge variant="secondary" className="text-xs">Beirat</Badge>}
                     {managementMode === 'weg' && isCashAuditor(a) && <Badge variant="secondary" className="text-xs">Kassenprüfung</Badge>}
                     {managementMode === 'rent' && !isTenantActive(a) && <Badge variant="outline" className="text-xs bg-muted text-muted-foreground">Ausgezogen</Badge>}
@@ -1090,6 +1096,21 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  {canHaveCoOwners && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs gap-1 text-primary hover:text-primary"
+                      title="Mit-Eigentümer für diese Wohnung hinzufügen"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCoOwnerParent({ id: a.id, unit_number: a.unit_number, floor_location: a.floor_location, unit_kind: kind });
+                        setShowAssign(true);
+                      }}
+                    >
+                      <Plus className="h-3 w-3" /> Mit-Eigentümer
+                    </Button>
+                  )}
                   <Button
                     size="icon"
                     variant="ghost"
@@ -1110,6 +1131,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                   {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                 </div>
               </div>
+
 
               {/* Expanded details */}
               {isExpanded && (
