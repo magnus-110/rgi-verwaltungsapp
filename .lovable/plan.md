@@ -1,61 +1,91 @@
-## Ziel
+# KI-Auslese Heizkostenabrechnung (Nebenkosten-Tool)
 
-Bei Kontakten mit mehreren `contact_persons` sollen Briefe & Mails **alle Personen gemeinsam** adressieren (z. B. „Christina und Sandra Bronold"). Zusätzlich sollen Name(n), Anrede und Adresse direkt im **Gebäude-Tab Kontakte** editierbar sein, nicht nur in der globalen Kontaktseite.
+Prinzip: **KI schlägt vor, Mensch bestätigt.** Das bestehende manuelle Heizungsfeld bleibt unverändert. Der hochgeladene Wert wird erst nach Klick auf "Übernehmen" eingetragen.
 
-## Teil 1 – Mehrpersonen-Adressierung (ohne Vorlagenänderung)
+## 1. Neue Edge Function: `extract-heating-statement`
 
-Die Vorlagen verwenden bereits `{{vollname}}`, `{{anrede_brief}}`, `{{vorname}}`, `{{nachname}}`, `{{adresse_block}}`. Wir erweitern lediglich, **wie diese Variablen gefüllt werden**, wenn ein Kontakt mehrere Personen hat.
+Kopie der Struktur von `supabase/functions/extract-invoice/index.ts`, zwei Schritte:
 
-**Datei:** `supabase/functions/_shared/comm-vars.ts`
+**Auth (eigentümerfähig):** Muster aus `get-owner-billing-positions`. User via `userClient.auth.getUser()`, dann `assignment_id` gegen `contact_building_assignments` prüfen (gehört Wohnung diesem User?).
 
-Neue Hilfslogik in `loadRecipients` (nur wenn `expand_all_emails = false`, also bei Briefen und normalen Rundmails pro Kontakt):
+**Schritt 1 – OCR:** `mistral-ocr-latest` mit Signed URL aus `building-files`. PDF → `document_url`, JPG/PNG → `image_url`.
 
-- Sammle alle Personen mit Vor- oder Nachname (Filter analog `is_primary` ignorieren — alle aktiven Personen werden Empfänger).
-- Berechne kombinierte Felder:
-  - `vollname`: 
-    - Gleiche Nachnamen → `"Christina und Sandra Bronold"`
-    - Sonst → `"Christina Müller und Sandra Bronold"`
-    - >2 Personen → mit Komma + „und" vor dem letzten Namen.
-  - `vorname`: Vornamen-Liste verbunden mit „ und " bzw. Komma.
-  - `nachname`: eindeutige Nachnamen verbunden mit „ und ".
-  - `anrede_brief`:
-    - Alle gleiche Anrede „Frau"/„Herr" + gleicher Nachname → `"Sehr geehrte Frauen Bronold,"` / `"Sehr geehrte Herren Bronold,"`
-    - Mehrere mit gleichem Nachname, gemischte Anrede → `"Sehr geehrte Frau Bronold, sehr geehrter Herr Bronold,"`
-    - Unterschiedliche Nachnamen → `"Sehr geehrte Frau Müller, sehr geehrte Frau Bronold,"` (jede Person individuell, durch „, sehr geehrte/r …" verkettet).
-    - Fehlt Anrede → Fallback wie bisher.
-  - `adresse_block`: oberhalb der Straßenadresse `vollname` (kombiniert) verwenden – passt automatisch.
-- Singleton-Fall (1 Person) bleibt unverändert.
-- Bei `expand_all_emails = true` (Rundmail, pro E-Mail ein Empfänger) bleibt das bisherige Verhalten: jede Person wird separat addressiert, damit individuelle Postfächer korrekt angeschrieben werden.
+**Schritt 2 – Strukturierte Auslese:** `mistral-small-latest` mit Tool-Calling. Festes JSON-Schema:
 
-**Auswirkungen** automatisch in: Serienbriefe (`comm-render-letters`), Rundmails (`comm-send-emails`), Einladungen (`MeetingInvitationPdf` über `comm-render-letters`). Keine Vorlagen müssen angefasst werden.
+```
+found, anteil_gesamtkosten, heizkosten, warmwasserkosten,
+co2_vermieteranteil, suggested_value,
+nutzungszeitraum_von, nutzungszeitraum_bis, mieterwechsel_verdacht,
+confidence ("hoch"|"mittel"|"niedrig"),
+source_quote, warnings[]
+```
 
-**Optionaler Frontend-Hinweis (`emailTemplateVars.ts`):** identische `buildAnrede`-Kombinationslogik für `empfaenger_name` / `empfaenger_anrede` im Compose-Dialog, damit Vorschau konsistent ist. (Lookup auf `contact_persons` per E-Mail liefert ohnehin nur eine Person – wir laden zusätzlich alle Personen desselben Kontakts und kombinieren.)
+**Prompt-Regeln (Fachwissen):**
+- Suche "Ihr Anteil an den Gesamtkosten" bzw. Summe Heiz+Warmwasser
+- Vermieteranteil CO₂ ("CO₂KostAufG") abziehen → `suggested_value = anteil_gesamtkosten − co2_vermieteranteil`
+- Kein volles Jahr im Nutzungszeitraum → `mieterwechsel_verdacht=true`, `confidence="niedrig"`
+- Niemals Zahlen erfinden. Fehlt Hauptbetrag → `found=false`
+- Herstellerunabhängig (Techem, ista, Brunata, Minol)
 
-## Teil 2 – Personen & Adresse im Gebäude editieren
+## 2. Upload + UI in `NebenkostenTool.tsx` (Abschnitt 3 "Heizung / Warmwasser / Wasser")
 
-**Datei:** `src/components/contacts/BuildingContactsList.tsx` (Tab „Übersicht" der ausgeklappten Kontakt-Card)
+Bestehendes Eingabefeld (`heatingOverride`, Zeile 712) bleibt 1:1 erhalten.
 
-Ergänzungen:
+**Darunter neuer Bereich** "Optional: Heizkostenabrechnung hochladen":
+- File-Input (PDF/JPG/PNG)
+- Upload nach `building-files` unter `service/heating-uploads/{assignment_id}/{ts}-{name}`
+- Aufruf `supabase.functions.invoke("extract-heating-statement", { body: { assignment_id, file_path } })`
+- Nach Auslese: Datei wieder aus Storage entfernen (Datensparsamkeit)
 
-1. **Neuer Block „Personen"** (oberhalb Telefon):
-   - Liste aller `contact_persons` mit:
-     - Select Anrede (Herr/Frau/Divers/leer)
-     - Input Vorname
-     - Input Nachname
-     - Star-Toggle „primär"
-     - Trash-Button (mit Bestätigung)
-   - „+ Person"-Button → neuer Person-Datensatz.
-   - Speichern via `BufferedInput`-Pattern (analog Telefon/E-Mail) auf Tabelle `contact_persons`.
-2. **Adresse editierbar** (vorhandener read-only Block):
-   - 3 `BufferedInput`s: Straße, PLZ, Ort
-   - Update direkt auf `contacts`-Tabelle (`address_street`, `address_zip`, `address_city`).
-   - Hinweistext „Adresse wird über die Kontaktseite verwaltet" entfällt – Änderung wirkt global auf den Kontakt (gewünscht, da Kontakt-zentriertes Modell).
+**Ergebniskarte – 3 Zustände:**
 
-Datenquelle: vorhandener Query in der Datei lädt `persons` bereits inkl. `salutation`. Mutationen über `supabase.from(...).update/insert/delete`, anschließend `refetch()`.
+a) **Treffer** (`found=true`, `confidence!=niedrig`): Herleitung zeigen (Anteil − CO₂-Vermieteranteil = Vorschlag), Buttons **[Wert übernehmen]** / **[Verwerfen]**.
 
-## Technische Hinweise
+b) **Unsicher** (`mieterwechsel_verdacht` oder `confidence=niedrig`): Gefundene Zahlen zur Orientierung, **kein** Übernehmen-Button, Hinweis "bitte selbst eintragen".
 
-- Keine Schema-Änderungen, keine neuen RLS-Policies (Tabellen `contacts`, `contact_persons` schon beschreibbar für authentifizierte Admins).
-- Keine Migration nötig.
-- Edge Functions müssen redeployt werden, da `comm-vars.ts` über `_shared/` eingebunden wird: `comm-render-letters`, `comm-send-emails`, `generate-meeting-protocol`, `etv-render-protocol` (alle, die `loadRecipients` nutzen).
-- Verifikation: Achweg 3-5 Einheit 0025 → Briefvorschau muss „Christina und Sandra Bronold" + `Sehr geehrte Frauen Bronold,` zeigen.
+c) **Nichts gefunden** (`found=false`): Klare Meldung "keinen eindeutigen Betrag erkannt".
+
+**Übernehmen-Logik:**
+```ts
+onClick={() => { setHeatingOverride(aiResult.suggested_value); setAiResult(null); }}
+```
+Wert ist danach weiterhin manuell editierbar.
+
+**Snapshot in `handleBuy` (heating-Objekt, Zeile 414 ff.)** zusätzlich:
+- `ai_assisted: boolean`
+- `ai_confidence?: string`
+- `ai_source_quote?: string`
+
+Für Audit/Haftung nachvollziehbar.
+
+## 3. Sicherheits-/Sonderfälle (im Prompt + UI)
+
+- **Mieterwechsel**: Bestehender Mieterwechsel-Hinweis im Tool bleibt; KI-Vorschlag wird in diesem Fall blockiert (Zustand b).
+- **CO₂-Falle**: Herleitung sichtbar zeigen (Anteil minus Vermieteranteil), damit User Logik versteht.
+- **Doppelt-Wasser**: Als `warning` ausgeben, ergänzt bestehenden gelben Hinweis Abschnitt 4.
+- **Datenschutz**: Upload nach Auslese löschen.
+- **Kauf-Dialog mit Widerrufsverzicht** bleibt unverändert die finale Bestätigung.
+
+## 4. Umsetzungsreihenfolge
+
+1. Edge Function `extract-heating-statement` (Kopie + neuer Prompt + Owner-Auth)
+2. Upload-Komponente + Ergebniskarte (3 Zustände) im Heizungs-Abschnitt
+3. Übernehmen-Button + `ai_assisted`-Felder im Snapshot
+4. Kurzhilfe "So finden Sie Ihren Wert" als Inline-Hinweis am Heizungsfeld
+
+## 5. Betroffene Dateien
+
+- **NEU:** `supabase/functions/extract-heating-statement/index.ts`
+- **NEU:** `supabase/config.toml` Eintrag (verify_jwt nach Pattern)
+- **EDIT:** `src/pages/weg-owner/NebenkostenTool.tsx` (Abschnitt 3 + `handleBuy`-Snapshot)
+
+Keine Datenbank-Migration nötig (nutzt bestehenden `building-files`-Bucket und `contact_building_assignments`).
+
+## 6. Test-Checkliste
+
+- [ ] Techem mit CO₂-Abzug → Vorschlag = Anteil − Vermieteranteil
+- [ ] Abrechnung ohne CO₂ → voller Anteil, kein Phantom-Abzug
+- [ ] Foto schräg/unscharf → sauber "nichts gefunden"
+- [ ] Mieterwechsel-Abrechnung → `confidence=niedrig`, kein Übernehmen-Button
+- [ ] Fremdes Dokument (Rechnung) → `found=false`
+- [ ] Übernommener Wert ist nachträglich manuell änderbar
