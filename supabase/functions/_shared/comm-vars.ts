@@ -344,7 +344,7 @@ export async function loadRecipients(
 
       const vars: Record<string, any> = {
         anrede: salutation || "",
-        anrede_brief: makeAnredeBrief(salutation, lastName),
+        anrede_brief: anredeBrief,
         vorname: firstName,
         nachname: lastName,
         vollname,
