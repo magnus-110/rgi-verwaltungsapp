@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, User, ChevronDown, ChevronUp, Phone, Mail, MapPin, Trash2, Copy, CreditCard, BookOpen, X, Pencil, Check, CornerDownRight } from "lucide-react";
+import { Plus, User, ChevronDown, ChevronUp, Phone, Mail, MapPin, Trash2, Copy, CreditCard, BookOpen, X, Pencil, Check, CornerDownRight, Star } from "lucide-react";
 import { UNIT_KIND_LABELS, UNIT_KIND_ICONS, UNIT_KIND_OPTIONS, BILLING_MODE_LABELS, isApartment, type UnitKind } from "@/lib/secondaryUnits";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
@@ -943,6 +943,31 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     refetch();
   };
 
+  // Personen
+  const addPerson = async (contactId: string) => {
+    await supabase.from("contact_persons").insert({ contact_id: contactId, first_name: "", last_name: "", salutation: "", is_primary: false });
+    refetch();
+  };
+  const updatePerson = async (id: string, field: string, value: any) => {
+    await supabase.from("contact_persons").update({ [field]: value } as any).eq("id", id);
+    refetch();
+  };
+  const deletePerson = async (id: string) => {
+    await supabase.from("contact_persons").delete().eq("id", id);
+    refetch();
+  };
+  const setPrimaryPerson = async (contactId: string, personId: string) => {
+    await supabase.from("contact_persons").update({ is_primary: false } as any).eq("contact_id", contactId);
+    await supabase.from("contact_persons").update({ is_primary: true } as any).eq("id", personId);
+    refetch();
+  };
+
+  // Kontakt-Adresse / Stammdaten (wirkt global auf den Kontakt)
+  const updateContact = async (contactId: string, field: string, value: any) => {
+    await supabase.from("contacts").update({ [field]: value } as any).eq("id", contactId);
+    refetch();
+  };
+
   const roleLabel = managementMode === 'weg' ? 'Eigentümer' : 'Mieter';
 
   // Mieter-Filter: nur aktuelle (default) vs. alle
@@ -1081,7 +1106,55 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
                     {/* Tab: Übersicht */}
                     <TabsContent value="overview" className="space-y-4 mt-0">
-                      {/* Telefon */}
+                      {/* Personen */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Personen</p>
+                          <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => addPerson(a.contact_id)}>
+                            <Plus className="h-3 w-3 mr-1" /> Person
+                          </Button>
+                        </div>
+                        {a.persons.length === 0 && <p className="text-xs text-muted-foreground italic">Keine Person hinterlegt</p>}
+                        {a.persons.map((p) => (
+                          <div key={p.id} className="flex items-center gap-2">
+                            <Select value={p.salutation || "__none__"} onValueChange={(v) => updatePerson(p.id, "salutation", v === "__none__" ? null : v)}>
+                              <SelectTrigger className="w-20 h-7 text-xs"><SelectValue placeholder="Anrede" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">—</SelectItem>
+                                <SelectItem value="Frau">Frau</SelectItem>
+                                <SelectItem value="Herr">Herr</SelectItem>
+                                <SelectItem value="Divers">Divers</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <BufferedInput
+                              value={p.first_name || ""}
+                              onSave={(val) => updatePerson(p.id, "first_name", val)}
+                              placeholder="Vorname"
+                              className="h-7 text-sm flex-1"
+                            />
+                            <BufferedInput
+                              value={p.last_name || ""}
+                              onSave={(val) => updatePerson(p.id, "last_name", val)}
+                              placeholder="Nachname"
+                              className="h-7 text-sm flex-1"
+                            />
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6"
+                              title={p.is_primary ? "Primärkontakt" : "Als primär markieren"}
+                              onClick={() => setPrimaryPerson(a.contact_id, p.id)}
+                            >
+                              <Star className={cn("h-3.5 w-3.5", p.is_primary ? "fill-primary text-primary" : "text-muted-foreground")} />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => deletePerson(p.id)}>
+                              <Trash2 className="h-3 w-3 text-destructive" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+
+
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Telefon</p>
@@ -1147,19 +1220,35 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                         ))}
                       </div>
 
-                      {/* Adresse (read-only) */}
-                      {(a.contact.address_street || a.contact.address_zip || a.contact.address_city) && (
-                        <div className="bg-muted/40 rounded-lg p-3 space-y-1">
+                      {/* Adresse (editierbar – wirkt auf den globalen Kontakt) */}
+                      <div className="bg-muted/40 rounded-lg p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Adresse</p>
-                          <div className="flex items-center gap-2 text-sm">
-                            <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                            <span>
-                              {[a.contact.address_street, [a.contact.address_zip, a.contact.address_city].filter(Boolean).join(" ")].filter(Boolean).join(", ")}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground">Adresse wird über die Kontaktseite verwaltet</p>
                         </div>
-                      )}
+                        <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_1fr] gap-2">
+                          <BufferedInput
+                            value={a.contact.address_street || ""}
+                            onSave={(val) => updateContact(a.contact_id, "address_street", val)}
+                            placeholder="Straße & Hausnummer"
+                            className="h-8 text-sm"
+                          />
+                          <BufferedInput
+                            value={a.contact.address_zip || ""}
+                            onSave={(val) => updateContact(a.contact_id, "address_zip", val)}
+                            placeholder="PLZ"
+                            className="h-8 text-sm"
+                          />
+                          <BufferedInput
+                            value={a.contact.address_city || ""}
+                            onSave={(val) => updateContact(a.contact_id, "address_city", val)}
+                            placeholder="Ort"
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">Änderungen wirken auf den globalen Kontakt.</p>
+                      </div>
+
 
                       {/* Assignment fields */}
                       <div className="space-y-3">

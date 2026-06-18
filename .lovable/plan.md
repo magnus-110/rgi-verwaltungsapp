@@ -1,39 +1,61 @@
-## Befund (geprüft in Auth + Kontakten)
+## Ziel
 
-Achweg 3-5 → die 6 Einheiten teilen sich nur **zwei** Kontakte:
+Bei Kontakten mit mehreren `contact_persons` sollen Briefe & Mails **alle Personen gemeinsam** adressieren (z. B. „Christina und Sandra Bronold"). Zusätzlich sollen Name(n), Anrede und Adresse direkt im **Gebäude-Tab Kontakte** editierbar sein, nicht nur in der globalen Kontaktseite.
 
-| Einheiten | Kontakt | aktuelle Primär-Mail (Login) | gewünschte Mail |
-|---|---|---|---|
-| 0005, 0006, 0010, 0021, 0026 | Lothar Schüttler | `gecarroll@outlook.com` ✗ | `lschuettler@outlook.com` |
-| 0025 | Sandra Bronold | `sandra.bronold@t-online.de` ✗ | `tina.bronold@broki.de` |
+## Teil 1 – Mehrpersonen-Adressierung (ohne Vorlagenänderung)
 
-Beide gewünschten Adressen sind als **Privat / nicht primär** beim Kontakt hinterlegt. Die alten Adressen sind als „Geschäftlich / primär" markiert und es existieren bereits **Auth-Accounts** dafür (beide haben sich noch **nie eingeloggt**, `last_sign_in_at = null`). `contact.user_id` zeigt jeweils auf diese alten Accounts.
+Die Vorlagen verwenden bereits `{{vollname}}`, `{{anrede_brief}}`, `{{vorname}}`, `{{nachname}}`, `{{adresse_block}}`. Wir erweitern lediglich, **wie diese Variablen gefüllt werden**, wenn ein Kontakt mehrere Personen hat.
 
-Die Edge Function `invite-contact-user` nimmt immer den `is_primary = true`-Eintrag und versendet die Zugangsdaten dorthin → ohne Korrektur würden die Einladungen weiter an die falschen Adressen gehen, und selbst wenn man die Primär-Mail nur am Kontakt umflaggt, würde der Login weiterhin auf die alte Auth-Mail laufen.
+**Datei:** `supabase/functions/_shared/comm-vars.ts`
 
-## Korrektur (zwei Schritte, dann Versand)
+Neue Hilfslogik in `loadRecipients` (nur wenn `expand_all_emails = false`, also bei Briefen und normalen Rundmails pro Kontakt):
 
-**Schritt 1 — Datenbank in einen konsistenten Zustand bringen** (per `supabase--insert`, da nur Daten-Updates, kein Schema):
+- Sammle alle Personen mit Vor- oder Nachname (Filter analog `is_primary` ignorieren — alle aktiven Personen werden Empfänger).
+- Berechne kombinierte Felder:
+  - `vollname`: 
+    - Gleiche Nachnamen → `"Christina und Sandra Bronold"`
+    - Sonst → `"Christina Müller und Sandra Bronold"`
+    - >2 Personen → mit Komma + „und" vor dem letzten Namen.
+  - `vorname`: Vornamen-Liste verbunden mit „ und " bzw. Komma.
+  - `nachname`: eindeutige Nachnamen verbunden mit „ und ".
+  - `anrede_brief`:
+    - Alle gleiche Anrede „Frau"/„Herr" + gleicher Nachname → `"Sehr geehrte Frauen Bronold,"` / `"Sehr geehrte Herren Bronold,"`
+    - Mehrere mit gleichem Nachname, gemischte Anrede → `"Sehr geehrte Frau Bronold, sehr geehrter Herr Bronold,"`
+    - Unterschiedliche Nachnamen → `"Sehr geehrte Frau Müller, sehr geehrte Frau Bronold,"` (jede Person individuell, durch „, sehr geehrte/r …" verkettet).
+    - Fehlt Anrede → Fallback wie bisher.
+  - `adresse_block`: oberhalb der Straßenadresse `vollname` (kombiniert) verwenden – passt automatisch.
+- Singleton-Fall (1 Person) bleibt unverändert.
+- Bei `expand_all_emails = true` (Rundmail, pro E-Mail ein Empfänger) bleibt das bisherige Verhalten: jede Person wird separat addressiert, damit individuelle Postfächer korrekt angeschrieben werden.
 
-1. `contact_emails`: Primär-Flag umsetzen
-   - Schüttler: `lschuettler@outlook.com` → `is_primary = true`, `gecarroll@outlook.com` → `false`
-   - Bronold: `tina.bronold@broki.de` → `is_primary = true`, `sandra.bronold@t-online.de` → `false`
-   - Alte Adressen bleiben am Kontakt (nur demoten, nicht löschen).
-2. `auth.users` für die beiden bereits angelegten User-IDs:
-   - `ec3c0dbc-…` (Schüttler) → `email = 'lschuettler@outlook.com'`, `email_confirmed_at = now()`
-   - `acb3fc73-…` (Bronold) → `email = 'tina.bronold@broki.de'`, `email_confirmed_at = now()`
-   - Sicher, weil noch nie eingeloggt.
-3. `profiles.email` analog auf die neuen Adressen setzen, damit Profil/Auth synchron sind.
+**Auswirkungen** automatisch in: Serienbriefe (`comm-render-letters`), Rundmails (`comm-send-emails`), Einladungen (`MeetingInvitationPdf` über `comm-render-letters`). Keine Vorlagen müssen angefasst werden.
 
-**Schritt 2 — Verifikation** per `read_query`:
-- `auth.users` + `profiles` + `contact_emails` für beide Kontakte gegenprüfen (neue Mail = primär + Auth + Profil).
+**Optionaler Frontend-Hinweis (`emailTemplateVars.ts`):** identische `buildAnrede`-Kombinationslogik für `empfaenger_name` / `empfaenger_anrede` im Compose-Dialog, damit Vorschau konsistent ist. (Lookup auf `contact_persons` per E-Mail liefert ohnehin nur eine Person – wir laden zusätzlich alle Personen desselben Kontakts und kombinieren.)
 
-**Schritt 3 — Einladung versenden** (durch dich im UI in Achweg 3-5):
-- Pro Kontakt einmal „Einladen / Zugangsdaten senden" auslösen — die Funktion findet den bestehenden Auth-User, rotiert das Passwort und versendet Login + neues Passwort an die jetzt korrekte Primär-Mail. Für Einheiten desselben Kontakts (Schüttler hat 5 Einheiten) reicht **ein** Versand.
+## Teil 2 – Personen & Adresse im Gebäude editieren
+
+**Datei:** `src/components/contacts/BuildingContactsList.tsx` (Tab „Übersicht" der ausgeklappten Kontakt-Card)
+
+Ergänzungen:
+
+1. **Neuer Block „Personen"** (oberhalb Telefon):
+   - Liste aller `contact_persons` mit:
+     - Select Anrede (Herr/Frau/Divers/leer)
+     - Input Vorname
+     - Input Nachname
+     - Star-Toggle „primär"
+     - Trash-Button (mit Bestätigung)
+   - „+ Person"-Button → neuer Person-Datensatz.
+   - Speichern via `BufferedInput`-Pattern (analog Telefon/E-Mail) auf Tabelle `contact_persons`.
+2. **Adresse editierbar** (vorhandener read-only Block):
+   - 3 `BufferedInput`s: Straße, PLZ, Ort
+   - Update direkt auf `contacts`-Tabelle (`address_street`, `address_zip`, `address_city`).
+   - Hinweistext „Adresse wird über die Kontaktseite verwaltet" entfällt – Änderung wirkt global auf den Kontakt (gewünscht, da Kontakt-zentriertes Modell).
+
+Datenquelle: vorhandener Query in der Datei lädt `persons` bereits inkl. `salutation`. Mutationen über `supabase.from(...).update/insert/delete`, anschließend `refetch()`.
 
 ## Technische Hinweise
-- Keine neue Migration nötig — reine Daten-Updates über `supabase--insert` (Update-Statements).
-- Keine Code-Änderung an `invite-contact-user` nötig: die Logik ist korrekt, nur die Daten waren es nicht.
-- Falls du die alten Adressen ganz vom Kontakt entfernen willst, sag Bescheid — standardmäßig lasse ich sie als Sekundär-Mail stehen.
 
-OK, dann setze ich Schritt 1 + 2 um, und du löst danach den Versand im UI aus?
+- Keine Schema-Änderungen, keine neuen RLS-Policies (Tabellen `contacts`, `contact_persons` schon beschreibbar für authentifizierte Admins).
+- Keine Migration nötig.
+- Edge Functions müssen redeployt werden, da `comm-vars.ts` über `_shared/` eingebunden wird: `comm-render-letters`, `comm-send-emails`, `generate-meeting-protocol`, `etv-render-protocol` (alle, die `loadRecipients` nutzen).
+- Verifikation: Achweg 3-5 Einheit 0025 → Briefvorschau muss „Christina und Sandra Bronold" + `Sehr geehrte Frauen Bronold,` zeigen.

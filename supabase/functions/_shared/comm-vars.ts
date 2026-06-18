@@ -48,6 +48,73 @@ export function makeAnredeBrief(salutation: string | null, lastName: string | nu
   return `Sehr geehrte/r ${ln},`;
 }
 
+/** Verbindet eine Liste von Strings mit Komma + abschließendem " und ". */
+function joinUnd(parts: string[]): string {
+  const arr = parts.filter((p) => p && p.trim().length > 0);
+  if (arr.length === 0) return "";
+  if (arr.length === 1) return arr[0];
+  if (arr.length === 2) return `${arr[0]} und ${arr[1]}`;
+  return `${arr.slice(0, -1).join(", ")} und ${arr[arr.length - 1]}`;
+}
+
+/**
+ * Kombiniert mehrere Personen eines Kontakts zu Anrede-/Namensvariablen.
+ * Bei nur einer Person bleibt das Verhalten identisch zum Singleton-Fall.
+ */
+export function combinePersons(
+  persons: Array<{ salutation?: string | null; first_name?: string | null; last_name?: string | null }>,
+): { vorname: string; nachname: string; vollname: string; anrede: string; anrede_brief: string } {
+  const valid = persons.filter((p) => (p.first_name || p.last_name));
+  if (valid.length === 0) {
+    return { vorname: "", nachname: "", vollname: "", anrede: "", anrede_brief: "Sehr geehrte Damen und Herren," };
+  }
+  if (valid.length === 1) {
+    const p = valid[0];
+    const fn = (p.first_name || "").trim();
+    const ln = (p.last_name || "").trim();
+    return {
+      vorname: fn,
+      nachname: ln,
+      vollname: [fn, ln].filter(Boolean).join(" "),
+      anrede: (p.salutation || "").trim(),
+      anrede_brief: makeAnredeBrief(p.salutation || "", ln),
+    };
+  }
+
+  const firstNames = valid.map((p) => (p.first_name || "").trim()).filter(Boolean);
+  const lastNamesAll = valid.map((p) => (p.last_name || "").trim());
+  const uniqueLast = Array.from(new Set(lastNamesAll.filter(Boolean)));
+
+  let vollname = "";
+  if (uniqueLast.length === 1) {
+    vollname = `${joinUnd(firstNames)} ${uniqueLast[0]}`.trim();
+  } else {
+    vollname = joinUnd(valid.map((p) => [p.first_name, p.last_name].filter(Boolean).join(" ").trim()));
+  }
+
+  const sals = valid.map((p) => (p.salutation || "").trim().toLowerCase());
+  const uniqueSals = Array.from(new Set(sals));
+  let anredeBrief = "";
+  if (uniqueLast.length === 1 && uniqueSals.length === 1 && (uniqueSals[0] === "frau" || uniqueSals[0] === "herr")) {
+    const plural = uniqueSals[0] === "frau" ? "Sehr geehrte Frauen" : "Sehr geehrte Herren";
+    anredeBrief = `${plural} ${uniqueLast[0]},`;
+  } else {
+    const parts = valid.map((p, idx) => {
+      const single = makeAnredeBrief(p.salutation || "", p.last_name || "").replace(/,$/, "");
+      return idx === 0 ? single : single.charAt(0).toLowerCase() + single.slice(1);
+    });
+    anredeBrief = `${parts.join(", ")},`;
+  }
+
+  return {
+    vorname: joinUnd(firstNames),
+    nachname: joinUnd(uniqueLast),
+    vollname,
+    anrede: uniqueSals.length === 1 ? valid[0].salutation || "" : "",
+    anrede_brief: anredeBrief,
+  };
+}
+
 export function makeAdresseBlock(parts: {
   firma?: string | null; vollname?: string | null; strasse?: string | null;
   plz?: string | null; ort?: string | null;
@@ -239,11 +306,21 @@ export async function loadRecipients(
 
     for (const pair of pairs) {
       const personForVars = pair.person || primaryPerson;
-      const firstName = personForVars?.first_name || c.first_name || "";
-      const lastName = personForVars?.last_name || c.last_name || "";
-      const salutation = personForVars?.salutation || c.salutation || "";
+
+      // Bei "ein Empfänger pro Kontakt" (Briefe, Standard-Rundmails) alle Personen
+      // gemeinsam adressieren: "Christina und Sandra Bronold" / "Sehr geehrte Frauen Bronold,".
+      // Bei expand_all_emails (eine Mail pro E-Mail-Adresse) bleibt eine Person pro Empfänger.
+      const useCombined = !filter.expand_all_emails && personList.length > 1;
+      const combined = useCombined
+        ? combinePersons(personList)
+        : null;
+
+      const firstName = combined?.vorname || personForVars?.first_name || c.first_name || "";
+      const lastName = combined?.nachname || personForVars?.last_name || c.last_name || "";
+      const salutation = combined?.anrede ?? (personForVars?.salutation || c.salutation || "");
       const titel = personForVars?.position || "";
-      const vollname = [firstName, lastName].filter(Boolean).join(" ").trim();
+      const vollname = combined?.vollname || [firstName, lastName].filter(Boolean).join(" ").trim();
+      const anredeBrief = combined?.anrede_brief || makeAnredeBrief(salutation, lastName);
       const email = pair.email || null;
 
       if (filter.require_email && !email) continue;
@@ -267,7 +344,7 @@ export async function loadRecipients(
 
       const vars: Record<string, any> = {
         anrede: salutation || "",
-        anrede_brief: makeAnredeBrief(salutation, lastName),
+        anrede_brief: anredeBrief,
         vorname: firstName,
         nachname: lastName,
         vollname,
