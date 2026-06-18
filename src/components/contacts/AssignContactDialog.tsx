@@ -544,27 +544,36 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
 
 
               {/* Unit kind */}
-              <div>
-                <Label className="text-xs">Art der Einheit</Label>
-                <Select value={unitKind} onValueChange={(v) => setUnitKind(v as UnitKind)}>
-                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {UNIT_KIND_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+              {!coOwnerParent && (
+                <div>
+                  <Label className="text-xs">Art der Einheit</Label>
+                  <Select value={unitKind} onValueChange={(v) => setUnitKind(v as UnitKind)}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {UNIT_KIND_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {/* Unit details */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs">Einheit Nr.</Label>
-                  <Input value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} className="h-8 text-sm" placeholder="z.B. 3" />
+              {!coOwnerParent ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Einheit Nr.</Label>
+                    <Input value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} className="h-8 text-sm" placeholder="z.B. 3" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Etage / Lage</Label>
+                    <Input value={floorLocation} onChange={(e) => setFloorLocation(e.target.value)} className="h-8 text-sm" placeholder="z.B. 2. OG links" />
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-xs">Etage / Lage</Label>
-                  <Input value={floorLocation} onChange={(e) => setFloorLocation(e.target.value)} className="h-8 text-sm" placeholder="z.B. 2. OG links" />
+              ) : (
+                <div className="bg-muted/40 rounded-md p-2 text-xs text-muted-foreground">
+                  Wird als Mit-Eigentümer für Wohnung <strong className="text-foreground">{coOwnerParent.unit_number || "—"}</strong>
+                  {coOwnerParent.floor_location ? <> ({coOwnerParent.floor_location})</> : null} angelegt.
                 </div>
-              </div>
+              )}
 
               {/* Beirat checkbox (WEG only) */}
               {managementMode === 'weg' && (
