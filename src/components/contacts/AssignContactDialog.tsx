@@ -395,7 +395,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
         <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editAssignmentId ? "Zuordnung bearbeiten" : (step === "select" ? "Kontakt zuordnen" : "Zuordnungsdetails")}
+              {coOwnerParent ? `Mit-Eigentümer für Whg. ${coOwnerParent.unit_number || ""}`.trim() : (editAssignmentId ? "Zuordnung bearbeiten" : (step === "select" ? "Kontakt zuordnen" : "Zuordnungsdetails"))}
             </DialogTitle>
           </DialogHeader>
 
