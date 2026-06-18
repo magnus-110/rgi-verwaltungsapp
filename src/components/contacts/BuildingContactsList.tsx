@@ -422,6 +422,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showAssign, setShowAssign] = useState(false);
   const [editAssignmentId, setEditAssignmentId] = useState<string | null>(null);
+  const [coOwnerParent, setCoOwnerParent] = useState<{ id: string; unit_number: string | null; floor_location: string | null; unit_kind: UnitKind } | null>(null);
   const [mieterFilter, setMieterFilter] = useState<'current' | 'all'>('current');
 
   const [deleteTarget, setDeleteTarget] = useState<ContactAssignment | null>(null);
