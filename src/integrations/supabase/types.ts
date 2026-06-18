@@ -3245,6 +3245,7 @@ export type Database = {
       }
       contact_building_assignments: {
         Row: {
+          address_as_separate_letter: boolean
           address_city_override: string | null
           address_street_override: string | null
           address_zip_override: string | null
@@ -3287,6 +3288,7 @@ export type Database = {
           valid_to: string | null
         }
         Insert: {
+          address_as_separate_letter?: boolean
           address_city_override?: string | null
           address_street_override?: string | null
           address_zip_override?: string | null
@@ -3329,6 +3331,7 @@ export type Database = {
           valid_to?: string | null
         }
         Update: {
+          address_as_separate_letter?: boolean
           address_city_override?: string | null
           address_street_override?: string | null
           address_zip_override?: string | null
