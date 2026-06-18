@@ -23,6 +23,8 @@ interface Props {
   managementMode?: "weg" | "rent";
   /** Wenn gesetzt: Dialog läuft im Edit-Modus für dieses Assignment (Kontakt ist fix). */
   editAssignmentId?: string | null;
+  /** Wenn gesetzt: Neuer Datensatz wird als Mit-Eigentümer zu diesem Assignment angelegt. */
+  coOwnerParent?: { id: string; unit_number: string | null; floor_location: string | null; unit_kind: UnitKind } | null;
 }
 
 interface ContactPerson {
@@ -56,7 +58,7 @@ function formatIban(raw: string): string {
   return raw.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim();
 }
 
-export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned, existingContactIds, managementMode = "weg", editAssignmentId = null }: Props) {
+export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned, existingContactIds, managementMode = "weg", editAssignmentId = null, coOwnerParent = null }: Props) {
   const [contacts, setContacts] = useState<ContactOption[]>([]);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -97,9 +99,14 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
       resetForm();
       if (editAssignmentId) {
         loadAssignmentForEdit(editAssignmentId);
+      } else if (coOwnerParent) {
+        // Mit-Eigentümer: Einheit aus Parent übernehmen
+        setUnitNumber(coOwnerParent.unit_number || "");
+        setFloorLocation(coOwnerParent.floor_location || "");
+        setUnitKind(coOwnerParent.unit_kind || "apartment");
       }
     }
-  }, [open, editAssignmentId]);
+  }, [open, editAssignmentId, coOwnerParent?.id]);
 
   const resetForm = () => {
     setStep("select");
@@ -316,7 +323,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
         floor_location: floorLocation || null,
         unit_kind: unitKind as any,
         billing_mode: 'own_billing' as any,
-        parent_assignment_id: null,
+        parent_assignment_id: coOwnerParent?.id || null,
       } as any);
       error = res.error;
     }
@@ -388,7 +395,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
         <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editAssignmentId ? "Zuordnung bearbeiten" : (step === "select" ? "Kontakt zuordnen" : "Zuordnungsdetails")}
+              {coOwnerParent ? `Mit-Eigentümer für Whg. ${coOwnerParent.unit_number || ""}`.trim() : (editAssignmentId ? "Zuordnung bearbeiten" : (step === "select" ? "Kontakt zuordnen" : "Zuordnungsdetails"))}
             </DialogTitle>
           </DialogHeader>
 
@@ -537,27 +544,36 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
 
 
               {/* Unit kind */}
-              <div>
-                <Label className="text-xs">Art der Einheit</Label>
-                <Select value={unitKind} onValueChange={(v) => setUnitKind(v as UnitKind)}>
-                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {UNIT_KIND_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+              {!coOwnerParent && (
+                <div>
+                  <Label className="text-xs">Art der Einheit</Label>
+                  <Select value={unitKind} onValueChange={(v) => setUnitKind(v as UnitKind)}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {UNIT_KIND_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {/* Unit details */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs">Einheit Nr.</Label>
-                  <Input value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} className="h-8 text-sm" placeholder="z.B. 3" />
+              {!coOwnerParent ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Einheit Nr.</Label>
+                    <Input value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} className="h-8 text-sm" placeholder="z.B. 3" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Etage / Lage</Label>
+                    <Input value={floorLocation} onChange={(e) => setFloorLocation(e.target.value)} className="h-8 text-sm" placeholder="z.B. 2. OG links" />
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-xs">Etage / Lage</Label>
-                  <Input value={floorLocation} onChange={(e) => setFloorLocation(e.target.value)} className="h-8 text-sm" placeholder="z.B. 2. OG links" />
+              ) : (
+                <div className="bg-muted/40 rounded-md p-2 text-xs text-muted-foreground">
+                  Wird als Mit-Eigentümer für Wohnung <strong className="text-foreground">{coOwnerParent.unit_number || "—"}</strong>
+                  {coOwnerParent.floor_location ? <> ({coOwnerParent.floor_location})</> : null} angelegt.
                 </div>
-              </div>
+              )}
 
               {/* Beirat checkbox (WEG only) */}
               {managementMode === 'weg' && (
