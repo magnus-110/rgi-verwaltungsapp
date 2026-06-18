@@ -943,6 +943,31 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     refetch();
   };
 
+  // Personen
+  const addPerson = async (contactId: string) => {
+    await supabase.from("contact_persons").insert({ contact_id: contactId, first_name: "", last_name: "", salutation: "", is_primary: false });
+    refetch();
+  };
+  const updatePerson = async (id: string, field: string, value: any) => {
+    await supabase.from("contact_persons").update({ [field]: value } as any).eq("id", id);
+    refetch();
+  };
+  const deletePerson = async (id: string) => {
+    await supabase.from("contact_persons").delete().eq("id", id);
+    refetch();
+  };
+  const setPrimaryPerson = async (contactId: string, personId: string) => {
+    await supabase.from("contact_persons").update({ is_primary: false } as any).eq("contact_id", contactId);
+    await supabase.from("contact_persons").update({ is_primary: true } as any).eq("id", personId);
+    refetch();
+  };
+
+  // Kontakt-Adresse / Stammdaten (wirkt global auf den Kontakt)
+  const updateContact = async (contactId: string, field: string, value: any) => {
+    await supabase.from("contacts").update({ [field]: value } as any).eq("id", contactId);
+    refetch();
+  };
+
   const roleLabel = managementMode === 'weg' ? 'Eigentümer' : 'Mieter';
 
   // Mieter-Filter: nur aktuelle (default) vs. alle
