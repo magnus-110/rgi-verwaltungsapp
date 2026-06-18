@@ -1664,13 +1664,18 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
       <AssignContactDialog
         open={showAssign}
-        onOpenChange={(o) => { setShowAssign(o); if (!o) setEditAssignmentId(null); }}
+        onOpenChange={(o) => {
+          setShowAssign(o);
+          if (!o) { setEditAssignmentId(null); setCoOwnerParent(null); }
+        }}
         buildingId={buildingId}
-        onAssigned={() => { refetch(); setEditAssignmentId(null); }}
-        existingContactIds={assignments.map(a => a.contact_id)}
+        onAssigned={() => { refetch(); setEditAssignmentId(null); setCoOwnerParent(null); }}
+        existingContactIds={coOwnerParent ? [] : assignments.map(a => a.contact_id)}
         managementMode={managementMode as "weg" | "rent"}
         editAssignmentId={editAssignmentId}
+        coOwnerParent={coOwnerParent}
       />
+
     </div>
   );
 }
