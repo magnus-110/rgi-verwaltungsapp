@@ -1212,19 +1212,97 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                         ))}
                       </div>
 
-                      {/* Adresse (read-only) */}
-                      {(a.contact.address_street || a.contact.address_zip || a.contact.address_city) && (
-                        <div className="bg-muted/40 rounded-lg p-3 space-y-1">
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Adresse</p>
-                          <div className="flex items-center gap-2 text-sm">
-                            <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                            <span>
-                              {[a.contact.address_street, [a.contact.address_zip, a.contact.address_city].filter(Boolean).join(" ")].filter(Boolean).join(", ")}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground">Adresse wird über die Kontaktseite verwaltet</p>
+                      {/* Name & Adresse — Overrides für dieses Gebäude */}
+                      <div className="bg-muted/40 rounded-lg p-3 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name & Anschrift (für dieses Gebäude)</p>
+                          {((a.salutation_override || a.first_name_override || a.last_name_override || a.company_name_override || a.address_street_override || a.address_zip_override || a.address_city_override)) && (
+                            <Badge variant="outline" className="text-[10px]">überschrieben</Badge>
+                          )}
                         </div>
-                      )}
+                        <div className="grid grid-cols-12 gap-2">
+                          <div className="col-span-3">
+                            <Label className="text-[10px] text-muted-foreground">Anrede</Label>
+                            <Select
+                              value={a.salutation_override || a.contact.salutation || ""}
+                              onValueChange={(v) => updateAssignment(a.id, "salutation_override", v || null)}
+                            >
+                              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="—" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Frau">Frau</SelectItem>
+                                <SelectItem value="Herr">Herr</SelectItem>
+                                <SelectItem value="Firma">Firma</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="col-span-4">
+                            <Label className="text-[10px] text-muted-foreground">Vorname</Label>
+                            <BufferedInput
+                              value={a.first_name_override ?? a.contact.first_name ?? ""}
+                              onSave={(val) => updateAssignment(a.id, "first_name_override", val || null)}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="col-span-5">
+                            <Label className="text-[10px] text-muted-foreground">Nachname</Label>
+                            <BufferedInput
+                              value={a.last_name_override ?? a.contact.last_name ?? ""}
+                              onSave={(val) => updateAssignment(a.id, "last_name_override", val || null)}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="col-span-12">
+                            <Label className="text-[10px] text-muted-foreground">Firma (optional)</Label>
+                            <BufferedInput
+                              value={a.company_name_override ?? a.contact.company_name ?? ""}
+                              onSave={(val) => updateAssignment(a.id, "company_name_override", val || null)}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-12 gap-2">
+                          <div className="col-span-12">
+                            <Label className="text-[10px] text-muted-foreground">Straße</Label>
+                            <BufferedInput
+                              value={a.address_street_override ?? a.contact.address_street ?? ""}
+                              onSave={(val) => updateAssignment(a.id, "address_street_override", val || null)}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="col-span-4">
+                            <Label className="text-[10px] text-muted-foreground">PLZ</Label>
+                            <BufferedInput
+                              value={a.address_zip_override ?? a.contact.address_zip ?? ""}
+                              onSave={(val) => updateAssignment(a.id, "address_zip_override", val || null)}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="col-span-8">
+                            <Label className="text-[10px] text-muted-foreground">Ort</Label>
+                            <BufferedInput
+                              value={a.address_city_override ?? a.contact.address_city ?? ""}
+                              onSave={(val) => updateAssignment(a.id, "address_city_override", val || null)}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">
+                          Änderungen gelten nur für dieses Gebäude (Anschreiben, Rundmails). Die globalen Kontaktdaten bleiben unverändert.
+                        </p>
+
+                        {isCoOwner && (
+                          <div className="flex items-center gap-2 pt-2 border-t">
+                            <Checkbox
+                              id={`sep-letter-${a.id}`}
+                              checked={a.address_as_separate_letter !== false}
+                              onCheckedChange={(v) => updateAssignment(a.id, "address_as_separate_letter", !!v)}
+                            />
+                            <Label htmlFor={`sep-letter-${a.id}`} className="text-sm cursor-pointer">
+                              Eigenes Anschreiben/Rundmail erhalten
+                            </Label>
+                          </div>
+                        )}
+                      </div>
 
                       {/* Assignment fields */}
                       <div className="space-y-3">
