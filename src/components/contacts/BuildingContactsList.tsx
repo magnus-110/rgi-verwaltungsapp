@@ -592,7 +592,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const isCashAuditor = (a: ContactAssignment) => (a as any).is_cash_auditor === true;
 
   const updateAssignment = async (id: string, field: string, value: any) => {
-    await supabase.from("contact_building_assignments").update({ [field]: value || null } as any).eq("id", id);
+    // Booleans und explizite null/"" durchreichen; nur leere Strings -> null konvertieren
+    const payload = typeof value === "boolean" ? value : (value === "" ? null : value);
+    await supabase.from("contact_building_assignments").update({ [field]: payload } as any).eq("id", id);
     refetch();
   };
 
