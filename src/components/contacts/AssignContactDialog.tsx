@@ -99,9 +99,14 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
       resetForm();
       if (editAssignmentId) {
         loadAssignmentForEdit(editAssignmentId);
+      } else if (coOwnerParent) {
+        // Mit-Eigentümer: Einheit aus Parent übernehmen
+        setUnitNumber(coOwnerParent.unit_number || "");
+        setFloorLocation(coOwnerParent.floor_location || "");
+        setUnitKind(coOwnerParent.unit_kind || "apartment");
       }
     }
-  }, [open, editAssignmentId]);
+  }, [open, editAssignmentId, coOwnerParent?.id]);
 
   const resetForm = () => {
     setStep("select");
