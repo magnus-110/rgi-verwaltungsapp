@@ -183,8 +183,23 @@ export async function loadRecipients(
   // Build iteration groups: one group of assignments per recipient.
   // - group_by_contact = true  → 1 Gruppe pro contact_id (alle Einheiten zusammen)
   // - sonst                    → 1 Gruppe pro Assignment (Legacy-Verhalten)
-  type Group = { contact_id: string; assignments: any[] };
+  // Zusätzlich: Mit-Eigentümer mit address_as_separate_letter != false bekommen
+  // eine eigene Gruppe (eigener Empfänger). Mit-Eigentümer mit
+  // address_as_separate_letter === false werden weiter unten in die Adresse des
+  // Haupt-Eigentümers mit hineingeschrieben.
+  type Group = {
+    contact_id: string;
+    assignments: any[];
+    /** Mit-Eigentümer, deren Namen in adresse_block/anrede_brief mit aufgenommen werden */
+    mergedCoOwnerAssignments?: any[];
+    /** Wenn true, ist diese Gruppe ein Mit-Eigentümer-Empfänger (eigene Adresse) */
+    isCoOwnerAddressee?: boolean;
+  };
   const groups: Group[] = [];
+  const addMergedCoOwners = (parentAssignmentId: string): any[] =>
+    (coOwnersByParent.get(parentAssignmentId) || []).filter(
+      (co: any) => co.address_as_separate_letter === false,
+    );
   if (filter.group_by_contact) {
     const byContact = new Map<string, any[]>();
     for (const a of assignments) {
@@ -193,10 +208,31 @@ export async function loadRecipients(
       byContact.set(a.contact_id, arr);
     }
     for (const [contact_id, arr] of byContact.entries()) {
-      groups.push({ contact_id, assignments: arr });
+      const merged: any[] = [];
+      for (const ag of arr) merged.push(...addMergedCoOwners(ag.id));
+      groups.push({ contact_id, assignments: arr, mergedCoOwnerAssignments: merged });
     }
   } else {
-    for (const a of assignments) groups.push({ contact_id: a.contact_id, assignments: [a] });
+    for (const a of assignments) {
+      groups.push({
+        contact_id: a.contact_id,
+        assignments: [a],
+        mergedCoOwnerAssignments: addMergedCoOwners(a.id),
+      });
+    }
+  }
+  // Separate Mit-Eigentümer als eigene Gruppen anhängen
+  for (const a of assignments) {
+    const seps = (coOwnersByParent.get(a.id) || []).filter(
+      (co: any) => co.address_as_separate_letter !== false,
+    );
+    for (const co of seps) {
+      groups.push({
+        contact_id: co.contact_id,
+        assignments: [co],
+        isCoOwnerAddressee: true,
+      });
+    }
   }
 
   for (const group of groups) {
