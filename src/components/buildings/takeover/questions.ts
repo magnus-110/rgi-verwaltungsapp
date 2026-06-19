@@ -75,11 +75,11 @@ export const TAKEOVER_SECTIONS: TakeoverSection[] = [
       { key: "heizung.oel_kapazitaet_liter", label: "Kapazität der Heizung in Liter", type: "number", dependsOn: { key: "heizung.art", equals: "Öl" } },
       { key: "heizung.oel_anzeige_korrekt", label: "Stimmt die Anzeige mit dem Inhalt überein?", type: "bool", apply: "note", dependsOn: { key: "heizung.art", equals: "Öl" } },
       { key: "heizung.oel_meldung", label: "Wer meldet niedrigen Heizölstand?", type: "select", options: ["Hausmeister", "Eigentümer", "Tankfirma", "Sonstiges"], allowOther: true, apply: "note", dependsOn: { key: "heizung.art", equals: "Öl" } },
-      { key: "heizung.wartung_vorhanden", label: "Heizungswartungsvertrag vorhanden?", type: "bool" },
+      { key: "heizung.wartung_vorhanden", label: "Heizungswartungsvertrag vorhanden?", type: "bool", dependsOn: { key: "heizung.art", in: ["Öl", "Gas", "Pellets", "Wärmepumpe"] } },
       { key: "heizung.wartung", label: "Name / Firma Heizungswartung", type: "text", apply: "service_provider", providerCategory: "Heizungswartung", dependsOn: { key: "heizung.wartung_vorhanden", equals: true } },
       { key: "heizung.legionellen_letzte", label: "Letzte Legionellenprüfung", type: "date", apply: "note" },
       { key: "heizung.enthaertung", label: "Enthärtungsanlage vorhanden?", type: "bool", apply: "note" },
-      { key: "heizung.funkzaehler", label: "Messzähler auf Funk umgestellt?", type: "bool", apply: "note" },
+      { key: "heizung.funkzaehler", label: "Messzähler auf Funk umgestellt?", type: "bool", apply: "note", dependsOn: { key: "heizung.art", notEquals: "Sonstiges" } },
     ],
   },
   {
