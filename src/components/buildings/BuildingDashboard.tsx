@@ -24,6 +24,7 @@ import { BuildingOverviewTab } from "./BuildingOverviewTab";
 import { BuildingNotesTab } from "./BuildingNotesTab";
 import { AnnualCycleBuildingTab } from "./AnnualCycleBuildingTab";
 import { BuildingOnboardingTab } from "./BuildingOnboardingTab";
+import { BuildingTakeoverTab } from "./takeover/BuildingTakeoverTab";
 import { BuildingKeysTab } from "./keys/BuildingKeysTab";
 import { BuildingDepositsTab } from "./BuildingDepositsTab";
 import { supabase } from "@/integrations/supabase/client";
@@ -181,6 +182,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "maintenance", label: "Wartung" },
               { value: "keys", label: "Schlüssel" },
               ...(building.management_mode === 'weg' ? [{ value: "onboarding", label: "Onboarding" }] : []),
+              { value: "takeover", label: "Übernahme" },
             ].map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} variant="underline"
                 className="px-3 md:px-4 py-3 text-xs md:text-sm whitespace-nowrap min-h-[44px]">
@@ -279,6 +281,11 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               <BuildingOnboardingTab buildingId={buildingId} />
             </TabsContent>
           )}
+
+          {/* Takeover Tab — Verwaltungs-Übernahme */}
+          <TabsContent value="takeover" className="p-3 md:p-6 mt-0">
+            <BuildingTakeoverTab buildingId={buildingId} />
+          </TabsContent>
         </ScrollArea>
       </Tabs>
 
