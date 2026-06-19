@@ -2073,6 +2073,68 @@ export type Database = {
           },
         ]
       }
+      building_takeover_answers: {
+        Row: {
+          applied_at: string | null
+          applied_to: string | null
+          building_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          question_key: string
+          section: string
+          status: string
+          updated_at: string
+          value_bool: boolean | null
+          value_date: string | null
+          value_number: number | null
+          value_text: string | null
+        }
+        Insert: {
+          applied_at?: string | null
+          applied_to?: string | null
+          building_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          question_key: string
+          section: string
+          status?: string
+          updated_at?: string
+          value_bool?: boolean | null
+          value_date?: string | null
+          value_number?: number | null
+          value_text?: string | null
+        }
+        Update: {
+          applied_at?: string | null
+          applied_to?: string | null
+          building_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          question_key?: string
+          section?: string
+          status?: string
+          updated_at?: string
+          value_bool?: boolean | null
+          value_date?: string | null
+          value_number?: number | null
+          value_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "building_takeover_answers_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       buildings: {
         Row: {
           address: string
@@ -2091,6 +2153,7 @@ export type Database = {
           management_start_date: string | null
           manager_name: string | null
           name: string
+          takeover_completed_at: string | null
           type: string | null
           unit_count: number
           unit_count_for_billing: number | null
@@ -2114,6 +2177,7 @@ export type Database = {
           management_start_date?: string | null
           manager_name?: string | null
           name: string
+          takeover_completed_at?: string | null
           type?: string | null
           unit_count?: number
           unit_count_for_billing?: number | null
@@ -2137,6 +2201,7 @@ export type Database = {
           management_start_date?: string | null
           manager_name?: string | null
           name?: string
+          takeover_completed_at?: string | null
           type?: string | null
           unit_count?: number
           unit_count_for_billing?: number | null
