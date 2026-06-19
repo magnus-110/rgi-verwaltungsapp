@@ -267,6 +267,12 @@ export const QuestionRow = ({ buildingId, section, question, existing }: Props) 
       </div>
 
       <div className="flex items-center justify-end gap-2 pt-1">
+        {existing?.id && (
+          <Button size="sm" variant="ghost" onClick={handleClear} disabled={clearing} className="text-muted-foreground">
+            {clearing && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+            Leeren
+          </Button>
+        )}
         {!isClickType && (
           <Button size="sm" variant="outline" onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
