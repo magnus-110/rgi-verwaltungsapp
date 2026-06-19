@@ -244,11 +244,15 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
   // Per-Sektion-Subtotale (Plan / Ist / Verteilbar) — alle als negative
   // Aufwandsbeträge formatiert, damit DOCX-Zwischensummenzeilen vorzeichen-
   // konsistent zu den Einzelpositionen erscheinen.
+  const isWithholdingAcc = (a: any) => {
+    const n = String(a?.account_number || "");
+    return n === "1850" || n === "1860";
+  };
   const subtotals = (accs: any[] = []) => {
     const ist = accs.reduce((s, a) => s + Math.abs(a.totalAbs || 0), 0);
     const plan = accs.reduce((s, a) => s + Math.abs(a.wpAmount || 0), 0);
     const verteilbar = accs
-      .filter((a) => a.is_distributable === true)
+      .filter((a) => a.is_distributable === true && !isWithholdingAcc(a))
       .reduce((s, a) => s + Math.abs(a.totalAbs || 0), 0);
     return { ist: fmtEUR(-ist), plan: fmtEUR(-plan), verteilbar: fmtEUR(-verteilbar) };
   };
