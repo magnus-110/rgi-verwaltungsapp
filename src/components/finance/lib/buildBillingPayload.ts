@@ -132,13 +132,16 @@ function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccr
       : opts.asIncome ? wp
       : a.wpAmount;
     const verteilbarBase = a.distributableAmount ?? abs;
+    // Vorzeichen für die Verteilbar-Spalte erzwingen (Ausgaben negativ, Einnahmen positiv).
     const verteilbar = opts.asExpense ? -Math.abs(verteilbarBase)
       : opts.asIncome ? Math.abs(verteilbarBase)
-      : verteilbarBase;
+      : -Math.abs(verteilbarBase);
     // Verteilbar nur ausgeben, wenn das Konto tatsächlich verteilungsrelevant ist.
-    // Nicht-distributable Konten (z. B. Kapitalertragsteuer, Soli) würden sonst
-    // einen Wert in der Verteilbar-Spalte zeigen, obwohl sie nicht summiert werden.
-    const isDist = a.is_distributable === true;
+    // Nicht-distributable Konten (z. B. Kapitalertragsteuer 1850, Soli 1860) dürfen
+    // weder Wert noch Vorzeichen in der Verteilbar-Spalte zeigen.
+    const accNum = String(a.account_number || "");
+    const isWithholding = accNum === "1850" || accNum === "1860";
+    const isDist = a.is_distributable === true && !isWithholding && Math.abs(verteilbarBase) > 0;
     return {
       konto_nr: a.account_number,
       konto_name: a.account_name,
@@ -241,11 +244,15 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
   // Per-Sektion-Subtotale (Plan / Ist / Verteilbar) — alle als negative
   // Aufwandsbeträge formatiert, damit DOCX-Zwischensummenzeilen vorzeichen-
   // konsistent zu den Einzelpositionen erscheinen.
+  const isWithholdingAcc = (a: any) => {
+    const n = String(a?.account_number || "");
+    return n === "1850" || n === "1860";
+  };
   const subtotals = (accs: any[] = []) => {
     const ist = accs.reduce((s, a) => s + Math.abs(a.totalAbs || 0), 0);
     const plan = accs.reduce((s, a) => s + Math.abs(a.wpAmount || 0), 0);
     const verteilbar = accs
-      .filter((a) => a.is_distributable === true)
+      .filter((a) => a.is_distributable === true && !isWithholdingAcc(a))
       .reduce((s, a) => s + Math.abs(a.totalAbs || 0), 0);
     return { ist: fmtEUR(-ist), plan: fmtEUR(-plan), verteilbar: fmtEUR(-verteilbar) };
   };
@@ -262,11 +269,19 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     ...(sectionAccounts.heating || []),
     ...(sectionAccounts.reserve || []),
   ].reduce((s: number, a: any) => s + Math.abs(a.wpAmount || 0), 0);
-  // Verteilbare Gesamtausgaben — MUSS exakt totals.abrechnungssumme entsprechen
-  // (gemeinsame Quelle UI ↔ PDF, verhindert Vorzeichen-/Wert-Drift). Die alte
-  // lokale Aggregation über alle Sektionen führte zur Doppelzählung der
-  // IHR-Zuführung im PDF (Differenz zur UI-Anzeige).
-  const sumVerteilbar = totals.abrechnungssumme;
+  // Verteilbare Gesamtausgaben — exakt aus den Sektions-Listen aggregiert (nur
+  // is_distributable, ohne Quellensteuern 1850/1860). Damit ist die Zahl per
+  // Konstruktion identisch mit der Summe der Verteilbar-Subtotale und kann
+  // niemals versehentlich mit sum_ausgaben_ist übereinstimmen.
+  const sumDistributableFromSection = (accs: any[] = []) =>
+    accs
+      .filter((a) => a.is_distributable === true && !isWithholdingAcc(a))
+      .reduce((s, a) => s + Math.abs(a.totalAbs || 0), 0);
+  const sumVerteilbar =
+      sumDistributableFromSection(sectionAccounts.operating_distributable)
+    + sumDistributableFromSection(sectionAccounts.operating_non_distributable)
+    + sumDistributableFromSection(sectionAccounts.heating)
+    + sumDistributableFromSection(sectionAccounts.reserve);
 
   return {
     document_title: "Jahresabrechnung — Gesamt",
