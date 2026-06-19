@@ -22,7 +22,10 @@ export interface TakeoverQuestion {
   options?: string[];
   allowOther?: boolean;
   /** Frage nur anzeigen, wenn andere Frage bestimmten Wert hat */
-  dependsOn?: { key: string; equals: any };
+  dependsOn?:
+    | { key: string; equals: any }
+    | { key: string; notEquals: any }
+    | { key: string; in: any[] };
 }
 
 export interface TakeoverSection {
