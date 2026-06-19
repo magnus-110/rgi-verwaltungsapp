@@ -91,6 +91,25 @@ export const QuestionRow = ({ buildingId, section, question, existing }: Props) 
     }
   };
 
+  const handleClear = async () => {
+    if (!existing?.id) return;
+    setClearing(true);
+    try {
+      const { error } = await supabase
+        .from("building_takeover_answers" as any)
+        .delete()
+        .eq("id", existing.id);
+      if (error) throw error;
+      setText(""); setNum(""); setDate(""); setBool(null); setNotes("");
+      toast({ title: "Geleert" });
+      qc.invalidateQueries({ queryKey: ["takeover-answers", buildingId] });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e.message, variant: "destructive" });
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const handleApply = async () => {
     if (!question.apply) return;
     setApplying(true);
