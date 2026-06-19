@@ -132,13 +132,16 @@ function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccr
       : opts.asIncome ? wp
       : a.wpAmount;
     const verteilbarBase = a.distributableAmount ?? abs;
+    // Vorzeichen für die Verteilbar-Spalte erzwingen (Ausgaben negativ, Einnahmen positiv).
     const verteilbar = opts.asExpense ? -Math.abs(verteilbarBase)
       : opts.asIncome ? Math.abs(verteilbarBase)
-      : verteilbarBase;
+      : -Math.abs(verteilbarBase);
     // Verteilbar nur ausgeben, wenn das Konto tatsächlich verteilungsrelevant ist.
-    // Nicht-distributable Konten (z. B. Kapitalertragsteuer, Soli) würden sonst
-    // einen Wert in der Verteilbar-Spalte zeigen, obwohl sie nicht summiert werden.
-    const isDist = a.is_distributable === true;
+    // Nicht-distributable Konten (z. B. Kapitalertragsteuer 1850, Soli 1860) dürfen
+    // weder Wert noch Vorzeichen in der Verteilbar-Spalte zeigen.
+    const accNum = String(a.account_number || "");
+    const isWithholding = accNum === "1850" || accNum === "1860";
+    const isDist = a.is_distributable === true && !isWithholding && Math.abs(verteilbarBase) > 0;
     return {
       konto_nr: a.account_number,
       konto_name: a.account_name,
