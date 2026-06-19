@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Check, Circle, CheckCircle2 } from "lucide-react";
 import { applyAnswer } from "./applyHandlers";
+import { VoiceInputButton } from "@/components/shared/VoiceInputButton";
 import type { TakeoverQuestion } from "./questions";
 
 interface Props {
@@ -115,10 +116,16 @@ export const QuestionRow = ({ buildingId, section, question, existing }: Props) 
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         {question.type === "text" && (
-          <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Antwort" />
+          <div className="flex items-center gap-1">
+            <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Antwort" className="flex-1" />
+            <VoiceInputButton contextHint={question.label} appendMode currentValue={text} onResult={setText} />
+          </div>
         )}
         {question.type === "textarea" && (
-          <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Antwort" className="md:col-span-2" rows={2} />
+          <div className="md:col-span-2 flex items-start gap-1">
+            <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Antwort" rows={2} className="flex-1" />
+            <VoiceInputButton contextHint={question.label} appendMode currentValue={text} onResult={setText} />
+          </div>
         )}
         {question.type === "number" && (
           <Input type="number" value={num} onChange={(e) => setNum(e.target.value)} placeholder="0" />
@@ -132,7 +139,10 @@ export const QuestionRow = ({ buildingId, section, question, existing }: Props) 
             <span className="text-sm text-muted-foreground">{bool ? "Ja" : "Nein"}</span>
           </div>
         )}
-        <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notiz (optional)" />
+        <div className="flex items-center gap-1">
+          <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notiz (optional)" className="flex-1" />
+          <VoiceInputButton contextHint={`Notiz zu: ${question.label}`} appendMode currentValue={notes} onResult={setNotes} />
+        </div>
       </div>
 
       <div className="flex items-center justify-end gap-2 pt-1">
