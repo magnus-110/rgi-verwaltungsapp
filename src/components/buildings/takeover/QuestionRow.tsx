@@ -3,13 +3,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Check, Circle, CheckCircle2 } from "lucide-react";
 import { applyAnswer } from "./applyHandlers";
 import { VoiceInputButton } from "@/components/shared/VoiceInputButton";
+import { cn } from "@/lib/utils";
 import type { TakeoverQuestion } from "./questions";
 
 interface Props {
@@ -19,13 +19,15 @@ interface Props {
   existing: any | null;
 }
 
+const OTHER = "__other__";
+
 export const QuestionRow = ({ buildingId, section, question, existing }: Props) => {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [text, setText] = useState<string>(existing?.value_text ?? "");
   const [num, setNum] = useState<string>(existing?.value_number?.toString() ?? "");
   const [date, setDate] = useState<string>(existing?.value_date ?? "");
-  const [bool, setBool] = useState<boolean>(existing?.value_bool ?? false);
+  const [bool, setBool] = useState<boolean | null>(existing?.value_bool ?? null);
   const [notes, setNotes] = useState<string>(existing?.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -34,36 +36,46 @@ export const QuestionRow = ({ buildingId, section, question, existing }: Props) 
     setText(existing?.value_text ?? "");
     setNum(existing?.value_number?.toString() ?? "");
     setDate(existing?.value_date ?? "");
-    setBool(existing?.value_bool ?? false);
+    setBool(existing?.value_bool ?? null);
     setNotes(existing?.notes ?? "");
   }, [existing?.id]);
 
   const status: "open" | "answered" | "applied" = existing?.status ?? "open";
 
-  const buildValues = () => ({
-    value_text: question.type === "text" || question.type === "textarea" ? (text.trim() || null) : null,
-    value_number: question.type === "number" ? (num.trim() === "" ? null : Number(num)) : null,
-    value_date: question.type === "date" ? (date || null) : null,
-    value_bool: question.type === "bool" ? bool : null,
-    notes: notes.trim() || null,
-  });
+  const buildValues = (overrides?: { text?: string | null; bool?: boolean | null }) => {
+    const t = overrides?.text !== undefined ? overrides.text : text;
+    const b = overrides?.bool !== undefined ? overrides.bool : bool;
+    const isTextLike = question.type === "text" || question.type === "textarea" || question.type === "select" || question.type === "multiselect";
+    return {
+      value_text: isTextLike ? ((t ?? "").toString().trim() || null) : null,
+      value_number: question.type === "number" ? (num.trim() === "" ? null : Number(num)) : null,
+      value_date: question.type === "date" ? (date || null) : null,
+      value_bool: question.type === "bool" ? b : null,
+      notes: notes.trim() || null,
+    };
+  };
 
-  const upsert = async (status: "answered" | "applied", applied_to?: string) => {
+  const upsert = async (
+    nextStatus: "answered" | "applied",
+    applied_to?: string,
+    overrides?: { text?: string | null; bool?: boolean | null },
+  ) => {
     const { data: user } = await supabase.auth.getUser();
     const payload: any = {
       building_id: buildingId,
       section,
       question_key: question.key,
-      ...buildValues(),
-      status,
+      ...buildValues(overrides),
+      status: nextStatus,
       applied_to: applied_to ?? existing?.applied_to ?? null,
-      applied_at: status === "applied" ? new Date().toISOString() : existing?.applied_at ?? null,
+      applied_at: nextStatus === "applied" ? new Date().toISOString() : existing?.applied_at ?? null,
       created_by: existing?.created_by ?? user.user?.id ?? null,
     };
     const { error } = await supabase
       .from("building_takeover_answers" as any)
       .upsert(payload, { onConflict: "building_id,question_key" });
     if (error) throw error;
+    qc.invalidateQueries({ queryKey: ["takeover-answers", buildingId] });
   };
 
   const handleSave = async () => {
@@ -71,7 +83,6 @@ export const QuestionRow = ({ buildingId, section, question, existing }: Props) 
     try {
       await upsert("answered");
       toast({ title: "Gespeichert" });
-      qc.invalidateQueries({ queryKey: ["takeover-answers", buildingId] });
     } catch (e: any) {
       toast({ title: "Fehler", description: e.message, variant: "destructive" });
     } finally {
@@ -86,13 +97,57 @@ export const QuestionRow = ({ buildingId, section, question, existing }: Props) 
       const applied_to = await applyAnswer(buildingId, question, buildValues());
       await upsert("applied", applied_to);
       toast({ title: "Übernommen", description: applied_to });
-      qc.invalidateQueries({ queryKey: ["takeover-answers", buildingId] });
     } catch (e: any) {
       toast({ title: "Übernahme fehlgeschlagen", description: e.message, variant: "destructive" });
     } finally {
       setApplying(false);
     }
   };
+
+  // Auto-save handlers for click-based inputs
+  const handleBoolClick = async (v: boolean) => {
+    setBool(v);
+    try {
+      await upsert("answered", undefined, { bool: v });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleSelectClick = async (opt: string) => {
+    if (opt === OTHER) {
+      setText("");
+      return;
+    }
+    setText(opt);
+    try {
+      await upsert("answered", undefined, { text: opt });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleMultiToggle = async (opt: string) => {
+    const current = (() => {
+      try { return JSON.parse(text || "[]"); } catch { return []; }
+    })() as string[];
+    const next = current.includes(opt) ? current.filter((x) => x !== opt) : [...current, opt];
+    const value = JSON.stringify(next);
+    setText(value);
+    try {
+      await upsert("answered", undefined, { text: value });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const multiSelected: string[] = (() => {
+    if (question.type !== "multiselect") return [];
+    try { return JSON.parse(text || "[]"); } catch { return []; }
+  })();
+
+  const isClickType = question.type === "bool" || question.type === "select" || question.type === "multiselect";
+  const showOtherInput = question.type === "select" && question.allowOther && text && !(question.options ?? []).includes(text);
 
   return (
     <div className="border rounded-md p-3 space-y-2 bg-card">
@@ -134,22 +189,96 @@ export const QuestionRow = ({ buildingId, section, question, existing }: Props) 
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         )}
         {question.type === "bool" && (
-          <div className="flex items-center gap-2">
-            <Switch checked={bool} onCheckedChange={setBool} />
-            <span className="text-sm text-muted-foreground">{bool ? "Ja" : "Nein"}</span>
+          <div className="md:col-span-2 flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={bool === true ? "default" : "outline"}
+              className={cn("flex-1", bool === true && "bg-green-600 hover:bg-green-700")}
+              onClick={() => handleBoolClick(true)}
+            >
+              Ja
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={bool === false ? "default" : "outline"}
+              className={cn("flex-1", bool === false && "bg-red-600 hover:bg-red-700")}
+              onClick={() => handleBoolClick(false)}
+            >
+              Nein
+            </Button>
           </div>
         )}
-        <div className="flex items-center gap-1">
+        {question.type === "select" && (
+          <div className="md:col-span-2 space-y-2">
+            <div className="flex flex-wrap gap-1.5">
+              {(question.options ?? []).map((opt) => (
+                <Button
+                  key={opt}
+                  type="button"
+                  size="sm"
+                  variant={text === opt ? "default" : "outline"}
+                  onClick={() => handleSelectClick(opt)}
+                >
+                  {opt}
+                </Button>
+              ))}
+              {question.allowOther && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={showOtherInput ? "default" : "outline"}
+                  onClick={() => handleSelectClick(OTHER)}
+                >
+                  Anderes…
+                </Button>
+              )}
+            </div>
+            {showOtherInput && (
+              <Input
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder="Bitte angeben"
+                onBlur={handleSave}
+              />
+            )}
+          </div>
+        )}
+        {question.type === "multiselect" && (
+          <div className="md:col-span-2 flex flex-wrap gap-1.5">
+            {(question.options ?? []).map((opt) => (
+              <Button
+                key={opt}
+                type="button"
+                size="sm"
+                variant={multiSelected.includes(opt) ? "default" : "outline"}
+                onClick={() => handleMultiToggle(opt)}
+              >
+                {opt}
+              </Button>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-1 md:col-span-2">
           <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notiz (optional)" className="flex-1" />
           <VoiceInputButton contextHint={`Notiz zu: ${question.label}`} appendMode currentValue={notes} onResult={setNotes} />
         </div>
       </div>
 
       <div className="flex items-center justify-end gap-2 pt-1">
-        <Button size="sm" variant="outline" onClick={handleSave} disabled={saving}>
-          {saving && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-          Speichern
-        </Button>
+        {!isClickType && (
+          <Button size="sm" variant="outline" onClick={handleSave} disabled={saving}>
+            {saving && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+            Speichern
+          </Button>
+        )}
+        {isClickType && notes.trim() && notes !== (existing?.notes ?? "") && (
+          <Button size="sm" variant="outline" onClick={handleSave} disabled={saving}>
+            {saving && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+            Notiz speichern
+          </Button>
+        )}
         {question.apply && (
           <Button size="sm" onClick={handleApply} disabled={applying}>
             {applying && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}

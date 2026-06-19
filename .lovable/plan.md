@@ -1,91 +1,51 @@
-# KI-Auslese Heizkostenabrechnung (Nebenkosten-Tool)
+Aktuell sind viele Fragen reine Text-/Textarea-Felder, obwohl die Antwort fast immer aus einer kleinen Liste stammt (Heizungsart, Vertrag ja/nein, etc.). Ich erweitere den Fragenkatalog um zwei neue Frage-Typen und stelle möglichst viele Fragen auf Klick-Auswahl um.
 
-Prinzip: **KI schlägt vor, Mensch bestätigt.** Das bestehende manuelle Heizungsfeld bleibt unverändert. Der hochgeladene Wert wird erst nach Klick auf "Übernehmen" eingetragen.
+## Neue Frage-Typen
+- `select` – Einfachauswahl aus festen Optionen (Buttons/Chips), optional mit Freitext-Feld bei "Sonstiges"
+- `multiselect` – Mehrfachauswahl per Klick (Chips), optional mit Freitext
 
-## 1. Neue Edge Function: `extract-heating-statement`
+`bool` bleibt, wird aber als großes Ja/Nein-Buttonpaar dargestellt (statt Switch).
 
-Kopie der Struktur von `supabase/functions/extract-invoice/index.ts`, zwei Schritte:
+## Umstellungen je Sektion
 
-**Auth (eigentümerfähig):** Muster aus `get-owner-billing-positions`. User via `userClient.auth.getUser()`, dann `assignment_id` gegen `contact_building_assignments` prüfen (gehört Wohnung diesem User?).
+**1. Rundgang**
+- Hausmeister / Winterdienst / Gartenservice: bleiben Text (Firmenname) – ABER vorgelagerte Ja/Nein-Frage "vorhanden?" als `bool`; nur bei Ja Eingabefeld für Name
+- Vertrag/Leistungsverzeichnis vorhanden? → `select` (Ja / Nein / Teilweise)
+- Parkplätze-Zuordnung: zusätzlich `select` für "Sondereigentum / Sondernutzungsrecht / Gemischt"
 
-**Schritt 1 – OCR:** `mistral-ocr-latest` mit Signed URL aus `building-files`. PDF → `document_url`, JPG/PNG → `image_url`.
+**2. Gemeinschaftseigentum**
+- Feuerlöscher-Wartung: Ja/Nein + Firmenname
+- Aufzug vorhanden? → `bool`; Lüftung vorhanden? → `bool` (statt einem Textfeld "weitere Verträge")
 
-**Schritt 2 – Strukturierte Auslese:** `mistral-small-latest` mit Tool-Calling. Festes JSON-Schema:
+**3. Heizung**
+- Heizungsart → `select` (Öl, Gas, Wärmepumpe, Fernwärme, Pellets, Sonstiges)
+- Anzeige stimmt? bleibt `bool`
+- Wartungsvertrag: Ja/Nein + Firmenname
+- Enthärtungsanlage / Funkzähler: bleibt `bool`
+- "Wer meldet niedrigen Ölstand?" → `select` (Hausmeister / Eigentümer / Tankfirma / Sonstiges)
 
-```
-found, anteil_gesamtkosten, heizkosten, warmwasserkosten,
-co2_vermieteranteil, suggested_value,
-nutzungszeitraum_von, nutzungszeitraum_bis, mieterwechsel_verdacht,
-confidence ("hoch"|"mittel"|"niedrig"),
-source_quote, warnings[]
-```
+**4. Allgemeine Verwaltung**
+- Wirtschaftsjahr → `select` (01.01.–31.12. / 01.07.–30.06. / Sonstiges)
+- Schließanlage vorhanden? → `bool` + bei Ja Textfeld "Wo ist die Karte?"
+- Eigentümerkontakte / Beschlusssammlung / Offene Beschlüsse (Ja/Nein) / TE & Aufteilungsplan / Hausordnung / Übergabeunterlagen: bleiben `bool`
+- "Offene Beschlüsse" wird gesplittet: `bool` (gibt es welche?) + bedingtes Textarea (welche?)
+- Angestellte → `bool` + bedingtes Textfeld "Lohnbuchhaltung durch"
+- Laufende Kredite → `bool` + bedingtes Textarea Details
+- Geplante bauliche Maßnahmen → `bool` + bedingtes Textarea
+- Beirat-Mitglieder bleibt Textarea (Namensliste)
 
-**Prompt-Regeln (Fachwissen):**
-- Suche "Ihr Anteil an den Gesamtkosten" bzw. Summe Heiz+Warmwasser
-- Vermieteranteil CO₂ ("CO₂KostAufG") abziehen → `suggested_value = anteil_gesamtkosten − co2_vermieteranteil`
-- Kein volles Jahr im Nutzungszeitraum → `mieterwechsel_verdacht=true`, `confidence="niedrig"`
-- Niemals Zahlen erfinden. Fehlt Hauptbetrag → `found=false`
-- Herstellerunabhängig (Techem, ista, Brunata, Minol)
+## Technische Umsetzung
+1. `questions.ts`: 
+   - Typ-Erweiterung: `QuestionType += "select" | "multiselect"`, neue Felder `options?: string[]`, `allowOther?: boolean`, `dependsOn?: { key: string; equals: any }` für bedingte Folgefragen
+2. `QuestionRow.tsx`:
+   - Render-Branch für `select` → Button-Gruppe (Toggle-Style, shadcn `ToggleGroup` oder Buttons mit `variant` default/outline)
+   - Render-Branch für `multiselect` → Chip-Buttons
+   - `bool` neu als Ja/Nein-Buttonpaar
+   - Bedingte Anzeige: Folgefrage nur rendern, wenn `dependsOn` erfüllt (Wert kommt aus geladenen Answers)
+   - Auto-Save direkt beim Klick (kein Speichern-Button bei select/bool)
+3. `applyHandlers.ts`: bei `buildings.heating_type` Map vom Anzeige-Label zum DB-Enum, falls nötig (sonst direkt String speichern)
+4. DB: Werte landen weiterhin in `value_text` (select) bzw. `value_bool`; für `multiselect` als JSON-String in `value_text`. Keine Migration nötig.
 
-## 2. Upload + UI in `NebenkostenTool.tsx` (Abschnitt 3 "Heizung / Warmwasser / Wasser")
-
-Bestehendes Eingabefeld (`heatingOverride`, Zeile 712) bleibt 1:1 erhalten.
-
-**Darunter neuer Bereich** "Optional: Heizkostenabrechnung hochladen":
-- File-Input (PDF/JPG/PNG)
-- Upload nach `building-files` unter `service/heating-uploads/{assignment_id}/{ts}-{name}`
-- Aufruf `supabase.functions.invoke("extract-heating-statement", { body: { assignment_id, file_path } })`
-- Nach Auslese: Datei wieder aus Storage entfernen (Datensparsamkeit)
-
-**Ergebniskarte – 3 Zustände:**
-
-a) **Treffer** (`found=true`, `confidence!=niedrig`): Herleitung zeigen (Anteil − CO₂-Vermieteranteil = Vorschlag), Buttons **[Wert übernehmen]** / **[Verwerfen]**.
-
-b) **Unsicher** (`mieterwechsel_verdacht` oder `confidence=niedrig`): Gefundene Zahlen zur Orientierung, **kein** Übernehmen-Button, Hinweis "bitte selbst eintragen".
-
-c) **Nichts gefunden** (`found=false`): Klare Meldung "keinen eindeutigen Betrag erkannt".
-
-**Übernehmen-Logik:**
-```ts
-onClick={() => { setHeatingOverride(aiResult.suggested_value); setAiResult(null); }}
-```
-Wert ist danach weiterhin manuell editierbar.
-
-**Snapshot in `handleBuy` (heating-Objekt, Zeile 414 ff.)** zusätzlich:
-- `ai_assisted: boolean`
-- `ai_confidence?: string`
-- `ai_source_quote?: string`
-
-Für Audit/Haftung nachvollziehbar.
-
-## 3. Sicherheits-/Sonderfälle (im Prompt + UI)
-
-- **Mieterwechsel**: Bestehender Mieterwechsel-Hinweis im Tool bleibt; KI-Vorschlag wird in diesem Fall blockiert (Zustand b).
-- **CO₂-Falle**: Herleitung sichtbar zeigen (Anteil minus Vermieteranteil), damit User Logik versteht.
-- **Doppelt-Wasser**: Als `warning` ausgeben, ergänzt bestehenden gelben Hinweis Abschnitt 4.
-- **Datenschutz**: Upload nach Auslese löschen.
-- **Kauf-Dialog mit Widerrufsverzicht** bleibt unverändert die finale Bestätigung.
-
-## 4. Umsetzungsreihenfolge
-
-1. Edge Function `extract-heating-statement` (Kopie + neuer Prompt + Owner-Auth)
-2. Upload-Komponente + Ergebniskarte (3 Zustände) im Heizungs-Abschnitt
-3. Übernehmen-Button + `ai_assisted`-Felder im Snapshot
-4. Kurzhilfe "So finden Sie Ihren Wert" als Inline-Hinweis am Heizungsfeld
-
-## 5. Betroffene Dateien
-
-- **NEU:** `supabase/functions/extract-heating-statement/index.ts`
-- **NEU:** `supabase/config.toml` Eintrag (verify_jwt nach Pattern)
-- **EDIT:** `src/pages/weg-owner/NebenkostenTool.tsx` (Abschnitt 3 + `handleBuy`-Snapshot)
-
-Keine Datenbank-Migration nötig (nutzt bestehenden `building-files`-Bucket und `contact_building_assignments`).
-
-## 6. Test-Checkliste
-
-- [ ] Techem mit CO₂-Abzug → Vorschlag = Anteil − Vermieteranteil
-- [ ] Abrechnung ohne CO₂ → voller Anteil, kein Phantom-Abzug
-- [ ] Foto schräg/unscharf → sauber "nichts gefunden"
-- [ ] Mieterwechsel-Abrechnung → `confidence=niedrig`, kein Übernehmen-Button
-- [ ] Fremdes Dokument (Rechnung) → `found=false`
-- [ ] Übernommener Wert ist nachträglich manuell änderbar
+## Nicht im Scope
+- Keine Änderung an Voice-Input, Apply-Logik bleibt erhalten
+- Keine UI-Umbauten am Tab/Accordion-Layout
