@@ -373,6 +373,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   accounts.forEach((acc) => {
     const section = acc.settlement_section;
     if (!section) return;
+    // Bank-Quellensteuern (1850 Kapitalertragssteuer, 1860 Solidaritätszuschlag)
+    // werden vom Kreditinstitut direkt von Zinserträgen einbehalten und sind
+    // weder umlagefähig noch verteilungsrelevant → komplett aus der Abrechnung
+    // ausblenden (UI + PDF, einheitlich über sectionAccounts).
+    const accNum = String(acc.account_number || "");
+    if (accNum === "1850" || accNum === "1860") return;
     // Inline-Toggle "Abrechnungsrelevant":
     //  - explizit false  → immer ausblenden
     //  - sonst: Konten mit Saldo ≈ 0 standardmäßig ausblenden (auch wenn Flag = true);
