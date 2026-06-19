@@ -78,6 +78,7 @@ export const TAKEOVER_SECTIONS: TakeoverSection[] = [
       { key: "allgemein.schluessel_inhaber", label: "Wer hat alles Schlüssel?", type: "textarea", apply: "note" },
       { key: "allgemein.eigentuemerkontakte", label: "Eigentümerkontaktdaten erhalten?", type: "bool", apply: "note", hint: "Import erfolgt separat über Kontakte → CSV-Import" },
       { key: "allgemein.beschlusssammlung", label: "Beschlusssammlung erhalten?", type: "bool", apply: "note" },
+      { key: "allgemein.offene_beschluesse", label: "Gibt es offene Beschlüsse?", type: "textarea", apply: "note" },
       { key: "allgemein.te_aufteilungsplan", label: "Teilungserklärung & Aufteilungsplan erhalten?", type: "bool", apply: "note" },
       { key: "allgemein.versammlungsort", label: "Wo hat die ETV bisher stattgefunden?", type: "text", apply: "buildings.etv_default_location" },
       { key: "allgemein.dienstleister", label: "Weitere Dienstleister des Hauses", type: "textarea", apply: "note" },
