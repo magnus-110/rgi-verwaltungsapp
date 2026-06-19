@@ -22,7 +22,10 @@ export interface TakeoverQuestion {
   options?: string[];
   allowOther?: boolean;
   /** Frage nur anzeigen, wenn andere Frage bestimmten Wert hat */
-  dependsOn?: { key: string; equals: any };
+  dependsOn?:
+    | { key: string; equals: any }
+    | { key: string; notEquals: any }
+    | { key: string; in: any[] };
 }
 
 export interface TakeoverSection {
@@ -72,11 +75,11 @@ export const TAKEOVER_SECTIONS: TakeoverSection[] = [
       { key: "heizung.oel_kapazitaet_liter", label: "Kapazität der Heizung in Liter", type: "number", dependsOn: { key: "heizung.art", equals: "Öl" } },
       { key: "heizung.oel_anzeige_korrekt", label: "Stimmt die Anzeige mit dem Inhalt überein?", type: "bool", apply: "note", dependsOn: { key: "heizung.art", equals: "Öl" } },
       { key: "heizung.oel_meldung", label: "Wer meldet niedrigen Heizölstand?", type: "select", options: ["Hausmeister", "Eigentümer", "Tankfirma", "Sonstiges"], allowOther: true, apply: "note", dependsOn: { key: "heizung.art", equals: "Öl" } },
-      { key: "heizung.wartung_vorhanden", label: "Heizungswartungsvertrag vorhanden?", type: "bool" },
+      { key: "heizung.wartung_vorhanden", label: "Heizungswartungsvertrag vorhanden?", type: "bool", dependsOn: { key: "heizung.art", in: ["Öl", "Gas", "Pellets", "Wärmepumpe"] } },
       { key: "heizung.wartung", label: "Name / Firma Heizungswartung", type: "text", apply: "service_provider", providerCategory: "Heizungswartung", dependsOn: { key: "heizung.wartung_vorhanden", equals: true } },
       { key: "heizung.legionellen_letzte", label: "Letzte Legionellenprüfung", type: "date", apply: "note" },
       { key: "heizung.enthaertung", label: "Enthärtungsanlage vorhanden?", type: "bool", apply: "note" },
-      { key: "heizung.funkzaehler", label: "Messzähler auf Funk umgestellt?", type: "bool", apply: "note" },
+      { key: "heizung.funkzaehler", label: "Messzähler auf Funk umgestellt?", type: "bool", apply: "note", dependsOn: { key: "heizung.art", notEquals: "Sonstiges" } },
     ],
   },
   {
@@ -95,6 +98,7 @@ export const TAKEOVER_SECTIONS: TakeoverSection[] = [
       { key: "allgemein.versammlungsort", label: "Wo hat die ETV bisher stattgefunden?", type: "text", apply: "buildings.etv_default_location" },
       { key: "allgemein.dienstleister", label: "Weitere Dienstleister des Hauses", type: "textarea", apply: "note" },
       { key: "allgemein.hausordnung", label: "Hausordnung vorhanden?", type: "bool", apply: "note" },
+      { key: "allgemein.hausordnung_ort", label: "Wo ist die Hausordnung hinterlegt?", type: "text", apply: "note", dependsOn: { key: "allgemein.hausordnung", equals: true } },
       { key: "allgemein.angestellte_vorhanden", label: "Hat die WEG Angestellte?", type: "bool" },
       { key: "allgemein.angestellte", label: "Wer macht die Lohnbuchhaltung?", type: "text", apply: "note", dependsOn: { key: "allgemein.angestellte_vorhanden", equals: true } },
       { key: "allgemein.vermoegen_weiteres", label: "WEG-Vermögen außer Bank & Heizöl?", type: "bool" },
@@ -103,8 +107,10 @@ export const TAKEOVER_SECTIONS: TakeoverSection[] = [
       { key: "allgemein.kredite_vorhanden", label: "Laufende Kredite der WEG?", type: "bool" },
       { key: "allgemein.kredite", label: "Kredite – Details", type: "textarea", apply: "note", dependsOn: { key: "allgemein.kredite_vorhanden", equals: true } },
       { key: "allgemein.ansprechpartner", label: "Hauptansprechpartner für die Hausverwaltung", type: "text", apply: "note" },
-      { key: "allgemein.kassenpruefer", label: "Wer macht die Kassenprüfung?", type: "text", apply: "note" },
-      { key: "allgemein.beirat", label: "Beirat – Mitglieder", type: "textarea", apply: "note" },
+      { key: "allgemein.kassenpruefer_vorhanden", label: "Gibt es Kassenprüfer?", type: "bool" },
+      { key: "allgemein.kassenpruefer", label: "Wer macht die Kassenprüfung?", type: "text", apply: "note", dependsOn: { key: "allgemein.kassenpruefer_vorhanden", equals: true } },
+      { key: "allgemein.beirat_vorhanden", label: "Gibt es einen Beirat?", type: "bool" },
+      { key: "allgemein.beirat", label: "Beirat – Mitglieder", type: "textarea", apply: "note", dependsOn: { key: "allgemein.beirat_vorhanden", equals: true } },
       { key: "allgemein.bauliche_massnahmen_geplant", label: "Sind bauliche Maßnahmen geplant?", type: "bool" },
       { key: "allgemein.bauliche_massnahmen", label: "Geplante bauliche Maßnahmen – Details", type: "textarea", apply: "note", dependsOn: { key: "allgemein.bauliche_massnahmen_geplant", equals: true } },
       { key: "allgemein.uebergabe_unterlagen", label: "Aktuelle Einzel-/Gesamtabrechnung, Kontenübersicht, Buchungsjournal erhalten?", type: "bool", apply: "note", hint: "Dokumente bitte zusätzlich im DMS ablegen" },

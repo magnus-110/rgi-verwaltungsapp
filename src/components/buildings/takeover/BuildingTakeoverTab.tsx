@@ -35,7 +35,10 @@ export const BuildingTakeoverTab = ({ buildingId }: Props) => {
     const dep = byKey.get(q.dependsOn.key);
     if (!dep) return false;
     const depVal = dep.value_bool ?? dep.value_text ?? dep.value_number ?? dep.value_date;
-    return depVal === q.dependsOn.equals;
+    if ("equals" in q.dependsOn) return depVal === q.dependsOn.equals;
+    if ("notEquals" in q.dependsOn) return depVal != null && depVal !== q.dependsOn.notEquals;
+    if ("in" in q.dependsOn) return Array.isArray(q.dependsOn.in) && q.dependsOn.in.includes(depVal);
+    return false;
   };
 
   const visibleSections = TAKEOVER_SECTIONS.map((sec) => ({

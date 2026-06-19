@@ -31,6 +31,7 @@ export const QuestionRow = ({ buildingId, section, question, existing }: Props) 
   const [notes, setNotes] = useState<string>(existing?.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     setText(existing?.value_text ?? "");
@@ -87,6 +88,25 @@ export const QuestionRow = ({ buildingId, section, question, existing }: Props) 
       toast({ title: "Fehler", description: e.message, variant: "destructive" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleClear = async () => {
+    if (!existing?.id) return;
+    setClearing(true);
+    try {
+      const { error } = await supabase
+        .from("building_takeover_answers" as any)
+        .delete()
+        .eq("id", existing.id);
+      if (error) throw error;
+      setText(""); setNum(""); setDate(""); setBool(null); setNotes("");
+      toast({ title: "Geleert" });
+      qc.invalidateQueries({ queryKey: ["takeover-answers", buildingId] });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e.message, variant: "destructive" });
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -267,6 +287,12 @@ export const QuestionRow = ({ buildingId, section, question, existing }: Props) 
       </div>
 
       <div className="flex items-center justify-end gap-2 pt-1">
+        {existing?.id && (
+          <Button size="sm" variant="ghost" onClick={handleClear} disabled={clearing} className="text-muted-foreground">
+            {clearing && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+            Leeren
+          </Button>
+        )}
         {!isClickType && (
           <Button size="sm" variant="outline" onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
