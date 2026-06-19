@@ -248,15 +248,29 @@ export function UploadDocumentDialog({
 
           <div>
             <Label>Zuordnung</Label>
-            <Select value={fiscalYear} onValueChange={handleFiscalYearChange}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="general">Allgemein (kein Wirtschaftsjahr)</SelectItem>
-                {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() + 1 - i).map(y => (
-                  <SelectItem key={y} value={String(y)}>Wirtschaftsjahr {y}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select value={fiscalYear} onValueChange={handleFiscalYearChange}>
+                <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  <SelectItem value="general">Allgemein (kein Wirtschaftsjahr)</SelectItem>
+                  {Array.from({ length: 26 }, (_, i) => new Date().getFullYear() + 2 - i).map(y => (
+                    <SelectItem key={y} value={String(y)}>Wirtschaftsjahr {y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                type="number"
+                placeholder="Jahr"
+                className="w-24"
+                min={1990}
+                max={2100}
+                value={fiscalYear === "general" ? "" : fiscalYear}
+                onChange={(e) => {
+                  const v = e.target.value.trim();
+                  handleFiscalYearChange(v === "" ? "general" : v);
+                }}
+              />
+            </div>
           </div>
 
           <div>
