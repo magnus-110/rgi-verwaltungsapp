@@ -80,6 +80,7 @@ export const TAKEOVER_SECTIONS: TakeoverSection[] = [
       { key: "heizung.legionellen_letzte", label: "Letzte Legionellenprüfung", type: "date", apply: "note" },
       { key: "heizung.enthaertung", label: "Enthärtungsanlage vorhanden?", type: "bool", apply: "note" },
       { key: "heizung.funkzaehler", label: "Messzähler auf Funk umgestellt?", type: "bool", apply: "note", dependsOn: { key: "heizung.art", notEquals: "Sonstiges" } },
+      { key: "heizung.abloesefirma", label: "Wer ist die Ablösefirma?", type: "text", apply: "service_provider", providerCategory: "Messzähler", dependsOn: { key: "heizung.funkzaehler", equals: true } },
     ],
   },
   {
