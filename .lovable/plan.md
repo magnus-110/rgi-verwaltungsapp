@@ -1,51 +1,31 @@
-Aktuell sind viele Fragen reine Text-/Textarea-Felder, obwohl die Antwort fast immer aus einer kleinen Liste stammt (Heizungsart, Vertrag ja/nein, etc.). Ich erweitere den Fragenkatalog um zwei neue Frage-Typen und stelle möglichst viele Fragen auf Klick-Auswahl um.
+## Ziel
+Bug in der PDF/DOCX-Gesamtabrechnung (Birkenweg 6, WJ 2025): Spalte "Verteilbar" zeigt Zeilen für nicht‑verteilungsrelevante Konten (1850 Kapitalertragsteuer, 1860 Soli) und stellt die Werte ohne Minus‑Vorzeichen dar. Außerdem soll `{sum_ausgaben_verteilbar}` sauber nur die verteilbaren Kosten summieren – nie identisch mit `{sum_ausgaben_ist}`.
 
-## Neue Frage-Typen
-- `select` – Einfachauswahl aus festen Optionen (Buttons/Chips), optional mit Freitext-Feld bei "Sonstiges"
-- `multiselect` – Mehrfachauswahl per Klick (Chips), optional mit Freitext
+## Beobachtung
+- In `src/components/finance/lib/buildBillingPayload.ts` (Funktion `sectionListFromUi`, ab Zeile 115) wird pro Zeile `betrag_verteilbar` gesetzt.
+- Aktuell hängt das Blanking ausschließlich an `a.is_distributable === true`. Bei den Konten 1850/1860 wird das Flag in der UI zwar respektiert (Subtotal stimmt: -9.606,61 € vs. -9.616,50 €), aber das per‑Zeilen‑Feld bekommt trotzdem einen Wert (Screenshot: „9,39 €", „0,50 €"), weil das Flag in der durchgereichten Section‑Liste anders kommt oder `distributableAmount` einen Fallback liefert.
+- Der Verteilbar‑Wert pro Zeile erscheint im PDF außerdem **positiv** (z. B. „378,60 €"), obwohl im Code `-Math.abs(...)` für `asExpense` gesetzt ist. Ursache: Das Template/Field rendert `{betrag_verteilbar}` ohne weitere Behandlung, aber der Payload muss garantiert negativ ausgegeben werden – das ist robust zu machen.
+- `sum_ausgaben_verteilbar` basiert auf `totals.abrechnungssumme` (BillingSettlement.tsx Z. 569). Diese Summe ist korrekt distributable‑only, soll aber per Zeilen‑Konsistenz garantiert nicht versehentlich auf `sumIst` zurückfallen.
 
-`bool` bleibt, wird aber als großes Ja/Nein-Buttonpaar dargestellt (statt Switch).
+## Änderungen (nur Frontend/Payload)
 
-## Umstellungen je Sektion
+### 1. `src/components/finance/lib/buildBillingPayload.ts`
+- `sectionListFromUi`: Verschärftes Blanking für `betrag_verteilbar`:
+  - Leer (`""`) wenn **eines** zutrifft: `a.is_distributable !== true`, oder Kontonummer in fester Block‑Liste der Quellensteuern (`1850`, `1860`), oder `distributableAmount === 0`.
+  - Vorzeichen erzwingen: bei `asExpense` immer `-Math.abs(distributableAmount ?? totalAbs)`; bei `asIncome` immer `+Math.abs(...)`. (Bereits so codiert – wird abgesichert + Kommentar.)
+- `sum_ausgaben_verteilbar`: Neuberechnung direkt aus den im Payload gelieferten Sections (Summe der `is_distributable`‑Konten mit gleichen Filter‑Regeln wie `getSectionDistributable`), statt Pass‑through von `totals.abrechnungssumme`. Damit ist die Zahl per Konstruktion identisch mit der Spalten‑Summe und kann nie versehentlich `sumIst` entsprechen.
+  - `sumVerteilbar` lokal aus `sectionAccounts` neu summieren (operating_distributable + operating_non_distributable + heating + reserve − reserve_withdrawal), nur Konten mit `is_distributable === true`, ohne Bilanzkonten/Heizungs‑Vorauszahlungen und ohne harte Block‑Liste (1850/1860).
+  - Ergebnis als `fmtEUR(-sumVerteilbar)` setzen.
 
-**1. Rundgang**
-- Hausmeister / Winterdienst / Gartenservice: bleiben Text (Firmenname) – ABER vorgelagerte Ja/Nein-Frage "vorhanden?" als `bool`; nur bei Ja Eingabefeld für Name
-- Vertrag/Leistungsverzeichnis vorhanden? → `select` (Ja / Nein / Teilweise)
-- Parkplätze-Zuordnung: zusätzlich `select` für "Sondereigentum / Sondernutzungsrecht / Gemischt"
+### 2. Keine Änderung an
+- DOCX‑Vorlage (Tags bleiben `{betrag_verteilbar}` / `{sum_ausgaben_verteilbar}`).
+- UI‑Tabelle `BillingSettlement.tsx` (Anzeige ist bereits korrekt: Spalte "Verteilungsrel." zeigt 1850/1860 als „–").
 
-**2. Gemeinschaftseigentum**
-- Feuerlöscher-Wartung: Ja/Nein + Firmenname
-- Aufzug vorhanden? → `bool`; Lüftung vorhanden? → `bool` (statt einem Textfeld "weitere Verträge")
+## Verifikation
+- Birkenweg 6, WJ 2025: PDF/DOCX neu generieren.
+  - Zeilen 1850/1860 in „Nicht umlagefähige Kosten": Spalte Verteilbar leer.
+  - Alle anderen Verteilbar‑Werte mit Minus (negativ) dargestellt.
+  - `sum_ausgaben_verteilbar` = Summe aller (negativen) Verteilbar‑Subtotale, ≠ `sum_ausgaben_ist`.
 
-**3. Heizung**
-- Heizungsart → `select` (Öl, Gas, Wärmepumpe, Fernwärme, Pellets, Sonstiges)
-- Anzeige stimmt? bleibt `bool`
-- Wartungsvertrag: Ja/Nein + Firmenname
-- Enthärtungsanlage / Funkzähler: bleibt `bool`
-- "Wer meldet niedrigen Ölstand?" → `select` (Hausmeister / Eigentümer / Tankfirma / Sonstiges)
-
-**4. Allgemeine Verwaltung**
-- Wirtschaftsjahr → `select` (01.01.–31.12. / 01.07.–30.06. / Sonstiges)
-- Schließanlage vorhanden? → `bool` + bei Ja Textfeld "Wo ist die Karte?"
-- Eigentümerkontakte / Beschlusssammlung / Offene Beschlüsse (Ja/Nein) / TE & Aufteilungsplan / Hausordnung / Übergabeunterlagen: bleiben `bool`
-- "Offene Beschlüsse" wird gesplittet: `bool` (gibt es welche?) + bedingtes Textarea (welche?)
-- Angestellte → `bool` + bedingtes Textfeld "Lohnbuchhaltung durch"
-- Laufende Kredite → `bool` + bedingtes Textarea Details
-- Geplante bauliche Maßnahmen → `bool` + bedingtes Textarea
-- Beirat-Mitglieder bleibt Textarea (Namensliste)
-
-## Technische Umsetzung
-1. `questions.ts`: 
-   - Typ-Erweiterung: `QuestionType += "select" | "multiselect"`, neue Felder `options?: string[]`, `allowOther?: boolean`, `dependsOn?: { key: string; equals: any }` für bedingte Folgefragen
-2. `QuestionRow.tsx`:
-   - Render-Branch für `select` → Button-Gruppe (Toggle-Style, shadcn `ToggleGroup` oder Buttons mit `variant` default/outline)
-   - Render-Branch für `multiselect` → Chip-Buttons
-   - `bool` neu als Ja/Nein-Buttonpaar
-   - Bedingte Anzeige: Folgefrage nur rendern, wenn `dependsOn` erfüllt (Wert kommt aus geladenen Answers)
-   - Auto-Save direkt beim Klick (kein Speichern-Button bei select/bool)
-3. `applyHandlers.ts`: bei `buildings.heating_type` Map vom Anzeige-Label zum DB-Enum, falls nötig (sonst direkt String speichern)
-4. DB: Werte landen weiterhin in `value_text` (select) bzw. `value_bool`; für `multiselect` als JSON-String in `value_text`. Keine Migration nötig.
-
-## Nicht im Scope
-- Keine Änderung an Voice-Input, Apply-Logik bleibt erhalten
-- Keine UI-Umbauten am Tab/Accordion-Layout
+## Out of scope
+- Andere Vorlagen (Einzelabrechnung, Wirtschaftsplan) und UI‑Anpassungen außerhalb der Settlement‑Payload.
