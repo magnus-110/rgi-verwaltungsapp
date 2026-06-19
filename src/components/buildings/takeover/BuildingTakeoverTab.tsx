@@ -30,9 +30,23 @@ export const BuildingTakeoverTab = ({ buildingId }: Props) => {
     return map;
   }, [answers]);
 
-  const totalQuestions = TAKEOVER_SECTIONS.reduce((s, sec) => s + sec.questions.length, 0);
-  const answered = answers.filter((a) => a.status === "answered" || a.status === "applied").length;
-  const applied = answers.filter((a) => a.status === "applied").length;
+  const isVisible = (q: any) => {
+    if (!q.dependsOn) return true;
+    const dep = byKey.get(q.dependsOn.key);
+    if (!dep) return false;
+    const depVal = dep.value_bool ?? dep.value_text ?? dep.value_number ?? dep.value_date;
+    return depVal === q.dependsOn.equals;
+  };
+
+  const visibleSections = TAKEOVER_SECTIONS.map((sec) => ({
+    ...sec,
+    questions: sec.questions.filter(isVisible),
+  }));
+
+  const totalQuestions = visibleSections.reduce((s, sec) => s + sec.questions.length, 0);
+  const visibleKeys = new Set(visibleSections.flatMap((s) => s.questions.map((q) => q.key)));
+  const answered = answers.filter((a) => visibleKeys.has(a.question_key) && (a.status === "answered" || a.status === "applied")).length;
+  const applied = answers.filter((a) => visibleKeys.has(a.question_key) && a.status === "applied").length;
   const pct = totalQuestions ? Math.round((answered / totalQuestions) * 100) : 0;
 
   return (
@@ -62,7 +76,7 @@ export const BuildingTakeoverTab = ({ buildingId }: Props) => {
       </Card>
 
       <Accordion type="multiple" defaultValue={TAKEOVER_SECTIONS.map((s) => s.key)} className="space-y-2">
-        {TAKEOVER_SECTIONS.map((section) => {
+        {visibleSections.map((section) => {
           const sectionAnswered = section.questions.filter((q) => {
             const a = byKey.get(q.key);
             return a && (a.status === "answered" || a.status === "applied");
