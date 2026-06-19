@@ -31,6 +31,7 @@ export const QuestionRow = ({ buildingId, section, question, existing }: Props) 
   const [notes, setNotes] = useState<string>(existing?.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     setText(existing?.value_text ?? "");
