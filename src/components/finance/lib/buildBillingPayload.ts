@@ -269,11 +269,19 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     ...(sectionAccounts.heating || []),
     ...(sectionAccounts.reserve || []),
   ].reduce((s: number, a: any) => s + Math.abs(a.wpAmount || 0), 0);
-  // Verteilbare Gesamtausgaben — MUSS exakt totals.abrechnungssumme entsprechen
-  // (gemeinsame Quelle UI ↔ PDF, verhindert Vorzeichen-/Wert-Drift). Die alte
-  // lokale Aggregation über alle Sektionen führte zur Doppelzählung der
-  // IHR-Zuführung im PDF (Differenz zur UI-Anzeige).
-  const sumVerteilbar = totals.abrechnungssumme;
+  // Verteilbare Gesamtausgaben — exakt aus den Sektions-Listen aggregiert (nur
+  // is_distributable, ohne Quellensteuern 1850/1860). Damit ist die Zahl per
+  // Konstruktion identisch mit der Summe der Verteilbar-Subtotale und kann
+  // niemals versehentlich mit sum_ausgaben_ist übereinstimmen.
+  const sumDistributableFromSection = (accs: any[] = []) =>
+    accs
+      .filter((a) => a.is_distributable === true && !isWithholdingAcc(a))
+      .reduce((s, a) => s + Math.abs(a.totalAbs || 0), 0);
+  const sumVerteilbar =
+      sumDistributableFromSection(sectionAccounts.operating_distributable)
+    + sumDistributableFromSection(sectionAccounts.operating_non_distributable)
+    + sumDistributableFromSection(sectionAccounts.heating)
+    + sumDistributableFromSection(sectionAccounts.reserve);
 
   return {
     document_title: "Jahresabrechnung — Gesamt",
