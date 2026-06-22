@@ -23,6 +23,7 @@ interface AssignEmailDialogProps {
     emailId: string;
     buildingId: string | null;
     contactId: string | null;
+    contactPersonId: string | null;
     caseId: string | null;
     parentEventId: string | null;
     archive: boolean;
@@ -31,6 +32,7 @@ interface AssignEmailDialogProps {
   }) => void;
   prefilledBuildingId?: string | null;
   prefilledContactId?: string | null;
+  prefilledContactPersonId?: string | null;
   prefilledCaseId?: string | null;
   prefilledIsEtvRelevant?: boolean;
   prefilledEtvMeetingId?: string | null;
