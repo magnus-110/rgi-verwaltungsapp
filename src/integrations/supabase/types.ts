@@ -4653,6 +4653,7 @@ export type Database = {
           case_id: string | null
           cc_addresses: Json | null
           contact_id: string | null
+          contact_person_id: string | null
           created_at: string
           date: string | null
           deleted_at: string | null
@@ -4699,6 +4700,7 @@ export type Database = {
           case_id?: string | null
           cc_addresses?: Json | null
           contact_id?: string | null
+          contact_person_id?: string | null
           created_at?: string
           date?: string | null
           deleted_at?: string | null
@@ -4745,6 +4747,7 @@ export type Database = {
           case_id?: string | null
           cc_addresses?: Json | null
           contact_id?: string | null
+          contact_person_id?: string | null
           created_at?: string
           date?: string | null
           deleted_at?: string | null
@@ -4814,6 +4817,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_contact_person_id_fkey"
+            columns: ["contact_person_id"]
+            isOneToOne: false
+            referencedRelation: "contact_persons"
             referencedColumns: ["id"]
           },
           {
@@ -9733,6 +9743,7 @@ export type Database = {
           case_id: string | null
           cc_addresses: Json | null
           contact_id: string | null
+          contact_person_id: string | null
           created_at: string
           date: string | null
           deleted_at: string | null

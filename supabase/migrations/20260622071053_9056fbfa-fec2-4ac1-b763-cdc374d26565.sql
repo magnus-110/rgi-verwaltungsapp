@@ -1,0 +1,2 @@
+ALTER TABLE public.emails ADD COLUMN IF NOT EXISTS contact_person_id uuid REFERENCES public.contact_persons(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_emails_contact_person_id ON public.emails(contact_person_id);

@@ -355,7 +355,7 @@ export const Inbox = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFolderId, searchTerm, selectedAccountIds, isArchiveFolder, filterBuildingId, filterContactId, filterAssignedTo]);
 
-  const EMAIL_COLUMNS = "id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, assigned_to, deleted_at, case_id, message_id, is_etv_relevant, etv_meeting_id";
+  const EMAIL_COLUMNS = "id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, contact_person_id, assigned_to, deleted_at, case_id, message_id, is_etv_relevant, etv_meeting_id";
 
   const { data: emails = [], isLoading: emailsLoading, error: emailsError } = useQuery({
     queryKey: ["emails", selectedFolderId, searchTerm, selectedAccountIds, isArchiveFolder, filterBuildingId, filterContactId, filterAssignedTo, pageLimit],
@@ -675,6 +675,7 @@ export const Inbox = () => {
     emailId: string;
     buildingId: string | null;
     contactId: string | null;
+    contactPersonId: string | null;
     caseId: string | null;
     parentEventId: string | null;
     archive: boolean;
@@ -684,6 +685,7 @@ export const Inbox = () => {
     const update: any = {
       building_id: params.buildingId,
       contact_id: params.contactId,
+      contact_person_id: params.contactPersonId,
       case_id: params.caseId,
       is_etv_relevant: params.isEtvRelevant,
       etv_meeting_id: params.etvMeetingId,
@@ -1817,6 +1819,7 @@ export const Inbox = () => {
         emailId={archiveEmailId}
         onAssign={handleAssign}
         prefilledContactId={archiveEmailId ? (emails.find(e => e.id === archiveEmailId)?.contact_id || null) : null}
+        prefilledContactPersonId={archiveEmailId ? ((emails.find(e => e.id === archiveEmailId) as any)?.contact_person_id || null) : null}
         prefilledBuildingId={archiveEmailId ? (emails.find(e => e.id === archiveEmailId)?.building_id || null) : null}
         prefilledCaseId={archiveEmailId ? ((emails.find(e => e.id === archiveEmailId) as any)?.case_id || (emails.find(e => e.id === archiveEmailId) as any)?.ai_case_suggestion_id || null) : null}
         prefilledIsEtvRelevant={archiveEmailId ? !!(emails.find(e => e.id === archiveEmailId) as any)?.is_etv_relevant : false}

@@ -23,6 +23,7 @@ interface AssignEmailDialogProps {
     emailId: string;
     buildingId: string | null;
     contactId: string | null;
+    contactPersonId: string | null;
     caseId: string | null;
     parentEventId: string | null;
     archive: boolean;
@@ -31,6 +32,7 @@ interface AssignEmailDialogProps {
   }) => void;
   prefilledBuildingId?: string | null;
   prefilledContactId?: string | null;
+  prefilledContactPersonId?: string | null;
   prefilledCaseId?: string | null;
   prefilledIsEtvRelevant?: boolean;
   prefilledEtvMeetingId?: string | null;
@@ -57,12 +59,14 @@ export const AssignEmailDialog = ({
   onAssign,
   prefilledBuildingId,
   prefilledContactId,
+  prefilledContactPersonId,
   prefilledCaseId,
   prefilledIsEtvRelevant,
   prefilledEtvMeetingId,
 }: AssignEmailDialogProps) => {
   const [buildingId, setBuildingId] = useState<string>("none");
   const [contactId, setContactId] = useState<string>("none");
+  const [contactPersonId, setContactPersonId] = useState<string>("none");
   const [caseId, setCaseId] = useState<string>("none");
   const [parentEventId, setParentEventId] = useState<string>("none");
   const [archive, setArchive] = useState(false);
@@ -77,6 +81,7 @@ export const AssignEmailDialog = ({
     if (open) {
       setBuildingId(prefilledBuildingId || "none");
       setContactId(prefilledContactId || "none");
+      setContactPersonId(prefilledContactPersonId || "none");
       setCaseId(prefilledCaseId || "none");
       setParentEventId("none");
       setArchive(false);
@@ -85,7 +90,7 @@ export const AssignEmailDialog = ({
       setCreatingCase(false);
       setNewCaseTitle("");
     }
-  }, [open, prefilledBuildingId, prefilledContactId, prefilledCaseId, prefilledIsEtvRelevant, prefilledEtvMeetingId]);
+  }, [open, prefilledBuildingId, prefilledContactId, prefilledContactPersonId, prefilledCaseId, prefilledIsEtvRelevant, prefilledEtvMeetingId]);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-for-assign"],
@@ -122,19 +127,21 @@ export const AssignEmailDialog = ({
   });
 
   // Lade alle bekannten Kontakt-E-Mails (contact_emails + contact_persons.email)
-  const { data: contactEmailMap = new Map<string, string>(), refetch: refetchEmailMap } = useQuery({
+  // Wert: { contact_id, person_id? } — person_id gesetzt, wenn die Adresse zu einem konkreten contact_persons-Eintrag gehört
+  const { data: contactEmailMap = new Map<string, { contact_id: string; person_id: string | null }>(), refetch: refetchEmailMap } = useQuery({
     queryKey: ["contact-email-lookup"],
     queryFn: async () => {
-      const map = new Map<string, string>();
+      const map = new Map<string, { contact_id: string; person_id: string | null }>();
       const { data: ce } = await supabase.from("contact_emails").select("contact_id, email");
       (ce || []).forEach((r: any) => {
-        if (r.email) map.set(r.email.trim().toLowerCase(), r.contact_id);
+        if (r.email) map.set(r.email.trim().toLowerCase(), { contact_id: r.contact_id, person_id: null });
       });
-      const { data: cp } = await supabase.from("contact_persons").select("contact_id, email").not("email", "is", null);
+      const { data: cp } = await supabase.from("contact_persons").select("id, contact_id, email").not("email", "is", null);
       (cp || []).forEach((r: any) => {
         if (r.email) {
           const key = r.email.trim().toLowerCase();
-          if (!map.has(key)) map.set(key, r.contact_id);
+          // Person-spezifische Treffer überschreiben generische, damit eine konkrete Person erkannt wird
+          map.set(key, { contact_id: r.contact_id, person_id: r.id });
         }
       });
       return map;
@@ -172,18 +179,50 @@ export const AssignEmailDialog = ({
   }, [open, refetchContacts, refetchEmailMap]);
 
 
-  // Auto-Vorschlag Kontakt anhand Absender-E-Mail (wenn KI noch nichts vorgeschlagen hat)
-  const senderMatchedContactId = currentEmail?.from_address
+  // Auto-Vorschlag Kontakt + Person anhand Absender-E-Mail (wenn KI noch nichts vorgeschlagen hat)
+  const senderMatch = currentEmail?.from_address
     ? contactEmailMap.get(currentEmail.from_address.trim().toLowerCase()) || null
     : null;
+  const senderMatchedContactId = senderMatch?.contact_id || null;
+  const senderMatchedPersonId = senderMatch?.person_id || null;
 
   useEffect(() => {
     if (!open) return;
     if (contactId === "none" && !prefilledContactId && senderMatchedContactId) {
       setContactId(senderMatchedContactId);
+      if (senderMatchedPersonId && !prefilledContactPersonId) {
+        setContactPersonId(senderMatchedPersonId);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [senderMatchedContactId, open]);
+  }, [senderMatchedContactId, senderMatchedPersonId, open]);
+
+  // Personen des aktuell ausgewählten Kontakts laden
+  const { data: contactPersons = [] } = useQuery({
+    queryKey: ["contact-persons-for-assign", contactId],
+    enabled: contactId !== "none",
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contact_persons")
+        .select("id, salutation, first_name, last_name, position, email, is_primary, sort_order")
+        .eq("contact_id", contactId)
+        .order("is_primary", { ascending: false })
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Reset person, wenn Kontakt wechselt und Person nicht zum neuen Kontakt gehört
+  useEffect(() => {
+    if (contactId === "none") {
+      setContactPersonId("none");
+      return;
+    }
+    if (contactPersonId !== "none" && contactPersons.length > 0 && !contactPersons.find(p => p.id === contactPersonId)) {
+      setContactPersonId("none");
+    }
+  }, [contactId, contactPersons, contactPersonId]);
 
   const [contactSearch, setContactSearch] = useState("");
   useEffect(() => { if (open) setContactSearch(""); }, [open]);
@@ -277,6 +316,7 @@ export const AssignEmailDialog = ({
       emailId,
       buildingId: finalBuildingId,
       contactId: contactId !== "none" ? contactId : null,
+      contactPersonId: contactId !== "none" && contactPersonId !== "none" ? contactPersonId : null,
       caseId: finalCaseId,
       parentEventId: finalParentEventId,
       archive,
@@ -380,6 +420,32 @@ export const AssignEmailDialog = ({
               </SelectContent>
             </Select>
           </div>
+
+          {contactId !== "none" && contactPersons.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-sm flex items-center gap-1.5">
+                <User className="h-4 w-4" />
+                Person (innerhalb Kontakt)
+                {senderMatchedPersonId && contactPersonId === senderMatchedPersonId && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-0.5">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    Absender erkannt
+                  </Badge>
+                )}
+              </Label>
+              <Select value={contactPersonId} onValueChange={setContactPersonId}>
+                <SelectTrigger><SelectValue placeholder="Keine spezifische Person" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Keine spezifische Person</SelectItem>
+                  {contactPersons.map((p: any) => {
+                    const name = [p.salutation, p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || "Unbenannt";
+                    const suffix = p.position ? ` – ${p.position}` : "";
+                    return <SelectItem key={p.id} value={p.id}>{name}{suffix}</SelectItem>;
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
