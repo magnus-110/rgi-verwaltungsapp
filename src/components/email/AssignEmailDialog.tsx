@@ -316,6 +316,7 @@ export const AssignEmailDialog = ({
       emailId,
       buildingId: finalBuildingId,
       contactId: contactId !== "none" ? contactId : null,
+      contactPersonId: contactId !== "none" && contactPersonId !== "none" ? contactPersonId : null,
       caseId: finalCaseId,
       parentEventId: finalParentEventId,
       archive,
