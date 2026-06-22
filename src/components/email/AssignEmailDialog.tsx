@@ -179,18 +179,50 @@ export const AssignEmailDialog = ({
   }, [open, refetchContacts, refetchEmailMap]);
 
 
-  // Auto-Vorschlag Kontakt anhand Absender-E-Mail (wenn KI noch nichts vorgeschlagen hat)
-  const senderMatchedContactId = currentEmail?.from_address
+  // Auto-Vorschlag Kontakt + Person anhand Absender-E-Mail (wenn KI noch nichts vorgeschlagen hat)
+  const senderMatch = currentEmail?.from_address
     ? contactEmailMap.get(currentEmail.from_address.trim().toLowerCase()) || null
     : null;
+  const senderMatchedContactId = senderMatch?.contact_id || null;
+  const senderMatchedPersonId = senderMatch?.person_id || null;
 
   useEffect(() => {
     if (!open) return;
     if (contactId === "none" && !prefilledContactId && senderMatchedContactId) {
       setContactId(senderMatchedContactId);
+      if (senderMatchedPersonId && !prefilledContactPersonId) {
+        setContactPersonId(senderMatchedPersonId);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [senderMatchedContactId, open]);
+  }, [senderMatchedContactId, senderMatchedPersonId, open]);
+
+  // Personen des aktuell ausgewählten Kontakts laden
+  const { data: contactPersons = [] } = useQuery({
+    queryKey: ["contact-persons-for-assign", contactId],
+    enabled: contactId !== "none",
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contact_persons")
+        .select("id, salutation, first_name, last_name, position, email, is_primary, sort_order")
+        .eq("contact_id", contactId)
+        .order("is_primary", { ascending: false })
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Reset person, wenn Kontakt wechselt und Person nicht zum neuen Kontakt gehört
+  useEffect(() => {
+    if (contactId === "none") {
+      setContactPersonId("none");
+      return;
+    }
+    if (contactPersonId !== "none" && contactPersons.length > 0 && !contactPersons.find(p => p.id === contactPersonId)) {
+      setContactPersonId("none");
+    }
+  }, [contactId, contactPersons, contactPersonId]);
 
   const [contactSearch, setContactSearch] = useState("");
   useEffect(() => { if (open) setContactSearch(""); }, [open]);
