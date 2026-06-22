@@ -675,6 +675,7 @@ export const Inbox = () => {
     emailId: string;
     buildingId: string | null;
     contactId: string | null;
+    contactPersonId: string | null;
     caseId: string | null;
     parentEventId: string | null;
     archive: boolean;
@@ -684,6 +685,7 @@ export const Inbox = () => {
     const update: any = {
       building_id: params.buildingId,
       contact_id: params.contactId,
+      contact_person_id: params.contactPersonId,
       case_id: params.caseId,
       is_etv_relevant: params.isEtvRelevant,
       etv_meeting_id: params.etvMeetingId,
