@@ -127,19 +127,21 @@ export const AssignEmailDialog = ({
   });
 
   // Lade alle bekannten Kontakt-E-Mails (contact_emails + contact_persons.email)
-  const { data: contactEmailMap = new Map<string, string>(), refetch: refetchEmailMap } = useQuery({
+  // Wert: { contact_id, person_id? } — person_id gesetzt, wenn die Adresse zu einem konkreten contact_persons-Eintrag gehört
+  const { data: contactEmailMap = new Map<string, { contact_id: string; person_id: string | null }>(), refetch: refetchEmailMap } = useQuery({
     queryKey: ["contact-email-lookup"],
     queryFn: async () => {
-      const map = new Map<string, string>();
+      const map = new Map<string, { contact_id: string; person_id: string | null }>();
       const { data: ce } = await supabase.from("contact_emails").select("contact_id, email");
       (ce || []).forEach((r: any) => {
-        if (r.email) map.set(r.email.trim().toLowerCase(), r.contact_id);
+        if (r.email) map.set(r.email.trim().toLowerCase(), { contact_id: r.contact_id, person_id: null });
       });
-      const { data: cp } = await supabase.from("contact_persons").select("contact_id, email").not("email", "is", null);
+      const { data: cp } = await supabase.from("contact_persons").select("id, contact_id, email").not("email", "is", null);
       (cp || []).forEach((r: any) => {
         if (r.email) {
           const key = r.email.trim().toLowerCase();
-          if (!map.has(key)) map.set(key, r.contact_id);
+          // Person-spezifische Treffer überschreiben generische, damit eine konkrete Person erkannt wird
+          map.set(key, { contact_id: r.contact_id, person_id: r.id });
         }
       });
       return map;
