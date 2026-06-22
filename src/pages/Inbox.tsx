@@ -355,7 +355,7 @@ export const Inbox = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFolderId, searchTerm, selectedAccountIds, isArchiveFolder, filterBuildingId, filterContactId, filterAssignedTo]);
 
-  const EMAIL_COLUMNS = "id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, assigned_to, deleted_at, case_id, message_id, is_etv_relevant, etv_meeting_id";
+  const EMAIL_COLUMNS = "id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, contact_person_id, assigned_to, deleted_at, case_id, message_id, is_etv_relevant, etv_meeting_id";
 
   const { data: emails = [], isLoading: emailsLoading, error: emailsError } = useQuery({
     queryKey: ["emails", selectedFolderId, searchTerm, selectedAccountIds, isArchiveFolder, filterBuildingId, filterContactId, filterAssignedTo, pageLimit],
