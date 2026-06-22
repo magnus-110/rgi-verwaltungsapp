@@ -421,6 +421,32 @@ export const AssignEmailDialog = ({
             </Select>
           </div>
 
+          {contactId !== "none" && contactPersons.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-sm flex items-center gap-1.5">
+                <User className="h-4 w-4" />
+                Person (innerhalb Kontakt)
+                {senderMatchedPersonId && contactPersonId === senderMatchedPersonId && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-0.5">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    Absender erkannt
+                  </Badge>
+                )}
+              </Label>
+              <Select value={contactPersonId} onValueChange={setContactPersonId}>
+                <SelectTrigger><SelectValue placeholder="Keine spezifische Person" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Keine spezifische Person</SelectItem>
+                  {contactPersons.map((p: any) => {
+                    const name = [p.salutation, p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || "Unbenannt";
+                    const suffix = p.position ? ` – ${p.position}` : "";
+                    return <SelectItem key={p.id} value={p.id}>{name}{suffix}</SelectItem>;
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label className="text-sm flex items-center gap-1.5">
