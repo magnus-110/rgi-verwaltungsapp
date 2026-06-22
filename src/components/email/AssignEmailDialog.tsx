@@ -59,12 +59,14 @@ export const AssignEmailDialog = ({
   onAssign,
   prefilledBuildingId,
   prefilledContactId,
+  prefilledContactPersonId,
   prefilledCaseId,
   prefilledIsEtvRelevant,
   prefilledEtvMeetingId,
 }: AssignEmailDialogProps) => {
   const [buildingId, setBuildingId] = useState<string>("none");
   const [contactId, setContactId] = useState<string>("none");
+  const [contactPersonId, setContactPersonId] = useState<string>("none");
   const [caseId, setCaseId] = useState<string>("none");
   const [parentEventId, setParentEventId] = useState<string>("none");
   const [archive, setArchive] = useState(false);
@@ -79,6 +81,7 @@ export const AssignEmailDialog = ({
     if (open) {
       setBuildingId(prefilledBuildingId || "none");
       setContactId(prefilledContactId || "none");
+      setContactPersonId(prefilledContactPersonId || "none");
       setCaseId(prefilledCaseId || "none");
       setParentEventId("none");
       setArchive(false);
@@ -87,7 +90,7 @@ export const AssignEmailDialog = ({
       setCreatingCase(false);
       setNewCaseTitle("");
     }
-  }, [open, prefilledBuildingId, prefilledContactId, prefilledCaseId, prefilledIsEtvRelevant, prefilledEtvMeetingId]);
+  }, [open, prefilledBuildingId, prefilledContactId, prefilledContactPersonId, prefilledCaseId, prefilledIsEtvRelevant, prefilledEtvMeetingId]);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-for-assign"],
