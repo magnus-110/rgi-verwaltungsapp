@@ -6,13 +6,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Users, Clock, ChevronRight, Pencil, Trash2, Check, X } from "lucide-react";
+import { Download, Users, Clock, ChevronRight, Pencil, Trash2, Check, X, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import {
   useAllTimeEntries,
   useUpsertTimeEntry,
   useDeleteTimeEntry,
+  useSetTimeEntryStatus,
   durationMinutes,
   fmtHM,
   sumMinutesSince,
@@ -128,6 +129,9 @@ export function TimeClockAdminTab() {
         <Kpi icon={<Clock className="w-5 h-5" />} label="Diese Woche" value={fmtHM(totals.week)} />
         <Kpi icon={<Clock className="w-5 h-5" />} label="Diesen Monat" value={fmtHM(totals.month)} />
       </div>
+
+      <PendingApprovalsCard entries={entries} profilesById={profilesById} now={now} />
+
 
       {isLoading ? (
         <Skeleton className="h-64" />
@@ -306,5 +310,63 @@ function UserDrilldown({
         </ul>
       </Card>
     </div>
+  );
+}
+
+function PendingApprovalsCard({
+  entries, profilesById, now,
+}: {
+  entries: TimeClockEntry[];
+  profilesById: Map<string, ProfileLite>;
+  now: number;
+}) {
+  const setStatus = useSetTimeEntryStatus();
+  const pending = entries.filter((e) => e.status === "pending");
+  if (pending.length === 0) return null;
+  return (
+    <Card className="p-0 overflow-hidden border-amber-200">
+      <div className="flex items-center gap-2 px-4 py-2 border-b bg-amber-50 text-amber-900">
+        <ShieldCheck className="w-4 h-4" />
+        <div className="text-sm font-medium">Manuelle Nachträge zur Freigabe</div>
+        <span className="ml-auto text-xs">{pending.length} offen</span>
+      </div>
+      <ul className="divide-y">
+        {pending.map((e) => (
+          <li key={e.id} className="px-4 py-3 flex items-start gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium">{displayName(profilesById.get(e.user_id))}</div>
+              <div className="text-xs text-muted-foreground">
+                {format(new Date(e.started_at), "EEE dd.MM.yyyy · HH:mm", { locale: de })}
+                {" – "}
+                {e.ended_at ? format(new Date(e.ended_at), "HH:mm") : "—"}
+                {" · "}{fmtHM(durationMinutes(e, now))}
+              </div>
+              {e.reason && (
+                <div className="text-xs italic mt-1 text-foreground/80">„{e.reason}"</div>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1 text-red-700 border-red-200 hover:bg-red-50"
+                onClick={() => setStatus.mutate({ id: e.id, status: "rejected" })}
+                disabled={setStatus.isPending}
+              >
+                <X className="h-3.5 w-3.5" /> Ablehnen
+              </Button>
+              <Button
+                size="sm"
+                className="h-8 gap-1 bg-emerald-600 hover:bg-emerald-700"
+                onClick={() => setStatus.mutate({ id: e.id, status: "approved" })}
+                disabled={setStatus.isPending}
+              >
+                <Check className="h-3.5 w-3.5" /> Genehmigen
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }

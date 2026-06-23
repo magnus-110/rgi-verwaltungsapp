@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
+export type TimeClockStatus = "pending" | "approved" | "rejected";
+
 export type TimeClockEntry = {
   id: string;
   user_id: string;
@@ -11,6 +13,10 @@ export type TimeClockEntry = {
   ended_at: string | null;
   note: string | null;
   source: "button" | "manual";
+  status: TimeClockStatus;
+  reason: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
   edited_by: string | null;
   edited_at: string | null;
   created_at: string;
@@ -159,6 +165,7 @@ export function useUpsertTimeEntry() {
       started_at: string;
       ended_at: string | null;
       note?: string | null;
+      reason?: string | null;
       source?: "button" | "manual";
     }) => {
       if (!user) throw new Error("Nicht angemeldet");
@@ -170,6 +177,7 @@ export function useUpsertTimeEntry() {
         note: payload.note ?? null,
         source: payload.source ?? (isUpdate ? "button" : "manual"),
       };
+      if (payload.reason !== undefined) row.reason = payload.reason;
       if (isUpdate) {
         row.edited_by = user.id;
         row.edited_at = new Date().toISOString();
@@ -221,6 +229,26 @@ export function useDeleteTimeEntry() {
   });
 }
 
+export function useSetTimeEntryStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: TimeClockStatus }) => {
+      const { data, error } = await supabase
+        .from("time_clock_entries")
+        .update({ status })
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["timeclock"] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Status konnte nicht geändert werden"),
+  });
+}
+
 // ---------- helpers ----------
 
 export function durationMinutes(e: Pick<TimeClockEntry, "started_at" | "ended_at">, nowMs = Date.now()) {
@@ -264,6 +292,7 @@ export function sumMinutesSince(entries: TimeClockEntry[], since: Date, nowMs = 
   const sinceMs = since.getTime();
   let total = 0;
   for (const e of entries) {
+    if (e.status === "rejected" || e.status === "pending") continue;
     const startMs = new Date(e.started_at).getTime();
     const endMs = e.ended_at ? new Date(e.ended_at).getTime() : nowMs;
     if (endMs <= sinceMs) continue;
