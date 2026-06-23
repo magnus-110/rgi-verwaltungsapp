@@ -113,9 +113,19 @@ export function TimeClockPanel({ onClose }: { onClose?: () => void }) {
                         {" – "}
                         {e.ended_at ? format(new Date(e.ended_at), "HH:mm") : <span className="text-emerald-600">läuft</span>}
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {fmtHM(mins)}{isOpen ? " (laufend)" : ""}{e.source === "manual" ? " · nachgetragen" : ""}
+                      <div className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                        <span>{fmtHM(mins)}{isOpen ? " (laufend)" : ""}</span>
+                        {e.source === "manual" && <span>· nachgetragen</span>}
+                        {e.status === "pending" && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 border border-amber-200">wartet auf Freigabe</span>
+                        )}
+                        {e.status === "rejected" && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-100 text-red-800 border border-red-200">abgelehnt</span>
+                        )}
                       </div>
+                      {e.reason && (
+                        <div className="text-[11px] text-muted-foreground italic mt-0.5 truncate">„{e.reason}"</div>
+                      )}
                     </div>
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity flex">
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(e)}>
