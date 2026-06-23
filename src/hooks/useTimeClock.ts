@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
+export type TimeClockStatus = "pending" | "approved" | "rejected";
+
 export type TimeClockEntry = {
   id: string;
   user_id: string;
@@ -11,6 +13,10 @@ export type TimeClockEntry = {
   ended_at: string | null;
   note: string | null;
   source: "button" | "manual";
+  status: TimeClockStatus;
+  reason: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
   edited_by: string | null;
   edited_at: string | null;
   created_at: string;
