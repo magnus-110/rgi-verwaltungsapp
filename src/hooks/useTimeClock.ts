@@ -229,6 +229,26 @@ export function useDeleteTimeEntry() {
   });
 }
 
+export function useSetTimeEntryStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: TimeClockStatus }) => {
+      const { data, error } = await supabase
+        .from("time_clock_entries")
+        .update({ status })
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["timeclock"] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Status konnte nicht geändert werden"),
+  });
+}
+
 // ---------- helpers ----------
 
 export function durationMinutes(e: Pick<TimeClockEntry, "started_at" | "ended_at">, nowMs = Date.now()) {
