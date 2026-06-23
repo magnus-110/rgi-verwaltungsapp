@@ -204,9 +204,15 @@ export function TimeClockPanel({ onClose: _onClose }: { onClose?: () => void }) 
                 size="sm"
                 disabled={!addStart || !addEnd || !addReason.trim() || upsert.isPending}
                 onClick={async () => {
+                  const s = fromLocalInput(addStart);
+                  const en = fromLocalInput(addEnd);
+                  if (s && en && new Date(en) < new Date(s)) {
+                    toast.error("Ende muss nach dem Start liegen.");
+                    return;
+                  }
                   await upsert.mutateAsync({
-                    started_at: fromLocalInput(addStart)!,
-                    ended_at: fromLocalInput(addEnd),
+                    started_at: s!,
+                    ended_at: en,
                     source: "manual",
                     reason: addReason.trim(),
                   });
@@ -215,6 +221,7 @@ export function TimeClockPanel({ onClose: _onClose }: { onClose?: () => void }) 
                   setAddEnd("");
                   setAddReason("");
                 }}
+
               >
                 Senden
               </Button>
