@@ -292,6 +292,7 @@ export function sumMinutesSince(entries: TimeClockEntry[], since: Date, nowMs = 
   const sinceMs = since.getTime();
   let total = 0;
   for (const e of entries) {
+    if (e.status === "rejected" || e.status === "pending") continue;
     const startMs = new Date(e.started_at).getTime();
     const endMs = e.ended_at ? new Date(e.ended_at).getTime() : nowMs;
     if (endMs <= sinceMs) continue;
