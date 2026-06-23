@@ -44,6 +44,7 @@ export default function RgiIntern() {
           <TabsTrigger value="dashboard" className="gap-1.5"><BarChart3 className="w-4 h-4" />Dashboard</TabsTrigger>
           <TabsTrigger value="projects" className="gap-1.5"><FolderKanban className="w-4 h-4" />Projekte</TabsTrigger>
           <TabsTrigger value="time" className="gap-1.5"><Clock className="w-4 h-4" />Stunden</TabsTrigger>
+          <TabsTrigger value="timeclock" className="gap-1.5"><Timer className="w-4 h-4" />Stempelzeiten</TabsTrigger>
           <TabsTrigger value="invoices" className="gap-1.5"><FileText className="w-4 h-4" />Rechnungen</TabsTrigger>
           <TabsTrigger value="clients" className="gap-1.5"><Users className="w-4 h-4" />Kunden</TabsTrigger>
           <TabsTrigger value="templates" className="gap-1.5"><FileStack className="w-4 h-4" />Word-Vorlagen</TabsTrigger>
