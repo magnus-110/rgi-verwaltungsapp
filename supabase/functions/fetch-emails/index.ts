@@ -318,9 +318,12 @@ async function fetchAccountEmails(
         }
 
         const source = msg.source?.toString() || "";
+        bytesProcessed += source.length;
 
         // Recursive MIME parsing
         let { bodyText, bodyHtml, attachments } = parseEmailComplete(source);
+        // Free the raw source reference ASAP
+        (msg as any).source = undefined;
 
         // Fallback: if our parser missed attachments but bodyStructure says there are some,
         // download each attachment part directly via IMAP.
