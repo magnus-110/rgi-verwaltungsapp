@@ -64,6 +64,7 @@ export function TimeClockPanel({ onClose: _onClose }: { onClose?: () => void }) 
   const [addStart, setAddStart] = useState("");
   const [addEnd, setAddEnd] = useState("");
   const [addReason, setAddReason] = useState("");
+  const [entryToDelete, setEntryToDelete] = useState<TimeClockEntry | null>(null);
 
   const startEdit = (e: TimeClockEntry) => {
     setEditId(e.id);
