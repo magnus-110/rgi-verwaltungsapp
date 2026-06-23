@@ -217,6 +217,37 @@ export function TimeClockPanel({ onClose: _onClose }: { onClose?: () => void }) 
           </Button>
         )}
       </div>
+
+      <AlertDialog open={!!entryToDelete} onOpenChange={(open) => !open && setEntryToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eintrag löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {entryToDelete && (
+                <span>
+                  Möchtest du den Eintrag vom{" "}
+                  <strong>{format(new Date(entryToDelete.started_at), "dd.MM. yyyy", { locale: de })}</strong>{" "}
+                  wirklich löschen? Diese Aktion lässt sich nicht rückgängig machen.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setEntryToDelete(null)}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (entryToDelete) {
+                  del.mutate(entryToDelete.id);
+                  setEntryToDelete(null);
+                }
+              }}
+            >
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
