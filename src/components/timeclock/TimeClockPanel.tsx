@@ -5,6 +5,8 @@ import { Pencil, Trash2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -77,15 +79,22 @@ export function TimeClockPanel({ onClose: _onClose }: { onClose?: () => void }) 
     setEditReason("");
   };
   const saveEdit = async (e: TimeClockEntry) => {
+    const s = fromLocalInput(editStart);
+    const en = fromLocalInput(editEnd);
+    if (s && en && new Date(en) < new Date(s)) {
+      toast.error("Ende muss nach dem Start liegen.");
+      return;
+    }
     await upsert.mutateAsync({
       id: e.id,
-      started_at: fromLocalInput(editStart)!,
-      ended_at: fromLocalInput(editEnd),
+      started_at: s!,
+      ended_at: en,
       note: e.note,
       reason: editReason.trim() || null,
     });
     cancelEdit();
   };
+
 
   const recent = entries.slice(0, 7);
 
@@ -195,9 +204,15 @@ export function TimeClockPanel({ onClose: _onClose }: { onClose?: () => void }) 
                 size="sm"
                 disabled={!addStart || !addEnd || !addReason.trim() || upsert.isPending}
                 onClick={async () => {
+                  const s = fromLocalInput(addStart);
+                  const en = fromLocalInput(addEnd);
+                  if (s && en && new Date(en) < new Date(s)) {
+                    toast.error("Ende muss nach dem Start liegen.");
+                    return;
+                  }
                   await upsert.mutateAsync({
-                    started_at: fromLocalInput(addStart)!,
-                    ended_at: fromLocalInput(addEnd),
+                    started_at: s!,
+                    ended_at: en,
                     source: "manual",
                     reason: addReason.trim(),
                   });
@@ -206,6 +221,7 @@ export function TimeClockPanel({ onClose: _onClose }: { onClose?: () => void }) 
                   setAddEnd("");
                   setAddReason("");
                 }}
+
               >
                 Senden
               </Button>
