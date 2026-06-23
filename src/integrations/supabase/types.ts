@@ -8739,38 +8739,50 @@ export type Database = {
       }
       time_clock_entries: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           created_at: string
           edited_at: string | null
           edited_by: string | null
           ended_at: string | null
           id: string
           note: string | null
+          reason: string | null
           source: string
           started_at: string
+          status: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           edited_at?: string | null
           edited_by?: string | null
           ended_at?: string | null
           id?: string
           note?: string | null
+          reason?: string | null
           source?: string
           started_at?: string
+          status?: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           edited_at?: string | null
           edited_by?: string | null
           ended_at?: string | null
           id?: string
           note?: string | null
+          reason?: string | null
           source?: string
           started_at?: string
+          status?: string
           updated_at?: string
           user_id?: string
         }
@@ -9536,6 +9548,7 @@ export type Database = {
           usage_count: number
         }[]
       }
+      force_logout_staff: { Args: never; Returns: undefined }
       generate_building_code: {
         Args: {
           management_mode_param: Database["public"]["Enums"]["management_mode"]
