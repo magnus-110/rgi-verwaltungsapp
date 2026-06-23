@@ -6,6 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   useMyTimeEntries,
   useUpsertTimeEntry,
   useDeleteTimeEntry,
@@ -54,6 +64,7 @@ export function TimeClockPanel({ onClose: _onClose }: { onClose?: () => void }) 
   const [addStart, setAddStart] = useState("");
   const [addEnd, setAddEnd] = useState("");
   const [addReason, setAddReason] = useState("");
+  const [entryToDelete, setEntryToDelete] = useState<TimeClockEntry | null>(null);
 
   const startEdit = (e: TimeClockEntry) => {
     setEditId(e.id);
@@ -150,7 +161,7 @@ export function TimeClockPanel({ onClose: _onClose }: { onClose?: () => void }) 
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(e)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => del.mutate(e.id)}>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => setEntryToDelete(e)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -206,6 +217,37 @@ export function TimeClockPanel({ onClose: _onClose }: { onClose?: () => void }) 
           </Button>
         )}
       </div>
+
+      <AlertDialog open={!!entryToDelete} onOpenChange={(open) => !open && setEntryToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eintrag löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {entryToDelete && (
+                <span>
+                  Möchtest du den Eintrag vom{" "}
+                  <strong>{format(new Date(entryToDelete.started_at), "dd.MM. yyyy", { locale: de })}</strong>{" "}
+                  wirklich löschen? Diese Aktion lässt sich nicht rückgängig machen.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setEntryToDelete(null)}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (entryToDelete) {
+                  del.mutate(entryToDelete.id);
+                  setEntryToDelete(null);
+                }
+              }}
+            >
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
