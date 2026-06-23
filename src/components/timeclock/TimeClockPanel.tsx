@@ -77,15 +77,22 @@ export function TimeClockPanel({ onClose: _onClose }: { onClose?: () => void }) 
     setEditReason("");
   };
   const saveEdit = async (e: TimeClockEntry) => {
+    const s = fromLocalInput(editStart);
+    const en = fromLocalInput(editEnd);
+    if (s && en && new Date(en) < new Date(s)) {
+      toast.error("Ende muss nach dem Start liegen.");
+      return;
+    }
     await upsert.mutateAsync({
       id: e.id,
-      started_at: fromLocalInput(editStart)!,
-      ended_at: fromLocalInput(editEnd),
+      started_at: s!,
+      ended_at: en,
       note: e.note,
       reason: editReason.trim() || null,
     });
     cancelEdit();
   };
+
 
   const recent = entries.slice(0, 7);
 
