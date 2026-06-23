@@ -6,13 +6,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Users, Clock, ChevronRight, Pencil, Trash2, Check, X } from "lucide-react";
+import { Download, Users, Clock, ChevronRight, Pencil, Trash2, Check, X, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import {
   useAllTimeEntries,
   useUpsertTimeEntry,
   useDeleteTimeEntry,
+  useSetTimeEntryStatus,
   durationMinutes,
   fmtHM,
   sumMinutesSince,
