@@ -12,6 +12,7 @@ import { DmsJobsTray } from "./finance/DmsJobsTray";
 import { PasskeyPromptDialog } from "./PasskeyPromptDialog";
 import { RequireMfa } from "./RequireMfa";
 import { BrokerModeProvider } from "@/hooks/useBrokerMode";
+import { TimeClockButton } from "./timeclock/TimeClockButton";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
