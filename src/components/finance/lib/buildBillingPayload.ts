@@ -112,7 +112,10 @@ const SECTION_LABELS: Record<string, string> = {
 
 import { getAccrualDisplaySign } from "./accrualSign";
 
-function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccrual?: boolean; asIncome?: boolean } = {}) {
+function sectionListFromUi(
+  accs: any[] = [],
+  opts: { asExpense?: boolean; asAccrual?: boolean; asIncome?: boolean } = {},
+) {
   return accs.map((a) => {
     const abs = Math.abs(a.totalAbs || 0);
     let signed: number;
@@ -128,14 +131,18 @@ function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccr
     const wp = Math.abs(a.wpAmount || 0);
     const wpSigned = opts.asAccrual
       ? wp * getAccrualDisplaySign(a.account_number)
-      : opts.asExpense ? -wp
-      : opts.asIncome ? wp
-      : a.wpAmount;
+      : opts.asExpense
+        ? -wp
+        : opts.asIncome
+          ? wp
+          : a.wpAmount;
     const verteilbarBase = a.distributableAmount ?? abs;
     // Vorzeichen für die Verteilbar-Spalte erzwingen (Ausgaben negativ, Einnahmen positiv).
-    const verteilbar = opts.asExpense ? -Math.abs(verteilbarBase)
-      : opts.asIncome ? Math.abs(verteilbarBase)
-      : -Math.abs(verteilbarBase);
+    const verteilbar = opts.asExpense
+      ? -Math.abs(verteilbarBase)
+      : opts.asIncome
+        ? Math.abs(verteilbarBase)
+        : -Math.abs(verteilbarBase);
     // Verteilbar nur ausgeben, wenn das Konto tatsächlich verteilungsrelevant ist.
     // Nicht-distributable Konten (z. B. Kapitalertragsteuer 1850, Soli 1860) dürfen
     // weder Wert noch Vorzeichen in der Verteilbar-Spalte zeigen.
@@ -154,7 +161,6 @@ function sectionListFromUi(accs: any[] = [], opts: { asExpense?: boolean; asAccr
     };
   });
 }
-
 
 function ownerAddr(assignment: any) {
   if (!assignment) return { street: "", zip: "", city: "" };
@@ -179,10 +185,20 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
   const { building, period, fiscalYear, sectionAccounts, totals, ownerResults, carryAccountsList = [] } = inp;
   const bestaende_anfang = carryAccountsList
     .filter((a) => Math.abs(a.opening) > 0.005)
-    .map((a) => ({ konto_nr: a.account_number, konto_name: a.account_name, betrag: fmtEUR(Math.abs(a.opening)), kategorie: a.category }));
+    .map((a) => ({
+      konto_nr: a.account_number,
+      konto_name: a.account_name,
+      betrag: fmtEUR(Math.abs(a.opening)),
+      kategorie: a.category,
+    }));
   const bestaende_ende = carryAccountsList
     .filter((a) => Math.abs(a.closing) > 0.005)
-    .map((a) => ({ konto_nr: a.account_number, konto_name: a.account_name, betrag: fmtEUR(Math.abs(a.closing)), kategorie: a.category }));
+    .map((a) => ({
+      konto_nr: a.account_number,
+      konto_name: a.account_name,
+      betrag: fmtEUR(Math.abs(a.closing)),
+      kategorie: a.category,
+    }));
   // Kombinierte Bestandsentwicklung pro Konto (Anfang + Ende in einer Zeile),
   // Brennstoff bewusst ausgenommen (separat in Vermögensbericht ausgewiesen).
   const carry_accounts = carryAccountsList
@@ -261,7 +277,10 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
   const sub_heizkosten = subtotals(sectionAccounts.heating);
   const sub_ruecklage = subtotals(sectionAccounts.reserve);
 
-  const sumIst = totals.totalOperatingDist + totals.totalOperatingNonDist + totals.totalReserve +
+  const sumIst =
+    totals.totalOperatingDist +
+    totals.totalOperatingNonDist +
+    totals.totalReserve +
     (sectionAccounts.heating || []).reduce((s: number, a: any) => s + Math.abs(a.totalAbs || 0), 0);
   const sumWp = [
     ...(sectionAccounts.operating_distributable || []),
@@ -278,10 +297,11 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
       .filter((a) => a.is_distributable === true && !isWithholdingAcc(a))
       .reduce((s, a) => s + Math.abs(a.totalAbs || 0), 0);
   const sumVerteilbar =
-      sumDistributableFromSection(sectionAccounts.operating_distributable)
-    + sumDistributableFromSection(sectionAccounts.operating_non_distributable)
-    + sumDistributableFromSection(sectionAccounts.heating)
-    + sumDistributableFromSection(sectionAccounts.reserve);
+    sumDistributableFromSection(sectionAccounts.operating_distributable) +
+    sumDistributableFromSection(sectionAccounts.operating_non_distributable) +
+    sumDistributableFromSection(sectionAccounts.heating) +
+    sumDistributableFromSection(sectionAccounts.reserve) -
+    Math.abs(totals.totalReserveWithdrawal || 0);
 
   return {
     document_title: "Jahresabrechnung — Gesamt",
@@ -371,19 +391,12 @@ export function buildOverallPayload(inp: BillingPayloadInputs) {
     //   - Ausgaben   = verteilungsrelevante Gesamtausgaben (sum_ausgaben_verteilbar)
     //   - Saldo      = Soll-Vorschüsse + verteilbare Ausgaben (Ausgaben sind negativ)
     sum_einnahmen_vorschuss_soll: fmtEUR(totals.totalSollKostendeckung + totals.totalSollEHR),
-    abrechnungssaldo_soll: fmtEUR(
-      (totals.totalSollKostendeckung + totals.totalSollEHR) - sumVerteilbar,
-    ),
-    abrechnungssaldo_soll_abs: fmtEUR(
-      Math.abs((totals.totalSollKostendeckung + totals.totalSollEHR) - sumVerteilbar),
-    ),
+    abrechnungssaldo_soll: fmtEUR(totals.totalSollKostendeckung + totals.totalSollEHR - sumVerteilbar),
+    abrechnungssaldo_soll_abs: fmtEUR(Math.abs(totals.totalSollKostendeckung + totals.totalSollEHR - sumVerteilbar)),
     abrechnungssaldo_soll_label:
-      (totals.totalSollKostendeckung + totals.totalSollEHR) - sumVerteilbar >= 0
-        ? "Guthaben" : "Nachzahlung",
-    abrechnungssaldo_soll_guthaben:
-      (totals.totalSollKostendeckung + totals.totalSollEHR) - sumVerteilbar >= 0,
-    abrechnungssaldo_soll_nachzahlung:
-      (totals.totalSollKostendeckung + totals.totalSollEHR) - sumVerteilbar < 0,
+      totals.totalSollKostendeckung + totals.totalSollEHR - sumVerteilbar >= 0 ? "Guthaben" : "Nachzahlung",
+    abrechnungssaldo_soll_guthaben: totals.totalSollKostendeckung + totals.totalSollEHR - sumVerteilbar >= 0,
+    abrechnungssaldo_soll_nachzahlung: totals.totalSollKostendeckung + totals.totalSollEHR - sumVerteilbar < 0,
 
     // Vermögensbericht / Kontrollbestände
     bank_anfangsbestand: fmtEUR(Math.abs(totals.openingGiro)),
@@ -474,9 +487,7 @@ export function buildOwnerPayload(inp: BillingPayloadInputs, ownerId: string) {
     })
     .filter(Boolean);
 
-  const steuerbonus =
-    Math.min(owner.owner35aDienste * 0.2, 4000) +
-    Math.min(owner.owner35aHandwerker * 0.2, 1200);
+  const steuerbonus = Math.min(owner.owner35aDienste * 0.2, 4000) + Math.min(owner.owner35aHandwerker * 0.2, 1200);
 
   // Spitze (nur Soll-Vorschuss vs. Kosten) — analog Gesamtabrechnung-Logik
   const ownerSollVorschuss = owner.hausgeld + owner.reserve;
@@ -486,9 +497,10 @@ export function buildOwnerPayload(inp: BillingPayloadInputs, ownerId: string) {
   // berechnet als owner.ownerUeberzahlung). Fällt zurück auf 0, wenn
   // kein Personenkonto gematcht werden konnte.
   const ownerActualPaid = typeof owner.actualPaid === "number" ? owner.actualPaid : owner.totalPaid;
-  const ownerUeberzahlung = typeof owner.ownerUeberzahlung === "number"
-    ? owner.ownerUeberzahlung
-    : Math.max(0, ownerActualPaid - ownerSollVorschuss);
+  const ownerUeberzahlung =
+    typeof owner.ownerUeberzahlung === "number"
+      ? owner.ownerUeberzahlung
+      : Math.max(0, ownerActualPaid - ownerSollVorschuss);
   // Saldo = Spitze + eigene Überzahlung. Die persönliche Überbezahlung
   // verbleibt damit beim Verursacher und wird nicht in die WEG-Gesamt-
   // sicht eingerechnet.
@@ -568,8 +580,6 @@ export function buildOwnerPayload(inp: BillingPayloadInputs, ownerId: string) {
     abrechnungssaldo_guthaben: ownerSaldo >= 0,
     abrechnungssaldo_nachzahlung: ownerSaldo < 0,
 
-
-
     // Aliase (Rückwärtskompatibilität)
     sum_abrechnung: fmtEUR(owner.totalOwnerCost),
     sum_hausgeld: fmtEUR(owner.hausgeld),
@@ -607,11 +617,11 @@ export function buildAssetReportPayload(inp: BillingPayloadInputs) {
   const sumLiquide = liquideRows.reduce((s, r) => s + r.betrag_raw, 0);
 
   // Sektion 2: Guthaben & Nachzahlungen aus Abrechnung
-  const sumGuthaben = ownerResults.reduce((s, o) => s + Math.max(0, o.result), 0);    // owner-Guthaben → WEG-Verbindlichkeit
+  const sumGuthaben = ownerResults.reduce((s, o) => s + Math.max(0, o.result), 0); // owner-Guthaben → WEG-Verbindlichkeit
   const sumNachzahlung = ownerResults.reduce((s, o) => s + Math.max(0, -o.result), 0); // owner-Nachzahlung → WEG-Forderung
   const guthabenRows = [
-    { bezeichnung: "Guthaben aus Abr.",     betrag: fmtEUR(-sumGuthaben),    betrag_raw: -sumGuthaben },
-    { bezeichnung: "Nachzahlung aus Abr.",  betrag: fmtEUR(sumNachzahlung),  betrag_raw: sumNachzahlung },
+    { bezeichnung: "Guthaben aus Abr.", betrag: fmtEUR(-sumGuthaben), betrag_raw: -sumGuthaben },
+    { bezeichnung: "Nachzahlung aus Abr.", betrag: fmtEUR(sumNachzahlung), betrag_raw: sumNachzahlung },
   ];
   const sumGuthabenNachzahlung = -sumGuthaben + sumNachzahlung;
 
@@ -648,7 +658,7 @@ export function buildAssetReportPayload(inp: BillingPayloadInputs) {
   const abgrenzungRows = abgFolgeAccs
     .map((a: any) => {
       // Vermögensbericht-Vorzeichen = − Abrechnungs-Vorzeichen
-      const raw = Math.abs(a.totalAbs || 0) * (-getAccrualDisplaySign(a.account_number));
+      const raw = Math.abs(a.totalAbs || 0) * -getAccrualDisplaySign(a.account_number);
       return {
         konto_nr: a.account_number,
         bezeichnung: a.account_name,
@@ -656,7 +666,7 @@ export function buildAssetReportPayload(inp: BillingPayloadInputs) {
         betrag_raw: raw,
       };
     })
-    .filter(r => Math.abs(r.betrag_raw) >= 0.005);
+    .filter((r) => Math.abs(r.betrag_raw) >= 0.005);
   const sumAbgrenzung = abgrenzungRows.reduce((s, r) => s + r.betrag_raw, 0);
 
   // ============================================================
@@ -678,7 +688,7 @@ export function buildAssetReportPayload(inp: BillingPayloadInputs) {
         betrag_raw: raw,
       };
     })
-    .filter(r => Math.abs(r.betrag_raw) >= 0.005);
+    .filter((r) => Math.abs(r.betrag_raw) >= 0.005);
   const sumForderungen = forderungenRows.reduce((s, r) => s + r.betrag_raw, 0);
 
   // Sektion 5: Verbindlichkeiten zum Jahresende (aktuell leer — strukturell vorhanden)
