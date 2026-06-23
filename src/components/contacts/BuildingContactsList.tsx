@@ -8,16 +8,46 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, User, ChevronDown, ChevronUp, Phone, Mail, MapPin, Trash2, Copy, CreditCard, BookOpen, X, Pencil, Check, CornerDownRight, Star } from "lucide-react";
-import { UNIT_KIND_LABELS, UNIT_KIND_ICONS, UNIT_KIND_OPTIONS, BILLING_MODE_LABELS, isApartment, type UnitKind } from "@/lib/secondaryUnits";
+import {
+  Plus,
+  User,
+  ChevronDown,
+  ChevronUp,
+  Phone,
+  Mail,
+  MapPin,
+  Trash2,
+  Copy,
+  CreditCard,
+  BookOpen,
+  X,
+  Pencil,
+  Check,
+  CornerDownRight,
+  Star,
+} from "lucide-react";
+import {
+  UNIT_KIND_LABELS,
+  UNIT_KIND_ICONS,
+  UNIT_KIND_OPTIONS,
+  BILLING_MODE_LABELS,
+  isApartment,
+  type UnitKind,
+} from "@/lib/secondaryUnits";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AssignContactDialog } from "./AssignContactDialog";
 import { useToast } from "@/hooks/use-toast";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -25,18 +55,35 @@ import { Switch } from "@/components/ui/switch";
 import { Calendar as CalendarIcon, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast as sonnerToast } from "sonner";
+import { toTelHref } from "@/lib/phone";
 
-function BankSepaInlineEditor({ bankId, sepaRef, sepaDate, onSaved }: { bankId: string; sepaRef: string | null; sepaDate: string | null; onSaved: () => void }) {
+function BankSepaInlineEditor({
+  bankId,
+  sepaRef,
+  sepaDate,
+  onSaved,
+}: {
+  bankId: string;
+  sepaRef: string | null;
+  sepaDate: string | null;
+  onSaved: () => void;
+}) {
   const [refVal, setRefVal] = useState(sepaRef || "");
   const [dateVal, setDateVal] = useState<string | null>(sepaDate);
   const [saving, setSaving] = useState(false);
-  useEffect(() => { setRefVal(sepaRef || ""); setDateVal(sepaDate); }, [sepaRef, sepaDate, bankId]);
+  useEffect(() => {
+    setRefVal(sepaRef || "");
+    setDateVal(sepaDate);
+  }, [sepaRef, sepaDate, bankId]);
 
   const save = async (patch: { sepa_mandate_ref?: string | null; sepa_mandate_date?: string | null }) => {
     setSaving(true);
     const { error } = await supabase.from("contact_bank_accounts").update(patch).eq("id", bankId);
     setSaving(false);
-    if (error) { sonnerToast.error("Fehler: " + error.message); return; }
+    if (error) {
+      sonnerToast.error("Fehler: " + error.message);
+      return;
+    }
     sonnerToast.success("SEPA-Mandat gespeichert");
     onSaved();
   };
@@ -89,14 +136,17 @@ function BankSepaInlineEditor({ bankId, sepaRef, sepaDate, onSaved }: { bankId: 
           className="h-7 text-xs font-mono"
           value={refVal}
           onChange={(e) => setRefVal(e.target.value)}
-          onBlur={() => { if ((refVal || null) !== (sepaRef || null)) save({ sepa_mandate_ref: refVal.trim() || null }); }}
+          onBlur={() => {
+            if ((refVal || null) !== (sepaRef || null)) save({ sepa_mandate_ref: refVal.trim() || null });
+          }}
           placeholder="z. B. RGI-SEPA-000123"
           disabled={saving}
         />
       </div>
       {dateVal && (
         <p className="text-[10px] text-muted-foreground">
-          erteilt am <span className="font-medium text-foreground">{new Date(dateVal).toLocaleDateString("de-DE")}</span>
+          erteilt am{" "}
+          <span className="font-medium text-foreground">{new Date(dateVal).toLocaleDateString("de-DE")}</span>
         </p>
       )}
     </div>
@@ -104,37 +154,80 @@ function BankSepaInlineEditor({ bankId, sepaRef, sepaDate, onSaved }: { bankId: 
 }
 
 /** Input that buffers locally and only calls onSave on blur */
-function BufferedInput({ value: externalValue, onSave, className, ...props }: Omit<React.ComponentProps<typeof Input>, 'onChange' | 'onBlur' | 'value'> & { value: string; onSave: (val: string) => void }) {
+function BufferedInput({
+  value: externalValue,
+  onSave,
+  className,
+  ...props
+}: Omit<React.ComponentProps<typeof Input>, "onChange" | "onBlur" | "value"> & {
+  value: string;
+  onSave: (val: string) => void;
+}) {
   const [local, setLocal] = useState(externalValue);
   const savedRef = useRef(externalValue);
-  useEffect(() => { if (externalValue !== savedRef.current) { setLocal(externalValue); savedRef.current = externalValue; } }, [externalValue]);
+  useEffect(() => {
+    if (externalValue !== savedRef.current) {
+      setLocal(externalValue);
+      savedRef.current = externalValue;
+    }
+  }, [externalValue]);
   return (
     <Input
       {...props}
       className={className}
       value={local}
       onChange={(e) => setLocal(e.target.value)}
-      onBlur={() => { if (local !== savedRef.current) { savedRef.current = local; onSave(local); } }}
+      onBlur={() => {
+        if (local !== savedRef.current) {
+          savedRef.current = local;
+          onSave(local);
+        }
+      }}
     />
   );
 }
 
 /** Numeric input that buffers locally and saves on blur */
-function BufferedNumberInput({ value: externalValue, onSave, className, ...props }: Omit<React.ComponentProps<typeof Input>, 'onChange' | 'onBlur' | 'value'> & { value: number; onSave: (val: number) => void }) {
+function BufferedNumberInput({
+  value: externalValue,
+  onSave,
+  className,
+  ...props
+}: Omit<React.ComponentProps<typeof Input>, "onChange" | "onBlur" | "value"> & {
+  value: number;
+  onSave: (val: number) => void;
+}) {
   const [local, setLocal] = useState(externalValue === 0 ? "" : String(externalValue));
   const savedRef = useRef(externalValue);
   const localRef = useRef(local);
   const onSaveRef = useRef(onSave);
-  useEffect(() => { localRef.current = local; }, [local]);
-  useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
-  useEffect(() => { if (externalValue !== savedRef.current) { setLocal(externalValue === 0 ? "" : String(externalValue)); savedRef.current = externalValue; } }, [externalValue]);
+  useEffect(() => {
+    localRef.current = local;
+  }, [local]);
+  useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
+  useEffect(() => {
+    if (externalValue !== savedRef.current) {
+      setLocal(externalValue === 0 ? "" : String(externalValue));
+      savedRef.current = externalValue;
+    }
+  }, [externalValue]);
   const flush = () => {
     const num = localRef.current === "" ? 0 : parseFloat(localRef.current.replace(",", "."));
     const val = isNaN(num) ? 0 : num;
-    if (val !== savedRef.current) { savedRef.current = val; onSaveRef.current(val); }
+    if (val !== savedRef.current) {
+      savedRef.current = val;
+      onSaveRef.current(val);
+    }
   };
   // Flush pending edits on unmount (e.g. when switching tabs while typing)
-  useEffect(() => () => { flush(); }, []);
+  useEffect(
+    () => () => {
+      flush();
+    },
+    [],
+  );
   return (
     <Input
       {...props}
@@ -149,16 +242,43 @@ function BufferedNumberInput({ value: externalValue, onSave, className, ...props
 }
 
 /** Textarea that buffers locally and saves on blur */
-function BufferedTextarea({ value: externalValue, onSave, className, ...props }: Omit<React.ComponentProps<typeof Textarea>, 'onChange' | 'onBlur' | 'value'> & { value: string; onSave: (val: string) => void }) {
+function BufferedTextarea({
+  value: externalValue,
+  onSave,
+  className,
+  ...props
+}: Omit<React.ComponentProps<typeof Textarea>, "onChange" | "onBlur" | "value"> & {
+  value: string;
+  onSave: (val: string) => void;
+}) {
   const [local, setLocal] = useState(externalValue);
   const savedRef = useRef(externalValue);
   const localRef = useRef(local);
   const onSaveRef = useRef(onSave);
-  useEffect(() => { localRef.current = local; }, [local]);
-  useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
-  useEffect(() => { if (externalValue !== savedRef.current) { setLocal(externalValue); savedRef.current = externalValue; } }, [externalValue]);
-  const flush = () => { if (localRef.current !== savedRef.current) { savedRef.current = localRef.current; onSaveRef.current(localRef.current); } };
-  useEffect(() => () => { flush(); }, []);
+  useEffect(() => {
+    localRef.current = local;
+  }, [local]);
+  useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
+  useEffect(() => {
+    if (externalValue !== savedRef.current) {
+      setLocal(externalValue);
+      savedRef.current = externalValue;
+    }
+  }, [externalValue]);
+  const flush = () => {
+    if (localRef.current !== savedRef.current) {
+      savedRef.current = localRef.current;
+      onSaveRef.current(localRef.current);
+    }
+  };
+  useEffect(
+    () => () => {
+      flush();
+    },
+    [],
+  );
   return (
     <Textarea
       {...props}
@@ -193,7 +313,16 @@ const SHARE_TYPES = [
   { value: "heizkosten", label: "Heizkosten" },
 ];
 
-const COST_TYPES = ["Hausgeld", "Rücklage", "Sonderumlage", "Heizkosten", "Nebenkosten", "Miete", "Stellplatz", "Garage"];
+const COST_TYPES = [
+  "Hausgeld",
+  "Rücklage",
+  "Sonderumlage",
+  "Heizkosten",
+  "Nebenkosten",
+  "Miete",
+  "Stellplatz",
+  "Garage",
+];
 const INTERVALS = [
   { value: "monatlich", label: "Monatlich" },
   { value: "quartal", label: "Quartalsweise" },
@@ -227,9 +356,31 @@ interface ContactAssignment {
   shares: { id: string; share_type: string; share_value: number }[];
   phones: { id: string; phone_number: string; label: string; contact_id: string }[];
   emails: { id: string; email: string; label: string; contact_id: string }[];
-  costs: { id: string; cost_type: string; amount: number; reserve_share_monthly: number | null; interval: string; valid_from: string | null; valid_to: string | null }[];
-  bankAccounts: { id: string; iban: string | null; bic: string | null; bank_name: string | null; account_holder: string | null; sepa_mandate_ref: string | null; sepa_mandate_date: string | null }[];
-  persons: { id: string; salutation: string | null; first_name: string | null; last_name: string | null; is_primary: boolean | null }[];
+  costs: {
+    id: string;
+    cost_type: string;
+    amount: number;
+    reserve_share_monthly: number | null;
+    interval: string;
+    valid_from: string | null;
+    valid_to: string | null;
+  }[];
+  bankAccounts: {
+    id: string;
+    iban: string | null;
+    bic: string | null;
+    bank_name: string | null;
+    account_holder: string | null;
+    sepa_mandate_ref: string | null;
+    sepa_mandate_date: string | null;
+  }[];
+  persons: {
+    id: string;
+    salutation: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    is_primary: boolean | null;
+  }[];
 }
 
 interface Props {
@@ -260,7 +411,7 @@ function CopyableField({ label, value }: { label: string; value: string }) {
 interface TenantDeposit {
   id: string;
   assignment_id: string;
-  deposit_type: 'konto' | 'buergschaft';
+  deposit_type: "konto" | "buergschaft";
   amount: number;
   bank_name: string | null;
   iban: string | null;
@@ -275,32 +426,32 @@ interface TenantDeposit {
 function TenantDepositsSection({ assignmentId }: { assignmentId: string }) {
   const queryClient = useQueryClient();
   const { data: deposits = [] } = useQuery({
-    queryKey: ['tenant-deposits', assignmentId],
+    queryKey: ["tenant-deposits", assignmentId],
     queryFn: async () => {
       const { data } = await (supabase as any)
-        .from('tenant_deposits')
-        .select('*')
-        .eq('assignment_id', assignmentId)
-        .order('created_at', { ascending: true });
+        .from("tenant_deposits")
+        .select("*")
+        .eq("assignment_id", assignmentId)
+        .order("created_at", { ascending: true });
       return (data || []) as TenantDeposit[];
     },
   });
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ['tenant-deposits', assignmentId] });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["tenant-deposits", assignmentId] });
 
   const addDeposit = async () => {
-    await (supabase as any).from('tenant_deposits').insert({
+    await (supabase as any).from("tenant_deposits").insert({
       assignment_id: assignmentId,
-      deposit_type: 'konto',
+      deposit_type: "konto",
       amount: 0,
     });
     refresh();
   };
   const updateDeposit = async (id: string, patch: Partial<TenantDeposit>) => {
-    await (supabase as any).from('tenant_deposits').update(patch).eq('id', id);
+    await (supabase as any).from("tenant_deposits").update(patch).eq("id", id);
     refresh();
   };
   const deleteDeposit = async (id: string) => {
-    await (supabase as any).from('tenant_deposits').delete().eq('id', id);
+    await (supabase as any).from("tenant_deposits").delete().eq("id", id);
     refresh();
   };
 
@@ -317,7 +468,9 @@ function TenantDepositsSection({ assignmentId }: { assignmentId: string }) {
         <div key={d.id} className="border rounded-md p-3 mb-2 space-y-2 bg-muted/30">
           <div className="flex items-center gap-2 flex-wrap">
             <Select value={d.deposit_type} onValueChange={(v) => updateDeposit(d.id, { deposit_type: v as any })}>
-              <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-32 h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="konto">Konto</SelectItem>
                 <SelectItem value="buergschaft">Bürgschaft</SelectItem>
@@ -343,7 +496,7 @@ function TenantDepositsSection({ assignmentId }: { assignmentId: string }) {
               <Trash2 className="h-3.5 w-3.5 text-destructive" />
             </Button>
           </div>
-          {d.deposit_type === 'konto' && (
+          {d.deposit_type === "konto" && (
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label className="text-[10px] text-muted-foreground">Bank</Label>
@@ -365,7 +518,7 @@ function TenantDepositsSection({ assignmentId }: { assignmentId: string }) {
               </div>
             </div>
           )}
-          {d.deposit_type === 'buergschaft' && (
+          {d.deposit_type === "buergschaft" && (
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <Label className="text-[10px] text-muted-foreground">Bürge</Label>
@@ -409,15 +562,21 @@ function TenantDepositsSection({ assignmentId }: { assignmentId: string }) {
   );
 }
 
-export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Props) {
+export function BuildingContactsList({ buildingId, managementMode = "weg" }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showAssign, setShowAssign] = useState(false);
   const [editAssignmentId, setEditAssignmentId] = useState<string | null>(null);
-  const [mieterFilter, setMieterFilter] = useState<'current' | 'all'>('current');
+  const [mieterFilter, setMieterFilter] = useState<"current" | "all">("current");
 
   const [deleteTarget, setDeleteTarget] = useState<ContactAssignment | null>(null);
   // For inline editing/adding custom types - { id: record id, field: 'share_type'|'cost_type', value: string, mode: 'add'|'edit' }
-  const [editingType, setEditingType] = useState<{ id: string; field: string; value: string; mode: 'add' | 'edit'; oldValue?: string } | null>(null);
+  const [editingType, setEditingType] = useState<{
+    id: string;
+    field: string;
+    value: string;
+    mode: "add" | "edit";
+    oldValue?: string;
+  } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -429,58 +588,54 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
   // Load custom cost types and share types from DB
   const { data: customCostTypes = [] } = useQuery({
-    queryKey: ['custom-cost-types'],
+    queryKey: ["custom-cost-types"],
     queryFn: async () => {
       const { data } = await supabase.from("contact_building_costs").select("cost_type");
       if (!data) return [];
-      const unique = [...new Set(data.map(d => d.cost_type))];
-      return unique.filter(t => !COST_TYPES.includes(t) && t && t !== "__add__");
+      const unique = [...new Set(data.map((d) => d.cost_type))];
+      return unique.filter((t) => !COST_TYPES.includes(t) && t && t !== "__add__");
     },
   });
 
   const { data: customShareTypes = [] } = useQuery({
-    queryKey: ['custom-share-types', buildingId],
+    queryKey: ["custom-share-types", buildingId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("building_share_types")
-        .select("value")
-        .eq("building_id", buildingId);
+      const { data } = await supabase.from("building_share_types").select("value").eq("building_id", buildingId);
       if (!data) return [];
       const unique = [...new Set(data.map((d: any) => d.value as string))];
-      return unique.filter(t => !SHARE_TYPES.some(s => s.value === t) && t && t !== String("__add__"));
+      return unique.filter((t) => !SHARE_TYPES.some((s) => s.value === t) && t && t !== String("__add__"));
     },
   });
 
   const allCostTypes = [...COST_TYPES, ...customCostTypes];
-  const allShareTypes = [...SHARE_TYPES, ...customShareTypes.map(t => ({ value: t, label: t }))];
+  const allShareTypes = [...SHARE_TYPES, ...customShareTypes.map((t) => ({ value: t, label: t }))];
 
   const { data: assignments = [], refetch } = useQuery({
-    queryKey: ['building-contact-assignments', buildingId, managementMode],
+    queryKey: ["building-contact-assignments", buildingId, managementMode],
     queryFn: async () => {
-      const roleFilter: ("eigentuemer" | "beirat" | "mieter")[] = managementMode === 'rent' ? ["mieter"] : ["eigentuemer", "beirat"];
+      const roleFilter: ("eigentuemer" | "beirat" | "mieter")[] =
+        managementMode === "rent" ? ["mieter"] : ["eigentuemer", "beirat"];
       const { data: assignData, error } = await supabase
         .from("contact_building_assignments")
-        .select("*, contact:contacts(id, salutation, first_name, last_name, company_name, address_street, address_zip, address_city)")
+        .select(
+          "*, contact:contacts(id, salutation, first_name, last_name, company_name, address_street, address_zip, address_city)",
+        )
         .eq("building_id", buildingId)
         .eq("is_active", true)
         .in("role_in_building", roleFilter)
         .order("unit_number", { ascending: true, nullsFirst: false });
-      
+
       if (error || !assignData) return [];
 
-      const assignmentIds = assignData.map(a => a.id);
-      const contactIds = assignData.map(a => a.contact_id);
+      const assignmentIds = assignData.map((a) => a.id);
+      const contactIds = assignData.map((a) => a.contact_id);
 
       const [sharesRes, phonesRes, emailsRes, costsRes, bankRes, personsRes] = await Promise.all([
-        assignmentIds.length > 0 
+        assignmentIds.length > 0
           ? supabase.from("contact_building_shares").select("*").in("assignment_id", assignmentIds)
           : { data: [] },
-        contactIds.length > 0
-          ? supabase.from("contact_phones").select("*").in("contact_id", contactIds)
-          : { data: [] },
-        contactIds.length > 0
-          ? supabase.from("contact_emails").select("*").in("contact_id", contactIds)
-          : { data: [] },
+        contactIds.length > 0 ? supabase.from("contact_phones").select("*").in("contact_id", contactIds) : { data: [] },
+        contactIds.length > 0 ? supabase.from("contact_emails").select("*").in("contact_id", contactIds) : { data: [] },
         assignmentIds.length > 0
           ? supabase.from("contact_building_costs").select("*").in("assignment_id", assignmentIds)
           : { data: [] },
@@ -488,11 +643,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
           ? supabase.from("contact_bank_accounts").select("*").in("contact_id", contactIds)
           : { data: [] },
         contactIds.length > 0
-          ? supabase.from("contact_persons").select("id, contact_id, salutation, first_name, last_name, is_primary").in("contact_id", contactIds)
+          ? supabase
+              .from("contact_persons")
+              .select("id, contact_id, salutation, first_name, last_name, is_primary")
+              .in("contact_id", contactIds)
           : { data: [] },
       ]);
-
-      
 
       const sortByCreated = (a: any, b: any) => {
         const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -500,16 +656,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         return ta - tb;
       };
 
-      return assignData.map(a => ({
+      return assignData.map((a) => ({
         ...a,
-        shares: (sharesRes.data || [])
-          .filter((s: any) => s.assignment_id === a.id)
-          .sort(sortByCreated),
+        shares: (sharesRes.data || []).filter((s: any) => s.assignment_id === a.id).sort(sortByCreated),
         phones: (phonesRes.data || []).filter((p: any) => p.contact_id === a.contact_id),
         emails: (emailsRes.data || []).filter((e: any) => e.contact_id === a.contact_id),
-        costs: (costsRes.data || [])
-          .filter((c: any) => c.assignment_id === a.id)
-          .sort(sortByCreated),
+        costs: (costsRes.data || []).filter((c: any) => c.assignment_id === a.id).sort(sortByCreated),
         bankAccounts: (bankRes.data || []).filter((b: any) => b.contact_id === a.contact_id),
         persons: ((personsRes as any).data || [])
           .filter((p: any) => p.contact_id === a.contact_id)
@@ -523,7 +675,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     if (c.company_name) return c.company_name;
 
     // Wenn mehrere Personen am Kontakt hängen (z. B. Eheleute), alle sinnvoll kombinieren.
-    const persons = (a.persons || []).filter(p => p.first_name || p.last_name);
+    const persons = (a.persons || []).filter((p) => p.first_name || p.last_name);
     if (persons.length > 1) {
       // Gruppiere nach Nachname für kompakte Darstellung: "Anna und Peter Müller" / "Müller, Anna und Schmidt, Peter"
       const byLastName = new Map<string, string[]>();
@@ -531,10 +683,13 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
       for (const p of persons) {
         const ln = (p.last_name || "").trim();
         const fn = (p.first_name || "").trim();
-        if (!byLastName.has(ln)) { byLastName.set(ln, []); order.push(ln); }
+        if (!byLastName.has(ln)) {
+          byLastName.set(ln, []);
+          order.push(ln);
+        }
         if (fn) byLastName.get(ln)!.push(fn);
       }
-      const groups = order.map(ln => {
+      const groups = order.map((ln) => {
         const fns = byLastName.get(ln) || [];
         if (fns.length === 0) return ln;
         const fnPart = fns.length === 1 ? fns[0] : `${fns.slice(0, -1).join(", ")} und ${fns[fns.length - 1]}`;
@@ -552,12 +707,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   };
 
   const getMea = (a: ContactAssignment) => {
-    const mea = a.shares.find(s => s.share_type === 'mea');
+    const mea = a.shares.find((s) => s.share_type === "mea");
     return mea ? mea.share_value : null;
   };
 
   const getHausgeld = (a: ContactAssignment) => {
-    const hgList = a.costs.filter(c => c.cost_type.toLowerCase().includes('hausgeld'));
+    const hgList = a.costs.filter((c) => c.cost_type.toLowerCase().includes("hausgeld"));
     if (hgList.length === 0) return null;
     // Neuestes nach valid_from zuerst (null = älter)
     const latest = [...hgList].sort((x, y) => {
@@ -568,16 +723,19 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     return latest.amount;
   };
 
-  const isBeirat = (a: ContactAssignment) => a.role_in_building === 'beirat';
+  const isBeirat = (a: ContactAssignment) => a.role_in_building === "beirat";
   const isCashAuditor = (a: ContactAssignment) => (a as any).is_cash_auditor === true;
 
   const updateAssignment = async (id: string, field: string, value: any) => {
-    await supabase.from("contact_building_assignments").update({ [field]: value || null } as any).eq("id", id);
+    await supabase
+      .from("contact_building_assignments")
+      .update({ [field]: value || null } as any)
+      .eq("id", id);
     refetch();
   };
 
   const toggleBeirat = async (a: ContactAssignment) => {
-    const newRole = a.role_in_building === 'beirat' ? 'eigentuemer' : 'beirat';
+    const newRole = a.role_in_building === "beirat" ? "eigentuemer" : "beirat";
     await supabase.from("contact_building_assignments").update({ role_in_building: newRole }).eq("id", a.id);
     refetch();
   };
@@ -630,11 +788,16 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
   const addShare = async (assignmentId: string) => {
     await flushPendingEdits();
-    await supabase.from("contact_building_shares").insert({ assignment_id: assignmentId, share_type: "mea", share_value: 0 });
+    await supabase
+      .from("contact_building_shares")
+      .insert({ assignment_id: assignmentId, share_type: "mea", share_value: 0 });
     await refetch();
   };
   const updateShare = async (id: string, field: string, value: any) => {
-    await supabase.from("contact_building_shares").update({ [field]: value } as any).eq("id", id);
+    await supabase
+      .from("contact_building_shares")
+      .update({ [field]: value } as any)
+      .eq("id", id);
     await refetch();
     if (field === "share_type") queryClient.invalidateQueries({ queryKey: ["custom-share-types", buildingId] });
   };
@@ -673,8 +836,14 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         // Neu anlegen: in Katalog + in den aktuellen Share-Datensatz schreiben
         await supabase
           .from("building_share_types")
-          .upsert({ building_id: buildingId, value: val, label: val } as any, { onConflict: "building_id,value" } as any);
-        await supabase.from("contact_building_shares").update({ share_type: val } as any).eq("id", editingType.id);
+          .upsert(
+            { building_id: buildingId, value: val, label: val } as any,
+            { onConflict: "building_id,value" } as any,
+          );
+        await supabase
+          .from("contact_building_shares")
+          .update({ share_type: val } as any)
+          .eq("id", editingType.id);
       }
       queryClient.invalidateQueries({ queryKey: ["custom-share-types", buildingId] });
       queryClient.invalidateQueries({ queryKey: ["building-share-types", buildingId] });
@@ -704,11 +873,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
           .in("assignment_id", ids)
           .eq("share_type", typeValue as any);
       }
-      await supabase
-        .from("building_share_types")
-        .delete()
-        .eq("building_id", buildingId)
-        .eq("value", typeValue);
+      await supabase.from("building_share_types").delete().eq("building_id", buildingId).eq("value", typeValue);
       queryClient.invalidateQueries({ queryKey: ["custom-share-types", buildingId] });
       queryClient.invalidateQueries({ queryKey: ["building-share-types", buildingId] });
     } else {
@@ -719,21 +884,27 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     refetch();
   };
 
-
-  const ensureAccountAndTemplate = async (assignmentId: string, costType: string, amount: number, validFrom: string | null, validTo: string | null) => {
+  const ensureAccountAndTemplate = async (
+    assignmentId: string,
+    costType: string,
+    amount: number,
+    validFrom: string | null,
+    validTo: string | null,
+  ) => {
     if (amount <= 0) {
       toast({ title: "Hinweis", description: "Bitte zuerst einen Betrag eingeben.", variant: "destructive" });
       return;
     }
-    
-    const assignment = assignments.find(a => a.id === assignmentId);
+
+    const assignment = assignments.find((a) => a.id === assignmentId);
     if (!assignment) return;
-    
+
     const unitNumber = assignment.unit_number || "0000";
     const floorLocation = assignment.floor_location || "";
     const lastName = assignment.contact.last_name || "Unbenannt";
-    const contactName = [assignment.contact.first_name, assignment.contact.last_name].filter(Boolean).join(" ") || "Unbenannt";
-    
+    const contactName =
+      [assignment.contact.first_name, assignment.contact.last_name].filter(Boolean).join(" ") || "Unbenannt";
+
     const defaultBank = assignment.bankAccounts?.find((b: any) => b.is_default) || assignment.bankAccounts?.[0];
     const vendorIban = defaultBank?.iban || null;
     const vendorName = contactName;
@@ -755,13 +926,17 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         .maybeSingle();
 
       if (findError) {
-        toast({ title: "Fehler", description: `Kontosuche fehlgeschlagen: ${findError.message}`, variant: "destructive" });
+        toast({
+          title: "Fehler",
+          description: `Kontosuche fehlgeschlagen: ${findError.message}`,
+          variant: "destructive",
+        });
         return;
       }
 
       let accountId = existingAccount?.id;
       if (!accountId) {
-        const numericSort = parseInt(unitNumber.replace(/\D/g, ''), 10) || 0;
+        const numericSort = parseInt(unitNumber.replace(/\D/g, ""), 10) || 0;
         const { data: newAccount, error: insertError } = await supabase
           .from("chart_of_accounts")
           .insert({
@@ -794,7 +969,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         .ilike("name", `%${costType}%${unitNumber}%`);
 
       // Check for overlapping timeframe
-      const hasOverlap = (existingTemplates || []).find(t => {
+      const hasOverlap = (existingTemplates || []).find((t) => {
         const tFrom = t.valid_from || null;
         const tTo = t.valid_to || null;
         // If both have no dates, they overlap
@@ -809,22 +984,23 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
       // Build template name — append date range if dates are set
       const baseName = `${costType} ${unitNumber} ${floorLocation}`.trim();
-      const dateSuffix = (validFrom || validTo)
-        ? ` (${fmtDate(validFrom) || "…"}–${fmtDate(validTo) || "…"})`
-        : "";
+      const dateSuffix = validFrom || validTo ? ` (${fmtDate(validFrom) || "…"}–${fmtDate(validTo) || "…"})` : "";
       const templateName = baseName + dateSuffix;
 
       if (hasOverlap) {
         // Update existing overlapping template
-        const { error: updateErr } = await supabase.from("booking_templates").update({ 
-          expected_amount: amount,
-          vendor_name: vendorName,
-          vendor_iban: vendorIban,
-          vat_rate: 0,
-          account_id: accountId,
-          valid_from: validFrom,
-          valid_to: validTo,
-        }).eq("id", hasOverlap.id);
+        const { error: updateErr } = await supabase
+          .from("booking_templates")
+          .update({
+            expected_amount: amount,
+            vendor_name: vendorName,
+            vendor_iban: vendorIban,
+            vat_rate: 0,
+            account_id: accountId,
+            valid_from: validFrom,
+            valid_to: validTo,
+          })
+          .eq("id", hasOverlap.id);
         if (updateErr) {
           toast({ title: "Fehler beim Vorlage aktualisieren", description: updateErr.message, variant: "destructive" });
           return;
@@ -852,9 +1028,16 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
       queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
       queryClient.invalidateQueries({ queryKey: ["booking-templates"] });
 
-      toast({ title: "Konto & Vorlage erstellt", description: `${costType}-Konto und Buchungsvorlage wurden angelegt/aktualisiert.` });
+      toast({
+        title: "Konto & Vorlage erstellt",
+        description: `${costType}-Konto und Buchungsvorlage wurden angelegt/aktualisiert.`,
+      });
     } catch (err: any) {
-      toast({ title: "Unerwarteter Fehler", description: err?.message || "Bitte erneut versuchen.", variant: "destructive" });
+      toast({
+        title: "Unerwarteter Fehler",
+        description: err?.message || "Bitte erneut versuchen.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -876,7 +1059,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
       .eq("assignment_id", assignmentId)
       .eq("cost_type", costType)
       .neq("id", currentCostId);
-    for (const o of (others || [])) {
+    for (const o of others || []) {
       const of = o.valid_from || null;
       const ot = o.valid_to || null;
       if (of && of >= newValidFrom) continue; // jünger / gleich -> nicht anfassen
@@ -888,16 +1071,19 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const addCost = async (assignmentId: string) => {
     await flushPendingEdits();
     const payload: any = { assignment_id: assignmentId, cost_type: "Miete", amount: 0, interval: "monatlich" };
-    if (managementMode === 'rent') payload.valid_from = todayIso;
+    if (managementMode === "rent") payload.valid_from = todayIso;
     const { data: inserted } = await supabase.from("contact_building_costs").insert(payload).select("id").single();
-    if (managementMode === 'rent' && inserted?.id) {
+    if (managementMode === "rent" && inserted?.id) {
       await closePreviousCostsForType(assignmentId, "Miete", todayIso, inserted.id);
     }
     await refetch();
   };
   const updateCost = async (id: string, field: string, value: any) => {
-    await supabase.from("contact_building_costs").update({ [field]: value } as any).eq("id", id);
-    if (managementMode === 'rent' && (field === 'valid_from' || field === 'cost_type') && value) {
+    await supabase
+      .from("contact_building_costs")
+      .update({ [field]: value } as any)
+      .eq("id", id);
+    if (managementMode === "rent" && (field === "valid_from" || field === "cost_type") && value) {
       const { data: row } = await supabase
         .from("contact_building_costs")
         .select("assignment_id, cost_type, valid_from")
@@ -921,7 +1107,10 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     refetch();
   };
   const updatePhone = async (id: string, field: string, value: string) => {
-    await supabase.from("contact_phones").update({ [field]: value } as any).eq("id", id);
+    await supabase
+      .from("contact_phones")
+      .update({ [field]: value } as any)
+      .eq("id", id);
     refetch();
   };
   const deletePhone = async (id: string) => {
@@ -935,7 +1124,10 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     refetch();
   };
   const updateEmail = async (id: string, field: string, value: string) => {
-    await supabase.from("contact_emails").update({ [field]: value } as any).eq("id", id);
+    await supabase
+      .from("contact_emails")
+      .update({ [field]: value } as any)
+      .eq("id", id);
     refetch();
   };
   const deleteEmail = async (id: string) => {
@@ -945,11 +1137,16 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
   // Personen
   const addPerson = async (contactId: string) => {
-    await supabase.from("contact_persons").insert({ contact_id: contactId, first_name: "", last_name: "", salutation: "", is_primary: false });
+    await supabase
+      .from("contact_persons")
+      .insert({ contact_id: contactId, first_name: "", last_name: "", salutation: "", is_primary: false });
     refetch();
   };
   const updatePerson = async (id: string, field: string, value: any) => {
-    await supabase.from("contact_persons").update({ [field]: value } as any).eq("id", id);
+    await supabase
+      .from("contact_persons")
+      .update({ [field]: value } as any)
+      .eq("id", id);
     refetch();
   };
   const deletePerson = async (id: string) => {
@@ -957,44 +1154,62 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     refetch();
   };
   const setPrimaryPerson = async (contactId: string, personId: string) => {
-    await supabase.from("contact_persons").update({ is_primary: false } as any).eq("contact_id", contactId);
-    await supabase.from("contact_persons").update({ is_primary: true } as any).eq("id", personId);
+    await supabase
+      .from("contact_persons")
+      .update({ is_primary: false } as any)
+      .eq("contact_id", contactId);
+    await supabase
+      .from("contact_persons")
+      .update({ is_primary: true } as any)
+      .eq("id", personId);
     refetch();
   };
 
   // Kontakt-Adresse / Stammdaten (wirkt global auf den Kontakt)
   const updateContact = async (contactId: string, field: string, value: any) => {
-    await supabase.from("contacts").update({ [field]: value } as any).eq("id", contactId);
+    await supabase
+      .from("contacts")
+      .update({ [field]: value } as any)
+      .eq("id", contactId);
     refetch();
   };
 
-  const roleLabel = managementMode === 'weg' ? 'Eigentümer' : 'Mieter';
+  const roleLabel = managementMode === "weg" ? "Eigentümer" : "Mieter";
 
   // Mieter-Filter: nur aktuelle (default) vs. alle
-  const visibleAssignments = managementMode === 'rent' && mieterFilter === 'current'
-    ? assignments.filter(isTenantActive)
-    : assignments;
+  const visibleAssignments =
+    managementMode === "rent" && mieterFilter === "current" ? assignments.filter(isTenantActive) : assignments;
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h3 className="font-semibold text-sm">
-          Kontakte ({visibleAssignments.length}{managementMode === 'rent' && mieterFilter === 'current' && assignments.length !== visibleAssignments.length ? ` von ${assignments.length}` : ''})
+          Kontakte ({visibleAssignments.length}
+          {managementMode === "rent" && mieterFilter === "current" && assignments.length !== visibleAssignments.length
+            ? ` von ${assignments.length}`
+            : ""}
+          )
         </h3>
         <div className="flex items-center gap-2">
-          {managementMode === 'rent' && (
+          {managementMode === "rent" && (
             <div className="flex rounded-md border overflow-hidden">
               <button
                 type="button"
-                onClick={() => setMieterFilter('current')}
-                className={cn("px-2.5 h-7 text-xs", mieterFilter === 'current' ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
+                onClick={() => setMieterFilter("current")}
+                className={cn(
+                  "px-2.5 h-7 text-xs",
+                  mieterFilter === "current" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted",
+                )}
               >
                 Nur aktuelle
               </button>
               <button
                 type="button"
-                onClick={() => setMieterFilter('all')}
-                className={cn("px-2.5 h-7 text-xs border-l", mieterFilter === 'all' ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
+                onClick={() => setMieterFilter("all")}
+                className={cn(
+                  "px-2.5 h-7 text-xs border-l",
+                  mieterFilter === "all" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted",
+                )}
               >
                 Alle
               </button>
@@ -1034,557 +1249,821 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         looseSubs.forEach((s) => flat.push({ a: s, isSub: false }));
 
         return flat.map(({ a, isSub }) => {
-        const isExpanded = expanded === a.id;
-        const hausgeld = getHausgeld(a);
-        const kind = ((a as any).unit_kind || "apartment") as UnitKind;
-        const billingMode = ((a as any).billing_mode || "own_billing") as "own_billing" | "distribution_only";
-        const kindLabel = UNIT_KIND_LABELS[kind] || "Einheit";
-        const kindIcon = UNIT_KIND_ICONS[kind] ?? "";
+          const isExpanded = expanded === a.id;
+          const hausgeld = getHausgeld(a);
+          const kind = ((a as any).unit_kind || "apartment") as UnitKind;
+          const billingMode = ((a as any).billing_mode || "own_billing") as "own_billing" | "distribution_only";
+          const kindLabel = UNIT_KIND_LABELS[kind] || "Einheit";
+          const kindIcon = UNIT_KIND_ICONS[kind] ?? "";
 
-        return (
-          <Card key={a.id} className={`overflow-hidden ${isSub ? "ml-6 border-l-2 border-l-primary/30" : ""}`}>
-            <CardContent className="p-0">
-              {/* Compact row */}
-              <div
-                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => setExpanded(isExpanded ? null : a.id)}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    {isSub ? <CornerDownRight className="h-4 w-4 text-primary" /> : <User className="h-4 w-4 text-primary" />}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate flex items-center gap-1.5">
-                      {!isApartment(kind) && <span aria-hidden>{kindIcon}</span>}
-                      {getDisplayName(a)}
-                    </p>
-                    {(a.unit_number || a.floor_location || !isApartment(kind)) && (
-                      <p className="text-xs text-muted-foreground truncate">
-                        {[!isApartment(kind) ? kindLabel : null, a.unit_number, a.floor_location].filter(Boolean).join(" · ")}
+          return (
+            <Card key={a.id} className={`overflow-hidden ${isSub ? "ml-6 border-l-2 border-l-primary/30" : ""}`}>
+              <CardContent className="p-0">
+                {/* Compact row */}
+                <div
+                  className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => setExpanded(isExpanded ? null : a.id)}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      {isSub ? (
+                        <CornerDownRight className="h-4 w-4 text-primary" />
+                      ) : (
+                        <User className="h-4 w-4 text-primary" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                        {!isApartment(kind) && <span aria-hidden>{kindIcon}</span>}
+                        {getDisplayName(a)}
                       </p>
+                      {(a.unit_number || a.floor_location || !isApartment(kind)) && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {[!isApartment(kind) ? kindLabel : null, a.unit_number, a.floor_location]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
+                      {managementMode === "weg" && isBeirat(a) && (
+                        <Badge variant="secondary" className="text-xs">
+                          Beirat
+                        </Badge>
+                      )}
+                      {managementMode === "weg" && isCashAuditor(a) && (
+                        <Badge variant="secondary" className="text-xs">
+                          Kassenprüfung
+                        </Badge>
+                      )}
+                      {managementMode === "rent" && !isTenantActive(a) && (
+                        <Badge variant="outline" className="text-xs bg-muted text-muted-foreground">
+                          Ausgezogen
+                        </Badge>
+                      )}
+                      {hausgeld !== null && (
+                        <Badge variant="outline" className="text-xs">
+                          {hausgeld.toFixed(2)} €
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      title="Zuordnung bearbeiten"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditAssignmentId(a.id);
+                        setShowAssign(true);
+                      }}
+                    >
+                      <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteTarget(a);
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                    {isExpanded ? (
+                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
                     )}
                   </div>
-                  <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
-                    {managementMode === 'weg' && isBeirat(a) && <Badge variant="secondary" className="text-xs">Beirat</Badge>}
-                    {managementMode === 'weg' && isCashAuditor(a) && <Badge variant="secondary" className="text-xs">Kassenprüfung</Badge>}
-                    {managementMode === 'rent' && !isTenantActive(a) && <Badge variant="outline" className="text-xs bg-muted text-muted-foreground">Ausgezogen</Badge>}
-                    {hausgeld !== null && <Badge variant="outline" className="text-xs">{hausgeld.toFixed(2)} €</Badge>}
-                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7"
-                    title="Zuordnung bearbeiten"
-                    onClick={(e) => { e.stopPropagation(); setEditAssignmentId(a.id); setShowAssign(true); }}
-                  >
-                    <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7"
-                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(a); }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </Button>
-                  {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                </div>
-              </div>
 
-              {/* Expanded details */}
-              {isExpanded && (
-                <div className="px-4 pb-4 pt-3 border-t border-border">
-                  <Tabs defaultValue="overview" className="w-full">
-                    <TabsList variant="underline" className="w-full h-8 mb-3">
-                      <TabsTrigger variant="underline" value="overview" className="text-xs h-7 flex-1">Übersicht</TabsTrigger>
-                      <TabsTrigger variant="underline" value="shares" className="text-xs h-7 flex-1">Anteile</TabsTrigger>
-                      <TabsTrigger variant="underline" value="costs" className="text-xs h-7 flex-1">Kosten</TabsTrigger>
-                      <TabsTrigger variant="underline" value="bank" className="text-xs h-7 flex-1">Bank</TabsTrigger>
-                    </TabsList>
+                {/* Expanded details */}
+                {isExpanded && (
+                  <div className="px-4 pb-4 pt-3 border-t border-border">
+                    <Tabs defaultValue="overview" className="w-full">
+                      <TabsList variant="underline" className="w-full h-8 mb-3">
+                        <TabsTrigger variant="underline" value="overview" className="text-xs h-7 flex-1">
+                          Übersicht
+                        </TabsTrigger>
+                        <TabsTrigger variant="underline" value="shares" className="text-xs h-7 flex-1">
+                          Anteile
+                        </TabsTrigger>
+                        <TabsTrigger variant="underline" value="costs" className="text-xs h-7 flex-1">
+                          Kosten
+                        </TabsTrigger>
+                        <TabsTrigger variant="underline" value="bank" className="text-xs h-7 flex-1">
+                          Bank
+                        </TabsTrigger>
+                      </TabsList>
 
-                    {/* Tab: Übersicht */}
-                    <TabsContent value="overview" className="space-y-4 mt-0">
-                      {/* Personen */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Personen</p>
-                          <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => addPerson(a.contact_id)}>
-                            <Plus className="h-3 w-3 mr-1" /> Person
-                          </Button>
-                        </div>
-                        {a.persons.length === 0 && <p className="text-xs text-muted-foreground italic">Keine Person hinterlegt</p>}
-                        {a.persons.map((p) => (
-                          <div key={p.id} className="flex items-center gap-2">
-                            <Select value={p.salutation || "__none__"} onValueChange={(v) => updatePerson(p.id, "salutation", v === "__none__" ? null : v)}>
-                              <SelectTrigger className="w-20 h-7 text-xs"><SelectValue placeholder="Anrede" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none__">—</SelectItem>
-                                <SelectItem value="Frau">Frau</SelectItem>
-                                <SelectItem value="Herr">Herr</SelectItem>
-                                <SelectItem value="Divers">Divers</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <BufferedInput
-                              value={p.first_name || ""}
-                              onSave={(val) => updatePerson(p.id, "first_name", val)}
-                              placeholder="Vorname"
-                              className="h-7 text-sm flex-1"
-                            />
-                            <BufferedInput
-                              value={p.last_name || ""}
-                              onSave={(val) => updatePerson(p.id, "last_name", val)}
-                              placeholder="Nachname"
-                              className="h-7 text-sm flex-1"
-                            />
+                      {/* Tab: Übersicht */}
+                      <TabsContent value="overview" className="space-y-4 mt-0">
+                        {/* Personen */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                              Personen
+                            </p>
                             <Button
-                              size="icon"
+                              size="sm"
                               variant="ghost"
-                              className="h-6 w-6"
-                              title={p.is_primary ? "Primärkontakt" : "Als primär markieren"}
-                              onClick={() => setPrimaryPerson(a.contact_id, p.id)}
+                              className="h-6 text-xs"
+                              onClick={() => addPerson(a.contact_id)}
                             >
-                              <Star className={cn("h-3.5 w-3.5", p.is_primary ? "fill-primary text-primary" : "text-muted-foreground")} />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => deletePerson(p.id)}>
-                              <Trash2 className="h-3 w-3 text-destructive" />
+                              <Plus className="h-3 w-3 mr-1" /> Person
                             </Button>
                           </div>
-                        ))}
-                      </div>
-
-
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Telefon</p>
-                          <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => addPhone(a.contact_id)}>
-                            <Plus className="h-3 w-3 mr-1" /> Telefon
-                          </Button>
+                          {a.persons.length === 0 && (
+                            <p className="text-xs text-muted-foreground italic">Keine Person hinterlegt</p>
+                          )}
+                          {a.persons.map((p) => (
+                            <div key={p.id} className="flex items-center gap-2">
+                              <Select
+                                value={p.salutation || "__none__"}
+                                onValueChange={(v) => updatePerson(p.id, "salutation", v === "__none__" ? null : v)}
+                              >
+                                <SelectTrigger className="w-20 h-7 text-xs">
+                                  <SelectValue placeholder="Anrede" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none__">—</SelectItem>
+                                  <SelectItem value="Frau">Frau</SelectItem>
+                                  <SelectItem value="Herr">Herr</SelectItem>
+                                  <SelectItem value="Divers">Divers</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <BufferedInput
+                                value={p.first_name || ""}
+                                onSave={(val) => updatePerson(p.id, "first_name", val)}
+                                placeholder="Vorname"
+                                className="h-7 text-sm flex-1"
+                              />
+                              <BufferedInput
+                                value={p.last_name || ""}
+                                onSave={(val) => updatePerson(p.id, "last_name", val)}
+                                placeholder="Nachname"
+                                className="h-7 text-sm flex-1"
+                              />
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6"
+                                title={p.is_primary ? "Primärkontakt" : "Als primär markieren"}
+                                onClick={() => setPrimaryPerson(a.contact_id, p.id)}
+                              >
+                                <Star
+                                  className={cn(
+                                    "h-3.5 w-3.5",
+                                    p.is_primary ? "fill-primary text-primary" : "text-muted-foreground",
+                                  )}
+                                />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6"
+                                onClick={() => deletePerson(p.id)}
+                              >
+                                <Trash2 className="h-3 w-3 text-destructive" />
+                              </Button>
+                            </div>
+                          ))}
                         </div>
-                        {a.phones.length === 0 && <p className="text-xs text-muted-foreground italic">Keine Telefonnummer</p>}
-                        {a.phones.map((p) => (
-                          <div key={p.id} className="flex items-center gap-2">
-                            <Phone className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                              Telefon
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-xs"
+                              onClick={() => addPhone(a.contact_id)}
+                            >
+                              <Plus className="h-3 w-3 mr-1" /> Telefon
+                            </Button>
+                          </div>
+                          {a.phones.length === 0 && (
+                            <p className="text-xs text-muted-foreground italic">Keine Telefonnummer</p>
+                          )}
+                          {a.phones.map((p) => (
+                            <div key={p.id} className="flex items-center gap-2">
+                              {toTelHref(p.phone_number) ? (
+                                <a
+                                  href={toTelHref(p.phone_number)!}
+                                  title="Anrufen (PhonerLite)"
+                                  className="flex-shrink-0"
+                                >
+                                  <Phone className="h-3.5 w-3.5 text-primary hover:text-primary/80 cursor-pointer" />
+                                </a>
+                              ) : (
+                                <Phone className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                              )}
+                              <BufferedInput
+                                value={p.phone_number}
+                                onSave={(val) => updatePhone(p.id, "phone_number", val)}
+                                placeholder="Nummer"
+                                className="h-7 text-sm flex-1"
+                              />
+                              <Select value={p.label || "Mobil"} onValueChange={(v) => updatePhone(p.id, "label", v)}>
+                                <SelectTrigger className="w-24 h-7 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Mobil">Mobil</SelectItem>
+                                  <SelectItem value="Privat">Privat</SelectItem>
+                                  <SelectItem value="Geschäftlich">Geschäftl.</SelectItem>
+                                  <SelectItem value="Festnetz">Festnetz</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => deletePhone(p.id)}>
+                                <Trash2 className="h-3 w-3 text-destructive" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* E-Mail */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                              E-Mail
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-xs"
+                              onClick={() => addEmail(a.contact_id)}
+                            >
+                              <Plus className="h-3 w-3 mr-1" /> E-Mail
+                            </Button>
+                          </div>
+                          {a.emails.length === 0 && (
+                            <p className="text-xs text-muted-foreground italic">Keine E-Mail-Adresse</p>
+                          )}
+                          {a.emails.map((e) => (
+                            <div key={e.id} className="flex items-center gap-2">
+                              <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                              <BufferedInput
+                                value={e.email}
+                                onSave={(val) => updateEmail(e.id, "email", val)}
+                                placeholder="E-Mail"
+                                className="h-7 text-sm flex-1"
+                              />
+                              <Select value={e.label || "Privat"} onValueChange={(v) => updateEmail(e.id, "label", v)}>
+                                <SelectTrigger className="w-24 h-7 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Privat">Privat</SelectItem>
+                                  <SelectItem value="Geschäftlich">Geschäftl.</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => deleteEmail(e.id)}>
+                                <Trash2 className="h-3 w-3 text-destructive" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Adresse (editierbar – wirkt auf den globalen Kontakt) */}
+                        <div className="bg-muted/40 rounded-lg p-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            {(() => {
+                              const q = [
+                                a.contact.address_street,
+                                [a.contact.address_zip, a.contact.address_city].filter(Boolean).join(" "),
+                              ]
+                                .filter(Boolean)
+                                .join(", ");
+                              return q ? (
+                                <a
+                                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="In Karte öffnen"
+                                  className="flex-shrink-0"
+                                >
+                                  <MapPin className="h-3.5 w-3.5 text-primary hover:text-primary/80 cursor-pointer" />
+                                </a>
+                              ) : (
+                                <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                              );
+                            })()}
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                              Adresse
+                            </p>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_1fr] gap-2">
                             <BufferedInput
-                              value={p.phone_number}
-                              onSave={(val) => updatePhone(p.id, "phone_number", val)}
-                              placeholder="Nummer"
-                              className="h-7 text-sm flex-1"
+                              value={a.contact.address_street || ""}
+                              onSave={(val) => updateContact(a.contact_id, "address_street", val)}
+                              placeholder="Straße & Hausnummer"
+                              className="h-8 text-sm"
                             />
-                            <Select value={p.label || "Mobil"} onValueChange={(v) => updatePhone(p.id, "label", v)}>
-                              <SelectTrigger className="w-24 h-7 text-xs"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Mobil">Mobil</SelectItem>
-                                <SelectItem value="Privat">Privat</SelectItem>
-                                <SelectItem value="Geschäftlich">Geschäftl.</SelectItem>
-                                <SelectItem value="Festnetz">Festnetz</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => deletePhone(p.id)}>
-                              <Trash2 className="h-3 w-3 text-destructive" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* E-Mail */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">E-Mail</p>
-                          <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => addEmail(a.contact_id)}>
-                            <Plus className="h-3 w-3 mr-1" /> E-Mail
-                          </Button>
-                        </div>
-                        {a.emails.length === 0 && <p className="text-xs text-muted-foreground italic">Keine E-Mail-Adresse</p>}
-                        {a.emails.map((e) => (
-                          <div key={e.id} className="flex items-center gap-2">
-                            <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                             <BufferedInput
-                              value={e.email}
-                              onSave={(val) => updateEmail(e.id, "email", val)}
-                              placeholder="E-Mail"
-                              className="h-7 text-sm flex-1"
+                              value={a.contact.address_zip || ""}
+                              onSave={(val) => updateContact(a.contact_id, "address_zip", val)}
+                              placeholder="PLZ"
+                              className="h-8 text-sm"
                             />
-                            <Select value={e.label || "Privat"} onValueChange={(v) => updateEmail(e.id, "label", v)}>
-                              <SelectTrigger className="w-24 h-7 text-xs"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Privat">Privat</SelectItem>
-                                <SelectItem value="Geschäftlich">Geschäftl.</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => deleteEmail(e.id)}>
-                              <Trash2 className="h-3 w-3 text-destructive" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Adresse (editierbar – wirkt auf den globalen Kontakt) */}
-                      <div className="bg-muted/40 rounded-lg p-3 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Adresse</p>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_1fr] gap-2">
-                          <BufferedInput
-                            value={a.contact.address_street || ""}
-                            onSave={(val) => updateContact(a.contact_id, "address_street", val)}
-                            placeholder="Straße & Hausnummer"
-                            className="h-8 text-sm"
-                          />
-                          <BufferedInput
-                            value={a.contact.address_zip || ""}
-                            onSave={(val) => updateContact(a.contact_id, "address_zip", val)}
-                            placeholder="PLZ"
-                            className="h-8 text-sm"
-                          />
-                          <BufferedInput
-                            value={a.contact.address_city || ""}
-                            onSave={(val) => updateContact(a.contact_id, "address_city", val)}
-                            placeholder="Ort"
-                            className="h-8 text-sm"
-                          />
-                        </div>
-                        <p className="text-[10px] text-muted-foreground">Änderungen wirken auf den globalen Kontakt.</p>
-                      </div>
-
-
-                      {/* Assignment fields */}
-                      <div className="space-y-3">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Einheitsdaten</p>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <div>
-                            <Label className="text-xs">Einheit Nr.</Label>
                             <BufferedInput
-                              value={a.unit_number || ""}
-                              onSave={(val) => updateAssignment(a.id, "unit_number", val)}
+                              value={a.contact.address_city || ""}
+                              onSave={(val) => updateContact(a.contact_id, "address_city", val)}
+                              placeholder="Ort"
                               className="h-8 text-sm"
                             />
                           </div>
-                          <div>
-                            <Label className="text-xs">Etage / Lage</Label>
-                            <BufferedInput
-                              value={a.floor_location || ""}
-                              onSave={(val) => updateAssignment(a.id, "floor_location", val)}
-                              className="h-8 text-sm"
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs">Nutzungsart</Label>
-                            <Select value={a.usage_type || ""} onValueChange={(v) => updateAssignment(a.id, "usage_type", v)}>
-                              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Wählen" /></SelectTrigger>
-                              <SelectContent>
-                                {USAGE_TYPES.map(u => <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label className="text-xs">Nutzung seit</Label>
-                            <Input
-                              type="date"
-                              value={a.usage_since || ""}
-                              onChange={(e) => updateAssignment(a.id, "usage_since", e.target.value)}
-                              className="h-8 text-sm"
-                            />
-                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Änderungen wirken auf den globalen Kontakt.
+                          </p>
                         </div>
 
-                        {managementMode === 'rent' && (
-                          <div className="grid grid-cols-2 gap-3 pt-1">
+                        {/* Assignment fields */}
+                        <div className="space-y-3">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                            Einheitsdaten
+                          </p>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             <div>
-                              <Label className="text-xs">Einzug</Label>
-                              <Input
-                                type="date"
-                                value={a.valid_from || ""}
-                                onChange={(e) => updateAssignment(a.id, "valid_from", e.target.value || null)}
+                              <Label className="text-xs">Einheit Nr.</Label>
+                              <BufferedInput
+                                value={a.unit_number || ""}
+                                onSave={(val) => updateAssignment(a.id, "unit_number", val)}
                                 className="h-8 text-sm"
                               />
                             </div>
                             <div>
-                              <Label className="text-xs">Auszug</Label>
+                              <Label className="text-xs">Etage / Lage</Label>
+                              <BufferedInput
+                                value={a.floor_location || ""}
+                                onSave={(val) => updateAssignment(a.id, "floor_location", val)}
+                                className="h-8 text-sm"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Nutzungsart</Label>
+                              <Select
+                                value={a.usage_type || ""}
+                                onValueChange={(v) => updateAssignment(a.id, "usage_type", v)}
+                              >
+                                <SelectTrigger className="h-8 text-sm">
+                                  <SelectValue placeholder="Wählen" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {USAGE_TYPES.map((u) => (
+                                    <SelectItem key={u.value} value={u.value}>
+                                      {u.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label className="text-xs">Nutzung seit</Label>
                               <Input
                                 type="date"
-                                value={a.valid_to || ""}
-                                onChange={(e) => updateAssignment(a.id, "valid_to", e.target.value || null)}
+                                value={a.usage_since || ""}
+                                onChange={(e) => updateAssignment(a.id, "usage_since", e.target.value)}
                                 className="h-8 text-sm"
-                                placeholder="—"
                               />
                             </div>
                           </div>
-                        )}
 
-                        {managementMode === 'weg' && (
-                          <div className="flex items-center gap-2 pt-1">
-                            <Checkbox
-                              id={`beirat-${a.id}`}
-                              checked={isBeirat(a)}
-                              onCheckedChange={() => toggleBeirat(a)}
-                            />
-                            <Label htmlFor={`beirat-${a.id}`} className="text-sm cursor-pointer">Mitglied des Verwaltungsbeirats</Label>
-                          </div>
-                        )}
-
-                        {managementMode === 'weg' && (
-                          <div className="flex items-center gap-2 pt-1">
-                            <Checkbox
-                              id={`cash-auditor-${a.id}`}
-                              checked={isCashAuditor(a)}
-                              onCheckedChange={() => toggleCashAuditor(a)}
-                            />
-                            <Label htmlFor={`cash-auditor-${a.id}`} className="text-sm cursor-pointer">Kassenprüfer/in</Label>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Notizen */}
-                      <div>
-                        <Label className="text-xs">Notizen</Label>
-                        <BufferedTextarea
-                          value={a.notes || ""}
-                          onSave={(val) => updateAssignment(a.id, "notes", val)}
-                          rows={2}
-                          className="text-sm"
-                        />
-                      </div>
-                    </TabsContent>
-
-                    {/* Tab: Anteile */}
-                    <TabsContent value="shares" className="mt-0">
-                      <div className="flex items-center justify-between mb-3">
-                        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Anteile / Verteilerschlüssel</Label>
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => addShare(a.id)}>
-                          <Plus className="h-3 w-3 mr-1" /> Anteil
-                        </Button>
-                      </div>
-                      {a.shares.length === 0 && <p className="text-xs text-muted-foreground">Keine Anteile definiert</p>}
-                      {a.shares.map(s => (
-                        <div key={s.id} className="flex items-center gap-2 mt-2">
-                          {editingType?.id === s.id && editingType.field === "share_type" ? (
-                            <div className="flex items-center gap-1">
-                              <Input
-                                autoFocus
-                                placeholder="Kategorie eingeben"
-                                value={editingType.value}
-                                onChange={(e) => setEditingType({ ...editingType, value: e.target.value })}
-                                onKeyDown={(e) => { if (e.key === "Enter") saveEditingType(); if (e.key === "Escape") setEditingType(null); }}
-                                className="w-36 h-8 text-sm"
-                              />
-                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={saveEditingType}>
-                                <Check className="h-3 w-3 text-primary" />
-                              </Button>
-                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingType(null)}>
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1">
-                              <Select value={s.share_type} onValueChange={(v) => {
-                                if (v === "__add__") {
-                                  setEditingType({ id: s.id, field: "share_type", value: "", mode: "add" });
-                                } else {
-                                  updateShare(s.id, "share_type", v);
-                                }
-                              }}>
-                                <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  {SHARE_TYPES.map(st => <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>)}
-                                  {customShareTypes.length > 0 && (
-                                    <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
-                                  )}
-                                  {customShareTypes.map(ct => (
-                                    <div key={ct} className="flex items-center justify-between px-2 py-1 hover:bg-accent rounded-sm group">
-                                      <SelectItem value={ct} className="flex-1 p-0">{ct}</SelectItem>
-                                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 ml-1">
-                                        <button type="button" className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted" onClick={(e) => { e.stopPropagation(); setEditingType({ id: s.id, field: "share_type", value: ct, mode: "edit", oldValue: ct }); }}>
-                                          <Pencil className="h-3 w-3 text-muted-foreground" />
-                                        </button>
-                                        <button type="button" className="h-5 w-5 flex items-center justify-center rounded hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); deleteCustomType("share_type", ct); }}>
-                                          <X className="h-3 w-3 text-destructive" />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ))}
-                                  <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
-                                </SelectContent>
-                              </Select>
+                          {managementMode === "rent" && (
+                            <div className="grid grid-cols-2 gap-3 pt-1">
+                              <div>
+                                <Label className="text-xs">Einzug</Label>
+                                <Input
+                                  type="date"
+                                  value={a.valid_from || ""}
+                                  onChange={(e) => updateAssignment(a.id, "valid_from", e.target.value || null)}
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Auszug</Label>
+                                <Input
+                                  type="date"
+                                  value={a.valid_to || ""}
+                                  onChange={(e) => updateAssignment(a.id, "valid_to", e.target.value || null)}
+                                  className="h-8 text-sm"
+                                  placeholder="—"
+                                />
+                              </div>
                             </div>
                           )}
-                          <BufferedNumberInput
-                            value={s.share_value}
-                            onSave={(val) => updateShare(s.id, "share_value", val)}
-                            placeholder="0"
-                            className="w-28 h-8 text-sm"
+
+                          {managementMode === "weg" && (
+                            <div className="flex items-center gap-2 pt-1">
+                              <Checkbox
+                                id={`beirat-${a.id}`}
+                                checked={isBeirat(a)}
+                                onCheckedChange={() => toggleBeirat(a)}
+                              />
+                              <Label htmlFor={`beirat-${a.id}`} className="text-sm cursor-pointer">
+                                Mitglied des Verwaltungsbeirats
+                              </Label>
+                            </div>
+                          )}
+
+                          {managementMode === "weg" && (
+                            <div className="flex items-center gap-2 pt-1">
+                              <Checkbox
+                                id={`cash-auditor-${a.id}`}
+                                checked={isCashAuditor(a)}
+                                onCheckedChange={() => toggleCashAuditor(a)}
+                              />
+                              <Label htmlFor={`cash-auditor-${a.id}`} className="text-sm cursor-pointer">
+                                Kassenprüfer/in
+                              </Label>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Notizen */}
+                        <div>
+                          <Label className="text-xs">Notizen</Label>
+                          <BufferedTextarea
+                            value={a.notes || ""}
+                            onSave={(val) => updateAssignment(a.id, "notes", val)}
+                            rows={2}
+                            className="text-sm"
                           />
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteShare(s.id)}>
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </div>
+                      </TabsContent>
+
+                      {/* Tab: Anteile */}
+                      <TabsContent value="shares" className="mt-0">
+                        <div className="flex items-center justify-between mb-3">
+                          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Anteile / Verteilerschlüssel
+                          </Label>
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => addShare(a.id)}>
+                            <Plus className="h-3 w-3 mr-1" /> Anteil
                           </Button>
                         </div>
-                      ))}
-                    </TabsContent>
-
-                    {/* Tab: Kosten */}
-                    <TabsContent value="costs" className="mt-0">
-                      <div className="flex items-center justify-between mb-3">
-                        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Kosten</Label>
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => addCost(a.id)}>
-                          <Plus className="h-3 w-3 mr-1" /> Kosten
-                        </Button>
-                      </div>
-                      {a.costs.length === 0 && <p className="text-xs text-muted-foreground">Keine Kosten definiert</p>}
-                      {[...a.costs].sort((x, y) => {
-                        // Hausgeld immer zuerst, dann nach valid_from absteigend (neuestes oben)
-                        const xHg = x.cost_type.toLowerCase().includes("hausgeld") ? 1 : 0;
-                        const yHg = y.cost_type.toLowerCase().includes("hausgeld") ? 1 : 0;
-                        if (xHg !== yHg) return yHg - xHg;
-                        const xd = x.valid_from ? new Date(x.valid_from).getTime() : 0;
-                        const yd = y.valid_from ? new Date(y.valid_from).getTime() : 0;
-                        return yd - xd;
-                      }).map(c => {
-                        const isHistoric = managementMode === 'rent' && !!c.valid_to && c.valid_to < todayIso;
-                        return (
-                        <div key={c.id} className={cn("flex items-center gap-2 mt-2 flex-wrap", isHistoric && "opacity-50")}>
-                          {editingType?.id === c.id && editingType.field === "cost_type" ? (
-                            <div className="flex items-center gap-1">
-                              <Input
-                                autoFocus
-                                placeholder="Kategorie eingeben"
-                                value={editingType.value}
-                                onChange={(e) => setEditingType({ ...editingType, value: e.target.value })}
-                                onKeyDown={(e) => { if (e.key === "Enter") saveEditingType(); if (e.key === "Escape") setEditingType(null); }}
-                                className="w-32 h-8 text-sm"
-                              />
-                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={saveEditingType}>
-                                <Check className="h-3 w-3 text-primary" />
-                              </Button>
-                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingType(null)}>
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1">
-                              <Select value={c.cost_type} onValueChange={(v) => {
-                                if (v === "__add__") {
-                                  setEditingType({ id: c.id, field: "cost_type", value: "", mode: "add" });
-                                } else {
-                                  updateCost(c.id, "cost_type", v);
-                                }
-                              }}>
-                                <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  {COST_TYPES.map(ct => <SelectItem key={ct} value={ct}>{ct}</SelectItem>)}
-                                  {customCostTypes.length > 0 && (
-                                    <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
-                                  )}
-                                  {customCostTypes.map(ct => (
-                                    <div key={ct} className="flex items-center justify-between px-2 py-1 hover:bg-accent rounded-sm group">
-                                      <SelectItem value={ct} className="flex-1 p-0">{ct}</SelectItem>
-                                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 ml-1">
-                                        <button type="button" className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted" onClick={(e) => { e.stopPropagation(); setEditingType({ id: c.id, field: "cost_type", value: ct, mode: "edit", oldValue: ct }); }}>
-                                          <Pencil className="h-3 w-3 text-muted-foreground" />
-                                        </button>
-                                        <button type="button" className="h-5 w-5 flex items-center justify-center rounded hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); deleteCustomType("cost_type", ct); }}>
-                                          <X className="h-3 w-3 text-destructive" />
-                                        </button>
+                        {a.shares.length === 0 && (
+                          <p className="text-xs text-muted-foreground">Keine Anteile definiert</p>
+                        )}
+                        {a.shares.map((s) => (
+                          <div key={s.id} className="flex items-center gap-2 mt-2">
+                            {editingType?.id === s.id && editingType.field === "share_type" ? (
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  autoFocus
+                                  placeholder="Kategorie eingeben"
+                                  value={editingType.value}
+                                  onChange={(e) => setEditingType({ ...editingType, value: e.target.value })}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") saveEditingType();
+                                    if (e.key === "Escape") setEditingType(null);
+                                  }}
+                                  className="w-36 h-8 text-sm"
+                                />
+                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={saveEditingType}>
+                                  <Check className="h-3 w-3 text-primary" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  onClick={() => setEditingType(null)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <Select
+                                  value={s.share_type}
+                                  onValueChange={(v) => {
+                                    if (v === "__add__") {
+                                      setEditingType({ id: s.id, field: "share_type", value: "", mode: "add" });
+                                    } else {
+                                      updateShare(s.id, "share_type", v);
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger className="w-36 h-8 text-sm">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {SHARE_TYPES.map((st) => (
+                                      <SelectItem key={st.value} value={st.value}>
+                                        {st.label}
+                                      </SelectItem>
+                                    ))}
+                                    {customShareTypes.length > 0 && (
+                                      <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                        Eigene
                                       </div>
-                                    </div>
-                                  ))}
-                                  <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
-                          <BufferedNumberInput
-                            value={c.amount}
-                            onSave={(val) => updateCost(c.id, "amount", val)}
-                            placeholder="0,00"
-                            className="w-24 h-8 text-sm"
-                          />
-                          <span className="text-xs text-muted-foreground">€</span>
-                          <Select value={c.interval} onValueChange={(v) => updateCost(c.id, "interval", v)}>
-                            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {INTERVALS.map(i => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                          <Input
-                            type="date"
-                            value={c.valid_from || ""}
-                            onChange={(e) => updateCost(c.id, "valid_from", e.target.value || null)}
-                            className="w-[130px] h-8 text-xs"
-                            title="Gültig ab"
-                            placeholder="ab"
-                          />
-                          {managementMode !== 'rent' && (
-                            <Input
-                              type="date"
-                              value={c.valid_to || ""}
-                              onChange={(e) => updateCost(c.id, "valid_to", e.target.value || null)}
-                              className="w-[130px] h-8 text-xs"
-                              title="Gültig bis"
-                              placeholder="bis"
+                                    )}
+                                    {customShareTypes.map((ct) => (
+                                      <div
+                                        key={ct}
+                                        className="flex items-center justify-between px-2 py-1 hover:bg-accent rounded-sm group"
+                                      >
+                                        <SelectItem value={ct} className="flex-1 p-0">
+                                          {ct}
+                                        </SelectItem>
+                                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 ml-1">
+                                          <button
+                                            type="button"
+                                            className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setEditingType({
+                                                id: s.id,
+                                                field: "share_type",
+                                                value: ct,
+                                                mode: "edit",
+                                                oldValue: ct,
+                                              });
+                                            }}
+                                          >
+                                            <Pencil className="h-3 w-3 text-muted-foreground" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="h-5 w-5 flex items-center justify-center rounded hover:bg-destructive/10"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              deleteCustomType("share_type", ct);
+                                            }}
+                                          >
+                                            <X className="h-3 w-3 text-destructive" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                    <SelectItem value="__add__" className="text-primary font-medium">
+                                      + Hinzufügen
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+                            <BufferedNumberInput
+                              value={s.share_value}
+                              onSave={(val) => updateShare(s.id, "share_value", val)}
+                              placeholder="0"
+                              className="w-28 h-8 text-sm"
                             />
-                          )}
-                          {managementMode === 'rent' && c.valid_to && (
-                            <span className="text-[10px] text-muted-foreground italic">
-                              bis {new Date(c.valid_to).toLocaleDateString("de-DE")}
-                            </span>
-                          )}
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteShare(s.id)}>
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          </div>
+                        ))}
+                      </TabsContent>
+
+                      {/* Tab: Kosten */}
+                      <TabsContent value="costs" className="mt-0">
+                        <div className="flex items-center justify-between mb-3">
+                          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Kosten
+                          </Label>
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => addCost(a.id)}>
+                            <Plus className="h-3 w-3 mr-1" /> Kosten
+                          </Button>
+                        </div>
+                        {a.costs.length === 0 && (
+                          <p className="text-xs text-muted-foreground">Keine Kosten definiert</p>
+                        )}
+                        {[...a.costs]
+                          .sort((x, y) => {
+                            // Hausgeld immer zuerst, dann nach valid_from absteigend (neuestes oben)
+                            const xHg = x.cost_type.toLowerCase().includes("hausgeld") ? 1 : 0;
+                            const yHg = y.cost_type.toLowerCase().includes("hausgeld") ? 1 : 0;
+                            if (xHg !== yHg) return yHg - xHg;
+                            const xd = x.valid_from ? new Date(x.valid_from).getTime() : 0;
+                            const yd = y.valid_from ? new Date(y.valid_from).getTime() : 0;
+                            return yd - xd;
+                          })
+                          .map((c) => {
+                            const isHistoric = managementMode === "rent" && !!c.valid_to && c.valid_to < todayIso;
+                            return (
+                              <div
+                                key={c.id}
+                                className={cn("flex items-center gap-2 mt-2 flex-wrap", isHistoric && "opacity-50")}
+                              >
+                                {editingType?.id === c.id && editingType.field === "cost_type" ? (
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      autoFocus
+                                      placeholder="Kategorie eingeben"
+                                      value={editingType.value}
+                                      onChange={(e) => setEditingType({ ...editingType, value: e.target.value })}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") saveEditingType();
+                                        if (e.key === "Escape") setEditingType(null);
+                                      }}
+                                      className="w-32 h-8 text-sm"
+                                    />
+                                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={saveEditingType}>
+                                      <Check className="h-3 w-3 text-primary" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-6 w-6"
+                                      onClick={() => setEditingType(null)}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1">
+                                    <Select
+                                      value={c.cost_type}
+                                      onValueChange={(v) => {
+                                        if (v === "__add__") {
+                                          setEditingType({ id: c.id, field: "cost_type", value: "", mode: "add" });
+                                        } else {
+                                          updateCost(c.id, "cost_type", v);
+                                        }
+                                      }}
+                                    >
+                                      <SelectTrigger className="w-32 h-8 text-sm">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {COST_TYPES.map((ct) => (
+                                          <SelectItem key={ct} value={ct}>
+                                            {ct}
+                                          </SelectItem>
+                                        ))}
+                                        {customCostTypes.length > 0 && (
+                                          <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                            Eigene
+                                          </div>
+                                        )}
+                                        {customCostTypes.map((ct) => (
+                                          <div
+                                            key={ct}
+                                            className="flex items-center justify-between px-2 py-1 hover:bg-accent rounded-sm group"
+                                          >
+                                            <SelectItem value={ct} className="flex-1 p-0">
+                                              {ct}
+                                            </SelectItem>
+                                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 ml-1">
+                                              <button
+                                                type="button"
+                                                className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setEditingType({
+                                                    id: c.id,
+                                                    field: "cost_type",
+                                                    value: ct,
+                                                    mode: "edit",
+                                                    oldValue: ct,
+                                                  });
+                                                }}
+                                              >
+                                                <Pencil className="h-3 w-3 text-muted-foreground" />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                className="h-5 w-5 flex items-center justify-center rounded hover:bg-destructive/10"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  deleteCustomType("cost_type", ct);
+                                                }}
+                                              >
+                                                <X className="h-3 w-3 text-destructive" />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ))}
+                                        <SelectItem value="__add__" className="text-primary font-medium">
+                                          + Hinzufügen
+                                        </SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                )}
+                                <BufferedNumberInput
+                                  value={c.amount}
+                                  onSave={(val) => updateCost(c.id, "amount", val)}
+                                  placeholder="0,00"
+                                  className="w-24 h-8 text-sm"
+                                />
+                                <span className="text-xs text-muted-foreground">€</span>
+                                <Select value={c.interval} onValueChange={(v) => updateCost(c.id, "interval", v)}>
+                                  <SelectTrigger className="w-32 h-8 text-sm">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {INTERVALS.map((i) => (
+                                      <SelectItem key={i.value} value={i.value}>
+                                        {i.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Input
+                                  type="date"
+                                  value={c.valid_from || ""}
+                                  onChange={(e) => updateCost(c.id, "valid_from", e.target.value || null)}
+                                  className="w-[130px] h-8 text-xs"
+                                  title="Gültig ab"
+                                  placeholder="ab"
+                                />
+                                {managementMode !== "rent" && (
+                                  <Input
+                                    type="date"
+                                    value={c.valid_to || ""}
+                                    onChange={(e) => updateCost(c.id, "valid_to", e.target.value || null)}
+                                    className="w-[130px] h-8 text-xs"
+                                    title="Gültig bis"
+                                    placeholder="bis"
+                                  />
+                                )}
+                                {managementMode === "rent" && c.valid_to && (
+                                  <span className="text-[10px] text-muted-foreground italic">
+                                    bis {new Date(c.valid_to).toLocaleDateString("de-DE")}
+                                  </span>
+                                )}
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-7 w-7"
+                                        onClick={() =>
+                                          ensureAccountAndTemplate(
+                                            a.id,
+                                            c.cost_type,
+                                            c.amount,
+                                            c.valid_from,
+                                            c.valid_to,
+                                          )
+                                        }
+                                      >
+                                        <BookOpen className="h-3.5 w-3.5 text-orange-500" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Konto + Vorlage anlegen</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                                 <Button
                                   size="icon"
                                   variant="ghost"
                                   className="h-7 w-7"
-                                  onClick={() => ensureAccountAndTemplate(a.id, c.cost_type, c.amount, c.valid_from, c.valid_to)}
+                                  onClick={() => deleteCost(c.id)}
                                 >
-                                  <BookOpen className="h-3.5 w-3.5 text-orange-500" />
+                                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
                                 </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Konto + Vorlage anlegen</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteCost(c.id)}>
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                          </Button>
-                        </div>
-                        );
-                      })}
-                      {managementMode === 'rent' && (
-                        <TenantDepositsSection assignmentId={a.id} />
-                      )}
-                    </TabsContent>
+                              </div>
+                            );
+                          })}
+                        {managementMode === "rent" && <TenantDepositsSection assignmentId={a.id} />}
+                      </TabsContent>
 
-                    {/* Tab: Bank */}
-                    <TabsContent value="bank" className="mt-0">
-                      {a.bankAccounts.length === 0 ? (
-                        <p className="text-xs text-muted-foreground py-2">Keine Bankverbindung hinterlegt. Bitte im Kontakt-Manager pflegen.</p>
-                      ) : (
-                        <div className="space-y-3">
-                          {a.bankAccounts.map((bank, i) => (
-                            <div key={bank.id || i} className="bg-muted/40 rounded-lg p-3 space-y-1.5">
-                              {bank.account_holder && <CopyableField label="Kontoinhaber" value={bank.account_holder} />}
-                              {bank.iban && <CopyableField label="IBAN" value={bank.iban} />}
-                              {bank.bic && <CopyableField label="BIC" value={bank.bic} />}
-                              {bank.bank_name && <CopyableField label="Bank" value={bank.bank_name} />}
-                              <BankSepaInlineEditor
-                                bankId={bank.id}
-                                sepaRef={bank.sepa_mandate_ref}
-                                sepaDate={bank.sepa_mandate_date}
-                                onSaved={() => queryClient.invalidateQueries({ queryKey: ['building-contact-assignments', buildingId, managementMode] })}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </TabsContent>
-                  </Tabs>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
+                      {/* Tab: Bank */}
+                      <TabsContent value="bank" className="mt-0">
+                        {a.bankAccounts.length === 0 ? (
+                          <p className="text-xs text-muted-foreground py-2">
+                            Keine Bankverbindung hinterlegt. Bitte im Kontakt-Manager pflegen.
+                          </p>
+                        ) : (
+                          <div className="space-y-3">
+                            {a.bankAccounts.map((bank, i) => (
+                              <div key={bank.id || i} className="bg-muted/40 rounded-lg p-3 space-y-1.5">
+                                {bank.account_holder && (
+                                  <CopyableField label="Kontoinhaber" value={bank.account_holder} />
+                                )}
+                                {bank.iban && <CopyableField label="IBAN" value={bank.iban} />}
+                                {bank.bic && <CopyableField label="BIC" value={bank.bic} />}
+                                {bank.bank_name && <CopyableField label="Bank" value={bank.bank_name} />}
+                                <BankSepaInlineEditor
+                                  bankId={bank.id}
+                                  sepaRef={bank.sepa_mandate_ref}
+                                  sepaDate={bank.sepa_mandate_date}
+                                  onSaved={() =>
+                                    queryClient.invalidateQueries({
+                                      queryKey: ["building-contact-assignments", buildingId, managementMode],
+                                    })
+                                  }
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </TabsContent>
+                    </Tabs>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
         });
       })()}
 
@@ -1594,12 +2073,16 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
           <AlertDialogHeader>
             <AlertDialogTitle>Zuordnung entfernen?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget && `${getDisplayName(deleteTarget)} wird von diesem Gebäude entfernt. Der Kontakt selbst bleibt erhalten.`}
+              {deleteTarget &&
+                `${getDisplayName(deleteTarget)} wird von diesem Gebäude entfernt. Der Kontakt selbst bleibt erhalten.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-            <AlertDialogAction onClick={removeAssignment} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={removeAssignment}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               Entfernen
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1608,10 +2091,16 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
       <AssignContactDialog
         open={showAssign}
-        onOpenChange={(o) => { setShowAssign(o); if (!o) setEditAssignmentId(null); }}
+        onOpenChange={(o) => {
+          setShowAssign(o);
+          if (!o) setEditAssignmentId(null);
+        }}
         buildingId={buildingId}
-        onAssigned={() => { refetch(); setEditAssignmentId(null); }}
-        existingContactIds={assignments.map(a => a.contact_id)}
+        onAssigned={() => {
+          refetch();
+          setEditAssignmentId(null);
+        }}
+        existingContactIds={assignments.map((a) => a.contact_id)}
         managementMode={managementMode as "weg" | "rent"}
         editAssignmentId={editAssignmentId}
       />
