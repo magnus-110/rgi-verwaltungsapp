@@ -130,6 +130,9 @@ export function TimeClockAdminTab() {
         <Kpi icon={<Clock className="w-5 h-5" />} label="Diesen Monat" value={fmtHM(totals.month)} />
       </div>
 
+      <PendingApprovalsCard entries={entries} profilesById={profilesById} now={now} />
+
+
       {isLoading ? (
         <Skeleton className="h-64" />
       ) : (
