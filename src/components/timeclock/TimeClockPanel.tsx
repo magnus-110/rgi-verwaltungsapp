@@ -151,23 +151,32 @@ export function TimeClockPanel({ onClose }: { onClose?: () => void }) {
               <Input type="datetime-local" value={addStart} onChange={(e) => setAddStart(e.target.value)} className="h-8 text-xs" />
               <Input type="datetime-local" value={addEnd} onChange={(e) => setAddEnd(e.target.value)} className="h-8 text-xs" />
             </div>
+            <Textarea
+              value={addReason}
+              onChange={(e) => setAddReason(e.target.value)}
+              placeholder="Begründung (z. B. Termin außer Haus, vergessen einzustempeln)"
+              className="text-xs min-h-[60px]"
+            />
+            <div className="text-[10px] text-muted-foreground">Nachträge müssen vom Admin genehmigt werden.</div>
             <div className="flex justify-end gap-1">
-              <Button size="sm" variant="ghost" onClick={() => setAddOpen(false)}>Abbrechen</Button>
+              <Button size="sm" variant="ghost" onClick={() => { setAddOpen(false); setAddReason(""); }}>Abbrechen</Button>
               <Button
                 size="sm"
-                disabled={!addStart || !addEnd || upsert.isPending}
+                disabled={!addStart || !addEnd || !addReason.trim() || upsert.isPending}
                 onClick={async () => {
                   await upsert.mutateAsync({
                     started_at: fromLocalInput(addStart)!,
                     ended_at: fromLocalInput(addEnd),
                     source: "manual",
+                    reason: addReason.trim(),
                   });
                   setAddOpen(false);
                   setAddStart("");
                   setAddEnd("");
+                  setAddReason("");
                 }}
               >
-                Speichern
+                Zur Freigabe senden
               </Button>
             </div>
           </div>
@@ -176,10 +185,6 @@ export function TimeClockPanel({ onClose }: { onClose?: () => void }) {
             <Plus className="h-3.5 w-3.5" /> Manuell nachtragen
           </Button>
         )}
-      </div>
-
-      <div className="px-4 py-2 text-[10px] text-muted-foreground text-center border-t bg-muted/30">
-        Nur du und Admins sehen deine Zeiten.
       </div>
     </div>
   );
