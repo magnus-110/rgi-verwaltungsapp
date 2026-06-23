@@ -460,15 +460,13 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
           if (em._deleted && em.id) {
             await supabase.from("contact_emails").delete().eq("id", em.id);
           } else if (!em._deleted && !em.id && em.email.trim()) {
-            await supabase
-              .from("contact_emails")
-              .insert({
-                contact_id: contact.id,
-                person_id: personId,
-                email: em.email,
-                label: em.label,
-                is_primary: em.is_primary,
-              });
+            await supabase.from("contact_emails").insert({
+              contact_id: contact.id,
+              person_id: personId,
+              email: em.email,
+              label: em.label,
+              is_primary: em.is_primary,
+            });
           } else if (!em._deleted && em.id) {
             await supabase
               .from("contact_emails")
@@ -897,6 +895,17 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
                           )}
                           {visiblePhones.map((ph) => (
                             <div key={ph._localId} className="flex items-center gap-2 mb-1.5">
+                              {toTelHref(ph.phone_number) ? (
+                                <a
+                                  href={toTelHref(ph.phone_number)!}
+                                  title="Anrufen (PhonerLite)"
+                                  className="flex-shrink-0"
+                                >
+                                  <Phone className="h-4 w-4 text-primary hover:text-primary/80 cursor-pointer" />
+                                </a>
+                              ) : (
+                                <Phone className="h-4 w-4 text-muted-foreground/40 flex-shrink-0" />
+                              )}
                               <Select
                                 value={ph.label || "Mobil"}
                                 onValueChange={(v) => updatePhoneInPerson(p._localId, ph._localId, "label", v)}
@@ -920,15 +929,7 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
                                 }
                                 placeholder="Nummer"
                               />
-                              {toTelHref(ph.phone_number) && (
-                                <a
-                                  href={toTelHref(ph.phone_number)!}
-                                  title="Anrufen (PhonerLite)"
-                                  className="flex-shrink-0"
-                                >
-                                  <Phone className="h-3.5 w-3.5 text-primary hover:text-primary/80 cursor-pointer" />
-                                </a>
-                              )}
+
                               <Button
                                 size="icon"
                                 variant="ghost"
