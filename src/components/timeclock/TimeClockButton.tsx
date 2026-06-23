@@ -86,7 +86,7 @@ export function TimeClockButton() {
           </>
         )}
       </div>
-      <PopoverContent align="end" className="w-[380px] p-0">
+      <PopoverContent align="end" sideOffset={8} className="w-[440px] max-w-[calc(100vw-2rem)] p-0">
         <TimeClockPanel onClose={() => setOpen(false)} />
       </PopoverContent>
     </Popover>
