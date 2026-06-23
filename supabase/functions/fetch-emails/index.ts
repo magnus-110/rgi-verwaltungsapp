@@ -93,11 +93,26 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Optional: nur ein bestimmtes Konto verarbeiten (per Self-Invocation pro Account,
+  // um den 256MB-Worker nicht mit allen Postfächern gleichzeitig zu sprengen).
+  let bodyAccountId: string | null = null;
+  if (req.method === "POST") {
+    try {
+      const body = await req.json();
+      if (body && typeof body.account_id === "string") bodyAccountId = body.account_id;
+    } catch {
+      // kein Body / kein JSON -> alle Konten dispatchen
+    }
+  }
+
   try {
-    const { data: accounts, error: accError } = await supabaseAdmin
+    const accountsQuery = supabaseAdmin
       .from("email_accounts")
       .select("*")
       .eq("is_active", true);
+    if (bodyAccountId) accountsQuery.eq("id", bodyAccountId);
+
+    const { data: accounts, error: accError } = await accountsQuery;
 
     if (accError) throw accError;
     if (!accounts || accounts.length === 0) {
@@ -107,6 +122,43 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ---- Dispatcher-Modus: kein account_id im Body -> jedes Konto in eigener Invocation starten ----
+    if (!bodyAccountId) {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const dispatched: string[] = [];
+      for (const acc of accounts as EmailAccount[]) {
+        try {
+          // Fire-and-forget: nicht awaiten, damit der Dispatcher schnell zurückkommt.
+          fetch(`${supabaseUrl}/functions/v1/fetch-emails`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${anonKey}`,
+            },
+            body: JSON.stringify({ account_id: acc.id }),
+          }).catch((e) => console.error(`dispatch ${acc.email_address} failed:`, e?.message));
+          dispatched.push(acc.email_address);
+        } catch (e: any) {
+          console.error(`dispatch error ${acc.email_address}:`, e?.message);
+        }
+      }
+      // Klassifizierung am Ende einmal anstoßen.
+      try {
+        fetch(`${supabaseUrl}/functions/v1/classify-email`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}` },
+          body: JSON.stringify({}),
+        }).catch(() => {});
+      } catch { /* ignore */ }
+
+      return new Response(
+        JSON.stringify({ success: true, dispatched }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ---- Single-Account-Modus ----
     const { data: inboxFolder } = await supabaseAdmin
       .from("email_folders")
       .select("id")
@@ -124,7 +176,8 @@ Deno.serve(async (req) => {
     // Pre-load account-user assignments to auto-assign emails
     const { data: accountUsersData } = await supabaseAdmin
       .from("email_account_users")
-      .select("account_id, user_id");
+      .select("account_id, user_id")
+      .eq("account_id", bodyAccountId);
 
     const accountDefaultUser: Record<string, string> = {};
     if (accountUsersData) {
@@ -172,22 +225,6 @@ Deno.serve(async (req) => {
           .update({ last_sync_error: err.message })
           .eq("id", account.id);
       }
-    }
-
-    // Trigger classification
-    try {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-      await fetch(`${supabaseUrl}/functions/v1/classify-email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${anonKey}`,
-        },
-        body: JSON.stringify({}),
-      });
-    } catch (classifyErr) {
-      console.error("classify trigger failed:", classifyErr);
     }
 
     return new Response(JSON.stringify({ success: true, results }), {
