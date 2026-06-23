@@ -288,8 +288,14 @@ function UserDrilldown({
                         {fmtHM(durationMinutes(e, now))}
                         {e.source === "manual" ? " · nachgetragen" : ""}
                         {e.edited_at ? " · bearbeitet" : ""}
+                        {e.status === "pending" && " · wartet auf Freigabe"}
+                        {e.status === "rejected" && " · abgelehnt"}
                       </div>
+                      {e.reason && (
+                        <div className="text-xs italic mt-1 text-foreground/80">„{e.reason}"</div>
+                      )}
                     </div>
+
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity flex">
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
                         setEditId(e.id);
