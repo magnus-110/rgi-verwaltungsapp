@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Pencil, Trash2, Plus, Check, X } from "lucide-react";
+import { Pencil, Trash2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,7 +29,7 @@ function fromLocalInput(v: string): string | null {
   return new Date(v).toISOString();
 }
 
-export function TimeClockPanel({ onClose }: { onClose?: () => void }) {
+export function TimeClockPanel({ onClose: _onClose }: { onClose?: () => void }) {
   const { data: entries = [], isLoading } = useMyTimeEntries(60);
   const upsert = useUpsertTimeEntry();
   const del = useDeleteTimeEntry();
@@ -49,6 +49,7 @@ export function TimeClockPanel({ onClose }: { onClose?: () => void }) {
   const [editId, setEditId] = useState<string | null>(null);
   const [editStart, setEditStart] = useState("");
   const [editEnd, setEditEnd] = useState("");
+  const [editReason, setEditReason] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [addStart, setAddStart] = useState("");
   const [addEnd, setAddEnd] = useState("");
@@ -58,6 +59,11 @@ export function TimeClockPanel({ onClose }: { onClose?: () => void }) {
     setEditId(e.id);
     setEditStart(toLocalInput(e.started_at));
     setEditEnd(toLocalInput(e.ended_at));
+    setEditReason(e.reason ?? "");
+  };
+  const cancelEdit = () => {
+    setEditId(null);
+    setEditReason("");
   };
   const saveEdit = async (e: TimeClockEntry) => {
     await upsert.mutateAsync({
@@ -65,14 +71,15 @@ export function TimeClockPanel({ onClose }: { onClose?: () => void }) {
       started_at: fromLocalInput(editStart)!,
       ended_at: fromLocalInput(editEnd),
       note: e.note,
+      reason: editReason.trim() || null,
     });
-    setEditId(null);
+    cancelEdit();
   };
 
   const recent = entries.slice(0, 7);
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col w-full">
       <div className="p-4 border-b">
         <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Meine Zeit</div>
         <div className="grid grid-cols-3 gap-3">
@@ -82,7 +89,7 @@ export function TimeClockPanel({ onClose }: { onClose?: () => void }) {
         </div>
       </div>
 
-      <div className="px-4 py-3 max-h-[320px] overflow-y-auto">
+      <div className="px-4 py-3 max-h-[360px] overflow-y-auto">
         {isLoading && <div className="text-sm text-muted-foreground">Lädt…</div>}
         {!isLoading && recent.length === 0 && (
           <div className="text-sm text-muted-foreground py-6 text-center">Noch keine Stempelungen.</div>
@@ -95,14 +102,26 @@ export function TimeClockPanel({ onClose }: { onClose?: () => void }) {
             return (
               <li key={e.id} className="py-2">
                 {editing ? (
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input type="datetime-local" value={editStart} onChange={(ev) => setEditStart(ev.target.value)} className="h-8 text-xs" />
-                      <Input type="datetime-local" value={editEnd} onChange={(ev) => setEditEnd(ev.target.value)} className="h-8 text-xs" />
+                  <div className="space-y-2 rounded-md bg-muted/40 p-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <LabeledInput label="Start" value={editStart} onChange={setEditStart} />
+                      <LabeledInput label="Ende" value={editEnd} onChange={setEditEnd} />
                     </div>
-                    <div className="flex justify-end gap-1">
-                      <Button size="sm" variant="ghost" onClick={() => setEditId(null)}><X className="h-3.5 w-3.5" /></Button>
-                      <Button size="sm" onClick={() => saveEdit(e)} disabled={upsert.isPending}><Check className="h-3.5 w-3.5" /></Button>
+                    <Textarea
+                      value={editReason}
+                      onChange={(ev) => setEditReason(ev.target.value)}
+                      placeholder="Begründung der Änderung"
+                      className="text-xs min-h-[56px]"
+                    />
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button size="sm" variant="ghost" onClick={cancelEdit}>Abbrechen</Button>
+                      <Button
+                        size="sm"
+                        disabled={!editStart || !editReason.trim() || upsert.isPending}
+                        onClick={() => saveEdit(e)}
+                      >
+                        Senden
+                      </Button>
                     </div>
                   </div>
                 ) : (
@@ -127,7 +146,7 @@ export function TimeClockPanel({ onClose }: { onClose?: () => void }) {
                         <div className="text-[11px] text-muted-foreground italic mt-0.5 truncate">„{e.reason}"</div>
                       )}
                     </div>
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex">
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex shrink-0">
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(e)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
@@ -145,11 +164,11 @@ export function TimeClockPanel({ onClose }: { onClose?: () => void }) {
 
       <div className="border-t p-3">
         {addOpen ? (
-          <div className="space-y-2">
-            <div className="text-xs text-muted-foreground">Eintrag nachtragen</div>
-            <div className="grid grid-cols-2 gap-2">
-              <Input type="datetime-local" value={addStart} onChange={(e) => setAddStart(e.target.value)} className="h-8 text-xs" />
-              <Input type="datetime-local" value={addEnd} onChange={(e) => setAddEnd(e.target.value)} className="h-8 text-xs" />
+          <div className="space-y-2 rounded-md bg-muted/40 p-3">
+            <div className="text-xs font-medium">Eintrag nachtragen</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <LabeledInput label="Start" value={addStart} onChange={setAddStart} />
+              <LabeledInput label="Ende" value={addEnd} onChange={setAddEnd} />
             </div>
             <Textarea
               value={addReason}
@@ -157,9 +176,10 @@ export function TimeClockPanel({ onClose }: { onClose?: () => void }) {
               placeholder="Begründung (z. B. Termin außer Haus, vergessen einzustempeln)"
               className="text-xs min-h-[60px]"
             />
-            <div className="text-[10px] text-muted-foreground">Nachträge müssen vom Admin genehmigt werden.</div>
-            <div className="flex justify-end gap-1">
-              <Button size="sm" variant="ghost" onClick={() => { setAddOpen(false); setAddReason(""); }}>Abbrechen</Button>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button size="sm" variant="ghost" onClick={() => { setAddOpen(false); setAddReason(""); }}>
+                <X className="h-3.5 w-3.5 mr-1" /> Abbrechen
+              </Button>
               <Button
                 size="sm"
                 disabled={!addStart || !addEnd || !addReason.trim() || upsert.isPending}
@@ -176,7 +196,7 @@ export function TimeClockPanel({ onClose }: { onClose?: () => void }) {
                   setAddReason("");
                 }}
               >
-                Zur Freigabe senden
+                Senden
               </Button>
             </div>
           </div>
@@ -187,6 +207,20 @@ export function TimeClockPanel({ onClose }: { onClose?: () => void }) {
         )}
       </div>
     </div>
+  );
+}
+
+function LabeledInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="block">
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+      <Input
+        type="datetime-local"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-9 text-xs w-full mt-0.5"
+      />
+    </label>
   );
 }
 
