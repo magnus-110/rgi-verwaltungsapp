@@ -161,7 +161,7 @@ export function TimeClockPanel({ onClose: _onClose }: { onClose?: () => void }) 
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(e)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => del.mutate(e.id)}>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => setEntryToDelete(e)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
