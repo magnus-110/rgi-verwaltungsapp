@@ -14,6 +14,7 @@ import { Briefcase, Plus, Phone, Mail, Trash2, ExternalLink, Search, Building2, 
 import { useToast } from "@/hooks/use-toast";
 import { CreateContactDialog } from "@/components/contacts/CreateContactDialog";
 import { Switch } from "@/components/ui/switch";
+import { toTelHref } from "@/lib/phone";
 
 interface Props {
   buildingId: string;
@@ -164,7 +165,7 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-muted-foreground">
                         {primaryPhone && (
-                          <a href={`tel:${primaryPhone.phone_number}`} className="flex items-center gap-1 hover:text-foreground">
+                          <a href={toTelHref(primaryPhone.phone_number) || undefined} className="flex items-center gap-1 hover:text-foreground">
                             <Phone className="h-3 w-3" /> {primaryPhone.phone_number}
                           </a>
                         )}

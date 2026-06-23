@@ -18,6 +18,7 @@ import { BuildingGeneralInfoCard } from "./BuildingGeneralInfoCard";
 import { AnnualCycleTimeline } from "./AnnualCycleTimeline";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { useNavigate } from "react-router-dom";
+import { toTelHref } from "@/lib/phone";
 
 type ManagementMode = "weg" | "rent";
 
@@ -253,7 +254,7 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
                     )}
                     {o.phone && (
                       <Button size="icon" variant="ghost" className="h-8 w-8" title={o.phone} asChild>
-                        <a href={`tel:${o.phone}`}><Phone className="h-4 w-4" /></a>
+                        <a href={toTelHref(o.phone) || undefined}><Phone className="h-4 w-4" /></a>
                       </Button>
                     )}
                   </div>
@@ -301,7 +302,7 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
                     )}
                     {p.phone && (
                       <Button size="icon" variant="ghost" className="h-8 w-8" title={p.phone} asChild>
-                        <a href={`tel:${p.phone}`}><Phone className="h-4 w-4" /></a>
+                        <a href={toTelHref(p.phone) || undefined}><Phone className="h-4 w-4" /></a>
                       </Button>
                     )}
                   </div>

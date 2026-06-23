@@ -23,6 +23,7 @@ import {
   type ServiceProviderGroup,
 } from "@/lib/serviceProviderCategories";
 import type { Contact, ContactFilters } from "@/pages/Contacts";
+import { toTelHref } from "@/lib/phone";
 
 const TYPE_CONFIG: Record<string, { label: string; icon: any; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   person: { label: "Person", icon: User, variant: "secondary" },
@@ -74,7 +75,7 @@ const ContactRow = memo(function ContactRow({
   const cats = (contact.service_provider_categories ?? []).slice(0, 3);
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
-  const telHref = comm?.phone ? `tel:${comm.phone.replace(/\s/g, "")}` : null;
+  const telHref = toTelHref(comm?.phone);
   const mailHref = comm?.email ? `mailto:${comm.email}` : null;
   const waHref = comm?.phone
     ? `https://wa.me/${comm.phone.replace(/[^\d+]/g, "").replace(/^\+/, "")}`
