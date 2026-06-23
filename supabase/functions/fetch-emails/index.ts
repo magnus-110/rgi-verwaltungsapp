@@ -427,6 +427,8 @@ async function fetchAccountEmails(
         if (uid > maxUid) maxUid = uid;
         fetched++;
         console.log(`Fetched email UID ${uid}: ${envelope.subject} (${attachments.length} attachments)`);
+        // Drop attachment buffers from memory before next iteration
+        attachments.length = 0;
       } catch (msgErr: any) {
         console.error(`Error processing message UID ${uid}:`, msgErr.message);
       }
