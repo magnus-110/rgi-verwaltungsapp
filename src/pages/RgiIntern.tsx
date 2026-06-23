@@ -55,6 +55,7 @@ export default function RgiIntern() {
         <TabsContent value="dashboard"><DashboardTab /></TabsContent>
         <TabsContent value="projects"><ProjectsTab /></TabsContent>
         <TabsContent value="time"><TimeEntriesTab /></TabsContent>
+        <TabsContent value="timeclock"><TimeClockAdminTab /></TabsContent>
         <TabsContent value="invoices"><InvoicesTab /></TabsContent>
         <TabsContent value="clients"><ClientsTab /></TabsContent>
         <TabsContent value="templates"><TemplatesTab /></TabsContent>
