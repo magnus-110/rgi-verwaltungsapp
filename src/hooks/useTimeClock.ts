@@ -165,6 +165,7 @@ export function useUpsertTimeEntry() {
       started_at: string;
       ended_at: string | null;
       note?: string | null;
+      reason?: string | null;
       source?: "button" | "manual";
     }) => {
       if (!user) throw new Error("Nicht angemeldet");
@@ -176,6 +177,7 @@ export function useUpsertTimeEntry() {
         note: payload.note ?? null,
         source: payload.source ?? (isUpdate ? "button" : "manual"),
       };
+      if (payload.reason !== undefined) row.reason = payload.reason;
       if (isUpdate) {
         row.edited_by = user.id;
         row.edited_at = new Date().toISOString();
