@@ -12,6 +12,7 @@ import { DmsJobsTray } from "./finance/DmsJobsTray";
 import { PasskeyPromptDialog } from "./PasskeyPromptDialog";
 import { RequireMfa } from "./RequireMfa";
 import { BrokerModeProvider } from "@/hooks/useBrokerMode";
+import { TimeClockButton } from "./timeclock/TimeClockButton";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -74,6 +75,9 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
               <h1 className="heading-primary text-xl font-semibold truncate">
                 {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
               </h1>
+              <div className="ml-auto flex items-center">
+                <TimeClockButton />
+              </div>
             </header>
             <div
               className="flex-1 px-3 py-3 lg:p-6 bg-muted/30 overflow-x-hidden overflow-y-auto min-w-0"

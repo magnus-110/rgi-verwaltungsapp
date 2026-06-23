@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsRgiAdmin } from "@/hooks/useRgiAdmin";
-import { Briefcase, BarChart3, Clock, FileText, Users, FolderKanban, FileStack, Settings, ClipboardList } from "lucide-react";
+import { Briefcase, BarChart3, Clock, FileText, Users, FolderKanban, FileStack, Settings, ClipboardList, Timer } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { DashboardTab } from "@/components/rgi-intern/dashboard/DashboardTab";
 import { ClientsTab } from "@/components/rgi-intern/clients/ClientsTab";
@@ -11,6 +11,7 @@ import { InvoicesTab } from "@/components/rgi-intern/invoices/InvoicesTab";
 import { TemplatesTab } from "@/components/rgi-intern/templates/TemplatesTab";
 import { ItemPresetsTab } from "@/components/rgi-intern/item-presets/ItemPresetsTab";
 import { CompanySettingsTab } from "@/components/rgi-intern/settings/CompanySettingsTab";
+import { TimeClockAdminTab } from "@/components/rgi-intern/timeclock/TimeClockAdminTab";
 
 export default function RgiIntern() {
   const isAdmin = useIsRgiAdmin();
@@ -43,6 +44,7 @@ export default function RgiIntern() {
           <TabsTrigger value="dashboard" className="gap-1.5"><BarChart3 className="w-4 h-4" />Dashboard</TabsTrigger>
           <TabsTrigger value="projects" className="gap-1.5"><FolderKanban className="w-4 h-4" />Projekte</TabsTrigger>
           <TabsTrigger value="time" className="gap-1.5"><Clock className="w-4 h-4" />Stunden</TabsTrigger>
+          <TabsTrigger value="timeclock" className="gap-1.5"><Timer className="w-4 h-4" />Stempelzeiten</TabsTrigger>
           <TabsTrigger value="invoices" className="gap-1.5"><FileText className="w-4 h-4" />Rechnungen</TabsTrigger>
           <TabsTrigger value="clients" className="gap-1.5"><Users className="w-4 h-4" />Kunden</TabsTrigger>
           <TabsTrigger value="templates" className="gap-1.5"><FileStack className="w-4 h-4" />Word-Vorlagen</TabsTrigger>
@@ -53,6 +55,7 @@ export default function RgiIntern() {
         <TabsContent value="dashboard"><DashboardTab /></TabsContent>
         <TabsContent value="projects"><ProjectsTab /></TabsContent>
         <TabsContent value="time"><TimeEntriesTab /></TabsContent>
+        <TabsContent value="timeclock"><TimeClockAdminTab /></TabsContent>
         <TabsContent value="invoices"><InvoicesTab /></TabsContent>
         <TabsContent value="clients"><ClientsTab /></TabsContent>
         <TabsContent value="templates"><TemplatesTab /></TabsContent>

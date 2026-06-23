@@ -8737,6 +8737,45 @@ export type Database = {
           },
         ]
       }
+      time_clock_entries: {
+        Row: {
+          created_at: string
+          edited_at: string | null
+          edited_by: string | null
+          ended_at: string | null
+          id: string
+          note: string | null
+          source: string
+          started_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          edited_at?: string | null
+          edited_by?: string | null
+          ended_at?: string | null
+          id?: string
+          note?: string | null
+          source?: string
+          started_at?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          edited_at?: string | null
+          edited_by?: string | null
+          ended_at?: string | null
+          id?: string
+          note?: string | null
+          source?: string
+          started_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       todo_assignees: {
         Row: {
           created_at: string | null
