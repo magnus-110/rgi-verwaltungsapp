@@ -138,7 +138,7 @@ const App = () => (
               <Route path="/prozesse" element={<AdminLayout><Processes /></AdminLayout>} />
               <Route path="/jahreszyklus" element={<AdminLayout><Jahreszyklus /></AdminLayout>} />
               <Route path="/rgi-intern" element={<AdminLayout><RgiIntern /></AdminLayout>} />
-              <Route path="/anruf" element={<AdminLayout><IncomingCall /></AdminLayout>} />
+              <Route path="/anruf" element={<IncomingCall />} />
               <Route path="/makler/objekte" element={<AdminLayout><BrokerProperties /></AdminLayout>} />
               <Route path="/makler/objekte/:id" element={<AdminLayout><BrokerProperties /></AdminLayout>} />
               
