@@ -57,6 +57,7 @@ import { cn } from "@/lib/utils";
 import { toast as sonnerToast } from "sonner";
 import { toTelHref } from "@/lib/phone";
 import { SALUTATIONS } from "@/lib/salutations";
+import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 
 function BankSepaInlineEditor({
   bankId,
@@ -580,6 +581,7 @@ export function BuildingContactsList({ buildingId, managementMode = "weg" }: Pro
   } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { openCompose } = useComposeEmail();
 
   const todayIso = new Date().toISOString().slice(0, 10);
   const isTenantActive = (a: ContactAssignment) => {
@@ -1511,7 +1513,18 @@ export function BuildingContactsList({ buildingId, managementMode = "weg" }: Pro
                           )}
                           {a.emails.map((e) => (
                             <div key={e.id} className="flex items-center gap-2">
-                              <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                              {e.email?.trim() ? (
+                                <button
+                                  type="button"
+                                  title="E-Mail schreiben"
+                                  className="flex-shrink-0"
+                                  onClick={() => openCompose({ prefill: { to: e.email } })}
+                                >
+                                  <Mail className="h-3.5 w-3.5 text-primary hover:text-primary/80 cursor-pointer" />
+                                </button>
+                              ) : (
+                                <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                              )}
                               <BufferedInput
                                 value={e.email}
                                 onSave={(val) => updateEmail(e.id, "email", val)}
