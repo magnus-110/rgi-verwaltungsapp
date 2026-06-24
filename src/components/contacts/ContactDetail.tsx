@@ -1209,6 +1209,21 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
             </div>
             <ContactDocumentsSection contactId={contact.id} />
           </TabsContent>
+
+          {/* Telefonate Tab */}
+          <TabsContent value="telefonate" className="mt-4">
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Phone className="h-4 w-4" /> Telefonate
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Eingehende und ausgehende Anrufe dieses Kontakts.
+              </p>
+            </div>
+            <div className="h-[500px] border rounded-md overflow-hidden">
+              <CallLogList contactId={contact.id} compact />
+            </div>
+          </TabsContent>
         </Tabs>
       </div>
     </div>
