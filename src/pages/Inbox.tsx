@@ -32,6 +32,8 @@ import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { CallLogList } from "@/components/calls/CallLogList";
+import { Phone as PhoneIcon } from "lucide-react";
 
 const folderIcons: Record<string, any> = {
   'inbox': InboxIcon,
@@ -41,6 +43,7 @@ const folderIcons: Record<string, any> = {
   'shield-alert': ShieldAlert,
   'trash-2': Trash2,
   'calendar-clock': CalendarClock,
+  'phone': PhoneIcon,
 };
 
 export const Inbox = () => {
@@ -94,6 +97,7 @@ export const Inbox = () => {
   // Virtual folder IDs
   const SCHEDULED_FOLDER_ID = "__scheduled__";
   const DRAFTS_FOLDER_ID = "__drafts__";
+  const CALLS_FOLDER_ID = "__calls__";
 
   // Fetch folders (auto-refresh every 60s)
   const { data: dbFolders = [] } = useQuery({
@@ -110,7 +114,7 @@ export const Inbox = () => {
     refetchOnWindowFocus: true,
   });
 
-  // Append virtual "Entwürfe" + "Geplant" folders
+  // Append virtual "Entwürfe" + "Geplant" + "Telefonate" folders
   const folders = useMemo(() => {
     return [
       ...dbFolders,
@@ -128,6 +132,15 @@ export const Inbox = () => {
         name: "Geplant",
         icon: "calendar-clock",
         sort_order: 999,
+        is_system: true,
+        color: null,
+        created_at: null,
+      } as any,
+      {
+        id: CALLS_FOLDER_ID,
+        name: "Telefonate",
+        icon: "phone",
+        sort_order: 1000,
         is_system: true,
         color: null,
         created_at: null,
@@ -334,17 +347,43 @@ export const Inbox = () => {
     refetchOnWindowFocus: true,
   });
 
+  // Missed calls count (live)
+  const { data: missedCallsCount = 0 } = useQuery({
+    queryKey: ["call-logs-missed-count"],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("call_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "verpasst")
+        .eq("handled", false);
+      return count || 0;
+    },
+    refetchInterval: 30_000,
+  });
+
+  useEffect(() => {
+    const ch = supabase
+      .channel("call_logs_inbox_badge")
+      .on("postgres_changes", { event: "*", schema: "public", table: "call_logs" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["call-logs-missed-count"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
   // Merge counts: real folders + virtual folders
   const folderCounts = useMemo(() => {
     return {
       ...(folderCountsRaw as Record<string, number>),
       [SCHEDULED_FOLDER_ID]: scheduledItems.length,
       [DRAFTS_FOLDER_ID]: draftItems.length,
+      [CALLS_FOLDER_ID]: missedCallsCount,
     };
-  }, [folderCountsRaw, scheduledItems.length, draftItems.length]);
+  }, [folderCountsRaw, scheduledItems.length, draftItems.length, missedCallsCount]);
 
   const isScheduledFolder = selectedFolderId === SCHEDULED_FOLDER_ID;
   const isDraftsFolder = selectedFolderId === DRAFTS_FOLDER_ID;
+  const isCallsFolder = selectedFolderId === CALLS_FOLDER_ID;
 
   // Fetch emails for selected folder — slim columns; body wird lazy für Detail geladen
   const isSearching = searchTerm.trim().length >= 2;
@@ -410,7 +449,7 @@ export const Inbox = () => {
       if (error) throw error;
       return data;
     },
-    enabled: !isScheduledFolder,
+    enabled: !isScheduledFolder && !isCallsFolder,
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
@@ -1168,6 +1207,8 @@ export const Inbox = () => {
             }}
             onOpenCampaign={(id) => navigate(`/kommunikation?campaign=${id}`)}
           />
+        ) : isCallsFolder ? (
+          <CallLogList />
         ) : (
         <>
         {/* Category tabs - full width above both panels */}

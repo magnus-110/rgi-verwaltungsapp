@@ -51,6 +51,8 @@ import {
 import { Star, Siren, MapPin, Loader2 } from "lucide-react";
 import type { Contact } from "@/pages/Contacts";
 import { toTelHref } from "@/lib/phone";
+import { logOutgoingCall } from "@/components/calls/callLogUtils";
+import { CallLogList } from "@/components/calls/CallLogList";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 
 const SALUTATIONS = [
@@ -608,6 +610,10 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
               <FileText className="h-3.5 w-3.5" />
               Dokumente
             </TabsTrigger>
+            <TabsTrigger variant="segment" value="telefonate" className="gap-1">
+              <Phone className="h-3.5 w-3.5" />
+              Telefonate
+            </TabsTrigger>
           </TabsList>
 
           {/* Stammdaten Tab */}
@@ -902,6 +908,7 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
                                   href={toTelHref(ph.phone_number)!}
                                   title="Anrufen (PhonerLite)"
                                   className="flex-shrink-0"
+                                  onClick={() => logOutgoingCall({ number: ph.phone_number, contactId: contact.id })}
                                 >
                                   <Phone className="h-4 w-4 text-primary hover:text-primary/80 cursor-pointer" />
                                 </a>
@@ -1201,6 +1208,21 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
               </p>
             </div>
             <ContactDocumentsSection contactId={contact.id} />
+          </TabsContent>
+
+          {/* Telefonate Tab */}
+          <TabsContent value="telefonate" className="mt-4">
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Phone className="h-4 w-4" /> Telefonate
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Eingehende und ausgehende Anrufe dieses Kontakts.
+              </p>
+            </div>
+            <div className="h-[500px] border rounded-md overflow-hidden">
+              <CallLogList contactId={contact.id} compact />
+            </div>
           </TabsContent>
         </Tabs>
       </div>

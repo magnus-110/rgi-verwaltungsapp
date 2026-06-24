@@ -56,6 +56,8 @@ import { Calendar as CalendarIcon, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast as sonnerToast } from "sonner";
 import { toTelHref } from "@/lib/phone";
+import { logOutgoingCall } from "@/components/calls/callLogUtils";
+import { CallLogList as BuildingCallLogList } from "@/components/calls/CallLogList";
 import { SALUTATIONS } from "@/lib/salutations";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 
@@ -1463,6 +1465,7 @@ export function BuildingContactsList({ buildingId, managementMode = "weg" }: Pro
                                   href={toTelHref(p.phone_number)!}
                                   title="Anrufen (PhonerLite)"
                                   className="flex-shrink-0"
+                                  onClick={() => logOutgoingCall({ number: p.phone_number, contactId: a.contact_id, buildingId })}
                                 >
                                   <Phone className="h-3.5 w-3.5 text-primary hover:text-primary/80 cursor-pointer" />
                                 </a>
@@ -2120,6 +2123,16 @@ export function BuildingContactsList({ buildingId, managementMode = "weg" }: Pro
         managementMode={managementMode as "weg" | "rent"}
         editAssignmentId={editAssignmentId}
       />
+
+      {/* Telefonate des Gebäudes */}
+      <details className="border rounded-md bg-background">
+        <summary className="cursor-pointer px-3 py-2 text-sm font-semibold flex items-center gap-2">
+          <Phone className="h-4 w-4" /> Telefonate (Gebäude)
+        </summary>
+        <div className="h-[420px] border-t overflow-hidden">
+          <BuildingCallLogList buildingId={buildingId} />
+        </div>
+      </details>
     </div>
   );
 }
