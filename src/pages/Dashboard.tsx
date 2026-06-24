@@ -161,30 +161,33 @@ export const Dashboard = () => {
   return (
     <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-          {managementMode === "weg" ? "WEG-Verwaltung" : "Mietverwaltung"}
-        </h1>
-        <p className="text-sm md:text-base text-muted-foreground mt-1">
-          Tagesübersicht über{" "}
-          <span className="font-medium text-foreground">
-            {isAdmin && portfolio
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
+            {managementMode === "weg" ? "WEG-Verwaltung" : "Mietverwaltung"}
+          </h1>
+          <p className="text-sm md:text-base text-muted-foreground mt-1">
+            Tagesübersicht über{" "}
+            <span className="font-medium text-foreground">
+              {isAdmin && portfolio
+                ? (managementMode === "weg" ? portfolio.weg.buildings : portfolio.rent.buildings)
+                : stats.building_count}
+            </span>{" "}
+            {((isAdmin && portfolio
               ? (managementMode === "weg" ? portfolio.weg.buildings : portfolio.rent.buildings)
-              : stats.building_count}
-          </span>{" "}
-          {((isAdmin && portfolio
-            ? (managementMode === "weg" ? portfolio.weg.buildings : portfolio.rent.buildings)
-            : stats.building_count) === 1) ? "Gebäude" : "Gebäude"}
-          {isAdmin && portfolio && (
-            <>
-              {" "}·{" "}
-              <span className="font-medium text-foreground">
-                {(managementMode === "weg" ? portfolio.weg.units : portfolio.rent.units)}
-              </span>{" "}
-              {managementMode === "weg" ? "WEG-Einheiten" : "Miet-Einheiten"} verwaltet
-            </>
-          )}
-        </p>
+              : stats.building_count) === 1) ? "Gebäude" : "Gebäude"}
+            {isAdmin && portfolio && (
+              <>
+                {" "}·{" "}
+                <span className="font-medium text-foreground">
+                  {(managementMode === "weg" ? portfolio.weg.units : portfolio.rent.units)}
+                </span>{" "}
+                {managementMode === "weg" ? "WEG-Einheiten" : "Miet-Einheiten"} verwaltet
+              </>
+            )}
+          </p>
+        </div>
+        <TimeClockButton />
       </div>
 
       {/* KPI Cards */}
