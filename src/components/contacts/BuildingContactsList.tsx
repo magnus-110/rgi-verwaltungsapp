@@ -1387,14 +1387,16 @@ export function BuildingContactsList({ buildingId, managementMode = "weg" }: Pro
                                 value={p.salutation || "__none__"}
                                 onValueChange={(v) => updatePerson(p.id, "salutation", v === "__none__" ? null : v)}
                               >
-                                <SelectTrigger className="w-20 h-7 text-xs">
+                                <SelectTrigger className="w-32 h-7 text-xs">
                                   <SelectValue placeholder="Anrede" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="__none__">—</SelectItem>
-                                  <SelectItem value="Frau">Frau</SelectItem>
-                                  <SelectItem value="Herr">Herr</SelectItem>
-                                  <SelectItem value="Divers">Divers</SelectItem>
+                                  {SALUTATIONS.map((s) => (
+                                    <SelectItem key={s} value={s}>
+                                      {s}
+                                    </SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
                               <BufferedInput
