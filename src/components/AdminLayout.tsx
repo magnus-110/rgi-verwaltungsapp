@@ -74,9 +74,7 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
               <h1 className="heading-primary text-xl font-semibold truncate">
                 {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
               </h1>
-              <div className="ml-auto flex items-center">
-                <TimeClockButton />
-              </div>
+              <div className="ml-auto flex items-center" />
             </header>
             <div
               className="flex-1 px-3 py-3 lg:p-6 bg-muted/30 overflow-x-hidden overflow-y-auto min-w-0"
