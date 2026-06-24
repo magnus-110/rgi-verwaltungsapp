@@ -51,6 +51,8 @@ import {
 import { Star, Siren, MapPin, Loader2 } from "lucide-react";
 import type { Contact } from "@/pages/Contacts";
 import { toTelHref } from "@/lib/phone";
+import { logOutgoingCall } from "@/components/calls/callLogUtils";
+import { CallLogList } from "@/components/calls/CallLogList";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 
 const SALUTATIONS = [
