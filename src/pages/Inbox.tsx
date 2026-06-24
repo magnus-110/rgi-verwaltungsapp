@@ -97,6 +97,7 @@ export const Inbox = () => {
   // Virtual folder IDs
   const SCHEDULED_FOLDER_ID = "__scheduled__";
   const DRAFTS_FOLDER_ID = "__drafts__";
+  const CALLS_FOLDER_ID = "__calls__";
 
   // Fetch folders (auto-refresh every 60s)
   const { data: dbFolders = [] } = useQuery({
