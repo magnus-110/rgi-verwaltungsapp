@@ -148,6 +148,7 @@ interface Props {
 
 export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
   const { toast } = useToast();
+  const { openCompose } = useComposeEmail();
   const [form, setForm] = useState({ ...contact });
   const [persons, setPersons] = useState<LocalPerson[]>([]);
   const [saving, setSaving] = useState(false);
@@ -965,6 +966,18 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
                           )}
                           {visibleEmails.map((em) => (
                             <div key={em._localId} className="flex items-center gap-2 mb-1.5">
+                              {em.email?.trim() ? (
+                                <button
+                                  type="button"
+                                  title="E-Mail schreiben"
+                                  className="flex-shrink-0"
+                                  onClick={() => openCompose({ prefill: { to: em.email } })}
+                                >
+                                  <Mail className="h-4 w-4 text-primary hover:text-primary/80 cursor-pointer" />
+                                </button>
+                              ) : (
+                                <Mail className="h-4 w-4 text-muted-foreground/40 flex-shrink-0" />
+                              )}
                               <Select
                                 value={em.label || "Privat"}
                                 onValueChange={(v) => updateEmailInPerson(p._localId, em._localId, "label", v)}
