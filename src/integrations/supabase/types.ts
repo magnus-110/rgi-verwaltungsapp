@@ -2375,6 +2375,81 @@ export type Database = {
           },
         ]
       }
+      call_logs: {
+        Row: {
+          building_id: string | null
+          connected_at: string | null
+          contact_id: string | null
+          created_at: string
+          created_by: string | null
+          direction: string
+          duration_seconds: number
+          ended_at: string | null
+          handled: boolean
+          handled_at: string | null
+          id: string
+          note: string | null
+          number_e164: string | null
+          number_raw: string | null
+          started_at: string
+          status: string
+          transcript: string | null
+        }
+        Insert: {
+          building_id?: string | null
+          connected_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          direction: string
+          duration_seconds?: number
+          ended_at?: string | null
+          handled?: boolean
+          handled_at?: string | null
+          id?: string
+          note?: string | null
+          number_e164?: string | null
+          number_raw?: string | null
+          started_at?: string
+          status?: string
+          transcript?: string | null
+        }
+        Update: {
+          building_id?: string | null
+          connected_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          direction?: string
+          duration_seconds?: number
+          ended_at?: string | null
+          handled?: boolean
+          handled_at?: string | null
+          id?: string
+          note?: string | null
+          number_e164?: string | null
+          number_raw?: string | null
+          started_at?: string
+          status?: string
+          transcript?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_logs_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_logs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_events: {
         Row: {
           attachments: Json
@@ -9677,6 +9752,7 @@ export type Database = {
         Args: { _contact_id: string; _user_id: string }
         Returns: boolean
       }
+      normalize_phone_last8: { Args: { p: string }; Returns: string }
       remove_building_manager: {
         Args: { manager_id_param: string }
         Returns: undefined
