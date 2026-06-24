@@ -1464,6 +1464,7 @@ export function BuildingContactsList({ buildingId, managementMode = "weg" }: Pro
                                   href={toTelHref(p.phone_number)!}
                                   title="Anrufen (PhonerLite)"
                                   className="flex-shrink-0"
+                                  onClick={() => logOutgoingCall({ number: p.phone_number, contactId: a.contact_id, buildingId })}
                                 >
                                   <Phone className="h-3.5 w-3.5 text-primary hover:text-primary/80 cursor-pointer" />
                                 </a>
