@@ -347,17 +347,43 @@ export const Inbox = () => {
     refetchOnWindowFocus: true,
   });
 
+  // Missed calls count (live)
+  const { data: missedCallsCount = 0 } = useQuery({
+    queryKey: ["call-logs-missed-count"],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("call_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "verpasst")
+        .eq("handled", false);
+      return count || 0;
+    },
+    refetchInterval: 30_000,
+  });
+
+  useEffect(() => {
+    const ch = supabase
+      .channel("call_logs_inbox_badge")
+      .on("postgres_changes", { event: "*", schema: "public", table: "call_logs" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["call-logs-missed-count"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
   // Merge counts: real folders + virtual folders
   const folderCounts = useMemo(() => {
     return {
       ...(folderCountsRaw as Record<string, number>),
       [SCHEDULED_FOLDER_ID]: scheduledItems.length,
       [DRAFTS_FOLDER_ID]: draftItems.length,
+      [CALLS_FOLDER_ID]: missedCallsCount,
     };
-  }, [folderCountsRaw, scheduledItems.length, draftItems.length]);
+  }, [folderCountsRaw, scheduledItems.length, draftItems.length, missedCallsCount]);
 
   const isScheduledFolder = selectedFolderId === SCHEDULED_FOLDER_ID;
   const isDraftsFolder = selectedFolderId === DRAFTS_FOLDER_ID;
+  const isCallsFolder = selectedFolderId === CALLS_FOLDER_ID;
 
   // Fetch emails for selected folder — slim columns; body wird lazy für Detail geladen
   const isSearching = searchTerm.trim().length >= 2;
