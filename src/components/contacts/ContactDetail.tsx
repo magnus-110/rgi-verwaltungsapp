@@ -904,6 +904,7 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
                                   href={toTelHref(ph.phone_number)!}
                                   title="Anrufen (PhonerLite)"
                                   className="flex-shrink-0"
+                                  onClick={() => logOutgoingCall({ number: ph.phone_number, contactId: contact.id })}
                                 >
                                   <Phone className="h-4 w-4 text-primary hover:text-primary/80 cursor-pointer" />
                                 </a>
