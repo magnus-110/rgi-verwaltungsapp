@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   AlertCircle, Briefcase, FileText, Mail, ListTodo, Wrench,
-  ChevronRight, Activity,
+  ChevronRight, Building2, Activity,
 } from "lucide-react";
 import { TimeClockButton } from "@/components/timeclock/TimeClockButton";
 import { formatDistanceToNow, format, isValid } from "date-fns";
