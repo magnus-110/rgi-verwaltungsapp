@@ -38,6 +38,7 @@ const Billing = lazy(() => import("./pages/Billing").then(m => ({ default: m.Bil
 const Processes = lazy(() => import("./pages/Processes").then(m => ({ default: m.Processes })));
 const Jahreszyklus = lazy(() => import("./pages/Jahreszyklus"));
 const RgiIntern = lazy(() => import("./pages/RgiIntern"));
+const IncomingCall = lazy(() => import("./pages/IncomingCall"));
 
 const Inbox = lazy(() => import("./pages/Inbox").then(m => ({ default: m.Inbox })));
 const Meetings = lazy(() => import("./pages/Meetings").then(m => ({ default: m.Meetings })));
@@ -137,6 +138,7 @@ const App = () => (
               <Route path="/prozesse" element={<AdminLayout><Processes /></AdminLayout>} />
               <Route path="/jahreszyklus" element={<AdminLayout><Jahreszyklus /></AdminLayout>} />
               <Route path="/rgi-intern" element={<AdminLayout><RgiIntern /></AdminLayout>} />
+              <Route path="/anruf" element={<AdminLayout><IncomingCall /></AdminLayout>} />
               <Route path="/makler/objekte" element={<AdminLayout><BrokerProperties /></AdminLayout>} />
               <Route path="/makler/objekte/:id" element={<AdminLayout><BrokerProperties /></AdminLayout>} />
               
