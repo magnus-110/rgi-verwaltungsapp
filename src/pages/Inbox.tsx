@@ -114,7 +114,7 @@ export const Inbox = () => {
     refetchOnWindowFocus: true,
   });
 
-  // Append virtual "Entwürfe" + "Geplant" folders
+  // Append virtual "Entwürfe" + "Geplant" + "Telefonate" folders
   const folders = useMemo(() => {
     return [
       ...dbFolders,
@@ -132,6 +132,15 @@ export const Inbox = () => {
         name: "Geplant",
         icon: "calendar-clock",
         sort_order: 999,
+        is_system: true,
+        color: null,
+        created_at: null,
+      } as any,
+      {
+        id: CALLS_FOLDER_ID,
+        name: "Telefonate",
+        icon: "phone",
+        sort_order: 1000,
         is_system: true,
         color: null,
         created_at: null,
