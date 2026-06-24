@@ -57,6 +57,7 @@ import { cn } from "@/lib/utils";
 import { toast as sonnerToast } from "sonner";
 import { toTelHref } from "@/lib/phone";
 import { logOutgoingCall } from "@/components/calls/callLogUtils";
+import { CallLogList as BuildingCallLogList } from "@/components/calls/CallLogList";
 import { SALUTATIONS } from "@/lib/salutations";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 
