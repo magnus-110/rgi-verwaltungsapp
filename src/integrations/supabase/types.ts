@@ -9508,6 +9508,16 @@ export type Database = {
         Args: { p_building_id: string }
         Returns: undefined
       }
+      find_contact_by_phone: {
+        Args: { p_num: string }
+        Returns: {
+          contact_id: string
+          label: string
+          name: string
+          objekte: string
+          phone: string
+        }[]
+      }
       find_similar_bookings: {
         Args: {
           p_building_id: string
