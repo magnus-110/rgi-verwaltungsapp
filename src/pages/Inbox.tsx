@@ -1207,6 +1207,8 @@ export const Inbox = () => {
             }}
             onOpenCampaign={(id) => navigate(`/kommunikation?campaign=${id}`)}
           />
+        ) : isCallsFolder ? (
+          <CallLogList />
         ) : (
         <>
         {/* Category tabs - full width above both panels */}
