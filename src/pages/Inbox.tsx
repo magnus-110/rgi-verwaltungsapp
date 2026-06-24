@@ -32,6 +32,8 @@ import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { CallLogList } from "@/components/calls/CallLogList";
+import { Phone as PhoneIcon } from "lucide-react";
 
 const folderIcons: Record<string, any> = {
   'inbox': InboxIcon,
@@ -41,6 +43,7 @@ const folderIcons: Record<string, any> = {
   'shield-alert': ShieldAlert,
   'trash-2': Trash2,
   'calendar-clock': CalendarClock,
+  'phone': PhoneIcon,
 };
 
 export const Inbox = () => {
