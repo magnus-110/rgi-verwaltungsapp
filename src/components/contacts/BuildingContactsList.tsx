@@ -56,6 +56,7 @@ import { Calendar as CalendarIcon, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast as sonnerToast } from "sonner";
 import { toTelHref } from "@/lib/phone";
+import { SALUTATIONS } from "@/lib/salutations";
 
 function BankSepaInlineEditor({
   bankId,
