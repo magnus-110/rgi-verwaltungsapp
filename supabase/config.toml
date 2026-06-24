@@ -175,3 +175,6 @@ verify_jwt = false
 
 [functions.nightly-admin-logout]
 verify_jwt = false
+
+[functions.call-event]
+verify_jwt = false
