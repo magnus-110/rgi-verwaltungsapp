@@ -16,3 +16,9 @@ export function toTelHref(raw?: string | null): string | null {
   if (digits.startsWith("0")) return "tel:+49" + digits.slice(1);
   return "tel:+" + digits;
 }
+
+/** Liefert die letzten n Ziffern einer Telefonnummer (Default 8) – konsistent mit der DB-Funktion. */
+export function lastDigits(raw?: string | null, n = 8): string {
+  if (!raw) return "";
+  return String(raw).replace(/\D/g, "").slice(-n);
+}
