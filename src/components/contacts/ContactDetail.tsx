@@ -610,6 +610,10 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
               <FileText className="h-3.5 w-3.5" />
               Dokumente
             </TabsTrigger>
+            <TabsTrigger variant="segment" value="telefonate" className="gap-1">
+              <Phone className="h-3.5 w-3.5" />
+              Telefonate
+            </TabsTrigger>
           </TabsList>
 
           {/* Stammdaten Tab */}
