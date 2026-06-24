@@ -449,7 +449,7 @@ export const Inbox = () => {
       if (error) throw error;
       return data;
     },
-    enabled: !isScheduledFolder,
+    enabled: !isScheduledFolder && !isCallsFolder,
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
