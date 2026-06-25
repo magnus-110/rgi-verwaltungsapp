@@ -239,27 +239,50 @@ export const DmsFilePickerDialog = ({
       }
     }
 
-    const buildSection = (sectionId: string, files: FileRow[]) => {
-      // Folder-Gruppen
+    const buildSection = (_sectionId: string, files: FileRow[]): FolderNode[] => {
+      // Dateien je Kategorie (direkter Inhalt eines Ordners)
       const byCat = new Map<string, FileRow[]>();
       for (const f of files) {
         const k = f.category_id || NO_CAT;
         if (!byCat.has(k)) byCat.set(k, []);
         byCat.get(k)!.push(f);
       }
-      const folders: { id: string; name: string; files: FileRow[] }[] = [];
-      categories.forEach((c) => {
-        const list = byCat.get(c.id);
-        if (list && list.length) folders.push({ id: c.id, name: c.name, files: list });
-      });
+
+      // Kategorien nach parent_id gruppieren, Reihenfolge aus sort_order (Query liefert sortiert)
+      const byParent = new Map<string, CategoryRow[]>();
+      for (const c of categories) {
+        const key = c.parent_id || "root";
+        if (!byParent.has(key)) byParent.set(key, []);
+        byParent.get(key)!.push(c);
+      }
+
+      const build = (parentId: string | null): FolderNode[] => {
+        const list = byParent.get(parentId || "root") || [];
+        const nodes: FolderNode[] = [];
+        for (const c of list) {
+          const children = build(c.id);
+          const direct = byCat.get(c.id) || [];
+          const allFiles = [...direct, ...children.flatMap((ch) => ch.allFiles)];
+          if (allFiles.length === 0) continue; // leere Äste ausblenden
+          nodes.push({ id: c.id, name: c.name, files: direct, children, allFiles });
+        }
+        return nodes;
+      };
+
+      const tree = build(null);
+
+      // "Ohne Kategorie" als letzter Eintrag, falls befüllt
       const noCat = byCat.get(NO_CAT);
-      if (noCat && noCat.length) folders.push({ id: NO_CAT, name: "Ohne Kategorie", files: noCat });
-      folders.sort((a, b) => {
-        if (a.id === NO_CAT) return 1;
-        if (b.id === NO_CAT) return -1;
-        return a.name.localeCompare(b.name);
-      });
-      return folders;
+      if (noCat && noCat.length) {
+        tree.push({
+          id: NO_CAT,
+          name: "Ohne Kategorie",
+          files: noCat,
+          children: [],
+          allFiles: noCat,
+        });
+      }
+      return tree;
     };
 
     const out: {
@@ -268,7 +291,7 @@ export const DmsFilePickerDialog = ({
       subtitle?: string;
       kind: "building" | "person";
       total: number;
-      folders: { id: string; name: string; files: FileRow[] }[];
+      folders: FolderNode[];
     }[] = [];
 
     out.push({
@@ -294,6 +317,7 @@ export const DmsFilePickerDialog = ({
     }
     return out;
   }, [filteredFiles, persons, categories]);
+
 
   // Bei aktiver Suche alle Sektionen/Ordner automatisch öffnen
   const effSections = useMemo(() => {
