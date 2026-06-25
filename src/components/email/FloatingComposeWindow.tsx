@@ -1325,12 +1325,13 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             <RecipientField
               value={compose.to}
               onChange={(v) => update({ to: v })}
-              placeholder="empfaenger@email.de"
+              placeholder="Name/E-Mail – oder /Gebäude"
               pickerOpen={contactPickerOpen}
               setPickerOpen={setContactPickerOpen}
               contactSearch={contactSearch}
               setContactSearch={setContactSearch}
               contacts={filteredContacts}
+              buildings={buildingsWithMembers}
               addEmail={(e) => addEmailToField(e, "to")}
             />
           </div>
@@ -1342,12 +1343,13 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
                 <RecipientField
                   value={compose.cc}
                   onChange={(v) => update({ cc: v })}
-                  placeholder="cc@email.de (optional)"
+                  placeholder="Name/E-Mail – oder /Gebäude (optional)"
                   pickerOpen={ccContactPickerOpen}
                   setPickerOpen={setCcContactPickerOpen}
                   contactSearch={contactSearch}
                   setContactSearch={setContactSearch}
                   contacts={filteredContacts}
+                  buildings={buildingsWithMembers}
                   addEmail={(e) => addEmailToField(e, "cc")}
                 />
               </div>
@@ -1356,12 +1358,13 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
                 <RecipientField
                   value={compose.bcc}
                   onChange={(v) => update({ bcc: v })}
-                  placeholder="bcc@email.de (optional)"
+                  placeholder="Name/E-Mail – oder /Gebäude (optional)"
                   pickerOpen={bccContactPickerOpen}
                   setPickerOpen={setBccContactPickerOpen}
                   contactSearch={contactSearch}
                   setContactSearch={setContactSearch}
                   contacts={filteredContacts}
+                  buildings={buildingsWithMembers}
                   addEmail={(e) => addEmailToField(e, "bcc")}
                 />
               </div>
