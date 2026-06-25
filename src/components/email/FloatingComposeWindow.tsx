@@ -1568,10 +1568,12 @@ const RecipientField = ({
     [value],
   );
 
-  // Verlasse Gebäude-Modus, wenn der User den führenden "/" entfernt
+  // Mitgliederansicht bleibt offen, solange das letzte Segment leer ist (direkt nach
+  // Hinzufügen einer Person). Nur zurücksetzen, wenn der User aktiv neuen Text ohne "/" tippt.
   useEffect(() => {
-    if (!buildingMode && selectedBuilding) setSelectedBuilding(null);
-  }, [buildingMode, selectedBuilding]);
+    if (!selectedBuilding) return;
+    if (lastSegment.length > 0 && !lastSegment.startsWith("/")) setSelectedBuilding(null);
+  }, [lastSegment, selectedBuilding]);
 
   const contactSuggestions = useMemo(() => {
     if (buildingMode) return [];
