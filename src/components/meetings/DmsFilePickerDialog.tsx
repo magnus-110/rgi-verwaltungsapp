@@ -544,84 +544,96 @@ export const DmsFilePickerDialog = ({
                                 Keine Dokumente.
                               </p>
                             ) : (
-                              sec.folders.map((folder) => {
-                                const fkey = `${sec.id}::${folder.id}`;
-                                const fOpen = effFolders.has(fkey);
-                                const selInF = folder.files.filter((f) => selected[f.id]).length;
-                                const allF = selInF === folder.files.length;
-                                const someF = selInF > 0 && !allF;
-                                return (
-                                  <div key={fkey} className="border rounded-md overflow-hidden">
-                                    <div className="w-full px-2 py-1.5 hover:bg-muted/50 transition flex items-center gap-2">
-                                      <Checkbox
-                                        checked={allF ? true : someF ? "indeterminate" : false}
-                                        onCheckedChange={(c) => toggleMany(folder.files, !!c)}
-                                        aria-label="Alle im Ordner auswählen"
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => toggleFolder(fkey)}
-                                        className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                              (() => {
+                                const renderFolder = (folder: FolderNode, depth: number): JSX.Element => {
+                                  const fkey = `${sec.id}::${folder.id}`;
+                                  const fOpen = effFolders.has(fkey);
+                                  const selInF = folder.allFiles.filter((f) => selected[f.id]).length;
+                                  const allF = folder.allFiles.length > 0 && selInF === folder.allFiles.length;
+                                  const someF = selInF > 0 && !allF;
+                                  return (
+                                    <div key={fkey} className="border rounded-md overflow-hidden">
+                                      <div
+                                        className="w-full py-1.5 pr-2 hover:bg-muted/50 transition flex items-center gap-2"
+                                        style={{ paddingLeft: `${depth * 16 + 8}px` }}
                                       >
-                                        <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
-                                        <span className="text-sm font-medium truncate flex-1">
-                                          {folder.name}
-                                        </span>
-                                        <span className="text-[11px] text-muted-foreground">
-                                          {folder.files.length}
-                                          {selInF > 0 && ` · ${selInF}`}
-                                        </span>
-                                        {fOpen ? (
-                                          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                                        ) : (
-                                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                                        )}
-                                      </button>
-                                    </div>
-                                    {fOpen && (
-                                      <div className="border-t divide-y bg-background">
-                                        {folder.files.map((f) => (
-                                          <div
-                                            key={f.id}
-                                            className="flex items-center gap-2 p-2 pl-9 hover:bg-muted/40"
-                                          >
-                                            <Checkbox
-                                              checked={!!selected[f.id]}
-                                              onCheckedChange={(c) => toggleFile(f, !!c)}
-                                            />
-                                            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                                            <div className="min-w-0 flex-1">
-                                              <p className="text-sm font-medium truncate">
-                                                {f.display_name || f.file_path.split("/").pop()}
-                                              </p>
-                                              <p className="text-[11px] text-muted-foreground truncate">
-                                                {f.mime_type}
-                                                {f.file_size != null && ` · ${formatSize(f.file_size)}`}
-                                                {f.fiscal_year != null && ` · WJ ${f.fiscal_year}`}
-                                              </p>
-                                            </div>
-                                            <Button
-                                              type="button"
-                                              variant="ghost"
-                                              size="icon"
-                                              className="h-7 w-7 shrink-0"
-                                              onClick={() => handlePreview(f)}
-                                              disabled={previewing === f.id}
-                                              title="Vorschau öffnen"
-                                            >
-                                              {previewing === f.id ? (
-                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                              ) : (
-                                                <Eye className="h-3.5 w-3.5" />
-                                              )}
-                                            </Button>
-                                          </div>
-                                        ))}
+                                        <Checkbox
+                                          checked={allF ? true : someF ? "indeterminate" : false}
+                                          onCheckedChange={(c) => toggleMany(folder.allFiles, !!c)}
+                                          aria-label="Alle im Ordner auswählen"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleFolder(fkey)}
+                                          className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                                        >
+                                          <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
+                                          <span className="text-sm font-medium truncate flex-1">
+                                            {folder.name}
+                                          </span>
+                                          <span className="text-[11px] text-muted-foreground">
+                                            {folder.allFiles.length}
+                                            {selInF > 0 && ` · ${selInF}`}
+                                          </span>
+                                          {fOpen ? (
+                                            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                          ) : (
+                                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                                          )}
+                                        </button>
                                       </div>
-                                    )}
-                                  </div>
-                                );
-                              })
+                                      {fOpen && (
+                                        <div className="border-t bg-background">
+                                          {folder.files.map((f) => (
+                                            <div
+                                              key={f.id}
+                                              className="flex items-center gap-2 py-2 pr-2 hover:bg-muted/40 border-b last:border-b-0"
+                                              style={{ paddingLeft: `${depth * 16 + 36}px` }}
+                                            >
+                                              <Checkbox
+                                                checked={!!selected[f.id]}
+                                                onCheckedChange={(c) => toggleFile(f, !!c)}
+                                              />
+                                              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                                              <div className="min-w-0 flex-1">
+                                                <p className="text-sm font-medium truncate">
+                                                  {f.display_name || f.file_path.split("/").pop()}
+                                                </p>
+                                                <p className="text-[11px] text-muted-foreground truncate">
+                                                  {f.mime_type}
+                                                  {f.file_size != null && ` · ${formatSize(f.file_size)}`}
+                                                  {f.fiscal_year != null && ` · WJ ${f.fiscal_year}`}
+                                                </p>
+                                              </div>
+                                              <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-7 w-7 shrink-0"
+                                                onClick={() => handlePreview(f)}
+                                                disabled={previewing === f.id}
+                                                title="Vorschau öffnen"
+                                              >
+                                                {previewing === f.id ? (
+                                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                ) : (
+                                                  <Eye className="h-3.5 w-3.5" />
+                                                )}
+                                              </Button>
+                                            </div>
+                                          ))}
+                                          {folder.children.map((child) => (
+                                            <div key={`${sec.id}::${child.id}`} className="border-t">
+                                              {renderFolder(child, depth + 1)}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                };
+                                return sec.folders.map((folder) => renderFolder(folder, 0));
+                              })()
                             )}
                           </div>
                         )}
