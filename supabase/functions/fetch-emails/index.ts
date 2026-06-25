@@ -373,7 +373,10 @@ async function fetchAccountEmails(
         // large Strato messages can exceed the 256MB Edge worker limit while base64 decoding.
         const { bodyText, bodyHtml } = await downloadBodyTextFromStructure(client, uid, msg.bodyStructure);
         const structureAttachmentParts = collectAttachmentParts(msg.bodyStructure);
-        const structureSaysHasAtt = structureAttachmentParts.some(({ node }) => isRealAttachmentNode(node));
+        // Nur "echte" Anhänge zählen (keine inline CID-Signatur-Bilder etc.)
+        const structureHasRealAttachment = structureAttachmentParts.some(
+          ({ node }) => isRealAttachmentNode(node) && !isInlineAttachmentNode(node)
+        );
         let attachments: ParsedAttachment[] = [];
         if (structureAttachmentParts.length > 0) {
           try {
@@ -387,7 +390,7 @@ async function fetchAccountEmails(
         }
 
         const realAttachments = attachments.filter((a) => !a.isInline);
-        const hasAttachments = structureSaysHasAtt || realAttachments.length > 0;
+        const hasAttachments = structureHasRealAttachment || realAttachments.length > 0;
 
         const { data: insertedEmail, error: insertError } = await supabase
           .from("emails")
