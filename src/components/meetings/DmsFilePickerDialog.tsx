@@ -330,7 +330,13 @@ export const DmsFilePickerDialog = ({
   const effFolders = useMemo(() => {
     if (!search.trim()) return expandedFolders;
     const s = new Set(expandedFolders);
-    sections.forEach((sec) => sec.folders.forEach((f) => s.add(`${sec.id}::${f.id}`)));
+    const walk = (secId: string, nodes: FolderNode[]) => {
+      nodes.forEach((n) => {
+        s.add(`${secId}::${n.id}`);
+        walk(secId, n.children);
+      });
+    };
+    sections.forEach((sec) => walk(sec.id, sec.folders));
     return s;
   }, [expandedFolders, sections, search]);
 
