@@ -279,6 +279,32 @@ function CallDetail({
               <User className="h-3.5 w-3.5 mr-1" />Kontakt
             </Button>
           )}
+          {email && (
+            <Button size="sm" variant="outline" onClick={() => openCompose({ prefill: { to: email } })}>
+              <Mail className="h-3.5 w-3.5 mr-1" />E-Mail
+            </Button>
+          )}
+          {buildings.length === 1 && (
+            <Button size="sm" variant="outline" onClick={() => navigate(`/buildings/${buildings[0].id}`)}>
+              <Building className="h-3.5 w-3.5 mr-1" />Zum Gebäude
+            </Button>
+          )}
+          {buildings.length > 1 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline">
+                  <Building className="h-3.5 w-3.5 mr-1" />Zum Gebäude
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {buildings.map((b) => (
+                  <DropdownMenuItem key={b.id} onClick={() => navigate(`/buildings/${b.id}`)}>
+                    {b.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <Button size="sm" variant="outline" onClick={onOpenTranscript}>
             <FileText className="h-3.5 w-3.5 mr-1" />Transkript {row.transcript ? "bearbeiten" : "hinzufügen"}
           </Button>
