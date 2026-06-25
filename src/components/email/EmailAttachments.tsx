@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown } from "lucide-react";
+import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
