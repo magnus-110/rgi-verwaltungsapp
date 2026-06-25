@@ -756,13 +756,43 @@ function decodeRfc2047(str: string): string {
 
 function checkHasAttachments(bodyStructure: any): boolean {
   if (!bodyStructure) return false;
-  if (bodyStructure.disposition === "attachment") return true;
+  if (isRealAttachmentNode(bodyStructure)) return true;
   if (bodyStructure.childNodes) {
     for (const child of bodyStructure.childNodes) {
       if (checkHasAttachments(child)) return true;
     }
   }
   return false;
+}
+
+function getNodeContentType(node: any): string {
+  const type = String(node?.type || "").toLowerCase();
+  const subtype = String(node?.subtype || "").toLowerCase();
+  if (type.includes("/")) return type;
+  if (type && subtype) return `${type}/${subtype}`;
+  if (type) return type;
+  return "application/octet-stream";
+}
+
+function getNodeDisposition(node: any): string {
+  const raw = node?.disposition;
+  if (!raw) return "";
+  if (typeof raw === "string") return raw.toLowerCase();
+  if (typeof raw === "object" && raw.type) return String(raw.type).toLowerCase();
+  return String(raw).toLowerCase();
+}
+
+function isRealAttachmentNode(node: any): boolean {
+  const ct = getNodeContentType(node);
+  const disposition = getNodeDisposition(node);
+  if (disposition === "attachment") return true;
+  if (disposition === "inline" && !(ct.startsWith("text/") || ct === "message/rfc822")) return true;
+  return !ct.startsWith("text/") && !ct.startsWith("multipart/") && ct !== "message/rfc822" && !!(node?.part || node?.partId);
+}
+
+function isInlineAttachmentNode(node: any): boolean {
+  const ct = getNodeContentType(node);
+  return getNodeDisposition(node) === "inline" && ct.startsWith("image/") && !!node?.id;
 }
 
 // Supabase Storage rejects keys with certain unicode/whitespace characters.
@@ -791,54 +821,140 @@ function collectAttachmentParts(
   out: Array<{ part: string; node: any }> = []
 ): Array<{ part: string; node: any }> {
   if (!node) return out;
-  const currentPath = node.part || path;
-  const ct = (node.type || "").toLowerCase();
+  const currentPath = node.part || node.partId || path;
 
   if (node.childNodes && node.childNodes.length > 0) {
     for (const child of node.childNodes) {
-      collectAttachmentParts(child, child.part || "", out);
+      collectAttachmentParts(child, child.part || child.partId || "", out);
     }
     return out;
   }
 
-  // Leaf
-  const disposition = (node.disposition || "").toLowerCase();
-  const isAttachment =
-    disposition === "attachment" ||
-    disposition === "inline" ||
-    (!ct.startsWith("text/") && !ct.startsWith("multipart/") && currentPath);
-
-  if (isAttachment && currentPath) {
+  if (isRealAttachmentNode(node) && currentPath) {
     out.push({ part: currentPath, node });
   }
   return out;
 }
 
-async function downloadAttachmentsFromStructure(
+function collectTextParts(
+  node: any,
+  path: string = "",
+  out: Array<{ part: string; node: any; kind: "plain" | "html" }> = []
+): Array<{ part: string; node: any; kind: "plain" | "html" }> {
+  if (!node) return out;
+  const currentPath = node.part || node.partId || path;
+
+  if (node.childNodes && node.childNodes.length > 0) {
+    for (const child of node.childNodes) {
+      collectTextParts(child, child.part || child.partId || "", out);
+    }
+    return out;
+  }
+
+  const ct = getNodeContentType(node);
+  const disposition = getNodeDisposition(node);
+  if (!currentPath || disposition === "attachment") return out;
+  if (ct === "text/plain" || ct.startsWith("text/plain;")) out.push({ part: currentPath, node, kind: "plain" });
+  if (ct === "text/html" || ct.startsWith("text/html;")) out.push({ part: currentPath, node, kind: "html" });
+  return out;
+}
+
+async function streamPartToBytes(
+  client: any,
+  uid: number,
+  part: string,
+  maxBytes: number
+): Promise<{ bytes: Uint8Array; truncated: boolean }> {
+  const dl = await client.download(`${uid}`, part, { uid: true });
+  if (!dl || !dl.content) return { bytes: new Uint8Array(0), truncated: false };
+
+  const chunks: Uint8Array[] = [];
+  let totalLen = 0;
+  let truncated = false;
+  for await (const chunk of dl.content) {
+    const bytes = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
+    if (totalLen + bytes.length > maxBytes) {
+      const remaining = Math.max(0, maxBytes - totalLen);
+      if (remaining > 0) {
+        chunks.push(bytes.slice(0, remaining));
+        totalLen += remaining;
+      }
+      truncated = true;
+      break;
+    }
+    chunks.push(bytes);
+    totalLen += bytes.length;
+  }
+
+  const merged = new Uint8Array(totalLen);
+  let offset = 0;
+  for (const c of chunks) {
+    merged.set(c, offset);
+    offset += c.length;
+  }
+  return { bytes: merged, truncated };
+}
+
+function decodeTextBytes(bytes: Uint8Array, node: any): string {
+  const params = node?.parameters || {};
+  const charset = String(params.charset || params.Charset || "utf-8").toLowerCase();
+  try {
+    return new TextDecoder(charset).decode(bytes).trim();
+  } catch {
+    return new TextDecoder("utf-8").decode(bytes).trim();
+  }
+}
+
+async function downloadBodyTextFromStructure(
   client: any,
   uid: number,
   bodyStructure: any
+): Promise<{ bodyText: string; bodyHtml: string }> {
+  const textParts = collectTextParts(bodyStructure);
+  let bodyText = "";
+  let bodyHtml = "";
+
+  for (const { part, node, kind } of textParts) {
+    if ((kind === "plain" && bodyText) || (kind === "html" && bodyHtml)) continue;
+    try {
+      const { bytes, truncated } = await streamPartToBytes(client, uid, part, MAX_TEXT_PART_BYTES);
+      const decoded = decodeTextBytes(bytes, node);
+      if (kind === "plain") bodyText = truncated ? `${decoded}\n\n[Text gekürzt]` : decoded;
+      if (kind === "html") bodyHtml = truncated ? `${decoded}<p>[Text gekürzt]</p>` : decoded;
+    } catch (err: any) {
+      console.error(`Download text part ${part} failed:`, err.message);
+    }
+  }
+
+  return { bodyText, bodyHtml };
+}
+
+async function downloadAttachmentsFromStructure(
+  client: any,
+  uid: number,
+  bodyStructure: any,
+  limits: { maxPartBytes: number; maxTotalBytes: number } = {
+    maxPartBytes: MAX_ATTACHMENT_PART_BYTES,
+    maxTotalBytes: MAX_ATTACHMENT_TOTAL_BYTES,
+  }
 ): Promise<ParsedAttachment[]> {
   const parts = collectAttachmentParts(bodyStructure);
   const results: ParsedAttachment[] = [];
+  let totalBytes = 0;
 
   for (const { part, node } of parts) {
     try {
-      const dl = await client.download(`${uid}`, part, { uid: true });
-      if (!dl || !dl.content) continue;
-
-      // dl.content is a Readable stream — collect into Uint8Array
-      const chunks: Uint8Array[] = [];
-      for await (const chunk of dl.content) {
-        chunks.push(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk));
+      if (totalBytes >= limits.maxTotalBytes) {
+        console.warn(`Attachment total byte budget reached for UID ${uid}; remaining parts skipped.`);
+        break;
       }
-      const totalLen = chunks.reduce((s, c) => s + c.length, 0);
-      const merged = new Uint8Array(totalLen);
-      let offset = 0;
-      for (const c of chunks) {
-        merged.set(c, offset);
-        offset += c.length;
+      const partLimit = Math.min(limits.maxPartBytes, limits.maxTotalBytes - totalBytes);
+      const { bytes: merged, truncated } = await streamPartToBytes(client, uid, part, partLimit);
+      if (truncated) {
+        console.warn(`Attachment part ${part} for UID ${uid} exceeded byte limit and was skipped.`);
+        continue;
       }
+      totalBytes += merged.byteLength;
 
       const dispParams = node.dispositionParameters || {};
       const ctParams = node.parameters || {};
@@ -850,8 +966,8 @@ async function downloadAttachmentsFromStructure(
         `attachment_${part}`;
       filename = decodeRfc2047(String(filename));
 
-      const mimeType = `${(node.type || "application").toLowerCase()}/${(node.subtype || "octet-stream").toLowerCase()}`;
-      const isInline = (node.disposition || "").toLowerCase() === "inline";
+      const mimeType = getNodeContentType(node);
+      const isInline = isInlineAttachmentNode(node);
       const contentId = node.id ? String(node.id).replace(/^</, "").replace(/>$/, "") : null;
 
       results.push({
