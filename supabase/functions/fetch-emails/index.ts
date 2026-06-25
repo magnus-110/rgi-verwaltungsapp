@@ -74,9 +74,20 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  // ---- Reparse single email ----
+  // ---- Reparse single email (accept via ?reparse=id or POST body { reparse }) ----
   const url = new URL(req.url);
-  const reparseId = url.searchParams.get("reparse");
+  let reparseId = url.searchParams.get("reparse");
+  let bodyAccountId: string | null = null;
+  let parsedBody: any = null;
+  if (req.method === "POST") {
+    try {
+      parsedBody = await req.json();
+      if (parsedBody && typeof parsedBody.reparse === "string") reparseId = parsedBody.reparse;
+      if (parsedBody && typeof parsedBody.account_id === "string") bodyAccountId = parsedBody.account_id;
+    } catch {
+      // kein Body / kein JSON -> alle Konten dispatchen
+    }
+  }
   if (reparseId) {
     const auth = req.headers.get("authorization") || "";
     if (!auth.toLowerCase().startsWith("bearer ")) {
@@ -98,17 +109,6 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Optional: nur ein bestimmtes Konto verarbeiten (per Self-Invocation pro Account,
-  // um den 256MB-Worker nicht mit allen Postfächern gleichzeitig zu sprengen).
-  let bodyAccountId: string | null = null;
-  if (req.method === "POST") {
-    try {
-      const body = await req.json();
-      if (body && typeof body.account_id === "string") bodyAccountId = body.account_id;
-    } catch {
-      // kein Body / kein JSON -> alle Konten dispatchen
-    }
-  }
 
   try {
     const accountsQuery = supabaseAdmin
