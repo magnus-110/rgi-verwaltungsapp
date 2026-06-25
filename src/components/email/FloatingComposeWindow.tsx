@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Send, Loader2, Paperclip, X, Users, Search, Minus, Maximize2, Minimize2,
-  ExternalLink, Wand2, Check, ChevronDown, ArrowLeft, CalendarClock, FolderOpen, Upload,
+  ExternalLink, Wand2, Check, ChevronDown, ArrowLeft, CalendarClock, FolderOpen, Upload, Building2,
 } from "lucide-react";
 import { DmsFilePickerDialog, type DmsPickerItem } from "@/components/meetings/DmsFilePickerDialog";
 import { toast } from "sonner";
@@ -263,6 +263,50 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             [c.first_name, c.last_name].filter(Boolean).join(" ") || c.company_name || "Unbenannt",
         }))
         .filter((c) => c.emails.length > 0);
+    },
+  });
+
+  const { data: buildingsWithMembers = [] } = useQuery({
+    queryKey: ["buildings-with-members-compose", contactsWithEmails.length],
+    enabled: contactsWithEmails.length > 0,
+    queryFn: async () => {
+      const [bRes, aRes] = await Promise.all([
+        supabase.from("buildings").select("id, name").order("name"),
+        supabase
+          .from("contact_building_assignments")
+          .select("building_id, contact_id")
+          .eq("is_active", true),
+      ]);
+      if (bRes.error) throw bRes.error;
+      if (aRes.error) throw aRes.error;
+
+      const contactById = new Map(contactsWithEmails.map((c) => [c.id, c]));
+      const membersByBuilding = new Map<string, Array<{ name: string; email: string }>>();
+      for (const a of aRes.data || []) {
+        const c = contactById.get(a.contact_id);
+        if (!c) continue;
+        let list = membersByBuilding.get(a.building_id);
+        if (!list) {
+          list = [];
+          membersByBuilding.set(a.building_id, list);
+        }
+        for (const e of c.emails) {
+          list.push({ name: c.displayName, email: e.email });
+        }
+      }
+      return (bRes.data || []).map((b) => {
+        const raw = membersByBuilding.get(b.id) || [];
+        const seen = new Set<string>();
+        const members: Array<{ name: string; email: string }> = [];
+        for (const m of raw) {
+          const key = m.email.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          members.push(m);
+        }
+        members.sort((x, y) => x.name.localeCompare(y.name));
+        return { id: b.id, name: b.name, members };
+      });
     },
   });
 
@@ -1281,12 +1325,13 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             <RecipientField
               value={compose.to}
               onChange={(v) => update({ to: v })}
-              placeholder="empfaenger@email.de"
+              placeholder="Name/E-Mail – oder /Gebäude"
               pickerOpen={contactPickerOpen}
               setPickerOpen={setContactPickerOpen}
               contactSearch={contactSearch}
               setContactSearch={setContactSearch}
               contacts={filteredContacts}
+              buildings={buildingsWithMembers}
               addEmail={(e) => addEmailToField(e, "to")}
             />
           </div>
@@ -1298,12 +1343,13 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
                 <RecipientField
                   value={compose.cc}
                   onChange={(v) => update({ cc: v })}
-                  placeholder="cc@email.de (optional)"
+                  placeholder="Name/E-Mail – oder /Gebäude (optional)"
                   pickerOpen={ccContactPickerOpen}
                   setPickerOpen={setCcContactPickerOpen}
                   contactSearch={contactSearch}
                   setContactSearch={setContactSearch}
                   contacts={filteredContacts}
+                  buildings={buildingsWithMembers}
                   addEmail={(e) => addEmailToField(e, "cc")}
                 />
               </div>
@@ -1312,12 +1358,13 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
                 <RecipientField
                   value={compose.bcc}
                   onChange={(v) => update({ bcc: v })}
-                  placeholder="bcc@email.de (optional)"
+                  placeholder="Name/E-Mail – oder /Gebäude (optional)"
                   pickerOpen={bccContactPickerOpen}
                   setPickerOpen={setBccContactPickerOpen}
                   contactSearch={contactSearch}
                   setContactSearch={setContactSearch}
                   contacts={filteredContacts}
+                  buildings={buildingsWithMembers}
                   addEmail={(e) => addEmailToField(e, "bcc")}
                 />
               </div>
@@ -1495,7 +1542,7 @@ const FieldRow = ({ label, children }: { label: string; children: React.ReactNod
 
 const RecipientField = ({
   value, onChange, placeholder, pickerOpen, setPickerOpen,
-  contactSearch, setContactSearch, contacts, addEmail,
+  contactSearch, setContactSearch, contacts, buildings, addEmail,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -1505,22 +1552,36 @@ const RecipientField = ({
   contactSearch: string;
   setContactSearch: (s: string) => void;
   contacts: Array<{ id: string; displayName: string; company_name?: string | null; first_name?: string | null; emails: { email: string }[] }>;
+  buildings: Array<{ id: string; name: string; members: Array<{ name: string; email: string }> }>;
   addEmail: (email: string) => void;
 }) => {
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
+  const [selectedBuilding, setSelectedBuilding] = useState<{ id: string; name: string; members: Array<{ name: string; email: string }> } | null>(null);
 
   const lastSegment = (value.split(",").pop() || "").trim();
+  const buildingMode = lastSegment.startsWith("/");
+  const buildingQuery = buildingMode ? lastSegment.slice(1).toLowerCase() : "";
 
-  const suggestions = useMemo(() => {
+  const alreadySet = useMemo(
+    () => new Set(value.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)),
+    [value],
+  );
+
+  // Verlasse Gebäude-Modus, wenn der User den führenden "/" entfernt
+  useEffect(() => {
+    if (!buildingMode && selectedBuilding) setSelectedBuilding(null);
+  }, [buildingMode, selectedBuilding]);
+
+  const contactSuggestions = useMemo(() => {
+    if (buildingMode) return [];
     const q = lastSegment.toLowerCase();
     if (q.length < 1) return [];
-    const already = new Set(value.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean));
     const out: { email: string; name: string; company?: string | null }[] = [];
     for (const c of contacts) {
       for (const e of c.emails) {
         const em = e.email.toLowerCase();
-        if (already.has(em)) continue;
+        if (alreadySet.has(em)) continue;
         const matches =
           em.includes(q) ||
           c.displayName.toLowerCase().includes(q) ||
@@ -1532,7 +1593,30 @@ const RecipientField = ({
       }
     }
     return out;
-  }, [lastSegment, contacts, value]);
+  }, [lastSegment, contacts, alreadySet, buildingMode]);
+
+  const buildingSuggestions = useMemo(() => {
+    if (!buildingMode || selectedBuilding) return [];
+    const list = buildingQuery
+      ? buildings.filter((b) => b.name.toLowerCase().includes(buildingQuery))
+      : buildings;
+    return list.slice(0, 8);
+  }, [buildingMode, buildingQuery, buildings, selectedBuilding]);
+
+  // Mitglieder + "← Zurück" als erste Pseudo-Zeile (Index 0)
+  const memberItems = useMemo(() => {
+    if (!selectedBuilding) return [] as Array<{ kind: "back" } | { kind: "member"; name: string; email: string; already: boolean }>;
+    const items: Array<{ kind: "back" } | { kind: "member"; name: string; email: string; already: boolean }> = [{ kind: "back" }];
+    for (const m of selectedBuilding.members) {
+      items.push({ kind: "member", name: m.name, email: m.email, already: alreadySet.has(m.email.toLowerCase()) });
+    }
+    return items;
+  }, [selectedBuilding, alreadySet]);
+
+  const activeList: Array<unknown> = selectedBuilding ? memberItems : buildingMode ? buildingSuggestions : contactSuggestions;
+
+  // Indexreset bei Stufenwechsel
+  useEffect(() => { setActiveIdx(0); }, [buildingMode, selectedBuilding?.id]);
 
   const replaceLastSegment = (email: string) => {
     const parts = value.split(",");
@@ -1543,6 +1627,36 @@ const RecipientField = ({
     setActiveIdx(0);
   };
 
+  // Adresse aus Gebäude-Liste hinzufügen: aktuelles "/..."-Segment löschen,
+  // E-Mail dedupliziert anhängen, Dropdown bleibt geöffnet.
+  const addEmailKeepOpen = (email: string) => {
+    if (alreadySet.has(email.toLowerCase())) return;
+    const parts = value.split(",");
+    parts.pop(); // aktuelles /-Segment verwerfen
+    const existing = parts.map((p) => p.trim()).filter(Boolean);
+    existing.push(email);
+    onChange(existing.join(", ") + ", ");
+  };
+
+  const handleEnter = () => {
+    if (selectedBuilding) {
+      const item = memberItems[activeIdx];
+      if (!item) return;
+      if (item.kind === "back") setSelectedBuilding(null);
+      else if (!item.already) addEmailKeepOpen(item.email);
+      return;
+    }
+    if (buildingMode) {
+      const b = buildingSuggestions[activeIdx];
+      if (b) setSelectedBuilding(b);
+      return;
+    }
+    const s = contactSuggestions[activeIdx];
+    if (s) replaceLastSegment(s.email);
+  };
+
+  const dropdownOpen = suggestionsOpen && activeList.length > 0;
+
   return (
     <div className="flex gap-1">
       <div className="relative flex-1">
@@ -1550,41 +1664,108 @@ const RecipientField = ({
           value={value}
           onChange={(e) => { onChange(e.target.value); setSuggestionsOpen(true); setActiveIdx(0); }}
           onFocus={() => setSuggestionsOpen(true)}
-          onBlur={() => setTimeout(() => setSuggestionsOpen(false), 150)}
+          onBlur={() => setTimeout(() => { setSuggestionsOpen(false); setSelectedBuilding(null); }, 150)}
           onKeyDown={(e) => {
-            if (!suggestionsOpen || suggestions.length === 0) return;
-            if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx((i) => Math.min(i + 1, suggestions.length - 1)); }
+            if (!dropdownOpen) return;
+            if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx((i) => Math.min(i + 1, activeList.length - 1)); }
             else if (e.key === "ArrowUp") { e.preventDefault(); setActiveIdx((i) => Math.max(i - 1, 0)); }
-            else if (e.key === "Enter" || e.key === "Tab") {
-              const s = suggestions[activeIdx];
-              if (s) { e.preventDefault(); replaceLastSegment(s.email); }
-            } else if (e.key === "Escape") { setSuggestionsOpen(false); }
+            else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); handleEnter(); }
+            else if (e.key === "Escape") { setSuggestionsOpen(false); setSelectedBuilding(null); }
           }}
           placeholder={placeholder}
           className="h-8 text-sm w-full"
         />
-        {suggestionsOpen && suggestions.length > 0 && (
-          <div className="absolute left-0 right-0 top-full mt-1 z-[70] bg-popover border border-border rounded-md shadow-lg max-h-64 overflow-y-auto">
-            {suggestions.map((s, idx) => (
-              <button
-                key={s.email + idx}
-                type="button"
-                className={cn(
-                  "w-full flex flex-col items-start px-3 py-1.5 text-left hover:bg-muted/60 transition-colors",
-                  idx === activeIdx && "bg-muted/60",
-                )}
-                onMouseDown={(e) => { e.preventDefault(); replaceLastSegment(s.email); }}
-                onMouseEnter={() => setActiveIdx(idx)}
-              >
-                <span className="text-xs font-medium truncate w-full">
-                  {s.name}
-                  {s.company && s.company !== s.name && (
-                    <span className="text-muted-foreground font-normal ml-1">({s.company})</span>
+        {dropdownOpen && (
+          <div className="absolute left-0 right-0 top-full mt-1 z-[70] bg-popover border border-border rounded-md shadow-lg max-h-72 overflow-y-auto">
+            {/* Stufe B: Mitglieder eines Gebäudes */}
+            {selectedBuilding ? (
+              <>
+                <div className="sticky top-0 bg-popover border-b px-3 py-1.5 flex items-center gap-2">
+                  <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-xs font-medium truncate flex-1">{selectedBuilding.name}</span>
+                  <span className="text-[11px] text-muted-foreground">{selectedBuilding.members.length} Mitglieder</span>
+                </div>
+                {memberItems.map((item, idx) => {
+                  if (item.kind === "back") {
+                    return (
+                      <button
+                        key="__back"
+                        type="button"
+                        className={cn(
+                          "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/60 transition-colors text-xs text-muted-foreground",
+                          idx === activeIdx && "bg-muted/60",
+                        )}
+                        onMouseDown={(e) => { e.preventDefault(); setSelectedBuilding(null); }}
+                        onMouseEnter={() => setActiveIdx(idx)}
+                      >
+                        <ArrowLeft className="h-3.5 w-3.5" />
+                        Zurück zur Gebäudesuche
+                      </button>
+                    );
+                  }
+                  return (
+                    <button
+                      key={item.email + idx}
+                      type="button"
+                      disabled={item.already}
+                      className={cn(
+                        "w-full flex flex-col items-start px-3 py-1.5 text-left hover:bg-muted/60 transition-colors",
+                        idx === activeIdx && "bg-muted/60",
+                        item.already && "opacity-50 cursor-not-allowed",
+                      )}
+                      onMouseDown={(e) => { e.preventDefault(); if (!item.already) addEmailKeepOpen(item.email); }}
+                      onMouseEnter={() => setActiveIdx(idx)}
+                    >
+                      <span className="text-xs font-medium truncate w-full flex items-center gap-1">
+                        {item.name}
+                        {item.already && <Check className="h-3 w-3 text-muted-foreground" />}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground truncate w-full">{item.email}</span>
+                    </button>
+                  );
+                })}
+              </>
+            ) : buildingMode ? (
+              /* Stufe A: Gebäude-Vorschläge */
+              buildingSuggestions.map((b, idx) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  className={cn(
+                    "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/60 transition-colors",
+                    idx === activeIdx && "bg-muted/60",
                   )}
-                </span>
-                <span className="text-[11px] text-muted-foreground truncate w-full">{s.email}</span>
-              </button>
-            ))}
+                  onMouseDown={(e) => { e.preventDefault(); setSelectedBuilding(b); }}
+                  onMouseEnter={() => setActiveIdx(idx)}
+                >
+                  <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-xs font-medium truncate flex-1">{b.name}</span>
+                  <span className="text-[11px] text-muted-foreground">{b.members.length} {b.members.length === 1 ? "Person" : "Personen"}</span>
+                </button>
+              ))
+            ) : (
+              /* Kontakt-Vorschläge (unverändert) */
+              contactSuggestions.map((s, idx) => (
+                <button
+                  key={s.email + idx}
+                  type="button"
+                  className={cn(
+                    "w-full flex flex-col items-start px-3 py-1.5 text-left hover:bg-muted/60 transition-colors",
+                    idx === activeIdx && "bg-muted/60",
+                  )}
+                  onMouseDown={(e) => { e.preventDefault(); replaceLastSegment(s.email); }}
+                  onMouseEnter={() => setActiveIdx(idx)}
+                >
+                  <span className="text-xs font-medium truncate w-full">
+                    {s.name}
+                    {s.company && s.company !== s.name && (
+                      <span className="text-muted-foreground font-normal ml-1">({s.company})</span>
+                    )}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground truncate w-full">{s.email}</span>
+                </button>
+              ))
+            )}
           </div>
         )}
       </div>
