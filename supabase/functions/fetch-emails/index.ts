@@ -748,24 +748,88 @@ function mojibakeScore(value: string): number {
   return markers + common * 2;
 }
 
+// Direkter String-Patch für die häufigsten UTF-8→Latin-1 Mojibake-Sequenzen.
+// Wird angewendet, wenn der Byte-Roundtrip nicht möglich ist (z. B. weil der
+// Text bereits korrekt dekodierte Zeichen wie € oder „smart quotes" enthält).
+const MOJIBAKE_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/Ã„/g, "Ä"], [/Ã–/g, "Ö"], [/Ãœ/g, "Ü"],
+  [/Ã¤/g, "ä"], [/Ã¶/g, "ö"], [/Ã¼/g, "ü"], [/ÃŸ/g, "ß"],
+  [/Ã©/g, "é"], [/Ã¨/g, "è"], [/Ãª/g, "ê"], [/Ã«/g, "ë"],
+  [/Ã /g, "à"], [/Ã¡/g, "á"], [/Ã¢/g, "â"], [/Ã£/g, "ã"], [/Ã¥/g, "å"],
+  [/Ã­/g, "í"], [/Ã®/g, "î"], [/Ã¯/g, "ï"],
+  [/Ã³/g, "ó"], [/Ã´/g, "ô"], [/Ãµ/g, "õ"],
+  [/Ãº/g, "ú"], [/Ã»/g, "û"],
+  [/Ã±/g, "ñ"], [/Ã§/g, "ç"],
+  [/â‚¬/g, "€"],
+  [/â€“/g, "–"], [/â€”/g, "—"],
+  [/â€ž/g, "„"], [/â€œ/g, "“"], [/â€\u009D/g, "”"], [/â€/g, "”"],
+  [/â€™/g, "'"], [/â€˜/g, "‘"], [/â€¦/g, "…"],
+  [/Â§/g, "§"], [/Â°/g, "°"], [/Â²/g, "²"], [/Â³/g, "³"],
+  [/Â´/g, "´"], [/Âµ/g, "µ"], [/Â·/g, "·"], [/Â©/g, "©"], [/Â®/g, "®"],
+  [/Â«/g, "«"], [/Â»/g, "»"], [/Â¿/g, "¿"], [/Â¡/g, "¡"],
+  [/Â /g, " "],
+];
+
+function patchMojibakeString(value: string): string {
+  if (!value) return value;
+  let out = value;
+  for (const [re, rep] of MOJIBAKE_REPLACEMENTS) out = out.replace(re, rep);
+  // Einsames "Â" vor Latin-1-Sonderzeichen entfernen (Artefakt aus UTF-8→Latin-1)
+  out = out.replace(/Â(?=[\u00A0-\u00BF])/g, "");
+  return out;
+}
+
 function repairMojibake(value: string): string {
   if (!value || mojibakeScore(value) === 0) return value;
+
+  // Schritt 1: Wenn der gesamte String in Latin-1 codierbar ist, kompletten
+  // Byte-Roundtrip versuchen (verlustfrei).
   try {
+    let allLatin1 = true;
     const bytes: number[] = [];
     for (let i = 0; i < value.length; i++) {
       const code = value.charCodeAt(i);
-      if (code > 255) return value;
+      if (code > 255) { allLatin1 = false; break; }
       bytes.push(code);
     }
-    const repaired = new TextDecoder("utf-8", { fatal: false }).decode(new Uint8Array(bytes));
-    return mojibakeScore(repaired) < mojibakeScore(value) ? repaired : value;
-  } catch {
-    return value;
-  }
+    if (allLatin1) {
+      const repaired = new TextDecoder("utf-8", { fatal: false }).decode(new Uint8Array(bytes));
+      if (mojibakeScore(repaired) < mojibakeScore(value)) return repaired;
+    }
+  } catch { /* fall through */ }
+
+  // Schritt 2: String-Patch — repariert nur die bekannten Mojibake-Sequenzen
+  // und lässt korrekt dekodierte Sonderzeichen (z. B. €, „") unangetastet.
+  const patched = patchMojibakeString(value);
+  return mojibakeScore(patched) < mojibakeScore(value) ? patched : value;
 }
 
 function hasMojibake(value: string | null | undefined): boolean {
   return mojibakeScore(String(value || "")) > 0;
+}
+
+// Wählt zwischen der deklarierten Codierung und UTF-8 die Variante mit
+// dem niedrigsten Mojibake-Score. Behebt falsch deklarierte Header
+// (z. B. Strato-Server, die UTF-8 als iso-8859-1 ausliefern).
+function decodeBytesSmart(bytes: Uint8Array, declaredCharset: string): string {
+  const declared = normalizeCharset(declaredCharset);
+  let primary = "";
+  try { primary = decodeBytesWithCharset(bytes, declared); } catch { primary = ""; }
+  // Auch UTF-8 testen (falls die Deklaration falsch war)
+  if (declared !== "utf-8") {
+    try {
+      const asUtf8 = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+      if (mojibakeScore(asUtf8) < mojibakeScore(primary)) return asUtf8;
+    } catch { /* ignore */ }
+  } else if (mojibakeScore(primary) > 0) {
+    // Deklariert war UTF-8, aber das Ergebnis enthält Mojibake — Bytes sind
+    // vermutlich windows-1252 oder bereits doppelt encodet.
+    try {
+      const asCp1252 = new TextDecoder("windows-1252").decode(bytes);
+      if (mojibakeScore(asCp1252) < mojibakeScore(primary)) return asCp1252;
+    } catch { /* ignore */ }
+  }
+  return primary;
 }
 
 function decodeTextContent(body: string, encoding: string, contentType?: string): string {
@@ -779,7 +843,7 @@ function decodeTextContent(body: string, encoding: string, contentType?: string)
       for (let i = 0; i < binary.length; i++) {
         bytes[i] = binary.charCodeAt(i);
       }
-      return repairMojibake(decodeBytesWithCharset(bytes, charset));
+      return repairMojibake(decodeBytesSmart(bytes, charset));
     } catch {
       return body;
     }
@@ -808,9 +872,9 @@ function decodeQuotedPrintable(str: string, charset: string = "utf-8"): string {
     i++;
   }
   try {
-    return decodeBytesWithCharset(new Uint8Array(bytes), charset);
+    return decodeBytesSmart(new Uint8Array(bytes), charset);
   } catch {
-    return decodeBytesWithCharset(new Uint8Array(bytes), "utf-8");
+    return decodeBytesSmart(new Uint8Array(bytes), "utf-8");
   }
 }
 
@@ -996,9 +1060,9 @@ function decodeTextBytes(bytes: Uint8Array, node: any): string {
   // NOTE: ImapFlow.download() already strips Content-Transfer-Encoding.
   // Only charset decoding is needed here.
   try {
-    return repairMojibake(decodeBytesWithCharset(bytes, charset)).trim();
+    return repairMojibake(decodeBytesSmart(bytes, charset)).trim();
   } catch {
-    return repairMojibake(decodeBytesWithCharset(bytes, "utf-8")).trim();
+    return repairMojibake(decodeBytesSmart(bytes, "utf-8")).trim();
   }
 }
 
@@ -1029,7 +1093,7 @@ async function downloadBodyTextFromStructure(
     try {
       const { bytes } = await streamPartToBytes(client, uid, "TEXT", MAX_TEXT_PART_BYTES);
       if (bytes.byteLength > 0) {
-        const txt = repairMojibake(decodeBytesWithCharset(bytes, "utf-8")).trim();
+        const txt = repairMojibake(decodeBytesSmart(bytes, "utf-8")).trim();
         if (txt) bodyText = txt;
       }
     } catch (err: any) {
