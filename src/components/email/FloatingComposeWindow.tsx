@@ -266,6 +266,50 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     },
   });
 
+  const { data: buildingsWithMembers = [] } = useQuery({
+    queryKey: ["buildings-with-members-compose", contactsWithEmails.length],
+    enabled: contactsWithEmails.length > 0,
+    queryFn: async () => {
+      const [bRes, aRes] = await Promise.all([
+        supabase.from("buildings").select("id, name").order("name"),
+        supabase
+          .from("contact_building_assignments")
+          .select("building_id, contact_id")
+          .eq("is_active", true),
+      ]);
+      if (bRes.error) throw bRes.error;
+      if (aRes.error) throw aRes.error;
+
+      const contactById = new Map(contactsWithEmails.map((c) => [c.id, c]));
+      const membersByBuilding = new Map<string, Array<{ name: string; email: string }>>();
+      for (const a of aRes.data || []) {
+        const c = contactById.get(a.contact_id);
+        if (!c) continue;
+        let list = membersByBuilding.get(a.building_id);
+        if (!list) {
+          list = [];
+          membersByBuilding.set(a.building_id, list);
+        }
+        for (const e of c.emails) {
+          list.push({ name: c.displayName, email: e.email });
+        }
+      }
+      return (bRes.data || []).map((b) => {
+        const raw = membersByBuilding.get(b.id) || [];
+        const seen = new Set<string>();
+        const members: Array<{ name: string; email: string }> = [];
+        for (const m of raw) {
+          const key = m.email.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          members.push(m);
+        }
+        members.sort((x, y) => x.name.localeCompare(y.name));
+        return { id: b.id, name: b.name, members };
+      });
+    },
+  });
+
   // Auto-select account: prefer the one matching the logged-in user's email
   useEffect(() => {
     if (compose.accountId || accounts.length === 0) return;
