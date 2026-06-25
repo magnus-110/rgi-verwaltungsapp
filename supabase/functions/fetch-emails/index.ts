@@ -1060,9 +1060,9 @@ function decodeTextBytes(bytes: Uint8Array, node: any): string {
   // NOTE: ImapFlow.download() already strips Content-Transfer-Encoding.
   // Only charset decoding is needed here.
   try {
-    return repairMojibake(decodeBytesWithCharset(bytes, charset)).trim();
+    return repairMojibake(decodeBytesSmart(bytes, charset)).trim();
   } catch {
-    return repairMojibake(decodeBytesWithCharset(bytes, "utf-8")).trim();
+    return repairMojibake(decodeBytesSmart(bytes, "utf-8")).trim();
   }
 }
 
