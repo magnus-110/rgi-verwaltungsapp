@@ -7,6 +7,11 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const MAX_MESSAGES_PER_ACCOUNT_RUN = 5;
+const MAX_TEXT_PART_BYTES = 1024 * 1024;
+const MAX_ATTACHMENT_PART_BYTES = 6 * 1024 * 1024;
+const MAX_ATTACHMENT_TOTAL_BYTES = 12 * 1024 * 1024;
+
 interface EmailAccount {
   id: string;
   email_address: string;
@@ -319,24 +324,15 @@ async function fetchAccountEmails(
 
     console.log(`Found ${uids.length} UIDs to fetch`);
     // Strikt klein halten — edge-runtime crasht sonst still mit "Memory limit exceeded".
-    const uidsToFetch = uids.slice(0, 5);
+    const uidsToFetch = uids.slice(0, MAX_MESSAGES_PER_ACCOUNT_RUN);
     let maxUid = effectiveLastUid;
-    // Soft memory budget: stop processing further messages once we've handled
-    // ~20MB of raw message bytes in this account to avoid WORKER_RESOURCE_LIMIT.
-    const BYTE_BUDGET = 20 * 1024 * 1024;
-    let bytesProcessed = 0;
 
     for (const uid of uidsToFetch) {
-      if (bytesProcessed > BYTE_BUDGET) {
-        console.warn(`[${account.email_address}] Byte budget reached, stopping at UID ${uid}.`);
-        break;
-      }
       try {
         const msg = await client.fetchOne(`${uid}`, {
           uid: true,
           flags: true,
           envelope: true,
-          source: true,
           bodyStructure: true,
         }, { uid: true });
 
@@ -355,30 +351,6 @@ async function fetchAccountEmails(
           }
         }
 
-        const source = msg.source?.toString() || "";
-        bytesProcessed += source.length;
-
-        // Recursive MIME parsing
-        let { bodyText, bodyHtml, attachments } = parseEmailComplete(source);
-        // Free the raw source reference ASAP
-        (msg as any).source = undefined;
-
-        // Fallback: if our parser missed attachments but bodyStructure says there are some,
-        // download each attachment part directly via IMAP.
-        const structureSaysHasAtt = checkHasAttachments(msg.bodyStructure);
-        if (attachments.length === 0 && structureSaysHasAtt) {
-          console.warn(`Parser missed attachments for UID ${uid} (${envelope.subject}); falling back to bodyStructure download.`);
-          try {
-            const downloaded = await downloadAttachmentsFromStructure(client, uid, msg.bodyStructure);
-            attachments = downloaded;
-          } catch (dlErr: any) {
-            console.error(`Fallback download failed for UID ${uid}:`, dlErr.message);
-          }
-        }
-
-        const realAttachments = attachments.filter((a) => !a.isInline);
-        const hasAttachments = realAttachments.length > 0;
-
         const fromAddr = envelope.from?.[0]?.address || "";
         const fromName = envelope.from?.[0]?.name || "";
         const toAddresses = (envelope.to || []).map((a: any) => a.address).filter(Boolean);
@@ -396,6 +368,26 @@ async function fetchAccountEmails(
           if (uid > maxUid) maxUid = uid;
           continue;
         }
+
+        // Download only text parts and bounded attachments. Do NOT fetch the full raw source:
+        // large Strato messages can exceed the 256MB Edge worker limit while base64 decoding.
+        const { bodyText, bodyHtml } = await downloadBodyTextFromStructure(client, uid, msg.bodyStructure);
+        const structureAttachmentParts = collectAttachmentParts(msg.bodyStructure);
+        const structureSaysHasAtt = structureAttachmentParts.some(({ node }) => isRealAttachmentNode(node));
+        let attachments: ParsedAttachment[] = [];
+        if (structureAttachmentParts.length > 0) {
+          try {
+            attachments = await downloadAttachmentsFromStructure(client, uid, msg.bodyStructure, {
+              maxPartBytes: MAX_ATTACHMENT_PART_BYTES,
+              maxTotalBytes: MAX_ATTACHMENT_TOTAL_BYTES,
+            });
+          } catch (dlErr: any) {
+            console.error(`Attachment download failed for UID ${uid}:`, dlErr.message);
+          }
+        }
+
+        const realAttachments = attachments.filter((a) => !a.isInline);
+        const hasAttachments = structureSaysHasAtt || realAttachments.length > 0;
 
         const { data: insertedEmail, error: insertError } = await supabase
           .from("emails")
@@ -452,6 +444,7 @@ async function fetchAccountEmails(
                 is_inline: att.isInline,
                 content_id: att.contentId,
               });
+              (att as any).content = new Uint8Array(0);
             } catch (attErr: any) {
               console.error(`Attachment save error: ${attErr.message}`);
             }
@@ -469,6 +462,8 @@ async function fetchAccountEmails(
         attachments.length = 0;
       } catch (msgErr: any) {
         console.error(`Error processing message UID ${uid}:`, msgErr.message);
+        // Avoid one poison UID blocking the entire mailbox forever.
+        if (uid > maxUid) maxUid = uid;
       }
     }
 
@@ -761,13 +756,43 @@ function decodeRfc2047(str: string): string {
 
 function checkHasAttachments(bodyStructure: any): boolean {
   if (!bodyStructure) return false;
-  if (bodyStructure.disposition === "attachment") return true;
+  if (isRealAttachmentNode(bodyStructure)) return true;
   if (bodyStructure.childNodes) {
     for (const child of bodyStructure.childNodes) {
       if (checkHasAttachments(child)) return true;
     }
   }
   return false;
+}
+
+function getNodeContentType(node: any): string {
+  const type = String(node?.type || "").toLowerCase();
+  const subtype = String(node?.subtype || "").toLowerCase();
+  if (type.includes("/")) return type;
+  if (type && subtype) return `${type}/${subtype}`;
+  if (type) return type;
+  return "application/octet-stream";
+}
+
+function getNodeDisposition(node: any): string {
+  const raw = node?.disposition;
+  if (!raw) return "";
+  if (typeof raw === "string") return raw.toLowerCase();
+  if (typeof raw === "object" && raw.type) return String(raw.type).toLowerCase();
+  return String(raw).toLowerCase();
+}
+
+function isRealAttachmentNode(node: any): boolean {
+  const ct = getNodeContentType(node);
+  const disposition = getNodeDisposition(node);
+  if (disposition === "attachment") return true;
+  if (disposition === "inline" && !(ct.startsWith("text/") || ct === "message/rfc822")) return true;
+  return !ct.startsWith("text/") && !ct.startsWith("multipart/") && ct !== "message/rfc822" && !!(node?.part || node?.partId);
+}
+
+function isInlineAttachmentNode(node: any): boolean {
+  const ct = getNodeContentType(node);
+  return getNodeDisposition(node) === "inline" && ct.startsWith("image/") && !!node?.id;
 }
 
 // Supabase Storage rejects keys with certain unicode/whitespace characters.
@@ -796,54 +821,140 @@ function collectAttachmentParts(
   out: Array<{ part: string; node: any }> = []
 ): Array<{ part: string; node: any }> {
   if (!node) return out;
-  const currentPath = node.part || path;
-  const ct = (node.type || "").toLowerCase();
+  const currentPath = node.part || node.partId || path;
 
   if (node.childNodes && node.childNodes.length > 0) {
     for (const child of node.childNodes) {
-      collectAttachmentParts(child, child.part || "", out);
+      collectAttachmentParts(child, child.part || child.partId || "", out);
     }
     return out;
   }
 
-  // Leaf
-  const disposition = (node.disposition || "").toLowerCase();
-  const isAttachment =
-    disposition === "attachment" ||
-    disposition === "inline" ||
-    (!ct.startsWith("text/") && !ct.startsWith("multipart/") && currentPath);
-
-  if (isAttachment && currentPath) {
+  if (isRealAttachmentNode(node) && currentPath) {
     out.push({ part: currentPath, node });
   }
   return out;
 }
 
-async function downloadAttachmentsFromStructure(
+function collectTextParts(
+  node: any,
+  path: string = "",
+  out: Array<{ part: string; node: any; kind: "plain" | "html" }> = []
+): Array<{ part: string; node: any; kind: "plain" | "html" }> {
+  if (!node) return out;
+  const currentPath = node.part || node.partId || path;
+
+  if (node.childNodes && node.childNodes.length > 0) {
+    for (const child of node.childNodes) {
+      collectTextParts(child, child.part || child.partId || "", out);
+    }
+    return out;
+  }
+
+  const ct = getNodeContentType(node);
+  const disposition = getNodeDisposition(node);
+  if (!currentPath || disposition === "attachment") return out;
+  if (ct === "text/plain" || ct.startsWith("text/plain;")) out.push({ part: currentPath, node, kind: "plain" });
+  if (ct === "text/html" || ct.startsWith("text/html;")) out.push({ part: currentPath, node, kind: "html" });
+  return out;
+}
+
+async function streamPartToBytes(
+  client: any,
+  uid: number,
+  part: string,
+  maxBytes: number
+): Promise<{ bytes: Uint8Array; truncated: boolean }> {
+  const dl = await client.download(`${uid}`, part, { uid: true });
+  if (!dl || !dl.content) return { bytes: new Uint8Array(0), truncated: false };
+
+  const chunks: Uint8Array[] = [];
+  let totalLen = 0;
+  let truncated = false;
+  for await (const chunk of dl.content) {
+    const bytes = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
+    if (totalLen + bytes.length > maxBytes) {
+      const remaining = Math.max(0, maxBytes - totalLen);
+      if (remaining > 0) {
+        chunks.push(bytes.slice(0, remaining));
+        totalLen += remaining;
+      }
+      truncated = true;
+      break;
+    }
+    chunks.push(bytes);
+    totalLen += bytes.length;
+  }
+
+  const merged = new Uint8Array(totalLen);
+  let offset = 0;
+  for (const c of chunks) {
+    merged.set(c, offset);
+    offset += c.length;
+  }
+  return { bytes: merged, truncated };
+}
+
+function decodeTextBytes(bytes: Uint8Array, node: any): string {
+  const params = node?.parameters || {};
+  const charset = String(params.charset || params.Charset || "utf-8").toLowerCase();
+  try {
+    return new TextDecoder(charset).decode(bytes).trim();
+  } catch {
+    return new TextDecoder("utf-8").decode(bytes).trim();
+  }
+}
+
+async function downloadBodyTextFromStructure(
   client: any,
   uid: number,
   bodyStructure: any
+): Promise<{ bodyText: string; bodyHtml: string }> {
+  const textParts = collectTextParts(bodyStructure);
+  let bodyText = "";
+  let bodyHtml = "";
+
+  for (const { part, node, kind } of textParts) {
+    if ((kind === "plain" && bodyText) || (kind === "html" && bodyHtml)) continue;
+    try {
+      const { bytes, truncated } = await streamPartToBytes(client, uid, part, MAX_TEXT_PART_BYTES);
+      const decoded = decodeTextBytes(bytes, node);
+      if (kind === "plain") bodyText = truncated ? `${decoded}\n\n[Text gekürzt]` : decoded;
+      if (kind === "html") bodyHtml = truncated ? `${decoded}<p>[Text gekürzt]</p>` : decoded;
+    } catch (err: any) {
+      console.error(`Download text part ${part} failed:`, err.message);
+    }
+  }
+
+  return { bodyText, bodyHtml };
+}
+
+async function downloadAttachmentsFromStructure(
+  client: any,
+  uid: number,
+  bodyStructure: any,
+  limits: { maxPartBytes: number; maxTotalBytes: number } = {
+    maxPartBytes: MAX_ATTACHMENT_PART_BYTES,
+    maxTotalBytes: MAX_ATTACHMENT_TOTAL_BYTES,
+  }
 ): Promise<ParsedAttachment[]> {
   const parts = collectAttachmentParts(bodyStructure);
   const results: ParsedAttachment[] = [];
+  let totalBytes = 0;
 
   for (const { part, node } of parts) {
     try {
-      const dl = await client.download(`${uid}`, part, { uid: true });
-      if (!dl || !dl.content) continue;
-
-      // dl.content is a Readable stream — collect into Uint8Array
-      const chunks: Uint8Array[] = [];
-      for await (const chunk of dl.content) {
-        chunks.push(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk));
+      if (totalBytes >= limits.maxTotalBytes) {
+        console.warn(`Attachment total byte budget reached for UID ${uid}; remaining parts skipped.`);
+        break;
       }
-      const totalLen = chunks.reduce((s, c) => s + c.length, 0);
-      const merged = new Uint8Array(totalLen);
-      let offset = 0;
-      for (const c of chunks) {
-        merged.set(c, offset);
-        offset += c.length;
+      const partLimit = Math.min(limits.maxPartBytes, limits.maxTotalBytes - totalBytes);
+      const { bytes: merged, truncated } = await streamPartToBytes(client, uid, part, partLimit);
+      if (truncated) {
+        console.warn(`Attachment part ${part} for UID ${uid} exceeded byte limit and was skipped.`);
+        continue;
       }
+      totalBytes += merged.byteLength;
 
       const dispParams = node.dispositionParameters || {};
       const ctParams = node.parameters || {};
@@ -855,8 +966,8 @@ async function downloadAttachmentsFromStructure(
         `attachment_${part}`;
       filename = decodeRfc2047(String(filename));
 
-      const mimeType = `${(node.type || "application").toLowerCase()}/${(node.subtype || "octet-stream").toLowerCase()}`;
-      const isInline = (node.disposition || "").toLowerCase() === "inline";
+      const mimeType = getNodeContentType(node);
+      const isInline = isInlineAttachmentNode(node);
       const contentId = node.id ? String(node.id).replace(/^</, "").replace(/>$/, "") : null;
 
       results.push({
