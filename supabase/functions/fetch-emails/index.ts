@@ -990,24 +990,15 @@ function bytesToLatin1(bytes: Uint8Array): string {
 function decodeTextBytes(bytes: Uint8Array, node: any): string {
   const params = getNodeParams(node);
   const charset = normalizeCharset(getParamValue(params, "charset") || "utf-8");
-  const encoding = String(node?.encoding || "").toLowerCase();
-
-  // Apply Content-Transfer-Encoding (quoted-printable, base64) before charset decode.
-  if (encoding === "base64" || encoding === "quoted-printable") {
-    const raw = bytesToLatin1(bytes);
-    const ct = `text/plain; charset=${charset}`;
-    try {
-      return decodeTextContent(raw, encoding, ct).trim();
-    } catch {
-      // fall through to plain decode
-    }
-  }
+  // NOTE: ImapFlow.download() already strips Content-Transfer-Encoding.
+  // Only charset decoding is needed here.
   try {
     return repairMojibake(decodeBytesWithCharset(bytes, charset)).trim();
   } catch {
     return repairMojibake(decodeBytesWithCharset(bytes, "utf-8")).trim();
   }
 }
+
 
 async function downloadBodyTextFromStructure(
   client: any,
@@ -1066,22 +1057,15 @@ async function downloadAttachmentsFromStructure(
         break;
       }
       const partLimit = Math.min(limits.maxPartBytes, limits.maxTotalBytes - totalBytes);
-      const { bytes: rawMerged, truncated } = await streamPartToBytes(client, uid, part, partLimit);
+      const { bytes: merged, truncated } = await streamPartToBytes(client, uid, part, partLimit);
       if (truncated) {
         console.warn(`Attachment part ${part} for UID ${uid} exceeded byte limit and was skipped.`);
         continue;
       }
-      // Decode Content-Transfer-Encoding for attachments (typically base64).
-      const encoding = String(node?.encoding || "").toLowerCase();
-      let merged = rawMerged;
-      if (encoding === "base64" || encoding === "quoted-printable") {
-        try {
-          merged = decodeContent(bytesToLatin1(rawMerged), encoding);
-        } catch {
-          merged = rawMerged;
-        }
-      }
+      // NOTE: ImapFlow.download() already strips Content-Transfer-Encoding (base64/QP).
+      // Do NOT re-decode here — doing so corrupts binary attachments.
       totalBytes += merged.byteLength;
+
 
       const dispParams = node.dispositionParameters || {};
       const ctParams = node.parameters || {};

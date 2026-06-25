@@ -1,55 +1,37 @@
-## 1) Mehrfachauswahl im Gebäude-Mitglieder-Dropdown reparieren
+## Ursache
 
-**Bug:** In `RecipientField` (src/components/email/FloatingComposeWindow.tsx) wird nach dem Hinzufügen einer Person das Eingabefeld auf `…, mail@x.de, ` gesetzt. Das letzte Segment beginnt dadurch nicht mehr mit `/` → `buildingMode = false` → der `useEffect` (Zeile 1573) setzt `selectedBuilding` auf `null` → die Mitgliederliste schließt sich nach dem ersten Klick. Genau dieser Effekt blockt die gewünschte Mehrfachauswahl.
+Die 8 Anhänge sind im Storage vorhanden, aber **bitweise kaputt geschrieben**. Die JPG-Datei beginnt mit `C3 BF C3 98 C3 BF C3 A1…` statt mit dem JPEG-Magic `FF D8 FF E1…` — also eine zerstörte UTF‑8/Latin‑1-Re-Encodierung der Originalbytes. Dadurch öffnet sie kein Bild-/PDF-Viewer.
 
-**Fix (nur Frontend, eine Datei):**
+**Wer hat die Bytes kaputt gemacht?** Beim letzten Encoding-Fix wurde in `supabase/functions/fetch-emails/index.ts` (`downloadAttachmentsFromStructure`) für `encoding === "base64" | "quoted-printable"` ein Re-Decode hinzugefügt:
 
-- Den auto-Reset-Effekt entfernen bzw. so umstellen, dass `selectedBuilding` **nicht** allein deshalb zurückgesetzt wird, weil das aktive Segment leer ist oder kein `/` mehr enthält. Reset nur, wenn der User aktiv neuen Text (ohne `/`) tippt — Erkennung: nach `onChange` prüfen, ob das `lastSegment` nicht leer ist und kein `/` enthält → dann `setSelectedBuilding(null)`. Leeres Segment (direkt nach Hinzufügen) hält die Mitgliederansicht offen.
-- `activeList`/`dropdownOpen` so anpassen, dass das Dropdown solange offen bleibt, wie `selectedBuilding` gesetzt ist — also `dropdownOpen = suggestionsOpen && (activeList.length > 0 || !!selectedBuilding)`.
-- Sticky-Header der Mitgliederansicht: kleinen „Fertig"-Button rechts ergänzen, der `selectedBuilding` zurücksetzt und das Dropdown schließt (klare Exit-Option zusätzlich zu Esc / „← Zurück" / Klick außerhalb).
-- Verhalten bestätigt: bereits hinzugefügte Adressen bleiben ausgegraut mit Häkchen; weitere Klicks fügen weitere Mitglieder an, Reihenfolge der Eingabe bleibt erhalten.
-
-Kein Schema-, Edge-Function- oder Datenänderungs-Bedarf.
-
-## 2) Fehlende Mail von Marcel Wnendt (23.6.2026 11:39)
-
-**Befund aus der DB (read-only):**
-
-- Alle Mails von `wnendt@contigo-energie.de` sind vorhanden bis 18.6.2026, danach nichts mehr.
-- Account-Status `email_accounts`:
-  - `magnus.goettinger@rgi-immobilien.de`: `last_sync_at = 2026-06-22 17:10:04` (**seit fast 3 Tagen kein Sync**), `last_sync_error = NULL`, `is_active = true`.
-  - Alle anderen Postfächer (info, andreas, christine, maximilian, regina): synchronisieren weiter alle ~2 Min (zuletzt 25.6. 08:54).
-
-**Ursache (sehr wahrscheinlich):** Der IMAP-Fetch für Magnus' Postfach hängt seit dem 22.6. Da `last_sync_error` leer ist, hat der Cron-Job entweder still abgebrochen (Timeout/Hang in der `fetch-emails`-Edge-Function ohne `catch`-Pfad, der den Fehler in `last_sync_error` schreibt), oder Strato hat die IMAP-Session blockiert (zu viele parallele Verbindungen / Passwort-/IP-Sperre nach Fehlversuchen). Die Wnendt-Mail vom 23.6. 11:39 ging vermutlich an Magnus und wurde daher nie importiert.
-
-**Vorgeschlagenes Vorgehen (zur Bestätigung, KEINE Änderungen ohne Freigabe):**
-
-1. Edge-Function-Logs der letzten 3 Tage für die Mail-Fetch-Function (`fetch-emails` o. ä.) speziell für `account_id = f57f1f88-2c19-4123-8597-50619c2ad4c7` durchgehen, um den Hänger zu identifizieren.
-2. Manueller Test-Fetch nur für dieses Konto (Edge-Function direkt curlen) — bringt entweder die fehlenden Mails (inkl. Wnendt) sofort nach oder liefert den echten IMAP-Fehler (z. B. Auth-Failure, Verbindungslimit).
-3. Falls Auth/Connection-Problem: bei Strato im Webmail prüfen, ob die Mail überhaupt angekommen ist (Inbox vs. Spam). Falls ja: IMAP-Passwort in `email_accounts` aktualisieren bzw. Verbindung zurücksetzen.
-4. Robustheits-Fix in der Fetch-Function: jeden Account-Loop in try/catch + Timeout (z. B. 60 s), bei Timeout/Error `last_sync_error` schreiben statt still hängen, damit so ein Ausfall sofort sichtbar wird. (Separate Aufgabe, eigenes Edit, wenn gewünscht.)
-
-**Sofort lieferbar in diesem Plan:** nur der UI-Fix unter Punkt 1. Punkt 2 sind Diagnose-Schritte — bitte freigeben, ob ich (a) nur die Logs prüfen, (b) einen manuellen Re-Sync auslösen und/oder (c) den Robustheits-Fix in der Edge-Function umsetzen soll.
-
-## Technische Details (Punkt 1)
-
-Datei: `src/components/email/FloatingComposeWindow.tsx` (RecipientField, ~Zeilen 1560–1690).
-
-```diff
-- useEffect(() => {
--   if (!buildingMode && selectedBuilding) setSelectedBuilding(null);
-- }, [buildingMode, selectedBuilding]);
-+ // Mitgliederansicht NICHT zurücksetzen, wenn das letzte Segment leer ist
-+ // (Zustand direkt nach Hinzufügen). Nur zurücksetzen, wenn der User aktiv
-+ // neuen Suchtext ohne führenden "/" tippt.
-+ useEffect(() => {
-+   if (!selectedBuilding) return;
-+   const seg = lastSegment;
-+   if (seg.length > 0 && !seg.startsWith("/")) setSelectedBuilding(null);
-+ }, [lastSegment, selectedBuilding]);
-
-- const dropdownOpen = suggestionsOpen && activeList.length > 0;
-+ const dropdownOpen = suggestionsOpen && (activeList.length > 0 || !!selectedBuilding);
+```
+const encoding = String(node?.encoding || "").toLowerCase();
+if (encoding === "base64" || encoding === "quoted-printable") {
+  merged = decodeContent(bytesToLatin1(rawMerged), encoding);  // ← korrumpiert
+}
 ```
 
-Sticky-Header der Mitgliederansicht erweitern um einen `"Fertig"`-Button (rechts), der `setSelectedBuilding(null)` + `setSuggestionsOpen(false)` aufruft.
+`ImapFlow.download(uid, part)` liefert die Part-Inhalte aber **bereits transfer-decoded** (Binär für base64, Text für QP). Unser zusätzlicher Decode interpretiert die fertigen Binärbytes als Latin‑1-Text, `atob` schlägt fehl, der Fallback (`TextEncoder.encode(body)`) re-encodet die Latin‑1-Zeichen als UTF‑8 → JPGs/PDFs/XLSX sind ab Byte 0 zerstört. Dasselbe gilt analog für `decodeTextBytes`, wo der Text-Body unnötig nochmal durch `decodeTextContent` gejagt wird (führt zu denselben Mojibake-Fällen, die wir vorher schon repariert haben).
+
+## Dauerhafter Fix
+
+**Datei:** `supabase/functions/fetch-emails/index.ts`
+
+1. **`downloadAttachmentsFromStructure`** — Re-Decode entfernen, Originalbytes von ImapFlow direkt verwenden:
+   ```ts
+   const { bytes: merged, truncated } = await streamPartToBytes(...);
+   // KEIN bytesToLatin1/decodeContent mehr.
+   ```
+2. **`decodeTextBytes`** — den `base64/quoted-printable`-Zweig entfernen. ImapFlow liefert auch Text-Parts bereits decoded; wir brauchen nur noch den Charset-Decode (`decodeBytesWithCharset` + `repairMojibake`), der ohnehin schon im Fallback steht.
+3. **`reparseSingleEmail`** – nutzt bereits `downloadAttachmentsFromStructure`; durch Fix 1 werden alle Re-Parses ab sofort korrekt geschrieben.
+
+## Reparatur der bereits gespeicherten Anhänge
+
+Re-Parse der einen betroffenen E-Mail (Hann ./. Gebäudeversicherung, ID `c4af4665…`) per `fetch-emails`-Action `reparse`, wodurch die 8 Storage-Objekte mit korrekten Bytes überschrieben werden. Dasselbe Verfahren ist auch für die zweite betroffene E-Mail (Arthrex, ID `147124b0…`) anwendbar.
+
+Falls bei weiteren E-Mails der letzten Tage noch kaputte Anhänge gefunden werden, kann ich nach dem Codefix ein kleines Batch-Re-Parse über alle `email_attachments` der letzten 48 h auslösen.
+
+## Aus dem Fix ausgeschlossen
+
+- Frontend (`EmailAttachments.tsx`, `AttachmentPreviewDialog.tsx`) — funktioniert; das Problem liegt rein in den falsch geschriebenen Bytes.
+- Storage-RLS, Bucket-Konfiguration, Signed-URL-Logik — alle in Ordnung (HTTP 200 verifiziert).
