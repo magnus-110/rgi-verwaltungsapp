@@ -872,9 +872,9 @@ function decodeQuotedPrintable(str: string, charset: string = "utf-8"): string {
     i++;
   }
   try {
-    return decodeBytesWithCharset(new Uint8Array(bytes), charset);
+    return decodeBytesSmart(new Uint8Array(bytes), charset);
   } catch {
-    return decodeBytesWithCharset(new Uint8Array(bytes), "utf-8");
+    return decodeBytesSmart(new Uint8Array(bytes), "utf-8");
   }
 }
 
