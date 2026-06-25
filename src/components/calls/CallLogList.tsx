@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { FolderOpen, Link2 } from "lucide-react";
-import { Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, Check, User, FileText, ExternalLink, Loader2, Mail, Building } from "lucide-react";
+import { Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, Check, User, FileText, ExternalLink, Loader2, Mail, Building, ChevronRight } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
