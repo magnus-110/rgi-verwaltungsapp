@@ -1,37 +1,56 @@
-## Ursache
+## Problem
 
-Die 8 Anhänge sind im Storage vorhanden, aber **bitweise kaputt geschrieben**. Die JPG-Datei beginnt mit `C3 BF C3 98 C3 BF C3 A1…` statt mit dem JPEG-Magic `FF D8 FF E1…` — also eine zerstörte UTF‑8/Latin‑1-Re-Encodierung der Originalbytes. Dadurch öffnet sie kein Bild-/PDF-Viewer.
+1. **König-Mail** (`Fwd: WEG Faulenseeweg 22 … Tagesordnungspunkte ETV 2026`, ID `2fc63fed…`) hat `has_attachments=true`, aber 0 Zeilen in `email_attachments`. `imap_uid` ist `NULL`, also kann ein bestehender Reparse-Pfad nicht greifen.
+2. **Böck-Mail archiviert** (`RE: [EXTERNAL] FW: SCHINDLER …`, ID `829dbe83…`) hat 13 Anhänge, aber **alle `is_inline=true`** (Schindler-Signatur-Logos). UI filtert inline raus → User sieht nichts, obwohl Büroklammer im Listenicon erscheint.
 
-**Wer hat die Bytes kaputt gemacht?** Beim letzten Encoding-Fix wurde in `supabase/functions/fetch-emails/index.ts` (`downloadAttachmentsFromStructure`) für `encoding === "base64" | "quoted-printable"` ein Re-Decode hinzugefügt:
+## Lösung
 
-```
-const encoding = String(node?.encoding || "").toLowerCase();
-if (encoding === "base64" || encoding === "quoted-printable") {
-  merged = decodeContent(bytesToLatin1(rawMerged), encoding);  // ← korrumpiert
-}
-```
+### Teil A – Anhänge nachladen via Message-ID
 
-`ImapFlow.download(uid, part)` liefert die Part-Inhalte aber **bereits transfer-decoded** (Binär für base64, Text für QP). Unser zusätzlicher Decode interpretiert die fertigen Binärbytes als Latin‑1-Text, `atob` schlägt fehl, der Fallback (`TextEncoder.encode(body)`) re-encodet die Latin‑1-Zeichen als UTF‑8 → JPGs/PDFs/XLSX sind ab Byte 0 zerstört. Dasselbe gilt analog für `decodeTextBytes`, wo der Text-Body unnötig nochmal durch `decodeTextContent` gejagt wird (führt zu denselben Mojibake-Fällen, die wir vorher schon repariert haben).
+Neue Edge Function **`reparse-by-message-id`**:
+- Input: `{ emailId }`
+- Lädt aus `emails` Tabelle: `message_id_header`, `account_id`, `folder_id`
+- Holt `email_accounts`-Credentials, baut ImapFlow-Connection (gleicher Helper wie `fetch-emails`)
+- Wählt alle Standard-Folder (INBOX, Archive, Sent, …) und sucht via `client.search({ header: ['Message-ID', '<…>'] })` nach der UID
+- Sobald gefunden: ruft den **bereits existierenden** `processMessage`/`downloadAttachmentsFromStructure`-Pfad aus `fetch-emails` auf (Code-Auslagerung in gemeinsames Modul oder Re-Use über internen Aufruf)
+- Schreibt fehlende Anhänge in Storage + `email_attachments`, aktualisiert `imap_uid` und `folder_id` falls anders gefunden
+- Setzt `has_attachments` korrekt (siehe Teil C)
 
-## Dauerhafter Fix
+Trigger im UI:
+- In `EmailAttachments.tsx`: Wenn `has_attachments=true` aber `attachments.length===0`, zeige Button **„Anhänge nachladen"** mit Spinner; ruft die Function auf und invalidiert die Query.
+- Sofortiger einmaliger Aufruf für die König-Mail nach Deployment.
 
-**Datei:** `supabase/functions/fetch-emails/index.ts`
+### Teil B – Inline-Bilder im UI ausblenden + Indikator korrigieren
 
-1. **`downloadAttachmentsFromStructure`** — Re-Decode entfernen, Originalbytes von ImapFlow direkt verwenden:
-   ```ts
-   const { bytes: merged, truncated } = await streamPartToBytes(...);
-   // KEIN bytesToLatin1/decodeContent mehr.
-   ```
-2. **`decodeTextBytes`** — den `base64/quoted-printable`-Zweig entfernen. ImapFlow liefert auch Text-Parts bereits decoded; wir brauchen nur noch den Charset-Decode (`decodeBytesWithCharset` + `repairMojibake`), der ohnehin schon im Fallback steht.
-3. **`reparseSingleEmail`** – nutzt bereits `downloadAttachmentsFromStructure`; durch Fix 1 werden alle Re-Parses ab sofort korrekt geschrieben.
+- `EmailAttachments.tsx` filtert bereits `is_inline=false` → bleibt so.
+- Das Listen-/Karten-Symbol stützt sich auf `emails.has_attachments`. Wir korrigieren die Quelle, damit nur **echte** Anhänge zählen.
 
-## Reparatur der bereits gespeicherten Anhänge
+### Teil C – `has_attachments` neu definieren
 
-Re-Parse der einen betroffenen E-Mail (Hann ./. Gebäudeversicherung, ID `c4af4665…`) per `fetch-emails`-Action `reparse`, wodurch die 8 Storage-Objekte mit korrekten Bytes überschrieben werden. Dasselbe Verfahren ist auch für die zweite betroffene E-Mail (Arthrex, ID `147124b0…`) anwendbar.
+1. **Edge Function `fetch-emails`** (Schreibstelle für `has_attachments`): Statt „irgendein Part mit Content-Disposition" → nur zählen, wenn `is_inline=false` (also kein `Content-ID` / `Content-Disposition: inline`).
+2. **`reparse-by-message-id`** verwendet die gleiche Logik.
+3. **DB-Trigger** auf `email_attachments` (`AFTER INSERT/UPDATE/DELETE`): aktualisiert `emails.has_attachments` automatisch als `EXISTS(SELECT 1 FROM email_attachments WHERE email_id=NEW.email_id AND is_inline=false)`. So bleibt das Flag konsistent.
+4. **Einmalige Migration**: `UPDATE emails SET has_attachments = EXISTS(... non-inline ...)` für Bestandsdaten – dadurch verschwindet die Büroklammer bei den Böck-Signatur-Mails sofort.
 
-Falls bei weiteren E-Mails der letzten Tage noch kaputte Anhänge gefunden werden, kann ich nach dem Codefix ein kleines Batch-Re-Parse über alle `email_attachments` der letzten 48 h auslösen.
+### Teil D – Optional, leichte UX-Hilfe
 
-## Aus dem Fix ausgeschlossen
+In Mail-Detail-Ansicht: dezenter Hinweis „📎 Diese Mail hatte ursprünglich Anhänge, die nicht geladen werden konnten" wenn `has_attachments=true` und 0 Rows existieren – inkl. „Nachladen"-Button (siehe Teil A).
 
-- Frontend (`EmailAttachments.tsx`, `AttachmentPreviewDialog.tsx`) — funktioniert; das Problem liegt rein in den falsch geschriebenen Bytes.
-- Storage-RLS, Bucket-Konfiguration, Signed-URL-Logik — alle in Ordnung (HTTP 200 verifiziert).
+## Technische Details
+
+**Dateien**
+- Neu: `supabase/functions/reparse-by-message-id/index.ts` (re-use IMAP-Helper aus `fetch-emails`)
+- Edit: `supabase/functions/fetch-emails/index.ts` (`has_attachments`-Berechnung nur non-inline)
+- Edit: `src/components/email/EmailAttachments.tsx` (Nachlade-Button-Branch bei has_attachments && 0 rows)
+- Neue Migration:
+  - Funktion + Trigger `update_email_has_attachments_flag()` auf `email_attachments`
+  - Backfill: `UPDATE emails SET has_attachments = EXISTS(SELECT 1 FROM email_attachments a WHERE a.email_id=emails.id AND a.is_inline=false)`
+
+**Ablauf nach Deployment**
+1. Migration läuft → `has_attachments` für alle bestehenden Mails korrekt → Böck-Signatur-Mails verlieren Büroklammer.
+2. König-Mail behält `has_attachments=true` (wurde so erkannt), zeigt jetzt Nachlade-Button.
+3. Ein Klick → Function holt Anhänge nach IMAP-Lookup, Anhänge erscheinen, `has_attachments` bleibt korrekt durch Trigger.
+
+**Risiken**
+- Search by Message-ID kann je nach Server slow sein → wir scannen nur INBOX + Archive (account-typisch); falls nicht gefunden, sauberer Fehler-Toast.
+- Falls Original-Mail beim Provider gelöscht wurde, Function meldet „Quelle nicht mehr verfügbar" – kein Datenverlust durch den Aufruf.
