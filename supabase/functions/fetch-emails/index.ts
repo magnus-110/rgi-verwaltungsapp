@@ -1093,7 +1093,7 @@ async function downloadBodyTextFromStructure(
     try {
       const { bytes } = await streamPartToBytes(client, uid, "TEXT", MAX_TEXT_PART_BYTES);
       if (bytes.byteLength > 0) {
-        const txt = repairMojibake(decodeBytesWithCharset(bytes, "utf-8")).trim();
+        const txt = repairMojibake(decodeBytesSmart(bytes, "utf-8")).trim();
         if (txt) bodyText = txt;
       }
     } catch (err: any) {
