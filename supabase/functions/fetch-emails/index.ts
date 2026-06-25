@@ -1083,7 +1083,8 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
     if (!msg) throw new Error(`fetchOne returned null for UID ${uid}`);
 
     const source = msg.source?.toString() || "";
-    let { attachments } = parseEmailComplete(source);
+    const parsed = parseEmailComplete(source);
+    let attachments = parsed.attachments;
     summary.parser_attachments = attachments.length;
     summary.structure_has_attachments = checkHasAttachments(msg.bodyStructure);
 
@@ -1091,6 +1092,28 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
       const downloaded = await downloadAttachmentsFromStructure(client, uid, msg.bodyStructure);
       attachments = downloaded;
       summary.fallback_downloaded = downloaded.length;
+    }
+
+    // Backfill body if missing/empty (older rows fetched before transfer-encoding decoding was fixed)
+    try {
+      const { data: row } = await supabase
+        .from("emails")
+        .select("body_text, body_html")
+        .eq("id", emailId)
+        .single();
+      const needsBody = !((row?.body_text || "").length) && !((row?.body_html || "").length);
+      if (needsBody && (parsed.bodyText || parsed.bodyHtml)) {
+        await supabase
+          .from("emails")
+          .update({
+            body_text: parsed.bodyText || null,
+            body_html: parsed.bodyHtml || null,
+          })
+          .eq("id", emailId);
+        summary.body_backfilled = true;
+      }
+    } catch (e: any) {
+      console.error("Body backfill failed:", e.message);
     }
 
     // Insert any attachments that don't yet exist for this email.
