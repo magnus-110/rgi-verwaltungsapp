@@ -2378,6 +2378,7 @@ export type Database = {
       call_logs: {
         Row: {
           building_id: string | null
+          case_id: string | null
           connected_at: string | null
           contact_id: string | null
           created_at: string
@@ -2397,6 +2398,7 @@ export type Database = {
         }
         Insert: {
           building_id?: string | null
+          case_id?: string | null
           connected_at?: string | null
           contact_id?: string | null
           created_at?: string
@@ -2416,6 +2418,7 @@ export type Database = {
         }
         Update: {
           building_id?: string | null
+          case_id?: string | null
           connected_at?: string | null
           contact_id?: string | null
           created_at?: string
@@ -2439,6 +2442,13 @@ export type Database = {
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_logs_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
             referencedColumns: ["id"]
           },
           {

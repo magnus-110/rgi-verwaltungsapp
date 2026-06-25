@@ -10,6 +10,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { FolderOpen, Link2 } from "lucide-react";
 import { Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, Check, User, FileText, ExternalLink, Loader2, Mail, Building } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -311,6 +314,9 @@ function CallDetail({
         </div>
       </div>
 
+      <CallLinksPanel row={row} onChanged={onChanged} />
+
+
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4">
           <div>
@@ -394,3 +400,159 @@ function TranscriptDialog({
     </Dialog>
   );
 }
+
+function CallLinksPanel({ row, onChanged }: { row: any; onChanged: () => void }) {
+  const { toast } = useToast();
+  const [buildingId, setBuildingId] = useState<string>(row.building_id ?? "none");
+  const [contactId, setContactId] = useState<string>(row.contact_id ?? "none");
+  const [caseId, setCaseId] = useState<string>(row.case_id ?? "none");
+
+  useEffect(() => {
+    setBuildingId(row.building_id ?? "none");
+    setContactId(row.contact_id ?? "none");
+    setCaseId(row.case_id ?? "none");
+  }, [row.id, row.building_id, row.contact_id, row.case_id]);
+
+  const { data: buildings = [] } = useQuery({
+    queryKey: ["call-link-buildings"],
+    queryFn: async () => {
+      const { data } = await supabase.from("buildings").select("id, name").order("name");
+      return (data ?? []) as { id: string; name: string }[];
+    },
+    staleTime: 60_000,
+  });
+
+  const { data: contacts = [] } = useQuery({
+    queryKey: ["call-link-contacts"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("contacts")
+        .select("id, first_name, last_name, company_name")
+        .order("last_name", { ascending: true })
+        .limit(1000);
+      return (data ?? []) as any[];
+    },
+    staleTime: 60_000,
+  });
+
+  const { data: cases = [] } = useQuery({
+    queryKey: ["call-link-cases", buildingId],
+    queryFn: async () => {
+      let q = supabase.from("cases").select("id, title, building_id").order("updated_at", { ascending: false }).limit(200);
+      if (buildingId !== "none") q = q.eq("building_id", buildingId);
+      const { data } = await q;
+      return (data ?? []) as any[];
+    },
+  });
+
+  async function persist(patch: { building_id?: string | null; contact_id?: string | null; case_id?: string | null }) {
+    const { error } = await supabase.from("call_logs").update(patch).eq("id", row.id);
+    if (error) {
+      toast({ title: "Verknüpfung nicht gespeichert", description: error.message, variant: "destructive" });
+      return false;
+    }
+    onChanged();
+    return true;
+  }
+
+  async function handleBuilding(v: string) {
+    setBuildingId(v);
+    await persist({ building_id: v === "none" ? null : v });
+  }
+  async function handleContact(v: string) {
+    setContactId(v);
+    await persist({ contact_id: v === "none" ? null : v });
+  }
+  async function handleCase(v: string) {
+    const previous = row.case_id ?? null;
+    setCaseId(v);
+    const next = v === "none" ? null : v;
+    const ok = await persist({ case_id: next });
+    if (ok && next && next !== previous) {
+      // create case event for this phone call
+      try {
+        const contactLabel = row.contact
+          ? ([row.contact.first_name, row.contact.last_name].filter(Boolean).join(" ") || row.contact.company_name)
+          : null;
+        const title = `Telefonat ${row.direction === "incoming" ? "eingehend" : "ausgehend"}${contactLabel ? ` · ${contactLabel}` : row.number_raw ? ` · ${row.number_raw}` : ""}`;
+        await supabase.functions.invoke("case-add-event", {
+          body: {
+            case_id: next,
+            event_type: "phone",
+            title,
+            body: row.note || row.transcript || null,
+            occurred_at: row.started_at,
+            source_table: "call_logs",
+            source_id: row.id,
+            extracted_data: {
+              direction: row.direction,
+              status: row.status,
+              duration_seconds: row.duration_seconds,
+              number_raw: row.number_raw,
+            },
+          },
+        });
+        toast({ title: "Mit Vorgang verknüpft" });
+      } catch (e: any) {
+        toast({ title: "Vorgangs-Event nicht erstellt", description: e?.message, variant: "destructive" });
+      }
+    }
+  }
+
+  function contactName(c: any) {
+    const n = [c.first_name, c.last_name].filter(Boolean).join(" ").trim();
+    return n || c.company_name || "Kontakt";
+  }
+
+  return (
+    <div className="px-4 py-3 border-b bg-muted/30 space-y-2">
+      <div className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
+        <Link2 className="h-3.5 w-3.5" /> Verknüpfungen
+      </div>
+      <div className="grid grid-cols-1 gap-2">
+        <div>
+          <Label className="text-[11px] text-muted-foreground">Gebäude</Label>
+          <Select value={buildingId} onValueChange={handleBuilding}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="– kein Gebäude –" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">– kein Gebäude –</SelectItem>
+              {buildings.map((b) => (
+                <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-[11px] text-muted-foreground">Kontakt</Label>
+          <Select value={contactId} onValueChange={handleContact}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="– kein Kontakt –" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">– kein Kontakt –</SelectItem>
+              {contacts.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{contactName(c)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+            <FolderOpen className="h-3 w-3" /> Vorgang
+          </Label>
+          <Select value={caseId} onValueChange={handleCase}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="– kein Vorgang –" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">– kein Vorgang –</SelectItem>
+              {cases.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {buildingId === "none" && (
+            <div className="text-[10px] text-muted-foreground mt-1">Tipp: Gebäude wählen, um Vorgänge zu filtern.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
