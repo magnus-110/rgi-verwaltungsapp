@@ -80,10 +80,6 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
 
 
   const handleOpenPreview = async (filePath: string, fileName: string, mimeType: string | null) => {
-
-
-
-  const handleOpenPreview = async (filePath: string, fileName: string, mimeType: string | null) => {
     setPreviewMeta({ name: fileName, mimeType });
     setPreviewUrl(null);
     setPreviewOpen(true);
