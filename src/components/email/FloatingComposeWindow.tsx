@@ -1568,10 +1568,12 @@ const RecipientField = ({
     [value],
   );
 
-  // Verlasse Gebäude-Modus, wenn der User den führenden "/" entfernt
+  // Mitgliederansicht bleibt offen, solange das letzte Segment leer ist (direkt nach
+  // Hinzufügen einer Person). Nur zurücksetzen, wenn der User aktiv neuen Text ohne "/" tippt.
   useEffect(() => {
-    if (!buildingMode && selectedBuilding) setSelectedBuilding(null);
-  }, [buildingMode, selectedBuilding]);
+    if (!selectedBuilding) return;
+    if (lastSegment.length > 0 && !lastSegment.startsWith("/")) setSelectedBuilding(null);
+  }, [lastSegment, selectedBuilding]);
 
   const contactSuggestions = useMemo(() => {
     if (buildingMode) return [];
@@ -1655,7 +1657,7 @@ const RecipientField = ({
     if (s) replaceLastSegment(s.email);
   };
 
-  const dropdownOpen = suggestionsOpen && activeList.length > 0;
+  const dropdownOpen = suggestionsOpen && (activeList.length > 0 || !!selectedBuilding);
 
   return (
     <div className="flex gap-1">
@@ -1684,6 +1686,13 @@ const RecipientField = ({
                   <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <span className="text-xs font-medium truncate flex-1">{selectedBuilding.name}</span>
                   <span className="text-[11px] text-muted-foreground">{selectedBuilding.members.length} Mitglieder</span>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); setSelectedBuilding(null); setSuggestionsOpen(false); }}
+                    className="ml-1 text-[11px] font-medium px-2 py-0.5 rounded bg-primary text-primary-foreground hover:opacity-90"
+                  >
+                    Fertig
+                  </button>
                 </div>
                 {memberItems.map((item, idx) => {
                   if (item.kind === "back") {
