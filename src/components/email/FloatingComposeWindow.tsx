@@ -1686,6 +1686,13 @@ const RecipientField = ({
                   <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <span className="text-xs font-medium truncate flex-1">{selectedBuilding.name}</span>
                   <span className="text-[11px] text-muted-foreground">{selectedBuilding.members.length} Mitglieder</span>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); setSelectedBuilding(null); setSuggestionsOpen(false); }}
+                    className="ml-1 text-[11px] font-medium px-2 py-0.5 rounded bg-primary text-primary-foreground hover:opacity-90"
+                  >
+                    Fertig
+                  </button>
                 </div>
                 {memberItems.map((item, idx) => {
                   if (item.kind === "back") {
