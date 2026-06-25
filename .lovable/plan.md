@@ -1,66 +1,55 @@
-## Ziel
-In `RecipientField` (innerhalb `src/components/email/FloatingComposeWindow.tsx`) eine Gebäude-Suche via `/`-Trigger ergänzen. Bestehende Kontakt-Suche bleibt unverändert.
+## 1) Mehrfachauswahl im Gebäude-Mitglieder-Dropdown reparieren
 
-## 1. Datenquelle: Gebäude mit Mitgliedern
+**Bug:** In `RecipientField` (src/components/email/FloatingComposeWindow.tsx) wird nach dem Hinzufügen einer Person das Eingabefeld auf `…, mail@x.de, ` gesetzt. Das letzte Segment beginnt dadurch nicht mehr mit `/` → `buildingMode = false` → der `useEffect` (Zeile 1573) setzt `selectedBuilding` auf `null` → die Mitgliederliste schließt sich nach dem ersten Klick. Genau dieser Effekt blockt die gewünschte Mehrfachauswahl.
 
-In `FloatingComposeWindow` neue React-Query-Abfrage `buildingsWithMembers` ergänzen (parallel zur bestehenden `contactsWithEmails`-Query). Sie kombiniert die schon geladenen Kontakte/E-Mails mit Gebäude-Zuordnungen:
+**Fix (nur Frontend, eine Datei):**
 
-- `buildings`: `id, name` (alphabetisch).
-- `contact_building_assignments`: `building_id, contact_id` mit `is_active = true`.
-- Aus den bereits geladenen `contactsWithEmails` (Name = `displayName`, alle `emails[*].email`) pro Gebäude alle Personen mit mindestens einer E-Mail sammeln.
-- Innerhalb eines Gebäudes nach Person-Name sortieren; E-Mail-Duplikate (case-insensitive) entfernen.
+- Den auto-Reset-Effekt entfernen bzw. so umstellen, dass `selectedBuilding` **nicht** allein deshalb zurückgesetzt wird, weil das aktive Segment leer ist oder kein `/` mehr enthält. Reset nur, wenn der User aktiv neuen Text (ohne `/`) tippt — Erkennung: nach `onChange` prüfen, ob das `lastSegment` nicht leer ist und kein `/` enthält → dann `setSelectedBuilding(null)`. Leeres Segment (direkt nach Hinzufügen) hält die Mitgliederansicht offen.
+- `activeList`/`dropdownOpen` so anpassen, dass das Dropdown solange offen bleibt, wie `selectedBuilding` gesetzt ist — also `dropdownOpen = suggestionsOpen && (activeList.length > 0 || !!selectedBuilding)`.
+- Sticky-Header der Mitgliederansicht: kleinen „Fertig"-Button rechts ergänzen, der `selectedBuilding` zurücksetzt und das Dropdown schließt (klare Exit-Option zusätzlich zu Esc / „← Zurück" / Klick außerhalb).
+- Verhalten bestätigt: bereits hinzugefügte Adressen bleiben ausgegraut mit Häkchen; weitere Klicks fügen weitere Mitglieder an, Reihenfolge der Eingabe bleibt erhalten.
 
-Ergebnistyp:
-```ts
-type BuildingWithMembers = {
-  id: string;
-  name: string;
-  members: Array<{ name: string; email: string }>;
-};
+Kein Schema-, Edge-Function- oder Datenänderungs-Bedarf.
+
+## 2) Fehlende Mail von Marcel Wnendt (23.6.2026 11:39)
+
+**Befund aus der DB (read-only):**
+
+- Alle Mails von `wnendt@contigo-energie.de` sind vorhanden bis 18.6.2026, danach nichts mehr.
+- Account-Status `email_accounts`:
+  - `magnus.goettinger@rgi-immobilien.de`: `last_sync_at = 2026-06-22 17:10:04` (**seit fast 3 Tagen kein Sync**), `last_sync_error = NULL`, `is_active = true`.
+  - Alle anderen Postfächer (info, andreas, christine, maximilian, regina): synchronisieren weiter alle ~2 Min (zuletzt 25.6. 08:54).
+
+**Ursache (sehr wahrscheinlich):** Der IMAP-Fetch für Magnus' Postfach hängt seit dem 22.6. Da `last_sync_error` leer ist, hat der Cron-Job entweder still abgebrochen (Timeout/Hang in der `fetch-emails`-Edge-Function ohne `catch`-Pfad, der den Fehler in `last_sync_error` schreibt), oder Strato hat die IMAP-Session blockiert (zu viele parallele Verbindungen / Passwort-/IP-Sperre nach Fehlversuchen). Die Wnendt-Mail vom 23.6. 11:39 ging vermutlich an Magnus und wurde daher nie importiert.
+
+**Vorgeschlagenes Vorgehen (zur Bestätigung, KEINE Änderungen ohne Freigabe):**
+
+1. Edge-Function-Logs der letzten 3 Tage für die Mail-Fetch-Function (`fetch-emails` o. ä.) speziell für `account_id = f57f1f88-2c19-4123-8597-50619c2ad4c7` durchgehen, um den Hänger zu identifizieren.
+2. Manueller Test-Fetch nur für dieses Konto (Edge-Function direkt curlen) — bringt entweder die fehlenden Mails (inkl. Wnendt) sofort nach oder liefert den echten IMAP-Fehler (z. B. Auth-Failure, Verbindungslimit).
+3. Falls Auth/Connection-Problem: bei Strato im Webmail prüfen, ob die Mail überhaupt angekommen ist (Inbox vs. Spam). Falls ja: IMAP-Passwort in `email_accounts` aktualisieren bzw. Verbindung zurücksetzen.
+4. Robustheits-Fix in der Fetch-Function: jeden Account-Loop in try/catch + Timeout (z. B. 60 s), bei Timeout/Error `last_sync_error` schreiben statt still hängen, damit so ein Ausfall sofort sichtbar wird. (Separate Aufgabe, eigenes Edit, wenn gewünscht.)
+
+**Sofort lieferbar in diesem Plan:** nur der UI-Fix unter Punkt 1. Punkt 2 sind Diagnose-Schritte — bitte freigeben, ob ich (a) nur die Logs prüfen, (b) einen manuellen Re-Sync auslösen und/oder (c) den Robustheits-Fix in der Edge-Function umsetzen soll.
+
+## Technische Details (Punkt 1)
+
+Datei: `src/components/email/FloatingComposeWindow.tsx` (RecipientField, ~Zeilen 1560–1690).
+
+```diff
+- useEffect(() => {
+-   if (!buildingMode && selectedBuilding) setSelectedBuilding(null);
+- }, [buildingMode, selectedBuilding]);
++ // Mitgliederansicht NICHT zurücksetzen, wenn das letzte Segment leer ist
++ // (Zustand direkt nach Hinzufügen). Nur zurücksetzen, wenn der User aktiv
++ // neuen Suchtext ohne führenden "/" tippt.
++ useEffect(() => {
++   if (!selectedBuilding) return;
++   const seg = lastSegment;
++   if (seg.length > 0 && !seg.startsWith("/")) setSelectedBuilding(null);
++ }, [lastSegment, selectedBuilding]);
+
+- const dropdownOpen = suggestionsOpen && activeList.length > 0;
++ const dropdownOpen = suggestionsOpen && (activeList.length > 0 || !!selectedBuilding);
 ```
 
-Diese Liste wird als neue Prop `buildings` an alle drei `RecipientField`-Instanzen (To/Cc/Bcc) übergeben.
-
-## 2. RecipientField: Zwei-Stufen-Vorschläge
-
-In `RecipientField` nur das Vorschlags-Dropdown (links neben dem Users-Picker-Button) erweitern. Der Picker-Popover rechts bleibt unverändert.
-
-### Modus-Erkennung
-- `lastSegment = (value.split(",").pop() || "").trim()`
-- Beginnt `lastSegment` mit `/`: Gebäude-Modus aktiv, Suchquery = Text nach dem `/` (case-insensitive, `includes`).
-- Sonst: bisherige Kontakt-Vorschläge (unverändert).
-
-### Stufe A — Gebäude-Liste
-- Vorschläge: Gebäude, deren `name` den Suchtext enthält. Bei leerem Suchtext (nur `/`) alle Gebäude (auf max. 8 begrenzt, Scroll nicht nötig — wir schneiden ab wie bisher).
-- Darstellung pro Zeile: Building-Icon (lucide `Building2`), Gebäudename, kleinere Mitgliederzahl rechts/darunter, z. B. „Achweg 3-5 · 24 Personen".
-- Klick/Enter auf ein Gebäude: **nicht** Adressen einfügen. Stattdessen lokalen State `selectedBuilding` setzen → Stufe B.
-
-### Stufe B — Mitglieder des Gebäudes
-- Kopfzeile (sticky, oben im Dropdown):
-  - Kleine Zeile mit Building-Icon + Gebäudename + „X Mitglieder".
-  - Darüber/darunter ein anklickbarer „← Zurück"-Eintrag, der `selectedBuilding` auf `null` zurücksetzt (führt zurück zur Gebäudesuche; Eingabefeld bleibt mit `/…` unverändert).
-- Liste: eine Zeile pro Person — Name (oben) + E-Mail (unten, muted), klickbar.
-- Bereits in `value` enthaltene Adressen werden mit Status „hinzugefügt" angezeigt: ausgegraut + kleines Häkchen, weiterhin klickbar (Klick fügt nicht erneut hinzu).
-- Klick/Enter auf eine Person:
-  - Fügt nur diese eine Adresse dedupliziert hinzu. Implementierung: gleiche Logik wie `addEmail` im Picker (Segment-Trick nicht anwenden, da der aktuelle `/…`-Text als Eingabesegment dient): Vor dem Anfügen wird das aktuelle `/…`-Segment im Input **gelöscht** und die E-Mail als neues Segment angehängt, sodass am Ende wieder ein leeres Eingabesegment für die nächste Eingabe entsteht.
-  - **Wichtig:** Dropdown bleibt geöffnet, `selectedBuilding` bleibt gesetzt → mehrere Personen lassen sich nacheinander anklicken.
-
-### Schließen / Reset
-- Schließen per Klick außerhalb (bestehender `onBlur`-Timeout) und Esc (bestehender Keydown-Handler).
-- Beim Schließen wird `selectedBuilding` zurückgesetzt.
-- Wenn der User den führenden `/` aus dem Segment entfernt, automatisch zurück in Kontakt-Modus (`selectedBuilding = null`).
-
-### Tastatur
-- Hoch/Runter/Enter funktionieren in beiden Stufen über die aktuell sichtbare Vorschlagsliste (Indexreset bei Stufenwechsel).
-- Esc schließt das Dropdown (wie bisher).
-
-### Platzhalter
-- Bestehender Platzhalter wird ergänzt um „… – oder /Gebäude". Geschieht in `FloatingComposeWindow` an den Stellen, an denen `placeholder` an `RecipientField` übergeben wird (To/Cc/Bcc).
-
-## 3. Technische Hinweise (für Entwickler)
-
-- Datei: ausschließlich `src/components/email/FloatingComposeWindow.tsx`.
-- Neue Imports: `Building2`, `ArrowLeft` (lucide).
-- Keine Änderungen am bestehenden Users-Picker-Popover, an Drafts oder am Versand.
-- Keine Schema- oder Edge-Function-Änderungen — alle Daten kommen aus bestehenden Tabellen (`buildings`, `contact_building_assignments`, `contacts`, `contact_emails`).
-- Performance: `useMemo` für Gebäude-Vorschläge (Abhängig von `lastSegment`, `buildings`) und für Mitglieder-Liste (Abhängig von `selectedBuilding`, `value`).
+Sticky-Header der Mitgliederansicht erweitern um einen `"Fertig"`-Button (rechts), der `setSelectedBuilding(null)` + `setSuggestionsOpen(false)` aufruft.
