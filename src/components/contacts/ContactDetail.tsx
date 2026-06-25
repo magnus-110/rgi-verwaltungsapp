@@ -52,7 +52,6 @@ import { Star, Siren, MapPin, Loader2 } from "lucide-react";
 import type { Contact } from "@/pages/Contacts";
 import { toTelHref } from "@/lib/phone";
 import { logOutgoingCall } from "@/components/calls/callLogUtils";
-import { CallLogList } from "@/components/calls/CallLogList";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 
 const SALUTATIONS = [
@@ -609,10 +608,6 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
             <TabsTrigger variant="segment" value="dokumente" className="gap-1">
               <FileText className="h-3.5 w-3.5" />
               Dokumente
-            </TabsTrigger>
-            <TabsTrigger variant="segment" value="telefonate" className="gap-1">
-              <Phone className="h-3.5 w-3.5" />
-              Telefonate
             </TabsTrigger>
           </TabsList>
 
@@ -1210,19 +1205,17 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
             <ContactDocumentsSection contactId={contact.id} />
           </TabsContent>
 
-          {/* Telefonate Tab */}
-          <TabsContent value="telefonate" className="mt-4">
+          {/* Dokumente Tab */}
+          <TabsContent value="dokumente" className="mt-4">
             <div className="mb-3">
               <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Phone className="h-4 w-4" /> Telefonate
+                <FileText className="h-4 w-4" /> Verträge & Dokumente
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Eingehende und ausgehende Anrufe dieses Kontakts.
+                Alle Dokumente, die dieser Person/Firma in der Stammakte zugeordnet oder freigegeben sind.
               </p>
             </div>
-            <div className="h-[500px] border rounded-md overflow-hidden">
-              <CallLogList contactId={contact.id} compact />
-            </div>
+            <ContactDocumentsSection contactId={contact.id} />
           </TabsContent>
         </Tabs>
       </div>
