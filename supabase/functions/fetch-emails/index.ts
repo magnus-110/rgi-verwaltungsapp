@@ -684,7 +684,85 @@ function decodeContent(body: string, encoding: string): Uint8Array {
 
 function extractCharset(contentType: string): string {
   const match = contentType.match(/charset="?([^";\s]+)"?/i);
-  return match ? match[1].trim().toLowerCase() : "utf-8";
+  return normalizeCharset(match ? match[1].trim() : "utf-8");
+}
+
+function normalizeCharset(charset: string | null | undefined): string {
+  const cs = String(charset || "utf-8")
+    .trim()
+    .replace(/^['"]|['"]$/g, "")
+    .toLowerCase();
+
+  const aliases: Record<string, string> = {
+    "": "utf-8",
+    default: "utf-8",
+    utf8: "utf-8",
+    "utf-8": "utf-8",
+    "us-ascii": "utf-8",
+    ascii: "utf-8",
+    "iso-8859-1": "iso-8859-1",
+    iso8859_1: "iso-8859-1",
+    latin1: "iso-8859-1",
+    "latin-1": "iso-8859-1",
+    "windows-1252": "windows-1252",
+    cp1252: "windows-1252",
+  };
+  return aliases[cs] || cs;
+}
+
+function getNodeParams(node: any): Record<string, any> {
+  const raw = node?.parameters || node?.params || {};
+  if (raw instanceof Map) return Object.fromEntries(raw.entries());
+  if (Array.isArray(raw)) return Object.fromEntries(raw as any);
+  return raw && typeof raw === "object" ? raw : {};
+}
+
+function getParamValue(params: Record<string, any>, name: string): string | null {
+  const wanted = name.toLowerCase();
+  for (const [key, value] of Object.entries(params || {})) {
+    if (String(key).toLowerCase() === wanted && value != null) return String(value);
+  }
+  return null;
+}
+
+function decodeBytesWithCharset(bytes: Uint8Array, charset: string): string {
+  const normalized = normalizeCharset(charset);
+  try {
+    return new TextDecoder(normalized).decode(bytes);
+  } catch {
+    try {
+      return new TextDecoder("windows-1252").decode(bytes);
+    } catch {
+      return new TextDecoder("utf-8").decode(bytes);
+    }
+  }
+}
+
+function mojibakeScore(value: string): number {
+  if (!value) return 0;
+  const markers = (value.match(/[ÃÂ][\u0080-\u00BF\u00C0-\u00FF]?|�/g) || []).length;
+  const common = (value.match(/Ã¤|Ã¶|Ã¼|Ã„|Ã–|Ãœ|ÃŸ|Â§|Â°|â‚¬|â€“|â€”|â€ž|â€œ|â€/g) || []).length;
+  return markers + common * 2;
+}
+
+function repairMojibake(value: string): string {
+  if (!value || mojibakeScore(value) === 0) return value;
+  try {
+    const bytes: number[] = [];
+    for (let i = 0; i < value.length; i++) {
+      const code = value.charCodeAt(i);
+      if (code > 255) return value;
+      bytes.push(code);
+    }
+    const repaired = new TextDecoder("utf-8", { fatal: false }).decode(new Uint8Array(bytes));
+    return mojibakeScore(repaired) < mojibakeScore(value) ? repaired : value;
+  } catch {
+    return value;
+  }
+}
+
+function hasMojibake(value: string | null | undefined): boolean {
+  return mojibakeScore(String(value || "")) > 0;
 }
 
 function decodeTextContent(body: string, encoding: string, contentType?: string): string {
@@ -698,14 +776,14 @@ function decodeTextContent(body: string, encoding: string, contentType?: string)
       for (let i = 0; i < binary.length; i++) {
         bytes[i] = binary.charCodeAt(i);
       }
-      return new TextDecoder(charset).decode(bytes);
+      return repairMojibake(decodeBytesWithCharset(bytes, charset));
     } catch {
       return body;
     }
   } else if (enc === "quoted-printable") {
-    return decodeQuotedPrintable(body, charset);
+    return repairMojibake(decodeQuotedPrintable(body, charset));
   }
-  return body;
+  return repairMojibake(body);
 }
 
 function decodeQuotedPrintable(str: string, charset: string = "utf-8"): string {
@@ -727,9 +805,9 @@ function decodeQuotedPrintable(str: string, charset: string = "utf-8"): string {
     i++;
   }
   try {
-    return new TextDecoder(charset).decode(new Uint8Array(bytes));
+    return decodeBytesWithCharset(new Uint8Array(bytes), charset);
   } catch {
-    return new TextDecoder("utf-8").decode(new Uint8Array(bytes));
+    return decodeBytesWithCharset(new Uint8Array(bytes), "utf-8");
   }
 }
 
@@ -744,7 +822,7 @@ function decodeRfc2047(str: string): string {
         for (let i = 0; i < binary.length; i++) {
           bytes[i] = binary.charCodeAt(i);
         }
-        return new TextDecoder(cs).decode(bytes);
+        return decodeBytesWithCharset(bytes, cs);
       } else {
         return decodeQuotedPrintable(text.replace(/_/g, " "), cs);
       }
@@ -824,8 +902,9 @@ function collectAttachmentParts(
   const currentPath = node.part || node.partId || path;
 
   if (node.childNodes && node.childNodes.length > 0) {
-    for (const child of node.childNodes) {
-      collectAttachmentParts(child, child.part || child.partId || "", out);
+    for (const [index, child] of node.childNodes.entries()) {
+      const childPath = child.part || child.partId || (path ? `${path}.${index + 1}` : `${index + 1}`);
+      collectAttachmentParts(child, childPath, out);
     }
     return out;
   }
@@ -845,8 +924,9 @@ function collectTextParts(
   const currentPath = node.part || node.partId || path;
 
   if (node.childNodes && node.childNodes.length > 0) {
-    for (const child of node.childNodes) {
-      collectTextParts(child, child.part || child.partId || "", out);
+    for (const [index, child] of node.childNodes.entries()) {
+      const childPath = child.part || child.partId || (path ? `${path}.${index + 1}` : `${index + 1}`);
+      collectTextParts(child, childPath, out);
     }
     return out;
   }
@@ -908,8 +988,8 @@ function bytesToLatin1(bytes: Uint8Array): string {
 }
 
 function decodeTextBytes(bytes: Uint8Array, node: any): string {
-  const params = node?.parameters || {};
-  const charset = String(params.charset || params.Charset || "utf-8").toLowerCase();
+  const params = getNodeParams(node);
+  const charset = normalizeCharset(getParamValue(params, "charset") || "utf-8");
   const encoding = String(node?.encoding || "").toLowerCase();
 
   // Apply Content-Transfer-Encoding (quoted-printable, base64) before charset decode.
@@ -923,9 +1003,9 @@ function decodeTextBytes(bytes: Uint8Array, node: any): string {
     }
   }
   try {
-    return new TextDecoder(charset).decode(bytes).trim();
+    return repairMojibake(decodeBytesWithCharset(bytes, charset)).trim();
   } catch {
-    return new TextDecoder("utf-8").decode(bytes).trim();
+    return repairMojibake(decodeBytesWithCharset(bytes, "utf-8")).trim();
   }
 }
 
@@ -955,7 +1035,7 @@ async function downloadBodyTextFromStructure(
     try {
       const { bytes } = await streamPartToBytes(client, uid, "TEXT", MAX_TEXT_PART_BYTES);
       if (bytes.byteLength > 0) {
-        const txt = new TextDecoder("utf-8").decode(bytes).trim();
+        const txt = repairMojibake(decodeBytesWithCharset(bytes, "utf-8")).trim();
         if (txt) bodyText = txt;
       }
     } catch (err: any) {
