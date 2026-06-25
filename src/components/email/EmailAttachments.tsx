@@ -52,7 +52,6 @@ const isImportableInvoice = (mimeType: string | null, fileName: string) =>
 
 export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [importingId, setImportingId] = useState<string | null>(null);
   const [importedIds, setImportedIds] = useState<Set<string>>(new Set());
   const [saveToBuildingOpen, setSaveToBuildingOpen] = useState(false);
@@ -62,7 +61,6 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const [previewMeta, setPreviewMeta] = useState<{ name: string; mimeType: string | null }>({ name: "", mimeType: null });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [mergeImporting, setMergeImporting] = useState(false);
-  const [reparsing, setReparsing] = useState(false);
 
   const { data: attachments = [] } = useQuery({
     queryKey: ["email-attachments", emailId],
