@@ -843,7 +843,7 @@ function decodeTextContent(body: string, encoding: string, contentType?: string)
       for (let i = 0; i < binary.length; i++) {
         bytes[i] = binary.charCodeAt(i);
       }
-      return repairMojibake(decodeBytesWithCharset(bytes, charset));
+      return repairMojibake(decodeBytesSmart(bytes, charset));
     } catch {
       return body;
     }
