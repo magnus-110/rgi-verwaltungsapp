@@ -163,7 +163,7 @@ export const DmsFilePickerDialog = ({
           .limit(3000),
         supabase
           .from("building_file_categories")
-          .select("id, name")
+          .select("id, name, parent_id, sort_order")
           .eq("building_id", selectedBuildingId!)
           .order("sort_order"),
       ]);
