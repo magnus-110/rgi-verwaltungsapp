@@ -52,6 +52,15 @@ interface FileRow {
 interface CategoryRow {
   id: string;
   name: string;
+  parent_id: string | null;
+  sort_order: number | null;
+}
+interface FolderNode {
+  id: string;
+  name: string;
+  files: FileRow[];
+  children: FolderNode[];
+  allFiles: FileRow[];
 }
 interface BuildingRow {
   id: string;
