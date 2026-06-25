@@ -1,92 +1,66 @@
-# Plan: Telefonie-Historie „Telefonate"
+## Ziel
+In `RecipientField` (innerhalb `src/components/email/FloatingComposeWindow.tsx`) eine Gebäude-Suche via `/`-Trigger ergänzen. Bestehende Kontakt-Suche bleibt unverändert.
 
-## 1. Datenbank – Migration `call_logs`
+## 1. Datenquelle: Gebäude mit Mitgliedern
 
-Neue Tabelle `public.call_logs`:
-- `id uuid pk default gen_random_uuid()`
-- `direction text check in ('incoming','outgoing')`
-- `status text default 'verpasst'` (`'verpasst'|'angenommen'`)
-- `number_raw text`, `number_e164 text`
-- `contact_id uuid references contacts(id) on delete set null`
-- `building_id uuid references buildings(id) on delete set null`
-- `started_at timestamptz default now()`, `connected_at timestamptz`, `ended_at timestamptz`
-- `duration_seconds int default 0`
-- `note text`, `transcript text`
-- `handled boolean default false`, `handled_at timestamptz`
-- `created_by uuid`, `created_at timestamptz default now()`
+In `FloatingComposeWindow` neue React-Query-Abfrage `buildingsWithMembers` ergänzen (parallel zur bestehenden `contactsWithEmails`-Query). Sie kombiniert die schon geladenen Kontakte/E-Mails mit Gebäude-Zuordnungen:
 
-Indizes: `contact_id`, `started_at desc`, `(status, handled)`.
+- `buildings`: `id, name` (alphabetisch).
+- `contact_building_assignments`: `building_id, contact_id` mit `is_active = true`.
+- Aus den bereits geladenen `contactsWithEmails` (Name = `displayName`, alle `emails[*].email`) pro Gebäude alle Personen mit mindestens einer E-Mail sammeln.
+- Innerhalb eines Gebäudes nach Person-Name sortieren; E-Mail-Duplikate (case-insensitive) entfernen.
 
-GRANTS (`authenticated`, `service_role`), RLS aktiv. Policies: SELECT/INSERT/UPDATE/DELETE nur, wenn `has_role(auth.uid(),'admin')` ODER `has_role(auth.uid(),'employee')` (analog zu bestehenden internen Tabellen; falls `employee` nicht existiert, nur admin + alle authentifizierten Mitarbeiter über bestehende Rollen-Konvention prüfen).
+Ergebnistyp:
+```ts
+type BuildingWithMembers = {
+  id: string;
+  name: string;
+  members: Array<{ name: string; email: string }>;
+};
+```
 
-Helper-Funktion `public.normalize_phone_last8(text) returns text` (alle Nicht-Ziffern raus, letzte 8). Wird sowohl in Edge Function als auch Client verwendet (gleiche Logik wie `find_contact_by_phone`).
+Diese Liste wird als neue Prop `buildings` an alle drei `RecipientField`-Instanzen (To/Cc/Bcc) übergeben.
 
-Secret `CALL_EVENT_SECRET` via `add_secret` anlegen.
+## 2. RecipientField: Zwei-Stufen-Vorschläge
 
-## 2. Edge Function `call-event`
+In `RecipientField` nur das Vorschlags-Dropdown (links neben dem Users-Picker-Button) erweitern. Der Picker-Popover rechts bleibt unverändert.
 
-Öffentlich (`verify_jwt = false`), CORS offen, Service-Role-Client.
+### Modus-Erkennung
+- `lastSegment = (value.split(",").pop() || "").trim()`
+- Beginnt `lastSegment` mit `/`: Gebäude-Modus aktiv, Suchquery = Text nach dem `/` (case-insensitive, `includes`).
+- Sonst: bisherige Kontakt-Vorschläge (unverändert).
 
-Body: `{ event: 'incoming'|'connected'|'ended', number: string, secret: string }`.
-- Prüft `secret === CALL_EVENT_SECRET`, sonst 401.
-- `incoming`: Insert mit `direction='incoming'`, `status='verpasst'`, `started_at=now()`. Kontakt via `find_contact_by_phone` (erste Trefferzeile) → `contact_id` setzen; `building_id` aus erstem aktiven `contact_building_assignments` des Kontakts.
-- `connected`: jüngsten offenen Eintrag (`ended_at is null`) mit passendem Last-8-Match → `status='angenommen'`, `connected_at=now()`.
-- `ended`: jüngsten offenen Eintrag schließen → `ended_at=now()`, `duration_seconds = ended_at - connected_at` (sonst 0). Status bleibt unverändert.
+### Stufe A — Gebäude-Liste
+- Vorschläge: Gebäude, deren `name` den Suchtext enthält. Bei leerem Suchtext (nur `/`) alle Gebäude (auf max. 8 begrenzt, Scroll nicht nötig — wir schneiden ab wie bisher).
+- Darstellung pro Zeile: Building-Icon (lucide `Building2`), Gebäudename, kleinere Mitgliederzahl rechts/darunter, z. B. „Achweg 3-5 · 24 Personen".
+- Klick/Enter auf ein Gebäude: **nicht** Adressen einfügen. Stattdessen lokalen State `selectedBuilding` setzen → Stufe B.
 
-Eintrag in `supabase/config.toml`.
+### Stufe B — Mitglieder des Gebäudes
+- Kopfzeile (sticky, oben im Dropdown):
+  - Kleine Zeile mit Building-Icon + Gebäudename + „X Mitglieder".
+  - Darüber/darunter ein anklickbarer „← Zurück"-Eintrag, der `selectedBuilding` auf `null` zurücksetzt (führt zurück zur Gebäudesuche; Eingabefeld bleibt mit `/…` unverändert).
+- Liste: eine Zeile pro Person — Name (oben) + E-Mail (unten, muted), klickbar.
+- Bereits in `value` enthaltene Adressen werden mit Status „hinzugefügt" angezeigt: ausgegraut + kleines Häkchen, weiterhin klickbar (Klick fügt nicht erneut hinzu).
+- Klick/Enter auf eine Person:
+  - Fügt nur diese eine Adresse dedupliziert hinzu. Implementierung: gleiche Logik wie `addEmail` im Picker (Segment-Trick nicht anwenden, da der aktuelle `/…`-Text als Eingabesegment dient): Vor dem Anfügen wird das aktuelle `/…`-Segment im Input **gelöscht** und die E-Mail als neues Segment angehängt, sodass am Ende wieder ein leeres Eingabesegment für die nächste Eingabe entsteht.
+  - **Wichtig:** Dropdown bleibt geöffnet, `selectedBuilding` bleibt gesetzt → mehrere Personen lassen sich nacheinander anklicken.
 
-## 3. Ausgehende Anrufe protokollieren
+### Schließen / Reset
+- Schließen per Klick außerhalb (bestehender `onBlur`-Timeout) und Esc (bestehender Keydown-Handler).
+- Beim Schließen wird `selectedBuilding` zurückgesetzt.
+- Wenn der User den führenden `/` aus dem Segment entfernt, automatisch zurück in Kontakt-Modus (`selectedBuilding = null`).
 
-In `BuildingContactsList.tsx` und `src/components/contacts/ContactDetail.tsx` (sowie wo `toTelHref` als `<a href>` verwendet wird):
-- onClick zusätzlich `supabase.from('call_logs').insert({ direction:'outgoing', status:'verpasst', number_raw, number_e164, contact_id, building_id?, created_by: auth.uid })`.
-- tel:-Link weiterhin nativ öffnen (kein preventDefault).
+### Tastatur
+- Hoch/Runter/Enter funktionieren in beiden Stufen über die aktuell sichtbare Vorschlagsliste (Indexreset bei Stufenwechsel).
+- Esc schließt das Dropdown (wie bisher).
 
-Folge-Events (`connected`/`ended`) von PhonerLite aktualisieren den Eintrag über die Last-8-Nummer (jüngster offener Eintrag).
+### Platzhalter
+- Bestehender Platzhalter wird ergänzt um „… – oder /Gebäude". Geschieht in `FloatingComposeWindow` an den Stellen, an denen `placeholder` an `RecipientField` übergeben wird (To/Cc/Bcc).
 
-## 4. Postfach-Eintrag „📞 Telefonate"
+## 3. Technische Hinweise (für Entwickler)
 
-In der Email-Ordnerliste (links) virtuellen Ordner ergänzen:
-- Label „📞 Telefonate", Badge = `count(*) where status='verpasst' and handled=false` (Realtime-Subscription auf `call_logs`).
-- Auswahl rendert in der Mitte `CallLogList` statt EmailList.
-
-`CallLogList`:
-- Sortierung `started_at desc`. Verpasste/offene oben hervorgehoben (roter Akzent).
-- Spalten/Zeile: Richtungs-Icon (↘ eingehend, ↗ ausgehend, rotes ✖ bei verpasst), Name (Kontakt sonst Nummer), Datum/Uhrzeit, Dauer (`mm:ss`).
-- Aktionen pro Zeile: Rückruf (`toTelHref` → window.location), Notiz, Transkript, „Kontakt öffnen" (Route `/contacts?id=`), bei verpasst „Erledigt"-Haken (`handled=true, handled_at=now`).
-
-Detail-Pane rechts: Anruf-Details, Notiz-Textarea (autosave debounced), Transkript-Anzeige + „Transkript hinzufügen".
-
-## 5. Notiz & Transkript
-
-- Notiz: `<Textarea>` → Update `call_logs.note`.
-- Transkript-Dialog: zwei Tabs „HTML einfügen" / „HTML-Datei wählen". Client-Parsing:
-  ```ts
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const text = doc.body?.textContent?.replace(/\s+\n/g,'\n').trim() ?? '';
-  ```
-  Nur `text` wird in `call_logs.transcript` gespeichert. HTML wird **nicht** persistiert/hochgeladen.
-
-## 6. Wiederverwendbare Komponente `CallHistory`
-
-Neue Komponente `src/components/calls/CallHistory.tsx` (Props: `contactId?`, `buildingId?`). Zeigt gefilterte Liste (gleiche Optik wie Postfach-Liste, kompakter).
-
-Eingebunden in:
-- `src/components/contacts/ContactDetail.tsx` – neuer Tab/Abschnitt „Telefonate".
-- `src/components/contacts/BuildingContactsList.tsx` – aufklappbar pro Person oder gesamtgebäude­bezogen (`buildingId`).
-
-## Technische Hinweise
-
-- Normalisierung zentral in `src/lib/phone.ts` ergänzen: `lastDigits(raw, n=8)`.
-- Realtime: `ALTER PUBLICATION supabase_realtime ADD TABLE public.call_logs;` für Live-Badge.
-- Verpasste Anrufe nur via Rückruf-Liste – keine Todo-Integration.
-- Design tokens beibehalten, keine harten Farben außer semantische `destructive` für verpasst-Akzente.
-
-## Validierung
-
-- Migration + Linter.
-- `call-event` mit `curl_edge_functions` (incoming → connected → ended) testen, DB-Eintrag prüfen.
-- UI: Postfach-Badge, Liste, Notiz/Transkript, Kontakt-/Gebäude-Tab.
-
-## Offene Frage
-
-PhonerLite-Webhook-URL und Secret muss der Nutzer in PhonerLite konfigurieren – ich liefere die URL (`https://eebphowrbarzawwixqcc.supabase.co/functions/v1/call-event`) und Beispiel-Payload nach Implementierung.
+- Datei: ausschließlich `src/components/email/FloatingComposeWindow.tsx`.
+- Neue Imports: `Building2`, `ArrowLeft` (lucide).
+- Keine Änderungen am bestehenden Users-Picker-Popover, an Drafts oder am Versand.
+- Keine Schema- oder Edge-Function-Änderungen — alle Daten kommen aus bestehenden Tabellen (`buildings`, `contact_building_assignments`, `contacts`, `contact_emails`).
+- Performance: `useMemo` für Gebäude-Vorschläge (Abhängig von `lastSegment`, `buildings`) und für Mitglieder-Liste (Abhängig von `selectedBuilding`, `value`).
