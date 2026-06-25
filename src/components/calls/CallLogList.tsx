@@ -10,10 +10,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, Check, User, FileText, ExternalLink, Loader2 } from "lucide-react";
+import { Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, Check, User, FileText, ExternalLink, Loader2, Mail, Building } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 
 type Props = {
   /** Filter: nur Anrufe zu diesem Kontakt */
@@ -197,6 +199,40 @@ function CallDetail({
 }: { row: any; onContact: (id: string) => void; onOpenTranscript: () => void; onChanged: () => void }) {
   const [note, setNote] = useState<string>(row.note ?? "");
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { openCompose } = useComposeEmail();
+
+  const { data: contactExtras } = useQuery({
+    queryKey: ["call-contact-extras", row.contact_id],
+    enabled: !!row.contact_id,
+    queryFn: async () => {
+      const [emailsRes, assignsRes] = await Promise.all([
+        supabase
+          .from("contact_emails")
+          .select("email, is_primary")
+          .eq("contact_id", row.contact_id)
+          .order("is_primary", { ascending: false }),
+        supabase
+          .from("contact_building_assignments")
+          .select("building_id, buildings:building_id(id, name)")
+          .eq("contact_id", row.contact_id)
+          .eq("is_active", true),
+      ]);
+      const email = (emailsRes.data || []).find((e: any) => e.email)?.email as string | undefined;
+      const buildingsMap = new Map<string, string>();
+      for (const a of (assignsRes.data || []) as any[]) {
+        const b = a.buildings;
+        if (b?.id) buildingsMap.set(b.id, b.name || "Gebäude");
+      }
+      return {
+        email,
+        buildings: Array.from(buildingsMap, ([id, name]) => ({ id, name })),
+      };
+    },
+  });
+
+  const email = contactExtras?.email;
+  const buildings = contactExtras?.buildings ?? [];
   useEffect(() => { setNote(row.note ?? ""); }, [row.id]);
 
   // debounced save
@@ -242,6 +278,32 @@ function CallDetail({
             <Button size="sm" variant="outline" onClick={() => onContact(row.contact_id)}>
               <User className="h-3.5 w-3.5 mr-1" />Kontakt
             </Button>
+          )}
+          {email && (
+            <Button size="sm" variant="outline" onClick={() => openCompose({ prefill: { to: email } })}>
+              <Mail className="h-3.5 w-3.5 mr-1" />E-Mail
+            </Button>
+          )}
+          {buildings.length === 1 && (
+            <Button size="sm" variant="outline" onClick={() => navigate(`/buildings/${buildings[0].id}`)}>
+              <Building className="h-3.5 w-3.5 mr-1" />Zum Gebäude
+            </Button>
+          )}
+          {buildings.length > 1 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline">
+                  <Building className="h-3.5 w-3.5 mr-1" />Zum Gebäude
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {buildings.map((b) => (
+                  <DropdownMenuItem key={b.id} onClick={() => navigate(`/buildings/${b.id}`)}>
+                    {b.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           <Button size="sm" variant="outline" onClick={onOpenTranscript}>
             <FileText className="h-3.5 w-3.5 mr-1" />Transkript {row.transcript ? "bearbeiten" : "hinzufügen"}
