@@ -1066,14 +1066,35 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
   await client.connect();
   let summary: any = { emailId, message_id: email.message_id };
   try {
-    await client.mailboxOpen("INBOX");
-    // Find UID by Message-ID header
-    const uids = await client.search({ header: { "message-id": email.message_id } }, { uid: true });
-    if (!uids || uids.length === 0) {
-      throw new Error(`Message-ID ${email.message_id} not found on server`);
+    // Search INBOX first, then walk all folders, since older messages may have been moved.
+    let uid: number | null = null;
+    let foundFolder = "INBOX";
+    const tryFolder = async (folderPath: string) => {
+      try {
+        await client.mailboxOpen(folderPath);
+        const res = await client.search({ header: { "message-id": email.message_id } }, { uid: true });
+        if (res && res.length > 0) {
+          uid = res[res.length - 1];
+          foundFolder = folderPath;
+          return true;
+        }
+      } catch (_) {
+        // skip unreadable folders
+      }
+      return false;
+    };
+    if (!(await tryFolder("INBOX"))) {
+      const folders = await client.list();
+      for (const f of folders) {
+        if (!f.path || f.path === "INBOX") continue;
+        if (await tryFolder(f.path)) break;
+      }
     }
-    const uid = uids[uids.length - 1];
+    if (uid === null) {
+      throw new Error(`Message-ID ${email.message_id} not found on server (searched all folders)`);
+    }
     summary.uid = uid;
+    summary.folder = foundFolder;
 
     const msg = await client.fetchOne(`${uid}`, {
       uid: true,
