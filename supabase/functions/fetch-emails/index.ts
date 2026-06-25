@@ -127,9 +127,10 @@ Deno.serve(async (req) => {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
       const dispatched: string[] = [];
+      // Gestaffelt dispatchen (300ms zwischen Accounts), damit edge-runtime die Worker
+      // nicht auf denselben Prozess kollokiert (Memory-Isolation pro Postfach).
       for (const acc of accounts as EmailAccount[]) {
         try {
-          // Fire-and-forget: nicht awaiten, damit der Dispatcher schnell zurückkommt.
           fetch(`${supabaseUrl}/functions/v1/fetch-emails`, {
             method: "POST",
             headers: {
@@ -142,6 +143,7 @@ Deno.serve(async (req) => {
         } catch (e: any) {
           console.error(`dispatch error ${acc.email_address}:`, e?.message);
         }
+        await new Promise((r) => setTimeout(r, 300));
       }
       // Klassifizierung am Ende einmal anstoßen.
       try {
