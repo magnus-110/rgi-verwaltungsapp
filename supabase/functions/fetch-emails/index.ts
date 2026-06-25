@@ -481,6 +481,17 @@ async function fetchAccountEmails(
       await supabase.from("email_accounts").update(update).eq("id", account.id);
     }
 
+    // WICHTIG: last_sync_at *jetzt* persistieren — bevor logout()/close() im finally
+    // ggf. den Worker mit OOM/Hang killt. Sonst bleibt last_sync_at endlos alt.
+    try {
+      await supabase
+        .from("email_accounts")
+        .update({ last_sync_at: new Date().toISOString(), last_sync_error: null })
+        .eq("id", account.id);
+    } catch (e: any) {
+      console.error(`last_sync_at update failed for ${account.email_address}:`, e?.message);
+    }
+
     if (account.delete_after_import && uidsToDelete.length > 0) {
       try {
         await client.messageDelete(uidsToDelete, { uid: true });
