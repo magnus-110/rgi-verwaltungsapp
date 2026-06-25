@@ -403,6 +403,8 @@ function TranscriptDialog({
 }
 
 function CallLinksPanel({ row, onChanged }: { row: any; onChanged: () => void }) {
+  const [open, setOpen] = useState(() => !!(row.building_id || row.contact_id || row.case_id));
+
   const { toast } = useToast();
   const [buildingId, setBuildingId] = useState<string>(row.building_id ?? "none");
   const [contactId, setContactId] = useState<string>(row.contact_id ?? "none");
