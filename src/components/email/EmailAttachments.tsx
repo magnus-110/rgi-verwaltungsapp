@@ -52,6 +52,7 @@ const isImportableInvoice = (mimeType: string | null, fileName: string) =>
 
 export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [importingId, setImportingId] = useState<string | null>(null);
   const [importedIds, setImportedIds] = useState<Set<string>>(new Set());
   const [saveToBuildingOpen, setSaveToBuildingOpen] = useState(false);
@@ -61,6 +62,7 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const [previewMeta, setPreviewMeta] = useState<{ name: string; mimeType: string | null }>({ name: "", mimeType: null });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [mergeImporting, setMergeImporting] = useState(false);
+  const [reparsing, setReparsing] = useState(false);
 
   const { data: attachments = [] } = useQuery({
     queryKey: ["email-attachments", emailId],
@@ -76,7 +78,71 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
     },
   });
 
-  if (attachments.length === 0) return null;
+  const { data: emailMeta } = useQuery({
+    queryKey: ["email-has-attachments", emailId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("emails")
+        .select("has_attachments")
+        .eq("id", emailId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const handleReparse = async () => {
+    setReparsing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("fetch-emails", {
+        body: { reparse: emailId },
+      });
+      // Edge function also accepts ?reparse=<id>; both work via the entrypoint
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Anhänge nachgeladen (${data?.inserted ?? 0} neu)`);
+      await queryClient.invalidateQueries({ queryKey: ["email-attachments", emailId] });
+      await queryClient.invalidateQueries({ queryKey: ["email-has-attachments", emailId] });
+    } catch (err: any) {
+      toast.error("Nachladen fehlgeschlagen: " + (err?.message || "Unbekannter Fehler"));
+    } finally {
+      setReparsing(false);
+    }
+  };
+
+  // Empty + flagged → offer reload from IMAP
+  if (attachments.length === 0) {
+    if (emailMeta?.has_attachments) {
+      return (
+        <div className="border-t pt-3 mt-3">
+          <div className="flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
+            <div className="flex items-center gap-2 text-sm">
+              <Paperclip className="h-4 w-4 text-amber-700 dark:text-amber-300" />
+              <span className="text-amber-900 dark:text-amber-100">
+                Diese E-Mail hatte Anhänge, die nicht geladen werden konnten.
+              </span>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleReparse}
+              disabled={reparsing}
+            >
+              {reparsing ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              Anhänge nachladen
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
+
+
 
   const handleOpenPreview = async (filePath: string, fileName: string, mimeType: string | null) => {
     setPreviewMeta({ name: fileName, mimeType });
