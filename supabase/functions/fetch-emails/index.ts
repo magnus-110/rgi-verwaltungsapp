@@ -127,9 +127,10 @@ Deno.serve(async (req) => {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
       const dispatched: string[] = [];
+      // Gestaffelt dispatchen (300ms zwischen Accounts), damit edge-runtime die Worker
+      // nicht auf denselben Prozess kollokiert (Memory-Isolation pro Postfach).
       for (const acc of accounts as EmailAccount[]) {
         try {
-          // Fire-and-forget: nicht awaiten, damit der Dispatcher schnell zurückkommt.
           fetch(`${supabaseUrl}/functions/v1/fetch-emails`, {
             method: "POST",
             headers: {
@@ -142,6 +143,7 @@ Deno.serve(async (req) => {
         } catch (e: any) {
           console.error(`dispatch error ${acc.email_address}:`, e?.message);
         }
+        await new Promise((r) => setTimeout(r, 300));
       }
       // Klassifizierung am Ende einmal anstoßen.
       try {
@@ -316,13 +318,12 @@ async function fetchAccountEmails(
     }
 
     console.log(`Found ${uids.length} UIDs to fetch`);
-    // Reduced from 50 to 10 to stay within edge-runtime memory limits.
-    // Large emails with attachments quickly exhaust the 256MB worker budget.
-    const uidsToFetch = uids.slice(0, 10);
+    // Strikt klein halten — edge-runtime crasht sonst still mit "Memory limit exceeded".
+    const uidsToFetch = uids.slice(0, 5);
     let maxUid = effectiveLastUid;
     // Soft memory budget: stop processing further messages once we've handled
-    // ~50MB of raw message bytes in this account to avoid WORKER_RESOURCE_LIMIT.
-    const BYTE_BUDGET = 50 * 1024 * 1024;
+    // ~20MB of raw message bytes in this account to avoid WORKER_RESOURCE_LIMIT.
+    const BYTE_BUDGET = 20 * 1024 * 1024;
     let bytesProcessed = 0;
 
     for (const uid of uidsToFetch) {
@@ -478,6 +479,17 @@ async function fetchAccountEmails(
       if (maxUid > 0) update.last_uid = maxUid.toString();
       if (currentUidValidity) update.uid_validity = currentUidValidity;
       await supabase.from("email_accounts").update(update).eq("id", account.id);
+    }
+
+    // WICHTIG: last_sync_at *jetzt* persistieren — bevor logout()/close() im finally
+    // ggf. den Worker mit OOM/Hang killt. Sonst bleibt last_sync_at endlos alt.
+    try {
+      await supabase
+        .from("email_accounts")
+        .update({ last_sync_at: new Date().toISOString(), last_sync_error: null })
+        .eq("id", account.id);
+    } catch (e: any) {
+      console.error(`last_sync_at update failed for ${account.email_address}:`, e?.message);
     }
 
     if (account.delete_after_import && uidsToDelete.length > 0) {
