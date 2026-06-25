@@ -495,7 +495,7 @@ export const DmsFilePickerDialog = ({
                   .filter((sec) => sec.total > 0 || sec.kind === "building")
                   .map((sec) => {
                     const isOpen = effSections.has(sec.id);
-                    const allFilesInSec = sec.folders.flatMap((f) => f.files);
+                    const allFilesInSec = sec.folders.flatMap((f) => f.allFiles);
                     const selInSec = allFilesInSec.filter((f) => selected[f.id]).length;
                     const allSel = allFilesInSec.length > 0 && selInSec === allFilesInSec.length;
                     const someSel = selInSec > 0 && !allSel;
