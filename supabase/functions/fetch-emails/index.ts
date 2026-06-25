@@ -1178,19 +1178,16 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
 
     const msg = await client.fetchOne(`${uid}`, {
       uid: true,
-      source: true,
       bodyStructure: true,
     }, { uid: true });
     if (!msg) throw new Error(`fetchOne returned null for UID ${uid}`);
 
-    const source = msg.source?.toString() || "";
-    const parsed = parseEmailComplete(source);
     const structureBody = await downloadBodyTextFromStructure(client, uid, msg.bodyStructure);
-    let attachments = parsed.attachments;
+    let attachments: ParsedAttachment[] = [];
     summary.parser_attachments = attachments.length;
     summary.structure_has_attachments = checkHasAttachments(msg.bodyStructure);
 
-    if (attachments.length === 0 && summary.structure_has_attachments) {
+    if (summary.structure_has_attachments) {
       const downloaded = await downloadAttachmentsFromStructure(client, uid, msg.bodyStructure);
       attachments = downloaded;
       summary.fallback_downloaded = downloaded.length;
@@ -1205,8 +1202,8 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
         .single();
       const needsBody = !((row?.body_text || "").length) && !((row?.body_html || "").length);
       const needsEncodingRepair = hasMojibake(row?.body_text) || hasMojibake(row?.body_html);
-      const nextBodyText = structureBody.bodyText || parsed.bodyText || repairMojibake(row?.body_text || "");
-      const nextBodyHtml = structureBody.bodyHtml || parsed.bodyHtml || repairMojibake(row?.body_html || "");
+      const nextBodyText = structureBody.bodyText || repairMojibake(row?.body_text || "");
+      const nextBodyHtml = structureBody.bodyHtml || repairMojibake(row?.body_html || "");
       if ((needsBody || needsEncodingRepair) && (nextBodyText || nextBodyHtml)) {
         await supabase
           .from("emails")
