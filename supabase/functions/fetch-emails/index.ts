@@ -318,13 +318,12 @@ async function fetchAccountEmails(
     }
 
     console.log(`Found ${uids.length} UIDs to fetch`);
-    // Reduced from 50 to 10 to stay within edge-runtime memory limits.
-    // Large emails with attachments quickly exhaust the 256MB worker budget.
-    const uidsToFetch = uids.slice(0, 10);
+    // Strikt klein halten — edge-runtime crasht sonst still mit "Memory limit exceeded".
+    const uidsToFetch = uids.slice(0, 5);
     let maxUid = effectiveLastUid;
     // Soft memory budget: stop processing further messages once we've handled
-    // ~50MB of raw message bytes in this account to avoid WORKER_RESOURCE_LIMIT.
-    const BYTE_BUDGET = 50 * 1024 * 1024;
+    // ~20MB of raw message bytes in this account to avoid WORKER_RESOURCE_LIMIT.
+    const BYTE_BUDGET = 20 * 1024 * 1024;
     let bytesProcessed = 0;
 
     for (const uid of uidsToFetch) {
