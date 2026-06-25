@@ -853,9 +853,11 @@ function collectTextParts(
 
   const ct = getNodeContentType(node);
   const disposition = getNodeDisposition(node);
-  if (!currentPath || disposition === "attachment") return out;
-  if (ct === "text/plain" || ct.startsWith("text/plain;")) out.push({ part: currentPath, node, kind: "plain" });
-  if (ct === "text/html" || ct.startsWith("text/html;")) out.push({ part: currentPath, node, kind: "html" });
+  if (disposition === "attachment") return out;
+  // Singlepart messages have an empty path → IMAP requires "1" to fetch the body.
+  const partPath = currentPath || "1";
+  if (ct === "text/plain" || ct.startsWith("text/plain;")) out.push({ part: partPath, node, kind: "plain" });
+  if (ct === "text/html" || ct.startsWith("text/html;")) out.push({ part: partPath, node, kind: "html" });
   return out;
 }
 
@@ -895,9 +897,31 @@ async function streamPartToBytes(
   return { bytes: merged, truncated };
 }
 
+function bytesToLatin1(bytes: Uint8Array): string {
+  let s = "";
+  // chunked to avoid stack blow-up
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    s += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)) as any);
+  }
+  return s;
+}
+
 function decodeTextBytes(bytes: Uint8Array, node: any): string {
   const params = node?.parameters || {};
   const charset = String(params.charset || params.Charset || "utf-8").toLowerCase();
+  const encoding = String(node?.encoding || "").toLowerCase();
+
+  // Apply Content-Transfer-Encoding (quoted-printable, base64) before charset decode.
+  if (encoding === "base64" || encoding === "quoted-printable") {
+    const raw = bytesToLatin1(bytes);
+    const ct = `text/plain; charset=${charset}`;
+    try {
+      return decodeTextContent(raw, encoding, ct).trim();
+    } catch {
+      // fall through to plain decode
+    }
+  }
   try {
     return new TextDecoder(charset).decode(bytes).trim();
   } catch {
@@ -926,6 +950,19 @@ async function downloadBodyTextFromStructure(
     }
   }
 
+  // Last-resort fallback: if structure walk yielded nothing, try whole TEXT body.
+  if (!bodyText && !bodyHtml) {
+    try {
+      const { bytes } = await streamPartToBytes(client, uid, "TEXT", MAX_TEXT_PART_BYTES);
+      if (bytes.byteLength > 0) {
+        const txt = new TextDecoder("utf-8").decode(bytes).trim();
+        if (txt) bodyText = txt;
+      }
+    } catch (err: any) {
+      console.error(`Fallback TEXT download failed for UID ${uid}:`, err.message);
+    }
+  }
+
   return { bodyText, bodyHtml };
 }
 
@@ -949,10 +986,20 @@ async function downloadAttachmentsFromStructure(
         break;
       }
       const partLimit = Math.min(limits.maxPartBytes, limits.maxTotalBytes - totalBytes);
-      const { bytes: merged, truncated } = await streamPartToBytes(client, uid, part, partLimit);
+      const { bytes: rawMerged, truncated } = await streamPartToBytes(client, uid, part, partLimit);
       if (truncated) {
         console.warn(`Attachment part ${part} for UID ${uid} exceeded byte limit and was skipped.`);
         continue;
+      }
+      // Decode Content-Transfer-Encoding for attachments (typically base64).
+      const encoding = String(node?.encoding || "").toLowerCase();
+      let merged = rawMerged;
+      if (encoding === "base64" || encoding === "quoted-printable") {
+        try {
+          merged = decodeContent(bytesToLatin1(rawMerged), encoding);
+        } catch {
+          merged = rawMerged;
+        }
       }
       totalBytes += merged.byteLength;
 
@@ -1019,14 +1066,35 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
   await client.connect();
   let summary: any = { emailId, message_id: email.message_id };
   try {
-    await client.mailboxOpen("INBOX");
-    // Find UID by Message-ID header
-    const uids = await client.search({ header: { "message-id": email.message_id } }, { uid: true });
-    if (!uids || uids.length === 0) {
-      throw new Error(`Message-ID ${email.message_id} not found on server`);
+    // Search INBOX first, then walk all folders, since older messages may have been moved.
+    let uid: number | null = null;
+    let foundFolder = "INBOX";
+    const tryFolder = async (folderPath: string) => {
+      try {
+        await client.mailboxOpen(folderPath);
+        const res = await client.search({ header: { "message-id": email.message_id } }, { uid: true });
+        if (res && res.length > 0) {
+          uid = res[res.length - 1];
+          foundFolder = folderPath;
+          return true;
+        }
+      } catch (_) {
+        // skip unreadable folders
+      }
+      return false;
+    };
+    if (!(await tryFolder("INBOX"))) {
+      const folders = await client.list();
+      for (const f of folders) {
+        if (!f.path || f.path === "INBOX") continue;
+        if (await tryFolder(f.path)) break;
+      }
     }
-    const uid = uids[uids.length - 1];
+    if (uid === null) {
+      throw new Error(`Message-ID ${email.message_id} not found on server (searched all folders)`);
+    }
     summary.uid = uid;
+    summary.folder = foundFolder;
 
     const msg = await client.fetchOne(`${uid}`, {
       uid: true,
@@ -1036,7 +1104,8 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
     if (!msg) throw new Error(`fetchOne returned null for UID ${uid}`);
 
     const source = msg.source?.toString() || "";
-    let { attachments } = parseEmailComplete(source);
+    const parsed = parseEmailComplete(source);
+    let attachments = parsed.attachments;
     summary.parser_attachments = attachments.length;
     summary.structure_has_attachments = checkHasAttachments(msg.bodyStructure);
 
@@ -1044,6 +1113,28 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
       const downloaded = await downloadAttachmentsFromStructure(client, uid, msg.bodyStructure);
       attachments = downloaded;
       summary.fallback_downloaded = downloaded.length;
+    }
+
+    // Backfill body if missing/empty (older rows fetched before transfer-encoding decoding was fixed)
+    try {
+      const { data: row } = await supabase
+        .from("emails")
+        .select("body_text, body_html")
+        .eq("id", emailId)
+        .single();
+      const needsBody = !((row?.body_text || "").length) && !((row?.body_html || "").length);
+      if (needsBody && (parsed.bodyText || parsed.bodyHtml)) {
+        await supabase
+          .from("emails")
+          .update({
+            body_text: parsed.bodyText || null,
+            body_html: parsed.bodyHtml || null,
+          })
+          .eq("id", emailId);
+        summary.body_backfilled = true;
+      }
+    } catch (e: any) {
+      console.error("Body backfill failed:", e.message);
     }
 
     // Insert any attachments that don't yet exist for this email.
