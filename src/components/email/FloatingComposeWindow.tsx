@@ -1657,7 +1657,7 @@ const RecipientField = ({
     if (s) replaceLastSegment(s.email);
   };
 
-  const dropdownOpen = suggestionsOpen && activeList.length > 0;
+  const dropdownOpen = suggestionsOpen && (activeList.length > 0 || !!selectedBuilding);
 
   return (
     <div className="flex gap-1">
