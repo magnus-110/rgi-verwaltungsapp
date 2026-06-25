@@ -314,6 +314,9 @@ function CallDetail({
         </div>
       </div>
 
+      <CallLinksPanel row={row} onChanged={onChanged} />
+
+
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4">
           <div>
