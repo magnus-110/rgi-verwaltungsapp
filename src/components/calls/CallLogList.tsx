@@ -199,6 +199,40 @@ function CallDetail({
 }: { row: any; onContact: (id: string) => void; onOpenTranscript: () => void; onChanged: () => void }) {
   const [note, setNote] = useState<string>(row.note ?? "");
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { openCompose } = useComposeEmail();
+
+  const { data: contactExtras } = useQuery({
+    queryKey: ["call-contact-extras", row.contact_id],
+    enabled: !!row.contact_id,
+    queryFn: async () => {
+      const [emailsRes, assignsRes] = await Promise.all([
+        supabase
+          .from("contact_emails")
+          .select("email, is_primary")
+          .eq("contact_id", row.contact_id)
+          .order("is_primary", { ascending: false }),
+        supabase
+          .from("contact_building_assignments")
+          .select("building_id, buildings:building_id(id, name)")
+          .eq("contact_id", row.contact_id)
+          .eq("is_active", true),
+      ]);
+      const email = (emailsRes.data || []).find((e: any) => e.email)?.email as string | undefined;
+      const buildingsMap = new Map<string, string>();
+      for (const a of (assignsRes.data || []) as any[]) {
+        const b = a.buildings;
+        if (b?.id) buildingsMap.set(b.id, b.name || "Gebäude");
+      }
+      return {
+        email,
+        buildings: Array.from(buildingsMap, ([id, name]) => ({ id, name })),
+      };
+    },
+  });
+
+  const email = contactExtras?.email;
+  const buildings = contactExtras?.buildings ?? [];
   useEffect(() => { setNote(row.note ?? ""); }, [row.id]);
 
   // debounced save
