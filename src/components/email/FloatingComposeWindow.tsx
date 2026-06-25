@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Send, Loader2, Paperclip, X, Users, Search, Minus, Maximize2, Minimize2,
-  ExternalLink, Wand2, Check, ChevronDown, ArrowLeft, CalendarClock, FolderOpen, Upload,
+  ExternalLink, Wand2, Check, ChevronDown, ArrowLeft, CalendarClock, FolderOpen, Upload, Building2,
 } from "lucide-react";
 import { DmsFilePickerDialog, type DmsPickerItem } from "@/components/meetings/DmsFilePickerDialog";
 import { toast } from "sonner";
