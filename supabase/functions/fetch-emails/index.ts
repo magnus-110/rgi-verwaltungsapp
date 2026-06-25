@@ -7,6 +7,11 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const MAX_MESSAGES_PER_ACCOUNT_RUN = 5;
+const MAX_TEXT_PART_BYTES = 1024 * 1024;
+const MAX_ATTACHMENT_PART_BYTES = 6 * 1024 * 1024;
+const MAX_ATTACHMENT_TOTAL_BYTES = 12 * 1024 * 1024;
+
 interface EmailAccount {
   id: string;
   email_address: string;
@@ -319,24 +324,15 @@ async function fetchAccountEmails(
 
     console.log(`Found ${uids.length} UIDs to fetch`);
     // Strikt klein halten — edge-runtime crasht sonst still mit "Memory limit exceeded".
-    const uidsToFetch = uids.slice(0, 5);
+    const uidsToFetch = uids.slice(0, MAX_MESSAGES_PER_ACCOUNT_RUN);
     let maxUid = effectiveLastUid;
-    // Soft memory budget: stop processing further messages once we've handled
-    // ~20MB of raw message bytes in this account to avoid WORKER_RESOURCE_LIMIT.
-    const BYTE_BUDGET = 20 * 1024 * 1024;
-    let bytesProcessed = 0;
 
     for (const uid of uidsToFetch) {
-      if (bytesProcessed > BYTE_BUDGET) {
-        console.warn(`[${account.email_address}] Byte budget reached, stopping at UID ${uid}.`);
-        break;
-      }
       try {
         const msg = await client.fetchOne(`${uid}`, {
           uid: true,
           flags: true,
           envelope: true,
-          source: true,
           bodyStructure: true,
         }, { uid: true });
 
@@ -355,30 +351,6 @@ async function fetchAccountEmails(
           }
         }
 
-        const source = msg.source?.toString() || "";
-        bytesProcessed += source.length;
-
-        // Recursive MIME parsing
-        let { bodyText, bodyHtml, attachments } = parseEmailComplete(source);
-        // Free the raw source reference ASAP
-        (msg as any).source = undefined;
-
-        // Fallback: if our parser missed attachments but bodyStructure says there are some,
-        // download each attachment part directly via IMAP.
-        const structureSaysHasAtt = checkHasAttachments(msg.bodyStructure);
-        if (attachments.length === 0 && structureSaysHasAtt) {
-          console.warn(`Parser missed attachments for UID ${uid} (${envelope.subject}); falling back to bodyStructure download.`);
-          try {
-            const downloaded = await downloadAttachmentsFromStructure(client, uid, msg.bodyStructure);
-            attachments = downloaded;
-          } catch (dlErr: any) {
-            console.error(`Fallback download failed for UID ${uid}:`, dlErr.message);
-          }
-        }
-
-        const realAttachments = attachments.filter((a) => !a.isInline);
-        const hasAttachments = realAttachments.length > 0;
-
         const fromAddr = envelope.from?.[0]?.address || "";
         const fromName = envelope.from?.[0]?.name || "";
         const toAddresses = (envelope.to || []).map((a: any) => a.address).filter(Boolean);
@@ -396,6 +368,26 @@ async function fetchAccountEmails(
           if (uid > maxUid) maxUid = uid;
           continue;
         }
+
+        // Download only text parts and bounded attachments. Do NOT fetch the full raw source:
+        // large Strato messages can exceed the 256MB Edge worker limit while base64 decoding.
+        const { bodyText, bodyHtml } = await downloadBodyTextFromStructure(client, uid, msg.bodyStructure);
+        const structureAttachmentParts = collectAttachmentParts(msg.bodyStructure);
+        const structureSaysHasAtt = structureAttachmentParts.some(({ node }) => isRealAttachmentNode(node));
+        let attachments: ParsedAttachment[] = [];
+        if (structureAttachmentParts.length > 0) {
+          try {
+            attachments = await downloadAttachmentsFromStructure(client, uid, msg.bodyStructure, {
+              maxPartBytes: MAX_ATTACHMENT_PART_BYTES,
+              maxTotalBytes: MAX_ATTACHMENT_TOTAL_BYTES,
+            });
+          } catch (dlErr: any) {
+            console.error(`Attachment download failed for UID ${uid}:`, dlErr.message);
+          }
+        }
+
+        const realAttachments = attachments.filter((a) => !a.isInline);
+        const hasAttachments = structureSaysHasAtt || realAttachments.length > 0;
 
         const { data: insertedEmail, error: insertError } = await supabase
           .from("emails")
@@ -452,6 +444,7 @@ async function fetchAccountEmails(
                 is_inline: att.isInline,
                 content_id: att.contentId,
               });
+              (att as any).content = new Uint8Array(0);
             } catch (attErr: any) {
               console.error(`Attachment save error: ${attErr.message}`);
             }
@@ -469,6 +462,8 @@ async function fetchAccountEmails(
         attachments.length = 0;
       } catch (msgErr: any) {
         console.error(`Error processing message UID ${uid}:`, msgErr.message);
+        // Avoid one poison UID blocking the entire mailbox forever.
+        if (uid > maxUid) maxUid = uid;
       }
     }
 
