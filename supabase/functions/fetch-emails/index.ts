@@ -1185,6 +1185,7 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
 
     const source = msg.source?.toString() || "";
     const parsed = parseEmailComplete(source);
+    const structureBody = await downloadBodyTextFromStructure(client, uid, msg.bodyStructure);
     let attachments = parsed.attachments;
     summary.parser_attachments = attachments.length;
     summary.structure_has_attachments = checkHasAttachments(msg.bodyStructure);
@@ -1203,15 +1204,19 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
         .eq("id", emailId)
         .single();
       const needsBody = !((row?.body_text || "").length) && !((row?.body_html || "").length);
-      if (needsBody && (parsed.bodyText || parsed.bodyHtml)) {
+      const needsEncodingRepair = hasMojibake(row?.body_text) || hasMojibake(row?.body_html);
+      const nextBodyText = structureBody.bodyText || parsed.bodyText || repairMojibake(row?.body_text || "");
+      const nextBodyHtml = structureBody.bodyHtml || parsed.bodyHtml || repairMojibake(row?.body_html || "");
+      if ((needsBody || needsEncodingRepair) && (nextBodyText || nextBodyHtml)) {
         await supabase
           .from("emails")
           .update({
-            body_text: parsed.bodyText || null,
-            body_html: parsed.bodyHtml || null,
+            body_text: nextBodyText || null,
+            body_html: nextBodyHtml || null,
           })
           .eq("id", emailId);
         summary.body_backfilled = true;
+        summary.encoding_repaired = needsEncodingRepair;
       }
     } catch (e: any) {
       console.error("Body backfill failed:", e.message);
