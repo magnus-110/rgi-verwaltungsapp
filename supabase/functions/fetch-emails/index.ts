@@ -853,9 +853,11 @@ function collectTextParts(
 
   const ct = getNodeContentType(node);
   const disposition = getNodeDisposition(node);
-  if (!currentPath || disposition === "attachment") return out;
-  if (ct === "text/plain" || ct.startsWith("text/plain;")) out.push({ part: currentPath, node, kind: "plain" });
-  if (ct === "text/html" || ct.startsWith("text/html;")) out.push({ part: currentPath, node, kind: "html" });
+  if (disposition === "attachment") return out;
+  // Singlepart messages have an empty path → IMAP requires "1" to fetch the body.
+  const partPath = currentPath || "1";
+  if (ct === "text/plain" || ct.startsWith("text/plain;")) out.push({ part: partPath, node, kind: "plain" });
+  if (ct === "text/html" || ct.startsWith("text/html;")) out.push({ part: partPath, node, kind: "html" });
   return out;
 }
 
@@ -895,9 +897,31 @@ async function streamPartToBytes(
   return { bytes: merged, truncated };
 }
 
+function bytesToLatin1(bytes: Uint8Array): string {
+  let s = "";
+  // chunked to avoid stack blow-up
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    s += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)) as any);
+  }
+  return s;
+}
+
 function decodeTextBytes(bytes: Uint8Array, node: any): string {
   const params = node?.parameters || {};
   const charset = String(params.charset || params.Charset || "utf-8").toLowerCase();
+  const encoding = String(node?.encoding || "").toLowerCase();
+
+  // Apply Content-Transfer-Encoding (quoted-printable, base64) before charset decode.
+  if (encoding === "base64" || encoding === "quoted-printable") {
+    const raw = bytesToLatin1(bytes);
+    const ct = `text/plain; charset=${charset}`;
+    try {
+      return decodeTextContent(raw, encoding, ct).trim();
+    } catch {
+      // fall through to plain decode
+    }
+  }
   try {
     return new TextDecoder(charset).decode(bytes).trim();
   } catch {
@@ -923,6 +947,19 @@ async function downloadBodyTextFromStructure(
       if (kind === "html") bodyHtml = truncated ? `${decoded}<p>[Text gekürzt]</p>` : decoded;
     } catch (err: any) {
       console.error(`Download text part ${part} failed:`, err.message);
+    }
+  }
+
+  // Last-resort fallback: if structure walk yielded nothing, try whole TEXT body.
+  if (!bodyText && !bodyHtml) {
+    try {
+      const { bytes } = await streamPartToBytes(client, uid, "TEXT", MAX_TEXT_PART_BYTES);
+      if (bytes.byteLength > 0) {
+        const txt = new TextDecoder("utf-8").decode(bytes).trim();
+        if (txt) bodyText = txt;
+      }
+    } catch (err: any) {
+      console.error(`Fallback TEXT download failed for UID ${uid}:`, err.message);
     }
   }
 
