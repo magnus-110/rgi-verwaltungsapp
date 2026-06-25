@@ -508,54 +508,59 @@ function CallLinksPanel({ row, onChanged }: { row: any; onChanged: () => void })
   }
 
   return (
-    <div className="px-4 py-3 border-b bg-muted/30 space-y-2">
-      <div className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
-        <Link2 className="h-3.5 w-3.5" /> Verknüpfungen
-      </div>
-      <div className="grid grid-cols-1 gap-2">
-        <div>
-          <Label className="text-[11px] text-muted-foreground">Gebäude</Label>
-          <Select value={buildingId} onValueChange={handleBuilding}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="– kein Gebäude –" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">– kein Gebäude –</SelectItem>
-              {buildings.map((b) => (
-                <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <Collapsible open={open} onOpenChange={setOpen} className="border-b bg-muted/30">
+      <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-muted/50 transition-colors">
+        <div className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
+          <Link2 className="h-3.5 w-3.5" /> Verknüpfungen
         </div>
-        <div>
-          <Label className="text-[11px] text-muted-foreground">Kontakt</Label>
-          <Select value={contactId} onValueChange={handleContact}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="– kein Kontakt –" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">– kein Kontakt –</SelectItem>
-              {contacts.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{contactName(c)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-90")} />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="px-4 pb-3 grid grid-cols-1 gap-2">
+          <div>
+            <Label className="text-[11px] text-muted-foreground">Gebäude</Label>
+            <Select value={buildingId} onValueChange={handleBuilding}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="– kein Gebäude –" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">– kein Gebäude –</SelectItem>
+                {buildings.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-[11px] text-muted-foreground">Kontakt</Label>
+            <Select value={contactId} onValueChange={handleContact}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="– kein Kontakt –" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">– kein Kontakt –</SelectItem>
+                {contacts.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{contactName(c)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <FolderOpen className="h-3 w-3" /> Vorgang
+            </Label>
+            <Select value={caseId} onValueChange={handleCase}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="– kein Vorgang –" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">– kein Vorgang –</SelectItem>
+                {cases.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {buildingId === "none" && (
+              <div className="text-[10px] text-muted-foreground mt-1">Tipp: Gebäude wählen, um Vorgänge zu filtern.</div>
+            )}
+          </div>
         </div>
-        <div>
-          <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
-            <FolderOpen className="h-3 w-3" /> Vorgang
-          </Label>
-          <Select value={caseId} onValueChange={handleCase}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="– kein Vorgang –" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">– kein Vorgang –</SelectItem>
-              {cases.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {buildingId === "none" && (
-            <div className="text-[10px] text-muted-foreground mt-1">Tipp: Gebäude wählen, um Vorgänge zu filtern.</div>
-          )}
-        </div>
-      </div>
-    </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
