@@ -737,16 +737,6 @@ export function WegOwnerNebenkostenTool() {
                     />
 
 
-                    {!tenantChanged && heating?.source === "missing" && (
-                      <Alert>
-                        <AlertCircle className="w-4 h-4" />
-                        <AlertDescription className="text-xs">
-                          Für diese Wohnung liegt noch keine Heizkostenabrechnung
-                          vom Messdienst vor. Bitte tragen Sie den Betrag aus
-                          Ihrer Abrechnung manuell ein.
-                        </AlertDescription>
-                      </Alert>
-                    )}
                   </div>
                 )}
               </SectionCard>
