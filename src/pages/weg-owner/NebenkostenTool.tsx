@@ -300,67 +300,6 @@ export function WegOwnerNebenkostenTool() {
     }
   };
 
-  // KI-Auslese der Heizkostenabrechnung
-  const handleHeatingUpload = async (file: File) => {
-    if (!assignmentId) {
-      toast.error("Bitte zuerst eine Wohnung auswählen.");
-      return;
-    }
-    const maxBytes = 15 * 1024 * 1024;
-    if (file.size > maxBytes) {
-      toast.error("Datei zu groß (max. 15 MB).");
-      return;
-    }
-    const allowed = /\.(pdf|jpe?g|png)$/i;
-    if (!allowed.test(file.name)) {
-      toast.error("Bitte PDF, JPG oder PNG hochladen.");
-      return;
-    }
-    setAiLoading(true);
-    setAiResult(null);
-    const ts = Date.now();
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "_");
-    const filePath = `service/heating-uploads/${assignmentId}/${ts}-${safeName}`;
-    let uploaded = false;
-    try {
-      const { error: upErr } = await supabase.storage
-        .from("building-files")
-        .upload(filePath, file, { upsert: false, contentType: file.type });
-      if (upErr) throw upErr;
-      uploaded = true;
-
-      const { data, error } = await supabase.functions.invoke(
-        "extract-heating-statement",
-        { body: { assignment_id: assignmentId, file_path: filePath } },
-      );
-      if (error) throw error;
-      setAiResult(data as HeatingExtraction);
-    } catch (e: any) {
-      console.error("[heating-ai]", e);
-      toast.error(
-        "Auslese nicht möglich. Bitte tragen Sie den Wert von Hand ein.",
-      );
-    } finally {
-      if (uploaded) {
-        // Datensparsamkeit: Datei nach Auslese wieder entfernen
-        supabase.storage.from("building-files").remove([filePath]).catch(() => {});
-      }
-      setAiLoading(false);
-    }
-  };
-
-  const acceptAiSuggestion = () => {
-    if (!aiResult || typeof aiResult.suggested_value !== "number") return;
-    setHeatingOverride(aiResult.suggested_value);
-    setAiAssisted({
-      used: true,
-      confidence: aiResult.confidence,
-      source_quote: aiResult.source_quote ?? null,
-      suggested_value: aiResult.suggested_value,
-    });
-    setAiResult(null);
-    toast.success("Vorschlag übernommen. Sie können den Wert weiterhin anpassen.");
-  };
 
   // Tagesgenaue Pro-Rata bei Mieterwechsel
   const prorata = useMemo(
