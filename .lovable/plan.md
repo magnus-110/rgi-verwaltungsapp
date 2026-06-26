@@ -1,16 +1,20 @@
-## Plan
+## Ziel
+Der „PDF herunterladen"-Button im §35a Vorschau-Dialog soll künftig die serverseitige PDF-Generierung aus der Word-Vorlage nutzen (gleiche Edge Function wie der reguläre Download), statt clientseitig via jsPDF zu rendern.
 
-1. **Ursache im E-Mail-Import beheben**
-   - Die E-Mail-Body-Decodierung in `supabase/functions/fetch-emails/index.ts` wird angepasst.
-   - Besonders der typische Fall aus dem Screenshot (`GÃ¶ttinger`, `fÃ¼r`, `AnwÃ¤ltin`) wird serverseitig zuverlässig zu UTF-8 repariert.
+## Änderungen
 
-2. **Robustere Charset-Erkennung ergänzen**
-   - Wenn der IMAP-Body bereits als falsch interpretierter Latin-1/Windows-1252-String ankommt, wird er gezielt als UTF-8-Bytefolge zurückgewandelt.
-   - Dabei wird nur repariert, wenn das Ergebnis eindeutig weniger Mojibake enthält, damit korrekte Texte nicht beschädigt werden.
+### 1. `Paragraph35aCertificatePreviewDialog.tsx`
+- Neue Props: `templateId`, `buildingId`, `fiscalYear`, `periodId` (und Toast-Fehlerbehandlung wie in `downloadFromTemplate`).
+- `handleDownload` ruft nicht mehr `generate35aPdf` auf, sondern führt denselben `fetch` auf `https://${VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx` aus mit Body `{ template_id, building_id, fiscal_year, period_id, assignment_ids: [owner.id], format: "pdf" }`, lädt die Blob-Response als Datei herunter (Dateiname aus `Content-Disposition`).
+- Wenn keine `templateId` vorhanden ist: Toast „Bitte zuerst eine Vorlage auswählen" und Button-Disable.
+- Imports von `generate35aPdf` entfernen.
 
-3. **Bestehende Anzeige unangetastet lassen**
-   - Die Darstellung in `EmailHtmlBody` und der Postfach-Ansicht bleibt gleich; der Fix setzt an der Daten-Decodierung an.
+### 2. `Paragraph35aSection.tsx`
+- Beim Rendern des Dialogs zusätzlich `templateId`, `buildingId`, `fiscalYear`, `periodId` durchreichen.
 
-4. **Validierung**
-   - Build/Typecheck ausführen.
-   - Optional: eine betroffene E-Mail kann danach über die vorhandene Reparse-Funktion neu eingelesen werden, damit bereits falsch gespeicherte Inhalte korrigiert werden.
+### 3. `Paragraph35aCertificatePdf.tsx`
+- `generate35aPdf` wird nicht mehr verwendet → Funktion entfernen.
+- `buildCertificateHtml`, `CertificateContext`, `loadLogoBase64`, `generate35aZip` bleiben erhalten (werden weiter für die HTML-Vorschau bzw. an anderen Stellen genutzt — vor dem Entfernen via grep prüfen, ob `generate35aZip` noch referenziert wird; falls nein, mitlöschen).
+
+## Hinweis
+Die Vorschau im Dialog (iframe mit `buildCertificateHtml`) bleibt unverändert — nur der Download-Pfad ändert sich.

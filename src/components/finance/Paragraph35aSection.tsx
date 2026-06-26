@@ -708,6 +708,10 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
         onOpenChange={(o) => !o && setPreviewOwner(null)}
         owner={previewOwner}
         ctx={previewCtx}
+        templateId={templateId}
+        buildingId={buildingId}
+        fiscalYear={fiscalYear}
+        periodId={periodId}
       />
     </div>
   );
