@@ -11,6 +11,7 @@ import {
   type HeatingPosition,
 } from "@/lib/services/nebenkosten";
 import { CURRENT_LEGAL_VERSION } from "@/lib/legal";
+import { HeizkostenHilfeWizard } from "./HeizkostenHilfeWizard";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -113,29 +114,6 @@ export function WegOwnerNebenkostenTool() {
   const [heatingOverride, setHeatingOverride] = useState<number | "">("");
   const [loadingData, setLoadingData] = useState(false);
 
-  // KI-Auslese Heizkostenabrechnung
-  type HeatingExtraction = {
-    found: boolean;
-    anteil_gesamtkosten?: number | null;
-    heizkosten?: number | null;
-    warmwasserkosten?: number | null;
-    co2_vermieteranteil?: number | null;
-    suggested_value?: number | null;
-    nutzungszeitraum_von?: string | null;
-    nutzungszeitraum_bis?: string | null;
-    mieterwechsel_verdacht?: boolean;
-    confidence: "hoch" | "mittel" | "niedrig";
-    source_quote?: string | null;
-    warnings?: string[];
-  };
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiResult, setAiResult] = useState<HeatingExtraction | null>(null);
-  const [aiAssisted, setAiAssisted] = useState<{
-    used: boolean;
-    confidence?: string;
-    source_quote?: string | null;
-    suggested_value?: number | null;
-  }>({ used: false });
 
   // Mieter-Daten
   const [tenancyId, setTenancyId] = useState<string | null>(null);
@@ -322,67 +300,6 @@ export function WegOwnerNebenkostenTool() {
     }
   };
 
-  // KI-Auslese der Heizkostenabrechnung
-  const handleHeatingUpload = async (file: File) => {
-    if (!assignmentId) {
-      toast.error("Bitte zuerst eine Wohnung auswählen.");
-      return;
-    }
-    const maxBytes = 15 * 1024 * 1024;
-    if (file.size > maxBytes) {
-      toast.error("Datei zu groß (max. 15 MB).");
-      return;
-    }
-    const allowed = /\.(pdf|jpe?g|png)$/i;
-    if (!allowed.test(file.name)) {
-      toast.error("Bitte PDF, JPG oder PNG hochladen.");
-      return;
-    }
-    setAiLoading(true);
-    setAiResult(null);
-    const ts = Date.now();
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "_");
-    const filePath = `service/heating-uploads/${assignmentId}/${ts}-${safeName}`;
-    let uploaded = false;
-    try {
-      const { error: upErr } = await supabase.storage
-        .from("building-files")
-        .upload(filePath, file, { upsert: false, contentType: file.type });
-      if (upErr) throw upErr;
-      uploaded = true;
-
-      const { data, error } = await supabase.functions.invoke(
-        "extract-heating-statement",
-        { body: { assignment_id: assignmentId, file_path: filePath } },
-      );
-      if (error) throw error;
-      setAiResult(data as HeatingExtraction);
-    } catch (e: any) {
-      console.error("[heating-ai]", e);
-      toast.error(
-        "Auslese nicht möglich. Bitte tragen Sie den Wert von Hand ein.",
-      );
-    } finally {
-      if (uploaded) {
-        // Datensparsamkeit: Datei nach Auslese wieder entfernen
-        supabase.storage.from("building-files").remove([filePath]).catch(() => {});
-      }
-      setAiLoading(false);
-    }
-  };
-
-  const acceptAiSuggestion = () => {
-    if (!aiResult || typeof aiResult.suggested_value !== "number") return;
-    setHeatingOverride(aiResult.suggested_value);
-    setAiAssisted({
-      used: true,
-      confidence: aiResult.confidence,
-      source_quote: aiResult.source_quote ?? null,
-      suggested_value: aiResult.suggested_value,
-    });
-    setAiResult(null);
-    toast.success("Vorschlag übernommen. Sie können den Wert weiterhin anpassen.");
-  };
 
   // Tagesgenaue Pro-Rata bei Mieterwechsel
   const prorata = useMemo(
@@ -505,10 +422,6 @@ export function WegOwnerNebenkostenTool() {
               user_adjusted:
                 heating.source !== "messdienst" ||
                 Number(heatingOverride) !== heating.amount,
-              ai_assisted: aiAssisted.used,
-              ai_confidence: aiAssisted.used ? aiAssisted.confidence ?? null : null,
-              ai_source_quote: aiAssisted.used ? aiAssisted.source_quote ?? null : null,
-              ai_suggested_value: aiAssisted.used ? aiAssisted.suggested_value ?? null : null,
             }
           : null,
         extra_costs: extraCosts.map((c) => ({
@@ -812,7 +725,6 @@ export function WegOwnerNebenkostenTool() {
                               : ""
                         }
                         onChange={(e) => {
-                          if (aiAssisted.used) setAiAssisted({ used: false });
                           setHeatingOverride(
                             e.target.value === "" ? "" : Number(e.target.value),
                           );
@@ -820,217 +732,10 @@ export function WegOwnerNebenkostenTool() {
                       />
                     </Field>
 
-                    {/* KI-Auslese Heizkostenabrechnung – Vorschlag, nie Auto-Eintrag */}
-                    <div
-                      className="rounded-xl px-4 py-3 text-xs"
-                      style={{
-                        border: `1px dashed ${RGI.border}`,
-                        background: "#fbfaf7",
-                        color: RGI.muted,
-                      }}
-                    >
-                      <div className="flex items-start gap-2">
-                        <HelpCircle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: RGI.primary }} />
-                        <div className="flex-1">
-                          <div className="font-medium" style={{ color: RGI.text }}>
-                            Optional: Heizkostenabrechnung hochladen
-                          </div>
-                          <div className="mt-1">
-                            Wir lesen den Betrag aus Ihrer Messdienst-Abrechnung
-                            (Techem, ista, Brunata, Minol …) per KI aus und
-                            schlagen Ihnen einen Wert vor. Übernommen wird nichts
-                            automatisch – Sie bestätigen den Wert per Klick.
-                          </div>
-                          <div className="mt-2">
-                            <input
-                              id="heating-upload"
-                              type="file"
-                              accept=".pdf,.jpg,.jpeg,.png"
-                              className="hidden"
-                              disabled={aiLoading || !assignmentId}
-                              onChange={(e) => {
-                                const f = e.target.files?.[0];
-                                if (f) handleHeatingUpload(f);
-                                e.target.value = "";
-                              }}
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-9"
-                              disabled={aiLoading || !assignmentId}
-                              onClick={() =>
-                                document.getElementById("heating-upload")?.click()
-                              }
-                            >
-                              {aiLoading ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                  Wird ausgelesen…
-                                </>
-                              ) : (
-                                <>Abrechnung hochladen (PDF, JPG, PNG)</>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
+                    <HeizkostenHilfeWizard
+                      onUebernehmen={(v) => setHeatingOverride(v)}
+                    />
 
-                      {aiResult && (() => {
-                        const r = aiResult;
-                        const unsicher =
-                          r.found &&
-                          (r.confidence === "niedrig" || r.mieterwechsel_verdacht);
-                        const fmt = (n?: number | null) =>
-                          typeof n === "number"
-                            ? n.toLocaleString("de-DE", {
-                                style: "currency",
-                                currency: "EUR",
-                              })
-                            : "—";
-                        return (
-                          <div
-                            className="mt-3 rounded-lg p-3"
-                            style={{
-                              background: !r.found
-                                ? "#f3efea"
-                                : unsicher
-                                  ? RGI.amberBg
-                                  : RGI.greenBg,
-                              color: !r.found
-                                ? RGI.muted
-                                : unsicher
-                                  ? RGI.amber
-                                  : RGI.green,
-                              border: `1px solid ${RGI.border}`,
-                            }}
-                          >
-                            {!r.found ? (
-                              <div>
-                                <strong>Nichts erkannt.</strong> Wir konnten in
-                                diesem Dokument keinen eindeutigen
-                                Heizkostenbetrag finden. Bitte tragen Sie den
-                                Wert von Hand ein.
-                                {r.warnings?.length ? (
-                                  <ul className="list-disc ml-5 mt-1">
-                                    {r.warnings.map((w, i) => (
-                                      <li key={i}>{w}</li>
-                                    ))}
-                                  </ul>
-                                ) : null}
-                              </div>
-                            ) : unsicher ? (
-                              <div>
-                                <strong>Bitte prüfen.</strong> Wir haben Beträge
-                                gefunden, sind uns aber nicht sicher
-                                {r.mieterwechsel_verdacht
-                                  ? " (Nutzungszeitraum scheint nur ein Teilzeitraum / Mieterwechsel zu sein)"
-                                  : ""}
-                                . Tragen Sie den Wert bitte selbst ein.
-                                <div className="mt-2" style={{ color: RGI.text }}>
-                                  Anteil an den Gesamtkosten:{" "}
-                                  <strong>{fmt(r.anteil_gesamtkosten)}</strong>
-                                  {typeof r.co2_vermieteranteil === "number" && (
-                                    <>
-                                      {" "}
-                                      · Vermieteranteil CO₂:{" "}
-                                      <strong>
-                                        −{fmt(r.co2_vermieteranteil)}
-                                      </strong>
-                                    </>
-                                  )}
-                                </div>
-                                {r.warnings?.length ? (
-                                  <ul className="list-disc ml-5 mt-1">
-                                    {r.warnings.map((w, i) => (
-                                      <li key={i}>{w}</li>
-                                    ))}
-                                  </ul>
-                                ) : null}
-                              </div>
-                            ) : (
-                              <div>
-                                <div style={{ color: RGI.text }}>
-                                  <strong>Gefunden in Ihrer Abrechnung:</strong>
-                                  <ul className="list-disc ml-5 mt-1">
-                                    <li>
-                                      Anteil an den Gesamtkosten:{" "}
-                                      <strong>
-                                        {fmt(r.anteil_gesamtkosten)}
-                                      </strong>
-                                    </li>
-                                    {typeof r.co2_vermieteranteil === "number" && (
-                                      <li>
-                                        abzüglich Vermieteranteil CO₂-Abgabe:{" "}
-                                        <strong>
-                                          −{fmt(r.co2_vermieteranteil)}
-                                        </strong>
-                                      </li>
-                                    )}
-                                    <li>
-                                      Vorschlag:{" "}
-                                      <strong>{fmt(r.suggested_value)}</strong>
-                                    </li>
-                                  </ul>
-                                </div>
-                                {r.warnings?.length ? (
-                                  <ul
-                                    className="list-disc ml-5 mt-2"
-                                    style={{ color: RGI.amber }}
-                                  >
-                                    {r.warnings.map((w, i) => (
-                                      <li key={i}>{w}</li>
-                                    ))}
-                                  </ul>
-                                ) : null}
-                                <div className="mt-3 flex gap-2">
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    className="h-9"
-                                    style={{
-                                      background: RGI.primary,
-                                      color: "white",
-                                    }}
-                                    onClick={acceptAiSuggestion}
-                                    disabled={
-                                      typeof r.suggested_value !== "number"
-                                    }
-                                  >
-                                    Wert übernehmen
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-9"
-                                    onClick={() => setAiResult(null)}
-                                  >
-                                    Verwerfen
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-
-                      {aiAssisted.used && !aiResult && (
-                        <div
-                          className="mt-3 rounded-lg p-2 text-xs"
-                          style={{
-                            background: RGI.greenBg,
-                            color: RGI.green,
-                            border: `1px solid ${RGI.border}`,
-                          }}
-                        >
-                          KI-Vorschlag übernommen (Vertrauen:{" "}
-                          {aiAssisted.confidence ?? "—"}). Sie können den Wert
-                          oben weiterhin anpassen.
-                        </div>
-                      )}
-                    </div>
 
                     {!tenantChanged && heating?.source === "missing" && (
                       <Alert>
