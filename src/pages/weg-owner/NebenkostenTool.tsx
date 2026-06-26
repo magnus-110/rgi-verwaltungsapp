@@ -11,6 +11,7 @@ import {
   type HeatingPosition,
 } from "@/lib/services/nebenkosten";
 import { CURRENT_LEGAL_VERSION } from "@/lib/legal";
+import { HeizkostenHilfeWizard } from "./HeizkostenHilfeWizard";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
