@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import {
   buildCertificateHtml,
   CertificateContext,
-  generate35aPdf,
 } from "./Paragraph35aCertificatePdf";
 import { OwnerAssignment, ownerDisplayName } from "./lib/paragraph35aDistribution";
 
@@ -14,9 +15,23 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   owner: OwnerAssignment | null;
   ctx: CertificateContext | null;
+  templateId: string;
+  buildingId: string;
+  fiscalYear: number;
+  periodId: string;
 }
 
-export function Paragraph35aCertificatePreviewDialog({ open, onOpenChange, owner, ctx }: Props) {
+export function Paragraph35aCertificatePreviewDialog({
+  open,
+  onOpenChange,
+  owner,
+  ctx,
+  templateId,
+  buildingId,
+  fiscalYear,
+  periodId,
+}: Props) {
+  const { toast } = useToast();
   const [downloading, setDownloading] = useState(false);
 
   const html = useMemo(() => {
@@ -31,10 +46,46 @@ export function Paragraph35aCertificatePreviewDialog({ open, onOpenChange, owner
   );
 
   const handleDownload = async () => {
-    if (!owner || !ctx) return;
+    if (!owner) return;
+    if (!templateId) {
+      toast({ title: "Bitte zuerst eine Vorlage auswählen", variant: "destructive" });
+      return;
+    }
     setDownloading(true);
     try {
-      await generate35aPdf(owner, ctx);
+      const { data: { session } } = await supabase.auth.getSession();
+      const url = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          template_id: templateId,
+          building_id: buildingId,
+          fiscal_year: fiscalYear,
+          period_id: periodId,
+          assignment_ids: [owner.id],
+          format: "pdf",
+        }),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const blob = await resp.blob();
+      const cd = resp.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename="?([^"]+)"?/);
+      const fname = m?.[1] || `35a_${fiscalYear}.pdf`;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = fname;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    } catch (e) {
+      toast({
+        title: "PDF-Export fehlgeschlagen",
+        description: String((e as Error).message),
+        variant: "destructive",
+      });
     } finally {
       setDownloading(false);
     }
@@ -47,7 +98,7 @@ export function Paragraph35aCertificatePreviewDialog({ open, onOpenChange, owner
           <DialogTitle className="text-base">
             §35a Bescheinigung {ctx?.fiscalYear} – {owner ? ownerDisplayName(owner) : ""}
           </DialogTitle>
-          <Button size="sm" onClick={handleDownload} disabled={downloading || !owner}>
+          <Button size="sm" onClick={handleDownload} disabled={downloading || !owner || !templateId}>
             {downloading ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
