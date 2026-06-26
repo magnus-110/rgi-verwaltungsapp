@@ -9,8 +9,11 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   X,
+  Check,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const RGI = {
   primary: "#ee7202",
@@ -106,31 +109,21 @@ type AnbieterKey = keyof typeof MESSDIENST_HILFE;
 const HEIZUNGSARTEN: Array<{
   art: "ja" | "nein" | "kommt-drauf-an";
   name: string;
-  hinweis: string;
 }> = [
-  { art: "ja", name: "Erdgas (Gas)", hinweis: "CO2-Anteil vorhanden" },
-  { art: "ja", name: "Heizöl (Öl)", hinweis: "CO2-Anteil vorhanden" },
-  { art: "ja", name: "Flüssiggas", hinweis: "CO2-Anteil vorhanden" },
-  {
-    art: "kommt-drauf-an",
-    name: "Fernwärme",
-    hinweis:
-      "nur, wenn aus fossilen Brennstoffen erzeugt; ob ein CO2-Anteil anfällt, steht auf der Abrechnung",
-  },
-  { art: "nein", name: "Wärmepumpe", hinweis: "kein CO2-Anteil" },
-  {
-    art: "nein",
-    name: "Holzpellets / Holz (Biomasse)",
-    hinweis: "kein CO2-Anteil",
-  },
+  { art: "ja", name: "Erdgas (Gas)" },
+  { art: "ja", name: "Heizöl (Öl)" },
+  { art: "ja", name: "Flüssiggas" },
+  { art: "kommt-drauf-an", name: "Fernwärme" },
+  { art: "nein", name: "Wärmepumpe" },
+  { art: "nein", name: "Holzpellets / Biomasse" },
 ];
 
 function StatusIcon({ art }: { art: "ja" | "nein" | "kommt-drauf-an" }) {
   if (art === "ja")
-    return <CheckCircle2 className="w-6 h-6 shrink-0" style={{ color: RGI.green }} />;
+    return <CheckCircle2 className="w-5 h-5 shrink-0" style={{ color: RGI.green }} />;
   if (art === "nein")
-    return <XCircle className="w-6 h-6 shrink-0" style={{ color: RGI.red }} />;
-  return <AlertTriangle className="w-6 h-6 shrink-0" style={{ color: RGI.amber }} />;
+    return <XCircle className="w-5 h-5 shrink-0" style={{ color: RGI.red }} />;
+  return <AlertTriangle className="w-5 h-5 shrink-0" style={{ color: RGI.amber }} />;
 }
 
 function parseNum(s: string): number {
@@ -152,16 +145,18 @@ export function HeizkostenHilfeWizard({
   onUebernehmen: (value: number) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2>(1);
   const [anbieter, setAnbieter] = useState<AnbieterKey | null>(null);
   const [betrag, setBetrag] = useState("");
   const [co2, setCo2] = useState("");
+  const [co2InfoOpen, setCo2InfoOpen] = useState(false);
 
   const reset = () => {
     setStep(1);
     setAnbieter(null);
     setBetrag("");
     setCo2("");
+    setCo2InfoOpen(false);
   };
   const close = () => {
     setOpen(false);
@@ -184,10 +179,11 @@ export function HeizkostenHilfeWizard({
 
   const result = parseNum(betrag) - parseNum(co2);
   const ans = anbieter ? MESSDIENST_HILFE[anbieter] : null;
+  const anbieterKeys = Object.keys(MESSDIENST_HILFE) as AnbieterKey[];
 
   return (
     <div
-      className="rounded-2xl p-4 sm:p-5"
+      className="rounded-2xl p-4 sm:p-5 max-w-[720px] mx-auto"
       style={{ border: `1px solid ${RGI.border}`, background: RGI.bg }}
     >
       {/* Header */}
@@ -197,15 +193,14 @@ export function HeizkostenHilfeWizard({
             className="text-[11px] uppercase tracking-wide font-semibold"
             style={{ color: RGI.muted }}
           >
-            Schritt {step} von 3
+            Schritt {step} von 2
           </div>
           <div
             className="text-base sm:text-lg font-semibold mt-0.5"
             style={{ color: RGI.text }}
           >
-            {step === 1 && "Hat Ihre Heizung überhaupt eine CO2-Umlage?"}
-            {step === 2 && "Wer ist Ihr Messdienstleister?"}
-            {step === 3 && ans && `Anleitung für ${ans.name}`}
+            {step === 1 && "Wer ist Ihr Messdienstleister?"}
+            {step === 2 && ans && `Anleitung für ${ans.name}`}
           </div>
         </div>
         <button
@@ -221,84 +216,84 @@ export function HeizkostenHilfeWizard({
       {/* Content */}
       <div className="space-y-4">
         {step === 1 && (
-          <>
-            <ul className="space-y-2">
-              {HEIZUNGSARTEN.map((h) => (
-                <li
-                  key={h.name}
-                  className="flex items-start gap-3 rounded-xl p-3"
+          <div className="flex flex-col gap-3">
+            {anbieterKeys.map((key) => {
+              const selected = anbieter === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setAnbieter(key)}
+                  aria-pressed={selected}
+                  className={cn(
+                    "w-full min-h-[72px] flex items-center gap-4 rounded-xl border-2 p-4 text-left transition-all",
+                    "hover:bg-muted/40 active:scale-[0.99]",
+                  )}
                   style={{
-                    border: `1px solid ${RGI.border}`,
-                    background: RGI.card,
+                    borderColor: selected ? RGI.primary : RGI.border,
+                    background: selected ? "rgba(238,114,2,0.05)" : RGI.card,
                   }}
                 >
-                  <StatusIcon art={h.art} />
-                  <div className="min-w-0">
-                    <div
-                      className="font-medium text-[15px]"
-                      style={{ color: RGI.text }}
-                    >
-                      {h.name}
-                    </div>
-                    <div className="text-sm" style={{ color: RGI.muted }}>
-                      {h.hinweis}
-                    </div>
+                  <div
+                    className="flex-1 min-w-0 font-medium text-[16px]"
+                    style={{ color: RGI.text }}
+                  >
+                    {MESSDIENST_HILFE[key].name}
                   </div>
-                </li>
-              ))}
-            </ul>
-            <div
-              className="text-sm rounded-xl p-3"
-              style={{
-                background: RGI.amberBg,
-                color: RGI.text,
-                border: `1px solid ${RGI.border}`,
-              }}
-            >
-              Hat Ihre Heizung keinen CO2-Anteil, tragen Sie einfach den
-              Heizungs-/Warmwasser-Wert ein. Kaltwasser/Hausnebenkosten gehören{" "}
-              <strong>NICHT</strong> in dieses Feld.
-            </div>
-          </>
-        )}
-
-        {step === 2 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {(Object.keys(MESSDIENST_HILFE) as AnbieterKey[]).map((key) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => {
-                  setAnbieter(key);
-                  setStep(3);
-                }}
-                className="rounded-xl px-3 py-4 text-[15px] font-medium min-h-[64px] transition-colors"
-                style={{
-                  border: `1px solid ${anbieter === key ? RGI.primary : RGI.border}`,
-                  background: RGI.card,
-                  color: RGI.text,
-                }}
-              >
-                {MESSDIENST_HILFE[key].name}
-              </button>
-            ))}
+                  {selected && (
+                    <div
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+                      style={{ background: RGI.primary, color: "white" }}
+                    >
+                      <Check className="h-4 w-4" strokeWidth={3} />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
 
-        {step === 3 && ans && (
+        {step === 2 && ans && (
           <>
-            <div className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: RGI.muted }}>
-                Anbieter: <strong style={{ color: RGI.text }}>{ans.name}</strong>
-              </span>
+            {/* CO2-Info aufklappbar (schlank) */}
+            <div
+              className="rounded-xl overflow-hidden"
+              style={{ border: `1px solid ${RGI.border}`, background: RGI.card }}
+            >
               <button
                 type="button"
-                onClick={() => setStep(2)}
-                className="text-sm underline underline-offset-2"
-                style={{ color: RGI.primary }}
+                onClick={() => setCo2InfoOpen((v) => !v)}
+                className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left"
               >
-                Anbieter wechseln
+                <span className="text-sm font-medium" style={{ color: RGI.text }}>
+                  Welche Heizungsarten haben eine CO2-Umlage?
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "w-4 h-4 transition-transform shrink-0",
+                    co2InfoOpen && "rotate-180"
+                  )}
+                  style={{ color: RGI.muted }}
+                />
               </button>
+              {co2InfoOpen && (
+                <ul
+                  className="divide-y"
+                  style={{ borderTop: `1px solid ${RGI.border}` }}
+                >
+                  {HEIZUNGSARTEN.map((h) => (
+                    <li
+                      key={h.name}
+                      className="flex items-center gap-3 px-3 py-2 text-[14px]"
+                      style={{ color: RGI.text }}
+                    >
+                      <StatusIcon art={h.art} />
+                      <span>{h.name}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             <ol className="space-y-5">
@@ -310,10 +305,7 @@ export function HeizkostenHilfeWizard({
                   >
                     <span
                       className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
-                      style={{
-                        background: RGI.primary,
-                        color: "white",
-                      }}
+                      style={{ background: RGI.primary, color: "white" }}
                     >
                       {i + 1}
                     </span>
@@ -422,18 +414,18 @@ export function HeizkostenHilfeWizard({
           variant="outline"
           className="h-11"
           disabled={step === 1}
-          onClick={() => setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s))}
+          onClick={() => setStep(1)}
         >
           <ChevronLeft className="w-4 h-4 mr-1" />
           Zurück
         </Button>
-        {step < 3 ? (
+        {step === 1 ? (
           <Button
             type="button"
             className="h-11"
             style={{ background: RGI.primary, color: "white" }}
-            disabled={step === 2 && !anbieter}
-            onClick={() => setStep((s) => ((s + 1) as 1 | 2 | 3))}
+            disabled={!anbieter}
+            onClick={() => setStep(2)}
           >
             Weiter
             <ChevronRight className="w-4 h-4 ml-1" />
