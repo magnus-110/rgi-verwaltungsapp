@@ -725,7 +725,6 @@ export function WegOwnerNebenkostenTool() {
                               : ""
                         }
                         onChange={(e) => {
-                          if (aiAssisted.used) setAiAssisted({ used: false });
                           setHeatingOverride(
                             e.target.value === "" ? "" : Number(e.target.value),
                           );
