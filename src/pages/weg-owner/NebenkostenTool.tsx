@@ -114,29 +114,6 @@ export function WegOwnerNebenkostenTool() {
   const [heatingOverride, setHeatingOverride] = useState<number | "">("");
   const [loadingData, setLoadingData] = useState(false);
 
-  // KI-Auslese Heizkostenabrechnung
-  type HeatingExtraction = {
-    found: boolean;
-    anteil_gesamtkosten?: number | null;
-    heizkosten?: number | null;
-    warmwasserkosten?: number | null;
-    co2_vermieteranteil?: number | null;
-    suggested_value?: number | null;
-    nutzungszeitraum_von?: string | null;
-    nutzungszeitraum_bis?: string | null;
-    mieterwechsel_verdacht?: boolean;
-    confidence: "hoch" | "mittel" | "niedrig";
-    source_quote?: string | null;
-    warnings?: string[];
-  };
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiResult, setAiResult] = useState<HeatingExtraction | null>(null);
-  const [aiAssisted, setAiAssisted] = useState<{
-    used: boolean;
-    confidence?: string;
-    source_quote?: string | null;
-    suggested_value?: number | null;
-  }>({ used: false });
 
   // Mieter-Daten
   const [tenancyId, setTenancyId] = useState<string | null>(null);
