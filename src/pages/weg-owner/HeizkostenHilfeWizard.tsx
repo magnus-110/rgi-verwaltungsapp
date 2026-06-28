@@ -216,38 +216,38 @@ export function HeizkostenHilfeWizard({
       {/* Content */}
       <div className="space-y-4">
         {step === 1 && (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             {anbieterKeys.map((key) => {
-              const selected = anbieter === key;
               return (
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setAnbieter(key)}
-                  aria-pressed={selected}
+                  onClick={() => {
+                    setAnbieter(key);
+                    setStep(2);
+                  }}
+                  aria-pressed={anbieter === key}
                   className={cn(
-                    "w-full min-h-[72px] flex items-center gap-4 rounded-xl border-2 p-4 text-left transition-all",
+                    "w-full min-h-[48px] flex items-center gap-3 rounded-xl border-2 px-3 py-2.5 text-left transition-all",
                     "hover:bg-muted/40 active:scale-[0.99]",
                   )}
                   style={{
-                    borderColor: selected ? RGI.primary : RGI.border,
-                    background: selected ? "rgba(238,114,2,0.05)" : RGI.card,
+                    borderColor: anbieter === key ? RGI.primary : RGI.border,
+                    background: anbieter === key ? "rgba(238,114,2,0.05)" : RGI.card,
                   }}
                 >
                   <div
-                    className="flex-1 min-w-0 font-medium text-[16px]"
+                    className="flex-1 min-w-0 font-medium text-[15px]"
                     style={{ color: RGI.text }}
                   >
                     {MESSDIENST_HILFE[key].name}
                   </div>
-                  {selected && (
-                    <div
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
-                      style={{ background: RGI.primary, color: "white" }}
-                    >
-                      <Check className="h-4 w-4" strokeWidth={3} />
-                    </div>
-                  )}
+                  <div
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
+                    style={{ background: RGI.primary, color: "white" }}
+                  >
+                    <ChevronRight className="h-3 w-3" strokeWidth={3} />
+                  </div>
                 </button>
               );
             })}
