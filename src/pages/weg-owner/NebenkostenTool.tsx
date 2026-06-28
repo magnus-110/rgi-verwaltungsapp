@@ -604,7 +604,6 @@ export function WegOwnerNebenkostenTool() {
                 <Select
                   value={periodId ?? ""}
                   onValueChange={(v) => setPeriodId(v)}
-                  disabled={!assignmentId || periods.length === 0}
                 >
                   <SelectTrigger
                     className="h-11"
