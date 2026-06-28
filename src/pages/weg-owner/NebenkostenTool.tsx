@@ -684,7 +684,7 @@ export function WegOwnerNebenkostenTool() {
                     />
                   </Field>
 
-                  <div className="flex items-start gap-2 rounded-md border p-3" style={{ borderColor: "#e5e0d8" }}>
+                  <div className="flex items-center gap-2 rounded-md border p-3" style={{ borderColor: "#e5e0d8" }}>
                     <Checkbox
                       id="tenant-changed"
                       checked={tenantChanged}
