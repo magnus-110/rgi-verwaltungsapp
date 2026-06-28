@@ -52,7 +52,6 @@ import {
   Users,
   Receipt,
   Wrench,
-  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -978,20 +977,18 @@ export function WegOwnerNebenkostenTool() {
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </button>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="text"
-                                value={c.label}
-                                placeholder="Bezeichnung eingeben"
-                                className="flex-1 min-w-0 bg-white border rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-primary/30 font-semibold text-sm leading-tight placeholder:text-muted-foreground/60"
-                                style={{ color: RGI.text, borderColor: RGI.border }}
-                                onChange={(e) =>
-                                  updateExtraCost(idx, { label: e.target.value })
-                                }
-                                onBlur={() => saveExtraCost(idx)}
-                              />
-                              <Pencil className="w-3.5 h-3.5 shrink-0" style={{ color: RGI.muted }} />
-                            </div>
+                            <input
+                              type="text"
+                              value={c.label}
+                              placeholder="Bezeichnung eingeben"
+                              className="flex-1 min-w-0 bg-white border rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-primary/30 font-semibold text-sm leading-tight placeholder:text-muted-foreground/60"
+                              style={{ color: RGI.text, borderColor: RGI.border }}
+                              onChange={(e) =>
+                                updateExtraCost(idx, { label: e.target.value })
+                              }
+                              onBlur={() => saveExtraCost(idx)}
+                            />
+
                             <div
                               className="text-[11px] mt-1 flex items-center gap-1.5 flex-wrap"
                               style={{ color: RGI.muted }}
@@ -1036,8 +1033,8 @@ export function WegOwnerNebenkostenTool() {
                             <span className="text-sm font-medium" style={{ color: RGI.muted }}>
                               €
                             </span>
-                            <Pencil className="w-3.5 h-3.5 shrink-0" style={{ color: RGI.muted }} />
                           </div>
+
                         </div>
                       </div>
                     );
