@@ -620,7 +620,7 @@ export function WegOwnerNebenkostenTool() {
                   <SelectContent>
                     {periods.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.fiscal_year} ({p.period_from} – {p.period_to})
+                        {p.fiscal_year} ({formatDe(p.period_from)} – {formatDe(p.period_to)})
                       </SelectItem>
                     ))}
                   </SelectContent>
