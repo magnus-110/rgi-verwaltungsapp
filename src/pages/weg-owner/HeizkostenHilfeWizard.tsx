@@ -65,7 +65,7 @@ export const MESSDIENST_HILFE = {
     name: "RegioMess",
     schritte: [
       {
-        text: "Auf Ihrer Wohnungs-Abrechnung die Zeile „Summe Heizung und Warmwasser“ (NICHT „Gesamtkosten“ – die enthalten Wasser/Kanal).",
+        text: "Auf Ihrer Wohnungs-Abrechnung die Zeile „Summe Heizung und Warmwasser“ (NICHT „Gesamtkosten“ – die enthalten Wasser/Kanal). Das ist Ihr relevanter Gesamtwert.",
         bild: "/help/heizkosten/regiomess-1.png",
       },
       {
