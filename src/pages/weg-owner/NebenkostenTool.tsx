@@ -830,8 +830,7 @@ export function WegOwnerNebenkostenTool() {
                   className="text-xs px-3 py-2 rounded mb-3"
                   style={{ background: RGI.amberBg, color: RGI.amber }}
                 >
-                  Wasser, das bereits in der Heizkostenabrechnung enthalten ist,
-                  bitte nicht zusätzlich ansetzen.
+                  Diese Positionen dürfen gesetzlich umgelegt werden, sofern im Mietvertrag nichts anderes vereinbart ist.
                 </div>
                 {loadingData ? (
                   <LoadingRow />
