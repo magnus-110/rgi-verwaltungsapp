@@ -67,14 +67,25 @@ export function HelpButton() {
         >
           <DropdownMenuLabel className="text-base">Hilfe</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {currentTour && (
+          {currentTour ? (
             <DropdownMenuItem
               className="py-3 text-base cursor-pointer"
               onClick={() => startTour(currentTour)}
             >
               Diese Seite erklären
             </DropdownMenuItem>
+          ) : (
+            <div className="px-2 py-2 text-sm text-muted-foreground">
+              Für diese Seite gibt es keine Erklärung.
+            </div>
           )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="py-3 text-base cursor-pointer text-muted-foreground"
+            onClick={() => setConfirmOpen(true)}
+          >
+            Hilfe-Button ausblenden
+          </DropdownMenuItem>
         </DropdownMenuContent>
 
       </DropdownMenu>
