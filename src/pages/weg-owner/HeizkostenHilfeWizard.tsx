@@ -37,7 +37,7 @@ export const MESSDIENST_HILFE = {
     name: "Brunata",
     schritte: [
       {
-        text: "Im Abschnitt „Ihre Kosten“ die Zeile „Ihre Gesamtkosten“ – das ist der relevante Wert (solange kein Kaltwasser in der Abrechnung enthalten ist).",
+        text: "Im Abschnitt „Ihre Kosten“ die Zeile „Ihre Gesamtkosten“ – das ist der relevante Wert.",
         bild: "/help/heizkosten/brunata-1.png",
       },
       {
