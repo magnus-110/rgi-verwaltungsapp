@@ -79,7 +79,7 @@ export const MESSDIENST_HILFE = {
     name: "Allgäu Messpartner",
     schritte: [
       {
-        text: "Nehmen Sie „Summe Heizung und Warmwasser“ (NICHT den „Gesamtbetrag“ – der enthält auch Kaltwasser).",
+        text: "Nehmen Sie „Summe Heizung und Warmwasser“ (NICHT den „Gesamtbetrag“ – der enthält auch Kaltwasser). Das ist Ihr relevanter Gesamtwert.",
         bild: "/help/heizkosten/allgaeu-1.png",
       },
       {
