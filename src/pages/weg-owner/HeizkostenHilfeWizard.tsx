@@ -33,6 +33,20 @@ const RGI = {
 
 /** Leicht änderbare Anbieter-Hilfetexte. Bilder unter /public/help/heizkosten/. */
 export const MESSDIENST_HILFE = {
+  brunata: {
+    name: "Brunata",
+    schritte: [
+      {
+        text: "Im Abschnitt „Ihre Kosten“ die Zeile „Summe Kosten für Heizung und Warmwasser“ (= Gesamtbetrag, solange kein Kaltwasser dabei ist).",
+        bild: "/help/heizkosten/brunata-1.png",
+      },
+      {
+        text: "Auf der CO2-Seite die Zeile „Kostenübernahme durch den Vermieter in Höhe von …“ – diesen Betrag abziehen.",
+        bild: "/help/heizkosten/brunata-2.png",
+      },
+    ],
+    beispiel: { betrag: "180,24", co2: "5,14", ergebnis: "175,10" },
+  },
   techem: {
     name: "Techem",
     schritte: [
@@ -46,6 +60,20 @@ export const MESSDIENST_HILFE = {
       },
     ],
     beispiel: { betrag: "616,62", co2: "49,29", ergebnis: "567,33" },
+  },
+  regiomess: {
+    name: "RegioMess",
+    schritte: [
+      {
+        text: "Auf Ihrer Wohnungs-Abrechnung die Zeile „Summe Heizung und Warmwasser“ (NICHT „Gesamtkosten“ – die enthalten Wasser/Kanal).",
+        bild: "/help/heizkosten/regiomess-1.png",
+      },
+      {
+        text: "CO2 prüfen: Steht „keine abzugsfähigen CO2-Gebühren“ (z. B. Fernwärme), nichts abziehen. Steht im Abschnitt „Aufteilung CO2-Kosten“ ein „Anteil Eigentümer … CO2“ (Betrag), diesen abziehen.",
+        bild: "/help/heizkosten/regiomess-2.png",
+      },
+    ],
+    beispiel: { betrag: "570,18", co2: "26,29", ergebnis: "543,89" },
   },
   allgaeu: {
     name: "Allgäu Messpartner",
@@ -74,34 +102,6 @@ export const MESSDIENST_HILFE = {
       },
     ],
     beispiel: { betrag: "759,69", co2: "12,65", ergebnis: "747,04" },
-  },
-  brunata: {
-    name: "Brunata",
-    schritte: [
-      {
-        text: "Im Abschnitt „Ihre Kosten“ die Zeile „Summe Kosten für Heizung und Warmwasser“ (= Gesamtbetrag, solange kein Kaltwasser dabei ist).",
-        bild: "/help/heizkosten/brunata-1.png",
-      },
-      {
-        text: "Auf der CO2-Seite die Zeile „Kostenübernahme durch den Vermieter in Höhe von …“ – diesen Betrag abziehen.",
-        bild: "/help/heizkosten/brunata-2.png",
-      },
-    ],
-    beispiel: { betrag: "180,24", co2: "5,14", ergebnis: "175,10" },
-  },
-  regiomess: {
-    name: "RegioMess",
-    schritte: [
-      {
-        text: "Auf Ihrer Wohnungs-Abrechnung die Zeile „Summe Heizung und Warmwasser“ (NICHT „Gesamtkosten“ – die enthalten Wasser/Kanal).",
-        bild: "/help/heizkosten/regiomess-1.png",
-      },
-      {
-        text: "CO2 prüfen: Steht „keine abzugsfähigen CO2-Gebühren“ (z. B. Fernwärme), nichts abziehen. Steht im Abschnitt „Aufteilung CO2-Kosten“ ein „Anteil Eigentümer … CO2“ (Betrag), diesen abziehen.",
-        bild: "/help/heizkosten/regiomess-2.png",
-      },
-    ],
-    beispiel: { betrag: "570,18", co2: "26,29", ergebnis: "543,89" },
   },
 } as const;
 
