@@ -588,7 +588,7 @@ export function WegOwnerNebenkostenTool() {
                   value={assignmentId ?? ""}
                   onValueChange={(v) => setAssignmentId(v)}
                 >
-                  <SelectTrigger className="h-11">
+                  <SelectTrigger className="h-11" style={fieldStyle(!!assignmentId)}>
                     <SelectValue placeholder="Bitte wählen" style={{ color: RGI.green }} />
                   </SelectTrigger>
                   <SelectContent>
@@ -606,7 +606,11 @@ export function WegOwnerNebenkostenTool() {
                   onValueChange={(v) => setPeriodId(v)}
                   disabled={!assignmentId || periods.length === 0}
                 >
-                  <SelectTrigger className="h-11">
+                  <SelectTrigger
+                    className="h-11"
+                    style={fieldStyle(!!periodId)}
+                    disabled={!assignmentId || periods.length === 0}
+                  >
                     <SelectValue
                       placeholder={
                         !assignmentId
