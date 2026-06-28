@@ -1164,10 +1164,9 @@ export function WegOwnerNebenkostenTool() {
                   className="mt-0.5"
                 />
                 <span>
-                  <strong>Ich verlange ausdrücklich</strong>, dass mit der
-                  Erstellung des Dokuments sofort nach Zahlungseingang begonnen
-                  wird, und bestätige, dass mein Widerrufsrecht mit
-                  vollständiger Ausführung erlischt.
+                  Mit dem Kauf beginnt die Erstellung des Dokuments sofort. Ich
+                  bestätige, dass mein Widerrufsrecht mit vollständiger Ausführung
+                  erlischt.
                 </span>
               </label>
               <p className="text-xs text-muted-foreground">
