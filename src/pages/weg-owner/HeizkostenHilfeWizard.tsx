@@ -51,7 +51,7 @@ export const MESSDIENST_HILFE = {
     name: "Techem",
     schritte: [
       {
-        text: "Seite 1, Kasten oben rechts: Nehmen Sie „Ihr Anteil an den Gesamtkosten“ (Heizung + Warmwasser).",
+        text: "Seite 1, Kasten oben rechts: Nehmen Sie „Ihr Anteil an den Gesamtkosten“ (Heizung + Warmwasser). Das ist der relevante Gesamtwert.",
         bild: "/help/heizkosten/techem-1.png",
       },
       {
