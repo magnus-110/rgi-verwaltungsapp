@@ -145,12 +145,15 @@ export function HeizkostenHilfeWizard({
 }: {
   onUebernehmen: (value: number) => void;
 }) {
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [anbieter, setAnbieter] = useState<AnbieterKey | null>(null);
   const [betrag, setBetrag] = useState("");
   const [co2, setCo2] = useState("");
   const [co2InfoOpen, setCo2InfoOpen] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [lightboxZoom, setLightboxZoom] = useState(false);
 
   const reset = () => {
     setStep(1);
