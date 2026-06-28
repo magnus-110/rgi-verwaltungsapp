@@ -37,7 +37,7 @@ export const MESSDIENST_HILFE = {
     name: "Brunata",
     schritte: [
       {
-        text: "Im Abschnitt „Ihre Kosten“ die Zeile „Ihre Gesamtkosten“ – das ist der relevante Wert (solange kein Kaltwasser in der Abrechnung enthalten ist).",
+        text: "Im Abschnitt „Ihre Kosten“ die Zeile „Ihre Gesamtkosten“ – das ist der relevante Wert.",
         bild: "/help/heizkosten/brunata-1.png",
       },
       {
@@ -51,7 +51,7 @@ export const MESSDIENST_HILFE = {
     name: "Techem",
     schritte: [
       {
-        text: "Seite 1, Kasten oben rechts: Nehmen Sie „Ihr Anteil an den Gesamtkosten“ (Heizung + Warmwasser). Das ist der relevante Gesamtwert.",
+        text: "Seite 1: Nehmen Sie „Ihr Anteil an den Gesamtkosten“. Das ist der relevante Gesamtwert.",
         bild: "/help/heizkosten/techem-1.png",
       },
       {
@@ -65,11 +65,11 @@ export const MESSDIENST_HILFE = {
     name: "RegioMess",
     schritte: [
       {
-        text: "Auf Ihrer Wohnungs-Abrechnung die Zeile „Summe Heizung und Warmwasser“ (NICHT „Gesamtkosten“ – die enthalten Wasser/Kanal). Das ist Ihr relevanter Gesamtwert.",
+        text: "Auf Ihrer Wohnungs-Abrechnung die Zeile Gesamtkosten. Das ist Ihr relevanter Gesamtwert.",
         bild: "/help/heizkosten/regiomess-1.png",
       },
       {
-        text: "CO2 prüfen: Steht „keine abzugsfähigen CO2-Gebühren“ (z. B. Fernwärme), nichts abziehen. Steht im Abschnitt „Aufteilung CO2-Kosten“ ein „Anteil Eigentümer … CO2“ (Betrag), diesen abziehen.",
+        text: "CO2 prüfen: Im Abschnitt „Aufteilung CO2-Kosten (Wohngebäude)“ nach folgender Zeile suchen: „Ihr prozentualer Anteil an den Heizkosten = X %; Anteil Eigentümer gesamte Kosten CO2 = X Euro; X % von X Euro = X Euro“ (Betrag), diesen abziehen.",
         bild: "/help/heizkosten/regiomess-2.png",
       },
     ],
@@ -79,7 +79,7 @@ export const MESSDIENST_HILFE = {
     name: "Allgäu Messpartner",
     schritte: [
       {
-        text: "Nehmen Sie „Summe Heizung und Warmwasser“ (NICHT den „Gesamtbetrag“ – der enthält auch Kaltwasser). Das ist Ihr relevanter Gesamtwert.",
+        text: "Nehmen Sie „Gesamtbetrag“. Das ist Ihr relevanter Wert.",
         bild: "/help/heizkosten/allgaeu-1.png",
       },
       {
@@ -87,13 +87,13 @@ export const MESSDIENST_HILFE = {
         bild: "/help/heizkosten/allgaeu-2.png",
       },
     ],
-    beispiel: { betrag: "1.666,46", co2: "81,37", ergebnis: "1.585,09" },
+    beispiel: { betrag: "1.666,46", co2: "34,87", ergebnis: "1.631,59" },
   },
   ista: {
     name: "ista",
     schritte: [
       {
-        text: "Im Abschnitt „Aufteilung der Gesamtkosten“ die Zeile „Ihre Heiz- und Warmwasserkosten“ (NICHT „Ihre Gesamtkosten“ – die enthalten Wasser/Hausnebenkosten). Das ist Ihr relevanter Gesamtwert.",
+        text: "Ganz oben auf der Abrechnung unter „Ihre Abrechnung“ den Wert „Ihre Gesamtkosten“. Das ist Ihr relevanter Gesamtwert.",
         bild: "/help/heizkosten/ista-1.png",
       },
       {
