@@ -511,7 +511,77 @@ export function WegOwnerNebenkostenTool() {
             Ihre WEG-Abrechnung und die Werte des Messdienstes.
           </p>
 
-          {/* 1. Wohnung */}
+          {isInitialLoading ? (
+            <div
+              className="mt-8 rounded-2xl border flex flex-col items-center justify-center gap-3 py-16 px-6 text-center"
+              style={{ borderColor: RGI.border, background: "#fff" }}
+            >
+              <Loader2 className="w-8 h-8 animate-spin" style={{ color: RGI.amber }} />
+              <div className="text-sm font-medium" style={{ color: RGI.text }}>
+                Daten werden geladen …
+              </div>
+              <div className="text-xs" style={{ color: RGI.muted }}>
+                Bitte einen Moment Geduld, wir prüfen Ihre Wohnung und Abrechnung.
+              </div>
+            </div>
+          ) : assignments.length === 0 ? (
+            <div className="mt-6 space-y-3">
+              <Alert variant="destructive">
+                <AlertCircle className="w-4 h-4" />
+                <AlertDescription>
+                  Für Ihren Account ist aktuell keine Wohnung hinterlegt. Bitte
+                  kontaktieren Sie die Verwaltung
+                  (info@rgi-immobilien.de / 08363&nbsp;960656).
+                </AlertDescription>
+              </Alert>
+              <div
+                className="rounded-xl border px-4 py-3 text-sm"
+                style={{ borderColor: RGI.border, background: RGI.amberBg, color: RGI.amber }}
+              >
+                Die Nebenkostenabrechnung kann aktuell noch nicht erstellt werden.
+              </div>
+            </div>
+          ) : assignmentId && periods.length === 0 ? (
+            <div className="mt-6 space-y-3">
+              {assignments.length > 1 && (
+                <SectionCard num={1} title="Wohnung & Abrechnungsjahr" icon={HomeIcon}>
+                  <Field label="Wohnung">
+                    <Select
+                      value={assignmentId ?? ""}
+                      onValueChange={(v) => setAssignmentId(v)}
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue placeholder="Bitte wählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {assignments.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.building_name ?? "Gebäude"} — Whg. {a.unit_number ?? "?"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </SectionCard>
+              )}
+              <Alert variant="destructive">
+                <AlertCircle className="w-4 h-4" />
+                <AlertDescription>
+                  Für diese Wohnung ist noch keine WEG-Abrechnung finalisiert.
+                  Bitte wenden Sie sich an die Verwaltung
+                  (info@rgi-immobilien.de / 08363&nbsp;960656).
+                </AlertDescription>
+              </Alert>
+              <div
+                className="rounded-xl border px-4 py-3 text-sm"
+                style={{ borderColor: RGI.border, background: RGI.amberBg, color: RGI.amber }}
+              >
+                Die Nebenkostenabrechnung kann aktuell noch nicht erstellt werden.
+              </div>
+            </div>
+          ) : (
+            <>
+
           <SectionCard num={1} title="Wohnung & Abrechnungsjahr" icon={HomeIcon}>
             <div className="space-y-3">
               <Field label="Wohnung">
