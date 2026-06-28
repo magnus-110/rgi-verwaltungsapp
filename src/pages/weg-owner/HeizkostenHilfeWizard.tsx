@@ -51,7 +51,7 @@ export const MESSDIENST_HILFE = {
     name: "Techem",
     schritte: [
       {
-        text: "Seite 1, Kasten oben rechts: Nehmen Sie „Ihr Anteil an den Gesamtkosten“ (Heizung + Warmwasser).",
+        text: "Seite 1, Kasten oben rechts: Nehmen Sie „Ihr Anteil an den Gesamtkosten“ (Heizung + Warmwasser). Das ist der relevante Gesamtwert.",
         bild: "/help/heizkosten/techem-1.png",
       },
       {
@@ -65,7 +65,7 @@ export const MESSDIENST_HILFE = {
     name: "RegioMess",
     schritte: [
       {
-        text: "Auf Ihrer Wohnungs-Abrechnung die Zeile „Summe Heizung und Warmwasser“ (NICHT „Gesamtkosten“ – die enthalten Wasser/Kanal).",
+        text: "Auf Ihrer Wohnungs-Abrechnung die Zeile „Summe Heizung und Warmwasser“ (NICHT „Gesamtkosten“ – die enthalten Wasser/Kanal). Das ist Ihr relevanter Gesamtwert.",
         bild: "/help/heizkosten/regiomess-1.png",
       },
       {
@@ -79,7 +79,7 @@ export const MESSDIENST_HILFE = {
     name: "Allgäu Messpartner",
     schritte: [
       {
-        text: "Nehmen Sie „Summe Heizung und Warmwasser“ (NICHT den „Gesamtbetrag“ – der enthält auch Kaltwasser).",
+        text: "Nehmen Sie „Summe Heizung und Warmwasser“ (NICHT den „Gesamtbetrag“ – der enthält auch Kaltwasser). Das ist Ihr relevanter Gesamtwert.",
         bild: "/help/heizkosten/allgaeu-1.png",
       },
       {
@@ -93,7 +93,7 @@ export const MESSDIENST_HILFE = {
     name: "ista",
     schritte: [
       {
-        text: "Im Abschnitt „Aufteilung der Gesamtkosten“ die Zeile „Ihre Heiz- und Warmwasserkosten“ (NICHT „Ihre Gesamtkosten“ – die enthalten Wasser/Hausnebenkosten).",
+        text: "Im Abschnitt „Aufteilung der Gesamtkosten“ die Zeile „Ihre Heiz- und Warmwasserkosten“ (NICHT „Ihre Gesamtkosten“ – die enthalten Wasser/Hausnebenkosten). Das ist Ihr relevanter Gesamtwert.",
         bild: "/help/heizkosten/ista-1.png",
       },
       {
