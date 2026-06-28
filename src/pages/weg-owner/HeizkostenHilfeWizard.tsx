@@ -407,34 +407,22 @@ export function HeizkostenHilfeWizard({
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between gap-3 mt-5">
-        <Button
-          type="button"
-          variant="outline"
-          className="h-11"
-          disabled={step === 1}
-          onClick={() => setStep(1)}
-        >
-          <ChevronLeft className="w-4 h-4 mr-1" />
-          Zurück
-        </Button>
-        {step === 1 ? (
+      {step === 2 && (
+        <div className="flex items-center justify-between gap-3 mt-5">
           <Button
             type="button"
+            variant="outline"
             className="h-11"
-            style={{ background: RGI.primary, color: "white" }}
-            disabled={!anbieter}
-            onClick={() => setStep(2)}
+            onClick={() => setStep(1)}
           >
-            Weiter
-            <ChevronRight className="w-4 h-4 ml-1" />
+            <ChevronLeft className="w-4 h-4 mr-1" />
+            Zurück
           </Button>
-        ) : (
           <Button type="button" variant="outline" className="h-11" onClick={close}>
             Schließen
           </Button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
