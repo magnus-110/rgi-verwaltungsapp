@@ -470,6 +470,51 @@ export function HeizkostenHilfeWizard({
           </Button>
         </div>
       )}
+
+      {/* Mobile Lightbox */}
+      {lightboxSrc && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col"
+          style={{ background: "rgba(0,0,0,0.92)" }}
+          onClick={closeLightbox}
+        >
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-sm text-white/80">
+              {lightboxZoom ? "Zum Verkleinern antippen" : "Zum Vergrößern antippen"}
+            </span>
+            <button
+              type="button"
+              onClick={closeLightbox}
+              aria-label="Schließen"
+              className="p-2 rounded-full"
+              style={{ background: "rgba(255,255,255,0.15)" }}
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
+          </div>
+          <div
+            className="flex-1 overflow-auto flex items-center justify-center p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setLightboxZoom((z) => !z)}
+              className="relative"
+            >
+              <img
+                src={lightboxSrc}
+                alt="Vergrößerte Ansicht"
+                style={{
+                  maxWidth: lightboxZoom ? "200%" : "100%",
+                  width: "auto",
+                  height: "auto",
+                  transition: "max-width 0.2s ease",
+                }}
+              />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
