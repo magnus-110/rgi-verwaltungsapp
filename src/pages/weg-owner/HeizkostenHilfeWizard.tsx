@@ -93,7 +93,7 @@ export const MESSDIENST_HILFE = {
     name: "ista",
     schritte: [
       {
-        text: "Im Abschnitt „Aufteilung der Gesamtkosten“ die Zeile „Ihre Heiz- und Warmwasserkosten“ (NICHT „Ihre Gesamtkosten“ – die enthalten Wasser/Hausnebenkosten).",
+        text: "Im Abschnitt „Aufteilung der Gesamtkosten“ die Zeile „Ihre Heiz- und Warmwasserkosten“ (NICHT „Ihre Gesamtkosten“ – die enthalten Wasser/Hausnebenkosten). Das ist Ihr relevanter Gesamtwert.",
         bild: "/help/heizkosten/ista-1.png",
       },
       {
