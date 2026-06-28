@@ -1105,6 +1105,9 @@ export function WegOwnerNebenkostenTool() {
               </div>
             </>
           )}
+            </>
+          )}
+
         </div>
 
         {/* Sticky Bottom Bar */}
