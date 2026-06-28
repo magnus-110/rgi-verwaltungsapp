@@ -984,7 +984,7 @@ export function WegOwnerNebenkostenTool() {
                               type="text"
                               value={c.label}
                               placeholder="Bezeichnung eingeben"
-                              className="flex-1 min-w-0 bg-white border rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-primary/30 font-semibold text-sm leading-tight placeholder:text-muted-foreground/60"
+                              className="w-full bg-white border rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-primary/30 font-semibold text-sm leading-tight placeholder:text-muted-foreground/60"
                               style={{ color: RGI.text, borderColor: RGI.border }}
                               onChange={(e) =>
                                 updateExtraCost(idx, { label: e.target.value })
