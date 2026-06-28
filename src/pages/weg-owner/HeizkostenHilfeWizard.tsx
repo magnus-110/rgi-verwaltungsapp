@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +12,7 @@ import {
   ChevronRight,
   ChevronDown,
   X,
+  ZoomIn,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +33,20 @@ const RGI = {
 
 /** Leicht änderbare Anbieter-Hilfetexte. Bilder unter /public/help/heizkosten/. */
 export const MESSDIENST_HILFE = {
+  brunata: {
+    name: "Brunata",
+    schritte: [
+      {
+        text: "Im Abschnitt „Ihre Kosten“ die Zeile „Summe Kosten für Heizung und Warmwasser“ (= Gesamtbetrag, solange kein Kaltwasser dabei ist).",
+        bild: "/help/heizkosten/brunata-1.png",
+      },
+      {
+        text: "Auf der CO2-Seite die Zeile „Kostenübernahme durch den Vermieter in Höhe von …“ – diesen Betrag abziehen.",
+        bild: "/help/heizkosten/brunata-2.png",
+      },
+    ],
+    beispiel: { betrag: "180,24", co2: "5,14", ergebnis: "175,10" },
+  },
   techem: {
     name: "Techem",
     schritte: [
@@ -44,6 +60,20 @@ export const MESSDIENST_HILFE = {
       },
     ],
     beispiel: { betrag: "616,62", co2: "49,29", ergebnis: "567,33" },
+  },
+  regiomess: {
+    name: "RegioMess",
+    schritte: [
+      {
+        text: "Auf Ihrer Wohnungs-Abrechnung die Zeile „Summe Heizung und Warmwasser“ (NICHT „Gesamtkosten“ – die enthalten Wasser/Kanal).",
+        bild: "/help/heizkosten/regiomess-1.png",
+      },
+      {
+        text: "CO2 prüfen: Steht „keine abzugsfähigen CO2-Gebühren“ (z. B. Fernwärme), nichts abziehen. Steht im Abschnitt „Aufteilung CO2-Kosten“ ein „Anteil Eigentümer … CO2“ (Betrag), diesen abziehen.",
+        bild: "/help/heizkosten/regiomess-2.png",
+      },
+    ],
+    beispiel: { betrag: "570,18", co2: "26,29", ergebnis: "543,89" },
   },
   allgaeu: {
     name: "Allgäu Messpartner",
@@ -72,34 +102,6 @@ export const MESSDIENST_HILFE = {
       },
     ],
     beispiel: { betrag: "759,69", co2: "12,65", ergebnis: "747,04" },
-  },
-  brunata: {
-    name: "Brunata",
-    schritte: [
-      {
-        text: "Im Abschnitt „Ihre Kosten“ die Zeile „Summe Kosten für Heizung und Warmwasser“ (= Gesamtbetrag, solange kein Kaltwasser dabei ist).",
-        bild: "/help/heizkosten/brunata-1.png",
-      },
-      {
-        text: "Auf der CO2-Seite die Zeile „Kostenübernahme durch den Vermieter in Höhe von …“ – diesen Betrag abziehen.",
-        bild: "/help/heizkosten/brunata-2.png",
-      },
-    ],
-    beispiel: { betrag: "180,24", co2: "5,14", ergebnis: "175,10" },
-  },
-  regiomess: {
-    name: "RegioMess",
-    schritte: [
-      {
-        text: "Auf Ihrer Wohnungs-Abrechnung die Zeile „Summe Heizung und Warmwasser“ (NICHT „Gesamtkosten“ – die enthalten Wasser/Kanal).",
-        bild: "/help/heizkosten/regiomess-1.png",
-      },
-      {
-        text: "CO2 prüfen: Steht „keine abzugsfähigen CO2-Gebühren“ (z. B. Fernwärme), nichts abziehen. Steht im Abschnitt „Aufteilung CO2-Kosten“ ein „Anteil Eigentümer … CO2“ (Betrag), diesen abziehen.",
-        bild: "/help/heizkosten/regiomess-2.png",
-      },
-    ],
-    beispiel: { betrag: "570,18", co2: "26,29", ergebnis: "543,89" },
   },
 } as const;
 
@@ -143,12 +145,15 @@ export function HeizkostenHilfeWizard({
 }: {
   onUebernehmen: (value: number) => void;
 }) {
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [anbieter, setAnbieter] = useState<AnbieterKey | null>(null);
   const [betrag, setBetrag] = useState("");
   const [co2, setCo2] = useState("");
   const [co2InfoOpen, setCo2InfoOpen] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [lightboxZoom, setLightboxZoom] = useState(false);
 
   const reset = () => {
     setStep(1);
@@ -156,10 +161,20 @@ export function HeizkostenHilfeWizard({
     setBetrag("");
     setCo2("");
     setCo2InfoOpen(false);
+    setLightboxSrc(null);
+    setLightboxZoom(false);
   };
   const close = () => {
     setOpen(false);
     reset();
+  };
+  const openLightbox = (src: string) => {
+    setLightboxSrc(src);
+    setLightboxZoom(false);
+  };
+  const closeLightbox = () => {
+    setLightboxSrc(null);
+    setLightboxZoom(false);
   };
 
   if (!open) {
@@ -311,22 +326,54 @@ export function HeizkostenHilfeWizard({
                     <span>{s.text}</span>
                   </div>
                   <div className="max-w-[720px] mx-auto">
-                    <img
-                      src={s.bild}
-                      alt={`${ans.name} Schritt ${i + 1}`}
-                      style={{
-                        maxWidth: "100%",
-                        height: "auto",
-                        display: "block",
-                        margin: "0 auto",
-                        borderRadius: "0.5rem",
-                        border: `1px solid ${RGI.border}`,
-                      }}
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).style.display =
-                          "none";
-                      }}
-                    />
+                    {isMobile ? (
+                      <button
+                        type="button"
+                        onClick={() => openLightbox(s.bild)}
+                        className="relative w-full"
+                        aria-label={`${ans.name} Schritt ${i + 1} vergrößern`}
+                      >
+                        <img
+                          src={s.bild}
+                          alt={`${ans.name} Schritt ${i + 1}`}
+                          className="w-full"
+                          style={{
+                            height: "auto",
+                            display: "block",
+                            borderRadius: "0.5rem",
+                            border: `1px solid ${RGI.border}`,
+                          }}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).style.display =
+                              "none";
+                          }}
+                        />
+                        <span
+                          className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium shadow"
+                          style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}
+                        >
+                          <ZoomIn className="w-3.5 h-3.5" />
+                          Antippen zum Zoomen
+                        </span>
+                      </button>
+                    ) : (
+                      <img
+                        src={s.bild}
+                        alt={`${ans.name} Schritt ${i + 1}`}
+                        style={{
+                          maxWidth: "100%",
+                          height: "auto",
+                          display: "block",
+                          margin: "0 auto",
+                          borderRadius: "0.5rem",
+                          border: `1px solid ${RGI.border}`,
+                        }}
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).style.display =
+                            "none";
+                        }}
+                      />
+                    )}
                   </div>
                 </li>
               ))}
@@ -421,6 +468,51 @@ export function HeizkostenHilfeWizard({
           <Button type="button" variant="outline" className="h-11" onClick={close}>
             Schließen
           </Button>
+        </div>
+      )}
+
+      {/* Mobile Lightbox */}
+      {lightboxSrc && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col"
+          style={{ background: "rgba(0,0,0,0.92)" }}
+          onClick={closeLightbox}
+        >
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-sm text-white/80">
+              {lightboxZoom ? "Zum Verkleinern antippen" : "Zum Vergrößern antippen"}
+            </span>
+            <button
+              type="button"
+              onClick={closeLightbox}
+              aria-label="Schließen"
+              className="p-2 rounded-full"
+              style={{ background: "rgba(255,255,255,0.15)" }}
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
+          </div>
+          <div
+            className="flex-1 overflow-auto flex items-center justify-center p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setLightboxZoom((z) => !z)}
+              className="relative"
+            >
+              <img
+                src={lightboxSrc}
+                alt="Vergrößerte Ansicht"
+                style={{
+                  maxWidth: lightboxZoom ? "200%" : "100%",
+                  width: "auto",
+                  height: "auto",
+                  transition: "max-width 0.2s ease",
+                }}
+              />
+            </button>
+          </div>
         </div>
       )}
     </div>

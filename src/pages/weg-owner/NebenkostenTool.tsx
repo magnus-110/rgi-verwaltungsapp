@@ -672,7 +672,7 @@ export function WegOwnerNebenkostenTool() {
               </SectionCard>
 
               {/* 3. Heizkosten */}
-              <SectionCard num={3} title="Heizung / Warmwasser / Wasser" icon={Flame}>
+              <SectionCard num={3} title="Heizkostenabrechnung" icon={Flame}>
                 {loadingData ? (
                   <LoadingRow />
                 ) : (
