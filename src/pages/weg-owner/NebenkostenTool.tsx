@@ -152,6 +152,8 @@ export function WegOwnerNebenkostenTool() {
       } catch (e) {
         console.error("[NebenkostenTool] list-owner-units error", e);
         toast.error("Wohnungen konnten nicht geladen werden.");
+      } finally {
+        setLoadingAssignments(false);
       }
     })();
   }, [user]);
@@ -161,8 +163,10 @@ export function WegOwnerNebenkostenTool() {
     if (!selectedAssignment) {
       setPeriods([]);
       setPeriodId(null);
+      setLoadingPeriods(false);
       return;
     }
+    setLoadingPeriods(true);
     loadFinalizedPeriods(selectedAssignment.building_id)
       .then((p) => {
         setPeriods(p);
@@ -172,7 +176,8 @@ export function WegOwnerNebenkostenTool() {
       .catch((e) => {
         console.error(e);
         toast.error("Perioden konnten nicht geladen werden.");
-      });
+      })
+      .finally(() => setLoadingPeriods(false));
   }, [selectedAssignment?.building_id]);
 
   // 3. Positionen + Heizung + Mieter + Extra-Kosten laden
