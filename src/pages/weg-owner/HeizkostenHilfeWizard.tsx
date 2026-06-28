@@ -326,22 +326,54 @@ export function HeizkostenHilfeWizard({
                     <span>{s.text}</span>
                   </div>
                   <div className="max-w-[720px] mx-auto">
-                    <img
-                      src={s.bild}
-                      alt={`${ans.name} Schritt ${i + 1}`}
-                      style={{
-                        maxWidth: "100%",
-                        height: "auto",
-                        display: "block",
-                        margin: "0 auto",
-                        borderRadius: "0.5rem",
-                        border: `1px solid ${RGI.border}`,
-                      }}
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).style.display =
-                          "none";
-                      }}
-                    />
+                    {isMobile ? (
+                      <button
+                        type="button"
+                        onClick={() => openLightbox(s.bild)}
+                        className="relative w-full"
+                        aria-label={`${ans.name} Schritt ${i + 1} vergrößern`}
+                      >
+                        <img
+                          src={s.bild}
+                          alt={`${ans.name} Schritt ${i + 1}`}
+                          className="w-full"
+                          style={{
+                            height: "auto",
+                            display: "block",
+                            borderRadius: "0.5rem",
+                            border: `1px solid ${RGI.border}`,
+                          }}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).style.display =
+                              "none";
+                          }}
+                        />
+                        <span
+                          className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium shadow"
+                          style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}
+                        >
+                          <ZoomIn className="w-3.5 h-3.5" />
+                          Antippen zum Zoomen
+                        </span>
+                      </button>
+                    ) : (
+                      <img
+                        src={s.bild}
+                        alt={`${ans.name} Schritt ${i + 1}`}
+                        style={{
+                          maxWidth: "100%",
+                          height: "auto",
+                          display: "block",
+                          margin: "0 auto",
+                          borderRadius: "0.5rem",
+                          border: `1px solid ${RGI.border}`,
+                        }}
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).style.display =
+                            "none";
+                        }}
+                      />
+                    )}
                   </div>
                 </li>
               ))}
