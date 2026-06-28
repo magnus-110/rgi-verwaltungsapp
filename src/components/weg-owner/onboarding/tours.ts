@@ -306,6 +306,48 @@ export const CASH_AUDIT_TOUR: TourDefinition = {
   ],
 };
 
+export const NEBENKOSTEN_TOUR: TourDefinition = {
+  id: "nebenkosten",
+  title: "Nebenkostenabrechnung erstellen",
+  steps: [
+    {
+      title: "Nebenkostenabrechnung in wenigen Minuten",
+      description:
+        "Mit diesem Werkzeug erstellen Sie eine rechtssichere Nebenkostenabrechnung für Ihre vermietete Wohnung. Die Daten zu Ihrer Wohnung übernehmen wir automatisch – Sie ergänzen nur, was wir nicht wissen können (z. B. Heiz- und Mieterdaten).",
+    },
+    {
+      title: "Schritt 1 – Wohnung & Abrechnungsjahr",
+      description:
+        "Wählen Sie zuerst Ihre Wohnung und das Abrechnungsjahr. Sobald beide Felder grün hinterlegt sind, füllen sich viele weitere Felder automatisch.",
+    },
+    {
+      title: "Schritt 2 – Mieter & Vorauszahlungen",
+      description:
+        "Tragen Sie Name und Adresse Ihres Mieters sowie den Abrechnungszeitraum (Einzug/Auszug) und die geleisteten Nebenkosten-Vorauszahlungen ein.",
+    },
+    {
+      title: "Schritt 3 – Heizkosten",
+      description:
+        "Übernehmen Sie den Gesamtwert aus Ihrer Heizkostenabrechnung (Brunata, Techem, ista, RegioMess, Allgäu Messpartner). Über den Button 'Hilfe zur Heizkostenabrechnung' zeigen wir Ihnen Schritt für Schritt, welchen Wert Sie verwenden müssen.",
+    },
+    {
+      title: "Schritt 4 – Umlagefähige Kosten",
+      description:
+        "Diese Kosten ziehen wir automatisch aus Ihrer WEG-Abrechnung. Prüfen Sie die Werte und ergänzen Sie, falls etwas fehlt.",
+    },
+    {
+      title: "Schritt 5 – Weitere Kosten",
+      description:
+        "Hier können Sie zusätzliche umlagefähige Posten erfassen, die nicht in der WEG-Abrechnung enthalten sind (z. B. Gartenpflege, die Sie selbst beauftragt haben).",
+    },
+    {
+      title: "Kauf & PDF-Download",
+      description:
+        "Nach dem Kauf erstellen wir das fertige PDF sofort und stellen es Ihnen zum Download bereit. Bei Fragen erreichen Sie uns unter info@rgi-immobilien.de oder 08363 960656.",
+    },
+  ],
+};
+
 /**
  * Reihenfolge analog zur Sidebar-Navigation im WegOwnerLayout.
  * Kassenprüfung ist absichtlich NICHT im Hauptmenü gelistet, bleibt aber
@@ -323,5 +365,5 @@ export const ALL_TOURS: TourDefinition[] = [
 ];
 
 export const TOURS_BY_ID: Record<string, TourDefinition> = Object.fromEntries(
-  [...ALL_TOURS, CASH_AUDIT_TOUR, { ...DASHBOARD_TOUR, id: "global" }].map((t) => [t.id, t])
+  [...ALL_TOURS, CASH_AUDIT_TOUR, NEBENKOSTEN_TOUR, { ...DASHBOARD_TOUR, id: "global" }].map((t) => [t.id, t])
 );
