@@ -384,6 +384,11 @@ export function WegOwnerNebenkostenTool() {
     !loadingData
   );
 
+  const isInitialLoading =
+    loadingAssignments ||
+    (!!assignmentId && loadingPeriods) ||
+    (!!assignmentId && !!periodId && loadingData);
+
   const handleBuy = async () => {
     if (!user || !selectedPeriod || !assignmentId || !waiverChecked) return;
     setSubmitting(true);
