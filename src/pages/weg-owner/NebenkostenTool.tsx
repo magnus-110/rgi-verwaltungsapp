@@ -589,7 +589,7 @@ export function WegOwnerNebenkostenTool() {
                   onValueChange={(v) => setAssignmentId(v)}
                 >
                   <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Bitte wählen" />
+                    <SelectValue placeholder="Bitte wählen" style={{ color: RGI.green }} />
                   </SelectTrigger>
                   <SelectContent>
                     {assignments.map((a) => (
@@ -615,6 +615,7 @@ export function WegOwnerNebenkostenTool() {
                             ? "Keine Periode verfügbar"
                             : "Bitte wählen"
                       }
+                      style={{ color: RGI.green }}
                     />
                   </SelectTrigger>
                   <SelectContent>
