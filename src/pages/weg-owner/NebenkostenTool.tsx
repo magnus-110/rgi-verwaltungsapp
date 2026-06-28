@@ -114,6 +114,8 @@ export function WegOwnerNebenkostenTool() {
   const [heating, setHeating] = useState<HeatingPosition | null>(null);
   const [heatingOverride, setHeatingOverride] = useState<number | "">("");
   const [loadingData, setLoadingData] = useState(false);
+  const [loadingAssignments, setLoadingAssignments] = useState(true);
+  const [loadingPeriods, setLoadingPeriods] = useState(false);
 
 
   // Mieter-Daten
