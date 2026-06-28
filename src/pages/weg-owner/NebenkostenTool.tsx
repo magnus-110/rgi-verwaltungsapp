@@ -628,26 +628,7 @@ export function WegOwnerNebenkostenTool() {
                 </Select>
               </Field>
 
-              {assignments.length === 0 && (
-                <Alert variant="destructive">
-                  <AlertCircle className="w-4 h-4" />
-                  <AlertDescription>
-                    Für Ihren Account ist aktuell keine Wohnung hinterlegt. Bitte
-                    kontaktieren Sie die Verwaltung
-                    (info@rgi-immobilien.de / 08363&nbsp;960656).
-                  </AlertDescription>
-                </Alert>
-              )}
-              {assignmentId && periods.length === 0 && (
-                <Alert variant="destructive">
-                  <AlertCircle className="w-4 h-4" />
-                  <AlertDescription>
-                    Für diese Wohnung ist noch keine WEG-Abrechnung finalisiert.
-                    Bitte wenden Sie sich an die Verwaltung
-                    (info@rgi-immobilien.de / 08363&nbsp;960656).
-                  </AlertDescription>
-                </Alert>
-              )}
+
             </div>
           </SectionCard>
 
