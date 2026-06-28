@@ -161,10 +161,20 @@ export function HeizkostenHilfeWizard({
     setBetrag("");
     setCo2("");
     setCo2InfoOpen(false);
+    setLightboxSrc(null);
+    setLightboxZoom(false);
   };
   const close = () => {
     setOpen(false);
     reset();
+  };
+  const openLightbox = (src: string) => {
+    setLightboxSrc(src);
+    setLightboxZoom(false);
+  };
+  const closeLightbox = () => {
+    setLightboxSrc(null);
+    setLightboxZoom(false);
   };
 
   if (!open) {
