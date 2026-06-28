@@ -33,6 +33,7 @@ function tourForPath(pathname: string): string | null {
   if (pathname.startsWith("/weg-owner/chatbot")) return "chatbot";
   if (pathname.startsWith("/weg-owner/settings")) return "settings";
   if (pathname.startsWith("/weg-owner/kassenpruefung")) return "cash-audit";
+  if (pathname.startsWith("/weg-owner/service-hub/nebenkosten")) return "nebenkosten";
   return null;
 }
 
