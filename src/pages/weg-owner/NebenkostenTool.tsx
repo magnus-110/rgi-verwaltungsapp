@@ -52,7 +52,6 @@ import {
   Users,
   Receipt,
   Wrench,
-  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 
