@@ -15,6 +15,7 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import allgaeu2Asset from "@/assets/allgaeu-2.png.asset.json";
 
 const RGI = {
   primary: "#ee7202",
@@ -84,7 +85,7 @@ export const MESSDIENST_HILFE = {
       },
       {
         text: "Im CO2-Absatz die Zeile „CO2-Kosten-Vermieteranteil noch enthalten“ – diesen Betrag abziehen.",
-        bild: "/help/heizkosten/allgaeu-2.png",
+        bild: allgaeu2Asset.url,
       },
     ],
     beispiel: { betrag: "1.666,46", co2: "34,87", ergebnis: "1.631,59" },
