@@ -915,19 +915,22 @@ export function WegOwnerNebenkostenTool() {
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </button>
                           <div className="flex-1 min-w-0">
-                            <input
-                              type="text"
-                              value={c.label}
-                              placeholder="Bezeichnung"
-                              className="w-full bg-transparent border-0 outline-none font-semibold text-sm leading-tight focus:ring-0 placeholder:text-muted-foreground/60"
-                              style={{ color: RGI.text }}
-                              onChange={(e) =>
-                                updateExtraCost(idx, { label: e.target.value })
-                              }
-                              onBlur={() => saveExtraCost(idx)}
-                            />
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={c.label}
+                                placeholder="Bezeichnung eingeben"
+                                className="flex-1 min-w-0 bg-white border rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-primary/30 font-semibold text-sm leading-tight placeholder:text-muted-foreground/60"
+                                style={{ color: RGI.text, borderColor: RGI.border }}
+                                onChange={(e) =>
+                                  updateExtraCost(idx, { label: e.target.value })
+                                }
+                                onBlur={() => saveExtraCost(idx)}
+                              />
+                              <Pencil className="w-3.5 h-3.5 shrink-0" style={{ color: RGI.muted }} />
+                            </div>
                             <div
-                              className="text-[11px] mt-0.5 flex items-center gap-1.5 flex-wrap"
+                              className="text-[11px] mt-1 flex items-center gap-1.5 flex-wrap"
                               style={{ color: RGI.muted }}
                             >
                               <span>Schlüssel DIREKT</span>
@@ -943,15 +946,16 @@ export function WegOwnerNebenkostenTool() {
                             </div>
                           </div>
                           <div
-                            className="flex items-baseline gap-1 shrink-0 pl-2"
+                            className="flex items-center gap-2 shrink-0 pl-2"
                             style={{ borderLeft: `1px solid rgba(0,0,0,0.08)` }}
                           >
                             <input
                               type="text"
                               inputMode="decimal"
                               aria-label={`Betrag ${c.label}`}
-                              className="w-24 bg-transparent border-0 outline-none text-right text-lg font-semibold tabular-nums focus:ring-0"
-                              style={{ color: RGI.text }}
+                              className="w-24 bg-white border rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-primary/30 text-right text-lg font-semibold tabular-nums placeholder:text-muted-foreground/60"
+                              style={{ color: RGI.text, borderColor: RGI.border }}
+                              placeholder="0,00"
                               value={c.amount.toLocaleString("de-DE", {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2,
@@ -969,6 +973,7 @@ export function WegOwnerNebenkostenTool() {
                             <span className="text-sm font-medium" style={{ color: RGI.muted }}>
                               €
                             </span>
+                            <Pencil className="w-3.5 h-3.5 shrink-0" style={{ color: RGI.muted }} />
                           </div>
                         </div>
                       </div>
