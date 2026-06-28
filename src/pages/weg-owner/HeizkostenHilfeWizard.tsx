@@ -43,7 +43,7 @@ export const MESSDIENST_HILFE = {
         bild: "/help/heizkosten/techem-2.png",
       },
     ],
-    beispiel: { betrag: "990,50", co2: "52,13", ergebnis: "938,37" },
+    beispiel: { betrag: "616,62", co2: "49,29", ergebnis: "567,33" },
   },
   allgaeu: {
     name: "Allgäu Messpartner",
@@ -57,7 +57,7 @@ export const MESSDIENST_HILFE = {
         bild: "/help/heizkosten/allgaeu-2.png",
       },
     ],
-    beispiel: { betrag: "1.451,70", co2: "34,87", ergebnis: "1.416,83" },
+    beispiel: { betrag: "1.666,46", co2: "81,37", ergebnis: "1.585,09" },
   },
   ista: {
     name: "ista",
@@ -71,7 +71,7 @@ export const MESSDIENST_HILFE = {
         bild: "/help/heizkosten/ista-2.png",
       },
     ],
-    beispiel: { betrag: "658,11", co2: "12,65", ergebnis: "645,46" },
+    beispiel: { betrag: "759,69", co2: "12,65", ergebnis: "747,04" },
   },
   brunata: {
     name: "Brunata",
@@ -99,7 +99,7 @@ export const MESSDIENST_HILFE = {
         bild: "/help/heizkosten/regiomess-2.png",
       },
     ],
-    beispiel: { betrag: "381,66", co2: "0,00", ergebnis: "381,66" },
+    beispiel: { betrag: "570,18", co2: "26,29", ergebnis: "543,89" },
   },
 } as const;
 
