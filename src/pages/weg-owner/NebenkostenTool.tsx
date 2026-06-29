@@ -18,13 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -33,12 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Loader2,
   Lock,
@@ -116,7 +105,6 @@ export function WegOwnerNebenkostenTool() {
   const [loadingAssignments, setLoadingAssignments] = useState(true);
   const [loadingPeriods, setLoadingPeriods] = useState(false);
 
-
   // Mieter-Daten
   const [tenancyId, setTenancyId] = useState<string | null>(null);
   const [tenantName, setTenantName] = useState("");
@@ -126,7 +114,8 @@ export function WegOwnerNebenkostenTool() {
   const [moveOut, setMoveOut] = useState("");
   const [tenantChanged, setTenantChanged] = useState(false);
   const [prepayMonthly, setPrepayMonthly] = useState<number | "">("");
-
+  // Verteilungsschlüssel: "weg" = wie WEG-Abrechnung (Standard), "qm" = nach Quadratmetern
+  const [distributionMode, setDistributionMode] = useState<"weg" | "qm">("weg");
   // Weitere Mieter (bei Mieterwechsel) – dynamische Liste
   type AdditionalTenant = {
     id: string;
@@ -152,8 +141,7 @@ export function WegOwnerNebenkostenTool() {
   const [additionalTenants, setAdditionalTenants] = useState<AdditionalTenant[]>([]);
   const updateAdditionalTenant = (id: string, patch: Partial<AdditionalTenant>) =>
     setAdditionalTenants((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-  const removeAdditionalTenant = (id: string) =>
-    setAdditionalTenants((prev) => prev.filter((t) => t.id !== id));
+  const removeAdditionalTenant = (id: string) => setAdditionalTenants((prev) => prev.filter((t) => t.id !== id));
   const addAdditionalTenant = () =>
     setAdditionalTenants((prev) => (prev.length >= 9 ? prev : [...prev, makeEmptyTenant()]));
 
@@ -216,12 +204,8 @@ export function WegOwnerNebenkostenTool() {
     (async () => {
       try {
         const [result, tenancyRes, costsRes] = await Promise.all([
-          getOwnerBillingPositions(assignmentId, periodId),
-          supabase
-            .from("service_tenancies")
-            .select("*")
-            .eq("assignment_id", assignmentId)
-            .maybeSingle(),
+          getOwnerBillingPositions(assignmentId, periodId, distributionMode),
+          supabase.from("service_tenancies").select("*").eq("assignment_id", assignmentId).maybeSingle(),
           supabase
             .from("service_owner_costs")
             .select("*")
@@ -235,11 +219,7 @@ export function WegOwnerNebenkostenTool() {
         setHeating(result.heating);
         // Nur vorbefüllen, wenn KEIN Mieterwechsel – sonst muss der Eigentümer
         // den anteiligen Wert aus der Heizkostenabrechnung manuell eintragen.
-        setHeatingOverride(
-          result.heating.source === "messdienst" && !tenantChanged
-            ? result.heating.amount
-            : "",
-        );
+        setHeatingOverride(result.heating.source === "messdienst" && !tenantChanged ? result.heating.amount : "");
 
         const t = tenancyRes.data;
         if (t) {
@@ -270,7 +250,7 @@ export function WegOwnerNebenkostenTool() {
         setLoadingData(false);
       }
     })();
-  }, [assignmentId, periodId, selectedPeriod?.fiscal_year, user]);
+  }, [assignmentId, periodId, selectedPeriod?.fiscal_year, user, distributionMode]);
 
   // Speicherfunktionen
   const saveTenancy = async () => {
@@ -288,20 +268,13 @@ export function WegOwnerNebenkostenTool() {
     if (tenancyId) {
       await supabase.from("service_tenancies").update(payload).eq("id", tenancyId);
     } else {
-      const { data } = await supabase
-        .from("service_tenancies")
-        .insert(payload)
-        .select()
-        .single();
+      const { data } = await supabase.from("service_tenancies").insert(payload).select().single();
       if (data) setTenancyId(data.id);
     }
   };
 
   const addExtraCost = (type = "sonstige", label = "Neue Position") => {
-    setExtraCosts((prev) => [
-      ...prev,
-      { cost_type: type, label, amount: 0, prorata_exempt: false },
-    ]);
+    setExtraCosts((prev) => [...prev, { cost_type: type, label, amount: 0, prorata_exempt: false }]);
   };
   const removeExtraCost = async (idx: number) => {
     const ec = extraCosts[idx];
@@ -309,9 +282,7 @@ export function WegOwnerNebenkostenTool() {
     setExtraCosts((prev) => prev.filter((_, i) => i !== idx));
   };
   const updateExtraCost = (idx: number, patch: Partial<ExtraCost>) => {
-    setExtraCosts((prev) =>
-      prev.map((c, i) => (i === idx ? { ...c, ...patch } : c)),
-    );
+    setExtraCosts((prev) => prev.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
   };
   const saveExtraCost = async (idx: number) => {
     if (!assignmentId || !user || !selectedPeriod) return;
@@ -328,11 +299,7 @@ export function WegOwnerNebenkostenTool() {
     if (c.id) {
       await supabase.from("service_owner_costs").update(payload).eq("id", c.id);
     } else {
-      const { data } = await supabase
-        .from("service_owner_costs")
-        .insert(payload)
-        .select()
-        .single();
+      const { data } = await supabase.from("service_owner_costs").insert(payload).select().single();
       if (data) updateExtraCost(idx, { id: data.id });
     }
   };
@@ -348,18 +315,14 @@ export function WegOwnerNebenkostenTool() {
     moveInVal: string | null,
     moveOutVal: string | null,
   ) => {
-    const factorAuto = (p: AutoPosition) =>
-      pr.active && !p.consumption_based ? pr.factor : 1;
+    const factorAuto = (p: AutoPosition) => (pr.active && !p.consumption_based ? pr.factor : 1);
     const posAmount = (p: AutoPosition) => round2(p.share_amount * factorAuto(p));
-    const activePositions = autoPositions.filter(
-      (p) => !disabledAccounts.has(p.account_number),
-    );
+    const activePositions = autoPositions.filter((p) => !disabledAccounts.has(p.account_number));
     const autoSum = round2(activePositions.reduce((s, p) => s + posAmount(p), 0));
-    const extraEff = (c: ExtraCost) =>
-      pr.active && !c.prorata_exempt ? round2(c.amount * pr.factor) : c.amount;
+    const extraEff = (c: ExtraCost) => (pr.active && !c.prorata_exempt ? round2(c.amount * pr.factor) : c.amount);
     const extraSum = round2(extraCosts.reduce((s, c) => s + extraEff(c), 0));
     const costSum = round2(autoSum + heatingValue + extraSum);
-    const prepayFull = tPrepayMonthly * 12;
+    const prepayFull = tPrepayMonthly; // Eingabe ist bereits die Jahressumme
     const prepaySum = round2(pr.active ? prepayFull * pr.factor : prepayFull);
     const result = round2(costSum - prepaySum);
     const months = pr.periodDays > 0 ? pr.tenantDays / 30.42 : 0;
@@ -420,7 +383,6 @@ export function WegOwnerNebenkostenTool() {
     };
   };
 
-
   // Tagesgenaue Pro-Rata bei Mieterwechsel
   const prorata = useMemo(
     () => computeProrata(moveIn, moveOut, tenantChanged, selectedPeriod),
@@ -429,10 +391,7 @@ export function WegOwnerNebenkostenTool() {
 
   // Pro-Rata für jeden zusätzlichen Mieter
   const additionalProrata = useMemo(
-    () =>
-      additionalTenants.map((t) =>
-        computeProrata(t.moveIn, t.moveOut, tenantChanged, selectedPeriod),
-      ),
+    () => additionalTenants.map((t) => computeProrata(t.moveIn, t.moveOut, tenantChanged, selectedPeriod)),
     [additionalTenants, tenantChanged, selectedPeriod],
   );
 
@@ -450,8 +409,7 @@ export function WegOwnerNebenkostenTool() {
   }, [tenantChanged]);
 
   // Faktor für eine Auto-Position (verbrauchsabhängige bleiben ungekürzt)
-  const factorForAuto = (p: AutoPosition) =>
-    prorata.active && !p.consumption_based ? prorata.factor : 1;
+  const factorForAuto = (p: AutoPosition) => (prorata.active && !p.consumption_based ? prorata.factor : 1);
 
   // Effektiver Betrag je Position: Override hat Vorrang, sonst share × Faktor
   const effectivePositionAmount = (p: AutoPosition) => {
@@ -460,8 +418,7 @@ export function WegOwnerNebenkostenTool() {
     return round2(p.share_amount * factorForAuto(p));
   };
 
-  const effectiveExtraAmount = (c: ExtraCost) =>
-    prorata.active ? round2(c.amount * prorata.factor) : c.amount;
+  const effectiveExtraAmount = (c: ExtraCost) => (prorata.active ? round2(c.amount * prorata.factor) : c.amount);
 
   // Summen
   const totals = useMemo(() => {
@@ -472,7 +429,7 @@ export function WegOwnerNebenkostenTool() {
     const extraSum = extraCosts.reduce((s, c) => s + effectiveExtraAmount(c), 0);
     const costSum = autoSum + heatingValue + extraSum;
     // Vorauszahlung: 12 Monatsraten anteilig auf die Mietzeit (tagesgenau)
-    const prepayFull = (Number(prepayMonthly) || 0) * 12;
+    const prepayFull = Number(prepayMonthly) || 0; // Eingabe ist bereits die Jahressumme
     const prepaySum = prorata.active ? prepayFull * prorata.factor : prepayFull;
     const result = costSum - prepaySum;
     return {
@@ -485,15 +442,7 @@ export function WegOwnerNebenkostenTool() {
       months: prorata.tenantDays / 30.42, // Info-Wert
       prorata,
     };
-  }, [
-    autoPositions,
-    positionOverrides,
-    disabledAccounts,
-    heatingOverride,
-    extraCosts,
-    prepayMonthly,
-    prorata,
-  ]);
+  }, [autoPositions, positionOverrides, disabledAccounts, heatingOverride, extraCosts, prepayMonthly, prorata]);
 
   const additionalTenantsValid =
     !tenantChanged ||
@@ -521,11 +470,8 @@ export function WegOwnerNebenkostenTool() {
   // Anzahl der Abrechnungen (= Anzahl Produkte im Checkout)
   const quantity = tenantChanged ? 1 + additionalTenants.length : 1;
 
-
   const isInitialLoading =
-    loadingAssignments ||
-    (!!assignmentId && loadingPeriods) ||
-    (!!assignmentId && !!periodId && loadingData);
+    loadingAssignments || (!!assignmentId && loadingPeriods) || (!!assignmentId && !!periodId && loadingData);
 
   const handleBuy = async () => {
     if (!user || !selectedPeriod || !assignmentId || !waiverChecked) return;
@@ -561,8 +507,7 @@ export function WegOwnerNebenkostenTool() {
             full_share_amount: p.share_amount,
             distribution_key: p.distribution_key,
             consumption_based: !!p.consumption_based,
-            user_adjusted:
-              positionOverrides[p.account_number] !== undefined,
+            user_adjusted: positionOverrides[p.account_number] !== undefined,
             prorata_factor: factorForAuto(p),
           })),
         heating: heating
@@ -570,9 +515,7 @@ export function WegOwnerNebenkostenTool() {
               label: heating.label,
               amount: Number(heatingOverride) || 0,
               source: heating.source,
-              user_adjusted:
-                heating.source !== "messdienst" ||
-                Number(heatingOverride) !== heating.amount,
+              user_adjusted: heating.source !== "messdienst" || Number(heatingOverride) !== heating.amount,
             }
           : null,
         extra_costs: extraCosts.map((c) => ({
@@ -621,25 +564,20 @@ export function WegOwnerNebenkostenTool() {
           ]
         : null;
 
-      const finalSnapshot = tenantsArr
-        ? { ...snapshot, tenants: tenantsArr }
-        : snapshot;
+      const finalSnapshot = tenantsArr ? { ...snapshot, tenants: tenantsArr } : snapshot;
 
-      const { data, error } = await supabase.functions.invoke(
-        "create-service-checkout",
-        {
-          body: {
-            service_type: "nebenkosten",
-            assignment_id: assignmentId,
-            fiscal_year: selectedPeriod.fiscal_year,
-            agb_version: CURRENT_LEGAL_VERSION,
-            privacy_version: CURRENT_LEGAL_VERSION,
-            widerruf_waiver_confirmed: true,
-            quantity,
-            input_snapshot: finalSnapshot,
-          },
+      const { data, error } = await supabase.functions.invoke("create-service-checkout", {
+        body: {
+          service_type: "nebenkosten",
+          assignment_id: assignmentId,
+          fiscal_year: selectedPeriod.fiscal_year,
+          agb_version: CURRENT_LEGAL_VERSION,
+          privacy_version: CURRENT_LEGAL_VERSION,
+          widerruf_waiver_confirmed: true,
+          quantity,
+          input_snapshot: finalSnapshot,
         },
-      );
+      });
       if (error) throw error;
       if (data?.url) {
         window.location.href = data.url;
@@ -656,10 +594,7 @@ export function WegOwnerNebenkostenTool() {
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div
-        className="min-h-screen pb-32"
-        style={{ background: RGI.bg, color: RGI.text, fontFamily: bodyFont }}
-      >
+      <div className="min-h-screen pb-32" style={{ background: RGI.bg, color: RGI.text, fontFamily: bodyFont }}>
         <div className="max-w-2xl mx-auto px-4 pt-4 pb-6">
           <Button
             variant="ghost"
@@ -670,15 +605,12 @@ export function WegOwnerNebenkostenTool() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Zurück zum Service-Hub
           </Button>
-          <h1
-            className="text-2xl font-bold leading-tight"
-            style={{ fontFamily: headingFont }}
-          >
+          <h1 className="text-2xl font-bold leading-tight" style={{ fontFamily: headingFont }}>
             Nebenkostenabrechnung für Mieter
           </h1>
           <p className="text-sm mt-2" style={{ color: RGI.muted }}>
-            Grüne Felder sind vorbefüllt, gelbe Felder bitte ergänzen. Wir nutzen
-            Ihre WEG-Abrechnung und die Werte des Messdienstes.
+            Grüne Felder sind vorbefüllt, gelbe Felder bitte ergänzen. Wir nutzen Ihre WEG-Abrechnung und die Werte des
+            Messdienstes.
           </p>
 
           {isInitialLoading ? (
@@ -699,8 +631,7 @@ export function WegOwnerNebenkostenTool() {
               <Alert variant="destructive">
                 <AlertCircle className="w-4 h-4" />
                 <AlertDescription>
-                  Für Ihren Account ist aktuell keine Wohnung hinterlegt. Bitte
-                  kontaktieren Sie die Verwaltung
+                  Für Ihren Account ist aktuell keine Wohnung hinterlegt. Bitte kontaktieren Sie die Verwaltung
                   (info@rgi-immobilien.de / 08363&nbsp;960656).
                 </AlertDescription>
               </Alert>
@@ -716,10 +647,7 @@ export function WegOwnerNebenkostenTool() {
               {assignments.length > 1 && (
                 <SectionCard num={1} title="Wohnung & Abrechnungsjahr" icon={HomeIcon}>
                   <Field label="Wohnung">
-                    <Select
-                      value={assignmentId ?? ""}
-                      onValueChange={(v) => setAssignmentId(v)}
-                    >
+                    <Select value={assignmentId ?? ""} onValueChange={(v) => setAssignmentId(v)}>
                       <SelectTrigger className="h-11">
                         <SelectValue placeholder="Bitte wählen" />
                       </SelectTrigger>
@@ -737,8 +665,7 @@ export function WegOwnerNebenkostenTool() {
               <Alert variant="destructive">
                 <AlertCircle className="w-4 h-4" />
                 <AlertDescription>
-                  Für diese Wohnung ist noch keine WEG-Abrechnung finalisiert.
-                  Bitte wenden Sie sich an die Verwaltung
+                  Für diese Wohnung ist noch keine WEG-Abrechnung finalisiert. Bitte wenden Sie sich an die Verwaltung
                   (info@rgi-immobilien.de / 08363&nbsp;960656).
                 </AlertDescription>
               </Alert>
@@ -751,667 +678,626 @@ export function WegOwnerNebenkostenTool() {
             </div>
           ) : (
             <>
-
-          <SectionCard num={1} title="Wohnung & Abrechnungsjahr" icon={HomeIcon}>
-            <div className="space-y-3">
-              <Field label="Wohnung">
-                <Select
-                  value={assignmentId ?? ""}
-                  onValueChange={(v) => setAssignmentId(v)}
-                >
-                  <SelectTrigger className="h-11" style={fieldStyle(!!assignmentId)}>
-                    <SelectValue placeholder="Bitte wählen" style={{ color: RGI.green }} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {assignments.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.building_name ?? "Gebäude"} — Whg. {a.unit_number ?? "?"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Abrechnungsjahr">
-                <Select
-                  value={periodId ?? ""}
-                  onValueChange={(v) => setPeriodId(v)}
-                >
-                  <SelectTrigger
-                    className="h-11"
-                    style={fieldStyle(!!periodId)}
-                    disabled={!assignmentId || periods.length === 0}
-                  >
-                    <SelectValue
-                      placeholder={
-                        !assignmentId
-                          ? "Erst Wohnung wählen"
-                          : periods.length === 0
-                            ? "Keine Periode verfügbar"
-                            : "Bitte wählen"
-                      }
-                      style={{ color: RGI.green }}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {periods.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.fiscal_year} ({formatDe(p.period_from)} – {formatDe(p.period_to)})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-
-
-            </div>
-          </SectionCard>
-
-          {assignmentId && periodId && (
-            <>
-              {/* 2. Mieter */}
-              <SectionCard num={2} title={tenantChanged ? "Mieter 1 – ursprünglicher Mieter" : "Mieter"} icon={Users}>
+              <SectionCard num={1} title="Wohnung & Abrechnungsjahr" icon={HomeIcon}>
                 <div className="space-y-3">
-                  <Field
-                    label="Name des Mieters"
-                    badge={tenantName ? "auto" : "ergänzen"}
-                  >
-                    <Input
-                      className="h-11"
-                      style={fieldStyle(!!tenantName)}
-                      value={tenantName}
-                      onChange={(e) => setTenantName(e.target.value)}
-                      onBlur={saveTenancy}
-                    />
+                  <Field label="Wohnung">
+                    <Select value={assignmentId ?? ""} onValueChange={(v) => setAssignmentId(v)}>
+                      <SelectTrigger className="h-11" style={fieldStyle(!!assignmentId)}>
+                        <SelectValue placeholder="Bitte wählen" style={{ color: RGI.green }} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {assignments.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.building_name ?? "Gebäude"} — Whg. {a.unit_number ?? "?"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </Field>
                   <Field
-                    label="Anzahl Personen"
-                    badge={persons ? "auto" : "ergänzen"}
+                    label="Kostenverteilung"
+                    tooltip="Wie sollen die Kosten verteilt werden? 'Wie WEG-Abrechnung' nutzt die Schlüssel der Eigentümer-Abrechnung. 'Nach Quadratmetern' verteilt nach Wohnfläche (§ 556a BGB)."
                   >
-                    <Input
-                      type="number"
-                      className="h-11"
-                      style={fieldStyle(!!persons)}
-                      value={persons}
-                      onChange={(e) =>
-                        setPersons(e.target.value === "" ? "" : Number(e.target.value))
-                      }
-                      onBlur={saveTenancy}
-                    />
+                    <Select value={distributionMode} onValueChange={(v) => setDistributionMode(v as "weg" | "qm")}>
+                      <SelectTrigger className="h-11" style={fieldStyle(true)}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="weg">Wie WEG-Abrechnung (Standard)</SelectItem>
+                        <SelectItem value="qm">Nach Quadratmetern (§ 556a BGB)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </Field>
-                  <Field
-                    label="NK-Vorauszahlung pro Monat (€)"
-                    tooltip="Monatliche Nebenkosten-Vorauszahlung laut Mietvertrag. Pflichtfeld."
-                    badge={prepayMonthly !== "" && Number(prepayMonthly) > 0 ? undefined : "Pflicht"}
-                  >
-                    <Input
-                      type="number"
-                      step="0.01"
-                      className="h-11"
-                      style={fieldStyle(prepayMonthly !== "" && Number(prepayMonthly) > 0)}
-                      value={prepayMonthly}
-                      onChange={(e) =>
-                        setPrepayMonthly(
-                          e.target.value === "" ? "" : Number(e.target.value),
-                        )
-                      }
-                      onBlur={saveTenancy}
-                      required
-                    />
-                  </Field>
-
-                  <div className="flex items-center gap-2 rounded-md border p-3" style={{ borderColor: "#e5e0d8" }}>
-                    <Checkbox
-                      id="tenant-changed"
-                      checked={tenantChanged}
-                      onCheckedChange={(c) => {
-                        const v = !!c;
-                        setTenantChanged(v);
-                        if (v) {
-                          // Beim Aktivieren: gleich ein leeres Eingabefeld für den Folgemieter anlegen
-                          setAdditionalTenants((prev) =>
-                            prev.length === 0 ? [makeEmptyTenant()] : prev,
-                          );
-                        } else {
-                          setMoveIn("");
-                          setMoveOut("");
-                          setAdditionalTenants([]);
-                          // sofort speichern (Felder zurücksetzen)
-                          setTimeout(saveTenancy, 0);
-                        }
-                      }}
-                    />
-                    <div className="space-y-0.5">
-                      <Label htmlFor="tenant-changed" className="cursor-pointer text-sm font-medium">
-                        Mieterwechsel im Wirtschaftsjahr
-                      </Label>
-                      <p className="text-xs" style={{ color: RGI.muted }}>
-                        Aktivieren, falls der Mieter innerhalb des Abrechnungszeitraums ein- oder ausgezogen ist.
-                      </p>
-                    </div>
-                  </div>
-
-                  {tenantChanged && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Einzug">
-                        <Input
-                          type="date"
-                          className="h-11"
-                          value={moveIn}
-                          onChange={(e) => setMoveIn(e.target.value)}
-                          onBlur={saveTenancy}
+                  <Field label="Abrechnungsjahr">
+                    <Select value={periodId ?? ""} onValueChange={(v) => setPeriodId(v)}>
+                      <SelectTrigger
+                        className="h-11"
+                        style={fieldStyle(!!periodId)}
+                        disabled={!assignmentId || periods.length === 0}
+                      >
+                        <SelectValue
+                          placeholder={
+                            !assignmentId
+                              ? "Erst Wohnung wählen"
+                              : periods.length === 0
+                                ? "Keine Periode verfügbar"
+                                : "Bitte wählen"
+                          }
+                          style={{ color: RGI.green }}
                         />
-                      </Field>
-                      <Field label="Auszug">
-                        <Input
-                          type="date"
-                          className="h-11"
-                          value={moveOut}
-                          onChange={(e) => setMoveOut(e.target.value)}
-                          onBlur={saveTenancy}
-                        />
-                      </Field>
-                    </div>
-                  )}
+                      </SelectTrigger>
+                      <SelectContent>
+                        {periods.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.fiscal_year} ({formatDe(p.period_from)} – {formatDe(p.period_to)})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
                 </div>
               </SectionCard>
 
-              {/* 3. Heizkosten */}
-              <SectionCard num={3} title="Heizkostenabrechnung" icon={Flame}>
-                {loadingData ? (
-                  <LoadingRow />
-                ) : (
-                  <div className="space-y-3">
-                    <p className="text-xs" style={{ color: RGI.muted }}>
-                      Dieser Wert kommt aus der Heizkostenabrechnung des
-                      Messdienstes – inkl. der Heiz-Nebenkonten (Kaminkehrer,
-                      Heizungswartung etc.).
-                    </p>
-                    {tenantChanged ? (
-                      <Alert>
-                        <AlertCircle className="w-4 h-4" />
-                        <AlertDescription className="text-xs">
-                          <strong>Mieterwechsel im Zeitraum:</strong> Bitte
-                          tragen Sie hier die <strong>anteilige Summe</strong>{" "}
-                          für diesen Mieter aus der Heizkostenabrechnung des
-                          Messdienstes ein. Das Feld wird bei einem
-                          Mieterwechsel <em>nicht</em> automatisch vorbefüllt,
-                          da der Messdienst die Aufteilung verbrauchsgenau
-                          ermittelt.
-                        </AlertDescription>
-                      </Alert>
-                    ) : null}
-                    <Field
-                      label={heating?.label ?? "Heizung / Warmwasser / Wasser"}
-                      badge={
-                        tenantChanged
-                          ? "ergänzen"
-                          : heating?.source === "messdienst"
-                            ? "auto"
-                            : "ergänzen"
-                      }
-                      tooltip="Ihr Anteil aus der Heizkostenabrechnung des Messdienstes (z. B. Brunata, Techem, ista)."
-                    >
-                      <Input
-                        type="number"
-                        step="0.01"
-                        className="h-11"
-                        style={fieldStyle(!tenantChanged && heating?.source === "messdienst")}
-                        value={heatingOverride}
-                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                        onKeyDown={(e) => {
-                          if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
-                        }}
-                        placeholder={
-                          tenantChanged
-                            ? "Anteilige Summe aus Heizkostenabrechnung eintragen"
-                            : heating?.source === "missing"
-                              ? "Bitte Betrag aus der Heizkostenabrechnung eintragen"
-                              : ""
-                        }
-                        onChange={(e) => {
-                          setHeatingOverride(
-                            e.target.value === "" ? "" : Number(e.target.value),
-                          );
-                        }}
-                      />
-                    </Field>
-
-                    <HeizkostenHilfeWizard
-                      onUebernehmen={(v) => setHeatingOverride(v)}
-                    />
-
-
-                  </div>
-                )}
-              </SectionCard>
-
-              {/* 4. Weitere Mieter – nur bei Mieterwechsel */}
-              {tenantChanged && (
-                <SectionCard num={4} title="Weitere Mieter (nach dem Wechsel)" icon={Users}>
-                  <div className="space-y-4">
-                    <p className="text-xs" style={{ color: RGI.muted }}>
-                      Fügen Sie hier alle weiteren Mieter hinzu, die in diesem
-                      Abrechnungsjahr in der Wohnung gewohnt haben. Pro Mieter
-                      wird eine eigene anteilige Abrechnung erstellt.
-                    </p>
-
-                    {additionalTenants.map((t, idx) => (
-                      <div
-                        key={t.id}
-                        className="rounded-xl border p-3 space-y-3"
-                        style={{ borderColor: "#e5e0d8", background: "#faf8f3" }}
+              {assignmentId && periodId && (
+                <>
+                  {/* 2. Mieter */}
+                  <SectionCard
+                    num={2}
+                    title={tenantChanged ? "Mieter 1 – ursprünglicher Mieter" : "Mieter"}
+                    icon={Users}
+                  >
+                    <div className="space-y-3">
+                      <Field label="Name des Mieters" badge={tenantName ? "auto" : "ergänzen"}>
+                        <Input
+                          className="h-11"
+                          style={fieldStyle(!!tenantName)}
+                          value={tenantName}
+                          onChange={(e) => setTenantName(e.target.value)}
+                          onBlur={saveTenancy}
+                        />
+                      </Field>
+                      <Field label="Anzahl Personen" badge={persons ? "auto" : "ergänzen"}>
+                        <Input
+                          type="number"
+                          className="h-11"
+                          style={fieldStyle(!!persons)}
+                          value={persons}
+                          onChange={(e) => setPersons(e.target.value === "" ? "" : Number(e.target.value))}
+                          onBlur={saveTenancy}
+                        />
+                      </Field>
+                      <Field
+                        label="NK-Vorauszahlung gesamt (Jahr, €)"
+                        tooltip="Gesamte Nebenkosten-Vorauszahlung des Jahres laut Mietvertrag. Pflichtfeld."
+                        badge={prepayMonthly !== "" && Number(prepayMonthly) > 0 ? undefined : "Pflicht"}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="text-sm font-semibold" style={{ color: RGI.text }}>
-                            Weiterer Mieter #{idx + 2}
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeAdditionalTenant(t.id)}
-                          >
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          className="h-11"
+                          style={fieldStyle(prepayMonthly !== "" && Number(prepayMonthly) > 0)}
+                          value={prepayMonthly}
+                          onChange={(e) => setPrepayMonthly(e.target.value === "" ? "" : Number(e.target.value))}
+                          onBlur={saveTenancy}
+                          required
+                        />
+                      </Field>
+
+                      <div className="flex items-center gap-2 rounded-md border p-3" style={{ borderColor: "#e5e0d8" }}>
+                        <Checkbox
+                          id="tenant-changed"
+                          checked={tenantChanged}
+                          onCheckedChange={(c) => {
+                            const v = !!c;
+                            setTenantChanged(v);
+                            if (v) {
+                              // Beim Aktivieren: gleich ein leeres Eingabefeld für den Folgemieter anlegen
+                              setAdditionalTenants((prev) => (prev.length === 0 ? [makeEmptyTenant()] : prev));
+                            } else {
+                              setMoveIn("");
+                              setMoveOut("");
+                              setAdditionalTenants([]);
+                              // sofort speichern (Felder zurücksetzen)
+                              setTimeout(saveTenancy, 0);
+                            }
+                          }}
+                        />
+                        <div className="space-y-0.5">
+                          <Label htmlFor="tenant-changed" className="cursor-pointer text-sm font-medium">
+                            Mieterwechsel im Wirtschaftsjahr
+                          </Label>
+                          <p className="text-xs" style={{ color: RGI.muted }}>
+                            Aktivieren, falls der Mieter innerhalb des Abrechnungszeitraums ein- oder ausgezogen ist.
+                          </p>
                         </div>
+                      </div>
 
-                        <Field label="Name des Mieters" badge={t.name ? "auto" : "ergänzen"}>
-                          <Input
-                            className="h-11"
-                            style={fieldStyle(!!t.name)}
-                            value={t.name}
-                            onChange={(e) => updateAdditionalTenant(t.id, { name: e.target.value })}
-                          />
-                        </Field>
-
-                        <Field label="Anzahl Personen" badge={t.persons ? "auto" : "ergänzen"}>
-                          <Input
-                            type="number"
-                            className="h-11"
-                            style={fieldStyle(!!t.persons)}
-                            value={t.persons}
-                            onChange={(e) =>
-                              updateAdditionalTenant(t.id, {
-                                persons: e.target.value === "" ? "" : Number(e.target.value),
-                              })
-                            }
-                          />
-                        </Field>
-
-                        <Field
-                          label="NK-Vorauszahlung pro Monat (€)"
-                          tooltip="Monatliche Nebenkosten-Vorauszahlung laut Mietvertrag."
-                          badge={
-                            t.prepayMonthly !== "" && Number(t.prepayMonthly) > 0
-                              ? undefined
-                              : "Pflicht"
-                          }
-                        >
-                          <Input
-                            type="number"
-                            step="0.01"
-                            className="h-11"
-                            style={fieldStyle(t.prepayMonthly !== "" && Number(t.prepayMonthly) > 0)}
-                            value={t.prepayMonthly}
-                            onChange={(e) =>
-                              updateAdditionalTenant(t.id, {
-                                prepayMonthly: e.target.value === "" ? "" : Number(e.target.value),
-                              })
-                            }
-                          />
-                        </Field>
-
+                      {tenantChanged && (
                         <div className="grid grid-cols-2 gap-3">
                           <Field label="Einzug">
                             <Input
                               type="date"
                               className="h-11"
-                              value={t.moveIn}
-                              onChange={(e) =>
-                                updateAdditionalTenant(t.id, { moveIn: e.target.value })
-                              }
+                              value={moveIn}
+                              onChange={(e) => setMoveIn(e.target.value)}
+                              onBlur={saveTenancy}
                             />
                           </Field>
                           <Field label="Auszug">
                             <Input
                               type="date"
                               className="h-11"
-                              value={t.moveOut}
-                              onChange={(e) =>
-                                updateAdditionalTenant(t.id, { moveOut: e.target.value })
-                              }
+                              value={moveOut}
+                              onChange={(e) => setMoveOut(e.target.value)}
+                              onBlur={saveTenancy}
                             />
                           </Field>
                         </div>
+                      )}
+                    </div>
+                  </SectionCard>
 
+                  {/* 3. Heizkosten */}
+                  <SectionCard num={3} title="Heizkostenabrechnung" icon={Flame}>
+                    {loadingData ? (
+                      <LoadingRow />
+                    ) : (
+                      <div className="space-y-3">
+                        <p className="text-xs" style={{ color: RGI.muted }}>
+                          Dieser Wert kommt aus der Heizkostenabrechnung des Messdienstes – inkl. der Heiz-Nebenkonten
+                          (Kaminkehrer, Heizungswartung etc.).
+                        </p>
+                        {tenantChanged ? (
+                          <Alert>
+                            <AlertCircle className="w-4 h-4" />
+                            <AlertDescription className="text-xs">
+                              <strong>Mieterwechsel im Zeitraum:</strong> Bitte tragen Sie hier die{" "}
+                              <strong>anteilige Summe</strong> für diesen Mieter aus der Heizkostenabrechnung des
+                              Messdienstes ein. Das Feld wird bei einem Mieterwechsel <em>nicht</em> automatisch
+                              vorbefüllt, da der Messdienst die Aufteilung verbrauchsgenau ermittelt.
+                            </AlertDescription>
+                          </Alert>
+                        ) : null}
                         <Field
-                          label="Heizung / Warmwasser / Wasser (anteilig)"
-                          badge="ergänzen"
-                          tooltip="Anteilige Summe dieses Mieters aus der Heizkostenabrechnung des Messdienstes."
+                          label={heating?.label ?? "Heizung / Warmwasser / Wasser"}
+                          badge={tenantChanged ? "ergänzen" : heating?.source === "messdienst" ? "auto" : "ergänzen"}
+                          tooltip="Ihr Anteil aus der Heizkostenabrechnung des Messdienstes (z. B. Brunata, Techem, ista)."
                         >
                           <Input
                             type="number"
                             step="0.01"
                             className="h-11"
-                            style={fieldStyle(
-                              t.heatingOverride !== "" && Number(t.heatingOverride) > 0,
-                            )}
-                            value={t.heatingOverride}
+                            style={fieldStyle(!tenantChanged && heating?.source === "messdienst")}
+                            value={heatingOverride}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             onKeyDown={(e) => {
                               if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
                             }}
-                            placeholder="Anteilige Summe aus Heizkostenabrechnung eintragen"
-                            onChange={(e) =>
-                              updateAdditionalTenant(t.id, {
-                                heatingOverride: e.target.value === "" ? "" : Number(e.target.value),
-                              })
+                            placeholder={
+                              tenantChanged
+                                ? "Anteilige Summe aus Heizkostenabrechnung eintragen"
+                                : heating?.source === "missing"
+                                  ? "Bitte Betrag aus der Heizkostenabrechnung eintragen"
+                                  : ""
                             }
+                            onChange={(e) => {
+                              setHeatingOverride(e.target.value === "" ? "" : Number(e.target.value));
+                            }}
                           />
                         </Field>
+
+                        <HeizkostenHilfeWizard onUebernehmen={(v) => setHeatingOverride(v)} />
                       </div>
-                    ))}
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addAdditionalTenant}
-                      disabled={additionalTenants.length >= 9}
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Weiteren Mieter hinzufügen
-                    </Button>
-                    {additionalTenants.length >= 9 && (
-                      <p className="text-xs" style={{ color: RGI.muted }}>
-                        Maximal 10 Mieter pro Abrechnungsjahr.
-                      </p>
                     )}
-                  </div>
-                </SectionCard>
-              )}
+                  </SectionCard>
 
-              {/* Pro-Rata-Banner bei Mieterwechsel */}
-              {prorata.active && (
-                <div
-                  className="mt-4 rounded-xl px-4 py-3 text-xs flex items-start gap-2"
-                  style={{ background: RGI.amberBg, color: RGI.amber, border: `1px solid ${RGI.border}` }}
-                >
-                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                  <div>
-                    <strong>Zeitanteilige Abrechnung:</strong>{" "}
-                    {prorata.fromISO && prorata.toISO && (
-                      <>vom {formatDe(prorata.fromISO)} bis {formatDe(prorata.toISO)} – </>
-                    )}
-                    {prorata.tenantDays} von {prorata.periodDays} Tagen (
-                    {(prorata.factor * 100).toLocaleString("de-DE", { maximumFractionDigits: 1 })} %).
-                    Beträge sind tagesgenau gekürzt; verbrauchsabhängige Posten
-                    und die Heizkostenabrechnung des Messdienstes bleiben unverändert.
-                  </div>
-                </div>
-              )}
+                  {/* 4. Weitere Mieter – nur bei Mieterwechsel */}
+                  {tenantChanged && (
+                    <SectionCard num={4} title="Weitere Mieter (nach dem Wechsel)" icon={Users}>
+                      <div className="space-y-4">
+                        <p className="text-xs" style={{ color: RGI.muted }}>
+                          Fügen Sie hier alle weiteren Mieter hinzu, die in diesem Abrechnungsjahr in der Wohnung
+                          gewohnt haben. Pro Mieter wird eine eigene anteilige Abrechnung erstellt.
+                        </p>
 
-              {/* 4. Umlagefähige Kosten */}
-              <SectionCard num={5} title="Umlagefähige Kosten" icon={Receipt}>
-                <div
-                  className="text-xs px-3 py-2 rounded mb-3"
-                  style={{ background: RGI.amberBg, color: RGI.amber }}
-                >
-                  Diese Positionen dürfen gesetzlich umgelegt werden, sofern im Mietvertrag nichts anderes vereinbart ist.
-                </div>
-                {loadingData ? (
-                  <LoadingRow />
-                ) : autoPositions.length === 0 ? (
-                  <p className="text-sm" style={{ color: RGI.muted }}>
-                    Keine weiteren umlagefähigen Positionen gefunden.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {autoPositions.map((p) => {
-                      const disabled = disabledAccounts.has(p.account_number);
-                      const consumption = !!p.consumption_based;
-                      const override = positionOverrides[p.account_number];
-                      const autoValue = round2(p.share_amount * factorForAuto(p));
-                      const value = override !== undefined ? override : autoValue;
-                      const prorataApplied = prorata.active && !consumption;
-                      return (
-                        <div
-                          key={p.account_number}
-                          className="rounded-xl px-4 py-3 transition-all"
-                          style={{
-                            border: `1px solid ${disabled ? RGI.border : "transparent"}`,
-                            background: disabled
-                              ? "#f3efea"
-                              : consumption
-                                ? RGI.amberBg
-                                : RGI.greenBg,
-                            opacity: disabled ? 0.55 : 1,
-                          }}
+                        {additionalTenants.map((t, idx) => (
+                          <div
+                            key={t.id}
+                            className="rounded-xl border p-3 space-y-3"
+                            style={{ borderColor: "#e5e0d8", background: "#faf8f3" }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="text-sm font-semibold" style={{ color: RGI.text }}>
+                                Weiterer Mieter #{idx + 2}
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeAdditionalTenant(t.id)}
+                              >
+                                <Trash2 className="w-4 h-4 text-destructive" />
+                              </Button>
+                            </div>
+
+                            <Field label="Name des Mieters" badge={t.name ? "auto" : "ergänzen"}>
+                              <Input
+                                className="h-11"
+                                style={fieldStyle(!!t.name)}
+                                value={t.name}
+                                onChange={(e) => updateAdditionalTenant(t.id, { name: e.target.value })}
+                              />
+                            </Field>
+
+                            <Field label="Anzahl Personen" badge={t.persons ? "auto" : "ergänzen"}>
+                              <Input
+                                type="number"
+                                className="h-11"
+                                style={fieldStyle(!!t.persons)}
+                                value={t.persons}
+                                onChange={(e) =>
+                                  updateAdditionalTenant(t.id, {
+                                    persons: e.target.value === "" ? "" : Number(e.target.value),
+                                  })
+                                }
+                              />
+                            </Field>
+
+                            <Field
+                              label="NK-Vorauszahlung gesamt (Jahr, €)"
+                              tooltip="Gesamte Nebenkosten-Vorauszahlung des Jahres laut Mietvertrag. Pflichtfeld."
+                              badge={t.prepayMonthly !== "" && Number(t.prepayMonthly) > 0 ? undefined : "Pflicht"}
+                            >
+                              <Input
+                                type="number"
+                                step="0.01"
+                                className="h-11"
+                                style={fieldStyle(t.prepayMonthly !== "" && Number(t.prepayMonthly) > 0)}
+                                value={t.prepayMonthly}
+                                onChange={(e) =>
+                                  updateAdditionalTenant(t.id, {
+                                    prepayMonthly: e.target.value === "" ? "" : Number(e.target.value),
+                                  })
+                                }
+                              />
+                            </Field>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <Field label="Einzug">
+                                <Input
+                                  type="date"
+                                  className="h-11"
+                                  value={t.moveIn}
+                                  onChange={(e) => updateAdditionalTenant(t.id, { moveIn: e.target.value })}
+                                />
+                              </Field>
+                              <Field label="Auszug">
+                                <Input
+                                  type="date"
+                                  className="h-11"
+                                  value={t.moveOut}
+                                  onChange={(e) => updateAdditionalTenant(t.id, { moveOut: e.target.value })}
+                                />
+                              </Field>
+                            </div>
+
+                            <Field
+                              label="Heizung / Warmwasser / Wasser (anteilig)"
+                              badge="ergänzen"
+                              tooltip="Anteilige Summe dieses Mieters aus der Heizkostenabrechnung des Messdienstes."
+                            >
+                              <Input
+                                type="number"
+                                step="0.01"
+                                className="h-11"
+                                style={fieldStyle(t.heatingOverride !== "" && Number(t.heatingOverride) > 0)}
+                                value={t.heatingOverride}
+                                onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                                onKeyDown={(e) => {
+                                  if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
+                                }}
+                                placeholder="Anteilige Summe aus Heizkostenabrechnung eintragen"
+                                onChange={(e) =>
+                                  updateAdditionalTenant(t.id, {
+                                    heatingOverride: e.target.value === "" ? "" : Number(e.target.value),
+                                  })
+                                }
+                              />
+                            </Field>
+                          </div>
+                        ))}
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={addAdditionalTenant}
+                          disabled={additionalTenants.length >= 9}
                         >
-                          <div className="flex items-center gap-3">
-                            <Checkbox
-                              checked={!disabled}
-                              className="h-5 w-5 shrink-0"
-                              onCheckedChange={(c) => {
-                                setDisabledAccounts((prev) => {
-                                  const n = new Set(prev);
-                                  if (c) n.delete(p.account_number);
-                                  else n.add(p.account_number);
-                                  return n;
-                                });
+                          <Plus className="w-4 h-4 mr-1" />
+                          Weiteren Mieter hinzufügen
+                        </Button>
+                        {additionalTenants.length >= 9 && (
+                          <p className="text-xs" style={{ color: RGI.muted }}>
+                            Maximal 10 Mieter pro Abrechnungsjahr.
+                          </p>
+                        )}
+                      </div>
+                    </SectionCard>
+                  )}
+
+                  {/* Pro-Rata-Banner bei Mieterwechsel */}
+                  {prorata.active && (
+                    <div
+                      className="mt-4 rounded-xl px-4 py-3 text-xs flex items-start gap-2"
+                      style={{ background: RGI.amberBg, color: RGI.amber, border: `1px solid ${RGI.border}` }}
+                    >
+                      <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                      <div>
+                        <strong>Zeitanteilige Abrechnung:</strong>{" "}
+                        {prorata.fromISO && prorata.toISO && (
+                          <>
+                            vom {formatDe(prorata.fromISO)} bis {formatDe(prorata.toISO)} –{" "}
+                          </>
+                        )}
+                        {prorata.tenantDays} von {prorata.periodDays} Tagen (
+                        {(prorata.factor * 100).toLocaleString("de-DE", { maximumFractionDigits: 1 })} %). Beträge sind
+                        tagesgenau gekürzt; verbrauchsabhängige Posten und die Heizkostenabrechnung des Messdienstes
+                        bleiben unverändert.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 4. Umlagefähige Kosten */}
+                  <SectionCard num={5} title="Umlagefähige Kosten" icon={Receipt}>
+                    <div
+                      className="text-xs px-3 py-2 rounded mb-3"
+                      style={{ background: RGI.amberBg, color: RGI.amber }}
+                    >
+                      Diese Positionen dürfen gesetzlich umgelegt werden, sofern im Mietvertrag nichts anderes
+                      vereinbart ist.
+                    </div>
+                    {loadingData ? (
+                      <LoadingRow />
+                    ) : autoPositions.length === 0 ? (
+                      <p className="text-sm" style={{ color: RGI.muted }}>
+                        Keine weiteren umlagefähigen Positionen gefunden.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {autoPositions.map((p) => {
+                          const disabled = disabledAccounts.has(p.account_number);
+                          const consumption = !!p.consumption_based;
+                          const override = positionOverrides[p.account_number];
+                          const autoValue = round2(p.share_amount * factorForAuto(p));
+                          const value = override !== undefined ? override : autoValue;
+                          const prorataApplied = prorata.active && !consumption;
+                          return (
+                            <div
+                              key={p.account_number}
+                              className="rounded-xl px-4 py-3 transition-all"
+                              style={{
+                                border: `1px solid ${disabled ? RGI.border : "transparent"}`,
+                                background: disabled ? "#f3efea" : consumption ? RGI.amberBg : RGI.greenBg,
+                                opacity: disabled ? 0.55 : 1,
                               }}
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-sm leading-tight truncate">
-                                {p.account_name}
+                            >
+                              <div className="flex items-center gap-3">
+                                <Checkbox
+                                  checked={!disabled}
+                                  className="h-5 w-5 shrink-0"
+                                  onCheckedChange={(c) => {
+                                    setDisabledAccounts((prev) => {
+                                      const n = new Set(prev);
+                                      if (c) n.delete(p.account_number);
+                                      else n.add(p.account_number);
+                                      return n;
+                                    });
+                                  }}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-semibold text-sm leading-tight truncate">{p.account_name}</div>
+                                  <div
+                                    className="text-[11px] mt-0.5 flex items-center gap-1.5 flex-wrap"
+                                    style={{ color: RGI.muted }}
+                                  >
+                                    <span>Schlüssel {p.distribution_key.toUpperCase()}</span>
+                                    <span>·</span>
+                                    <span>Gesamt {p.total_amount.toFixed(2)} €</span>
+                                    {consumption && (
+                                      <span
+                                        className="px-1.5 py-0.5 rounded-full text-[10px] font-medium ml-1"
+                                        style={{ background: "#fff", color: RGI.amber }}
+                                      >
+                                        nach Verbrauch
+                                      </span>
+                                    )}
+                                    {prorataApplied && override === undefined && (
+                                      <span
+                                        className="px-1.5 py-0.5 rounded-full text-[10px] font-medium ml-1"
+                                        style={{ background: "#fff", color: RGI.amber }}
+                                      >
+                                        zeitanteilig
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div
+                                  className="flex items-baseline gap-1 shrink-0 pl-2"
+                                  style={{ borderLeft: `1px solid ${disabled ? RGI.border : "rgba(0,0,0,0.08)"}` }}
+                                >
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    disabled={disabled}
+                                    aria-label={`Mieteranteil ${p.account_name}`}
+                                    className="w-24 bg-transparent border-0 outline-none text-right text-lg font-semibold tabular-nums focus:ring-0 disabled:cursor-not-allowed"
+                                    style={{ color: RGI.text }}
+                                    value={
+                                      typeof value === "number"
+                                        ? value.toLocaleString("de-DE", {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2,
+                                          })
+                                        : ""
+                                    }
+                                    onChange={(e) => {
+                                      const raw = e.target.value.replace(/\./g, "").replace(",", ".");
+                                      const num = raw === "" ? 0 : Number(raw);
+                                      if (Number.isNaN(num)) return;
+                                      setPositionOverrides((prev) => ({
+                                        ...prev,
+                                        [p.account_number]: num,
+                                      }));
+                                    }}
+                                  />
+                                  <span className="text-sm font-medium" style={{ color: RGI.muted }}>
+                                    €
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </SectionCard>
+
+                  {/* 5. Weitere Kosten */}
+                  <SectionCard num={6} title="Weitere Kosten" icon={Wrench}>
+                    <p className="text-xs mb-3" style={{ color: RGI.muted }}>
+                      Direkt bei Ihnen angefallene umlagefähige Kosten (Grundsteuer, Kabel-TV, Wartung Sondereigentum,
+                      einzelne Reparaturen …).
+                      {prorata.active && (
+                        <>
+                          {" "}
+                          Bei einem Mieterwechsel werden diese Beträge automatisch tagesgenau auf den
+                          Abrechnungszeitraum dieses Mieters umgelegt.
+                        </>
+                      )}
+                    </p>
+                    <div className="space-y-2">
+                      {extraCosts.map((c, idx) => {
+                        const effective = effectiveExtraAmount(c);
+                        const prorataApplied = prorata.active;
+                        return (
+                          <div
+                            key={c.id ?? `new-${idx}`}
+                            className="rounded-xl px-4 py-3 transition-all"
+                            style={{
+                              border: `1px solid transparent`,
+                              background: RGI.amberBg,
+                            }}
+                          >
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                aria-label="Position entfernen"
+                                className="shrink-0 h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/60 transition"
+                                onClick={() => removeExtraCost(idx)}
+                              >
+                                <Trash2 className="w-4 h-4 text-destructive" />
+                              </button>
+                              <div className="flex-1 min-w-0">
+                                <input
+                                  type="text"
+                                  value={c.label}
+                                  placeholder="Bezeichnung eingeben"
+                                  className="w-full bg-white border rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-primary/30 font-semibold text-sm leading-tight placeholder:text-muted-foreground/60"
+                                  style={{ color: RGI.text, borderColor: RGI.border }}
+                                  onChange={(e) => updateExtraCost(idx, { label: e.target.value })}
+                                  onBlur={() => saveExtraCost(idx)}
+                                />
+
+                                <div
+                                  className="text-[11px] mt-1 flex items-center gap-1.5 flex-wrap"
+                                  style={{ color: RGI.muted }}
+                                >
+                                  <span>Schlüssel DIREKT</span>
+                                  {prorataApplied && (
+                                    <>
+                                      <span>·</span>
+                                      <span>
+                                        Vollbetrag {c.amount.toFixed(2)} € → tagesanteilig {effective.toFixed(2)} €
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                               <div
-                                className="text-[11px] mt-0.5 flex items-center gap-1.5 flex-wrap"
-                                style={{ color: RGI.muted }}
+                                className="flex items-center gap-2 shrink-0 pl-2"
+                                style={{ borderLeft: `1px solid rgba(0,0,0,0.08)` }}
                               >
-                                <span>Schlüssel {p.distribution_key.toUpperCase()}</span>
-                                <span>·</span>
-                                <span>Gesamt {p.total_amount.toFixed(2)} €</span>
-                                {consumption && (
-                                  <span
-                                    className="px-1.5 py-0.5 rounded-full text-[10px] font-medium ml-1"
-                                    style={{ background: "#fff", color: RGI.amber }}
-                                  >
-                                    nach Verbrauch
-                                  </span>
-                                )}
-                                {prorataApplied && override === undefined && (
-                                  <span
-                                    className="px-1.5 py-0.5 rounded-full text-[10px] font-medium ml-1"
-                                    style={{ background: "#fff", color: RGI.amber }}
-                                  >
-                                    zeitanteilig
-                                  </span>
-                                )}
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  aria-label={`Betrag ${c.label}`}
+                                  className="w-24 bg-white border rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-primary/30 text-right text-lg font-semibold tabular-nums placeholder:text-muted-foreground/60"
+                                  style={{ color: RGI.text, borderColor: RGI.border }}
+                                  placeholder="0,00"
+                                  value={c.amount.toLocaleString("de-DE", {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}
+                                  onChange={(e) => {
+                                    const raw = e.target.value.replace(/\./g, "").replace(",", ".");
+                                    const num = raw === "" ? 0 : Number(raw);
+                                    if (Number.isNaN(num)) return;
+                                    updateExtraCost(idx, { amount: num });
+                                  }}
+                                  onBlur={() => saveExtraCost(idx)}
+                                />
+                                <span className="text-sm font-medium" style={{ color: RGI.muted }}>
+                                  €
+                                </span>
                               </div>
                             </div>
-                            <div
-                              className="flex items-baseline gap-1 shrink-0 pl-2"
-                              style={{ borderLeft: `1px solid ${disabled ? RGI.border : "rgba(0,0,0,0.08)"}` }}
-                            >
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                disabled={disabled}
-                                aria-label={`Mieteranteil ${p.account_name}`}
-                                className="w-24 bg-transparent border-0 outline-none text-right text-lg font-semibold tabular-nums focus:ring-0 disabled:cursor-not-allowed"
-                                style={{ color: RGI.text }}
-                                value={
-                                  typeof value === "number"
-                                    ? value.toLocaleString("de-DE", {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2,
-                                      })
-                                    : ""
-                                }
-                                onChange={(e) => {
-                                  const raw = e.target.value.replace(/\./g, "").replace(",", ".");
-                                  const num = raw === "" ? 0 : Number(raw);
-                                  if (Number.isNaN(num)) return;
-                                  setPositionOverrides((prev) => ({
-                                    ...prev,
-                                    [p.account_number]: num,
-                                  }));
-                                }}
-                              />
-                              <span className="text-sm font-medium" style={{ color: RGI.muted }}>
-                                €
-                              </span>
-                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </SectionCard>
-
-              {/* 5. Weitere Kosten */}
-              <SectionCard num={6} title="Weitere Kosten" icon={Wrench}>
-                <p className="text-xs mb-3" style={{ color: RGI.muted }}>
-                  Direkt bei Ihnen angefallene umlagefähige Kosten (Grundsteuer,
-                  Kabel-TV, Wartung Sondereigentum, einzelne Reparaturen …).
-                  {prorata.active && (
-                    <> Bei einem Mieterwechsel werden diese Beträge automatisch tagesgenau auf den Abrechnungszeitraum dieses Mieters umgelegt.</>
-                  )}
-                </p>
-                <div className="space-y-2">
-                  {extraCosts.map((c, idx) => {
-                    const effective = effectiveExtraAmount(c);
-                    const prorataApplied = prorata.active;
-                    return (
-                      <div
-                        key={c.id ?? `new-${idx}`}
-                        className="rounded-xl px-4 py-3 transition-all"
-                        style={{
-                          border: `1px solid transparent`,
-                          background: RGI.amberBg,
-                        }}
+                        );
+                      })}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {DEFAULT_EXTRA_COST_TYPES.map((d) => (
+                        <Button
+                          key={d.type}
+                          size="sm"
+                          variant="outline"
+                          className="h-10"
+                          onClick={() => addExtraCost(d.type, d.label)}
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          {d.label}
+                        </Button>
+                      ))}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-10"
+                        onClick={() => addExtraCost("sonstige", "Sonstige")}
                       >
-                        <div className="flex items-center gap-3">
-                          <button
-                            type="button"
-                            aria-label="Position entfernen"
-                            className="shrink-0 h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/60 transition"
-                            onClick={() => removeExtraCost(idx)}
-                          >
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </button>
-                          <div className="flex-1 min-w-0">
-                            <input
-                              type="text"
-                              value={c.label}
-                              placeholder="Bezeichnung eingeben"
-                              className="w-full bg-white border rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-primary/30 font-semibold text-sm leading-tight placeholder:text-muted-foreground/60"
-                              style={{ color: RGI.text, borderColor: RGI.border }}
-                              onChange={(e) =>
-                                updateExtraCost(idx, { label: e.target.value })
-                              }
-                              onBlur={() => saveExtraCost(idx)}
-                            />
+                        <Plus className="w-3 h-3 mr-1" />
+                        Freie Position
+                      </Button>
+                    </div>
+                  </SectionCard>
 
-                            <div
-                              className="text-[11px] mt-1 flex items-center gap-1.5 flex-wrap"
-                              style={{ color: RGI.muted }}
-                            >
-                              <span>Schlüssel DIREKT</span>
-                              {prorataApplied && (
-                                <>
-                                  <span>·</span>
-                                  <span>
-                                    Vollbetrag {c.amount.toFixed(2)} € → tagesanteilig{" "}
-                                    {effective.toFixed(2)} €
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                          <div
-                            className="flex items-center gap-2 shrink-0 pl-2"
-                            style={{ borderLeft: `1px solid rgba(0,0,0,0.08)` }}
-                          >
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              aria-label={`Betrag ${c.label}`}
-                              className="w-24 bg-white border rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-primary/30 text-right text-lg font-semibold tabular-nums placeholder:text-muted-foreground/60"
-                              style={{ color: RGI.text, borderColor: RGI.border }}
-                              placeholder="0,00"
-                              value={c.amount.toLocaleString("de-DE", {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              })}
-                              onChange={(e) => {
-                                const raw = e.target.value
-                                  .replace(/\./g, "")
-                                  .replace(",", ".");
-                                const num = raw === "" ? 0 : Number(raw);
-                                if (Number.isNaN(num)) return;
-                                updateExtraCost(idx, { amount: num });
-                              }}
-                              onBlur={() => saveExtraCost(idx)}
-                            />
-                            <span className="text-sm font-medium" style={{ color: RGI.muted }}>
-                              €
-                            </span>
-                          </div>
-
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {DEFAULT_EXTRA_COST_TYPES.map((d) => (
-                    <Button
-                      key={d.type}
-                      size="sm"
-                      variant="outline"
-                      className="h-10"
-                      onClick={() => addExtraCost(d.type, d.label)}
-                    >
-                      <Plus className="w-3 h-3 mr-1" />
-                      {d.label}
-                    </Button>
-                  ))}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-10"
-                    onClick={() => addExtraCost("sonstige", "Sonstige")}
+                  {/* Haftungs-Hinweis */}
+                  <div
+                    className="mt-4 rounded-lg p-3 text-xs"
+                    style={{
+                      background: "#fff",
+                      border: `1px solid ${RGI.border}`,
+                      color: RGI.muted,
+                    }}
                   >
-                    <Plus className="w-3 h-3 mr-1" />
-                    Freie Position
-                  </Button>
-                </div>
-              </SectionCard>
-
-
-
-              {/* Haftungs-Hinweis */}
-              <div
-                className="mt-4 rounded-lg p-3 text-xs"
-                style={{
-                  background: "#fff",
-                  border: `1px solid ${RGI.border}`,
-                  color: RGI.muted,
-                }}
-              >
-                Dieses Dokument wird automatisiert erstellt und stellt keine
-                Rechts- oder Steuerberatung dar. Die Verantwortung für die
-                Richtigkeit der Eingaben liegt beim Nutzer. Für die Inhalte des
-                erzeugten Dokuments wird keine Haftung übernommen.
-              </div>
+                    Dieses Dokument wird automatisiert erstellt und stellt keine Rechts- oder Steuerberatung dar. Die
+                    Verantwortung für die Richtigkeit der Eingaben liegt beim Nutzer. Für die Inhalte des erzeugten
+                    Dokuments wird keine Haftung übernommen.
+                  </div>
+                </>
+              )}
             </>
           )}
-            </>
-          )}
-
         </div>
 
         {/* Sticky Bottom Bar */}
@@ -1429,10 +1315,7 @@ export function WegOwnerNebenkostenTool() {
                 <div className="text-[11px] uppercase tracking-wide" style={{ color: RGI.muted }}>
                   Ergebnis (nach Kauf sichtbar)
                 </div>
-                <div
-                  className="text-lg font-bold flex items-center gap-1"
-                  style={{ fontFamily: headingFont }}
-                >
+                <div className="text-lg font-bold flex items-center gap-1" style={{ fontFamily: headingFont }}>
                   <Lock className="w-4 h-4" style={{ color: RGI.muted }} />
                   *.*** €
                 </div>
@@ -1459,13 +1342,10 @@ export function WegOwnerNebenkostenTool() {
         <Dialog open={buyOpen} onOpenChange={setBuyOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle style={{ fontFamily: headingFont }}>
-                Zahlungspflichtig bestellen
-              </DialogTitle>
+              <DialogTitle style={{ fontFamily: headingFont }}>Zahlungspflichtig bestellen</DialogTitle>
               <DialogDescription>
-                Nach erfolgreicher Zahlung erstellen wir Ihre
-                Nebenkostenabrechnung als PDF und stellen sie hier zum Download
-                bereit.
+                Nach erfolgreicher Zahlung erstellen wir Ihre Nebenkostenabrechnung als PDF und stellen sie hier zum
+                Download bereit.
               </DialogDescription>
             </DialogHeader>
 
@@ -1481,21 +1361,15 @@ export function WegOwnerNebenkostenTool() {
                   </span>
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Wohnung Nr. {selectedAssignment?.unit_number}, Mieter:{" "}
-                  {tenantName}
+                  Wohnung Nr. {selectedAssignment?.unit_number}, Mieter: {tenantName}
                 </div>
               </div>
 
               <label className="flex items-start gap-2 text-sm bg-amber-50 p-3 rounded cursor-pointer">
-                <Checkbox
-                  checked={waiverChecked}
-                  onCheckedChange={(c) => setWaiverChecked(!!c)}
-                  className="mt-0.5"
-                />
+                <Checkbox checked={waiverChecked} onCheckedChange={(c) => setWaiverChecked(!!c)} className="mt-0.5" />
                 <span>
-                  Mit dem Kauf beginnt die Erstellung des Dokuments sofort. Ich
-                  bestätige, dass mein Widerrufsrecht mit vollständiger Ausführung
-                  erlischt.
+                  Mit dem Kauf beginnt die Erstellung des Dokuments sofort. Ich bestätige, dass mein Widerrufsrecht mit
+                  vollständiger Ausführung erlischt.
                 </span>
               </label>
               <p className="text-xs text-muted-foreground">
@@ -1510,10 +1384,8 @@ export function WegOwnerNebenkostenTool() {
                 (Version {CURRENT_LEGAL_VERSION}).
               </p>
               <p className="text-xs text-muted-foreground">
-                Dieses Dokument wird automatisiert erstellt und stellt keine
-                Rechts- oder Steuerberatung dar. Die Verantwortung für die
-                Eingaben liegt beim Nutzer; für die Inhalte wird keine Haftung
-                übernommen.
+                Dieses Dokument wird automatisiert erstellt und stellt keine Rechts- oder Steuerberatung dar. Die
+                Verantwortung für die Eingaben liegt beim Nutzer; für die Inhalte wird keine Haftung übernommen.
               </p>
             </div>
 
@@ -1609,18 +1481,8 @@ function Field({
           <span
             className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded"
             style={{
-              background:
-                badge === "auto"
-                  ? RGI.greenBg
-                  : badge === "Pflicht"
-                    ? RGI.orangeBg
-                    : RGI.amberBg,
-              color:
-                badge === "auto"
-                  ? RGI.green
-                  : badge === "Pflicht"
-                    ? RGI.orange
-                    : RGI.amber,
+              background: badge === "auto" ? RGI.greenBg : badge === "Pflicht" ? RGI.orangeBg : RGI.amberBg,
+              color: badge === "auto" ? RGI.green : badge === "Pflicht" ? RGI.orange : RGI.amber,
             }}
           >
             {badge}
@@ -1655,7 +1517,6 @@ function formatDe(iso: string): string {
   const [y, m, d] = iso.split("-");
   return `${d}.${m}.${y}`;
 }
-
 
 function parseISODate(s: string): Date | null {
   if (!s) return null;
@@ -1717,4 +1578,3 @@ function computeProrata(
     toISO: to.toISOString().slice(0, 10),
   };
 }
-
