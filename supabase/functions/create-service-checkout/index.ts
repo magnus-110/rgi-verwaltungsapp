@@ -28,7 +28,9 @@ Deno.serve(async (req) => {
       privacy_version,
       widerruf_waiver_confirmed,
       input_snapshot,
+      quantity,
     } = body ?? {};
+    const qty = Math.max(1, Math.min(10, Number(quantity) || 1));
     if (!service_type || !widerruf_waiver_confirmed) {
       return json({ error: "Missing fields" }, 400);
     }
