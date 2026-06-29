@@ -86,7 +86,8 @@ export function WegOwnerServiceHubSuccess() {
   };
 
   const ready = order?.status === "document_ready" && order?.document_storage_path;
-  const paid = order?.status === "paid" || ready;
+  const errored = order?.status === "document_error" || (!ready && order?.document_error);
+  const paid = order?.status === "paid" || ready || errored;
 
   const docs: Array<{ index: number; mieter_name?: string }> =
     ready && Array.isArray(order?.document_paths) && order.document_paths.length
