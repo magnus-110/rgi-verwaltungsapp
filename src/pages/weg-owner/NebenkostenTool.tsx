@@ -1375,9 +1375,12 @@ export function WegOwnerNebenkostenTool() {
             <div className="space-y-3">
               <div className="bg-muted p-3 rounded text-sm space-y-1">
                 <div className="flex justify-between">
-                  <span>Nebenkostenabrechnung {selectedPeriod?.fiscal_year}</span>
+                  <span>
+                    Nebenkostenabrechnung {selectedPeriod?.fiscal_year}
+                    {quantity > 1 ? ` (${quantity}×)` : ""}
+                  </span>
                   <span className="font-bold">
-                    {price && formatPrice(price.price_cents, price.currency)}
+                    {price && formatPrice(price.price_cents * quantity, price.currency)}
                   </span>
                 </div>
                 <div className="text-xs text-muted-foreground">
