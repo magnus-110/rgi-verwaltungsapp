@@ -127,13 +127,35 @@ export function WegOwnerNebenkostenTool() {
   const [tenantChanged, setTenantChanged] = useState(false);
   const [prepayMonthly, setPrepayMonthly] = useState<number | "">("");
 
-  // Mieter 2 (nur bei Mieterwechsel)
-  const [tenant2Name, setTenant2Name] = useState("");
-  const [tenant2Persons, setTenant2Persons] = useState<number | "">("");
-  const [tenant2PrepayMonthly, setTenant2PrepayMonthly] = useState<number | "">("");
-  const [tenant2MoveIn, setTenant2MoveIn] = useState("");
-  const [tenant2MoveOut, setTenant2MoveOut] = useState("");
-  const [tenant2HeatingOverride, setTenant2HeatingOverride] = useState<number | "">("");
+  // Weitere Mieter (bei Mieterwechsel) – dynamische Liste
+  type AdditionalTenant = {
+    id: string;
+    name: string;
+    persons: number | "";
+    prepayMonthly: number | "";
+    moveIn: string;
+    moveOut: string;
+    heatingOverride: number | "";
+  };
+  const makeEmptyTenant = (): AdditionalTenant => ({
+    id:
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2),
+    name: "",
+    persons: "",
+    prepayMonthly: "",
+    moveIn: "",
+    moveOut: "",
+    heatingOverride: "",
+  });
+  const [additionalTenants, setAdditionalTenants] = useState<AdditionalTenant[]>([]);
+  const updateAdditionalTenant = (id: string, patch: Partial<AdditionalTenant>) =>
+    setAdditionalTenants((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  const removeAdditionalTenant = (id: string) =>
+    setAdditionalTenants((prev) => prev.filter((t) => t.id !== id));
+  const addAdditionalTenant = () =>
+    setAdditionalTenants((prev) => (prev.length >= 9 ? prev : [...prev, makeEmptyTenant()]));
 
   // Direkte Eigentümerkosten
   const [extraCosts, setExtraCosts] = useState<ExtraCost[]>([]);
@@ -405,10 +427,13 @@ export function WegOwnerNebenkostenTool() {
     [moveIn, moveOut, tenantChanged, selectedPeriod],
   );
 
-  // Pro-Rata für Mieter 2 (Zeitraum nach dem Wechsel)
-  const prorata2 = useMemo(
-    () => computeProrata(tenant2MoveIn, tenant2MoveOut, tenantChanged, selectedPeriod),
-    [tenant2MoveIn, tenant2MoveOut, tenantChanged, selectedPeriod],
+  // Pro-Rata für jeden zusätzlichen Mieter
+  const additionalProrata = useMemo(
+    () =>
+      additionalTenants.map((t) =>
+        computeProrata(t.moveIn, t.moveOut, tenantChanged, selectedPeriod),
+      ),
+    [additionalTenants, tenantChanged, selectedPeriod],
   );
 
   // Heizungs-Vorbefüllung an Mieterwechsel koppeln:
@@ -470,6 +495,18 @@ export function WegOwnerNebenkostenTool() {
     prorata,
   ]);
 
+  const additionalTenantsValid =
+    !tenantChanged ||
+    (additionalTenants.length > 0 &&
+      additionalTenants.every(
+        (t) =>
+          t.name.trim() &&
+          t.persons !== "" &&
+          Number(t.persons) > 0 &&
+          t.prepayMonthly !== "" &&
+          Number(t.prepayMonthly) > 0,
+      ));
+
   const canBuy = !!(
     assignmentId &&
     periodId &&
@@ -477,16 +514,13 @@ export function WegOwnerNebenkostenTool() {
     persons &&
     prepayMonthly !== "" &&
     Number(prepayMonthly) > 0 &&
-    (!tenantChanged ||
-      (tenant2Name &&
-        tenant2Persons &&
-        tenant2PrepayMonthly !== "" &&
-        Number(tenant2PrepayMonthly) > 0)) &&
+    additionalTenantsValid &&
     !loadingData
   );
 
   // Anzahl der Abrechnungen (= Anzahl Produkte im Checkout)
-  const quantity = tenantChanged ? 2 : 1;
+  const quantity = tenantChanged ? 1 + additionalTenants.length : 1;
+
 
   const isInitialLoading =
     loadingAssignments ||
@@ -572,15 +606,17 @@ export function WegOwnerNebenkostenTool() {
               moveIn || null,
               moveOut || null,
             ),
-            buildTenantSnapshot(
-              tenant2Name,
-              tenantAddress,
-              Number(tenant2Persons) || 0,
-              Number(tenant2PrepayMonthly) || 0,
-              prorata2,
-              Number(tenant2HeatingOverride) || 0,
-              tenant2MoveIn || null,
-              tenant2MoveOut || null,
+            ...additionalTenants.map((t, i) =>
+              buildTenantSnapshot(
+                t.name,
+                tenantAddress,
+                Number(t.persons) || 0,
+                Number(t.prepayMonthly) || 0,
+                additionalProrata[i],
+                Number(t.heatingOverride) || 0,
+                t.moveIn || null,
+                t.moveOut || null,
+              ),
             ),
           ]
         : null;
@@ -773,7 +809,7 @@ export function WegOwnerNebenkostenTool() {
           {assignmentId && periodId && (
             <>
               {/* 2. Mieter */}
-              <SectionCard num={2} title={tenantChanged ? "Mieter 1 – vor dem Wechsel" : "Mieter"} icon={Users}>
+              <SectionCard num={2} title={tenantChanged ? "Mieter 1 – ursprünglicher Mieter" : "Mieter"} icon={Users}>
                 <div className="space-y-3">
                   <Field
                     label="Name des Mieters"
@@ -830,9 +866,15 @@ export function WegOwnerNebenkostenTool() {
                       onCheckedChange={(c) => {
                         const v = !!c;
                         setTenantChanged(v);
-                        if (!v) {
+                        if (v) {
+                          // Beim Aktivieren: gleich ein leeres Eingabefeld für den Folgemieter anlegen
+                          setAdditionalTenants((prev) =>
+                            prev.length === 0 ? [makeEmptyTenant()] : prev,
+                          );
+                        } else {
                           setMoveIn("");
                           setMoveOut("");
+                          setAdditionalTenants([]);
                           // sofort speichern (Felder zurücksetzen)
                           setTimeout(saveTenancy, 0);
                         }
@@ -943,93 +985,148 @@ export function WegOwnerNebenkostenTool() {
                 )}
               </SectionCard>
 
-              {/* 4. Mieter 2 – nur bei Mieterwechsel */}
+              {/* 4. Weitere Mieter – nur bei Mieterwechsel */}
               {tenantChanged && (
-                <SectionCard num={4} title="Mieter 2 – nach dem Wechsel" icon={Users}>
-                  <div className="space-y-3">
-                    <Field
-                      label="Name des Mieters"
-                      badge={tenant2Name ? "auto" : "ergänzen"}
-                    >
-                      <Input
-                        className="h-11"
-                        style={fieldStyle(!!tenant2Name)}
-                        value={tenant2Name}
-                        onChange={(e) => setTenant2Name(e.target.value)}
-                      />
-                    </Field>
-                    <Field
-                      label="Anzahl Personen"
-                      badge={tenant2Persons ? "auto" : "ergänzen"}
-                    >
-                      <Input
-                        type="number"
-                        className="h-11"
-                        style={fieldStyle(!!tenant2Persons)}
-                        value={tenant2Persons}
-                        onChange={(e) =>
-                          setTenant2Persons(e.target.value === "" ? "" : Number(e.target.value))
-                        }
-                      />
-                    </Field>
-                    <Field
-                      label="NK-Vorauszahlung pro Monat (€)"
-                      tooltip="Monatliche Nebenkosten-Vorauszahlung laut Mietvertrag von Mieter 2."
-                      badge={tenant2PrepayMonthly !== "" && Number(tenant2PrepayMonthly) > 0 ? undefined : "Pflicht"}
-                    >
-                      <Input
-                        type="number"
-                        step="0.01"
-                        className="h-11"
-                        style={fieldStyle(tenant2PrepayMonthly !== "" && Number(tenant2PrepayMonthly) > 0)}
-                        value={tenant2PrepayMonthly}
-                        onChange={(e) =>
-                          setTenant2PrepayMonthly(e.target.value === "" ? "" : Number(e.target.value))
-                        }
-                      />
-                    </Field>
+                <SectionCard num={4} title="Weitere Mieter (nach dem Wechsel)" icon={Users}>
+                  <div className="space-y-4">
+                    <p className="text-xs" style={{ color: RGI.muted }}>
+                      Fügen Sie hier alle weiteren Mieter hinzu, die in diesem
+                      Abrechnungsjahr in der Wohnung gewohnt haben. Pro Mieter
+                      wird eine eigene anteilige Abrechnung erstellt.
+                    </p>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Einzug">
-                        <Input
-                          type="date"
-                          className="h-11"
-                          value={tenant2MoveIn}
-                          onChange={(e) => setTenant2MoveIn(e.target.value)}
-                        />
-                      </Field>
-                      <Field label="Auszug">
-                        <Input
-                          type="date"
-                          className="h-11"
-                          value={tenant2MoveOut}
-                          onChange={(e) => setTenant2MoveOut(e.target.value)}
-                        />
-                      </Field>
-                    </div>
+                    {additionalTenants.map((t, idx) => (
+                      <div
+                        key={t.id}
+                        className="rounded-xl border p-3 space-y-3"
+                        style={{ borderColor: "#e5e0d8", background: "#faf8f3" }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-semibold" style={{ color: RGI.text }}>
+                            Weiterer Mieter #{idx + 2}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeAdditionalTenant(t.id)}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
 
-                    {/* Eigenes Heizkosten-Feld für Mieter 2 */}
-                    <Field
-                      label="Heizung / Warmwasser / Wasser (anteilig)"
-                      badge="ergänzen"
-                      tooltip="Anteilige Summe von Mieter 2 aus der Heizkostenabrechnung des Messdienstes."
+                        <Field label="Name des Mieters" badge={t.name ? "auto" : "ergänzen"}>
+                          <Input
+                            className="h-11"
+                            style={fieldStyle(!!t.name)}
+                            value={t.name}
+                            onChange={(e) => updateAdditionalTenant(t.id, { name: e.target.value })}
+                          />
+                        </Field>
+
+                        <Field label="Anzahl Personen" badge={t.persons ? "auto" : "ergänzen"}>
+                          <Input
+                            type="number"
+                            className="h-11"
+                            style={fieldStyle(!!t.persons)}
+                            value={t.persons}
+                            onChange={(e) =>
+                              updateAdditionalTenant(t.id, {
+                                persons: e.target.value === "" ? "" : Number(e.target.value),
+                              })
+                            }
+                          />
+                        </Field>
+
+                        <Field
+                          label="NK-Vorauszahlung pro Monat (€)"
+                          tooltip="Monatliche Nebenkosten-Vorauszahlung laut Mietvertrag."
+                          badge={
+                            t.prepayMonthly !== "" && Number(t.prepayMonthly) > 0
+                              ? undefined
+                              : "Pflicht"
+                          }
+                        >
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="h-11"
+                            style={fieldStyle(t.prepayMonthly !== "" && Number(t.prepayMonthly) > 0)}
+                            value={t.prepayMonthly}
+                            onChange={(e) =>
+                              updateAdditionalTenant(t.id, {
+                                prepayMonthly: e.target.value === "" ? "" : Number(e.target.value),
+                              })
+                            }
+                          />
+                        </Field>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <Field label="Einzug">
+                            <Input
+                              type="date"
+                              className="h-11"
+                              value={t.moveIn}
+                              onChange={(e) =>
+                                updateAdditionalTenant(t.id, { moveIn: e.target.value })
+                              }
+                            />
+                          </Field>
+                          <Field label="Auszug">
+                            <Input
+                              type="date"
+                              className="h-11"
+                              value={t.moveOut}
+                              onChange={(e) =>
+                                updateAdditionalTenant(t.id, { moveOut: e.target.value })
+                              }
+                            />
+                          </Field>
+                        </div>
+
+                        <Field
+                          label="Heizung / Warmwasser / Wasser (anteilig)"
+                          badge="ergänzen"
+                          tooltip="Anteilige Summe dieses Mieters aus der Heizkostenabrechnung des Messdienstes."
+                        >
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="h-11"
+                            style={fieldStyle(
+                              t.heatingOverride !== "" && Number(t.heatingOverride) > 0,
+                            )}
+                            value={t.heatingOverride}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            onKeyDown={(e) => {
+                              if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
+                            }}
+                            placeholder="Anteilige Summe aus Heizkostenabrechnung eintragen"
+                            onChange={(e) =>
+                              updateAdditionalTenant(t.id, {
+                                heatingOverride: e.target.value === "" ? "" : Number(e.target.value),
+                              })
+                            }
+                          />
+                        </Field>
+                      </div>
+                    ))}
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addAdditionalTenant}
+                      disabled={additionalTenants.length >= 9}
                     >
-                      <Input
-                        type="number"
-                        step="0.01"
-                        className="h-11"
-                        style={fieldStyle(tenant2HeatingOverride !== "" && Number(tenant2HeatingOverride) > 0)}
-                        value={tenant2HeatingOverride}
-                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                        onKeyDown={(e) => {
-                          if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
-                        }}
-                        placeholder="Anteilige Summe aus Heizkostenabrechnung eintragen"
-                        onChange={(e) =>
-                          setTenant2HeatingOverride(e.target.value === "" ? "" : Number(e.target.value))
-                        }
-                      />
-                    </Field>
+                      <Plus className="w-4 h-4 mr-1" />
+                      Weiteren Mieter hinzufügen
+                    </Button>
+                    {additionalTenants.length >= 9 && (
+                      <p className="text-xs" style={{ color: RGI.muted }}>
+                        Maximal 10 Mieter pro Abrechnungsjahr.
+                      </p>
+                    )}
                   </div>
                 </SectionCard>
               )}

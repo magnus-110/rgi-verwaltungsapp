@@ -1,52 +1,38 @@
 ## Ziel
-Drei Probleme der Nebenkostenabrechnung beheben: (1) leere PDFs, (2) fehlende zweite Mieter-Card bei Mieterwechsel, (3) zwei separate Abrechnungen + Dokumente + Preis bei Mieterwechsel.
+Statt fix zwei Mieter (Mieter 1 + Mieter 2) sollen beliebig viele Mieter pro Jahr unterstützt werden — z. B. bei zwei oder drei Mieterwechseln. Pro Mieter wird wie bisher eine eigene anteilige Abrechnung + eigenes PDF erzeugt, und der Preis skaliert mit der Anzahl.
 
-## Aufgabe 1 — PDF-Befüllung reparieren
-`supabase/functions/generate-service-document/index.ts`
-- `buildPayload` komplett ersetzen: liefert beide Feldnamen-Varianten (`anteil_eur`/`mieteranteil`, `positionen`/`positions`, etc.) für sichere Platzhalter-Treffer.
-- Delimiter von `{{ }}` auf `{ }` umstellen (entspricht eurer Vorlage `Vorlage_Nebenkostenabrechnung_v2.docx`).
+## Aufgabe 1 — UI: dynamische Mieterliste (`src/pages/weg-owner/NebenkostenTool.tsx`)
 
-## Aufgabe 2 — Zweite Mieter-Card bei Mieterwechsel
-`src/pages/weg-owner/NebenkostenTool.tsx`
-- States `tenant2Name/Persons/PrepayMonthly/MoveIn/MoveOut/HeatingOverride` ergänzen.
-- Zweite `useMemo` für `prorata2` (Zeitraum Mieter 2).
-- Neue Card „Mieter 2 – nach dem Wechsel" zwischen Heizkosten-Card und Pro-Rata-Banner, mit eigenem Heizkosten-Feld.
-- Nummerierung der nachfolgenden Cards (4./5.) anpassen, erste Card umbenennen in „Mieter 1 – vor dem Wechsel" wenn aktiv.
+- Bisherige Einzel-States für „Mieter 2" (`tenant2Name`, `tenant2Persons`, …) entfernen.
+- Neuer State: `additionalTenants: TenantInput[]`, wobei `TenantInput = { id, name, persons, prepayMonthly, moveIn, moveOut, heatingOverride }`.
+- Checkbox „Mieterwechsel im Abrechnungszeitraum" steuert nur noch, ob die Liste angezeigt wird. Beim Aktivieren wird automatisch ein erster zusätzlicher Mieter angelegt (damit sofort sichtbar ist, wo Daten eingetragen werden).
+- Unter der Heizkosten-Card erscheint pro Eintrag eine kompakte SectionCard „Weiterer Mieter #n" mit:
+  - Name, Personen, Vorauszahlung/Monat, Einzug, Auszug, optionales Heizkosten-Override-Feld
+  - Button „Entfernen" pro Eintrag
+- Unter der Liste: Button „Weiteren Mieter hinzufügen" (fügt leeren Eintrag an). Kein Hardlimit, aber soft cap 9 (insgesamt 10 Mieter inkl. Mieter 1), passend zum `quantity`-Clamp in der Edge Function.
+- Card „Mieter 1" wird umbenannt zu „Mieter 1 – ursprünglicher Mieter" sobald mindestens ein zusätzlicher Mieter aktiv ist.
 
-## Aufgabe 3 — Zwei Produkte / zwei PDFs
+## Aufgabe 2 — Berechnung & Kauf
 
-### 3a. Migration
-`service_orders`: Spalten `quantity int default 1` und `document_paths jsonb`.
+- `buildTenantSnapshot(...)` bleibt; wird in einer Schleife für `[mieter1, ...additionalTenants]` aufgerufen.
+- `prorataList = useMemo(...)` liefert ein Array von Snapshots; Pro-Rata-Banner zeigt eine kurze Zusammenfassung (z. B. „3 Mieter erkannt – 3 Abrechnungen werden erstellt").
+- `canBuy`: alle aktiven Mieter müssen Name + Einzug haben und die Zeiträume müssen innerhalb des Abrechnungsjahres liegen (einfache Validierung, kein Lücken-/Überlapp-Check — wie bisher).
+- `quantity = 1 + additionalTenants.length`.
+- `handleBuy`:
+  - `input_snapshot.tenants = [snap1, ...additionalSnaps]`
+  - `quantity` an `create-service-checkout` übergeben.
+- Preisanzeige & Bestätigungsdialog: Gesamtpreis = `price.price_cents * quantity`; Zusatztext „({quantity} Abrechnungen)" wenn quantity > 1.
 
-### 3b. Frontend `NebenkostenTool.tsx`
-- Helper `buildTenantSnapshot(...)` für anteiligen Snapshot pro Mieter.
-- `canBuy` um Pflichtfelder Mieter 2 erweitern; `quantity = tenantChanged ? 2 : 1`.
-- In `handleBuy`: bei Mieterwechsel `tenants: [snap1, snap2]` in `input_snapshot`, `quantity` an Edge Function übergeben.
-- Button-Preis und Dialog-Zusammenfassung × quantity, mit „(2 Abrechnungen)" / „(2×)".
+## Aufgabe 3 — Edge Functions
+Bereits generisch über `input_snapshot.tenants[]` implementiert — keine Änderungen nötig:
+- `create-service-checkout`: `quantity` wird bereits geclamped (1–10) und multipliziert.
+- `generate-service-document`: iteriert bereits über `tenants[]` und erzeugt n PDFs.
+- `get-service-document-url`: akzeptiert bereits `index`.
 
-### 3c. Edge Function `create-service-checkout`
-- `quantity` aus Body lesen (clamp 1–10).
-- `price_cents * qty` und `quantity: qty` im `service_orders`-Insert.
-- Stripe-Lineitem `quantity: qty`.
-
-### 3d. Edge Function `generate-service-document` (komplett ersetzt — enthält Aufgabe 1)
-- Wenn `input_snapshot.tenants[]` vorhanden: pro Mieter rendern → PDF → Upload als `{user_id}/{order_id}_{i}.pdf`.
-- `document_paths` (Array mit index/path/mieter_name/saldo) und `document_storage_path` (erstes) speichern.
-- Make.com-Webhook einmal pro Dokument.
-
-### 3e. Edge Function `get-service-document-url`
-- Optionalen `index`-Parameter akzeptieren, passenden Pfad aus `document_paths` signieren.
-
-### 3f. `ServiceHubSuccess.tsx`
-- Mehrere Download-Buttons aus `document_paths` rendern, je Mieter ein Button mit Name.
-
-## Reihenfolge / Verifikation
-1. Migration zuerst (Approval).
-2. Edge Functions deployen.
-3. Frontend-Änderungen.
-4. Build/Typecheck (automatisch).
-5. Testkauf einzeln → 1 gefülltes PDF. Testkauf mit Mieterwechsel → 2× 35 € im Checkout, 2 PDFs anteilig.
+## Aufgabe 4 — Success-Seite
+`ServiceHubSuccess.tsx` rendert bereits dynamisch alle Einträge aus `document_paths` — keine Änderung nötig, funktioniert automatisch für 2, 3, 4… PDFs.
 
 ## Hinweise
-- Falls die Word-Vorlage doch `{{...}}` nutzt, Delimiter in `generate-service-document` auf `{{`/`}}` zurückstellen.
-- Tour-/HelpButton-Änderungen aus vorheriger Runde bleiben unangetastet.
+- Datenbank-Migration (`quantity`, `document_paths`) ist bereits aktiv.
+- Hardcap 10 Mieter pro Bestellung (matches Stripe-/Edge-Clamp).
+- Keine Backend-/Tour-/HelpButton-Änderungen.
