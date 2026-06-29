@@ -405,6 +405,12 @@ export function WegOwnerNebenkostenTool() {
     [moveIn, moveOut, tenantChanged, selectedPeriod],
   );
 
+  // Pro-Rata für Mieter 2 (Zeitraum nach dem Wechsel)
+  const prorata2 = useMemo(
+    () => computeProrata(tenant2MoveIn, tenant2MoveOut, tenantChanged, selectedPeriod),
+    [tenant2MoveIn, tenant2MoveOut, tenantChanged, selectedPeriod],
+  );
+
   // Heizungs-Vorbefüllung an Mieterwechsel koppeln:
   // Bei Mieterwechsel wird das Feld geleert, damit der Eigentümer den
   // anteiligen Wert aus der Heizkostenabrechnung manuell überträgt.
