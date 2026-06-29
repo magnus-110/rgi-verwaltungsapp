@@ -315,6 +315,89 @@ export function WegOwnerNebenkostenTool() {
     }
   };
 
+  // Baut den Snapshot für GENAU EINEN Mieter (anteilig nach seinem Zeitraum).
+  const buildTenantSnapshot = (
+    tName: string,
+    tAddress: string,
+    tPersons: number,
+    tPrepayMonthly: number,
+    pr: ProrataInfo,
+    heatingValue: number,
+    moveInVal: string | null,
+    moveOutVal: string | null,
+  ) => {
+    const factorAuto = (p: AutoPosition) =>
+      pr.active && !p.consumption_based ? pr.factor : 1;
+    const posAmount = (p: AutoPosition) => round2(p.share_amount * factorAuto(p));
+    const activePositions = autoPositions.filter(
+      (p) => !disabledAccounts.has(p.account_number),
+    );
+    const autoSum = round2(activePositions.reduce((s, p) => s + posAmount(p), 0));
+    const extraEff = (c: ExtraCost) =>
+      pr.active && !c.prorata_exempt ? round2(c.amount * pr.factor) : c.amount;
+    const extraSum = round2(extraCosts.reduce((s, c) => s + extraEff(c), 0));
+    const costSum = round2(autoSum + heatingValue + extraSum);
+    const prepayFull = tPrepayMonthly * 12;
+    const prepaySum = round2(pr.active ? prepayFull * pr.factor : prepayFull);
+    const result = round2(costSum - prepaySum);
+    const months = pr.periodDays > 0 ? pr.tenantDays / 30.42 : 0;
+    return {
+      tenant: {
+        name: tName,
+        address: tAddress,
+        persons: tPersons,
+        move_in: moveInVal,
+        move_out: moveOutVal,
+        prepayment_monthly: tPrepayMonthly,
+        months_in_period: months,
+        prepayment_total: prepaySum,
+      },
+      positions: activePositions.map((p) => ({
+        account_number: p.account_number,
+        account_name: p.account_name,
+        total_amount: p.total_amount,
+        share_amount: posAmount(p),
+        full_share_amount: p.share_amount,
+        distribution_key: p.distribution_key,
+        consumption_based: !!p.consumption_based,
+        prorata_factor: factorAuto(p),
+      })),
+      heating: heating
+        ? {
+            label: heating.label,
+            amount: heatingValue,
+            source: heating.source,
+            user_adjusted: true,
+          }
+        : null,
+      extra_costs: extraCosts.map((c) => ({
+        cost_type: c.cost_type,
+        label: c.label,
+        amount: extraEff(c),
+        full_amount: c.amount,
+        prorata_exempt: !!c.prorata_exempt,
+        prorata_factor: pr.active && !c.prorata_exempt ? pr.factor : 1,
+      })),
+      totals: {
+        autoSum,
+        heatingValue,
+        extraSum,
+        costSum,
+        prepaySum,
+        result,
+        months,
+      },
+      prorata: {
+        active: pr.active,
+        tenant_days: pr.tenantDays,
+        period_days: pr.periodDays,
+        factor: pr.factor,
+        from: pr.fromISO,
+        to: pr.toISO,
+      },
+    };
+  };
+
 
   // Tagesgenaue Pro-Rata bei Mieterwechsel
   const prorata = useMemo(
