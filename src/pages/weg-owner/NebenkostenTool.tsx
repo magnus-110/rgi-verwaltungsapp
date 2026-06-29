@@ -773,7 +773,7 @@ export function WegOwnerNebenkostenTool() {
           {assignmentId && periodId && (
             <>
               {/* 2. Mieter */}
-              <SectionCard num={2} title="Mieter" icon={Users}>
+              <SectionCard num={2} title={tenantChanged ? "Mieter 1 – vor dem Wechsel" : "Mieter"} icon={Users}>
                 <div className="space-y-3">
                   <Field
                     label="Name des Mieters"
