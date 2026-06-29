@@ -1,38 +1,41 @@
-## Ziel
-Statt fix zwei Mieter (Mieter 1 + Mieter 2) sollen beliebig viele Mieter pro Jahr unterstützt werden — z. B. bei zwei oder drei Mieterwechseln. Pro Mieter wird wie bisher eine eigene anteilige Abrechnung + eigenes PDF erzeugt, und der Preis skaliert mit der Anzahl.
+## Problem
 
-## Aufgabe 1 — UI: dynamische Mieterliste (`src/pages/weg-owner/NebenkostenTool.tsx`)
+Die Doc-Generierung schlägt fehl, weil die Word-Vorlage einen Tag-Mismatch enthält:
 
-- Bisherige Einzel-States für „Mieter 2" (`tenant2Name`, `tenant2Persons`, …) entfernen.
-- Neuer State: `additionalTenants: TenantInput[]`, wobei `TenantInput = { id, name, persons, prepayMonthly, moveIn, moveOut, heatingOverride }`.
-- Checkbox „Mieterwechsel im Abrechnungszeitraum" steuert nur noch, ob die Liste angezeigt wird. Beim Aktivieren wird automatisch ein erster zusätzlicher Mieter angelegt (damit sofort sichtbar ist, wo Daten eingetragen werden).
-- Unter der Heizkosten-Card erscheint pro Eintrag eine kompakte SectionCard „Weiterer Mieter #n" mit:
-  - Name, Personen, Vorauszahlung/Monat, Einzug, Auszug, optionales Heizkosten-Override-Feld
-  - Button „Entfernen" pro Eintrag
-- Unter der Liste: Button „Weiteren Mieter hinzufügen" (fügt leeren Eintrag an). Kein Hardlimit, aber soft cap 9 (insgesamt 10 Mieter inkl. Mieter 1), passend zum `quantity`-Clamp in der Edge Function.
-- Card „Mieter 1" wird umbenannt zu „Mieter 1 – ursprünglicher Mieter" sobald mindestens ein zusätzlicher Mieter aktiv ist.
+```
+Closing tag does not match opening tag
+openingtag: "ergebnis_gruen"
+closingtag: " ergebnis_gruen"   ← Leerzeichen
+```
 
-## Aufgabe 2 — Berechnung & Kauf
+docxtemplater bricht ab → `service_orders.status` bleibt `paid`, `document_error` wird gesetzt, aber der Success-Screen pollt endlos.
 
-- `buildTenantSnapshot(...)` bleibt; wird in einer Schleife für `[mieter1, ...additionalTenants]` aufgerufen.
-- `prorataList = useMemo(...)` liefert ein Array von Snapshots; Pro-Rata-Banner zeigt eine kurze Zusammenfassung (z. B. „3 Mieter erkannt – 3 Abrechnungen werden erstellt").
-- `canBuy`: alle aktiven Mieter müssen Name + Einzug haben und die Zeiträume müssen innerhalb des Abrechnungsjahres liegen (einfache Validierung, kein Lücken-/Überlapp-Check — wie bisher).
-- `quantity = 1 + additionalTenants.length`.
-- `handleBuy`:
-  - `input_snapshot.tenants = [snap1, ...additionalSnaps]`
-  - `quantity` an `create-service-checkout` übergeben.
-- Preisanzeige & Bestätigungsdialog: Gesamtpreis = `price.price_cents * quantity`; Zusatztext „({quantity} Abrechnungen)" wenn quantity > 1.
+Es gibt zwei unabhängige Themen:
 
-## Aufgabe 3 — Edge Functions
-Bereits generisch über `input_snapshot.tenants[]` implementiert — keine Änderungen nötig:
-- `create-service-checkout`: `quantity` wird bereits geclamped (1–10) und multipliziert.
-- `generate-service-document`: iteriert bereits über `tenants[]` und erzeugt n PDFs.
-- `get-service-document-url`: akzeptiert bereits `index`.
+### A) Vorlage tolerant einlesen (Code-Fix)
+Bevor das DOCX an docxtemplater geht, normalisieren wir Whitespace **innerhalb** unserer `{...}`-Tags in `word/document.xml` (und Header/Footer), damit Tippfehler wie `{/ ergebnis_gruen}`, `{# ergebnis_gruen }` oder `{ mieter_name }` nicht mehr zum Abbruch führen.
 
-## Aufgabe 4 — Success-Seite
-`ServiceHubSuccess.tsx` rendert bereits dynamisch alle Einträge aus `document_paths` — keine Änderung nötig, funktioniert automatisch für 2, 3, 4… PDFs.
+Umsetzung in `supabase/functions/generate-service-document/index.ts`:
+1. Vor `new Docxtemplater(zip, …)` die relevanten XML-Dateien des Zips lesen.
+2. Per Regex `\{\s*([#/^]?)\s*([a-zA-Z0-9_]+)\s*\}` zu `{$1$2}` ersetzen — entfernt nur Whitespace direkt nach `{` / vor `}` und um den Section-Marker. Andere Inhalte (Word-XML-Tags zwischen Wörtern) bleiben unberührt.
+3. Zip mit normalisierten XMLs neu setzen, dann rendern.
 
-## Hinweise
-- Datenbank-Migration (`quantity`, `document_paths`) ist bereits aktiv.
-- Hardcap 10 Mieter pro Bestellung (matches Stripe-/Edge-Clamp).
-- Keine Backend-/Tour-/HelpButton-Änderungen.
+Zusätzlich Fehler sichtbar machen: bei `TemplateError` schreiben wir `status='document_error'` (statt es auf `paid` zu lassen) und speichern eine lesbare Meldung in `document_error`. Der Success-Screen soll diese Fehlermeldung anzeigen statt endlos zu spinnen.
+
+### B) Success-Screen: Timeout + Fehleranzeige
+In `src/pages/weg-owner/ServiceHubSuccess.tsx`:
+- Wenn `status === 'document_error'` oder `document_error` gesetzt → klare Fehlermeldung statt Spinner, plus „Erneut versuchen"-Button, der `generate-service-document` neu antriggert.
+- Nach z. B. 90 s ohne `document_ready` ebenfalls Hinweis anzeigen („Bitte Support kontaktieren / erneut versuchen").
+
+### C) Hängende Bestellung jetzt freischalten
+Die aktuelle Bestellung steht auf `paid` ohne Dokument. Sobald A) deployt ist, kann ein einmaliger Re-Trigger von `generate-service-document` für diese `order_id` das Dokument nachträglich erzeugen. Ich packe einen „Erneut versuchen"-Button (siehe B) in den Success-Screen, der genau das tut – kein manueller SQL-Eingriff nötig.
+
+### D) Empfehlung an dich (kein Code)
+In der Word-Vorlage den Block-Tag korrigieren: aus `{/ ergebnis_gruen}` → `{/ergebnis_gruen}` (und alle ähnlich falsch gesetzten Tags). A) ist nur die Sicherheitsnetz-Lösung; eine saubere Vorlage ist langfristig besser.
+
+## Dateien
+
+- `supabase/functions/generate-service-document/index.ts` — Pre-Processing der Template-XMLs + Fehler-Status setzen
+- `src/pages/weg-owner/ServiceHubSuccess.tsx` — Fehleranzeige + Retry-Button + Soft-Timeout
+
+Keine DB-Migration nötig (Spalten `document_error`, `status` existieren bereits).

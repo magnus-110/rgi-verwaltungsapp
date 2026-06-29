@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Loader2, Download, FileText, ArrowLeft } from "lucide-react";
+import { CheckCircle2, Loader2, Download, FileText, ArrowLeft, AlertTriangle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 export function WegOwnerServiceHubSuccess() {
@@ -13,6 +13,33 @@ export function WegOwnerServiceHubSuccess() {
   const orderId = params.get("order_id");
   const [order, setOrder] = useState<any | null>(null);
   const [downloadingIndex, setDownloadingIndex] = useState<number | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const [waitedTooLong, setWaitedTooLong] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setWaitedTooLong(true), 90_000);
+    return () => clearTimeout(t);
+  }, [orderId]);
+
+  const handleRetry = async () => {
+    if (!orderId) return;
+    setRetrying(true);
+    try {
+      const { error } = await supabase.functions.invoke("generate-service-document", {
+        body: { order_id: orderId },
+      });
+      if (error) throw error;
+      toast.success("Dokumenterstellung wurde neu gestartet.");
+      setWaitedTooLong(false);
+      // refresh order
+      const { data } = await supabase.from("service_orders").select("*").eq("id", orderId).maybeSingle();
+      setOrder(data);
+    } catch (e: any) {
+      toast.error(e.message || "Neustart fehlgeschlagen");
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   useEffect(() => {
     if (!orderId) return;
@@ -59,7 +86,8 @@ export function WegOwnerServiceHubSuccess() {
   };
 
   const ready = order?.status === "document_ready" && order?.document_storage_path;
-  const paid = order?.status === "paid" || ready;
+  const errored = order?.status === "document_error" || (!ready && order?.document_error);
+  const paid = order?.status === "paid" || ready || errored;
 
   const docs: Array<{ index: number; mieter_name?: string }> =
     ready && Array.isArray(order?.document_paths) && order.document_paths.length
@@ -85,7 +113,11 @@ export function WegOwnerServiceHubSuccess() {
           <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
         ) : (
           <>
-            <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto" />
+            {errored ? (
+              <AlertTriangle className="w-16 h-16 text-amber-600 mx-auto" />
+            ) : (
+              <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto" />
+            )}
             <h1
               className="text-2xl font-bold"
               style={{ fontFamily: "Century Gothic, sans-serif" }}
@@ -96,8 +128,8 @@ export function WegOwnerServiceHubSuccess() {
               <Badge variant={paid ? "default" : "secondary"}>
                 {paid ? "Bezahlt" : order.status}
               </Badge>
-              <Badge variant={ready ? "default" : "secondary"}>
-                {ready ? "Dokument bereit" : "Dokument wird erstellt"}
+              <Badge variant={ready ? "default" : errored ? "destructive" : "secondary"}>
+                {ready ? "Dokument bereit" : errored ? "Fehler bei Erstellung" : "Dokument wird erstellt"}
               </Badge>
             </div>
 
@@ -128,11 +160,54 @@ export function WegOwnerServiceHubSuccess() {
                   ))}
                 </div>
               </>
+            ) : errored ? (
+              <div className="space-y-3">
+                <p className="text-sm text-amber-700">
+                  Bei der Erstellung Ihres Dokuments ist ein Fehler aufgetreten.
+                </p>
+                {order.document_error && (
+                  <p className="text-xs text-muted-foreground bg-muted rounded p-2 break-words">
+                    {order.document_error}
+                  </p>
+                )}
+                <Button onClick={handleRetry} disabled={retrying} size="lg">
+                  {retrying ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                  )}
+                  Erneut versuchen
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Falls der Fehler bestehen bleibt, melden Sie sich bei{" "}
+                  <a className="underline" href="mailto:info@rgi-immobilien.de">
+                    info@rgi-immobilien.de
+                  </a>
+                  .
+                </p>
+              </div>
             ) : paid ? (
-              <p className="text-muted-foreground text-sm flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Wir erstellen Ihr Dokument. Sie können diese Seite offen lassen.
-              </p>
+              <div className="space-y-3">
+                <p className="text-muted-foreground text-sm flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Wir erstellen Ihr Dokument. Sie können diese Seite offen lassen.
+                </p>
+                {waitedTooLong && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Das dauert ungewöhnlich lange. Sie können die Erstellung neu starten.
+                    </p>
+                    <Button onClick={handleRetry} disabled={retrying} size="sm" variant="outline">
+                      {retrying ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                      )}
+                      Erneut versuchen
+                    </Button>
+                  </div>
+                )}
+              </div>
             ) : (
               <p className="text-muted-foreground text-sm">
                 Sobald die Zahlung bestätigt ist, geht es hier weiter.

@@ -279,13 +279,39 @@ Deno.serve(async (req) => {
       const data = buildTenantData(order, snap, tenants[i], vermieter, objekt, i, tenants.length);
 
       const zip = new PizZip(tplBuf);
-      const doc = new Docxtemplater(zip, {
-        paragraphLoop: true,
-        linebreaks: true,
-        delimiters: { start: "{", end: "}" }, // bei Vorlage mit {{ }} hier auf "{{" / "}}" stellen
-        nullGetter: () => "",
-      });
-      doc.render(data);
+
+      // Normalize whitespace inside docxtemplater tags: {/ tag} -> {/tag}, { mieter_name } -> {mieter_name}
+      // Robust gegen Tippfehler in der Word-Vorlage.
+      const tagRe = /\{\s*([#/^]?)\s*([a-zA-Z0-9_]+)\s*\}/g;
+      const xmlFiles = ["word/document.xml", "word/header1.xml", "word/header2.xml", "word/header3.xml", "word/footer1.xml", "word/footer2.xml", "word/footer3.xml"];
+      for (const xf of xmlFiles) {
+        const file = zip.file(xf);
+        if (!file) continue;
+        const original = file.asText();
+        const normalized = original.replace(tagRe, (_m, marker, name) => `{${marker}${name}}`);
+        if (normalized !== original) zip.file(xf, normalized);
+      }
+
+      let doc: Docxtemplater;
+      try {
+        doc = new Docxtemplater(zip, {
+          paragraphLoop: true,
+          linebreaks: true,
+          delimiters: { start: "{", end: "}" },
+          nullGetter: () => "",
+        });
+        doc.render(data);
+      } catch (tplErr: any) {
+        const detail =
+          tplErr?.properties?.errors?.map((e: any) => e?.properties?.explanation || e?.message).join("; ") ||
+          tplErr?.message ||
+          "Template-Fehler";
+        await admin
+          .from("service_orders")
+          .update({ status: "document_error", document_error: `Vorlagen-Fehler: ${detail}` })
+          .eq("id", order_id);
+        throw new Error(`Vorlagen-Fehler: ${detail}`);
+      }
       const docxBytes = doc.getZip().generate({ type: "uint8array" });
 
       const pdfBytes = await convertDocxToPdf(docxBytes, `${order.service_type}_${order.id}_${i + 1}.docx`);
