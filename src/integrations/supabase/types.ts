@@ -8480,6 +8480,7 @@ export type Database = {
           created_at: string
           currency: string
           document_error: string | null
+          document_paths: Json | null
           document_ready_at: string | null
           document_storage_path: string | null
           fiscal_year: number | null
@@ -8489,6 +8490,7 @@ export type Database = {
           paid_at: string | null
           price_cents: number
           privacy_version: string
+          quantity: number
           service_type: Database["public"]["Enums"]["service_type_enum"]
           status: Database["public"]["Enums"]["service_order_status_enum"]
           stripe_invoice_hosted_url: string | null
@@ -8507,6 +8509,7 @@ export type Database = {
           created_at?: string
           currency?: string
           document_error?: string | null
+          document_paths?: Json | null
           document_ready_at?: string | null
           document_storage_path?: string | null
           fiscal_year?: number | null
@@ -8516,6 +8519,7 @@ export type Database = {
           paid_at?: string | null
           price_cents: number
           privacy_version: string
+          quantity?: number
           service_type: Database["public"]["Enums"]["service_type_enum"]
           status?: Database["public"]["Enums"]["service_order_status_enum"]
           stripe_invoice_hosted_url?: string | null
@@ -8534,6 +8538,7 @@ export type Database = {
           created_at?: string
           currency?: string
           document_error?: string | null
+          document_paths?: Json | null
           document_ready_at?: string | null
           document_storage_path?: string | null
           fiscal_year?: number | null
@@ -8543,6 +8548,7 @@ export type Database = {
           paid_at?: string | null
           price_cents?: number
           privacy_version?: string
+          quantity?: number
           service_type?: Database["public"]["Enums"]["service_type_enum"]
           status?: Database["public"]["Enums"]["service_order_status_enum"]
           stripe_invoice_hosted_url?: string | null

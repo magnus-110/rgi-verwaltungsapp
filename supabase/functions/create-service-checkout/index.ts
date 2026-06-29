@@ -28,7 +28,9 @@ Deno.serve(async (req) => {
       privacy_version,
       widerruf_waiver_confirmed,
       input_snapshot,
+      quantity,
     } = body ?? {};
+    const qty = Math.max(1, Math.min(10, Number(quantity) || 1));
     if (!service_type || !widerruf_waiver_confirmed) {
       return json({ error: "Missing fields" }, 400);
     }
@@ -65,8 +67,9 @@ Deno.serve(async (req) => {
         service_type,
         assignment_id: assignment_id ?? null,
         fiscal_year: fiscal_year ?? null,
-        price_cents: pricing.price_cents,
+        price_cents: pricing.price_cents * qty,
         currency: pricing.currency,
+        quantity: qty,
         status: "pending",
         agb_version: agb_version ?? "0",
         privacy_version: privacy_version ?? "0",
@@ -83,7 +86,7 @@ Deno.serve(async (req) => {
     const origin = req.headers.get("origin") ?? "https://rgi-immobilien.app";
 
     const lineItem = pricing.stripe_price_id
-      ? { price: pricing.stripe_price_id as string, quantity: 1 }
+      ? { price: pricing.stripe_price_id as string, quantity: qty }
       : {
           price_data: {
             currency: pricing.currency,
@@ -94,7 +97,7 @@ Deno.serve(async (req) => {
               description: fiscal_year ? `Abrechnungsjahr ${fiscal_year}` : undefined,
             },
           },
-          quantity: 1,
+          quantity: qty,
         };
 
     const session = await stripe.checkout.sessions.create({

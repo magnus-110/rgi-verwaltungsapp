@@ -17,7 +17,7 @@ Deno.serve(async (req) => {
     if (cErr || !claimsData?.claims) return j({ error: "Unauthorized" }, 401);
     const userId = claimsData.claims.sub as string;
 
-    const { order_id } = await req.json();
+    const { order_id, index } = await req.json();
     if (!order_id) return j({ error: "Missing order_id" }, 400);
 
     const admin = createClient(
@@ -31,13 +31,19 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!order || order.user_id !== userId) return j({ error: "Not found" }, 404);
-    if (order.status !== "document_ready" || !order.document_storage_path) {
+    let pathToSign: string | null = order.document_storage_path;
+    if (index != null && Array.isArray(order.document_paths)) {
+      const found = order.document_paths.find((d: any) => d.index === Number(index));
+      if (found?.path) pathToSign = found.path;
+    }
+
+    if (order.status !== "document_ready" || !pathToSign) {
       return j({ error: "Document not ready" }, 409);
     }
 
     const { data: signed, error } = await admin.storage
       .from("service-documents")
-      .createSignedUrl(order.document_storage_path, 300);
+      .createSignedUrl(pathToSign, 300);
     if (error) return j({ error: error.message }, 500);
 
     return j({ url: signed.signedUrl });

@@ -12,7 +12,7 @@ export function WegOwnerServiceHubSuccess() {
   const [params] = useSearchParams();
   const orderId = params.get("order_id");
   const [order, setOrder] = useState<any | null>(null);
-  const [downloading, setDownloading] = useState(false);
+  const [downloadingIndex, setDownloadingIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!orderId) return;
@@ -40,13 +40,13 @@ export function WegOwnerServiceHubSuccess() {
     };
   }, [orderId]);
 
-  const handleDownload = async () => {
+  const handleDownload = async (index?: number) => {
     if (!orderId) return;
-    setDownloading(true);
+    setDownloadingIndex(index ?? 0);
     try {
       const { data, error } = await supabase.functions.invoke(
         "get-service-document-url",
-        { body: { order_id: orderId } },
+        { body: { order_id: orderId, index } },
       );
       if (error) throw error;
       if (data?.url) window.open(data.url, "_blank");
@@ -54,12 +54,19 @@ export function WegOwnerServiceHubSuccess() {
     } catch (e: any) {
       toast.error(e.message || "Download fehlgeschlagen");
     } finally {
-      setDownloading(false);
+      setDownloadingIndex(null);
     }
   };
 
   const ready = order?.status === "document_ready" && order?.document_storage_path;
   const paid = order?.status === "paid" || ready;
+
+  const docs: Array<{ index: number; mieter_name?: string }> =
+    ready && Array.isArray(order?.document_paths) && order.document_paths.length
+      ? order.document_paths
+      : ready
+        ? [{ index: 1 }]
+        : [];
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10">
@@ -97,16 +104,29 @@ export function WegOwnerServiceHubSuccess() {
             {ready ? (
               <>
                 <p className="text-muted-foreground text-sm">
-                  Ihr Dokument ist fertig.
+                  {docs.length > 1
+                    ? "Ihre Dokumente sind fertig."
+                    : "Ihr Dokument ist fertig."}
                 </p>
-                <Button onClick={handleDownload} disabled={downloading} size="lg">
-                  {downloading ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Download className="w-4 h-4 mr-2" />
-                  )}
-                  PDF herunterladen
-                </Button>
+                <div className="flex flex-col items-center gap-2">
+                  {docs.map((d) => (
+                    <Button
+                      key={d.index}
+                      onClick={() => handleDownload(docs.length > 1 ? d.index : undefined)}
+                      disabled={downloadingIndex !== null}
+                      size="lg"
+                      className="w-full sm:w-auto"
+                    >
+                      {downloadingIndex === d.index ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4 mr-2" />
+                      )}
+                      PDF herunterladen
+                      {d.mieter_name ? ` – ${d.mieter_name}` : ""}
+                    </Button>
+                  ))}
+                </div>
               </>
             ) : paid ? (
               <p className="text-muted-foreground text-sm flex items-center justify-center gap-2">

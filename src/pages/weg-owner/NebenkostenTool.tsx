@@ -127,6 +127,14 @@ export function WegOwnerNebenkostenTool() {
   const [tenantChanged, setTenantChanged] = useState(false);
   const [prepayMonthly, setPrepayMonthly] = useState<number | "">("");
 
+  // Mieter 2 (nur bei Mieterwechsel)
+  const [tenant2Name, setTenant2Name] = useState("");
+  const [tenant2Persons, setTenant2Persons] = useState<number | "">("");
+  const [tenant2PrepayMonthly, setTenant2PrepayMonthly] = useState<number | "">("");
+  const [tenant2MoveIn, setTenant2MoveIn] = useState("");
+  const [tenant2MoveOut, setTenant2MoveOut] = useState("");
+  const [tenant2HeatingOverride, setTenant2HeatingOverride] = useState<number | "">("");
+
   // Direkte Eigentümerkosten
   const [extraCosts, setExtraCosts] = useState<ExtraCost[]>([]);
 
@@ -307,11 +315,100 @@ export function WegOwnerNebenkostenTool() {
     }
   };
 
+  // Baut den Snapshot für GENAU EINEN Mieter (anteilig nach seinem Zeitraum).
+  const buildTenantSnapshot = (
+    tName: string,
+    tAddress: string,
+    tPersons: number,
+    tPrepayMonthly: number,
+    pr: ProrataInfo,
+    heatingValue: number,
+    moveInVal: string | null,
+    moveOutVal: string | null,
+  ) => {
+    const factorAuto = (p: AutoPosition) =>
+      pr.active && !p.consumption_based ? pr.factor : 1;
+    const posAmount = (p: AutoPosition) => round2(p.share_amount * factorAuto(p));
+    const activePositions = autoPositions.filter(
+      (p) => !disabledAccounts.has(p.account_number),
+    );
+    const autoSum = round2(activePositions.reduce((s, p) => s + posAmount(p), 0));
+    const extraEff = (c: ExtraCost) =>
+      pr.active && !c.prorata_exempt ? round2(c.amount * pr.factor) : c.amount;
+    const extraSum = round2(extraCosts.reduce((s, c) => s + extraEff(c), 0));
+    const costSum = round2(autoSum + heatingValue + extraSum);
+    const prepayFull = tPrepayMonthly * 12;
+    const prepaySum = round2(pr.active ? prepayFull * pr.factor : prepayFull);
+    const result = round2(costSum - prepaySum);
+    const months = pr.periodDays > 0 ? pr.tenantDays / 30.42 : 0;
+    return {
+      tenant: {
+        name: tName,
+        address: tAddress,
+        persons: tPersons,
+        move_in: moveInVal,
+        move_out: moveOutVal,
+        prepayment_monthly: tPrepayMonthly,
+        months_in_period: months,
+        prepayment_total: prepaySum,
+      },
+      positions: activePositions.map((p) => ({
+        account_number: p.account_number,
+        account_name: p.account_name,
+        total_amount: p.total_amount,
+        share_amount: posAmount(p),
+        full_share_amount: p.share_amount,
+        distribution_key: p.distribution_key,
+        consumption_based: !!p.consumption_based,
+        prorata_factor: factorAuto(p),
+      })),
+      heating: heating
+        ? {
+            label: heating.label,
+            amount: heatingValue,
+            source: heating.source,
+            user_adjusted: true,
+          }
+        : null,
+      extra_costs: extraCosts.map((c) => ({
+        cost_type: c.cost_type,
+        label: c.label,
+        amount: extraEff(c),
+        full_amount: c.amount,
+        prorata_exempt: !!c.prorata_exempt,
+        prorata_factor: pr.active && !c.prorata_exempt ? pr.factor : 1,
+      })),
+      totals: {
+        autoSum,
+        heatingValue,
+        extraSum,
+        costSum,
+        prepaySum,
+        result,
+        months,
+      },
+      prorata: {
+        active: pr.active,
+        tenant_days: pr.tenantDays,
+        period_days: pr.periodDays,
+        factor: pr.factor,
+        from: pr.fromISO,
+        to: pr.toISO,
+      },
+    };
+  };
+
 
   // Tagesgenaue Pro-Rata bei Mieterwechsel
   const prorata = useMemo(
     () => computeProrata(moveIn, moveOut, tenantChanged, selectedPeriod),
     [moveIn, moveOut, tenantChanged, selectedPeriod],
+  );
+
+  // Pro-Rata für Mieter 2 (Zeitraum nach dem Wechsel)
+  const prorata2 = useMemo(
+    () => computeProrata(tenant2MoveIn, tenant2MoveOut, tenantChanged, selectedPeriod),
+    [tenant2MoveIn, tenant2MoveOut, tenantChanged, selectedPeriod],
   );
 
   // Heizungs-Vorbefüllung an Mieterwechsel koppeln:
@@ -380,8 +477,16 @@ export function WegOwnerNebenkostenTool() {
     persons &&
     prepayMonthly !== "" &&
     Number(prepayMonthly) > 0 &&
+    (!tenantChanged ||
+      (tenant2Name &&
+        tenant2Persons &&
+        tenant2PrepayMonthly !== "" &&
+        Number(tenant2PrepayMonthly) > 0)) &&
     !loadingData
   );
+
+  // Anzahl der Abrechnungen (= Anzahl Produkte im Checkout)
+  const quantity = tenantChanged ? 2 : 1;
 
   const isInitialLoading =
     loadingAssignments ||
@@ -455,6 +560,35 @@ export function WegOwnerNebenkostenTool() {
         totals,
       };
 
+      const tenantsArr = tenantChanged
+        ? [
+            buildTenantSnapshot(
+              tenantName,
+              tenantAddress,
+              Number(persons) || 0,
+              Number(prepayMonthly) || 0,
+              prorata,
+              Number(heatingOverride) || 0,
+              moveIn || null,
+              moveOut || null,
+            ),
+            buildTenantSnapshot(
+              tenant2Name,
+              tenantAddress,
+              Number(tenant2Persons) || 0,
+              Number(tenant2PrepayMonthly) || 0,
+              prorata2,
+              Number(tenant2HeatingOverride) || 0,
+              tenant2MoveIn || null,
+              tenant2MoveOut || null,
+            ),
+          ]
+        : null;
+
+      const finalSnapshot = tenantsArr
+        ? { ...snapshot, tenants: tenantsArr }
+        : snapshot;
+
       const { data, error } = await supabase.functions.invoke(
         "create-service-checkout",
         {
@@ -465,7 +599,8 @@ export function WegOwnerNebenkostenTool() {
             agb_version: CURRENT_LEGAL_VERSION,
             privacy_version: CURRENT_LEGAL_VERSION,
             widerruf_waiver_confirmed: true,
-            input_snapshot: snapshot,
+            quantity,
+            input_snapshot: finalSnapshot,
           },
         },
       );
@@ -638,7 +773,7 @@ export function WegOwnerNebenkostenTool() {
           {assignmentId && periodId && (
             <>
               {/* 2. Mieter */}
-              <SectionCard num={2} title="Mieter" icon={Users}>
+              <SectionCard num={2} title={tenantChanged ? "Mieter 1 – vor dem Wechsel" : "Mieter"} icon={Users}>
                 <div className="space-y-3">
                   <Field
                     label="Name des Mieters"
@@ -808,6 +943,97 @@ export function WegOwnerNebenkostenTool() {
                 )}
               </SectionCard>
 
+              {/* 4. Mieter 2 – nur bei Mieterwechsel */}
+              {tenantChanged && (
+                <SectionCard num={4} title="Mieter 2 – nach dem Wechsel" icon={Users}>
+                  <div className="space-y-3">
+                    <Field
+                      label="Name des Mieters"
+                      badge={tenant2Name ? "auto" : "ergänzen"}
+                    >
+                      <Input
+                        className="h-11"
+                        style={fieldStyle(!!tenant2Name)}
+                        value={tenant2Name}
+                        onChange={(e) => setTenant2Name(e.target.value)}
+                      />
+                    </Field>
+                    <Field
+                      label="Anzahl Personen"
+                      badge={tenant2Persons ? "auto" : "ergänzen"}
+                    >
+                      <Input
+                        type="number"
+                        className="h-11"
+                        style={fieldStyle(!!tenant2Persons)}
+                        value={tenant2Persons}
+                        onChange={(e) =>
+                          setTenant2Persons(e.target.value === "" ? "" : Number(e.target.value))
+                        }
+                      />
+                    </Field>
+                    <Field
+                      label="NK-Vorauszahlung pro Monat (€)"
+                      tooltip="Monatliche Nebenkosten-Vorauszahlung laut Mietvertrag von Mieter 2."
+                      badge={tenant2PrepayMonthly !== "" && Number(tenant2PrepayMonthly) > 0 ? undefined : "Pflicht"}
+                    >
+                      <Input
+                        type="number"
+                        step="0.01"
+                        className="h-11"
+                        style={fieldStyle(tenant2PrepayMonthly !== "" && Number(tenant2PrepayMonthly) > 0)}
+                        value={tenant2PrepayMonthly}
+                        onChange={(e) =>
+                          setTenant2PrepayMonthly(e.target.value === "" ? "" : Number(e.target.value))
+                        }
+                      />
+                    </Field>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Einzug">
+                        <Input
+                          type="date"
+                          className="h-11"
+                          value={tenant2MoveIn}
+                          onChange={(e) => setTenant2MoveIn(e.target.value)}
+                        />
+                      </Field>
+                      <Field label="Auszug">
+                        <Input
+                          type="date"
+                          className="h-11"
+                          value={tenant2MoveOut}
+                          onChange={(e) => setTenant2MoveOut(e.target.value)}
+                        />
+                      </Field>
+                    </div>
+
+                    {/* Eigenes Heizkosten-Feld für Mieter 2 */}
+                    <Field
+                      label="Heizung / Warmwasser / Wasser (anteilig)"
+                      badge="ergänzen"
+                      tooltip="Anteilige Summe von Mieter 2 aus der Heizkostenabrechnung des Messdienstes."
+                    >
+                      <Input
+                        type="number"
+                        step="0.01"
+                        className="h-11"
+                        style={fieldStyle(tenant2HeatingOverride !== "" && Number(tenant2HeatingOverride) > 0)}
+                        value={tenant2HeatingOverride}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                        onKeyDown={(e) => {
+                          if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
+                        }}
+                        placeholder="Anteilige Summe aus Heizkostenabrechnung eintragen"
+                        onChange={(e) =>
+                          setTenant2HeatingOverride(e.target.value === "" ? "" : Number(e.target.value))
+                        }
+                      />
+                    </Field>
+                  </div>
+                </SectionCard>
+              )}
+
               {/* Pro-Rata-Banner bei Mieterwechsel */}
               {prorata.active && (
                 <div
@@ -829,7 +1055,7 @@ export function WegOwnerNebenkostenTool() {
               )}
 
               {/* 4. Umlagefähige Kosten */}
-              <SectionCard num={4} title="Umlagefähige Kosten" icon={Receipt}>
+              <SectionCard num={5} title="Umlagefähige Kosten" icon={Receipt}>
                 <div
                   className="text-xs px-3 py-2 rounded mb-3"
                   style={{ background: RGI.amberBg, color: RGI.amber }}
@@ -949,7 +1175,7 @@ export function WegOwnerNebenkostenTool() {
               </SectionCard>
 
               {/* 5. Weitere Kosten */}
-              <SectionCard num={5} title="Weitere Kosten" icon={Wrench}>
+              <SectionCard num={6} title="Weitere Kosten" icon={Wrench}>
                 <p className="text-xs mb-3" style={{ color: RGI.muted }}>
                   Direkt bei Ihnen angefallene umlagefähige Kosten (Grundsteuer,
                   Kabel-TV, Wartung Sondereigentum, einzelne Reparaturen …).
@@ -1123,7 +1349,10 @@ export function WegOwnerNebenkostenTool() {
                 disabled={!canBuy}
                 onClick={() => setBuyOpen(true)}
               >
-                {price ? formatPrice(price.price_cents, price.currency) : "Jetzt erstellen"}
+                {price
+                  ? formatPrice(price.price_cents * quantity, price.currency) +
+                    (quantity > 1 ? ` (${quantity} Abrechnungen)` : "")
+                  : "Jetzt erstellen"}
                 <span className="ml-2">›</span>
               </Button>
             </div>
@@ -1146,9 +1375,12 @@ export function WegOwnerNebenkostenTool() {
             <div className="space-y-3">
               <div className="bg-muted p-3 rounded text-sm space-y-1">
                 <div className="flex justify-between">
-                  <span>Nebenkostenabrechnung {selectedPeriod?.fiscal_year}</span>
+                  <span>
+                    Nebenkostenabrechnung {selectedPeriod?.fiscal_year}
+                    {quantity > 1 ? ` (${quantity}×)` : ""}
+                  </span>
                   <span className="font-bold">
-                    {price && formatPrice(price.price_cents, price.currency)}
+                    {price && formatPrice(price.price_cents * quantity, price.currency)}
                   </span>
                 </div>
                 <div className="text-xs text-muted-foreground">

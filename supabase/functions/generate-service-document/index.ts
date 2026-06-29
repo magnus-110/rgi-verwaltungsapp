@@ -1,10 +1,8 @@
 // generate-service-document
 // ----------------------------------------------------------------
-// Rendert die hochgeladene DOCX-Vorlage (billing_templates,
-// scope=service_nebenkosten / service_anlage_v / service_mietvertrag)
-// mit den Daten aus service_orders.input_snapshot, konvertiert via
-// CloudConvert nach PDF, legt das Ergebnis in service-documents/
-// {user_id}/{order_id}.pdf ab und benachrichtigt Make.com.
+// Rendert die DOCX-Vorlage (billing_templates) mit den Daten aus
+// service_orders.input_snapshot. Bei Mieterwechsel (input_snapshot.tenants[])
+// wird PRO Mieter ein eigenes PDF erzeugt und anteilig befüllt.
 // ----------------------------------------------------------------
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import PizZip from "https://esm.sh/pizzip@3.1.7";
@@ -34,50 +32,102 @@ function fmtDate(d?: string | null): string {
   }
 }
 
-function buildPayload(order: any, vermieter: any, objekt: any) {
-  const snap = order.input_snapshot ?? {};
-  const t = snap.tenant ?? {};
-  const totals = snap.totals ?? {};
-  const heating = snap.heating ?? null;
-  const positions = Array.isArray(snap.positions) ? snap.positions : [];
-  const extras = Array.isArray(snap.extra_costs) ? snap.extra_costs : [];
+// Baut die Render-Daten für GENAU EINEN Mieter (eine Abrechnung).
+function buildTenantData(
+  order: any,
+  snap: any,
+  tenantSnap: any,
+  vermieter: any,
+  objekt: any,
+  idx: number,
+  total: number,
+) {
+  const t = tenantSnap.tenant ?? {};
+  const totals = tenantSnap.totals ?? {};
+  const heating = tenantSnap.heating ?? null;
+  const positions = Array.isArray(tenantSnap.positions) ? tenantSnap.positions : [];
+  const extras = Array.isArray(tenantSnap.extra_costs) ? tenantSnap.extra_costs : [];
 
-  const saldo = Number(totals.result ?? 0);
+  const positionen = [
+    ...positions.map((p: any) => ({
+      konto_nr: p.account_number ?? "",
+      konto: p.account_number ?? "",
+      bezeichnung: p.account_name ?? "",
+      gesamt_eur: fmtEUR(p.total_amount),
+      gesamtkosten: fmtEUR(p.total_amount),
+      verteilerschluessel: String(p.distribution_key ?? "").toUpperCase(),
+      anteil_eur: fmtEUR(p.share_amount),
+      mieteranteil: fmtEUR(p.share_amount),
+    })),
+    ...extras.map((c: any) => ({
+      konto_nr: "DIREKT",
+      konto: "DIREKT",
+      bezeichnung: c.label ?? c.cost_type ?? "",
+      gesamt_eur: fmtEUR(c.full_amount ?? c.amount),
+      gesamtkosten: fmtEUR(c.full_amount ?? c.amount),
+      verteilerschluessel: "DIREKT",
+      anteil_eur: fmtEUR(c.amount),
+      mieteranteil: fmtEUR(c.amount),
+    })),
+  ];
+
+  const result = Number(totals.result ?? 0);
+  const suffix = total > 1 ? "-" + (idx + 1) : "";
+
   return {
-    // Kopf
-    vermieter_name: vermieter?.name ?? "",
-    vermieter_adresse: vermieter?.adresse ?? "",
-    vermieter_iban: vermieter?.iban ?? "",
-    vermieter_bank: vermieter?.bank ?? "",
-    objekt_adresse: objekt?.adresse ?? "",
-    objekt_wohnung: objekt?.wohnung ?? "",
+    // Kopf / Allgemein
+    rechnung_datum: new Date().toLocaleDateString("de-DE"),
+    erstellt_am: new Date().toLocaleDateString("de-DE"),
+    erzeugt_am: new Date().toLocaleString("de-DE"),
+    abrechnung_nr: "NK-" + String(order.id).slice(0, 8).toUpperCase() + suffix,
+    order_id: order.id,
+    fiscal_year: String(order.fiscal_year ?? snap.fiscal_year ?? ""),
     abrechnungsjahr: String(order.fiscal_year ?? snap.fiscal_year ?? ""),
+    period_from: fmtDate(snap?.period?.from),
+    period_to: fmtDate(snap?.period?.to),
     zeitraum_von: fmtDate(snap?.period?.from),
     zeitraum_bis: fmtDate(snap?.period?.to),
-    erstellt_am: new Date().toLocaleDateString("de-DE"),
+    einspruchsfrist: "12 Monate ab Zugang dieser Abrechnung (§ 556 Abs. 3 BGB)",
+    agb_version: order.agb_version ?? "",
+
+    // Vermieter / Eigentümer
+    vermieter_name: vermieter?.name ?? "",
+    vermieter_strasse: vermieter?.adresse ?? "",
+    vermieter_adresse: vermieter?.adresse ?? "",
+    vermieter_plz_ort: "",
+    vermieter_email: vermieter?.email ?? "",
+    vermieter_telefon: "",
+    vermieter_iban: vermieter?.iban ?? "",
+    vermieter_bank: vermieter?.bank ?? "",
+
+    // Wohnung / Liegenschaft
+    wohnung_nr: objekt?.wohnung ?? "",
+    objekt_wohnung: objekt?.wohnung ?? "",
+    liegenschaft_name: objekt?.name ?? "",
+    liegenschaft_adresse: objekt?.adresse ?? "",
+    objekt_adresse: objekt?.adresse ?? "",
 
     // Mieter
     mieter_name: t.name ?? "",
+    mieter_adresse: t.address ?? "",
     mieter_personen: String(t.persons ?? ""),
-    mieter_einzug: fmtDate(t.move_in),
-    mieter_auszug: fmtDate(t.move_out),
-    mieter_monate: String(t.months_in_period ?? ""),
+    mieter_einzug: t.move_in ? fmtDate(t.move_in) : "—",
+    mieter_auszug: t.move_out ? fmtDate(t.move_out) : "—",
+    mieter_monate:
+      t.months_in_period != null
+        ? Number(t.months_in_period).toLocaleString("de-DE", { maximumFractionDigits: 1 })
+        : "",
+    vorauszahlung_monatlich: fmtEUR(t.prepayment_monthly),
+    vorauszahlung_gesamt: fmtEUR(t.prepayment_total),
     mieter_vorauszahlung_monat: fmtEUR(t.prepayment_monthly),
     mieter_vorauszahlung_summe: fmtEUR(t.prepayment_total),
 
-    // Positionen
-    positions: positions.map((p: any) => ({
-      konto: p.account_number ?? "",
-      bezeichnung: p.account_name ?? "",
-      gesamtkosten: fmtEUR(p.total_amount),
-      verteilerschluessel: p.distribution_key ?? "",
-      mieteranteil: fmtEUR(p.share_amount),
-      verbrauchsabhaengig: p.consumption_based ? "verbrauchsabhängig" : "",
-      manuell_angepasst: p.user_adjusted ? "angepasst" : "",
-    })),
+    // Positionen (Schleife) – beide Array-Namen
+    positionen,
+    positions: positionen,
 
     // Heizung
-    heizung_bezeichnung: heating?.label ?? "",
+    heizung_bezeichnung: heating?.label ?? "Heizung / Warmwasser / Wasser",
     heizung_betrag: fmtEUR(heating?.amount),
     heizung_quelle: heating?.source ?? "",
     heizung_hinweis:
@@ -87,20 +137,19 @@ function buildPayload(order: any, vermieter: any, objekt: any) {
           ? "Vom Eigentümer angepasst"
           : "",
 
-    // Direkte Eigentümerkosten
-    extra_costs: extras.map((c: any) => ({
-      bezeichnung: c.label ?? c.cost_type ?? "",
-      betrag: fmtEUR(c.amount),
-    })),
-
     // Summen
+    summe_umlage: fmtEUR(totals.autoSum),
     summe_umlagefaehig: fmtEUR(totals.autoSum),
-    summe_heizung: fmtEUR(totals.heatingValue),
+    summe_extra: fmtEUR(totals.extraSum),
     summe_direkt: fmtEUR(totals.extraSum),
+    summe_heizung: fmtEUR(totals.heatingValue),
     summe_gesamt: fmtEUR(totals.costSum),
+    summe_vorauszahlungen: fmtEUR(totals.prepaySum),
     summe_vorauszahlung: fmtEUR(totals.prepaySum),
-    saldo: fmtEUR(Math.abs(saldo)),
-    saldo_text: saldo >= 0 ? "Nachzahlung" : "Guthaben",
+    saldo: fmtEUR(result),
+    saldo_abs: fmtEUR(Math.abs(result)),
+    saldo_label: result > 0 ? "Nachzahlung" : "Guthaben",
+    saldo_text: result > 0 ? "Nachzahlung" : "Guthaben",
   };
 }
 
@@ -154,7 +203,6 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // 1. Order laden
     const { data: order, error: orderErr } = await admin
       .from("service_orders").select("*").eq("id", order_id).maybeSingle();
     if (orderErr || !order) return new Response("Order not found", { status: 404, headers: corsHeaders });
@@ -165,7 +213,8 @@ Deno.serve(async (req) => {
     const scope = SCOPE_BY_SERVICE[order.service_type];
     if (!scope) throw new Error(`Unbekannter service_type: ${order.service_type}`);
 
-    // 2. Stammdaten anreichern (Vermieter + Objekt)
+    const snap = order.input_snapshot ?? {};
+
     let vermieter: any = {};
     let objekt: any = {};
     try {
@@ -175,6 +224,7 @@ Deno.serve(async (req) => {
       vermieter = {
         name: [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.email || "",
         adresse: profile?.address ?? "",
+        email: profile?.email ?? "",
         iban: profile?.iban ?? "",
         bank: profile?.bank_name ?? "",
       };
@@ -186,93 +236,122 @@ Deno.serve(async (req) => {
         .select("unit_number, building_id, buildings:building_id(name,address)")
         .eq("id", order.assignment_id).maybeSingle();
       objekt = {
+        name: (cba as any)?.buildings?.name ?? "",
         adresse: (cba as any)?.buildings?.address ?? "",
         wohnung: (cba as any)?.unit_number ?? "",
       };
     }
 
-    // 3. Template laden
     const { data: tpl, error: tplErr } = await admin
       .from("billing_templates").select("storage_path,name")
       .eq("scope", scope).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (tplErr || !tpl?.storage_path) throw new Error(`Keine Vorlage für scope=${scope} hinterlegt`);
-
     const { data: tplFile, error: dlErr } = await admin.storage
       .from("billing-templates").download(tpl.storage_path);
     if (dlErr || !tplFile) throw new Error(`Template-Download fehlgeschlagen: ${dlErr?.message}`);
     const tplBuf = new Uint8Array(await tplFile.arrayBuffer());
 
-    // 4. Rendern
-    const payload = buildPayload(order, vermieter, objekt);
-    const zip = new PizZip(tplBuf);
-    const doc = new Docxtemplater(zip, {
-      paragraphLoop: true,
-      linebreaks: true,
-      delimiters: { start: "{{", end: "}}" },
-      nullGetter: () => "",
-    });
-    doc.render(payload);
-    const docxBytes = doc.getZip().generate({ type: "uint8array" });
+    // Mieter ermitteln
+    const tenants =
+      Array.isArray(snap.tenants) && snap.tenants.length > 0 ? snap.tenants : [snap];
 
-    // 5. PDF konvertieren
-    const pdfBytes = await convertDocxToPdf(docxBytes, `${order.service_type}_${order.id}.docx`);
-
-    // 6. Storage-Upload (Bucket anlegen falls nötig)
     const bucketId = "service-documents";
     const { data: buckets } = await admin.storage.listBuckets();
     if (!buckets?.some((b) => b.id === bucketId)) {
       await admin.storage.createBucket(bucketId, { public: false });
     }
-    const path = `${order.user_id}/${order.id}.pdf`;
-    const { error: upErr } = await admin.storage
-      .from(bucketId)
-      .upload(path, new Blob([pdfBytes], { type: "application/pdf" }), {
-        upsert: true, contentType: "application/pdf",
+
+    const documents: Array<{
+      index: number;
+      path: string;
+      mieter_name: string;
+      saldo: string;
+      saldo_label: string;
+    }> = [];
+
+    for (let i = 0; i < tenants.length; i++) {
+      const data = buildTenantData(order, snap, tenants[i], vermieter, objekt, i, tenants.length);
+
+      const zip = new PizZip(tplBuf);
+      const doc = new Docxtemplater(zip, {
+        paragraphLoop: true,
+        linebreaks: true,
+        delimiters: { start: "{", end: "}" }, // bei Vorlage mit {{ }} hier auf "{{" / "}}" stellen
+        nullGetter: () => "",
       });
-    if (upErr) {
-      await admin.from("service_orders").update({ document_error: upErr.message }).eq("id", order_id);
-      throw upErr;
+      doc.render(data);
+      const docxBytes = doc.getZip().generate({ type: "uint8array" });
+
+      const pdfBytes = await convertDocxToPdf(
+        docxBytes,
+        `${order.service_type}_${order.id}_${i + 1}.docx`,
+      );
+
+      const path =
+        tenants.length > 1
+          ? `${order.user_id}/${order.id}_${i + 1}.pdf`
+          : `${order.user_id}/${order.id}.pdf`;
+
+      const { error: upErr } = await admin.storage
+        .from(bucketId)
+        .upload(path, new Blob([pdfBytes], { type: "application/pdf" }), {
+          upsert: true,
+          contentType: "application/pdf",
+        });
+      if (upErr) {
+        await admin.from("service_orders").update({ document_error: upErr.message }).eq("id", order_id);
+        throw upErr;
+      }
+
+      documents.push({
+        index: i + 1,
+        path,
+        mieter_name: data.mieter_name,
+        saldo: data.saldo_abs,
+        saldo_label: data.saldo_label,
+      });
     }
 
-    // 7. Order updaten
     await admin.from("service_orders").update({
       status: "document_ready",
-      document_storage_path: path,
+      document_storage_path: documents[0]?.path ?? null,
+      document_paths: documents,
       document_ready_at: new Date().toISOString(),
       document_error: null,
     }).eq("id", order_id);
 
-    // 8. Make.com Webhook (optional, blockiert nicht)
     const webhook = Deno.env.get("MAKE_NEBENKOSTEN_WEBHOOK_URL");
     if (webhook) {
       try {
-        const { data: signed } = await admin.storage
-          .from(bucketId).createSignedUrl(path, 60 * 60 * 24); // 24h
-        await fetch(webhook, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            order_id: order.id,
-            service_type: order.service_type,
-            user_id: order.user_id,
-            recipient_email: vermieter.email ?? null,
-            recipient_name: vermieter.name,
-            objekt_adresse: objekt.adresse,
-            objekt_wohnung: objekt.wohnung,
-            mieter_name: payload.mieter_name,
-            abrechnungsjahr: payload.abrechnungsjahr,
-            saldo: payload.saldo,
-            saldo_text: payload.saldo_text,
-            download_url: signed?.signedUrl ?? null,
-            generated_at: new Date().toISOString(),
-          }),
-        });
+        for (const d of documents) {
+          const { data: signed } = await admin.storage
+            .from(bucketId).createSignedUrl(d.path, 60 * 60 * 24);
+          await fetch(webhook, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              order_id: order.id,
+              service_type: order.service_type,
+              user_id: order.user_id,
+              recipient_email: vermieter.email ?? null,
+              recipient_name: vermieter.name,
+              objekt_adresse: objekt.adresse,
+              objekt_wohnung: objekt.wohnung,
+              mieter_name: d.mieter_name,
+              abrechnungsjahr: String(order.fiscal_year ?? snap.fiscal_year ?? ""),
+              saldo: d.saldo,
+              saldo_text: d.saldo_label,
+              download_url: signed?.signedUrl ?? null,
+              generated_at: new Date().toISOString(),
+            }),
+          });
+        }
       } catch (e) {
         console.error("[generate-service-document] Make webhook error:", e);
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, path }), {
+    return new Response(JSON.stringify({ ok: true, documents }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
