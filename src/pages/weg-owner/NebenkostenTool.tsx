@@ -127,13 +127,35 @@ export function WegOwnerNebenkostenTool() {
   const [tenantChanged, setTenantChanged] = useState(false);
   const [prepayMonthly, setPrepayMonthly] = useState<number | "">("");
 
-  // Mieter 2 (nur bei Mieterwechsel)
-  const [tenant2Name, setTenant2Name] = useState("");
-  const [tenant2Persons, setTenant2Persons] = useState<number | "">("");
-  const [tenant2PrepayMonthly, setTenant2PrepayMonthly] = useState<number | "">("");
-  const [tenant2MoveIn, setTenant2MoveIn] = useState("");
-  const [tenant2MoveOut, setTenant2MoveOut] = useState("");
-  const [tenant2HeatingOverride, setTenant2HeatingOverride] = useState<number | "">("");
+  // Weitere Mieter (bei Mieterwechsel) – dynamische Liste
+  type AdditionalTenant = {
+    id: string;
+    name: string;
+    persons: number | "";
+    prepayMonthly: number | "";
+    moveIn: string;
+    moveOut: string;
+    heatingOverride: number | "";
+  };
+  const makeEmptyTenant = (): AdditionalTenant => ({
+    id:
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2),
+    name: "",
+    persons: "",
+    prepayMonthly: "",
+    moveIn: "",
+    moveOut: "",
+    heatingOverride: "",
+  });
+  const [additionalTenants, setAdditionalTenants] = useState<AdditionalTenant[]>([]);
+  const updateAdditionalTenant = (id: string, patch: Partial<AdditionalTenant>) =>
+    setAdditionalTenants((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  const removeAdditionalTenant = (id: string) =>
+    setAdditionalTenants((prev) => prev.filter((t) => t.id !== id));
+  const addAdditionalTenant = () =>
+    setAdditionalTenants((prev) => (prev.length >= 9 ? prev : [...prev, makeEmptyTenant()]));
 
   // Direkte Eigentümerkosten
   const [extraCosts, setExtraCosts] = useState<ExtraCost[]>([]);
