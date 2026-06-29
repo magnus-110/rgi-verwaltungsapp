@@ -57,7 +57,7 @@ export async function getOwnerBillingPositions(
 ): Promise<OwnerBillingResult> {
   const { data, error } = await supabase.functions.invoke(
     "get-owner-billing-positions",
-    { body: { assignment_id: assignmentId, period_id: periodId, distribution_mode: distributionMode } },,
+    { body: { assignment_id: assignmentId, period_id: periodId, distribution_mode: distributionMode } },
   );
   if (error) throw error;
   return {
