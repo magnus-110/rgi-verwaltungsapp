@@ -113,7 +113,11 @@ export function WegOwnerServiceHubSuccess() {
           <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
         ) : (
           <>
-            <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto" />
+            {errored ? (
+              <AlertTriangle className="w-16 h-16 text-amber-600 mx-auto" />
+            ) : (
+              <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto" />
+            )}
             <h1
               className="text-2xl font-bold"
               style={{ fontFamily: "Century Gothic, sans-serif" }}
@@ -124,8 +128,8 @@ export function WegOwnerServiceHubSuccess() {
               <Badge variant={paid ? "default" : "secondary"}>
                 {paid ? "Bezahlt" : order.status}
               </Badge>
-              <Badge variant={ready ? "default" : "secondary"}>
-                {ready ? "Dokument bereit" : "Dokument wird erstellt"}
+              <Badge variant={ready ? "default" : errored ? "destructive" : "secondary"}>
+                {ready ? "Dokument bereit" : errored ? "Fehler bei Erstellung" : "Dokument wird erstellt"}
               </Badge>
             </div>
 
@@ -156,11 +160,54 @@ export function WegOwnerServiceHubSuccess() {
                   ))}
                 </div>
               </>
+            ) : errored ? (
+              <div className="space-y-3">
+                <p className="text-sm text-amber-700">
+                  Bei der Erstellung Ihres Dokuments ist ein Fehler aufgetreten.
+                </p>
+                {order.document_error && (
+                  <p className="text-xs text-muted-foreground bg-muted rounded p-2 break-words">
+                    {order.document_error}
+                  </p>
+                )}
+                <Button onClick={handleRetry} disabled={retrying} size="lg">
+                  {retrying ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                  )}
+                  Erneut versuchen
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Falls der Fehler bestehen bleibt, melden Sie sich bei{" "}
+                  <a className="underline" href="mailto:info@rgi-immobilien.de">
+                    info@rgi-immobilien.de
+                  </a>
+                  .
+                </p>
+              </div>
             ) : paid ? (
-              <p className="text-muted-foreground text-sm flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Wir erstellen Ihr Dokument. Sie können diese Seite offen lassen.
-              </p>
+              <div className="space-y-3">
+                <p className="text-muted-foreground text-sm flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Wir erstellen Ihr Dokument. Sie können diese Seite offen lassen.
+                </p>
+                {waitedTooLong && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Das dauert ungewöhnlich lange. Sie können die Erstellung neu starten.
+                    </p>
+                    <Button onClick={handleRetry} disabled={retrying} size="sm" variant="outline">
+                      {retrying ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                      )}
+                      Erneut versuchen
+                    </Button>
+                  </div>
+                )}
+              </div>
             ) : (
               <p className="text-muted-foreground text-sm">
                 Sobald die Zahlung bestätigt ist, geht es hier weiter.
