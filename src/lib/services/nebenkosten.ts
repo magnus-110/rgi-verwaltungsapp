@@ -52,12 +52,12 @@ export async function loadFinalizedPeriods(
 }
 
 export async function getOwnerBillingPositions(
-  assignmentId: string,
+  assignmentId: string, distributionMode: "weg" | "qm" = "weg",
   periodId: string,
 ): Promise<OwnerBillingResult> {
   const { data, error } = await supabase.functions.invoke(
     "get-owner-billing-positions",
-    { body: { assignment_id: assignmentId, period_id: periodId } },
+    { body: { assignment_id: assignmentId, period_id: periodId, distribution_mode: distributionMode } },,
   );
   if (error) throw error;
   return {
