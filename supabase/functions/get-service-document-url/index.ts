@@ -17,7 +17,7 @@ Deno.serve(async (req) => {
     if (cErr || !claimsData?.claims) return j({ error: "Unauthorized" }, 401);
     const userId = claimsData.claims.sub as string;
 
-    const { order_id } = await req.json();
+    const { order_id, index } = await req.json();
     if (!order_id) return j({ error: "Missing order_id" }, 400);
 
     const admin = createClient(
