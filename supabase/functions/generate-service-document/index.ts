@@ -111,8 +111,8 @@ function buildTenantData(
     mieter_name: t.name ?? "",
     mieter_adresse: t.address ?? "",
     mieter_personen: String(t.persons ?? ""),
-    mieter_einzug: t.move_in ? fmtDate(t.move_in) : "—",
-    mieter_auszug: t.move_out ? fmtDate(t.move_out) : "—",
+    mieter_einzug: t.move_in ? fmtDate(t.move_in) : fmtDate(snap?.period?.from),
+    mieter_auszug: t.move_out ? fmtDate(t.move_out) : fmtDate(snap?.period?.to),
     mieter_monate:
       t.months_in_period != null
         ? Number(t.months_in_period).toLocaleString("de-DE", { maximumFractionDigits: 1 })
@@ -283,7 +283,15 @@ Deno.serve(async (req) => {
       // Normalize whitespace inside docxtemplater tags: {/ tag} -> {/tag}, { mieter_name } -> {mieter_name}
       // Robust gegen Tippfehler in der Word-Vorlage.
       const tagRe = /\{\s*([#/^]?)\s*([a-zA-Z0-9_]+)\s*\}/g;
-      const xmlFiles = ["word/document.xml", "word/header1.xml", "word/header2.xml", "word/header3.xml", "word/footer1.xml", "word/footer2.xml", "word/footer3.xml"];
+      const xmlFiles = [
+        "word/document.xml",
+        "word/header1.xml",
+        "word/header2.xml",
+        "word/header3.xml",
+        "word/footer1.xml",
+        "word/footer2.xml",
+        "word/footer3.xml",
+      ];
       for (const xf of xmlFiles) {
         const file = zip.file(xf);
         if (!file) continue;
