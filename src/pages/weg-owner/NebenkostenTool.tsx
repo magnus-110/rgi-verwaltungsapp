@@ -127,6 +127,14 @@ export function WegOwnerNebenkostenTool() {
   const [tenantChanged, setTenantChanged] = useState(false);
   const [prepayMonthly, setPrepayMonthly] = useState<number | "">("");
 
+  // Mieter 2 (nur bei Mieterwechsel)
+  const [tenant2Name, setTenant2Name] = useState("");
+  const [tenant2Persons, setTenant2Persons] = useState<number | "">("");
+  const [tenant2PrepayMonthly, setTenant2PrepayMonthly] = useState<number | "">("");
+  const [tenant2MoveIn, setTenant2MoveIn] = useState("");
+  const [tenant2MoveOut, setTenant2MoveOut] = useState("");
+  const [tenant2HeatingOverride, setTenant2HeatingOverride] = useState<number | "">("");
+
   // Direkte Eigentümerkosten
   const [extraCosts, setExtraCosts] = useState<ExtraCost[]>([]);
 
