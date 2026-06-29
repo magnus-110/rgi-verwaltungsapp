@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Loader2, Download, FileText, ArrowLeft } from "lucide-react";
+import { CheckCircle2, Loader2, Download, FileText, ArrowLeft, AlertTriangle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 export function WegOwnerServiceHubSuccess() {
