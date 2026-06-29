@@ -1175,7 +1175,7 @@ export function WegOwnerNebenkostenTool() {
               </SectionCard>
 
               {/* 5. Weitere Kosten */}
-              <SectionCard num={5} title="Weitere Kosten" icon={Wrench}>
+              <SectionCard num={6} title="Weitere Kosten" icon={Wrench}>
                 <p className="text-xs mb-3" style={{ color: RGI.muted }}>
                   Direkt bei Ihnen angefallene umlagefähige Kosten (Grundsteuer,
                   Kabel-TV, Wartung Sondereigentum, einzelne Reparaturen …).
