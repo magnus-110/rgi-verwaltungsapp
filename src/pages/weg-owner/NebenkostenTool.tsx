@@ -943,6 +943,97 @@ export function WegOwnerNebenkostenTool() {
                 )}
               </SectionCard>
 
+              {/* 4. Mieter 2 – nur bei Mieterwechsel */}
+              {tenantChanged && (
+                <SectionCard num={4} title="Mieter 2 – nach dem Wechsel" icon={Users}>
+                  <div className="space-y-3">
+                    <Field
+                      label="Name des Mieters"
+                      badge={tenant2Name ? "auto" : "ergänzen"}
+                    >
+                      <Input
+                        className="h-11"
+                        style={fieldStyle(!!tenant2Name)}
+                        value={tenant2Name}
+                        onChange={(e) => setTenant2Name(e.target.value)}
+                      />
+                    </Field>
+                    <Field
+                      label="Anzahl Personen"
+                      badge={tenant2Persons ? "auto" : "ergänzen"}
+                    >
+                      <Input
+                        type="number"
+                        className="h-11"
+                        style={fieldStyle(!!tenant2Persons)}
+                        value={tenant2Persons}
+                        onChange={(e) =>
+                          setTenant2Persons(e.target.value === "" ? "" : Number(e.target.value))
+                        }
+                      />
+                    </Field>
+                    <Field
+                      label="NK-Vorauszahlung pro Monat (€)"
+                      tooltip="Monatliche Nebenkosten-Vorauszahlung laut Mietvertrag von Mieter 2."
+                      badge={tenant2PrepayMonthly !== "" && Number(tenant2PrepayMonthly) > 0 ? undefined : "Pflicht"}
+                    >
+                      <Input
+                        type="number"
+                        step="0.01"
+                        className="h-11"
+                        style={fieldStyle(tenant2PrepayMonthly !== "" && Number(tenant2PrepayMonthly) > 0)}
+                        value={tenant2PrepayMonthly}
+                        onChange={(e) =>
+                          setTenant2PrepayMonthly(e.target.value === "" ? "" : Number(e.target.value))
+                        }
+                      />
+                    </Field>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Einzug">
+                        <Input
+                          type="date"
+                          className="h-11"
+                          value={tenant2MoveIn}
+                          onChange={(e) => setTenant2MoveIn(e.target.value)}
+                        />
+                      </Field>
+                      <Field label="Auszug">
+                        <Input
+                          type="date"
+                          className="h-11"
+                          value={tenant2MoveOut}
+                          onChange={(e) => setTenant2MoveOut(e.target.value)}
+                        />
+                      </Field>
+                    </div>
+
+                    {/* Eigenes Heizkosten-Feld für Mieter 2 */}
+                    <Field
+                      label="Heizung / Warmwasser / Wasser (anteilig)"
+                      badge="ergänzen"
+                      tooltip="Anteilige Summe von Mieter 2 aus der Heizkostenabrechnung des Messdienstes."
+                    >
+                      <Input
+                        type="number"
+                        step="0.01"
+                        className="h-11"
+                        style={fieldStyle(tenant2HeatingOverride !== "" && Number(tenant2HeatingOverride) > 0)}
+                        value={tenant2HeatingOverride}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                        onKeyDown={(e) => {
+                          if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
+                        }}
+                        placeholder="Anteilige Summe aus Heizkostenabrechnung eintragen"
+                        onChange={(e) =>
+                          setTenant2HeatingOverride(e.target.value === "" ? "" : Number(e.target.value))
+                        }
+                      />
+                    </Field>
+                  </div>
+                </SectionCard>
+              )}
+
               {/* Pro-Rata-Banner bei Mieterwechsel */}
               {prorata.active && (
                 <div
