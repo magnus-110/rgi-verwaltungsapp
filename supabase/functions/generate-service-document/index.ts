@@ -150,6 +150,7 @@ function buildTenantData(
     saldo_abs: fmtEUR(Math.abs(result)),
     saldo_label: result > 0 ? "Nachzahlung" : "Guthaben",
     saldo_text: result > 0 ? "Nachzahlung" : "Guthaben",
+    ergebnis_gruen: result > 0,
   };
 }
 
@@ -198,13 +199,13 @@ Deno.serve(async (req) => {
     const { order_id } = await req.json();
     if (!order_id) return new Response("Missing order_id", { status: 400, headers: corsHeaders });
 
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const { data: order, error: orderErr } = await admin
-      .from("service_orders").select("*").eq("id", order_id).maybeSingle();
+      .from("service_orders")
+      .select("*")
+      .eq("id", order_id)
+      .maybeSingle();
     if (orderErr || !order) return new Response("Order not found", { status: 404, headers: corsHeaders });
     if (order.status !== "paid" && order.status !== "document_ready") {
       return new Response("Order not paid", { status: 400, headers: corsHeaders });
@@ -219,8 +220,10 @@ Deno.serve(async (req) => {
     let objekt: any = {};
     try {
       const { data: profile } = await admin
-        .from("profiles").select("first_name,last_name,email,address,iban,bank_name")
-        .eq("id", order.user_id).maybeSingle();
+        .from("profiles")
+        .select("first_name,last_name,email,address,iban,bank_name")
+        .eq("id", order.user_id)
+        .maybeSingle();
       vermieter = {
         name: [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.email || "",
         adresse: profile?.address ?? "",
@@ -234,7 +237,8 @@ Deno.serve(async (req) => {
       const { data: cba } = await admin
         .from("contact_building_assignments")
         .select("unit_number, building_id, buildings:building_id(name,address)")
-        .eq("id", order.assignment_id).maybeSingle();
+        .eq("id", order.assignment_id)
+        .maybeSingle();
       objekt = {
         name: (cba as any)?.buildings?.name ?? "",
         adresse: (cba as any)?.buildings?.address ?? "",
@@ -243,17 +247,19 @@ Deno.serve(async (req) => {
     }
 
     const { data: tpl, error: tplErr } = await admin
-      .from("billing_templates").select("storage_path,name")
-      .eq("scope", scope).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      .from("billing_templates")
+      .select("storage_path,name")
+      .eq("scope", scope)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
     if (tplErr || !tpl?.storage_path) throw new Error(`Keine Vorlage für scope=${scope} hinterlegt`);
-    const { data: tplFile, error: dlErr } = await admin.storage
-      .from("billing-templates").download(tpl.storage_path);
+    const { data: tplFile, error: dlErr } = await admin.storage.from("billing-templates").download(tpl.storage_path);
     if (dlErr || !tplFile) throw new Error(`Template-Download fehlgeschlagen: ${dlErr?.message}`);
     const tplBuf = new Uint8Array(await tplFile.arrayBuffer());
 
     // Mieter ermitteln
-    const tenants =
-      Array.isArray(snap.tenants) && snap.tenants.length > 0 ? snap.tenants : [snap];
+    const tenants = Array.isArray(snap.tenants) && snap.tenants.length > 0 ? snap.tenants : [snap];
 
     const bucketId = "service-documents";
     const { data: buckets } = await admin.storage.listBuckets();
@@ -282,15 +288,10 @@ Deno.serve(async (req) => {
       doc.render(data);
       const docxBytes = doc.getZip().generate({ type: "uint8array" });
 
-      const pdfBytes = await convertDocxToPdf(
-        docxBytes,
-        `${order.service_type}_${order.id}_${i + 1}.docx`,
-      );
+      const pdfBytes = await convertDocxToPdf(docxBytes, `${order.service_type}_${order.id}_${i + 1}.docx`);
 
       const path =
-        tenants.length > 1
-          ? `${order.user_id}/${order.id}_${i + 1}.pdf`
-          : `${order.user_id}/${order.id}.pdf`;
+        tenants.length > 1 ? `${order.user_id}/${order.id}_${i + 1}.pdf` : `${order.user_id}/${order.id}.pdf`;
 
       const { error: upErr } = await admin.storage
         .from(bucketId)
@@ -312,20 +313,22 @@ Deno.serve(async (req) => {
       });
     }
 
-    await admin.from("service_orders").update({
-      status: "document_ready",
-      document_storage_path: documents[0]?.path ?? null,
-      document_paths: documents,
-      document_ready_at: new Date().toISOString(),
-      document_error: null,
-    }).eq("id", order_id);
+    await admin
+      .from("service_orders")
+      .update({
+        status: "document_ready",
+        document_storage_path: documents[0]?.path ?? null,
+        document_paths: documents,
+        document_ready_at: new Date().toISOString(),
+        document_error: null,
+      })
+      .eq("id", order_id);
 
     const webhook = Deno.env.get("MAKE_NEBENKOSTEN_WEBHOOK_URL");
     if (webhook) {
       try {
         for (const d of documents) {
-          const { data: signed } = await admin.storage
-            .from(bucketId).createSignedUrl(d.path, 60 * 60 * 24);
+          const { data: signed } = await admin.storage.from(bucketId).createSignedUrl(d.path, 60 * 60 * 24);
           await fetch(webhook, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -352,12 +355,14 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ ok: true, documents }), {
-      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
     console.error("[generate-service-document] error:", e);
     return new Response(JSON.stringify({ error: e?.message ?? "error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
