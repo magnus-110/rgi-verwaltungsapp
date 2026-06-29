@@ -606,15 +606,17 @@ export function WegOwnerNebenkostenTool() {
               moveIn || null,
               moveOut || null,
             ),
-            buildTenantSnapshot(
-              tenant2Name,
-              tenantAddress,
-              Number(tenant2Persons) || 0,
-              Number(tenant2PrepayMonthly) || 0,
-              prorata2,
-              Number(tenant2HeatingOverride) || 0,
-              tenant2MoveIn || null,
-              tenant2MoveOut || null,
+            ...additionalTenants.map((t, i) =>
+              buildTenantSnapshot(
+                t.name,
+                tenantAddress,
+                Number(t.persons) || 0,
+                Number(t.prepayMonthly) || 0,
+                additionalProrata[i],
+                Number(t.heatingOverride) || 0,
+                t.moveIn || null,
+                t.moveOut || null,
+              ),
             ),
           ]
         : null;
