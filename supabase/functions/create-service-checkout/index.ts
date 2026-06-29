@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
     const origin = req.headers.get("origin") ?? "https://rgi-immobilien.app";
 
     const lineItem = pricing.stripe_price_id
-      ? { price: pricing.stripe_price_id as string, quantity: 1 }
+      ? { price: pricing.stripe_price_id as string, quantity: qty }
       : {
           price_data: {
             currency: pricing.currency,
@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
               description: fiscal_year ? `Abrechnungsjahr ${fiscal_year}` : undefined,
             },
           },
-          quantity: 1,
+          quantity: qty,
         };
 
     const session = await stripe.checkout.sessions.create({
