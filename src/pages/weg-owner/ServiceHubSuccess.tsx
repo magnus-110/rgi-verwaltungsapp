@@ -13,6 +13,33 @@ export function WegOwnerServiceHubSuccess() {
   const orderId = params.get("order_id");
   const [order, setOrder] = useState<any | null>(null);
   const [downloadingIndex, setDownloadingIndex] = useState<number | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const [waitedTooLong, setWaitedTooLong] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setWaitedTooLong(true), 90_000);
+    return () => clearTimeout(t);
+  }, [orderId]);
+
+  const handleRetry = async () => {
+    if (!orderId) return;
+    setRetrying(true);
+    try {
+      const { error } = await supabase.functions.invoke("generate-service-document", {
+        body: { order_id: orderId },
+      });
+      if (error) throw error;
+      toast.success("Dokumenterstellung wurde neu gestartet.");
+      setWaitedTooLong(false);
+      // refresh order
+      const { data } = await supabase.from("service_orders").select("*").eq("id", orderId).maybeSingle();
+      setOrder(data);
+    } catch (e: any) {
+      toast.error(e.message || "Neustart fehlgeschlagen");
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   useEffect(() => {
     if (!orderId) return;
