@@ -560,6 +560,35 @@ export function WegOwnerNebenkostenTool() {
         totals,
       };
 
+      const tenantsArr = tenantChanged
+        ? [
+            buildTenantSnapshot(
+              tenantName,
+              tenantAddress,
+              Number(persons) || 0,
+              Number(prepayMonthly) || 0,
+              prorata,
+              Number(heatingOverride) || 0,
+              moveIn || null,
+              moveOut || null,
+            ),
+            buildTenantSnapshot(
+              tenant2Name,
+              tenantAddress,
+              Number(tenant2Persons) || 0,
+              Number(tenant2PrepayMonthly) || 0,
+              prorata2,
+              Number(tenant2HeatingOverride) || 0,
+              tenant2MoveIn || null,
+              tenant2MoveOut || null,
+            ),
+          ]
+        : null;
+
+      const finalSnapshot = tenantsArr
+        ? { ...snapshot, tenants: tenantsArr }
+        : snapshot;
+
       const { data, error } = await supabase.functions.invoke(
         "create-service-checkout",
         {
@@ -570,7 +599,8 @@ export function WegOwnerNebenkostenTool() {
             agb_version: CURRENT_LEGAL_VERSION,
             privacy_version: CURRENT_LEGAL_VERSION,
             widerruf_waiver_confirmed: true,
-            input_snapshot: snapshot,
+            quantity,
+            input_snapshot: finalSnapshot,
           },
         },
       );
