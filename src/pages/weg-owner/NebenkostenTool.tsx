@@ -477,8 +477,16 @@ export function WegOwnerNebenkostenTool() {
     persons &&
     prepayMonthly !== "" &&
     Number(prepayMonthly) > 0 &&
+    (!tenantChanged ||
+      (tenant2Name &&
+        tenant2Persons &&
+        tenant2PrepayMonthly !== "" &&
+        Number(tenant2PrepayMonthly) > 0)) &&
     !loadingData
   );
+
+  // Anzahl der Abrechnungen (= Anzahl Produkte im Checkout)
+  const quantity = tenantChanged ? 2 : 1;
 
   const isInitialLoading =
     loadingAssignments ||
