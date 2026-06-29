@@ -1349,7 +1349,10 @@ export function WegOwnerNebenkostenTool() {
                 disabled={!canBuy}
                 onClick={() => setBuyOpen(true)}
               >
-                {price ? formatPrice(price.price_cents, price.currency) : "Jetzt erstellen"}
+                {price
+                  ? formatPrice(price.price_cents * quantity, price.currency) +
+                    (quantity > 1 ? ` (${quantity} Abrechnungen)` : "")
+                  : "Jetzt erstellen"}
                 <span className="ml-2">›</span>
               </Button>
             </div>
