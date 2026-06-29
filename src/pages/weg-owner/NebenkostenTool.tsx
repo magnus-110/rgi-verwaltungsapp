@@ -495,6 +495,18 @@ export function WegOwnerNebenkostenTool() {
     prorata,
   ]);
 
+  const additionalTenantsValid =
+    !tenantChanged ||
+    (additionalTenants.length > 0 &&
+      additionalTenants.every(
+        (t) =>
+          t.name.trim() &&
+          t.persons !== "" &&
+          Number(t.persons) > 0 &&
+          t.prepayMonthly !== "" &&
+          Number(t.prepayMonthly) > 0,
+      ));
+
   const canBuy = !!(
     assignmentId &&
     periodId &&
@@ -502,16 +514,13 @@ export function WegOwnerNebenkostenTool() {
     persons &&
     prepayMonthly !== "" &&
     Number(prepayMonthly) > 0 &&
-    (!tenantChanged ||
-      (tenant2Name &&
-        tenant2Persons &&
-        tenant2PrepayMonthly !== "" &&
-        Number(tenant2PrepayMonthly) > 0)) &&
+    additionalTenantsValid &&
     !loadingData
   );
 
   // Anzahl der Abrechnungen (= Anzahl Produkte im Checkout)
-  const quantity = tenantChanged ? 2 : 1;
+  const quantity = tenantChanged ? 1 + additionalTenants.length : 1;
+
 
   const isInitialLoading =
     loadingAssignments ||
