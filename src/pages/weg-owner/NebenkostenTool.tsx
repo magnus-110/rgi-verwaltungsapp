@@ -1055,7 +1055,7 @@ export function WegOwnerNebenkostenTool() {
               )}
 
               {/* 4. Umlagefähige Kosten */}
-              <SectionCard num={4} title="Umlagefähige Kosten" icon={Receipt}>
+              <SectionCard num={5} title="Umlagefähige Kosten" icon={Receipt}>
                 <div
                   className="text-xs px-3 py-2 rounded mb-3"
                   style={{ background: RGI.amberBg, color: RGI.amber }}
