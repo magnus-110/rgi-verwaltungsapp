@@ -866,9 +866,15 @@ export function WegOwnerNebenkostenTool() {
                       onCheckedChange={(c) => {
                         const v = !!c;
                         setTenantChanged(v);
-                        if (!v) {
+                        if (v) {
+                          // Beim Aktivieren: gleich ein leeres Eingabefeld für den Folgemieter anlegen
+                          setAdditionalTenants((prev) =>
+                            prev.length === 0 ? [makeEmptyTenant()] : prev,
+                          );
+                        } else {
                           setMoveIn("");
                           setMoveOut("");
+                          setAdditionalTenants([]);
                           // sofort speichern (Felder zurücksetzen)
                           setTimeout(saveTenancy, 0);
                         }
