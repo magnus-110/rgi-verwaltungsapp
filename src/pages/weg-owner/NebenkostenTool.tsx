@@ -126,6 +126,9 @@ export function WegOwnerNebenkostenTool() {
   // Basis-Anteil je Position: bei "qm" nach (bearbeitbaren) Quadratmetern, sonst wie geladen
   const baseShare = (p: AutoPosition) =>
     distributionMode === "qm" && !p.consumption_based ? round2(p.total_amount * qmFactor()) : p.share_amount;
+  // Angezeigter/gespeicherter Schlüssel: bei "qm" -> "qm", sonst der WEG-Schlüssel
+  const displayKey = (p: AutoPosition) =>
+    distributionMode === "qm" && !p.consumption_based ? "qm" : p.distribution_key;
   // Weitere Mieter (bei Mieterwechsel) – dynamische Liste
   type AdditionalTenant = {
     id: string;
@@ -218,7 +221,7 @@ export function WegOwnerNebenkostenTool() {
     (async () => {
       try {
         const [result, tenancyRes, costsRes] = await Promise.all([
-          getOwnerBillingPositions(assignmentId, periodId, distributionMode),
+          getOwnerBillingPositions(assignmentId, periodId),
           supabase.from("service_tenancies").select("*").eq("assignment_id", assignmentId).maybeSingle(),
           supabase
             .from("service_owner_costs")
@@ -266,7 +269,7 @@ export function WegOwnerNebenkostenTool() {
         setLoadingData(false);
       }
     })();
-  }, [assignmentId, periodId, selectedPeriod?.fiscal_year, user, distributionMode]);
+  }, [assignmentId, periodId, selectedPeriod?.fiscal_year, user]);
 
   // Speicherfunktionen
   const saveTenancy = async () => {
@@ -359,7 +362,7 @@ export function WegOwnerNebenkostenTool() {
         total_amount: p.total_amount,
         share_amount: posAmount(p),
         full_share_amount: baseShare(p),
-        distribution_key: p.distribution_key,
+        distribution_key: displayKey(p),
         consumption_based: !!p.consumption_based,
         prorata_factor: factorAuto(p),
       })),
@@ -514,7 +517,7 @@ export function WegOwnerNebenkostenTool() {
             total_amount: p.total_amount,
             share_amount: effectivePositionAmount(p),
             full_share_amount: baseShare(p),
-            distribution_key: p.distribution_key,
+            distribution_key: displayKey(p),
             consumption_based: !!p.consumption_based,
             user_adjusted: positionOverrides[p.account_number] !== undefined,
             prorata_factor: factorForAuto(p),
@@ -1028,34 +1031,62 @@ export function WegOwnerNebenkostenTool() {
                       Diese Positionen dürfen gesetzlich umgelegt werden, sofern im Mietvertrag nichts anderes
                       vereinbart ist.
                     </div>
-                    <div className="mb-3 rounded-xl border p-3" style={{ borderColor: RGI.border, background: "#fff" }}>
-                      <div className="text-sm font-medium mb-1.5" style={{ color: RGI.text }}>
-                        Umlage nach:
+                    <div className="mb-4">
+                      <div className="text-sm font-medium mb-2" style={{ color: RGI.text }}>
+                        Umlageschlüssel
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant={distributionMode === "weg" ? "default" : "outline"}
-                          className="h-10 flex-1"
-                          style={distributionMode === "weg" ? { background: RGI.primary, color: "#fff" } : undefined}
-                          onClick={() => setDistributionMode("weg")}
-                        >
-                          Miteigentumsanteilen
-                        </Button>
-                        <Button
-                          type="button"
-                          variant={distributionMode === "qm" ? "default" : "outline"}
-                          className="h-10 flex-1"
-                          style={distributionMode === "qm" ? { background: RGI.primary, color: "#fff" } : undefined}
-                          onClick={() => setDistributionMode("qm")}
-                        >
-                          Quadratmeter
-                        </Button>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(
+                          [
+                            {
+                              key: "weg",
+                              title: "WEG-Umlageschlüssel",
+                              desc: "Schlüssel aus Ihrer WEG-Abrechnung (z. B. MEA)",
+                            },
+                            { key: "qm", title: "Quadratmeter", desc: "Nach Wohnfläche (§ 556a BGB)" },
+                          ] as const
+                        ).map((opt) => {
+                          const active = distributionMode === opt.key;
+                          return (
+                            <button
+                              key={opt.key}
+                              type="button"
+                              onClick={() => setDistributionMode(opt.key)}
+                              className="text-left rounded-xl border p-3 transition-all"
+                              style={{
+                                borderColor: active ? RGI.primary : RGI.border,
+                                background: active ? RGI.orangeBg : "#fff",
+                                boxShadow: active ? `inset 0 0 0 1px ${RGI.primary}` : "none",
+                              }}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="inline-flex items-center justify-center rounded-full shrink-0"
+                                  style={{
+                                    width: 16,
+                                    height: 16,
+                                    border: `2px solid ${active ? RGI.primary : "#cbb9a8"}`,
+                                    background: active ? RGI.primary : "#fff",
+                                  }}
+                                >
+                                  {active && (
+                                    <span style={{ width: 6, height: 6, borderRadius: 9999, background: "#fff" }} />
+                                  )}
+                                </span>
+                                <span className="font-semibold text-sm" style={{ color: RGI.text }}>
+                                  {opt.title}
+                                </span>
+                              </div>
+                              <div className="text-xs mt-1" style={{ color: RGI.muted, marginLeft: 24 }}>
+                                {opt.desc}
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                       <p className="text-xs mt-2" style={{ color: RGI.muted }}>
-                        Gesetzlich werden Nebenkosten in der Regel nach Wohnfläche (Quadratmeter, § 556a BGB) umgelegt.
-                        In der Praxis ist es jedoch üblich, nach den Schlüsseln der WEG-Abrechnung (Miteigentumsanteile)
-                        umzulegen.
+                        Gesetzlich werden Nebenkosten in der Regel nach Wohnfläche (§ 556a BGB) umgelegt; in der Praxis
+                        wird häufig nach den Schlüsseln der WEG-Abrechnung verteilt.
                       </p>
                       {distributionMode === "qm" && (
                         <div className="grid grid-cols-2 gap-3 mt-3">
@@ -1126,7 +1157,7 @@ export function WegOwnerNebenkostenTool() {
                                     className="text-[11px] mt-0.5 flex items-center gap-1.5 flex-wrap"
                                     style={{ color: RGI.muted }}
                                   >
-                                    <span>Schlüssel {p.distribution_key.toUpperCase()}</span>
+                                    <span>Schlüssel {displayKey(p).toUpperCase()}</span>
                                     <span>·</span>
                                     <span>Gesamt {p.total_amount.toFixed(2)} €</span>
                                     {consumption && (
