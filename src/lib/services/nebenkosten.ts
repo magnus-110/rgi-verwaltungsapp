@@ -36,17 +36,17 @@ export type OwnerBillingResult = {
   positions: AutoPosition[];
   heating: HeatingPosition;
   mea_share: number;
+  qm_share: number;
+  own_qm: number;
+  total_qm: number;
   einheiten_share: number;
   unit_count: number;
 };
 
-export async function loadFinalizedPeriods(
-  buildingId: string,
-): Promise<FinalizedPeriod[]> {
-  const { data, error } = await supabase.functions.invoke(
-    "list-finalized-periods",
-    { body: { building_id: buildingId } },
-  );
+export async function loadFinalizedPeriods(buildingId: string): Promise<FinalizedPeriod[]> {
+  const { data, error } = await supabase.functions.invoke("list-finalized-periods", {
+    body: { building_id: buildingId },
+  });
   if (error) throw error;
   return (data?.periods ?? []) as FinalizedPeriod[];
 }
@@ -56,10 +56,9 @@ export async function getOwnerBillingPositions(
   periodId: string,
   distributionMode: "weg" | "qm" = "weg",
 ): Promise<OwnerBillingResult> {
-  const { data, error } = await supabase.functions.invoke(
-    "get-owner-billing-positions",
-    { body: { assignment_id: assignmentId, period_id: periodId, distribution_mode: distributionMode } },
-  );
+  const { data, error } = await supabase.functions.invoke("get-owner-billing-positions", {
+    body: { assignment_id: assignmentId, period_id: periodId, distribution_mode: distributionMode },
+  });
   if (error) throw error;
   return {
     positions: (data?.positions ?? []) as AutoPosition[],
@@ -70,6 +69,9 @@ export async function getOwnerBillingPositions(
       note: null,
     }) as HeatingPosition,
     mea_share: Number(data?.mea_share ?? 0),
+    qm_share: Number(data?.qm_share ?? 0),
+    own_qm: Number(data?.own_qm ?? 0),
+    total_qm: Number(data?.total_qm ?? 0),
     einheiten_share: Number(data?.einheiten_share ?? 0),
     unit_count: Number(data?.unit_count ?? 0),
   };
