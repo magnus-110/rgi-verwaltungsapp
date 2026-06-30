@@ -161,6 +161,10 @@ export function WegOwnerNebenkostenTool() {
   // Kauf-Dialog
   const [buyOpen, setBuyOpen] = useState(false);
   const [waiverChecked, setWaiverChecked] = useState(false);
+  const [recipientEmail, setRecipientEmail] = useState("");
+  useEffect(() => {
+    if (user?.email) setRecipientEmail((prev) => prev || (user.email ?? ""));
+  }, [user]);
   const [submitting, setSubmitting] = useState(false);
 
   const selectedAssignment = assignments.find((a) => a.id === assignmentId);
@@ -501,6 +505,7 @@ export function WegOwnerNebenkostenTool() {
           from: selectedPeriod.period_from,
           to: selectedPeriod.period_to,
         },
+        recipient_email: recipientEmail || user?.email || null,
         positions: autoPositions
           .filter((p) => !disabledAccounts.has(p.account_number))
           .map((p) => ({
@@ -1384,7 +1389,19 @@ export function WegOwnerNebenkostenTool() {
                   Wohnung Nr. {selectedAssignment?.unit_number}, Mieter: {tenantName}
                 </div>
               </div>
-
+              <div>
+                <Label className="text-sm">E-Mail für den Versand der Abrechnung</Label>
+                <Input
+                  type="email"
+                  className="h-11 mt-1"
+                  value={recipientEmail}
+                  onChange={(e) => setRecipientEmail(e.target.value)}
+                  placeholder="name@example.de"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Vorausgefüllt mit Ihrer Account-E-Mail – Sie können sie ändern.
+                </p>
+              </div>
               <label className="flex items-start gap-2 text-sm bg-amber-50 p-3 rounded cursor-pointer">
                 <Checkbox checked={waiverChecked} onCheckedChange={(c) => setWaiverChecked(!!c)} className="mt-0.5" />
                 <span>
