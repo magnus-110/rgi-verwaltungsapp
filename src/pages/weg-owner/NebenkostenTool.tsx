@@ -1035,14 +1035,10 @@ export function WegOwnerNebenkostenTool() {
                       <div className="text-sm font-medium mb-2" style={{ color: RGI.text }}>
                         Umlageschlüssel
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {(
                           [
-                            {
-                              key: "weg",
-                              title: "WEG-Umlageschlüssel",
-                              desc: "Schlüssel aus Ihrer WEG-Abrechnung (z. B. MEA)",
-                            },
+                            { key: "weg", title: "WEG-Umlageschlüssel", desc: "Schlüssel aus Ihrer WEG-Abrechnung" },
                             { key: "qm", title: "Quadratmeter", desc: "Nach Wohnfläche (§ 556a BGB)" },
                           ] as const
                         ).map((opt) => {
