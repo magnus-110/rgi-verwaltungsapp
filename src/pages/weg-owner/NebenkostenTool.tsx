@@ -116,6 +116,16 @@ export function WegOwnerNebenkostenTool() {
   const [prepayMonthly, setPrepayMonthly] = useState<number | "">("");
   // Verteilungsschlüssel: "weg" = wie WEG-Abrechnung (Standard), "qm" = nach Quadratmetern
   const [distributionMode, setDistributionMode] = useState<"weg" | "qm">("weg");
+  const [ownQm, setOwnQm] = useState<number | "">("");
+  const [totalQm, setTotalQm] = useState<number | "">("");
+  const qmFactor = () => {
+    const own = Number(ownQm) || 0;
+    const total = Number(totalQm) || 0;
+    return total > 0 ? own / total : 0;
+  };
+  // Basis-Anteil je Position: bei "qm" nach (bearbeitbaren) Quadratmetern, sonst wie geladen
+  const baseShare = (p: AutoPosition) =>
+    distributionMode === "qm" && !p.consumption_based ? round2(p.total_amount * qmFactor()) : p.share_amount;
   // Weitere Mieter (bei Mieterwechsel) – dynamische Liste
   type AdditionalTenant = {
     id: string;
@@ -217,6 +227,8 @@ export function WegOwnerNebenkostenTool() {
         setPositionOverrides({});
         setDisabledAccounts(new Set());
         setHeating(result.heating);
+        setOwnQm(result.own_qm || "");
+        setTotalQm(result.total_qm || "");
         // Nur vorbefüllen, wenn KEIN Mieterwechsel – sonst muss der Eigentümer
         // den anteiligen Wert aus der Heizkostenabrechnung manuell eintragen.
         setHeatingOverride(result.heating.source === "messdienst" && !tenantChanged ? result.heating.amount : "");
@@ -316,7 +328,7 @@ export function WegOwnerNebenkostenTool() {
     moveOutVal: string | null,
   ) => {
     const factorAuto = (p: AutoPosition) => (pr.active && !p.consumption_based ? pr.factor : 1);
-    const posAmount = (p: AutoPosition) => round2(p.share_amount * factorAuto(p));
+    const posAmount = (p: AutoPosition) => round2(baseShare(p) * factorAuto(p));
     const activePositions = autoPositions.filter((p) => !disabledAccounts.has(p.account_number));
     const autoSum = round2(activePositions.reduce((s, p) => s + posAmount(p), 0));
     const extraEff = (c: ExtraCost) => (pr.active && !c.prorata_exempt ? round2(c.amount * pr.factor) : c.amount);
@@ -342,7 +354,7 @@ export function WegOwnerNebenkostenTool() {
         account_name: p.account_name,
         total_amount: p.total_amount,
         share_amount: posAmount(p),
-        full_share_amount: p.share_amount,
+        full_share_amount: baseShare(p),
         distribution_key: p.distribution_key,
         consumption_based: !!p.consumption_based,
         prorata_factor: factorAuto(p),
@@ -415,7 +427,7 @@ export function WegOwnerNebenkostenTool() {
   const effectivePositionAmount = (p: AutoPosition) => {
     const ov = positionOverrides[p.account_number];
     if (ov !== undefined) return ov;
-    return round2(p.share_amount * factorForAuto(p));
+    return round2(baseShare(p) * factorForAuto(p));
   };
 
   const effectiveExtraAmount = (c: ExtraCost) => (prorata.active ? round2(c.amount * prorata.factor) : c.amount);
@@ -447,20 +459,12 @@ export function WegOwnerNebenkostenTool() {
   const additionalTenantsValid =
     !tenantChanged ||
     (additionalTenants.length > 0 &&
-      additionalTenants.every(
-        (t) =>
-          t.name.trim() &&
-          t.persons !== "" &&
-          Number(t.persons) > 0 &&
-          t.prepayMonthly !== "" &&
-          Number(t.prepayMonthly) > 0,
-      ));
+      additionalTenants.every((t) => t.name.trim() && t.prepayMonthly !== "" && Number(t.prepayMonthly) > 0));
 
   const canBuy = !!(
     assignmentId &&
     periodId &&
     tenantName &&
-    persons &&
     prepayMonthly !== "" &&
     Number(prepayMonthly) > 0 &&
     additionalTenantsValid &&
@@ -504,7 +508,7 @@ export function WegOwnerNebenkostenTool() {
             account_name: p.account_name,
             total_amount: p.total_amount,
             share_amount: effectivePositionAmount(p),
-            full_share_amount: p.share_amount,
+            full_share_amount: baseShare(p),
             distribution_key: p.distribution_key,
             consumption_based: !!p.consumption_based,
             user_adjusted: positionOverrides[p.account_number] !== undefined,
@@ -694,20 +698,6 @@ export function WegOwnerNebenkostenTool() {
                       </SelectContent>
                     </Select>
                   </Field>
-                  <Field
-                    label="Kostenverteilung"
-                    tooltip="Wie sollen die Kosten verteilt werden? 'Wie WEG-Abrechnung' nutzt die Schlüssel der Eigentümer-Abrechnung. 'Nach Quadratmetern' verteilt nach Wohnfläche (§ 556a BGB)."
-                  >
-                    <Select value={distributionMode} onValueChange={(v) => setDistributionMode(v as "weg" | "qm")}>
-                      <SelectTrigger className="h-11" style={fieldStyle(true)}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="weg">Wie WEG-Abrechnung (Standard)</SelectItem>
-                        <SelectItem value="qm">Nach Quadratmetern (§ 556a BGB)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
                   <Field label="Abrechnungsjahr">
                     <Select value={periodId ?? ""} onValueChange={(v) => setPeriodId(v)}>
                       <SelectTrigger
@@ -753,16 +743,6 @@ export function WegOwnerNebenkostenTool() {
                           style={fieldStyle(!!tenantName)}
                           value={tenantName}
                           onChange={(e) => setTenantName(e.target.value)}
-                          onBlur={saveTenancy}
-                        />
-                      </Field>
-                      <Field label="Anzahl Personen" badge={persons ? "auto" : "ergänzen"}>
-                        <Input
-                          type="number"
-                          className="h-11"
-                          style={fieldStyle(!!persons)}
-                          value={persons}
-                          onChange={(e) => setPersons(e.target.value === "" ? "" : Number(e.target.value))}
                           onBlur={saveTenancy}
                         />
                       </Field>
@@ -929,20 +909,6 @@ export function WegOwnerNebenkostenTool() {
                               />
                             </Field>
 
-                            <Field label="Anzahl Personen" badge={t.persons ? "auto" : "ergänzen"}>
-                              <Input
-                                type="number"
-                                className="h-11"
-                                style={fieldStyle(!!t.persons)}
-                                value={t.persons}
-                                onChange={(e) =>
-                                  updateAdditionalTenant(t.id, {
-                                    persons: e.target.value === "" ? "" : Number(e.target.value),
-                                  })
-                                }
-                              />
-                            </Field>
-
                             <Field
                               label="NK-Vorauszahlung gesamt (Jahr, €)"
                               tooltip="Gesamte Nebenkosten-Vorauszahlung des Jahres laut Mietvertrag. Pflichtfeld."
@@ -1057,6 +1023,60 @@ export function WegOwnerNebenkostenTool() {
                       Diese Positionen dürfen gesetzlich umgelegt werden, sofern im Mietvertrag nichts anderes
                       vereinbart ist.
                     </div>
+                    <div className="mb-3 rounded-xl border p-3" style={{ borderColor: RGI.border, background: "#fff" }}>
+                      <div className="text-sm font-medium mb-1.5" style={{ color: RGI.text }}>
+                        Umlage nach:
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant={distributionMode === "weg" ? "default" : "outline"}
+                          className="h-10 flex-1"
+                          style={distributionMode === "weg" ? { background: RGI.primary, color: "#fff" } : undefined}
+                          onClick={() => setDistributionMode("weg")}
+                        >
+                          Miteigentumsanteilen
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={distributionMode === "qm" ? "default" : "outline"}
+                          className="h-10 flex-1"
+                          style={distributionMode === "qm" ? { background: RGI.primary, color: "#fff" } : undefined}
+                          onClick={() => setDistributionMode("qm")}
+                        >
+                          Quadratmeter
+                        </Button>
+                      </div>
+                      <p className="text-xs mt-2" style={{ color: RGI.muted }}>
+                        Gesetzlich werden Nebenkosten in der Regel nach Wohnfläche (Quadratmeter, § 556a BGB) umgelegt.
+                        In der Praxis ist es jedoch üblich, nach den Schlüsseln der WEG-Abrechnung (Miteigentumsanteile)
+                        umzulegen.
+                      </p>
+                      {distributionMode === "qm" && (
+                        <div className="grid grid-cols-2 gap-3 mt-3">
+                          <Field label="Ihre Quadratmeter (m²)">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              className="h-11"
+                              style={fieldStyle(Number(ownQm) > 0)}
+                              value={ownQm}
+                              onChange={(e) => setOwnQm(e.target.value === "" ? "" : Number(e.target.value))}
+                            />
+                          </Field>
+                          <Field label="Gesamt-m² (alle Einheiten)">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              className="h-11"
+                              style={fieldStyle(Number(totalQm) > 0)}
+                              value={totalQm}
+                              onChange={(e) => setTotalQm(e.target.value === "" ? "" : Number(e.target.value))}
+                            />
+                          </Field>
+                        </div>
+                      )}
+                    </div>
                     {loadingData ? (
                       <LoadingRow />
                     ) : autoPositions.length === 0 ? (
@@ -1069,7 +1089,7 @@ export function WegOwnerNebenkostenTool() {
                           const disabled = disabledAccounts.has(p.account_number);
                           const consumption = !!p.consumption_based;
                           const override = positionOverrides[p.account_number];
-                          const autoValue = round2(p.share_amount * factorForAuto(p));
+                          const autoValue = round2(baseShare(p) * factorForAuto(p));
                           const value = override !== undefined ? override : autoValue;
                           const prorataApplied = prorata.active && !consumption;
                           return (
