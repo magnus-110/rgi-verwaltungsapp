@@ -808,7 +808,14 @@ export function WegOwnerNebenkostenTool() {
                       </div>
 
                       {tenantChanged && (
-                        <TenancyDates from={moveIn} to={moveOut} onFrom={setMoveIn} onTo={setMoveOut} />
+                        <TenancyDates
+                          from={moveIn}
+                          to={moveOut}
+                          onFrom={setMoveIn}
+                          onTo={setMoveOut}
+                          periodFrom={selectedPeriod?.period_from}
+                          periodTo={selectedPeriod?.period_to}
+                        />
                       )}
                     </div>
                   </SectionCard>
@@ -929,6 +936,8 @@ export function WegOwnerNebenkostenTool() {
                               to={t.moveOut}
                               onFrom={(v) => updateAdditionalTenant(t.id, { moveIn: v })}
                               onTo={(v) => updateAdditionalTenant(t.id, { moveOut: v })}
+                              periodFrom={selectedPeriod?.period_from}
+                              periodTo={selectedPeriod?.period_to}
                             />
 
                             <Field
@@ -1450,22 +1459,39 @@ function DateField({
   value,
   onChange,
   placeholder,
+  minDate,
+  maxDate,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  minDate?: Date;
+  maxDate?: Date;
 }) {
   const [open, setOpen] = useState(false);
   const selected = value ? parseISO(value) : undefined;
-  const [month, setMonth] = useState<Date>(selected ?? new Date());
+  const som = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
+  const clampMonth = (d: Date) => {
+    let x = d;
+    if (minDate && x < som(minDate)) x = som(minDate);
+    if (maxDate && x > som(maxDate)) x = som(maxDate);
+    return x;
+  };
+  const [month, setMonth] = useState<Date>(clampMonth(selected ?? minDate ?? new Date()));
   useEffect(() => {
-    if (open) setMonth(selected ?? new Date());
+    if (open) setMonth(clampMonth(selected ?? minDate ?? new Date()));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const year = month.getFullYear();
+  const minYear = minDate ? minDate.getFullYear() : 2015;
+  const maxYear = maxDate ? maxDate.getFullYear() : new Date().getFullYear() + 1;
   const years: number[] = [];
-  for (let y = 2015; y <= new Date().getFullYear() + 1; y++) years.push(y);
+  for (let y = minYear; y <= maxYear; y++) years.push(y);
+
+  const disabledMatchers = [minDate ? { before: minDate } : null, maxDate ? { after: maxDate } : null].filter(
+    Boolean,
+  ) as any[];
 
   const selectStyle: React.CSSProperties = { borderColor: RGI.border, color: RGI.text, background: "#fff" };
 
@@ -1488,13 +1514,13 @@ function DateField({
             aria-label="Vorheriger Monat"
             className="h-8 w-8 rounded-md border flex items-center justify-center shrink-0 hover:bg-muted"
             style={{ borderColor: RGI.border }}
-            onClick={() => setMonth(new Date(year, month.getMonth() - 1, 1))}
+            onClick={() => setMonth(clampMonth(new Date(year, month.getMonth() - 1, 1)))}
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
           <select
             value={month.getMonth()}
-            onChange={(e) => setMonth(new Date(year, Number(e.target.value), 1))}
+            onChange={(e) => setMonth(clampMonth(new Date(year, Number(e.target.value), 1)))}
             className="h-8 flex-1 rounded-md border px-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
             style={selectStyle}
           >
@@ -1506,7 +1532,7 @@ function DateField({
           </select>
           <select
             value={year}
-            onChange={(e) => setMonth(new Date(Number(e.target.value), month.getMonth(), 1))}
+            onChange={(e) => setMonth(clampMonth(new Date(Number(e.target.value), month.getMonth(), 1)))}
             className="h-8 w-[86px] rounded-md border px-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
             style={selectStyle}
           >
@@ -1521,7 +1547,7 @@ function DateField({
             aria-label="Nächster Monat"
             className="h-8 w-8 rounded-md border flex items-center justify-center shrink-0 hover:bg-muted"
             style={{ borderColor: RGI.border }}
-            onClick={() => setMonth(new Date(year, month.getMonth() + 1, 1))}
+            onClick={() => setMonth(clampMonth(new Date(year, month.getMonth() + 1, 1)))}
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -1529,12 +1555,15 @@ function DateField({
         <Calendar
           mode="single"
           month={month}
-          onMonthChange={setMonth}
+          onMonthChange={(m) => setMonth(clampMonth(m))}
           selected={selected}
           onSelect={(d) => {
             onChange(d ? format(d, "yyyy-MM-dd") : "");
             setOpen(false);
           }}
+          fromDate={minDate}
+          toDate={maxDate}
+          disabled={disabledMatchers}
           locale={de}
           className="p-0"
           classNames={{ caption: "hidden" }}
@@ -1548,12 +1577,24 @@ function TenancyDates({
   to,
   onFrom,
   onTo,
+  periodFrom,
+  periodTo,
 }: {
   from: string;
   to: string;
   onFrom: (v: string) => void;
   onTo: (v: string) => void;
+  periodFrom?: string;
+  periodTo?: string;
 }) {
+  const pStart = periodFrom ? parseISO(periodFrom) : undefined;
+  const pEnd = periodTo ? parseISO(periodTo) : undefined;
+  const fromD = from ? parseISO(from) : undefined;
+  const toD = to ? parseISO(to) : undefined;
+  const minOf = (a?: Date, b?: Date) => (a && b ? (a < b ? a : b) : (a ?? b));
+  const maxOf = (a?: Date, b?: Date) => (a && b ? (a > b ? a : b) : (a ?? b));
+  const einzugMax = minOf(toD, pEnd);
+  const auszugMin = maxOf(fromD, pStart);
   return (
     <div className="rounded-xl border p-3" style={{ borderColor: RGI.border, background: RGI.bg }}>
       <div className="text-xs font-medium mb-2 flex items-center gap-1.5" style={{ color: RGI.muted }}>
@@ -1565,14 +1606,14 @@ function TenancyDates({
           <label className="text-[11px] block mb-1" style={{ color: RGI.muted }}>
             Einzug
           </label>
-          <DateField value={from} onChange={onFrom} placeholder="Einzugsdatum" />
+          <DateField value={from} onChange={onFrom} placeholder="Einzugsdatum" minDate={pStart} maxDate={einzugMax} />
         </div>
         <ArrowRight className="w-4 h-4 mb-3 shrink-0 hidden sm:block" style={{ color: RGI.muted }} />
         <div className="flex-1 min-w-0">
           <label className="text-[11px] block mb-1" style={{ color: RGI.muted }}>
             Auszug
           </label>
-          <DateField value={to} onChange={onTo} placeholder="Auszugsdatum" />
+          <DateField value={to} onChange={onTo} placeholder="Auszugsdatum" minDate={auszugMin} maxDate={pEnd} />
         </div>
       </div>
     </div>
