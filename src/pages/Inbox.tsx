@@ -1,7 +1,45 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Flag, Archive, ArchiveRestore, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2, Link2, Sparkles, Menu, ArrowLeft, Pin, PinOff, Vote, CalendarClock, Users, Printer } from "lucide-react";
+import {
+  Mail,
+  Search,
+  Flag,
+  Archive,
+  ArchiveRestore,
+  Trash2,
+  Inbox as InboxIcon,
+  Send,
+  FileEdit,
+  ShieldAlert,
+  Plus,
+  RefreshCw,
+  Settings,
+  Loader2,
+  MailOpen,
+  Reply,
+  Forward,
+  Building2,
+  User,
+  Paperclip,
+  ChevronDown,
+  ChevronUp,
+  PanelLeftClose,
+  PanelLeftOpen,
+  UserPlus,
+  UserCheck,
+  Undo2,
+  Link2,
+  Sparkles,
+  Menu,
+  ArrowLeft,
+  Pin,
+  PinOff,
+  Vote,
+  CalendarClock,
+  Users,
+  Printer,
+} from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -9,7 +47,16 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+} from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -36,14 +83,14 @@ import { CallLogList } from "@/components/calls/CallLogList";
 import { Phone as PhoneIcon } from "lucide-react";
 
 const folderIcons: Record<string, any> = {
-  'inbox': InboxIcon,
-  'send': Send,
-  'file-edit': FileEdit,
-  'archive': Archive,
-  'shield-alert': ShieldAlert,
-  'trash-2': Trash2,
-  'calendar-clock': CalendarClock,
-  'phone': PhoneIcon,
+  inbox: InboxIcon,
+  send: Send,
+  "file-edit": FileEdit,
+  archive: Archive,
+  "shield-alert": ShieldAlert,
+  "trash-2": Trash2,
+  "calendar-clock": CalendarClock,
+  phone: PhoneIcon,
 };
 
 export const Inbox = () => {
@@ -91,7 +138,7 @@ export const Inbox = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { profile } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === "admin";
   const isMobile = useIsMobile();
 
   // Virtual folder IDs
@@ -103,10 +150,7 @@ export const Inbox = () => {
   const { data: dbFolders = [] } = useQuery({
     queryKey: ["email-folders"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("email_folders")
-        .select("*")
-        .order("sort_order");
+      const { data, error } = await supabase.from("email_folders").select("*").order("sort_order");
       if (error) throw error;
       return data;
     },
@@ -116,8 +160,10 @@ export const Inbox = () => {
 
   // Append virtual "Entwürfe" + "Geplant" + "Telefonate" folders
   const folders = useMemo(() => {
+    // Doppelten "Entwürfe"-Ordner vom Konto entfernen – die App nutzt ihren eigenen (virtuellen) Entwürfe-Ordner.
+    const accountFolders = dbFolders.filter((f: any) => (f?.name ?? "").trim().toLowerCase() !== "entwürfe");
     return [
-      ...dbFolders,
+      ...accountFolders,
       {
         id: DRAFTS_FOLDER_ID,
         name: "Entwürfe",
@@ -165,9 +211,7 @@ export const Inbox = () => {
   const { data: accountUsers = [] } = useQuery({
     queryKey: ["email-account-users"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("email_account_users")
-        .select("*");
+      const { data, error } = await supabase.from("email_account_users").select("*");
       if (error) throw error;
       return data;
     },
@@ -190,19 +234,14 @@ export const Inbox = () => {
   // Get account IDs for the currently logged-in user
   const myAccountIds = useMemo(() => {
     if (!profile?.user_id) return [];
-    return accountUsers
-      .filter(au => au.user_id === profile.user_id)
-      .map(au => au.account_id);
+    return accountUsers.filter((au) => au.user_id === profile.user_id).map((au) => au.account_id);
   }, [accountUsers, profile?.user_id]);
 
   // Buildings for archive filter
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("buildings")
-        .select("id, name")
-        .order("name");
+      const { data, error } = await supabase.from("buildings").select("id, name").order("name");
       if (error) throw error;
       return data;
     },
@@ -224,21 +263,21 @@ export const Inbox = () => {
   // Determine if archive folder is selected
   const isArchiveFolder = useMemo(() => {
     if (!selectedFolderId || folders.length === 0) return false;
-    const folder = folders.find(f => f.id === selectedFolderId);
+    const folder = folders.find((f) => f.id === selectedFolderId);
     return folder?.name === "Archiv";
   }, [selectedFolderId, folders]);
 
   // Determine if trash folder is selected
   const isTrashFolder = useMemo(() => {
     if (!selectedFolderId || folders.length === 0) return false;
-    const folder = folders.find(f => f.id === selectedFolderId);
+    const folder = folders.find((f) => f.id === selectedFolderId);
     return folder?.name === "Papierkorb";
   }, [selectedFolderId, folders]);
 
   // Determine if sent folder is selected
   const isSentFolder = useMemo(() => {
     if (!selectedFolderId || folders.length === 0) return false;
-    const folder = folders.find(f => f.id === selectedFolderId);
+    const folder = folders.find((f) => f.id === selectedFolderId);
     return folder?.name === "Gesendet";
   }, [selectedFolderId, folders]);
 
@@ -255,7 +294,7 @@ export const Inbox = () => {
         .in("account_id", myAccountIds);
       if (error) throw error;
       const counts: Record<string, number> = {};
-      data?.forEach(e => {
+      data?.forEach((e) => {
         if (e.folder_id) {
           counts[e.folder_id] = (counts[e.folder_id] || 0) + 1;
         }
@@ -274,12 +313,16 @@ export const Inbox = () => {
       const [singleRes, campaignRes] = await Promise.all([
         supabase
           .from("scheduled_emails")
-          .select("id, subject, to_addresses, scheduled_at, status, account_id, body_text, body_html, attachments, error_message, created_at")
+          .select(
+            "id, subject, to_addresses, scheduled_at, status, account_id, body_text, body_html, attachments, error_message, created_at",
+          )
           .eq("status", "scheduled")
           .order("scheduled_at", { ascending: true }),
         supabase
           .from("comm_campaigns")
-          .select("id, name, type, recipient_count, scheduled_at, status, email_account_id, subject_override, error_message, created_at")
+          .select(
+            "id, name, type, recipient_count, scheduled_at, status, email_account_id, subject_override, error_message, created_at",
+          )
           .eq("status", "scheduled")
           .order("scheduled_at", { ascending: true }),
       ]);
@@ -313,7 +356,7 @@ export const Inbox = () => {
             ref_id: c.id,
             subject: c.subject_override || c.name || "(Rundmail)",
             recipients: [],
-            recipient_count: resolved ? resolved.length : (c.recipient_count || 0),
+            recipient_count: resolved ? resolved.length : c.recipient_count || 0,
             scheduled_at: c.scheduled_at,
             account_id: c.email_account_id,
             campaign_type: c.type,
@@ -332,14 +375,15 @@ export const Inbox = () => {
     refetchOnWindowFocus: true,
   });
 
-
   // Drafts query (virtual "Entwürfe" folder)
   const { data: draftItems = [] } = useQuery({
     queryKey: ["email-drafts"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_drafts")
-        .select("id, account_id, to_addresses, cc_addresses, bcc_addresses, subject, body_text, attachments, updated_at")
+        .select(
+          "id, account_id, to_addresses, cc_addresses, bcc_addresses, subject, body_text, attachments, updated_at",
+        )
         .order("updated_at", { ascending: false });
       if (error) throw error;
       return data || [];
@@ -368,7 +412,9 @@ export const Inbox = () => {
         queryClient.invalidateQueries({ queryKey: ["call-logs-missed-count"] });
       })
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, []);
 
   // Merge counts: real folders + virtual folders
@@ -392,12 +438,35 @@ export const Inbox = () => {
   useEffect(() => {
     setPageLimit(isSearching ? 200 : 100);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFolderId, searchTerm, selectedAccountIds, isArchiveFolder, filterBuildingId, filterContactId, filterAssignedTo]);
+  }, [
+    selectedFolderId,
+    searchTerm,
+    selectedAccountIds,
+    isArchiveFolder,
+    filterBuildingId,
+    filterContactId,
+    filterAssignedTo,
+  ]);
 
-  const EMAIL_COLUMNS = "id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, contact_person_id, assigned_to, deleted_at, case_id, message_id, is_etv_relevant, etv_meeting_id";
+  const EMAIL_COLUMNS =
+    "id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, contact_person_id, assigned_to, deleted_at, case_id, message_id, is_etv_relevant, etv_meeting_id";
 
-  const { data: emails = [], isLoading: emailsLoading, error: emailsError } = useQuery({
-    queryKey: ["emails", selectedFolderId, searchTerm, selectedAccountIds, isArchiveFolder, filterBuildingId, filterContactId, filterAssignedTo, pageLimit],
+  const {
+    data: emails = [],
+    isLoading: emailsLoading,
+    error: emailsError,
+  } = useQuery({
+    queryKey: [
+      "emails",
+      selectedFolderId,
+      searchTerm,
+      selectedAccountIds,
+      isArchiveFolder,
+      filterBuildingId,
+      filterContactId,
+      filterAssignedTo,
+      pageLimit,
+    ],
     queryFn: async () => {
       // Suchmodus: serverseitige RPC (ordnerübergreifend, sucht zuverlässig auch in JSONB-Empfängern)
       if (isSearching) {
@@ -417,11 +486,7 @@ export const Inbox = () => {
         return (data || []) as any[];
       }
 
-      let query = supabase
-        .from("emails")
-        .select(EMAIL_COLUMNS)
-        .order("date", { ascending: false })
-        .limit(pageLimit);
+      let query = supabase.from("emails").select(EMAIL_COLUMNS).order("date", { ascending: false }).limit(pageLimit);
 
       if (isArchiveFolder) {
         query = query.eq("is_archived", true);
@@ -459,7 +524,7 @@ export const Inbox = () => {
 
   // Map: message_id of inbound email -> id of sent reply (latest)
   const inboundMessageIds = useMemo(
-    () => emails.map(e => (e as any).message_id).filter((m): m is string => !!m),
+    () => emails.map((e) => (e as any).message_id).filter((m): m is string => !!m),
     [emails],
   );
   const { data: replyMap = {} } = useQuery({
@@ -492,7 +557,7 @@ export const Inbox = () => {
     return "Sonstiges";
   };
 
-  const followUpCount = useMemo(() => emails.filter(e => e.is_starred).length, [emails]);
+  const followUpCount = useMemo(() => emails.filter((e) => e.is_starred).length, [emails]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -504,14 +569,14 @@ export const Inbox = () => {
     return counts;
   }, [emails]);
 
-  const unreadCount = useMemo(() => emails.filter(e => !e.is_read).length, [emails]);
+  const unreadCount = useMemo(() => emails.filter((e) => !e.is_read).length, [emails]);
 
   const filteredEmails = useMemo(() => {
     let list: typeof emails;
-    if (filterCategory === "followup") list = emails.filter(e => e.is_starred);
-    else if (filterCategory === "unread") list = emails.filter(e => !e.is_read);
+    if (filterCategory === "followup") list = emails.filter((e) => e.is_starred);
+    else if (filterCategory === "unread") list = emails.filter((e) => !e.is_read);
     else if (filterCategory === "all") list = emails;
-    else list = emails.filter(e => normalizeCategory(e.ai_category) === filterCategory);
+    else list = emails.filter((e) => normalizeCategory(e.ai_category) === filterCategory);
     // Pinned emails immer oben, dann nach Datum (DESC, wie aus Query)
     return [...list].sort((a, b) => {
       const ap = a.is_pinned ? 1 : 0;
@@ -528,7 +593,8 @@ export const Inbox = () => {
     });
   }, [emails, filterCategory]);
 
-  const selectedEmailMeta = filteredEmails.find(e => e.id === selectedEmailId) || emails.find(e => e.id === selectedEmailId);
+  const selectedEmailMeta =
+    filteredEmails.find((e) => e.id === selectedEmailId) || emails.find((e) => e.id === selectedEmailId);
 
   // Reset multi-selection when folder/filter/search changes
   useEffect(() => {
@@ -538,11 +604,12 @@ export const Inbox = () => {
   // Drop selections that are no longer visible
   useEffect(() => {
     if (selectedEmailIds.size === 0) return;
-    const visible = new Set(filteredEmails.map(e => e.id));
+    const visible = new Set(filteredEmails.map((e) => e.id));
     let changed = false;
     const next = new Set<string>();
-    selectedEmailIds.forEach(id => {
-      if (visible.has(id)) next.add(id); else changed = true;
+    selectedEmailIds.forEach((id) => {
+      if (visible.has(id)) next.add(id);
+      else changed = true;
     });
     if (changed) setSelectedEmailIds(next);
   }, [filteredEmails, selectedEmailIds]);
@@ -585,12 +652,16 @@ export const Inbox = () => {
   const effectiveSelectedMeta = selectedEmailMeta || selectedEmailDirect;
 
   const selectedEmail = effectiveSelectedMeta
-    ? { ...effectiveSelectedMeta, body_html: selectedEmailBody?.body_html ?? null, body_text: selectedEmailBody?.body_text ?? null }
+    ? {
+        ...effectiveSelectedMeta,
+        body_html: selectedEmailBody?.body_html ?? null,
+        body_text: selectedEmailBody?.body_text ?? null,
+      }
     : undefined;
 
   // Auto-select inbox folder
   useEffect(() => {
-    const inboxFolder = folders.find(f => f.name === "Eingang");
+    const inboxFolder = folders.find((f) => f.name === "Eingang");
     if (inboxFolder && !selectedFolderId) {
       setSelectedFolderId(inboxFolder.id);
     }
@@ -644,7 +715,7 @@ export const Inbox = () => {
     try {
       const { data, error } = await supabase.functions.invoke("fetch-emails");
       if (error) throw error;
-      
+
       // Check for per-account errors in the response
       if (data?.results) {
         const accountErrors = Object.entries(data.results)
@@ -658,7 +729,7 @@ export const Inbox = () => {
       } else {
         toast.success("E-Mails synchronisiert");
       }
-      
+
       queryClient.invalidateQueries({ queryKey: ["emails"] });
       queryClient.invalidateQueries({ queryKey: ["email-accounts"] });
       queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
@@ -687,7 +758,11 @@ export const Inbox = () => {
     // Trigger initial sync shortly after mount, then poll every 60 seconds
     const initialId = window.setTimeout(silentSync, 2_000);
     const id = window.setInterval(silentSync, 60 * 1000);
-    return () => { cancelled = true; window.clearTimeout(initialId); window.clearInterval(id); };
+    return () => {
+      cancelled = true;
+      window.clearTimeout(initialId);
+      window.clearInterval(id);
+    };
   }, [queryClient]);
 
   const toggleFollowUp = async (emailId: string, currentStarred: boolean) => {
@@ -697,10 +772,13 @@ export const Inbox = () => {
 
   const togglePin = async (emailId: string, currentPinned: boolean) => {
     const next = !currentPinned;
-    await supabase.from("emails").update({
-      is_pinned: next,
-      pinned_at: next ? new Date().toISOString() : null,
-    }).eq("id", emailId);
+    await supabase
+      .from("emails")
+      .update({
+        is_pinned: next,
+        pinned_at: next ? new Date().toISOString() : null,
+      })
+      .eq("id", emailId);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
     toast.success(next ? "E-Mail oben angepinnt" : "Anpinnung entfernt");
   };
@@ -794,9 +872,12 @@ export const Inbox = () => {
   };
 
   const deleteEmail = async (emailId: string) => {
-    const trashFolder = folders.find(f => f.name === "Papierkorb");
+    const trashFolder = folders.find((f) => f.name === "Papierkorb");
     if (trashFolder) {
-      await supabase.from("emails").update({ folder_id: trashFolder.id, deleted_at: new Date().toISOString() }).eq("id", emailId);
+      await supabase
+        .from("emails")
+        .update({ folder_id: trashFolder.id, deleted_at: new Date().toISOString() })
+        .eq("id", emailId);
     } else {
       await supabase.from("emails").delete().eq("id", emailId);
     }
@@ -807,7 +888,7 @@ export const Inbox = () => {
   };
 
   const restoreEmail = async (emailId: string) => {
-    const inboxFolder = folders.find(f => f.name === "Eingang");
+    const inboxFolder = folders.find((f) => f.name === "Eingang");
     if (inboxFolder) {
       await supabase.from("emails").update({ folder_id: inboxFolder.id, deleted_at: null }).eq("id", emailId);
     }
@@ -826,9 +907,10 @@ export const Inbox = () => {
   };
 
   const toggleSelectEmail = (emailId: string, checked: boolean) => {
-    setSelectedEmailIds(prev => {
+    setSelectedEmailIds((prev) => {
       const next = new Set(prev);
-      if (checked) next.add(emailId); else next.delete(emailId);
+      if (checked) next.add(emailId);
+      else next.delete(emailId);
       return next;
     });
   };
@@ -847,7 +929,7 @@ export const Inbox = () => {
         if (error) throw error;
         toast.success(`${ids.length} E-Mail(s) endgültig gelöscht`);
       } else {
-        const trashFolder = folders.find(f => f.name === "Papierkorb");
+        const trashFolder = folders.find((f) => f.name === "Papierkorb");
         if (trashFolder) {
           const { error } = await supabase
             .from("emails")
@@ -905,21 +987,29 @@ export const Inbox = () => {
   const handleCreateContact = async () => {
     try {
       const contactType = newContactData.company_name ? "company" : "person";
-      const { data: contact, error } = await supabase.from("contacts").insert({
-        first_name: newContactData.first_name || null,
-        last_name: newContactData.last_name || null,
-        company_name: newContactData.company_name || null,
-        contact_type: contactType as any,
-      }).select("id").single();
+      const { data: contact, error } = await supabase
+        .from("contacts")
+        .insert({
+          first_name: newContactData.first_name || null,
+          last_name: newContactData.last_name || null,
+          company_name: newContactData.company_name || null,
+          contact_type: contactType as any,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
 
       // Create a contact_person
-      const { data: person } = await supabase.from("contact_persons").insert({
-        contact_id: contact.id,
-        first_name: newContactData.first_name || null,
-        last_name: newContactData.last_name || null,
-        is_primary: true,
-      }).select("id").single();
+      const { data: person } = await supabase
+        .from("contact_persons")
+        .insert({
+          contact_id: contact.id,
+          first_name: newContactData.first_name || null,
+          last_name: newContactData.last_name || null,
+          is_primary: true,
+        })
+        .select("id")
+        .single();
 
       if (newContactData.email) {
         await supabase.from("contact_emails").insert({
@@ -948,14 +1038,22 @@ export const Inbox = () => {
     if (!selectedEmail?.from_address) return;
     try {
       // Check if email already exists for this contact
-      const { data: existing } = await supabase.from("contact_emails")
-        .select("id").eq("contact_id", contactId).eq("email", selectedEmail.from_address);
-      
+      const { data: existing } = await supabase
+        .from("contact_emails")
+        .select("id")
+        .eq("contact_id", contactId)
+        .eq("email", selectedEmail.from_address);
+
       if (!existing || existing.length === 0) {
         // Get primary person for this contact
-        const { data: primaryPerson } = await supabase.from("contact_persons")
-          .select("id").eq("contact_id", contactId).eq("is_primary", true).limit(1).maybeSingle();
-        
+        const { data: primaryPerson } = await supabase
+          .from("contact_persons")
+          .select("id")
+          .eq("contact_id", contactId)
+          .eq("is_primary", true)
+          .limit(1)
+          .maybeSingle();
+
         await supabase.from("contact_emails").insert({
           contact_id: contactId,
           person_id: primaryPerson?.id || null,
@@ -979,22 +1077,41 @@ export const Inbox = () => {
       {/* Mobile-only header bar — shows hamburger + back button + sync */}
       <div className="md:hidden flex items-center justify-between px-2 py-2 border-b shrink-0 gap-2">
         {selectedEmailId ? (
-          <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setSelectedEmailId(null)} aria-label="Zurück">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10"
+            onClick={() => setSelectedEmailId(null)}
+            aria-label="Zurück"
+          >
             <ArrowLeft className="h-5 w-5" />
           </Button>
         ) : (
-          <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setMobileFoldersOpen(true)} aria-label="Ordner öffnen">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10"
+            onClick={() => setMobileFoldersOpen(true)}
+            aria-label="Ordner öffnen"
+          >
             <Menu className="h-5 w-5" />
           </Button>
         )}
         <span className="font-medium text-sm truncate flex-1 text-center">
           {selectedEmailId
-            ? (selectedEmail?.subject || "(Kein Betreff)")
-            : (folders.find(f => f.id === selectedFolderId)?.name || "Postfach")}
+            ? selectedEmail?.subject || "(Kein Betreff)"
+            : folders.find((f) => f.id === selectedFolderId)?.name || "Postfach"}
         </span>
         {!selectedEmailId && (
           <>
-            <Button variant="ghost" size="icon" className="h-10 w-10" onClick={handleSync} disabled={isSyncing} aria-label="Synchronisieren">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10"
+              onClick={handleSync}
+              disabled={isSyncing}
+              aria-label="Synchronisieren"
+            >
               {isSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
             </Button>
             <Button size="icon" className="h-10 w-10" onClick={() => openCompose()} aria-label="Neue E-Mail">
@@ -1008,38 +1125,56 @@ export const Inbox = () => {
       {/* Left: Folders & Accounts (Desktop only) — on mobile available via Sheet */}
       {sidebarCollapsed ? (
         <div className="hidden md:flex w-10 border-r flex-col items-center py-2 shrink-0">
-          <Button variant="ghost" size="icon" className="h-8 w-8 mb-2" onClick={() => setSidebarCollapsed(false)} title="Navigation einblenden">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 mb-2"
+            onClick={() => setSidebarCollapsed(false)}
+            title="Navigation einblenden"
+          >
             <PanelLeftOpen className="h-4 w-4" />
           </Button>
           <Button size="icon" className="h-8 w-8 mb-1" onClick={() => openCompose()} title="Neue E-Mail">
             <Plus className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleSync} disabled={isSyncing} title="Synchronisieren">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={handleSync}
+            disabled={isSyncing}
+            title="Synchronisieren"
+          >
             {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           </Button>
           <Separator className="my-2 w-6" />
-          {folders.map(folder => {
-            const Icon = folderIcons[folder.icon || 'inbox'] || Mail;
+          {folders.map((folder) => {
+            const Icon = folderIcons[folder.icon || "inbox"] || Mail;
             const isActive = selectedFolderId === folder.id;
             const count = folderCounts[folder.id] || 0;
             return (
               <button
                 key={folder.id}
-                onClick={() => { setSelectedFolderId(folder.id); setSelectedEmailId(null); }}
+                onClick={() => {
+                  setSelectedFolderId(folder.id);
+                  setSelectedEmailId(null);
+                }}
                 className={cn(
                   "relative h-8 w-8 flex items-center justify-center rounded-md transition-colors mb-0.5",
-                  isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                  isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground",
                 )}
                 title={folder.name}
               >
                 <Icon className="h-4 w-4" />
                 {count > 0 && folder.name !== "Papierkorb" && (
-                  <span className={cn(
-                    "absolute -top-0.5 -right-0.5 h-3.5 min-w-[14px] rounded-full text-[9px] flex items-center justify-center px-0.5",
-                    folder.id === SCHEDULED_FOLDER_ID
-                      ? "bg-amber-500 text-white"
-                      : "bg-destructive text-destructive-foreground"
-                  )}>
+                  <span
+                    className={cn(
+                      "absolute -top-0.5 -right-0.5 h-3.5 min-w-[14px] rounded-full text-[9px] flex items-center justify-center px-0.5",
+                      folder.id === SCHEDULED_FOLDER_ID
+                        ? "bg-amber-500 text-white"
+                        : "bg-destructive text-destructive-foreground",
+                    )}
+                  >
                     {count}
                   </span>
                 )}
@@ -1065,27 +1200,32 @@ export const Inbox = () => {
           <ScrollArea className="flex-1">
             <div className="p-2">
               <p className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ordner</p>
-              {folders.map(folder => {
-                const Icon = folderIcons[folder.icon || 'inbox'] || Mail;
+              {folders.map((folder) => {
+                const Icon = folderIcons[folder.icon || "inbox"] || Mail;
                 const isActive = selectedFolderId === folder.id;
                 const count = folderCounts[folder.id] || 0;
                 return (
                   <button
                     key={folder.id}
-                    onClick={() => { setSelectedFolderId(folder.id); setSelectedEmailId(null); }}
+                    onClick={() => {
+                      setSelectedFolderId(folder.id);
+                      setSelectedEmailId(null);
+                    }}
                     className={cn(
                       "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors",
-                      isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground"
+                      isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground",
                     )}
                   >
                     <Icon className="h-4 w-4 shrink-0" />
                     <span className="truncate flex-1 text-left">{folder.name}</span>
                     {count > 0 && folder.name !== "Papierkorb" && (
                       <Badge
-                        variant={isActive ? "secondary" : (folder.id === SCHEDULED_FOLDER_ID ? "outline" : "default")}
+                        variant={isActive ? "secondary" : folder.id === SCHEDULED_FOLDER_ID ? "outline" : "default"}
                         className={cn(
                           "text-[10px] px-1.5 py-0 h-5 min-w-[20px] justify-center",
-                          folder.id === SCHEDULED_FOLDER_ID && !isActive && "border-amber-400 text-amber-700 dark:text-amber-300"
+                          folder.id === SCHEDULED_FOLDER_ID &&
+                            !isActive &&
+                            "border-amber-400 text-amber-700 dark:text-amber-300",
                         )}
                       >
                         {count}
@@ -1101,86 +1241,104 @@ export const Inbox = () => {
             <div className="p-2">
               <div className="flex items-center justify-between px-2 py-1">
                 <button
-                  onClick={() => setAccountsExpanded(v => {
-                    const next = !v;
-                    try { localStorage.setItem("inbox-accounts-expanded", JSON.stringify(next)); } catch {}
-                    return next;
-                  })}
+                  onClick={() =>
+                    setAccountsExpanded((v) => {
+                      const next = !v;
+                      try {
+                        localStorage.setItem("inbox-accounts-expanded", JSON.stringify(next));
+                      } catch {}
+                      return next;
+                    })
+                  }
                   className="flex items-center gap-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
                 >
                   <ChevronDown className={cn("h-3 w-3 transition-transform", !accountsExpanded && "-rotate-90")} />
                   Konten
                 </button>
                 {isAdmin && (
-                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setSettingsOpen(true)} title="E-Mail-Konten verwalten">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5"
+                    onClick={() => setSettingsOpen(true)}
+                    title="E-Mail-Konten verwalten"
+                  >
                     <Settings className="h-3 w-3 text-muted-foreground" />
                   </Button>
                 )}
               </div>
-              {accountsExpanded && (accounts.length === 0 ? (
-                <p className="px-2 py-2 text-xs text-muted-foreground">
-                  Noch keine E-Mail-Konten.
-                </p>
-              ) : (() => {
-                const allIds = accounts.map(a => a.id);
-                const isAccountChecked = (id: string) =>
-                  selectedAccountIds === null || selectedAccountIds.includes(id);
-                const allChecked =
-                  selectedAccountIds === null ||
-                  (selectedAccountIds.length === allIds.length && allIds.every(id => selectedAccountIds.includes(id)));
-                const toggleAccount = (id: string) => {
-                  const current = selectedAccountIds === null ? [...allIds] : [...selectedAccountIds];
-                  const idx = current.indexOf(id);
-                  if (idx >= 0) current.splice(idx, 1);
-                  else current.push(id);
-                  const next = current.length === allIds.length ? null : current;
-                  setSelectedAccountIds(next);
-                  try { localStorage.setItem("inbox-selected-accounts", JSON.stringify(next)); } catch {}
-                };
-                const toggleAll = () => {
-                  const next = allChecked ? [] : null;
-                  setSelectedAccountIds(next);
-                  try { localStorage.setItem("inbox-selected-accounts", JSON.stringify(next)); } catch {}
-                };
+              {accountsExpanded &&
+                (accounts.length === 0 ? (
+                  <p className="px-2 py-2 text-xs text-muted-foreground">Noch keine E-Mail-Konten.</p>
+                ) : (
+                  (() => {
+                    const allIds = accounts.map((a) => a.id);
+                    const isAccountChecked = (id: string) =>
+                      selectedAccountIds === null || selectedAccountIds.includes(id);
+                    const allChecked =
+                      selectedAccountIds === null ||
+                      (selectedAccountIds.length === allIds.length &&
+                        allIds.every((id) => selectedAccountIds.includes(id)));
+                    const toggleAccount = (id: string) => {
+                      const current = selectedAccountIds === null ? [...allIds] : [...selectedAccountIds];
+                      const idx = current.indexOf(id);
+                      if (idx >= 0) current.splice(idx, 1);
+                      else current.push(id);
+                      const next = current.length === allIds.length ? null : current;
+                      setSelectedAccountIds(next);
+                      try {
+                        localStorage.setItem("inbox-selected-accounts", JSON.stringify(next));
+                      } catch {}
+                    };
+                    const toggleAll = () => {
+                      const next = allChecked ? [] : null;
+                      setSelectedAccountIds(next);
+                      try {
+                        localStorage.setItem("inbox-selected-accounts", JSON.stringify(next));
+                      } catch {}
+                    };
 
-                const renderAccountRow = (acc: typeof accounts[number]) => (
-                  <label
-                    key={acc.id}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors hover:bg-muted/50 text-muted-foreground cursor-pointer"
-                  >
-                    <Checkbox
-                      checked={isAccountChecked(acc.id)}
-                      onCheckedChange={() => toggleAccount(acc.id)}
-                      className="shrink-0"
-                    />
-                    <span className="truncate text-left flex-1">{acc.display_name}</span>
-                  </label>
-                );
+                    const renderAccountRow = (acc: (typeof accounts)[number]) => (
+                      <label
+                        key={acc.id}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors hover:bg-muted/50 text-muted-foreground cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={isAccountChecked(acc.id)}
+                          onCheckedChange={() => toggleAccount(acc.id)}
+                          className="shrink-0"
+                        />
+                        <span className="truncate text-left flex-1">{acc.display_name}</span>
+                      </label>
+                    );
 
-                return (
-                  <>
-                    <label className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors hover:bg-muted/50 text-muted-foreground cursor-pointer">
-                      <Checkbox
-                        checked={allChecked}
-                        onCheckedChange={toggleAll}
-                        className="shrink-0"
-                      />
-                      <Mail className="h-4 w-4 shrink-0" />
-                      <span className="truncate text-left flex-1 font-medium">Alle Konten</span>
-                    </label>
-                    {myAccountIds.length > 0 && (
+                    return (
                       <>
-                        <p className="px-2 pt-2 pb-0.5 text-[10px] font-semibold text-muted-foreground">Meine Konten</p>
-                        {accounts.filter(acc => myAccountIds.includes(acc.id)).map(renderAccountRow)}
+                        <label className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors hover:bg-muted/50 text-muted-foreground cursor-pointer">
+                          <Checkbox checked={allChecked} onCheckedChange={toggleAll} className="shrink-0" />
+                          <Mail className="h-4 w-4 shrink-0" />
+                          <span className="truncate text-left flex-1 font-medium">Alle Konten</span>
+                        </label>
+                        {myAccountIds.length > 0 && (
+                          <>
+                            <p className="px-2 pt-2 pb-0.5 text-[10px] font-semibold text-muted-foreground">
+                              Meine Konten
+                            </p>
+                            {accounts.filter((acc) => myAccountIds.includes(acc.id)).map(renderAccountRow)}
+                          </>
+                        )}
+                        {myAccountIds.length > 0 && accounts.some((acc) => !myAccountIds.includes(acc.id)) && (
+                          <p className="px-2 pt-2 pb-0.5 text-[10px] font-semibold text-muted-foreground">
+                            Weitere Konten
+                          </p>
+                        )}
+                        {accounts
+                          .filter((acc) => myAccountIds.length === 0 || !myAccountIds.includes(acc.id))
+                          .map(renderAccountRow)}
                       </>
-                    )}
-                    {myAccountIds.length > 0 && accounts.some(acc => !myAccountIds.includes(acc.id)) && (
-                      <p className="px-2 pt-2 pb-0.5 text-[10px] font-semibold text-muted-foreground">Weitere Konten</p>
-                    )}
-                    {accounts.filter(acc => myAccountIds.length === 0 || !myAccountIds.includes(acc.id)).map(renderAccountRow)}
-                  </>
-                );
-              })())}
+                    );
+                  })()
+                ))}
             </div>
           </ScrollArea>
         </div>
@@ -1210,661 +1368,905 @@ export const Inbox = () => {
         ) : isCallsFolder ? (
           <CallLogList />
         ) : (
-        <>
-        {/* Category tabs - full width above both panels */}
-        <div className="border-b shrink-0 overflow-x-auto overflow-y-hidden">
-          <div className="flex min-w-max px-2 py-1 gap-0.5">
-              <button
-                onClick={() => setFilterCategory("all")}
-                className={cn(
-                  "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
-                  filterCategory === "all" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
-                )}
-              >
-                Alle ({emails.length})
-              </button>
-              <button
-                onClick={() => setFilterCategory(filterCategory === "unread" ? "all" : "unread")}
-                className={cn(
-                  "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0 flex items-center gap-1 font-medium",
-                  filterCategory === "unread" ? "bg-blue-600 text-white" : "hover:bg-muted text-muted-foreground"
-                )}
-              >
-                <span className="h-2 w-2 rounded-full bg-current" />
-                Ungelesen ({unreadCount})
-              </button>
-              <button
-                onClick={() => setFilterCategory(filterCategory === "followup" ? "all" : "followup")}
-                className={cn(
-                  "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0 flex items-center gap-1",
-                  filterCategory === "followup" ? "bg-orange-500 text-white" : "hover:bg-muted text-muted-foreground"
-                )}
-              >
-                <Flag className="h-3 w-3" />
-                Nachverfolgung ({followUpCount})
-              </button>
-              {ALL_CATEGORIES.map(cat => (
+          <>
+            {/* Category tabs - full width above both panels */}
+            <div className="border-b shrink-0 overflow-x-auto overflow-y-hidden">
+              <div className="flex min-w-max px-2 py-1 gap-0.5">
                 <button
-                  key={cat}
-                  onClick={() => setFilterCategory(filterCategory === cat ? "all" : cat)}
+                  onClick={() => setFilterCategory("all")}
                   className={cn(
                     "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
-                    filterCategory === cat ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                    filterCategory === "all"
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted text-muted-foreground",
                   )}
                 >
-                  {cat} ({categoryCounts[cat] || 0})
+                  Alle ({emails.length})
                 </button>
-              ))}
-          </div>
-        </div>
-
-        <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0 overflow-hidden">
-        {/* Middle: Email List — on mobile: hidden when an email is selected */}
-        <ResizablePanel
-          defaultSize={35}
-          minSize={12}
-          maxSize={75}
-          className={cn(selectedEmailId ? "hidden md:block" : "block", "h-full overflow-hidden")}
-        >
-          <div className="flex flex-col h-full min-h-0">
-
-
-            {/* Search - filters within selected category */}
-            <div className="p-2 border-b space-y-2">
-              <div className="relative flex items-center gap-1">
-                <div className="relative flex-1">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder={filterCategory !== "all" ? `In "${filterCategory}" suchen...` : "E-Mails durchsuchen..."}
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    className="pl-9 h-9"
-                  />
-                </div>
-                {isArchiveFolder && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="h-9 w-9 shrink-0"
-                    title="KI-Suche im Archiv"
-                    onClick={() => setAiSearchOpen(true)}
-                  >
-                    <Sparkles className="h-4 w-4 text-primary" />
-                  </Button>
-                )}
-              </div>
-              {/* Archive filters */}
-              {isArchiveFolder && (
-                <div className="flex gap-2">
-                  <Select value={filterBuildingId} onValueChange={setFilterBuildingId}>
-                    <SelectTrigger className="h-8 text-xs flex-1">
-                      <Building2 className="h-3 w-3 mr-1 shrink-0" />
-                      <SelectValue placeholder="Liegenschaft" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Alle Liegenschaften</SelectItem>
-                      <SelectItem value="none">Ohne Liegenschaft</SelectItem>
-                      {buildings.map(b => (
-                        <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={filterContactId} onValueChange={setFilterContactId}>
-                    <SelectTrigger className="h-8 text-xs flex-1">
-                      <User className="h-3 w-3 mr-1 shrink-0" />
-                      <SelectValue placeholder="Kontakt" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Alle Kontakte</SelectItem>
-                      <SelectItem value="none">Ohne Kontakt</SelectItem>
-                      {contacts.map(c => (
-                        <SelectItem key={c.id} value={c.id}>{getContactName(c)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-
-            {isTrashFolder && (
-              <div className="px-3 py-2 bg-muted/50 border-b text-xs text-muted-foreground flex items-center gap-1.5">
-                <Trash2 className="h-3 w-3" />
-                E-Mails werden nach 30 Tagen automatisch endgültig gelöscht
-              </div>
-            )}
-
-            {/* Bulk selection bar */}
-            {filteredEmails.length > 0 && (
-              <div className="px-3 py-1.5 border-b bg-muted/30 flex items-center gap-2">
-                <Checkbox
-                  checked={
-                    selectedEmailIds.size > 0 && selectedEmailIds.size === filteredEmails.length
-                      ? true
-                      : selectedEmailIds.size > 0
-                        ? "indeterminate"
-                        : false
-                  }
-                  onCheckedChange={(checked) => {
-                    if (checked) setSelectedEmailIds(new Set(filteredEmails.map(e => e.id)));
-                    else clearSelection();
-                  }}
-                  aria-label="Alle auswählen"
-                />
-                {selectedEmailIds.size > 0 ? (
-                  <>
-                    <span className="text-xs text-muted-foreground">
-                      {selectedEmailIds.size} ausgewählt
-                    </span>
-                    <div className="ml-auto flex items-center gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2 text-xs"
-                        onClick={clearSelection}
-                      >
-                        Aufheben
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        className="h-7 px-2 text-xs gap-1"
-                        disabled={bulkDeleting}
-                        onClick={bulkDeleteSelected}
-                      >
-                        {bulkDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                        {isTrashFolder ? "Endgültig löschen" : "Löschen"}
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <span className="text-xs text-muted-foreground">
-                    Mehrere auswählen
-                  </span>
-                )}
-              </div>
-            )}
-
-            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-              {emailsLoading ? (
-                <div className="p-4 text-center text-sm text-muted-foreground">Laden...</div>
-              ) : emailsError ? (
-                <div className="p-8 text-center">
-                  <Mail className="h-12 w-12 mx-auto text-destructive/40 mb-3" />
-                  <p className="text-sm text-destructive">Suche fehlgeschlagen</p>
-                  <p className="text-xs text-muted-foreground mt-1">{(emailsError as any)?.message || "Unbekannter Fehler"}</p>
-                </div>
-              ) : filteredEmails.length === 0 ? (
-                <div className="p-8 text-center">
-                  <Mail className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
-                  <p className="text-sm text-muted-foreground">
-                    {isSearching ? "Keine Treffer gefunden" : "Keine E-Mails vorhanden"}
-                  </p>
-                </div>
-              ) : (
-                filteredEmails.map(email => (
-                  <div
-                    key={email.id}
+                <button
+                  onClick={() => setFilterCategory(filterCategory === "unread" ? "all" : "unread")}
+                  className={cn(
+                    "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0 flex items-center gap-1 font-medium",
+                    filterCategory === "unread" ? "bg-blue-600 text-white" : "hover:bg-muted text-muted-foreground",
+                  )}
+                >
+                  <span className="h-2 w-2 rounded-full bg-current" />
+                  Ungelesen ({unreadCount})
+                </button>
+                <button
+                  onClick={() => setFilterCategory(filterCategory === "followup" ? "all" : "followup")}
+                  className={cn(
+                    "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0 flex items-center gap-1",
+                    filterCategory === "followup" ? "bg-orange-500 text-white" : "hover:bg-muted text-muted-foreground",
+                  )}
+                >
+                  <Flag className="h-3 w-3" />
+                  Nachverfolgung ({followUpCount})
+                </button>
+                {ALL_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setFilterCategory(filterCategory === cat ? "all" : cat)}
                     className={cn(
-                      "relative group border-b",
-                      selectedEmailIds.has(email.id) && "bg-primary/5"
+                      "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
+                      filterCategory === cat
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-muted text-muted-foreground",
                     )}
                   >
-                    <div
-                      className={cn(
-                        "absolute left-1 top-1/2 -translate-y-1/2 z-10 transition-opacity",
-                        selectedEmailIds.size > 0 || selectedEmailIds.has(email.id)
-                          ? "opacity-100"
-                          : "opacity-0 group-hover:opacity-100 focus-within:opacity-100"
-                      )}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Checkbox
-                        checked={selectedEmailIds.has(email.id)}
-                        onCheckedChange={(checked) => toggleSelectEmail(email.id, !!checked)}
-                        aria-label="E-Mail auswählen"
-                        className="bg-background"
-                      />
-                    </div>
-                    <button
-                      onClick={() => setSelectedEmailId(email.id)}
-                      className={cn(
-                        "w-full text-left pl-8 pr-3 py-2 transition-colors relative",
-                        selectedEmailId === email.id ? "bg-accent" : "hover:bg-muted/50",
-                        !email.is_read && "bg-primary/10 border-l-4 border-l-primary"
-                      )}
-                    >
-                    <div className="flex items-center justify-between gap-1">
-                      <span className={cn(
-                        "text-sm truncate flex items-center gap-1.5",
-                        !email.is_read ? "font-bold text-foreground" : "text-muted-foreground"
-                      )}>
-                        {!email.is_read && <span className="h-2 w-2 rounded-full bg-primary shrink-0" aria-hidden />}
-                        {isSentFolder
-                          ? (Array.isArray(email.to_addresses) && email.to_addresses.length > 0
-                              ? email.to_addresses.join(", ")
-                              : "Unbekannt")
-                          : (email.from_name || email.from_address || "Unbekannt")}
-                      </span>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {(() => {
-                          const replyId = (email as any).message_id ? (replyMap as any)[(email as any).message_id] : null;
-                          if (!replyId) return null;
-                          return (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const sentFolder = folders.find(f => f.name === "Gesendet");
-                                if (sentFolder) setSelectedFolderId(sentFolder.id);
-                                setSelectedEmailId(replyId);
-                              }}
-                              title="Bereits beantwortet – zur gesendeten Antwort springen"
-                              className="text-green-600 hover:text-green-700"
-                            >
-                              <Reply className="h-4 w-4" strokeWidth={2.5} />
-                            </button>
-                          );
-                        })()}
-                        {email.has_attachments && <Paperclip className="h-3 w-3 text-muted-foreground" />}
-                        {email.is_starred && <Flag className="h-3 w-3 text-orange-500 fill-orange-500" />}
-                        {email.is_pinned && <Pin className="h-3 w-3 text-primary fill-primary" />}
-                        {email.is_etv_relevant && <Vote className="h-3 w-3 text-primary" />}
-                        <span className={cn("text-[11px]", !email.is_read ? "text-foreground font-semibold" : "text-muted-foreground")}>
-                          {email.date ? new Date(email.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) : ""}
-                        </span>
-                      </div>
-                    </div>
-                    <p className={cn("text-xs truncate", !email.is_read ? "text-foreground font-semibold" : "text-muted-foreground")}>
-                      {email.subject || "(Kein Betreff)"}
-                    </p>
-                    <div className="flex items-center justify-between gap-1 mt-0.5">
-                      <div className="flex items-center gap-1 flex-1 min-w-0 flex-wrap">
-                      {isArchiveFolder && email.building_id && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
-                          <Building2 className="h-2.5 w-2.5" />
-                          {buildings.find(b => b.id === email.building_id)?.name || ""}
-                        </Badge>
-                      )}
-                      {isArchiveFolder && email.contact_id && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
-                          <User className="h-2.5 w-2.5" />
-                          {(() => { const c = contacts.find(c => c.id === email.contact_id); return c ? getContactName(c) : ""; })()}
-                        </Badge>
-                      )}
-                      {email.ai_category && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                          {email.ai_category}
-                        </Badge>
-                      )}
-                      {email.ai_priority && (
-                        <Badge 
-                          variant={email.ai_priority === "hoch" ? "destructive" : "outline"} 
-                          className={cn(
-                            "text-[10px] px-1.5 py-0",
-                            email.ai_priority === "mittel" && "border-orange-400 text-orange-600 dark:text-orange-400",
-                            email.ai_priority === "niedrig" && "border-muted-foreground/30 text-muted-foreground"
-                          )}
-                        >
-                          {email.ai_priority === "hoch" ? "Wichtig" : email.ai_priority === "mittel" ? "Mittel" : "Niedrig"}
-                        </Badge>
-                      )}
-                      {isTrashFolder && email.deleted_at && (
-                        <span className="text-[10px] text-muted-foreground">
-                          {(() => {
-                            const daysLeft = Math.max(0, 30 - Math.floor((Date.now() - new Date(email.deleted_at).getTime()) / (1000 * 60 * 60 * 24)));
-                            return `${daysLeft} Tage verbleibend`;
-                          })()}
-                        </span>
-                      )}
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {/* Assignment badge - clickable to change */}
-                          {(() => {
-                           const getShortCode = (userId: string) => {
-                             const userAccountIds = accountUsers.filter(au => au.user_id === userId).map(au => au.account_id);
-                             const acct = accounts.find(a => userAccountIds.includes(a.id) && a.short_code);
-                             if (acct?.short_code) return acct.short_code as string;
-                             const p = adminProfiles.find(pp => pp.user_id === userId);
-                             return p ? [p.first_name, p.last_name].filter(Boolean).map(n => n?.[0]).join("") : "";
-                           };
-                           const assignedProfile = (email as any).assigned_to 
-                             ? adminProfiles.find(p => p.user_id === (email as any).assigned_to) 
-                             : null;
-                           const initials = (email as any).assigned_to ? getShortCode((email as any).assigned_to) : "";
-
-                           if (!initials && !(email as any).assigned_to) {
-                             return (
-                               <select
-                                 className="h-5 w-5 rounded-full text-[9px] cursor-pointer border-0 appearance-none text-center bg-transparent text-transparent hover:bg-muted/50"
-                                 value="none"
-                                 onClick={e => e.stopPropagation()}
-                                onChange={async (e) => {
-                                    e.stopPropagation();
-                                    const val = e.target.value === "none" ? null : e.target.value;
-                                    const update: any = { assigned_to: val };
-                                    if (val) {
-                                      const targetAccountIds = accountUsers.filter(au => au.user_id === val).map(au => au.account_id);
-                                      if (targetAccountIds.length > 0 && !targetAccountIds.includes(email.account_id)) {
-                                        update.account_id = targetAccountIds[0];
-                                      }
-                                    }
-                                    await supabase.from("emails").update(update).eq("id", email.id);
-                                    queryClient.invalidateQueries({ queryKey: ["emails"] });
-                                  }}
-                                  title="Zuordnen"
-                                 style={{ WebkitAppearance: 'none', MozAppearance: 'none', textAlignLast: 'center', padding: '0' }}
-                               >
-                                 <option value="none"> </option>
-                                  {adminProfiles.map(p => (
-                                    <option key={p.user_id} value={p.user_id}>
-                                      {getShortCode(p.user_id)}
-                                    </option>
-                                  ))}
-
-                               </select>
-                             );
-                           }
-                           return (
-                             <select
-                               className="h-5 min-w-[20px] rounded-full text-[9px] font-normal cursor-pointer border-0 appearance-none text-center text-muted-foreground"
-                               value={(email as any).assigned_to || "none"}
-                               onClick={e => e.stopPropagation()}
-                                onChange={async (e) => {
-                                  e.stopPropagation();
-                                  const val = e.target.value === "none" ? null : e.target.value;
-                                  const update: any = { assigned_to: val };
-                                  if (val) {
-                                    const targetAccountIds = accountUsers.filter(au => au.user_id === val).map(au => au.account_id);
-                                    if (targetAccountIds.length > 0 && !targetAccountIds.includes(email.account_id)) {
-                                      update.account_id = targetAccountIds[0];
-                                    }
-                                  }
-                                  await supabase.from("emails").update(update).eq("id", email.id);
-                                  queryClient.invalidateQueries({ queryKey: ["emails"] });
-                                }}
-                               title={assignedProfile ? [assignedProfile.first_name, assignedProfile.last_name].filter(Boolean).join(" ") : "Zuordnen"}
-                               style={{ WebkitAppearance: 'none', MozAppearance: 'none', textAlignLast: 'center', width: `${Math.max(24, initials.length * 9 + 10)}px`, padding: '0 2px' }}
-                             >
-                               <option value="none">—</option>
-                                {adminProfiles.map(p => (
-                                  <option key={p.user_id} value={p.user_id}>
-                                    {getShortCode(p.user_id)}
-                                  </option>
-                                ))}
-
-                             </select>
-                           );
-                         })()}
-                      </div>
-                    </div>
-                    {isTrashFolder && (
-                      <div className="flex items-center gap-0.5 mt-0.5">
-                        <button
-                          className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
-                          onClick={(e) => { e.stopPropagation(); restoreEmail(email.id); }}
-                        >
-                          <Undo2 className="h-3 w-3" />
-                          Wiederherstellen
-                        </button>
-                      </div>
-                    )}
-                    </button>
-                  </div>
-                ))
-              )}
-              {!emailsLoading && !emailsError && filteredEmails.length > 0 && canLoadMore && (
-                <div className="p-3 flex justify-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPageLimit((n) => n + (isSearching ? 500 : 200))}
-                  >
-                    Mehr laden ({emails.length} geladen)
-                  </Button>
-                </div>
-              )}
+                    {cat} ({categoryCounts[cat] || 0})
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        </ResizablePanel>
 
-        <ResizableHandle withHandle className="hidden md:flex w-1.5 bg-border hover:bg-primary/40 transition-colors" />
-
-        {/* Right: Email Detail — on mobile: only visible when an email is selected */}
-        <ResizablePanel
-          defaultSize={65}
-          className={cn(selectedEmailId ? "block" : "hidden md:block", "h-full overflow-hidden min-h-0")}
-        >
-          <div className="flex flex-col h-full min-h-0 min-w-0">
-            {selectedEmail ? (
-              <>
-                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y" style={{ WebkitOverflowScrolling: 'touch' }}>
-                  <div className="p-4 space-y-2">
-                    <div className="flex items-start justify-between gap-4">
-                      <h2 className="text-lg font-semibold truncate">{selectedEmail.subject || "(Kein Betreff)"}</h2>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {isTrashFolder ? (
-                          <>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => restoreEmail(selectedEmail.id)} title="Wiederherstellen">
-                              <Undo2 className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => permanentDeleteEmail(selectedEmail.id)} title="Endgültig löschen">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleRead(selectedEmail.id, selectedEmail.is_read)} title={selectedEmail.is_read ? "Als ungelesen markieren" : "Als gelesen markieren"}>
-                              <MailOpen className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleFollowUp(selectedEmail.id, selectedEmail.is_starred)} title={selectedEmail.is_starred ? "Nachverfolgung entfernen" : "Zur Nachverfolgung markieren"}>
-                              <Flag className={cn("h-4 w-4", selectedEmail.is_starred && "text-orange-500 fill-orange-500")} />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => togglePin(selectedEmail.id, !!selectedEmail.is_pinned)} title={selectedEmail.is_pinned ? "Anpinnung entfernen" : "Oben anpinnen"}>
-                              {selectedEmail.is_pinned ? <PinOff className="h-4 w-4 text-primary" /> : <Pin className="h-4 w-4" />}
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openArchiveDialog(selectedEmail.id)} title="Zuordnen / Archivieren">
-                              <Link2 className="h-4 w-4" />
-                            </Button>
-                            {profile?.broker_mode_enabled && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBrokerLeadEmailId(selectedEmail.id)} title="Interessent zuordnen">
-                                <UserPlus className="h-4 w-4" />
-                              </Button>
-                            )}
-                            
-                            {selectedEmail.is_archived && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
-                                await supabase.from("emails").update({ is_archived: false }).eq("id", selectedEmail.id);
-                                queryClient.invalidateQueries({ queryKey: ["emails"] });
-                                queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
-                                toast.success("E-Mail aus Archiv entfernt");
-                              }} title="Aus Archiv entfernen">
-                                <ArchiveRestore className="h-4 w-4" />
-                              </Button>
-                            )}
-                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => deleteEmail(selectedEmail.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
+            <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0 overflow-hidden">
+              {/* Middle: Email List — on mobile: hidden when an email is selected */}
+              <ResizablePanel
+                defaultSize={35}
+                minSize={12}
+                maxSize={75}
+                className={cn(selectedEmailId ? "hidden md:block" : "block", "h-full overflow-hidden")}
+              >
+                <div className="flex flex-col h-full min-h-0">
+                  {/* Search - filters within selected category */}
+                  <div className="p-2 border-b space-y-2">
+                    <div className="relative flex items-center gap-1">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder={
+                            filterCategory !== "all" ? `In "${filterCategory}" suchen...` : "E-Mails durchsuchen..."
+                          }
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-9 h-9"
+                        />
                       </div>
+                      {isArchiveFolder && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 shrink-0"
+                          title="KI-Suche im Archiv"
+                          onClick={() => setAiSearchOpen(true)}
+                        >
+                          <Sparkles className="h-4 w-4 text-primary" />
+                        </Button>
+                      )}
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 min-w-0">
-                        <button className="flex items-center gap-1.5 text-sm hover:underline cursor-pointer" onClick={() => setShowEmailDetails(prev => !prev)}>
-                          <span className="font-medium text-foreground">{selectedEmail.from_name || selectedEmail.from_address}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {selectedEmail.date && new Date(selectedEmail.date).toLocaleString("de-DE")}
-                          </span>
-                          {showEmailDetails ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
-                        </button>
-                        {showEmailDetails && (
-                          <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
-                            {selectedEmail.from_name && <div>Von: {selectedEmail.from_name} &lt;{selectedEmail.from_address}&gt;</div>}
-                            {selectedEmail.to_addresses && (
-                              <div>An: {Array.isArray(selectedEmail.to_addresses) ? (selectedEmail.to_addresses as string[]).join(", ") : String(selectedEmail.to_addresses)}</div>
-                            )}
-                            {selectedEmail.cc_addresses && (
-                              <div>CC: {Array.isArray(selectedEmail.cc_addresses) ? (selectedEmail.cc_addresses as string[]).join(", ") : String(selectedEmail.cc_addresses)}</div>
-                            )}
-                          </div>
-                        )}
+                    {/* Archive filters */}
+                    {isArchiveFolder && (
+                      <div className="flex gap-2">
+                        <Select value={filterBuildingId} onValueChange={setFilterBuildingId}>
+                          <SelectTrigger className="h-8 text-xs flex-1">
+                            <Building2 className="h-3 w-3 mr-1 shrink-0" />
+                            <SelectValue placeholder="Liegenschaft" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Alle Liegenschaften</SelectItem>
+                            <SelectItem value="none">Ohne Liegenschaft</SelectItem>
+                            {buildings.map((b) => (
+                              <SelectItem key={b.id} value={b.id}>
+                                {b.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select value={filterContactId} onValueChange={setFilterContactId}>
+                          <SelectTrigger className="h-8 text-xs flex-1">
+                            <User className="h-3 w-3 mr-1 shrink-0" />
+                            <SelectValue placeholder="Kontakt" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Alle Kontakte</SelectItem>
+                            <SelectItem value="none">Ohne Kontakt</SelectItem>
+                            {contacts.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {getContactName(c)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                      {!senderHasContact && selectedEmail.from_address && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="h-7 gap-1 text-xs shrink-0">
-                              <UserPlus className="h-3.5 w-3.5" />
-                              Kontakt speichern
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-64">
-                            <DropdownMenuItem onClick={openNewContactFromEmail}>
-                              <UserPlus className="h-4 w-4 mr-2" />
-                              Neuen Kontakt anlegen
-                            </DropdownMenuItem>
-                            {contacts.length > 0 && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <div className="px-2 py-1.5">
-                                  <Input
-                                    placeholder="Kontakt suchen..."
-                                    value={contactSearchTerm}
-                                    onChange={e => setContactSearchTerm(e.target.value)}
-                                    className="h-7 text-xs"
-                                    onClick={e => e.stopPropagation()}
-                                    onKeyDown={e => e.stopPropagation()}
-                                  />
-                                </div>
-                                <div className="max-h-48 overflow-y-auto">
-                                  {contacts
-                                    .filter(c => {
-                                      if (!contactSearchTerm.trim()) return false;
-                                      const name = getContactName(c).toLowerCase();
-                                      return name.includes(contactSearchTerm.toLowerCase());
-                                    })
-                                    .map(c => (
-                                      <DropdownMenuItem key={c.id} onClick={() => { addEmailToExistingContact(c.id); setContactSearchTerm(""); }}>
-                                        <UserCheck className="h-3.5 w-3.5 mr-2 shrink-0" />
-                                        {getContactName(c)}
-                                      </DropdownMenuItem>
-                                    ))
-                                  }
-                                  {contactSearchTerm.trim() && contacts.filter(c => getContactName(c).toLowerCase().includes(contactSearchTerm.toLowerCase())).length === 0 && (
-                                    <p className="px-2 py-1.5 text-xs text-muted-foreground">Kein Kontakt gefunden</p>
-                                  )}
-                                </div>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedEmail.building_id && (
-                        <Badge variant="outline" className="gap-1">
-                          <Building2 className="h-3 w-3" />
-                          {buildings.find(b => b.id === selectedEmail.building_id)?.name || "Liegenschaft"}
-                        </Badge>
-                      )}
-                      {selectedEmail.contact_id && (
-                        <Badge variant="outline" className="gap-1">
-                          <User className="h-3 w-3" />
-                          {(() => { const c = contacts.find(c => c.id === selectedEmail.contact_id); return c ? getContactName(c) : "Kontakt"; })()}
-                        </Badge>
-                      )}
-                      {(selectedEmail as any).case_id && (
-                        <Badge variant="default" className="gap-1">
-                          <Link2 className="h-3 w-3" />
-                          Vorgang verknüpft
-                        </Badge>
-                      )}
-                      {!(selectedEmail as any).case_id && (selectedEmail as any).ai_case_suggestion_id && (
-                        <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => openArchiveDialog(selectedEmail.id)}>
-                          <Sparkles className="h-3 w-3" />
-                          KI-Vorschlag: Vorgang ({Math.round(((selectedEmail as any).ai_case_confidence || 0) * 100)}%)
-                        </Badge>
-                      )}
-                      {selectedEmail.ai_category && <Badge variant="outline">{selectedEmail.ai_category}</Badge>}
-                      {selectedEmail.ai_priority && (
-                        <Badge variant={selectedEmail.ai_priority === "hoch" ? "destructive" : "secondary"}>
-                          Priorität: {selectedEmail.ai_priority}
-                        </Badge>
-                      )}
-                    </div>
-                    {selectedEmail.ai_summary && (
-                      <p className="text-sm bg-muted/50 rounded-md p-2 italic">KI: {selectedEmail.ai_summary}</p>
                     )}
                   </div>
 
-                  {selectedEmail.has_attachments && (
-                    <div className="px-4 pb-2">
-                      <EmailAttachments emailId={selectedEmail.id} />
+                  {isTrashFolder && (
+                    <div className="px-3 py-2 bg-muted/50 border-b text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Trash2 className="h-3 w-3" />
+                      E-Mails werden nach 30 Tagen automatisch endgültig gelöscht
                     </div>
                   )}
 
-                  <Separator />
+                  {/* Bulk selection bar */}
+                  {filteredEmails.length > 0 && (
+                    <div className="px-3 py-1.5 border-b bg-muted/30 flex items-center gap-2">
+                      <Checkbox
+                        checked={
+                          selectedEmailIds.size > 0 && selectedEmailIds.size === filteredEmails.length
+                            ? true
+                            : selectedEmailIds.size > 0
+                              ? "indeterminate"
+                              : false
+                        }
+                        onCheckedChange={(checked) => {
+                          if (checked) setSelectedEmailIds(new Set(filteredEmails.map((e) => e.id)));
+                          else clearSelection();
+                        }}
+                        aria-label="Alle auswählen"
+                      />
+                      {selectedEmailIds.size > 0 ? (
+                        <>
+                          <span className="text-xs text-muted-foreground">{selectedEmailIds.size} ausgewählt</span>
+                          <div className="ml-auto flex items-center gap-1">
+                            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={clearSelection}>
+                              Aufheben
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="h-7 px-2 text-xs gap-1"
+                              disabled={bulkDeleting}
+                              onClick={bulkDeleteSelected}
+                            >
+                              {bulkDeleting ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3 w-3" />
+                              )}
+                              {isTrashFolder ? "Endgültig löschen" : "Löschen"}
+                            </Button>
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Mehrere auswählen</span>
+                      )}
+                    </div>
+                  )}
 
-                  <div className="p-4">
-                    {(() => {
-                      const html = selectedEmail.body_html ?? "";
-                      const stripped = html.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim();
-                      if (html && stripped.length > 0) {
-                        return <EmailHtmlBody key={selectedEmail.id} html={html} emailId={selectedEmail.id} />;
-                      }
-                      return (
-                        <pre className="text-sm whitespace-pre-wrap font-sans">{selectedEmail.body_text || "Kein Inhalt"}</pre>
-                      );
-                    })()}
+                  <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+                    {emailsLoading ? (
+                      <div className="p-4 text-center text-sm text-muted-foreground">Laden...</div>
+                    ) : emailsError ? (
+                      <div className="p-8 text-center">
+                        <Mail className="h-12 w-12 mx-auto text-destructive/40 mb-3" />
+                        <p className="text-sm text-destructive">Suche fehlgeschlagen</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {(emailsError as any)?.message || "Unbekannter Fehler"}
+                        </p>
+                      </div>
+                    ) : filteredEmails.length === 0 ? (
+                      <div className="p-8 text-center">
+                        <Mail className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
+                        <p className="text-sm text-muted-foreground">
+                          {isSearching ? "Keine Treffer gefunden" : "Keine E-Mails vorhanden"}
+                        </p>
+                      </div>
+                    ) : (
+                      filteredEmails.map((email) => (
+                        <div
+                          key={email.id}
+                          className={cn("relative group border-b", selectedEmailIds.has(email.id) && "bg-primary/5")}
+                        >
+                          <div
+                            className={cn(
+                              "absolute left-1 top-1/2 -translate-y-1/2 z-10 transition-opacity",
+                              selectedEmailIds.size > 0 || selectedEmailIds.has(email.id)
+                                ? "opacity-100"
+                                : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
+                            )}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Checkbox
+                              checked={selectedEmailIds.has(email.id)}
+                              onCheckedChange={(checked) => toggleSelectEmail(email.id, !!checked)}
+                              aria-label="E-Mail auswählen"
+                              className="bg-background"
+                            />
+                          </div>
+                          <button
+                            onClick={() => setSelectedEmailId(email.id)}
+                            className={cn(
+                              "w-full text-left pl-8 pr-3 py-2 transition-colors relative",
+                              selectedEmailId === email.id ? "bg-accent" : "hover:bg-muted/50",
+                              !email.is_read && "bg-primary/10 border-l-4 border-l-primary",
+                            )}
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <span
+                                className={cn(
+                                  "text-sm truncate flex items-center gap-1.5",
+                                  !email.is_read ? "font-bold text-foreground" : "text-muted-foreground",
+                                )}
+                              >
+                                {!email.is_read && (
+                                  <span className="h-2 w-2 rounded-full bg-primary shrink-0" aria-hidden />
+                                )}
+                                {isSentFolder
+                                  ? Array.isArray(email.to_addresses) && email.to_addresses.length > 0
+                                    ? email.to_addresses.join(", ")
+                                    : "Unbekannt"
+                                  : email.from_name || email.from_address || "Unbekannt"}
+                              </span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {(() => {
+                                  const replyId = (email as any).message_id
+                                    ? (replyMap as any)[(email as any).message_id]
+                                    : null;
+                                  if (!replyId) return null;
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const sentFolder = folders.find((f) => f.name === "Gesendet");
+                                        if (sentFolder) setSelectedFolderId(sentFolder.id);
+                                        setSelectedEmailId(replyId);
+                                      }}
+                                      title="Bereits beantwortet – zur gesendeten Antwort springen"
+                                      className="text-green-600 hover:text-green-700"
+                                    >
+                                      <Reply className="h-4 w-4" strokeWidth={2.5} />
+                                    </button>
+                                  );
+                                })()}
+                                {email.has_attachments && <Paperclip className="h-3 w-3 text-muted-foreground" />}
+                                {email.is_starred && <Flag className="h-3 w-3 text-orange-500 fill-orange-500" />}
+                                {email.is_pinned && <Pin className="h-3 w-3 text-primary fill-primary" />}
+                                {email.is_etv_relevant && <Vote className="h-3 w-3 text-primary" />}
+                                <span
+                                  className={cn(
+                                    "text-[11px]",
+                                    !email.is_read ? "text-foreground font-semibold" : "text-muted-foreground",
+                                  )}
+                                >
+                                  {email.date
+                                    ? new Date(email.date).toLocaleDateString("de-DE", {
+                                        day: "2-digit",
+                                        month: "2-digit",
+                                      })
+                                    : ""}
+                                </span>
+                              </div>
+                            </div>
+                            <p
+                              className={cn(
+                                "text-xs truncate",
+                                !email.is_read ? "text-foreground font-semibold" : "text-muted-foreground",
+                              )}
+                            >
+                              {email.subject || "(Kein Betreff)"}
+                            </p>
+                            <div className="flex items-center justify-between gap-1 mt-0.5">
+                              <div className="flex items-center gap-1 flex-1 min-w-0 flex-wrap">
+                                {isArchiveFolder && email.building_id && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+                                    <Building2 className="h-2.5 w-2.5" />
+                                    {buildings.find((b) => b.id === email.building_id)?.name || ""}
+                                  </Badge>
+                                )}
+                                {isArchiveFolder && email.contact_id && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+                                    <User className="h-2.5 w-2.5" />
+                                    {(() => {
+                                      const c = contacts.find((c) => c.id === email.contact_id);
+                                      return c ? getContactName(c) : "";
+                                    })()}
+                                  </Badge>
+                                )}
+                                {email.ai_category && (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                    {email.ai_category}
+                                  </Badge>
+                                )}
+                                {email.ai_priority && (
+                                  <Badge
+                                    variant={email.ai_priority === "hoch" ? "destructive" : "outline"}
+                                    className={cn(
+                                      "text-[10px] px-1.5 py-0",
+                                      email.ai_priority === "mittel" &&
+                                        "border-orange-400 text-orange-600 dark:text-orange-400",
+                                      email.ai_priority === "niedrig" &&
+                                        "border-muted-foreground/30 text-muted-foreground",
+                                    )}
+                                  >
+                                    {email.ai_priority === "hoch"
+                                      ? "Wichtig"
+                                      : email.ai_priority === "mittel"
+                                        ? "Mittel"
+                                        : "Niedrig"}
+                                  </Badge>
+                                )}
+                                {isTrashFolder && email.deleted_at && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {(() => {
+                                      const daysLeft = Math.max(
+                                        0,
+                                        30 -
+                                          Math.floor(
+                                            (Date.now() - new Date(email.deleted_at).getTime()) / (1000 * 60 * 60 * 24),
+                                          ),
+                                      );
+                                      return `${daysLeft} Tage verbleibend`;
+                                    })()}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {/* Assignment badge - clickable to change */}
+                                {(() => {
+                                  const getShortCode = (userId: string) => {
+                                    const userAccountIds = accountUsers
+                                      .filter((au) => au.user_id === userId)
+                                      .map((au) => au.account_id);
+                                    const acct = accounts.find((a) => userAccountIds.includes(a.id) && a.short_code);
+                                    if (acct?.short_code) return acct.short_code as string;
+                                    const p = adminProfiles.find((pp) => pp.user_id === userId);
+                                    return p
+                                      ? [p.first_name, p.last_name]
+                                          .filter(Boolean)
+                                          .map((n) => n?.[0])
+                                          .join("")
+                                      : "";
+                                  };
+                                  const assignedProfile = (email as any).assigned_to
+                                    ? adminProfiles.find((p) => p.user_id === (email as any).assigned_to)
+                                    : null;
+                                  const initials = (email as any).assigned_to
+                                    ? getShortCode((email as any).assigned_to)
+                                    : "";
+
+                                  if (!initials && !(email as any).assigned_to) {
+                                    return (
+                                      <select
+                                        className="h-5 w-5 rounded-full text-[9px] cursor-pointer border-0 appearance-none text-center bg-transparent text-transparent hover:bg-muted/50"
+                                        value="none"
+                                        onClick={(e) => e.stopPropagation()}
+                                        onChange={async (e) => {
+                                          e.stopPropagation();
+                                          const val = e.target.value === "none" ? null : e.target.value;
+                                          const update: any = { assigned_to: val };
+                                          if (val) {
+                                            const targetAccountIds = accountUsers
+                                              .filter((au) => au.user_id === val)
+                                              .map((au) => au.account_id);
+                                            if (
+                                              targetAccountIds.length > 0 &&
+                                              !targetAccountIds.includes(email.account_id)
+                                            ) {
+                                              update.account_id = targetAccountIds[0];
+                                            }
+                                          }
+                                          await supabase.from("emails").update(update).eq("id", email.id);
+                                          queryClient.invalidateQueries({ queryKey: ["emails"] });
+                                        }}
+                                        title="Zuordnen"
+                                        style={{
+                                          WebkitAppearance: "none",
+                                          MozAppearance: "none",
+                                          textAlignLast: "center",
+                                          padding: "0",
+                                        }}
+                                      >
+                                        <option value="none"> </option>
+                                        {adminProfiles.map((p) => (
+                                          <option key={p.user_id} value={p.user_id}>
+                                            {getShortCode(p.user_id)}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    );
+                                  }
+                                  return (
+                                    <select
+                                      className="h-5 min-w-[20px] rounded-full text-[9px] font-normal cursor-pointer border-0 appearance-none text-center text-muted-foreground"
+                                      value={(email as any).assigned_to || "none"}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={async (e) => {
+                                        e.stopPropagation();
+                                        const val = e.target.value === "none" ? null : e.target.value;
+                                        const update: any = { assigned_to: val };
+                                        if (val) {
+                                          const targetAccountIds = accountUsers
+                                            .filter((au) => au.user_id === val)
+                                            .map((au) => au.account_id);
+                                          if (
+                                            targetAccountIds.length > 0 &&
+                                            !targetAccountIds.includes(email.account_id)
+                                          ) {
+                                            update.account_id = targetAccountIds[0];
+                                          }
+                                        }
+                                        await supabase.from("emails").update(update).eq("id", email.id);
+                                        queryClient.invalidateQueries({ queryKey: ["emails"] });
+                                      }}
+                                      title={
+                                        assignedProfile
+                                          ? [assignedProfile.first_name, assignedProfile.last_name]
+                                              .filter(Boolean)
+                                              .join(" ")
+                                          : "Zuordnen"
+                                      }
+                                      style={{
+                                        WebkitAppearance: "none",
+                                        MozAppearance: "none",
+                                        textAlignLast: "center",
+                                        width: `${Math.max(24, initials.length * 9 + 10)}px`,
+                                        padding: "0 2px",
+                                      }}
+                                    >
+                                      <option value="none">—</option>
+                                      {adminProfiles.map((p) => (
+                                        <option key={p.user_id} value={p.user_id}>
+                                          {getShortCode(p.user_id)}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                            {isTrashFolder && (
+                              <div className="flex items-center gap-0.5 mt-0.5">
+                                <button
+                                  className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    restoreEmail(email.id);
+                                  }}
+                                >
+                                  <Undo2 className="h-3 w-3" />
+                                  Wiederherstellen
+                                </button>
+                              </div>
+                            )}
+                          </button>
+                        </div>
+                      ))
+                    )}
+                    {!emailsLoading && !emailsError && filteredEmails.length > 0 && canLoadMore && (
+                      <div className="p-3 flex justify-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setPageLimit((n) => n + (isSearching ? 500 : 200))}
+                        >
+                          Mehr laden ({emails.length} geladen)
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="p-3 border-t flex gap-2">
-                  <Button size="sm" className="gap-1.5" onClick={() => {
-                    openCompose({ replyTo: { id: selectedEmail.id, message_id: (selectedEmail as any).message_id, subject: selectedEmail.subject, from_address: selectedEmail.from_address, from_name: selectedEmail.from_name, body_text: selectedEmail.body_text, date: selectedEmail.date, account_id: selectedEmail.account_id } });
-                  }}>
-                    <Reply className="h-3.5 w-3.5" />
-                    Antworten
-                  </Button>
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
-                    openCompose({ forward: { email_id: selectedEmail.id, message_id: (selectedEmail as any).message_id, subject: selectedEmail.subject, body_text: selectedEmail.body_text, body_html: selectedEmail.body_html, account_id: selectedEmail.account_id } });
-                  }}>
-                    <Forward className="h-3.5 w-3.5" />
-                    Weiterleiten
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 ml-auto" title="Drucken / als PDF" onClick={() => setPrintDialogOpen(true)}>
-                    <Printer className="h-4 w-4" />
-                  </Button>
+              </ResizablePanel>
+
+              <ResizableHandle
+                withHandle
+                className="hidden md:flex w-1.5 bg-border hover:bg-primary/40 transition-colors"
+              />
+
+              {/* Right: Email Detail — on mobile: only visible when an email is selected */}
+              <ResizablePanel
+                defaultSize={65}
+                className={cn(selectedEmailId ? "block" : "hidden md:block", "h-full overflow-hidden min-h-0")}
+              >
+                <div className="flex flex-col h-full min-h-0 min-w-0">
+                  {selectedEmail ? (
+                    <>
+                      <div
+                        className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y"
+                        style={{ WebkitOverflowScrolling: "touch" }}
+                      >
+                        <div className="p-4 space-y-2">
+                          <div className="flex items-start justify-between gap-4">
+                            <h2 className="text-lg font-semibold truncate">
+                              {selectedEmail.subject || "(Kein Betreff)"}
+                            </h2>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {isTrashFolder ? (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => restoreEmail(selectedEmail.id)}
+                                    title="Wiederherstellen"
+                                  >
+                                    <Undo2 className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 hover:text-destructive"
+                                    onClick={() => permanentDeleteEmail(selectedEmail.id)}
+                                    title="Endgültig löschen"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => toggleRead(selectedEmail.id, selectedEmail.is_read)}
+                                    title={selectedEmail.is_read ? "Als ungelesen markieren" : "Als gelesen markieren"}
+                                  >
+                                    <MailOpen className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => toggleFollowUp(selectedEmail.id, selectedEmail.is_starred)}
+                                    title={
+                                      selectedEmail.is_starred
+                                        ? "Nachverfolgung entfernen"
+                                        : "Zur Nachverfolgung markieren"
+                                    }
+                                  >
+                                    <Flag
+                                      className={cn(
+                                        "h-4 w-4",
+                                        selectedEmail.is_starred && "text-orange-500 fill-orange-500",
+                                      )}
+                                    />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => togglePin(selectedEmail.id, !!selectedEmail.is_pinned)}
+                                    title={selectedEmail.is_pinned ? "Anpinnung entfernen" : "Oben anpinnen"}
+                                  >
+                                    {selectedEmail.is_pinned ? (
+                                      <PinOff className="h-4 w-4 text-primary" />
+                                    ) : (
+                                      <Pin className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => openArchiveDialog(selectedEmail.id)}
+                                    title="Zuordnen / Archivieren"
+                                  >
+                                    <Link2 className="h-4 w-4" />
+                                  </Button>
+                                  {profile?.broker_mode_enabled && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      onClick={() => setBrokerLeadEmailId(selectedEmail.id)}
+                                      title="Interessent zuordnen"
+                                    >
+                                      <UserPlus className="h-4 w-4" />
+                                    </Button>
+                                  )}
+
+                                  {selectedEmail.is_archived && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      onClick={async () => {
+                                        await supabase
+                                          .from("emails")
+                                          .update({ is_archived: false })
+                                          .eq("id", selectedEmail.id);
+                                        queryClient.invalidateQueries({ queryKey: ["emails"] });
+                                        queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+                                        toast.success("E-Mail aus Archiv entfernt");
+                                      }}
+                                      title="Aus Archiv entfernen"
+                                    >
+                                      <ArchiveRestore className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 hover:text-destructive"
+                                    onClick={() => deleteEmail(selectedEmail.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 min-w-0">
+                              <button
+                                className="flex items-center gap-1.5 text-sm hover:underline cursor-pointer"
+                                onClick={() => setShowEmailDetails((prev) => !prev)}
+                              >
+                                <span className="font-medium text-foreground">
+                                  {selectedEmail.from_name || selectedEmail.from_address}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {selectedEmail.date && new Date(selectedEmail.date).toLocaleString("de-DE")}
+                                </span>
+                                {showEmailDetails ? (
+                                  <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+                                ) : (
+                                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                              </button>
+                              {showEmailDetails && (
+                                <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+                                  {selectedEmail.from_name && (
+                                    <div>
+                                      Von: {selectedEmail.from_name} &lt;{selectedEmail.from_address}&gt;
+                                    </div>
+                                  )}
+                                  {selectedEmail.to_addresses && (
+                                    <div>
+                                      An:{" "}
+                                      {Array.isArray(selectedEmail.to_addresses)
+                                        ? (selectedEmail.to_addresses as string[]).join(", ")
+                                        : String(selectedEmail.to_addresses)}
+                                    </div>
+                                  )}
+                                  {selectedEmail.cc_addresses && (
+                                    <div>
+                                      CC:{" "}
+                                      {Array.isArray(selectedEmail.cc_addresses)
+                                        ? (selectedEmail.cc_addresses as string[]).join(", ")
+                                        : String(selectedEmail.cc_addresses)}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            {!senderHasContact && selectedEmail.from_address && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="outline" size="sm" className="h-7 gap-1 text-xs shrink-0">
+                                    <UserPlus className="h-3.5 w-3.5" />
+                                    Kontakt speichern
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-64">
+                                  <DropdownMenuItem onClick={openNewContactFromEmail}>
+                                    <UserPlus className="h-4 w-4 mr-2" />
+                                    Neuen Kontakt anlegen
+                                  </DropdownMenuItem>
+                                  {contacts.length > 0 && (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      <div className="px-2 py-1.5">
+                                        <Input
+                                          placeholder="Kontakt suchen..."
+                                          value={contactSearchTerm}
+                                          onChange={(e) => setContactSearchTerm(e.target.value)}
+                                          className="h-7 text-xs"
+                                          onClick={(e) => e.stopPropagation()}
+                                          onKeyDown={(e) => e.stopPropagation()}
+                                        />
+                                      </div>
+                                      <div className="max-h-48 overflow-y-auto">
+                                        {contacts
+                                          .filter((c) => {
+                                            if (!contactSearchTerm.trim()) return false;
+                                            const name = getContactName(c).toLowerCase();
+                                            return name.includes(contactSearchTerm.toLowerCase());
+                                          })
+                                          .map((c) => (
+                                            <DropdownMenuItem
+                                              key={c.id}
+                                              onClick={() => {
+                                                addEmailToExistingContact(c.id);
+                                                setContactSearchTerm("");
+                                              }}
+                                            >
+                                              <UserCheck className="h-3.5 w-3.5 mr-2 shrink-0" />
+                                              {getContactName(c)}
+                                            </DropdownMenuItem>
+                                          ))}
+                                        {contactSearchTerm.trim() &&
+                                          contacts.filter((c) =>
+                                            getContactName(c).toLowerCase().includes(contactSearchTerm.toLowerCase()),
+                                          ).length === 0 && (
+                                            <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                                              Kein Kontakt gefunden
+                                            </p>
+                                          )}
+                                      </div>
+                                    </>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap gap-1.5">
+                            {selectedEmail.building_id && (
+                              <Badge variant="outline" className="gap-1">
+                                <Building2 className="h-3 w-3" />
+                                {buildings.find((b) => b.id === selectedEmail.building_id)?.name || "Liegenschaft"}
+                              </Badge>
+                            )}
+                            {selectedEmail.contact_id && (
+                              <Badge variant="outline" className="gap-1">
+                                <User className="h-3 w-3" />
+                                {(() => {
+                                  const c = contacts.find((c) => c.id === selectedEmail.contact_id);
+                                  return c ? getContactName(c) : "Kontakt";
+                                })()}
+                              </Badge>
+                            )}
+                            {(selectedEmail as any).case_id && (
+                              <Badge variant="default" className="gap-1">
+                                <Link2 className="h-3 w-3" />
+                                Vorgang verknüpft
+                              </Badge>
+                            )}
+                            {!(selectedEmail as any).case_id && (selectedEmail as any).ai_case_suggestion_id && (
+                              <Badge
+                                variant="secondary"
+                                className="gap-1 cursor-pointer"
+                                onClick={() => openArchiveDialog(selectedEmail.id)}
+                              >
+                                <Sparkles className="h-3 w-3" />
+                                KI-Vorschlag: Vorgang (
+                                {Math.round(((selectedEmail as any).ai_case_confidence || 0) * 100)}%)
+                              </Badge>
+                            )}
+                            {selectedEmail.ai_category && <Badge variant="outline">{selectedEmail.ai_category}</Badge>}
+                            {selectedEmail.ai_priority && (
+                              <Badge variant={selectedEmail.ai_priority === "hoch" ? "destructive" : "secondary"}>
+                                Priorität: {selectedEmail.ai_priority}
+                              </Badge>
+                            )}
+                          </div>
+                          {selectedEmail.ai_summary && (
+                            <p className="text-sm bg-muted/50 rounded-md p-2 italic">KI: {selectedEmail.ai_summary}</p>
+                          )}
+                        </div>
+
+                        {selectedEmail.has_attachments && (
+                          <div className="px-4 pb-2">
+                            <EmailAttachments emailId={selectedEmail.id} />
+                          </div>
+                        )}
+
+                        <Separator />
+
+                        <div className="p-4">
+                          {(() => {
+                            const html = selectedEmail.body_html ?? "";
+                            const stripped = html
+                              .replace(/<[^>]*>/g, "")
+                              .replace(/&nbsp;/gi, " ")
+                              .trim();
+                            if (html && stripped.length > 0) {
+                              return <EmailHtmlBody key={selectedEmail.id} html={html} emailId={selectedEmail.id} />;
+                            }
+                            return (
+                              <pre className="text-sm whitespace-pre-wrap font-sans">
+                                {selectedEmail.body_text || "Kein Inhalt"}
+                              </pre>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                      <div className="p-3 border-t flex gap-2">
+                        <Button
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={() => {
+                            openCompose({
+                              replyTo: {
+                                id: selectedEmail.id,
+                                message_id: (selectedEmail as any).message_id,
+                                subject: selectedEmail.subject,
+                                from_address: selectedEmail.from_address,
+                                from_name: selectedEmail.from_name,
+                                body_text: selectedEmail.body_text,
+                                date: selectedEmail.date,
+                                account_id: selectedEmail.account_id,
+                              },
+                            });
+                          }}
+                        >
+                          <Reply className="h-3.5 w-3.5" />
+                          Antworten
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={() => {
+                            openCompose({
+                              forward: {
+                                email_id: selectedEmail.id,
+                                message_id: (selectedEmail as any).message_id,
+                                subject: selectedEmail.subject,
+                                body_text: selectedEmail.body_text,
+                                body_html: selectedEmail.body_html,
+                                account_id: selectedEmail.account_id,
+                              },
+                            });
+                          }}
+                        >
+                          <Forward className="h-3.5 w-3.5" />
+                          Weiterleiten
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 ml-auto"
+                          title="Drucken / als PDF"
+                          onClick={() => setPrintDialogOpen(true)}
+                        >
+                          <Printer className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center">
+                      <div className="text-center">
+                        <Mail className="h-16 w-16 mx-auto text-muted-foreground/20 mb-4" />
+                        <p className="text-muted-foreground">Wählen Sie eine E-Mail aus</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </>
-            ) : (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center">
-                  <Mail className="h-16 w-16 mx-auto text-muted-foreground/20 mb-4" />
-                  <p className="text-muted-foreground">Wählen Sie eine E-Mail aus</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-        </>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </>
         )}
       </div>
-
 
       <AssignEmailDialog
         open={archiveDialogOpen}
         onOpenChange={setArchiveDialogOpen}
         emailId={archiveEmailId}
         onAssign={handleAssign}
-        prefilledContactId={archiveEmailId ? (emails.find(e => e.id === archiveEmailId)?.contact_id || null) : null}
-        prefilledContactPersonId={archiveEmailId ? ((emails.find(e => e.id === archiveEmailId) as any)?.contact_person_id || null) : null}
-        prefilledBuildingId={archiveEmailId ? (emails.find(e => e.id === archiveEmailId)?.building_id || null) : null}
-        prefilledCaseId={archiveEmailId ? ((emails.find(e => e.id === archiveEmailId) as any)?.case_id || (emails.find(e => e.id === archiveEmailId) as any)?.ai_case_suggestion_id || null) : null}
-        prefilledIsEtvRelevant={archiveEmailId ? !!(emails.find(e => e.id === archiveEmailId) as any)?.is_etv_relevant : false}
-        prefilledEtvMeetingId={archiveEmailId ? ((emails.find(e => e.id === archiveEmailId) as any)?.etv_meeting_id || null) : null}
+        prefilledContactId={archiveEmailId ? emails.find((e) => e.id === archiveEmailId)?.contact_id || null : null}
+        prefilledContactPersonId={
+          archiveEmailId ? (emails.find((e) => e.id === archiveEmailId) as any)?.contact_person_id || null : null
+        }
+        prefilledBuildingId={archiveEmailId ? emails.find((e) => e.id === archiveEmailId)?.building_id || null : null}
+        prefilledCaseId={
+          archiveEmailId
+            ? (emails.find((e) => e.id === archiveEmailId) as any)?.case_id ||
+              (emails.find((e) => e.id === archiveEmailId) as any)?.ai_case_suggestion_id ||
+              null
+            : null
+        }
+        prefilledIsEtvRelevant={
+          archiveEmailId ? !!(emails.find((e) => e.id === archiveEmailId) as any)?.is_etv_relevant : false
+        }
+        prefilledEtvMeetingId={
+          archiveEmailId ? (emails.find((e) => e.id === archiveEmailId) as any)?.etv_meeting_id || null : null
+        }
       />
 
       {profile?.broker_mode_enabled && brokerLeadEmailId && (
@@ -1875,11 +2277,7 @@ export const Inbox = () => {
         />
       )}
 
-      <PrintEmailDialog
-        open={printDialogOpen}
-        onOpenChange={setPrintDialogOpen}
-        email={selectedEmail as any}
-      />
+      <PrintEmailDialog open={printDialogOpen} onOpenChange={setPrintDialogOpen} email={selectedEmail as any} />
 
       <AiEmailSearchDialog
         open={aiSearchOpen}
@@ -1913,16 +2311,25 @@ export const Inbox = () => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Vorname</Label>
-                <Input value={newContactData.first_name} onChange={e => setNewContactData(prev => ({ ...prev, first_name: e.target.value }))} />
+                <Input
+                  value={newContactData.first_name}
+                  onChange={(e) => setNewContactData((prev) => ({ ...prev, first_name: e.target.value }))}
+                />
               </div>
               <div>
                 <Label className="text-xs">Nachname</Label>
-                <Input value={newContactData.last_name} onChange={e => setNewContactData(prev => ({ ...prev, last_name: e.target.value }))} />
+                <Input
+                  value={newContactData.last_name}
+                  onChange={(e) => setNewContactData((prev) => ({ ...prev, last_name: e.target.value }))}
+                />
               </div>
             </div>
             <div>
               <Label className="text-xs">Firma</Label>
-              <Input value={newContactData.company_name} onChange={e => setNewContactData(prev => ({ ...prev, company_name: e.target.value }))} />
+              <Input
+                value={newContactData.company_name}
+                onChange={(e) => setNewContactData((prev) => ({ ...prev, company_name: e.target.value }))}
+              />
             </div>
             <div>
               <Label className="text-xs">E-Mail</Label>
@@ -1930,7 +2337,9 @@ export const Inbox = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNewContactDialogOpen(false)}>Abbrechen</Button>
+            <Button variant="outline" onClick={() => setNewContactDialogOpen(false)}>
+              Abbrechen
+            </Button>
             <Button onClick={handleCreateContact}>Kontakt erstellen</Button>
           </DialogFooter>
         </DialogContent>
@@ -1958,8 +2367,8 @@ export const Inbox = () => {
           <ScrollArea className="flex-1">
             <div className="p-2">
               <p className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ordner</p>
-              {folders.map(folder => {
-                const Icon = folderIcons[folder.icon || 'inbox'] || Mail;
+              {folders.map((folder) => {
+                const Icon = folderIcons[folder.icon || "inbox"] || Mail;
                 const isActive = selectedFolderId === folder.id;
                 const count = folderCounts[folder.id] || 0;
                 return (
@@ -1972,17 +2381,19 @@ export const Inbox = () => {
                     }}
                     className={cn(
                       "w-full flex items-center gap-2 px-3 py-3 rounded-md text-sm transition-colors",
-                      isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground"
+                      isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground",
                     )}
                   >
                     <Icon className="h-5 w-5 shrink-0" />
                     <span className="truncate flex-1 text-left">{folder.name}</span>
                     {count > 0 && folder.name !== "Papierkorb" && (
                       <Badge
-                        variant={isActive ? "secondary" : (folder.id === SCHEDULED_FOLDER_ID ? "outline" : "default")}
+                        variant={isActive ? "secondary" : folder.id === SCHEDULED_FOLDER_ID ? "outline" : "default"}
                         className={cn(
                           "text-xs",
-                          folder.id === SCHEDULED_FOLDER_ID && !isActive && "border-amber-400 text-amber-700 dark:text-amber-300"
+                          folder.id === SCHEDULED_FOLDER_ID &&
+                            !isActive &&
+                            "border-amber-400 text-amber-700 dark:text-amber-300",
                         )}
                       >
                         {count}
@@ -1999,7 +2410,16 @@ export const Inbox = () => {
               <div className="flex items-center justify-between px-2 py-1">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Konten</p>
                 {isAdmin && (
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setSettingsOpen(true); setMobileFoldersOpen(false); }} title="E-Mail-Konten verwalten">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => {
+                      setSettingsOpen(true);
+                      setMobileFoldersOpen(false);
+                    }}
+                    title="E-Mail-Konten verwalten"
+                  >
                     <Settings className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 )}
@@ -2007,21 +2427,26 @@ export const Inbox = () => {
               {accounts.length === 0 ? (
                 <p className="px-2 py-2 text-xs text-muted-foreground">Noch keine E-Mail-Konten.</p>
               ) : (
-                accounts.map(acc => {
+                accounts.map((acc) => {
                   const checked = selectedAccountIds === null || selectedAccountIds.includes(acc.id);
                   return (
-                    <label key={acc.id} className="w-full flex items-center gap-2 px-2 py-2.5 text-sm rounded-md hover:bg-muted/50 cursor-pointer">
+                    <label
+                      key={acc.id}
+                      className="w-full flex items-center gap-2 px-2 py-2.5 text-sm rounded-md hover:bg-muted/50 cursor-pointer"
+                    >
                       <Checkbox
                         checked={checked}
                         onCheckedChange={() => {
-                          const allIds = accounts.map(a => a.id);
+                          const allIds = accounts.map((a) => a.id);
                           const current = selectedAccountIds === null ? [...allIds] : [...selectedAccountIds];
                           const idx = current.indexOf(acc.id);
                           if (idx >= 0) current.splice(idx, 1);
                           else current.push(acc.id);
                           const next = current.length === allIds.length ? null : current;
                           setSelectedAccountIds(next);
-                          try { localStorage.setItem("inbox-selected-accounts", JSON.stringify(next)); } catch {}
+                          try {
+                            localStorage.setItem("inbox-selected-accounts", JSON.stringify(next));
+                          } catch {}
                         }}
                       />
                       <span className="truncate flex-1">{acc.display_name}</span>
