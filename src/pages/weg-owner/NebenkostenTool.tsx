@@ -1,1788 +1,2463 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { useServicePricing, formatPrice } from "@/hooks/useServicePricing";
 import {
-  loadFinalizedPeriods,
-  getOwnerBillingPositions,
-  type FinalizedPeriod,
-  type AutoPosition,
-  type HeatingPosition,
-} from "@/lib/services/nebenkosten";
-import { CURRENT_LEGAL_VERSION } from "@/lib/legal";
-import { HeizkostenHilfeWizard } from "./HeizkostenHilfeWizard";
-
-import { Button } from "@/components/ui/button";
+  Mail,
+  Search,
+  Flag,
+  Archive,
+  ArchiveRestore,
+  Trash2,
+  Inbox as InboxIcon,
+  Send,
+  FileEdit,
+  ShieldAlert,
+  Plus,
+  RefreshCw,
+  Settings,
+  Loader2,
+  MailOpen,
+  Reply,
+  Forward,
+  Building2,
+  User,
+  Paperclip,
+  ChevronDown,
+  ChevronUp,
+  PanelLeftClose,
+  PanelLeftOpen,
+  UserPlus,
+  UserCheck,
+  Undo2,
+  Link2,
+  Sparkles,
+  Menu,
+  ArrowLeft,
+  Pin,
+  PinOff,
+  Vote,
+  CalendarClock,
+  Users,
+  Printer,
+} from "lucide-react";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  Loader2,
-  Lock,
-  Plus,
-  Trash2,
-  AlertCircle,
-  ArrowLeft,
-  HelpCircle,
-  Flame,
-  Home as HomeIcon,
-  Users,
-  Receipt,
-  Wrench,
-  CalendarDays,
-  ArrowRight,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+} from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { format, parseISO } from "date-fns";
-import { de } from "date-fns/locale";
+import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useComposeEmail } from "@/contexts/ComposeEmailContext";
+import { EmailAttachments } from "@/components/email/EmailAttachments";
+import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
+import { AssignBrokerLeadDialog } from "@/components/email/AssignBrokerLeadDialog";
+import { AiEmailSearchDialog } from "@/components/email/AiEmailSearchDialog";
 
-type Assignment = {
-  id: string;
-  unit_number: string | null;
-  building_id: string;
-  building_name?: string;
-  building_address?: string;
+import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
+import { PrintEmailDialog } from "@/components/email/PrintEmailDialog";
+import { ScheduledMailsPanel } from "@/components/email/ScheduledMailsPanel";
+import { DraftsPanel } from "@/components/email/DraftsPanel";
+import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
+import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { CallLogList } from "@/components/calls/CallLogList";
+import { Phone as PhoneIcon } from "lucide-react";
+
+const folderIcons: Record<string, any> = {
+  inbox: InboxIcon,
+  send: Send,
+  "file-edit": FileEdit,
+  archive: Archive,
+  "shield-alert": ShieldAlert,
+  "trash-2": Trash2,
+  "calendar-clock": CalendarClock,
+  phone: PhoneIcon,
 };
 
-type ExtraCost = {
-  id?: string;
-  cost_type: string;
-  label: string;
-  amount: number;
-  prorata_exempt?: boolean;
-};
-
-const DEFAULT_EXTRA_COST_TYPES = [
-  { type: "grundsteuer", label: "Grundsteuer" },
-  { type: "wartung_se", label: "Wartung Sondereigentum" },
-];
-
-// RGI Look – lokal im Tool, ohne globale Token-Änderung
-const RGI = {
-  primary: "#ee7202",
-  primaryDark: "#c95e02",
-  bg: "#faf8f5",
-  card: "#ffffff",
-  border: "#e7e0d8",
-  text: "#1f1a14",
-  muted: "#7a6f63",
-  green: "#22863a",
-  greenBg: "#e8f5ec",
-  amber: "#a86b00",
-  amberBg: "#fdf3dc",
-  orange: "#c2410c",
-  orangeBg: "#fff7ed",
-};
-
-const headingFont = "Century Gothic, Arial, sans-serif";
-const bodyFont = "'Work Sans', system-ui, sans-serif";
-
-export function WegOwnerNebenkostenTool() {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const { pricing } = useServicePricing();
-  const price = pricing?.nebenkosten;
-
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [assignmentId, setAssignmentId] = useState<string | null>(null);
-  const [periods, setPeriods] = useState<FinalizedPeriod[]>([]);
-  const [periodId, setPeriodId] = useState<string | null>(null);
-  const [autoPositions, setAutoPositions] = useState<AutoPosition[]>([]);
-  const [positionOverrides, setPositionOverrides] = useState<Record<string, number>>({});
-  const [disabledAccounts, setDisabledAccounts] = useState<Set<string>>(new Set());
-  const [heating, setHeating] = useState<HeatingPosition | null>(null);
-  const [heatingOverride, setHeatingOverride] = useState<number | "">("");
-  const [loadingData, setLoadingData] = useState(false);
-  const [loadingAssignments, setLoadingAssignments] = useState(true);
-  const [loadingPeriods, setLoadingPeriods] = useState(false);
-
-  // Mieter-Daten
-  const [tenancyId, setTenancyId] = useState<string | null>(null);
-  const [tenantName, setTenantName] = useState("");
-  const [tenantAddress, setTenantAddress] = useState("");
-  const [persons, setPersons] = useState<number | "">("");
-  const [moveIn, setMoveIn] = useState("");
-  const [moveOut, setMoveOut] = useState("");
-  const [tenantChanged, setTenantChanged] = useState(false);
-  const [prepayMonthly, setPrepayMonthly] = useState<number | "">("");
-  // Verteilungsschlüssel: "weg" = wie WEG-Abrechnung (Standard), "qm" = nach Quadratmetern
-  const [distributionMode, setDistributionMode] = useState<"weg" | "qm">("weg");
-  const [ownQm, setOwnQm] = useState<number | "">("");
-  const [totalQm, setTotalQm] = useState<number | "">("");
-  const qmFactor = () => {
-    const own = Number(ownQm) || 0;
-    const total = Number(totalQm) || 0;
-    return total > 0 ? own / total : 0;
-  };
-  // Basis-Anteil je Position: bei "qm" nach (bearbeitbaren) Quadratmetern, sonst wie geladen
-  const baseShare = (p: AutoPosition) =>
-    distributionMode === "qm" && !p.consumption_based ? round2(p.total_amount * qmFactor()) : p.share_amount;
-  // Angezeigter/gespeicherter Schlüssel: bei "qm" -> "qm", sonst der WEG-Schlüssel
-  const displayKey = (p: AutoPosition) =>
-    distributionMode === "qm" && !p.consumption_based ? "qm" : p.distribution_key;
-  // Weitere Mieter (bei Mieterwechsel) – dynamische Liste
-  type AdditionalTenant = {
-    id: string;
-    name: string;
-    persons: number | "";
-    prepayMonthly: number | "";
-    moveIn: string;
-    moveOut: string;
-    heatingOverride: number | "";
-  };
-  const makeEmptyTenant = (): AdditionalTenant => ({
-    id:
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : Math.random().toString(36).slice(2),
-    name: "",
-    persons: "",
-    prepayMonthly: "",
-    moveIn: "",
-    moveOut: "",
-    heatingOverride: "",
-  });
-  const [additionalTenants, setAdditionalTenants] = useState<AdditionalTenant[]>([]);
-  const updateAdditionalTenant = (id: string, patch: Partial<AdditionalTenant>) =>
-    setAdditionalTenants((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-  const removeAdditionalTenant = (id: string) => setAdditionalTenants((prev) => prev.filter((t) => t.id !== id));
-  const addAdditionalTenant = () =>
-    setAdditionalTenants((prev) => (prev.length >= 9 ? prev : [...prev, makeEmptyTenant()]));
-
-  // Direkte Eigentümerkosten
-  const [extraCosts, setExtraCosts] = useState<ExtraCost[]>([]);
-
-  // Kauf-Dialog
-  const [buyOpen, setBuyOpen] = useState(false);
-  const [waiverChecked, setWaiverChecked] = useState(false);
-  const [recipientEmail, setRecipientEmail] = useState("");
-  useEffect(() => {
-    if (user?.email) setRecipientEmail((prev) => prev || (user.email ?? ""));
-  }, [user]);
-  const [submitting, setSubmitting] = useState(false);
-
-  const selectedAssignment = assignments.find((a) => a.id === assignmentId);
-  const selectedPeriod = periods.find((p) => p.id === periodId);
-
-  // 1. Wohnungen laden
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      try {
-        const { data, error } = await supabase.functions.invoke("list-owner-units");
-        if (error) throw error;
-        const units = (data?.units ?? []) as Assignment[];
-        setAssignments(units);
-        if (units.length === 1) setAssignmentId(units[0].id);
-      } catch (e) {
-        console.error("[NebenkostenTool] list-owner-units error", e);
-        toast.error("Wohnungen konnten nicht geladen werden.");
-      } finally {
-        setLoadingAssignments(false);
-      }
-    })();
-  }, [user]);
-
-  // 2. Perioden laden
-  useEffect(() => {
-    if (!selectedAssignment) {
-      setPeriods([]);
-      setPeriodId(null);
-      setLoadingPeriods(false);
-      return;
-    }
-    setLoadingPeriods(true);
-    loadFinalizedPeriods(selectedAssignment.building_id)
-      .then((p) => {
-        setPeriods(p);
-        if (p.length === 1) setPeriodId(p[0].id);
-        else setPeriodId(null);
-      })
-      .catch((e) => {
-        console.error(e);
-        toast.error("Perioden konnten nicht geladen werden.");
-      })
-      .finally(() => setLoadingPeriods(false));
-  }, [selectedAssignment?.building_id]);
-
-  // 3. Positionen + Heizung + Mieter + Extra-Kosten laden
-  useEffect(() => {
-    if (!assignmentId || !periodId || !selectedPeriod || !user) return;
-    setLoadingData(true);
-    (async () => {
-      try {
-        const [result, tenancyRes, costsRes] = await Promise.all([
-          getOwnerBillingPositions(assignmentId, periodId),
-          supabase.from("service_tenancies").select("*").eq("assignment_id", assignmentId).maybeSingle(),
-          supabase
-            .from("service_owner_costs")
-            .select("*")
-            .eq("assignment_id", assignmentId)
-            .eq("fiscal_year", selectedPeriod.fiscal_year),
-        ]);
-
-        setAutoPositions(result.positions);
-        setPositionOverrides({});
-        setDisabledAccounts(new Set());
-        setHeating(result.heating);
-        setOwnQm(result.own_qm || "");
-        setTotalQm(result.total_qm || "");
-        // Nur vorbefüllen, wenn KEIN Mieterwechsel – sonst muss der Eigentümer
-        // den anteiligen Wert aus der Heizkostenabrechnung manuell eintragen.
-        setHeatingOverride(result.heating.source === "messdienst" && !tenantChanged ? result.heating.amount : "");
-
-        const t = tenancyRes.data;
-        if (t) {
-          setTenancyId(t.id);
-          setTenantName(t.tenant_name ?? "");
-          setTenantAddress(t.tenant_address ?? "");
-          setPersons(t.persons ?? "");
-          setMoveIn(t.move_in ?? "");
-          setMoveOut(t.move_out ?? "");
-          setTenantChanged(!!(t.move_in || t.move_out));
-          setPrepayMonthly(t.nk_prepayment_monthly ?? "");
-        } else {
-          setTenancyId(null);
-        }
-
-        const ec = (costsRes.data ?? []).map((c: any) => ({
-          id: c.id,
-          cost_type: c.cost_type,
-          label: c.label ?? c.cost_type,
-          amount: Number(c.amount),
-          prorata_exempt: !!c.prorata_exempt,
-        }));
-        setExtraCosts(ec);
-      } catch (e) {
-        console.error(e);
-        toast.error("Daten konnten nicht geladen werden.");
-      } finally {
-        setLoadingData(false);
-      }
-    })();
-  }, [assignmentId, periodId, selectedPeriod?.fiscal_year, user]);
-
-  // Speicherfunktionen
-  const saveTenancy = async () => {
-    if (!assignmentId || !user) return;
-    const payload = {
-      assignment_id: assignmentId,
-      user_id: user.id,
-      tenant_name: tenantName || null,
-      tenant_address: tenantAddress || null,
-      persons: persons === "" ? null : Number(persons),
-      move_in: moveIn || null,
-      move_out: moveOut || null,
-      nk_prepayment_monthly: prepayMonthly === "" ? null : Number(prepayMonthly),
-    };
-    if (tenancyId) {
-      await supabase.from("service_tenancies").update(payload).eq("id", tenancyId);
-    } else {
-      const { data } = await supabase.from("service_tenancies").insert(payload).select().single();
-      if (data) setTenancyId(data.id);
-    }
-  };
-
-  const addExtraCost = (type = "sonstige", label = "Neue Position") => {
-    setExtraCosts((prev) => [...prev, { cost_type: type, label, amount: 0, prorata_exempt: false }]);
-  };
-  const removeExtraCost = async (idx: number) => {
-    const ec = extraCosts[idx];
-    if (ec.id) await supabase.from("service_owner_costs").delete().eq("id", ec.id);
-    setExtraCosts((prev) => prev.filter((_, i) => i !== idx));
-  };
-  const updateExtraCost = (idx: number, patch: Partial<ExtraCost>) => {
-    setExtraCosts((prev) => prev.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
-  };
-  const saveExtraCost = async (idx: number) => {
-    if (!assignmentId || !user || !selectedPeriod) return;
-    const c = extraCosts[idx];
-    const payload = {
-      assignment_id: assignmentId,
-      user_id: user.id,
-      fiscal_year: selectedPeriod.fiscal_year,
-      cost_type: c.cost_type,
-      label: c.label,
-      amount: c.amount,
-      prorata_exempt: !!c.prorata_exempt,
-    };
-    if (c.id) {
-      await supabase.from("service_owner_costs").update(payload).eq("id", c.id);
-    } else {
-      const { data } = await supabase.from("service_owner_costs").insert(payload).select().single();
-      if (data) updateExtraCost(idx, { id: data.id });
-    }
-  };
-
-  // Baut den Snapshot für GENAU EINEN Mieter (anteilig nach seinem Zeitraum).
-  const buildTenantSnapshot = (
-    tName: string,
-    tAddress: string,
-    tPersons: number,
-    tPrepayMonthly: number,
-    pr: ProrataInfo,
-    heatingValue: number,
-    moveInVal: string | null,
-    moveOutVal: string | null,
-  ) => {
-    const factorAuto = (p: AutoPosition) => (pr.active && !p.consumption_based ? pr.factor : 1);
-    const posAmount = (p: AutoPosition) => round2(baseShare(p) * factorAuto(p));
-    const activePositions = autoPositions.filter((p) => !disabledAccounts.has(p.account_number));
-    const autoSum = round2(activePositions.reduce((s, p) => s + posAmount(p), 0));
-    const extraEff = (c: ExtraCost) => (pr.active && !c.prorata_exempt ? round2(c.amount * pr.factor) : c.amount);
-    const extraSum = round2(extraCosts.reduce((s, c) => s + extraEff(c), 0));
-    const costSum = round2(autoSum + heatingValue + extraSum);
-    const prepayFull = tPrepayMonthly; // Eingabe ist bereits die Jahressumme
-    const prepaySum = round2(pr.active ? prepayFull * pr.factor : prepayFull);
-    const result = round2(costSum - prepaySum);
-    const months = pr.periodDays > 0 ? pr.tenantDays / 30.42 : 0;
-    return {
-      tenant: {
-        name: tName,
-        address: tAddress,
-        persons: tPersons,
-        move_in: moveInVal,
-        move_out: moveOutVal,
-        prepayment_monthly: tPrepayMonthly,
-        months_in_period: months,
-        prepayment_total: prepaySum,
-      },
-      positions: activePositions.map((p) => ({
-        account_number: p.account_number,
-        account_name: p.account_name,
-        total_amount: p.total_amount,
-        share_amount: posAmount(p),
-        full_share_amount: baseShare(p),
-        distribution_key: displayKey(p),
-        consumption_based: !!p.consumption_based,
-        prorata_factor: factorAuto(p),
-      })),
-      heating: heating
-        ? {
-            label: heating.label,
-            amount: heatingValue,
-            source: heating.source,
-            user_adjusted: true,
-          }
-        : null,
-      extra_costs: extraCosts.map((c) => ({
-        cost_type: c.cost_type,
-        label: c.label,
-        amount: extraEff(c),
-        full_amount: c.amount,
-        prorata_exempt: !!c.prorata_exempt,
-        prorata_factor: pr.active && !c.prorata_exempt ? pr.factor : 1,
-      })),
-      totals: {
-        autoSum,
-        heatingValue,
-        extraSum,
-        costSum,
-        prepaySum,
-        result,
-        months,
-      },
-      prorata: {
-        active: pr.active,
-        tenant_days: pr.tenantDays,
-        period_days: pr.periodDays,
-        factor: pr.factor,
-        from: pr.fromISO,
-        to: pr.toISO,
-      },
-    };
-  };
-
-  // Tagesgenaue Pro-Rata bei Mieterwechsel
-  const prorata = useMemo(
-    () => computeProrata(moveIn, moveOut, tenantChanged, selectedPeriod),
-    [moveIn, moveOut, tenantChanged, selectedPeriod],
-  );
-
-  // Pro-Rata für jeden zusätzlichen Mieter
-  const additionalProrata = useMemo(
-    () => additionalTenants.map((t) => computeProrata(t.moveIn, t.moveOut, tenantChanged, selectedPeriod)),
-    [additionalTenants, tenantChanged, selectedPeriod],
-  );
-
-  // Heizungs-Vorbefüllung an Mieterwechsel koppeln:
-  // Bei Mieterwechsel wird das Feld geleert, damit der Eigentümer den
-  // anteiligen Wert aus der Heizkostenabrechnung manuell überträgt.
-  useEffect(() => {
-    if (!heating) return;
-    if (tenantChanged) {
-      setHeatingOverride("");
-    } else if (heating.source === "messdienst") {
-      setHeatingOverride(heating.amount);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantChanged]);
-
-  // Faktor für eine Auto-Position (verbrauchsabhängige bleiben ungekürzt)
-  const factorForAuto = (p: AutoPosition) => (prorata.active && !p.consumption_based ? prorata.factor : 1);
-
-  // Effektiver Betrag je Position: Override hat Vorrang, sonst share × Faktor
-  const effectivePositionAmount = (p: AutoPosition) => {
-    const ov = positionOverrides[p.account_number];
-    if (ov !== undefined) return ov;
-    return round2(baseShare(p) * factorForAuto(p));
-  };
-
-  const effectiveExtraAmount = (c: ExtraCost) => (prorata.active ? round2(c.amount * prorata.factor) : c.amount);
-
-  // Summen
-  const totals = useMemo(() => {
-    const autoSum = autoPositions
-      .filter((p) => !disabledAccounts.has(p.account_number))
-      .reduce((s, p) => s + effectivePositionAmount(p), 0);
-    const heatingValue = Number(heatingOverride) || 0;
-    const extraSum = extraCosts.reduce((s, c) => s + effectiveExtraAmount(c), 0);
-    const costSum = autoSum + heatingValue + extraSum;
-    // Vorauszahlung: 12 Monatsraten anteilig auf die Mietzeit (tagesgenau)
-    const prepayFull = Number(prepayMonthly) || 0; // Eingabe ist bereits die Jahressumme
-    const prepaySum = prorata.active ? prepayFull * prorata.factor : prepayFull;
-    const result = costSum - prepaySum;
-    return {
-      autoSum,
-      heatingValue,
-      extraSum,
-      costSum,
-      prepaySum: round2(prepaySum),
-      result: round2(result),
-      months: prorata.tenantDays / 30.42, // Info-Wert
-      prorata,
-    };
-  }, [autoPositions, positionOverrides, disabledAccounts, heatingOverride, extraCosts, prepayMonthly, prorata]);
-
-  const additionalTenantsValid =
-    !tenantChanged ||
-    (additionalTenants.length > 0 &&
-      additionalTenants.every((t) => t.name.trim() && t.prepayMonthly !== "" && Number(t.prepayMonthly) > 0));
-
-  const canBuy = !!(
-    assignmentId &&
-    periodId &&
-    tenantName &&
-    prepayMonthly !== "" &&
-    Number(prepayMonthly) > 0 &&
-    additionalTenantsValid &&
-    !loadingData
-  );
-
-  // Anzahl der Abrechnungen (= Anzahl Produkte im Checkout)
-  const quantity = tenantChanged ? 1 + additionalTenants.length : 1;
-
-  const isInitialLoading =
-    loadingAssignments || (!!assignmentId && loadingPeriods) || (!!assignmentId && !!periodId && loadingData);
-
-  const handleBuy = async () => {
-    if (!user || !selectedPeriod || !assignmentId || !waiverChecked) return;
-    setSubmitting(true);
+export const Inbox = () => {
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isSyncing, setIsSyncing] = useState(false);
+  const { openCompose } = useComposeEmail();
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[] | null>(() => {
     try {
-      await saveTenancy();
-      for (let i = 0; i < extraCosts.length; i++) await saveExtraCost(i);
-
-      const snapshot = {
-        tenant: {
-          name: tenantName,
-          address: tenantAddress,
-          persons: Number(persons) || 0,
-          move_in: moveIn || null,
-          move_out: moveOut || null,
-          prepayment_monthly: Number(prepayMonthly) || 0,
-          months_in_period: totals.months,
-          prepayment_total: totals.prepaySum,
-        },
-        assignment_id: assignmentId,
-        fiscal_year: selectedPeriod.fiscal_year,
-        period: {
-          from: selectedPeriod.period_from,
-          to: selectedPeriod.period_to,
-        },
-        recipient_email: recipientEmail || user?.email || null,
-        positions: autoPositions
-          .filter((p) => !disabledAccounts.has(p.account_number))
-          .map((p) => ({
-            account_number: p.account_number,
-            account_name: p.account_name,
-            total_amount: p.total_amount,
-            share_amount: effectivePositionAmount(p),
-            full_share_amount: baseShare(p),
-            distribution_key: displayKey(p),
-            consumption_based: !!p.consumption_based,
-            user_adjusted: positionOverrides[p.account_number] !== undefined,
-            prorata_factor: factorForAuto(p),
-          })),
-        heating: heating
-          ? {
-              label: heating.label,
-              amount: Number(heatingOverride) || 0,
-              source: heating.source,
-              user_adjusted: heating.source !== "messdienst" || Number(heatingOverride) !== heating.amount,
-            }
-          : null,
-        extra_costs: extraCosts.map((c) => ({
-          cost_type: c.cost_type,
-          label: c.label,
-          amount: effectiveExtraAmount(c),
-          full_amount: c.amount,
-          prorata_exempt: !!c.prorata_exempt,
-          prorata_factor: prorata.active && !c.prorata_exempt ? prorata.factor : 1,
-        })),
-        prorata: {
-          active: prorata.active,
-          tenant_days: prorata.tenantDays,
-          period_days: prorata.periodDays,
-          factor: prorata.factor,
-          from: prorata.fromISO,
-          to: prorata.toISO,
-        },
-        totals,
-      };
-
-      const tenantsArr = tenantChanged
-        ? [
-            buildTenantSnapshot(
-              tenantName,
-              tenantAddress,
-              Number(persons) || 0,
-              Number(prepayMonthly) || 0,
-              prorata,
-              Number(heatingOverride) || 0,
-              moveIn || null,
-              moveOut || null,
-            ),
-            ...additionalTenants.map((t, i) =>
-              buildTenantSnapshot(
-                t.name,
-                tenantAddress,
-                Number(t.persons) || 0,
-                Number(t.prepayMonthly) || 0,
-                additionalProrata[i],
-                Number(t.heatingOverride) || 0,
-                t.moveIn || null,
-                t.moveOut || null,
-              ),
-            ),
-          ]
-        : null;
-
-      const finalSnapshot = tenantsArr ? { ...snapshot, tenants: tenantsArr } : snapshot;
-
-      const { data, error } = await supabase.functions.invoke("create-service-checkout", {
-        body: {
-          service_type: "nebenkosten",
-          assignment_id: assignmentId,
-          fiscal_year: selectedPeriod.fiscal_year,
-          agb_version: CURRENT_LEGAL_VERSION,
-          privacy_version: CURRENT_LEGAL_VERSION,
-          widerruf_waiver_confirmed: true,
-          quantity,
-          input_snapshot: finalSnapshot,
-        },
-      });
-      if (error) throw error;
-      if (data?.url) {
-        window.location.href = data.url;
-      } else {
-        throw new Error("Keine Checkout-URL erhalten.");
+      const raw = localStorage.getItem("inbox-selected-accounts");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
       }
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e.message || "Bestellung fehlgeschlagen.");
+    } catch {}
+    return null; // null = all accounts
+  });
+  const [accountsExpanded, setAccountsExpanded] = useState<boolean>(() => {
+    try {
+      const raw = localStorage.getItem("inbox-accounts-expanded");
+      if (raw) return JSON.parse(raw) === true;
+    } catch {}
+    return true;
+  });
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [aiSearchOpen, setAiSearchOpen] = useState(false);
+  const [showEmailDetails, setShowEmailDetails] = useState(false);
+  const [archiveEmailId, setArchiveEmailId] = useState<string | null>(null);
+  const [brokerLeadEmailId, setBrokerLeadEmailId] = useState<string | null>(null);
+  const [filterBuildingId, setFilterBuildingId] = useState<string>("all");
+  const [filterContactId, setFilterContactId] = useState<string>("all");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterAssignedTo, setFilterAssignedTo] = useState<string>("all");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileFoldersOpen, setMobileFoldersOpen] = useState(false);
+  const [newContactDialogOpen, setNewContactDialogOpen] = useState(false);
+  const [newContactData, setNewContactData] = useState({ first_name: "", last_name: "", company_name: "", email: "" });
+  const [contactSearchTerm, setContactSearchTerm] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [selectedEmailIds, setSelectedEmailIds] = useState<Set<string>>(new Set());
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === "admin";
+  const isMobile = useIsMobile();
+
+  // Virtual folder IDs
+  const SCHEDULED_FOLDER_ID = "__scheduled__";
+  const DRAFTS_FOLDER_ID = "__drafts__";
+  const CALLS_FOLDER_ID = "__calls__";
+
+  // Fetch folders (auto-refresh every 60s)
+  const { data: dbFolders = [] } = useQuery({
+    queryKey: ["email-folders"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("email_folders").select("*").order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  });
+
+  // Append virtual "Entwürfe" + "Geplant" + "Telefonate" folders
+  const folders = useMemo(() => {
+    // Doppelten "Entwürfe"-Ordner vom Konto entfernen – die App nutzt ihren eigenen (virtuellen) Entwürfe-Ordner.
+    const accountFolders = dbFolders.filter((f: any) => (f?.name ?? "").trim().toLowerCase() !== "entwürfe");
+    return [
+      ...accountFolders,
+      {
+        id: DRAFTS_FOLDER_ID,
+        name: "Entwürfe",
+        icon: "file-text",
+        sort_order: 998,
+        is_system: true,
+        color: null,
+        created_at: null,
+      } as any,
+      {
+        id: SCHEDULED_FOLDER_ID,
+        name: "Geplant",
+        icon: "calendar-clock",
+        sort_order: 999,
+        is_system: true,
+        color: null,
+        created_at: null,
+      } as any,
+      {
+        id: CALLS_FOLDER_ID,
+        name: "Telefonate",
+        icon: "phone",
+        sort_order: 1000,
+        is_system: true,
+        color: null,
+        created_at: null,
+      } as any,
+    ];
+  }, [dbFolders]);
+
+  // Fetch accounts
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["email-accounts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("email_accounts")
+        .select("id, display_name, email_address, is_active, last_sync_at, short_code")
+        .order("display_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch account-user assignments
+  const { data: accountUsers = [] } = useQuery({
+    queryKey: ["email-account-users"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("email_account_users").select("*");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch admin profiles for assignment
+  const { data: adminProfiles = [] } = useQuery({
+    queryKey: ["admin-profiles"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name, role")
+        .in("role", ["admin", "employee"])
+        .order("last_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Get account IDs for the currently logged-in user
+  const myAccountIds = useMemo(() => {
+    if (!profile?.user_id) return [];
+    return accountUsers.filter((au) => au.user_id === profile.user_id).map((au) => au.account_id);
+  }, [accountUsers, profile?.user_id]);
+
+  // Buildings for archive filter
+  const { data: buildings = [] } = useQuery({
+    queryKey: ["buildings-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("buildings").select("id, name").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Contacts for archive filter
+  const { data: contacts = [] } = useQuery({
+    queryKey: ["contacts-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("id, first_name, last_name, company_name")
+        .order("last_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Determine if archive folder is selected
+  const isArchiveFolder = useMemo(() => {
+    if (!selectedFolderId || folders.length === 0) return false;
+    const folder = folders.find((f) => f.id === selectedFolderId);
+    return folder?.name === "Archiv";
+  }, [selectedFolderId, folders]);
+
+  // Determine if trash folder is selected
+  const isTrashFolder = useMemo(() => {
+    if (!selectedFolderId || folders.length === 0) return false;
+    const folder = folders.find((f) => f.id === selectedFolderId);
+    return folder?.name === "Papierkorb";
+  }, [selectedFolderId, folders]);
+
+  // Determine if sent folder is selected
+  const isSentFolder = useMemo(() => {
+    if (!selectedFolderId || folders.length === 0) return false;
+    const folder = folders.find((f) => f.id === selectedFolderId);
+    return folder?.name === "Gesendet";
+  }, [selectedFolderId, folders]);
+
+  // Unread counts per folder (auto-refresh every 30s) — nur abonnierte Postfächer
+  const { data: folderCountsRaw = {} } = useQuery({
+    queryKey: ["email-folder-counts", myAccountIds],
+    queryFn: async () => {
+      if (!myAccountIds || myAccountIds.length === 0) return {};
+      const { data, error } = await supabase
+        .from("emails")
+        .select("folder_id, is_read, account_id")
+        .eq("is_read", false)
+        .eq("is_archived", false)
+        .in("account_id", myAccountIds);
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      data?.forEach((e) => {
+        if (e.folder_id) {
+          counts[e.folder_id] = (counts[e.folder_id] || 0) + 1;
+        }
+      });
+      return counts;
+    },
+    enabled: myAccountIds.length > 0,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
+
+  // Scheduled mails (single + bulk campaigns) — populates the virtual "Geplant" folder
+  const { data: scheduledItems = [] } = useQuery({
+    queryKey: ["scheduled-mails-virtual"],
+    queryFn: async () => {
+      const [singleRes, campaignRes] = await Promise.all([
+        supabase
+          .from("scheduled_emails")
+          .select(
+            "id, subject, to_addresses, scheduled_at, status, account_id, body_text, body_html, attachments, error_message, created_at",
+          )
+          .eq("status", "scheduled")
+          .order("scheduled_at", { ascending: true }),
+        supabase
+          .from("comm_campaigns")
+          .select(
+            "id, name, type, recipient_count, scheduled_at, status, email_account_id, subject_override, error_message, created_at",
+          )
+          .eq("status", "scheduled")
+          .order("scheduled_at", { ascending: true }),
+      ]);
+      const single = (singleRes.data || []).map((s: any) => ({
+        id: `single-${s.id}`,
+        kind: "single" as const,
+        ref_id: s.id,
+        subject: s.subject || "(Kein Betreff)",
+        recipients: Array.isArray(s.to_addresses) ? s.to_addresses : [],
+        recipient_count: Array.isArray(s.to_addresses) ? s.to_addresses.length : 0,
+        scheduled_at: s.scheduled_at,
+        account_id: s.account_id,
+        error_message: s.error_message,
+      }));
+      const bulk = await Promise.all(
+        (campaignRes.data || []).map(async (c: any) => {
+          let resolved: Array<{ contact_id: string; display_name: string; email: string | null }> | undefined;
+          try {
+            const { data: prev } = await supabase.functions.invoke("comm-preview-recipients", {
+              body: { campaign_id: c.id },
+            });
+            if (prev && Array.isArray((prev as any).recipients)) {
+              resolved = (prev as any).recipients;
+            }
+          } catch {
+            // leave resolved undefined → UI shows loading/fallback
+          }
+          return {
+            id: `campaign-${c.id}`,
+            kind: "campaign" as const,
+            ref_id: c.id,
+            subject: c.subject_override || c.name || "(Rundmail)",
+            recipients: [],
+            recipient_count: resolved ? resolved.length : c.recipient_count || 0,
+            scheduled_at: c.scheduled_at,
+            account_id: c.email_account_id,
+            campaign_type: c.type,
+            error_message: c.error_message,
+            resolved_recipients: resolved,
+          };
+        }),
+      );
+      return [...single, ...bulk].sort((a, b) => {
+        const ad = a.scheduled_at ? new Date(a.scheduled_at).getTime() : 0;
+        const bd = b.scheduled_at ? new Date(b.scheduled_at).getTime() : 0;
+        return ad - bd;
+      });
+    },
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  });
+
+  // Drafts query (virtual "Entwürfe" folder)
+  const { data: draftItems = [] } = useQuery({
+    queryKey: ["email-drafts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("email_drafts")
+        .select(
+          "id, account_id, to_addresses, cc_addresses, bcc_addresses, subject, body_text, attachments, updated_at",
+        )
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    refetchOnWindowFocus: true,
+  });
+
+  // Missed calls count (live)
+  const { data: missedCallsCount = 0 } = useQuery({
+    queryKey: ["call-logs-missed-count"],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("call_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "verpasst")
+        .eq("handled", false);
+      return count || 0;
+    },
+    refetchInterval: 30_000,
+  });
+
+  useEffect(() => {
+    const ch = supabase
+      .channel("call_logs_inbox_badge")
+      .on("postgres_changes", { event: "*", schema: "public", table: "call_logs" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["call-logs-missed-count"] });
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, []);
+
+  // Merge counts: real folders + virtual folders
+  const folderCounts = useMemo(() => {
+    return {
+      ...(folderCountsRaw as Record<string, number>),
+      [SCHEDULED_FOLDER_ID]: scheduledItems.length,
+      [DRAFTS_FOLDER_ID]: draftItems.length,
+      [CALLS_FOLDER_ID]: missedCallsCount,
+    };
+  }, [folderCountsRaw, scheduledItems.length, draftItems.length, missedCallsCount]);
+
+  const isScheduledFolder = selectedFolderId === SCHEDULED_FOLDER_ID;
+  const isDraftsFolder = selectedFolderId === DRAFTS_FOLDER_ID;
+  const isCallsFolder = selectedFolderId === CALLS_FOLDER_ID;
+
+  // Fetch emails for selected folder — slim columns; body wird lazy für Detail geladen
+  const isSearching = searchTerm.trim().length >= 2;
+  const [pageLimit, setPageLimit] = useState<number>(100);
+  // Reset Pagination wenn sich Ordner / Filter / Suche ändern
+  useEffect(() => {
+    setPageLimit(isSearching ? 200 : 100);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedFolderId,
+    searchTerm,
+    selectedAccountIds,
+    isArchiveFolder,
+    filterBuildingId,
+    filterContactId,
+    filterAssignedTo,
+  ]);
+
+  const EMAIL_COLUMNS =
+    "id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, contact_person_id, assigned_to, deleted_at, case_id, message_id, is_etv_relevant, etv_meeting_id";
+
+  const {
+    data: emails = [],
+    isLoading: emailsLoading,
+    error: emailsError,
+  } = useQuery({
+    queryKey: [
+      "emails",
+      selectedFolderId,
+      searchTerm,
+      selectedAccountIds,
+      isArchiveFolder,
+      filterBuildingId,
+      filterContactId,
+      filterAssignedTo,
+      pageLimit,
+    ],
+    queryFn: async () => {
+      // Suchmodus: serverseitige RPC (ordnerübergreifend, sucht zuverlässig auch in JSONB-Empfängern)
+      if (isSearching) {
+        const accountIds = selectedAccountIds === null ? null : selectedAccountIds;
+        if (accountIds && accountIds.length === 0) return [] as any[];
+        const assignedFilter =
+          filterAssignedTo === "all" ? "all" : filterAssignedTo === "unassigned" ? "unassigned" : "user";
+        const { data, error } = await supabase.rpc("search_emails" as any, {
+          p_search: searchTerm.trim(),
+          p_account_ids: accountIds,
+          p_assigned_to: assignedFilter === "user" ? filterAssignedTo : null,
+          p_assigned_filter: assignedFilter,
+          p_limit: pageLimit,
+          p_offset: 0,
+        });
+        if (error) throw error;
+        return (data || []) as any[];
+      }
+
+      let query = supabase.from("emails").select(EMAIL_COLUMNS).order("date", { ascending: false }).limit(pageLimit);
+
+      if (isArchiveFolder) {
+        query = query.eq("is_archived", true);
+        if (filterBuildingId === "none") query = query.is("building_id", null);
+        else if (filterBuildingId !== "all") query = query.eq("building_id", filterBuildingId);
+        if (filterContactId === "none") query = query.is("contact_id", null);
+        else if (filterContactId !== "all") query = query.eq("contact_id", filterContactId);
+      } else {
+        query = query.eq("is_archived", false);
+        if (selectedFolderId) query = query.eq("folder_id", selectedFolderId);
+      }
+
+      if (selectedAccountIds !== null) {
+        if (selectedAccountIds.length === 0) return [];
+        query = query.in("account_id", selectedAccountIds);
+      }
+
+      if (filterAssignedTo === "unassigned") {
+        query = query.is("assigned_to", null);
+      } else if (filterAssignedTo !== "all") {
+        query = query.eq("assigned_to", filterAssignedTo);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+    enabled: !isScheduledFolder && !isCallsFolder,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
+
+  // "Mehr laden": Anzahl entspricht aktuellem Limit -> wahrscheinlich gibt es mehr Treffer
+  const canLoadMore = emails.length >= pageLimit;
+
+  // Map: message_id of inbound email -> id of sent reply (latest)
+  const inboundMessageIds = useMemo(
+    () => emails.map((e) => (e as any).message_id).filter((m): m is string => !!m),
+    [emails],
+  );
+  const { data: replyMap = {} } = useQuery({
+    queryKey: ["email-replies", inboundMessageIds],
+    queryFn: async () => {
+      if (inboundMessageIds.length === 0) return {} as Record<string, string>;
+      const { data, error } = await supabase
+        .from("emails")
+        .select("id, in_reply_to, date")
+        .in("in_reply_to", inboundMessageIds)
+        .order("date", { ascending: false });
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      for (const row of data || []) {
+        const key = (row as any).in_reply_to as string;
+        if (key && !map[key]) map[key] = (row as any).id;
+      }
+      return map;
+    },
+    enabled: inboundMessageIds.length > 0,
+  });
+
+  // All known categories (always shown). Wartung/Mahnung/Vertrag/Unkategorisiert -> Sonstiges; Newsletter -> Werbung.
+  const ALL_CATEGORIES = ["Rechnung", "Anfrage", "Versicherung", "Werbung", "Sonstiges"];
+
+  const normalizeCategory = (cat: string | null | undefined): string => {
+    if (!cat) return "Sonstiges";
+    if (cat === "Newsletter") return "Werbung";
+    if (ALL_CATEGORIES.includes(cat)) return cat;
+    return "Sonstiges";
+  };
+
+  const followUpCount = useMemo(() => emails.filter((e) => e.is_starred).length, [emails]);
+
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const cat of ALL_CATEGORIES) counts[cat] = 0;
+    for (const e of emails) {
+      const cat = normalizeCategory(e.ai_category);
+      counts[cat] = (counts[cat] || 0) + 1;
+    }
+    return counts;
+  }, [emails]);
+
+  const unreadCount = useMemo(() => emails.filter((e) => !e.is_read).length, [emails]);
+
+  const filteredEmails = useMemo(() => {
+    let list: typeof emails;
+    if (filterCategory === "followup") list = emails.filter((e) => e.is_starred);
+    else if (filterCategory === "unread") list = emails.filter((e) => !e.is_read);
+    else if (filterCategory === "all") list = emails;
+    else list = emails.filter((e) => normalizeCategory(e.ai_category) === filterCategory);
+    // Pinned emails immer oben, dann nach Datum (DESC, wie aus Query)
+    return [...list].sort((a, b) => {
+      const ap = a.is_pinned ? 1 : 0;
+      const bp = b.is_pinned ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      if (a.is_pinned && b.is_pinned) {
+        const at = a.pinned_at ? new Date(a.pinned_at).getTime() : 0;
+        const bt = b.pinned_at ? new Date(b.pinned_at).getTime() : 0;
+        if (at !== bt) return bt - at;
+      }
+      const ad = a.date ? new Date(a.date).getTime() : 0;
+      const bd = b.date ? new Date(b.date).getTime() : 0;
+      return bd - ad;
+    });
+  }, [emails, filterCategory]);
+
+  const selectedEmailMeta =
+    filteredEmails.find((e) => e.id === selectedEmailId) || emails.find((e) => e.id === selectedEmailId);
+
+  // Reset multi-selection when folder/filter/search changes
+  useEffect(() => {
+    setSelectedEmailIds(new Set());
+  }, [selectedFolderId, filterCategory, filterBuildingId, filterContactId, filterAssignedTo, searchTerm]);
+
+  // Drop selections that are no longer visible
+  useEffect(() => {
+    if (selectedEmailIds.size === 0) return;
+    const visible = new Set(filteredEmails.map((e) => e.id));
+    let changed = false;
+    const next = new Set<string>();
+    selectedEmailIds.forEach((id) => {
+      if (visible.has(id)) next.add(id);
+      else changed = true;
+    });
+    if (changed) setSelectedEmailIds(next);
+  }, [filteredEmails, selectedEmailIds]);
+
+  // Lazy-Load Email-Body nur für die selektierte E-Mail
+  const { data: selectedEmailBody } = useQuery({
+    queryKey: ["email-body", selectedEmailId],
+    queryFn: async () => {
+      if (!selectedEmailId) return null;
+      const { data, error } = await supabase
+        .from("emails")
+        .select("body_html, body_text")
+        .eq("id", selectedEmailId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedEmailId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Fallback: lade vollständige Email-Metadaten direkt, falls die Email nicht in der aktuellen Liste ist
+  // (z.B. Deep-Link aus einem Vorgang in einen anderen Ordner / Account).
+  const { data: selectedEmailDirect } = useQuery({
+    queryKey: ["email-direct", selectedEmailId],
+    queryFn: async () => {
+      if (!selectedEmailId) return null;
+      const { data, error } = await supabase
+        .from("emails")
+        .select(EMAIL_COLUMNS)
+        .eq("id", selectedEmailId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedEmailId && !selectedEmailMeta,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const effectiveSelectedMeta = selectedEmailMeta || selectedEmailDirect;
+
+  const selectedEmail = effectiveSelectedMeta
+    ? {
+        ...effectiveSelectedMeta,
+        body_html: selectedEmailBody?.body_html ?? null,
+        body_text: selectedEmailBody?.body_text ?? null,
+      }
+    : undefined;
+
+  // Auto-select inbox folder
+  useEffect(() => {
+    const inboxFolder = folders.find((f) => f.name === "Eingang");
+    if (inboxFolder && !selectedFolderId) {
+      setSelectedFolderId(inboxFolder.id);
+    }
+  }, [folders, selectedFolderId]);
+
+  // Mark as read when selecting an email
+  useEffect(() => {
+    if (selectedEmail && !selectedEmail.is_read) {
+      supabase
+        .from("emails")
+        .update({ is_read: true })
+        .eq("id", selectedEmail.id)
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ["emails"] });
+          queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+        });
+    }
+  }, [selectedEmailId]);
+
+  // Deep-link: open email by ?email=<id>. Switches folder (incl. Archiv) and resets filters.
+  useEffect(() => {
+    const emailIdFromUrl = searchParams.get("email");
+    if (!emailIdFromUrl || emailIdFromUrl === selectedEmailId || folders.length === 0) return;
+    (async () => {
+      const { data } = await supabase
+        .from("emails")
+        .select("id, folder_id, is_archived")
+        .eq("id", emailIdFromUrl)
+        .maybeSingle();
+      if (data) {
+        setFilterCategory("all");
+        setFilterBuildingId("all");
+        setFilterContactId("all");
+        setFilterAssignedTo("all");
+        if (data.is_archived) {
+          const archive = folders.find((f) => f.name === "Archiv");
+          if (archive) setSelectedFolderId(archive.id);
+        } else if (data.folder_id) {
+          setSelectedFolderId(data.folder_id);
+        }
+        setSelectedEmailId(data.id);
+      }
+      const next = new URLSearchParams(searchParams);
+      next.delete("email");
+      setSearchParams(next, { replace: true });
+    })();
+  }, [searchParams, selectedEmailId, folders, setSearchParams]);
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("fetch-emails");
+      if (error) throw error;
+
+      // Check for per-account errors in the response
+      if (data?.results) {
+        const accountErrors = Object.entries(data.results)
+          .filter(([_, v]: [string, any]) => v?.error)
+          .map(([k, v]: [string, any]) => `${k}: ${v.error}`);
+        if (accountErrors.length > 0) {
+          toast.warning(`Sync teilweise erfolgreich. Fehler bei: ${accountErrors.join(", ")}`, { duration: 6000 });
+        } else {
+          toast.success("E-Mails synchronisiert");
+        }
+      } else {
+        toast.success("E-Mails synchronisiert");
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      queryClient.invalidateQueries({ queryKey: ["email-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+    } catch (err: any) {
+      toast.error("Sync fehlgeschlagen: " + (err.message || "Unbekannter Fehler"));
     } finally {
-      setSubmitting(false);
+      setIsSyncing(false);
+    }
+  };
+
+  // Periodic silent IMAP sync every 5 minutes (no toast). Triggers right after mount once,
+  // then on a fixed interval — independent of manual refresh button.
+  useEffect(() => {
+    let cancelled = false;
+    const silentSync = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("fetch-emails");
+        if (cancelled || error) return;
+        queryClient.invalidateQueries({ queryKey: ["emails"] });
+        queryClient.invalidateQueries({ queryKey: ["email-accounts"] });
+        queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+      } catch {
+        // silent — periodic background fetch must never spam toasts
+      }
+    };
+    // Trigger initial sync shortly after mount, then poll every 60 seconds
+    const initialId = window.setTimeout(silentSync, 2_000);
+    const id = window.setInterval(silentSync, 60 * 1000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(initialId);
+      window.clearInterval(id);
+    };
+  }, [queryClient]);
+
+  const toggleFollowUp = async (emailId: string, currentStarred: boolean) => {
+    await supabase.from("emails").update({ is_starred: !currentStarred }).eq("id", emailId);
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+  };
+
+  const togglePin = async (emailId: string, currentPinned: boolean) => {
+    const next = !currentPinned;
+    await supabase
+      .from("emails")
+      .update({
+        is_pinned: next,
+        pinned_at: next ? new Date().toISOString() : null,
+      })
+      .eq("id", emailId);
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    toast.success(next ? "E-Mail oben angepinnt" : "Anpinnung entfernt");
+  };
+
+  const openArchiveDialog = (emailId: string) => {
+    setArchiveEmailId(emailId);
+    setArchiveDialogOpen(true);
+  };
+
+  const handleAssign = async (params: {
+    emailId: string;
+    buildingId: string | null;
+    contactId: string | null;
+    contactPersonId: string | null;
+    caseId: string | null;
+    parentEventId: string | null;
+    archive: boolean;
+    isEtvRelevant: boolean;
+    etvMeetingId: string | null;
+  }) => {
+    const update: any = {
+      building_id: params.buildingId,
+      contact_id: params.contactId,
+      contact_person_id: params.contactPersonId,
+      case_id: params.caseId,
+      is_etv_relevant: params.isEtvRelevant,
+      etv_meeting_id: params.etvMeetingId,
+    };
+    if (params.archive) update.is_archived = true;
+    await supabase.from("emails").update(update).eq("id", params.emailId);
+
+    // If linked to a case, create case event including attachments
+    if (params.caseId) {
+      const email = emails.find((e) => e.id === params.emailId);
+      try {
+        // Fetch latest ai_summary in case it was generated after initial load
+        const { data: emailRow } = await supabase
+          .from("emails")
+          .select("ai_summary, subject, from_address, from_name, body_text")
+          .eq("id", params.emailId)
+          .maybeSingle();
+
+        const { data: atts } = await supabase
+          .from("email_attachments")
+          .select("file_name, file_path, file_size, mime_type")
+          .eq("email_id", params.emailId)
+          .eq("is_inline", false);
+        const attachments = (atts || [])
+          .filter((a) => a.file_path)
+          .map((a) => ({
+            name: a.file_name,
+            path: a.file_path,
+            size: a.file_size,
+            mime: a.mime_type,
+            bucket: "email-attachments",
+          }));
+
+        const summary = emailRow?.ai_summary?.trim();
+        const fallback = (emailRow?.body_text || "").substring(0, 500);
+
+        await supabase.functions.invoke("case-add-event", {
+          body: {
+            case_id: params.caseId,
+            event_type: "email",
+            title: emailRow?.subject || email?.subject || "E-Mail",
+            body: summary || fallback || null,
+            source_table: "emails",
+            source_id: params.emailId,
+            attachments,
+            extracted_data: {
+              email_id: params.emailId,
+              from_address: emailRow?.from_address || null,
+              from_name: emailRow?.from_name || null,
+              has_ai_summary: !!summary,
+            },
+            parent_event_id: params.parentEventId || null,
+            trigger_summary: true,
+          },
+        });
+      } catch (e) {
+        console.error("case-add-event failed", e);
+      }
+    }
+
+    if (params.archive && selectedEmailId === params.emailId) setSelectedEmailId(null);
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+    queryClient.invalidateQueries({ queryKey: ["case-events"] });
+    queryClient.invalidateQueries({ queryKey: ["etv-relevant-emails"] });
+    toast.success(params.archive ? "E-Mail zugeordnet & archiviert" : "E-Mail zugeordnet");
+  };
+
+  const deleteEmail = async (emailId: string) => {
+    const trashFolder = folders.find((f) => f.name === "Papierkorb");
+    if (trashFolder) {
+      await supabase
+        .from("emails")
+        .update({ folder_id: trashFolder.id, deleted_at: new Date().toISOString() })
+        .eq("id", emailId);
+    } else {
+      await supabase.from("emails").delete().eq("id", emailId);
+    }
+    if (selectedEmailId === emailId) setSelectedEmailId(null);
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+    toast.success("E-Mail in Papierkorb verschoben");
+  };
+
+  const restoreEmail = async (emailId: string) => {
+    const inboxFolder = folders.find((f) => f.name === "Eingang");
+    if (inboxFolder) {
+      await supabase.from("emails").update({ folder_id: inboxFolder.id, deleted_at: null }).eq("id", emailId);
+    }
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+    toast.success("E-Mail wiederhergestellt");
+  };
+
+  const permanentDeleteEmail = async (emailId: string) => {
+    await supabase.from("email_attachments").delete().eq("email_id", emailId);
+    await supabase.from("emails").delete().eq("id", emailId);
+    if (selectedEmailId === emailId) setSelectedEmailId(null);
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+    toast.success("E-Mail endgültig gelöscht");
+  };
+
+  const toggleSelectEmail = (emailId: string, checked: boolean) => {
+    setSelectedEmailIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(emailId);
+      else next.delete(emailId);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedEmailIds(new Set());
+
+  const bulkDeleteSelected = async () => {
+    const ids = Array.from(selectedEmailIds);
+    if (ids.length === 0) return;
+    setBulkDeleting(true);
+    try {
+      if (isTrashFolder) {
+        // Permanent delete
+        await supabase.from("email_attachments").delete().in("email_id", ids);
+        const { error } = await supabase.from("emails").delete().in("id", ids);
+        if (error) throw error;
+        toast.success(`${ids.length} E-Mail(s) endgültig gelöscht`);
+      } else {
+        const trashFolder = folders.find((f) => f.name === "Papierkorb");
+        if (trashFolder) {
+          const { error } = await supabase
+            .from("emails")
+            .update({ folder_id: trashFolder.id, deleted_at: new Date().toISOString() })
+            .in("id", ids);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from("emails").delete().in("id", ids);
+          if (error) throw error;
+        }
+        toast.success(`${ids.length} E-Mail(s) in Papierkorb verschoben`);
+      }
+      if (selectedEmailId && ids.includes(selectedEmailId)) setSelectedEmailId(null);
+      clearSelection();
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+    } catch (err: any) {
+      toast.error("Fehler: " + (err.message || "Unbekannt"));
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const toggleRead = async (emailId: string, currentRead: boolean) => {
+    await supabase.from("emails").update({ is_read: !currentRead }).eq("id", emailId);
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+  };
+
+  const getContactName = (c: any) => {
+    const parts = [c.first_name, c.last_name].filter(Boolean).join(" ");
+    const name = parts || c.company_name || "Unbenannt";
+    if (parts && c.company_name) return `${name} (${c.company_name})`;
+    return name;
+  };
+
+  const senderHasContact = useMemo(() => {
+    if (!selectedEmail?.from_address) return false;
+    return selectedEmail.contact_id != null;
+  }, [selectedEmail]);
+
+  const openNewContactFromEmail = () => {
+    if (!selectedEmail) return;
+    const fromName = selectedEmail.from_name || "";
+    const parts = fromName.split(" ");
+    setNewContactData({
+      first_name: parts.length > 1 ? parts.slice(0, -1).join(" ") : fromName,
+      last_name: parts.length > 1 ? parts[parts.length - 1] : "",
+      company_name: "",
+      email: selectedEmail.from_address || "",
+    });
+    setNewContactDialogOpen(true);
+  };
+
+  const handleCreateContact = async () => {
+    try {
+      const contactType = newContactData.company_name ? "company" : "person";
+      const { data: contact, error } = await supabase
+        .from("contacts")
+        .insert({
+          first_name: newContactData.first_name || null,
+          last_name: newContactData.last_name || null,
+          company_name: newContactData.company_name || null,
+          contact_type: contactType as any,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+
+      // Create a contact_person
+      const { data: person } = await supabase
+        .from("contact_persons")
+        .insert({
+          contact_id: contact.id,
+          first_name: newContactData.first_name || null,
+          last_name: newContactData.last_name || null,
+          is_primary: true,
+        })
+        .select("id")
+        .single();
+
+      if (newContactData.email) {
+        await supabase.from("contact_emails").insert({
+          contact_id: contact.id,
+          person_id: person?.id || null,
+          email: newContactData.email,
+          is_primary: true,
+        });
+      }
+
+      // Link email to new contact
+      if (selectedEmail) {
+        await supabase.from("emails").update({ contact_id: contact.id }).eq("id", selectedEmail.id);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["contacts-list"] });
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      setNewContactDialogOpen(false);
+      toast.success("Kontakt erstellt und verknüpft");
+    } catch (err: any) {
+      toast.error("Fehler: " + err.message);
+    }
+  };
+
+  const addEmailToExistingContact = async (contactId: string) => {
+    if (!selectedEmail?.from_address) return;
+    try {
+      // Check if email already exists for this contact
+      const { data: existing } = await supabase
+        .from("contact_emails")
+        .select("id")
+        .eq("contact_id", contactId)
+        .eq("email", selectedEmail.from_address);
+
+      if (!existing || existing.length === 0) {
+        // Get primary person for this contact
+        const { data: primaryPerson } = await supabase
+          .from("contact_persons")
+          .select("id")
+          .eq("contact_id", contactId)
+          .eq("is_primary", true)
+          .limit(1)
+          .maybeSingle();
+
+        await supabase.from("contact_emails").insert({
+          contact_id: contactId,
+          person_id: primaryPerson?.id || null,
+          email: selectedEmail.from_address,
+          is_primary: false,
+        });
+      }
+
+      // Link email to contact
+      await supabase.from("emails").update({ contact_id: contactId }).eq("id", selectedEmail.id);
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      queryClient.invalidateQueries({ queryKey: ["contacts-list"] });
+      toast.success("E-Mail-Adresse zum Kontakt hinzugefügt");
+    } catch (err: any) {
+      toast.error("Fehler: " + err.message);
     }
   };
 
   return (
-    <TooltipProvider delayDuration={150}>
-      <div className="min-h-screen pb-32" style={{ background: RGI.bg, color: RGI.text, fontFamily: bodyFont }}>
-        <div className="max-w-2xl mx-auto px-4 pt-4 pb-6">
+    <div className="h-[calc(100dvh-8rem)] min-h-0 flex flex-col md:flex-row rounded-lg border bg-background overflow-hidden touch-pan-y">
+      {/* Mobile-only header bar — shows hamburger + back button + sync */}
+      <div className="md:hidden flex items-center justify-between px-2 py-2 border-b shrink-0 gap-2">
+        {selectedEmailId ? (
           <Button
             variant="ghost"
-            size="sm"
-            onClick={() => navigate("/weg-owner/service-hub")}
-            className="mb-3 -ml-2 h-11"
+            size="icon"
+            className="h-10 w-10"
+            onClick={() => setSelectedEmailId(null)}
+            aria-label="Zurück"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Zurück zum Service-Hub
+            <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-2xl font-bold leading-tight" style={{ fontFamily: headingFont }}>
-            Nebenkostenabrechnung für Mieter
-          </h1>
-          <p className="text-sm mt-2" style={{ color: RGI.muted }}>
-            Grüne Felder sind vorbefüllt, gelbe Felder bitte ergänzen. Wir nutzen Ihre WEG-Abrechnung und die Werte des
-            Messdienstes.
-          </p>
-
-          {isInitialLoading ? (
-            <div
-              className="mt-8 rounded-2xl border flex flex-col items-center justify-center gap-3 py-16 px-6 text-center"
-              style={{ borderColor: RGI.border, background: "#fff" }}
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10"
+            onClick={() => setMobileFoldersOpen(true)}
+            aria-label="Ordner öffnen"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        )}
+        <span className="font-medium text-sm truncate flex-1 text-center">
+          {selectedEmailId
+            ? selectedEmail?.subject || "(Kein Betreff)"
+            : folders.find((f) => f.id === selectedFolderId)?.name || "Postfach"}
+        </span>
+        {!selectedEmailId && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10"
+              onClick={handleSync}
+              disabled={isSyncing}
+              aria-label="Synchronisieren"
             >
-              <Loader2 className="w-8 h-8 animate-spin" style={{ color: RGI.amber }} />
-              <div className="text-sm font-medium" style={{ color: RGI.text }}>
-                Daten werden geladen …
-              </div>
-              <div className="text-xs" style={{ color: RGI.muted }}>
-                Bitte einen Moment Geduld, wir prüfen Ihre Wohnung und Abrechnung.
-              </div>
-            </div>
-          ) : assignments.length === 0 ? (
-            <div className="mt-6 space-y-3">
-              <Alert variant="destructive">
-                <AlertCircle className="w-4 h-4" />
-                <AlertDescription>
-                  Für Ihren Account ist aktuell keine Wohnung hinterlegt. Bitte kontaktieren Sie die Verwaltung
-                  (info@rgi-immobilien.de / 08363&nbsp;960656).
-                </AlertDescription>
-              </Alert>
-              <div
-                className="rounded-xl border px-4 py-3 text-sm"
-                style={{ borderColor: RGI.border, background: RGI.amberBg, color: RGI.amber }}
+              {isSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
+            </Button>
+            <Button size="icon" className="h-10 w-10" onClick={() => openCompose()} aria-label="Neue E-Mail">
+              <Plus className="h-5 w-5" />
+            </Button>
+          </>
+        )}
+        {selectedEmailId && <div className="w-10" />}
+      </div>
+
+      {/* Left: Folders & Accounts (Desktop only) — on mobile available via Sheet */}
+      {sidebarCollapsed ? (
+        <div className="hidden md:flex w-10 border-r flex-col items-center py-2 shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 mb-2"
+            onClick={() => setSidebarCollapsed(false)}
+            title="Navigation einblenden"
+          >
+            <PanelLeftOpen className="h-4 w-4" />
+          </Button>
+          <Button size="icon" className="h-8 w-8 mb-1" onClick={() => openCompose()} title="Neue E-Mail">
+            <Plus className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={handleSync}
+            disabled={isSyncing}
+            title="Synchronisieren"
+          >
+            {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          </Button>
+          <Separator className="my-2 w-6" />
+          {folders.map((folder) => {
+            const Icon = folderIcons[folder.icon || "inbox"] || Mail;
+            const isActive = selectedFolderId === folder.id;
+            const count = folderCounts[folder.id] || 0;
+            return (
+              <button
+                key={folder.id}
+                onClick={() => {
+                  setSelectedFolderId(folder.id);
+                  setSelectedEmailId(null);
+                }}
+                className={cn(
+                  "relative h-8 w-8 flex items-center justify-center rounded-md transition-colors mb-0.5",
+                  isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground",
+                )}
+                title={folder.name}
               >
-                Die Nebenkostenabrechnung kann aktuell noch nicht erstellt werden.
-              </div>
-            </div>
-          ) : assignmentId && periods.length === 0 ? (
-            <div className="mt-6 space-y-3">
-              {assignments.length > 1 && (
-                <SectionCard num={1} title="Wohnung & Abrechnungsjahr" icon={HomeIcon}>
-                  <Field label="Wohnung">
-                    <Select value={assignmentId ?? ""} onValueChange={(v) => setAssignmentId(v)}>
-                      <SelectTrigger className="h-11">
-                        <SelectValue placeholder="Bitte wählen" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {assignments.map((a) => (
-                          <SelectItem key={a.id} value={a.id}>
-                            {a.building_name ?? "Gebäude"} — Whg. {a.unit_number ?? "?"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                </SectionCard>
-              )}
-              <Alert variant="destructive">
-                <AlertCircle className="w-4 h-4" />
-                <AlertDescription>
-                  Für diese Wohnung ist noch keine WEG-Abrechnung finalisiert. Bitte wenden Sie sich an die Verwaltung
-                  (info@rgi-immobilien.de / 08363&nbsp;960656).
-                </AlertDescription>
-              </Alert>
-              <div
-                className="rounded-xl border px-4 py-3 text-sm"
-                style={{ borderColor: RGI.border, background: RGI.amberBg, color: RGI.amber }}
-              >
-                Die Nebenkostenabrechnung kann aktuell noch nicht erstellt werden.
-              </div>
-            </div>
-          ) : (
-            <>
-              <SectionCard num={1} title="Wohnung & Abrechnungsjahr" icon={HomeIcon}>
-                <div className="space-y-3">
-                  <Field label="Wohnung">
-                    <Select value={assignmentId ?? ""} onValueChange={(v) => setAssignmentId(v)}>
-                      <SelectTrigger className="h-11" style={fieldStyle(!!assignmentId)}>
-                        <SelectValue placeholder="Bitte wählen" style={{ color: RGI.green }} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {assignments.map((a) => (
-                          <SelectItem key={a.id} value={a.id}>
-                            {a.building_name ?? "Gebäude"} — Whg. {a.unit_number ?? "?"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Abrechnungsjahr">
-                    <Select value={periodId ?? ""} onValueChange={(v) => setPeriodId(v)}>
-                      <SelectTrigger
-                        className="h-11"
-                        style={fieldStyle(!!periodId)}
-                        disabled={!assignmentId || periods.length === 0}
-                      >
-                        <SelectValue
-                          placeholder={
-                            !assignmentId
-                              ? "Erst Wohnung wählen"
-                              : periods.length === 0
-                                ? "Keine Periode verfügbar"
-                                : "Bitte wählen"
-                          }
-                          style={{ color: RGI.green }}
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {periods.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.fiscal_year} ({formatDe(p.period_from)} – {formatDe(p.period_to)})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                </div>
-              </SectionCard>
-
-              {assignmentId && periodId && (
-                <>
-                  {/* 2. Mieter */}
-                  <SectionCard
-                    num={2}
-                    title={tenantChanged ? "Mieter 1 – ursprünglicher Mieter" : "Mieter"}
-                    icon={Users}
-                  >
-                    <div className="space-y-3">
-                      <Field label="Name des Mieters" badge={tenantName ? "auto" : "ergänzen"}>
-                        <Input
-                          className="h-11"
-                          style={fieldStyle(!!tenantName)}
-                          value={tenantName}
-                          onChange={(e) => setTenantName(e.target.value)}
-                          onBlur={saveTenancy}
-                        />
-                      </Field>
-                      <Field
-                        label="NK-Vorauszahlung gesamt (Jahr, €)"
-                        tooltip="Gesamte Nebenkosten-Vorauszahlung des Jahres laut Mietvertrag. Pflichtfeld."
-                        badge={prepayMonthly !== "" && Number(prepayMonthly) > 0 ? undefined : "Pflicht"}
-                      >
-                        <Input
-                          type="number"
-                          step="0.01"
-                          className="h-11"
-                          style={fieldStyle(prepayMonthly !== "" && Number(prepayMonthly) > 0)}
-                          value={prepayMonthly}
-                          onChange={(e) => setPrepayMonthly(e.target.value === "" ? "" : Number(e.target.value))}
-                          onBlur={saveTenancy}
-                          required
-                        />
-                      </Field>
-
-                      <div className="flex items-center gap-2 rounded-md border p-3" style={{ borderColor: "#e5e0d8" }}>
-                        <Checkbox
-                          id="tenant-changed"
-                          checked={tenantChanged}
-                          onCheckedChange={(c) => {
-                            const v = !!c;
-                            setTenantChanged(v);
-                            if (v) {
-                              // Beim Aktivieren: gleich ein leeres Eingabefeld für den Folgemieter anlegen
-                              setAdditionalTenants((prev) => (prev.length === 0 ? [makeEmptyTenant()] : prev));
-                            } else {
-                              setMoveIn("");
-                              setMoveOut("");
-                              setAdditionalTenants([]);
-                              // sofort speichern (Felder zurücksetzen)
-                              setTimeout(saveTenancy, 0);
-                            }
-                          }}
-                        />
-                        <div className="space-y-0.5">
-                          <Label htmlFor="tenant-changed" className="cursor-pointer text-sm font-medium">
-                            Mieterwechsel im Wirtschaftsjahr
-                          </Label>
-                          <p className="text-xs" style={{ color: RGI.muted }}>
-                            Aktivieren, falls der Mieter innerhalb des Abrechnungszeitraums ein- oder ausgezogen ist.
-                          </p>
-                        </div>
-                      </div>
-
-                      {tenantChanged && (
-                        <TenancyDates
-                          from={moveIn}
-                          to={moveOut}
-                          onFrom={setMoveIn}
-                          onTo={setMoveOut}
-                          periodFrom={selectedPeriod?.period_from}
-                          periodTo={selectedPeriod?.period_to}
-                        />
-                      )}
-                    </div>
-                  </SectionCard>
-
-                  {/* 3. Heizkosten */}
-                  <SectionCard num={3} title="Heizkostenabrechnung" icon={Flame}>
-                    {loadingData ? (
-                      <LoadingRow />
-                    ) : (
-                      <div className="space-y-3">
-                        <p className="text-xs" style={{ color: RGI.muted }}>
-                          Dieser Wert kommt aus der Heizkostenabrechnung des Messdienstes – inkl. der Heiz-Nebenkonten
-                          (Kaminkehrer, Heizungswartung etc.).
-                        </p>
-                        {tenantChanged ? (
-                          <Alert>
-                            <AlertCircle className="w-4 h-4" />
-                            <AlertDescription className="text-xs">
-                              <strong>Mieterwechsel im Zeitraum:</strong> Bitte tragen Sie hier die{" "}
-                              <strong>anteilige Summe</strong> für diesen Mieter aus der Heizkostenabrechnung des
-                              Messdienstes ein. Das Feld wird bei einem Mieterwechsel <em>nicht</em> automatisch
-                              vorbefüllt, da der Messdienst die Aufteilung verbrauchsgenau ermittelt.
-                            </AlertDescription>
-                          </Alert>
-                        ) : null}
-                        <Field
-                          label={heating?.label ?? "Heizung / Warmwasser / Wasser"}
-                          badge={tenantChanged ? "ergänzen" : heating?.source === "messdienst" ? "auto" : "ergänzen"}
-                          tooltip="Ihr Anteil aus der Heizkostenabrechnung des Messdienstes (z. B. Brunata, Techem, ista)."
-                        >
-                          <Input
-                            type="number"
-                            step="0.01"
-                            className="h-11"
-                            style={fieldStyle(!tenantChanged && heating?.source === "messdienst")}
-                            value={heatingOverride}
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            onKeyDown={(e) => {
-                              if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
-                            }}
-                            placeholder={
-                              tenantChanged
-                                ? "Anteilige Summe aus Heizkostenabrechnung eintragen"
-                                : heating?.source === "missing"
-                                  ? "Bitte Betrag aus der Heizkostenabrechnung eintragen"
-                                  : ""
-                            }
-                            onChange={(e) => {
-                              setHeatingOverride(e.target.value === "" ? "" : Number(e.target.value));
-                            }}
-                          />
-                        </Field>
-
-                        <HeizkostenHilfeWizard onUebernehmen={(v) => setHeatingOverride(v)} />
-                      </div>
+                <Icon className="h-4 w-4" />
+                {count > 0 && folder.name !== "Papierkorb" && (
+                  <span
+                    className={cn(
+                      "absolute -top-0.5 -right-0.5 h-3.5 min-w-[14px] rounded-full text-[9px] flex items-center justify-center px-0.5",
+                      folder.id === SCHEDULED_FOLDER_ID
+                        ? "bg-amber-500 text-white"
+                        : "bg-destructive text-destructive-foreground",
                     )}
-                  </SectionCard>
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="hidden md:flex w-56 border-r flex-col shrink-0">
+          <div className="p-3 border-b flex gap-2">
+            <Button size="sm" className="flex-1 gap-2" onClick={() => openCompose()}>
+              <Plus className="h-4 w-4" />
+              Neue E-Mail
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleSync} disabled={isSyncing}>
+              {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSidebarCollapsed(true)} title="Navigation einklappen">
+              <PanelLeftClose className="h-4 w-4" />
+            </Button>
+          </div>
 
-                  {/* 4. Weitere Mieter – nur bei Mieterwechsel */}
-                  {tenantChanged && (
-                    <SectionCard num={4} title="Weitere Mieter (nach dem Wechsel)" icon={Users}>
-                      <div className="space-y-4">
-                        <p className="text-xs" style={{ color: RGI.muted }}>
-                          Fügen Sie hier alle weiteren Mieter hinzu, die in diesem Abrechnungsjahr in der Wohnung
-                          gewohnt haben. Pro Mieter wird eine eigene anteilige Abrechnung erstellt.
-                        </p>
+          <ScrollArea className="flex-1">
+            <div className="p-2">
+              <p className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ordner</p>
+              {folders.map((folder) => {
+                const Icon = folderIcons[folder.icon || "inbox"] || Mail;
+                const isActive = selectedFolderId === folder.id;
+                const count = folderCounts[folder.id] || 0;
+                return (
+                  <button
+                    key={folder.id}
+                    onClick={() => {
+                      setSelectedFolderId(folder.id);
+                      setSelectedEmailId(null);
+                    }}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors",
+                      isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground",
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span className="truncate flex-1 text-left">{folder.name}</span>
+                    {count > 0 && folder.name !== "Papierkorb" && (
+                      <Badge
+                        variant={isActive ? "secondary" : folder.id === SCHEDULED_FOLDER_ID ? "outline" : "default"}
+                        className={cn(
+                          "text-[10px] px-1.5 py-0 h-5 min-w-[20px] justify-center",
+                          folder.id === SCHEDULED_FOLDER_ID &&
+                            !isActive &&
+                            "border-amber-400 text-amber-700 dark:text-amber-300",
+                        )}
+                      >
+                        {count}
+                      </Badge>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
 
-                        {additionalTenants.map((t, idx) => (
-                          <div
-                            key={t.id}
-                            className="rounded-xl border p-3 space-y-3"
-                            style={{ borderColor: "#e5e0d8", background: "#faf8f3" }}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="text-sm font-semibold" style={{ color: RGI.text }}>
-                                Weiterer Mieter #{idx + 2}
-                              </div>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeAdditionalTenant(t.id)}
-                              >
-                                <Trash2 className="w-4 h-4 text-destructive" />
-                              </Button>
-                            </div>
+            <Separator className="my-2" />
 
-                            <Field label="Name des Mieters" badge={t.name ? "auto" : "ergänzen"}>
-                              <Input
-                                className="h-11"
-                                style={fieldStyle(!!t.name)}
-                                value={t.name}
-                                onChange={(e) => updateAdditionalTenant(t.id, { name: e.target.value })}
-                              />
-                            </Field>
+            <div className="p-2">
+              <div className="flex items-center justify-between px-2 py-1">
+                <button
+                  onClick={() =>
+                    setAccountsExpanded((v) => {
+                      const next = !v;
+                      try {
+                        localStorage.setItem("inbox-accounts-expanded", JSON.stringify(next));
+                      } catch {}
+                      return next;
+                    })
+                  }
+                  className="flex items-center gap-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                >
+                  <ChevronDown className={cn("h-3 w-3 transition-transform", !accountsExpanded && "-rotate-90")} />
+                  Konten
+                </button>
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5"
+                    onClick={() => setSettingsOpen(true)}
+                    title="E-Mail-Konten verwalten"
+                  >
+                    <Settings className="h-3 w-3 text-muted-foreground" />
+                  </Button>
+                )}
+              </div>
+              {accountsExpanded &&
+                (accounts.length === 0 ? (
+                  <p className="px-2 py-2 text-xs text-muted-foreground">Noch keine E-Mail-Konten.</p>
+                ) : (
+                  (() => {
+                    const allIds = accounts.map((a) => a.id);
+                    const isAccountChecked = (id: string) =>
+                      selectedAccountIds === null || selectedAccountIds.includes(id);
+                    const allChecked =
+                      selectedAccountIds === null ||
+                      (selectedAccountIds.length === allIds.length &&
+                        allIds.every((id) => selectedAccountIds.includes(id)));
+                    const toggleAccount = (id: string) => {
+                      const current = selectedAccountIds === null ? [...allIds] : [...selectedAccountIds];
+                      const idx = current.indexOf(id);
+                      if (idx >= 0) current.splice(idx, 1);
+                      else current.push(id);
+                      const next = current.length === allIds.length ? null : current;
+                      setSelectedAccountIds(next);
+                      try {
+                        localStorage.setItem("inbox-selected-accounts", JSON.stringify(next));
+                      } catch {}
+                    };
+                    const toggleAll = () => {
+                      const next = allChecked ? [] : null;
+                      setSelectedAccountIds(next);
+                      try {
+                        localStorage.setItem("inbox-selected-accounts", JSON.stringify(next));
+                      } catch {}
+                    };
 
-                            <Field
-                              label="NK-Vorauszahlung gesamt (Jahr, €)"
-                              tooltip="Gesamte Nebenkosten-Vorauszahlung des Jahres laut Mietvertrag. Pflichtfeld."
-                              badge={t.prepayMonthly !== "" && Number(t.prepayMonthly) > 0 ? undefined : "Pflicht"}
-                            >
-                              <Input
-                                type="number"
-                                step="0.01"
-                                className="h-11"
-                                style={fieldStyle(t.prepayMonthly !== "" && Number(t.prepayMonthly) > 0)}
-                                value={t.prepayMonthly}
-                                onChange={(e) =>
-                                  updateAdditionalTenant(t.id, {
-                                    prepayMonthly: e.target.value === "" ? "" : Number(e.target.value),
-                                  })
-                                }
-                              />
-                            </Field>
+                    const renderAccountRow = (acc: (typeof accounts)[number]) => (
+                      <label
+                        key={acc.id}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors hover:bg-muted/50 text-muted-foreground cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={isAccountChecked(acc.id)}
+                          onCheckedChange={() => toggleAccount(acc.id)}
+                          className="shrink-0"
+                        />
+                        <span className="truncate text-left flex-1">{acc.display_name}</span>
+                      </label>
+                    );
 
-                            <TenancyDates
-                              from={t.moveIn}
-                              to={t.moveOut}
-                              onFrom={(v) => updateAdditionalTenant(t.id, { moveIn: v })}
-                              onTo={(v) => updateAdditionalTenant(t.id, { moveOut: v })}
-                              periodFrom={selectedPeriod?.period_from}
-                              periodTo={selectedPeriod?.period_to}
-                            />
+                    return (
+                      <>
+                        <label className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors hover:bg-muted/50 text-muted-foreground cursor-pointer">
+                          <Checkbox checked={allChecked} onCheckedChange={toggleAll} className="shrink-0" />
+                          <Mail className="h-4 w-4 shrink-0" />
+                          <span className="truncate text-left flex-1 font-medium">Alle Konten</span>
+                        </label>
+                        {myAccountIds.length > 0 && (
+                          <>
+                            <p className="px-2 pt-2 pb-0.5 text-[10px] font-semibold text-muted-foreground">
+                              Meine Konten
+                            </p>
+                            {accounts.filter((acc) => myAccountIds.includes(acc.id)).map(renderAccountRow)}
+                          </>
+                        )}
+                        {myAccountIds.length > 0 && accounts.some((acc) => !myAccountIds.includes(acc.id)) && (
+                          <p className="px-2 pt-2 pb-0.5 text-[10px] font-semibold text-muted-foreground">
+                            Weitere Konten
+                          </p>
+                        )}
+                        {accounts
+                          .filter((acc) => myAccountIds.length === 0 || !myAccountIds.includes(acc.id))
+                          .map(renderAccountRow)}
+                      </>
+                    );
+                  })()
+                ))}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
 
-                            <Field
-                              label="Heizung / Warmwasser / Wasser (anteilig)"
-                              badge="ergänzen"
-                              tooltip="Anteilige Summe dieses Mieters aus der Heizkostenabrechnung des Messdienstes."
-                            >
-                              <Input
-                                type="number"
-                                step="0.01"
-                                className="h-11"
-                                style={fieldStyle(t.heatingOverride !== "" && Number(t.heatingOverride) > 0)}
-                                value={t.heatingOverride}
-                                onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                                onKeyDown={(e) => {
-                                  if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
-                                }}
-                                placeholder="Anteilige Summe aus Heizkostenabrechnung eintragen"
-                                onChange={(e) =>
-                                  updateAdditionalTenant(t.id, {
-                                    heatingOverride: e.target.value === "" ? "" : Number(e.target.value),
-                                  })
-                                }
-                              />
-                            </Field>
-                          </div>
-                        ))}
+      {/* Main content area with tabs spanning full width */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+        {isDraftsFolder ? (
+          <DraftsPanel
+            items={draftItems as any}
+            accounts={accounts}
+            onChanged={() => {
+              queryClient.invalidateQueries({ queryKey: ["email-drafts"] });
+              queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+            }}
+          />
+        ) : isScheduledFolder ? (
+          <ScheduledMailsPanel
+            items={scheduledItems}
+            accounts={accounts}
+            onChanged={() => {
+              queryClient.invalidateQueries({ queryKey: ["scheduled-mails-virtual"] });
+              queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+            }}
+            onOpenCampaign={(id) => navigate(`/kommunikation?campaign=${id}`)}
+          />
+        ) : isCallsFolder ? (
+          <CallLogList />
+        ) : (
+          <>
+            {/* Category tabs - full width above both panels */}
+            <div className="border-b shrink-0 overflow-x-auto overflow-y-hidden">
+              <div className="flex min-w-max px-2 py-1 gap-0.5">
+                <button
+                  onClick={() => setFilterCategory("all")}
+                  className={cn(
+                    "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
+                    filterCategory === "all"
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted text-muted-foreground",
+                  )}
+                >
+                  Alle ({emails.length})
+                </button>
+                <button
+                  onClick={() => setFilterCategory(filterCategory === "unread" ? "all" : "unread")}
+                  className={cn(
+                    "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0 flex items-center gap-1 font-medium",
+                    filterCategory === "unread" ? "bg-blue-600 text-white" : "hover:bg-muted text-muted-foreground",
+                  )}
+                >
+                  <span className="h-2 w-2 rounded-full bg-current" />
+                  Ungelesen ({unreadCount})
+                </button>
+                <button
+                  onClick={() => setFilterCategory(filterCategory === "followup" ? "all" : "followup")}
+                  className={cn(
+                    "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0 flex items-center gap-1",
+                    filterCategory === "followup" ? "bg-orange-500 text-white" : "hover:bg-muted text-muted-foreground",
+                  )}
+                >
+                  <Flag className="h-3 w-3" />
+                  Nachverfolgung ({followUpCount})
+                </button>
+                {ALL_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setFilterCategory(filterCategory === cat ? "all" : cat)}
+                    className={cn(
+                      "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
+                      filterCategory === cat
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {cat} ({categoryCounts[cat] || 0})
+                  </button>
+                ))}
+              </div>
+            </div>
 
+            <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0 overflow-hidden">
+              {/* Middle: Email List — on mobile: hidden when an email is selected */}
+              <ResizablePanel
+                defaultSize={35}
+                minSize={12}
+                maxSize={75}
+                className={cn(selectedEmailId ? "hidden md:block" : "block", "h-full overflow-hidden")}
+              >
+                <div className="flex flex-col h-full min-h-0">
+                  {/* Search - filters within selected category */}
+                  <div className="p-2 border-b space-y-2">
+                    <div className="relative flex items-center gap-1">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder={
+                            filterCategory !== "all" ? `In "${filterCategory}" suchen...` : "E-Mails durchsuchen..."
+                          }
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-9 h-9"
+                        />
+                      </div>
+                      {isArchiveFolder && (
                         <Button
                           type="button"
                           variant="outline"
-                          size="sm"
-                          onClick={addAdditionalTenant}
-                          disabled={additionalTenants.length >= 9}
+                          size="icon"
+                          className="h-9 w-9 shrink-0"
+                          title="KI-Suche im Archiv"
+                          onClick={() => setAiSearchOpen(true)}
                         >
-                          <Plus className="w-4 h-4 mr-1" />
-                          Weiteren Mieter hinzufügen
+                          <Sparkles className="h-4 w-4 text-primary" />
                         </Button>
-                        {additionalTenants.length >= 9 && (
-                          <p className="text-xs" style={{ color: RGI.muted }}>
-                            Maximal 10 Mieter pro Abrechnungsjahr.
-                          </p>
-                        )}
-                      </div>
-                    </SectionCard>
-                  )}
-
-                  {/* Pro-Rata-Banner bei Mieterwechsel */}
-                  {prorata.active && (
-                    <div
-                      className="mt-4 rounded-xl px-4 py-3 text-xs flex items-start gap-2"
-                      style={{ background: RGI.amberBg, color: RGI.amber, border: `1px solid ${RGI.border}` }}
-                    >
-                      <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                      <div>
-                        <strong>Zeitanteilige Abrechnung:</strong>{" "}
-                        {prorata.fromISO && prorata.toISO && (
-                          <>
-                            vom {formatDe(prorata.fromISO)} bis {formatDe(prorata.toISO)} –{" "}
-                          </>
-                        )}
-                        {prorata.tenantDays} von {prorata.periodDays} Tagen (
-                        {(prorata.factor * 100).toLocaleString("de-DE", { maximumFractionDigits: 1 })} %). Beträge sind
-                        tagesgenau gekürzt; verbrauchsabhängige Posten und die Heizkostenabrechnung des Messdienstes
-                        bleiben unverändert.
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 4. Umlagefähige Kosten */}
-                  <SectionCard num={5} title="Umlagefähige Kosten" icon={Receipt}>
-                    <div
-                      className="text-xs px-3 py-2 rounded mb-3"
-                      style={{ background: RGI.amberBg, color: RGI.amber }}
-                    >
-                      Diese Positionen dürfen gesetzlich umgelegt werden, sofern im Mietvertrag nichts anderes
-                      vereinbart ist.
-                    </div>
-                    <div className="mb-4">
-                      <div className="text-sm font-medium mb-2" style={{ color: RGI.text }}>
-                        Umlageschlüssel
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {(
-                          [
-                            { key: "weg", title: "WEG-Umlageschlüssel", desc: "Schlüssel aus Ihrer WEG-Abrechnung" },
-                            { key: "qm", title: "Quadratmeter", desc: "Nach Wohnfläche (§ 556a BGB)" },
-                          ] as const
-                        ).map((opt) => {
-                          const active = distributionMode === opt.key;
-                          return (
-                            <button
-                              key={opt.key}
-                              type="button"
-                              onClick={() => setDistributionMode(opt.key)}
-                              className="text-left rounded-xl border p-3 transition-all"
-                              style={{
-                                borderColor: active ? RGI.primary : RGI.border,
-                                background: active ? RGI.orangeBg : "#fff",
-                                boxShadow: active ? `inset 0 0 0 1px ${RGI.primary}` : "none",
-                              }}
-                            >
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className="inline-flex items-center justify-center rounded-full shrink-0"
-                                  style={{
-                                    width: 16,
-                                    height: 16,
-                                    border: `2px solid ${active ? RGI.primary : "#cbb9a8"}`,
-                                    background: active ? RGI.primary : "#fff",
-                                  }}
-                                >
-                                  {active && (
-                                    <span style={{ width: 6, height: 6, borderRadius: 9999, background: "#fff" }} />
-                                  )}
-                                </span>
-                                <span className="font-semibold text-sm" style={{ color: RGI.text }}>
-                                  {opt.title}
-                                </span>
-                              </div>
-                              <div className="text-xs mt-1" style={{ color: RGI.muted, marginLeft: 24 }}>
-                                {opt.desc}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <p className="text-xs mt-2" style={{ color: RGI.muted }}>
-                        Gesetzlich werden Nebenkosten in der Regel nach Wohnfläche (§ 556a BGB) umgelegt; in der Praxis
-                        wird häufig nach den Schlüsseln der WEG-Abrechnung verteilt.
-                      </p>
-                      {distributionMode === "qm" && (
-                        <div className="grid grid-cols-2 gap-3 mt-3">
-                          <Field label="Ihre Quadratmeter (m²)">
-                            <Input
-                              type="number"
-                              step="0.01"
-                              className="h-11"
-                              style={fieldStyle(Number(ownQm) > 0)}
-                              value={ownQm}
-                              onChange={(e) => setOwnQm(e.target.value === "" ? "" : Number(e.target.value))}
-                            />
-                          </Field>
-                          <Field label="Gesamt-m² (alle Einheiten)">
-                            <Input
-                              type="number"
-                              step="0.01"
-                              className="h-11"
-                              style={fieldStyle(Number(totalQm) > 0)}
-                              value={totalQm}
-                              onChange={(e) => setTotalQm(e.target.value === "" ? "" : Number(e.target.value))}
-                            />
-                          </Field>
-                        </div>
                       )}
                     </div>
-                    {loadingData ? (
-                      <LoadingRow />
-                    ) : autoPositions.length === 0 ? (
-                      <p className="text-sm" style={{ color: RGI.muted }}>
-                        Keine weiteren umlagefähigen Positionen gefunden.
-                      </p>
-                    ) : (
-                      <div className="space-y-2">
-                        {autoPositions.map((p) => {
-                          const disabled = disabledAccounts.has(p.account_number);
-                          const consumption = !!p.consumption_based;
-                          const override = positionOverrides[p.account_number];
-                          const prorataApplied = prorata.active && !consumption;
-                          return (
-                            <div
-                              key={p.account_number}
-                              className="rounded-xl px-4 py-3 transition-all"
-                              style={{
-                                border: `1px solid ${disabled ? RGI.border : "transparent"}`,
-                                background: disabled ? "#f3efea" : consumption ? RGI.amberBg : RGI.greenBg,
-                                opacity: disabled ? 0.55 : 1,
-                              }}
-                            >
-                              <div className="flex items-center gap-3">
-                                <Checkbox
-                                  checked={!disabled}
-                                  className="h-5 w-5 shrink-0"
-                                  onCheckedChange={(c) => {
-                                    setDisabledAccounts((prev) => {
-                                      const n = new Set(prev);
-                                      if (c) n.delete(p.account_number);
-                                      else n.add(p.account_number);
-                                      return n;
-                                    });
-                                  }}
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-semibold text-sm leading-tight truncate">{p.account_name}</div>
-                                  <div
-                                    className="text-[11px] mt-0.5 flex items-center gap-1.5 flex-wrap"
-                                    style={{ color: RGI.muted }}
-                                  >
-                                    <span>Schlüssel {displayKey(p).toUpperCase()}</span>
-                                    <span>·</span>
-                                    <span>Gesamt *,** €</span>
-                                    {consumption && (
-                                      <span
-                                        className="px-1.5 py-0.5 rounded-full text-[10px] font-medium ml-1"
-                                        style={{ background: "#fff", color: RGI.amber }}
-                                      >
-                                        nach Verbrauch
-                                      </span>
-                                    )}
-                                    {prorataApplied && override === undefined && (
-                                      <span
-                                        className="px-1.5 py-0.5 rounded-full text-[10px] font-medium ml-1"
-                                        style={{ background: "#fff", color: RGI.amber }}
-                                      >
-                                        zeitanteilig
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div
-                                  className="flex items-baseline gap-1 shrink-0 pl-2"
-                                  style={{ borderLeft: `1px solid ${disabled ? RGI.border : "rgba(0,0,0,0.08)"}` }}
-                                >
-                                  <span
-                                    className="w-24 text-right text-lg font-semibold tabular-nums"
-                                    style={{ color: RGI.muted, letterSpacing: "0.08em" }}
-                                    aria-label="Betrag nach Kauf sichtbar"
-                                  >
-                                    *,**
-                                  </span>
-                                  <span className="text-sm font-medium" style={{ color: RGI.muted }}>
-                                    €
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                    {/* Archive filters */}
+                    {isArchiveFolder && (
+                      <div className="flex gap-2">
+                        <Select value={filterBuildingId} onValueChange={setFilterBuildingId}>
+                          <SelectTrigger className="h-8 text-xs flex-1">
+                            <Building2 className="h-3 w-3 mr-1 shrink-0" />
+                            <SelectValue placeholder="Liegenschaft" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Alle Liegenschaften</SelectItem>
+                            <SelectItem value="none">Ohne Liegenschaft</SelectItem>
+                            {buildings.map((b) => (
+                              <SelectItem key={b.id} value={b.id}>
+                                {b.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select value={filterContactId} onValueChange={setFilterContactId}>
+                          <SelectTrigger className="h-8 text-xs flex-1">
+                            <User className="h-3 w-3 mr-1 shrink-0" />
+                            <SelectValue placeholder="Kontakt" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Alle Kontakte</SelectItem>
+                            <SelectItem value="none">Ohne Kontakt</SelectItem>
+                            {contacts.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {getContactName(c)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     )}
-                  </SectionCard>
+                  </div>
 
-                  {/* 5. Weitere Kosten */}
-                  <SectionCard num={6} title="Weitere Kosten" icon={Wrench}>
-                    <p className="text-xs mb-3" style={{ color: RGI.muted }}>
-                      Direkt bei Ihnen angefallene umlagefähige Kosten (Grundsteuer, Kabel-TV, Wartung Sondereigentum,
-                      einzelne Reparaturen …).
-                      {prorata.active && (
+                  {isTrashFolder && (
+                    <div className="px-3 py-2 bg-muted/50 border-b text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Trash2 className="h-3 w-3" />
+                      E-Mails werden nach 30 Tagen automatisch endgültig gelöscht
+                    </div>
+                  )}
+
+                  {/* Bulk selection bar */}
+                  {filteredEmails.length > 0 && (
+                    <div className="px-3 py-1.5 border-b bg-muted/30 flex items-center gap-2">
+                      <Checkbox
+                        checked={
+                          selectedEmailIds.size > 0 && selectedEmailIds.size === filteredEmails.length
+                            ? true
+                            : selectedEmailIds.size > 0
+                              ? "indeterminate"
+                              : false
+                        }
+                        onCheckedChange={(checked) => {
+                          if (checked) setSelectedEmailIds(new Set(filteredEmails.map((e) => e.id)));
+                          else clearSelection();
+                        }}
+                        aria-label="Alle auswählen"
+                      />
+                      {selectedEmailIds.size > 0 ? (
                         <>
-                          {" "}
-                          Bei einem Mieterwechsel werden diese Beträge automatisch tagesgenau auf den
-                          Abrechnungszeitraum dieses Mieters umgelegt.
+                          <span className="text-xs text-muted-foreground">{selectedEmailIds.size} ausgewählt</span>
+                          <div className="ml-auto flex items-center gap-1">
+                            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={clearSelection}>
+                              Aufheben
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="h-7 px-2 text-xs gap-1"
+                              disabled={bulkDeleting}
+                              onClick={bulkDeleteSelected}
+                            >
+                              {bulkDeleting ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3 w-3" />
+                              )}
+                              {isTrashFolder ? "Endgültig löschen" : "Löschen"}
+                            </Button>
+                          </div>
                         </>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Mehrere auswählen</span>
                       )}
-                    </p>
-                    <div className="space-y-2">
-                      {extraCosts.map((c, idx) => {
-                        const effective = effectiveExtraAmount(c);
-                        const prorataApplied = prorata.active;
-                        return (
-                          <div
-                            key={c.id ?? `new-${idx}`}
-                            className="rounded-xl px-4 py-3 transition-all"
-                            style={{
-                              border: `1px solid transparent`,
-                              background: RGI.amberBg,
-                            }}
-                          >
-                            <div className="flex items-center gap-3">
-                              <button
-                                type="button"
-                                aria-label="Position entfernen"
-                                className="shrink-0 h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/60 transition"
-                                onClick={() => removeExtraCost(idx)}
-                              >
-                                <Trash2 className="w-4 h-4 text-destructive" />
-                              </button>
-                              <div className="flex-1 min-w-0">
-                                <input
-                                  type="text"
-                                  value={c.label}
-                                  placeholder="Bezeichnung eingeben"
-                                  className="w-full bg-white border rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-primary/30 font-semibold text-sm leading-tight placeholder:text-muted-foreground/60"
-                                  style={{ color: RGI.text, borderColor: RGI.border }}
-                                  onChange={(e) => updateExtraCost(idx, { label: e.target.value })}
-                                  onBlur={() => saveExtraCost(idx)}
-                                />
+                    </div>
+                  )}
 
-                                <div
-                                  className="text-[11px] mt-1 flex items-center gap-1.5 flex-wrap"
-                                  style={{ color: RGI.muted }}
-                                >
-                                  <span>Schlüssel DIREKT</span>
-                                  {prorataApplied && (
-                                    <>
-                                      <span>·</span>
-                                      <span>
-                                        Vollbetrag {c.amount.toFixed(2)} € → tagesanteilig {effective.toFixed(2)} €
-                                      </span>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                              <div
-                                className="flex items-center gap-2 shrink-0 pl-2"
-                                style={{ borderLeft: `1px solid rgba(0,0,0,0.08)` }}
+                  <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+                    {emailsLoading ? (
+                      <div className="p-4 text-center text-sm text-muted-foreground">Laden...</div>
+                    ) : emailsError ? (
+                      <div className="p-8 text-center">
+                        <Mail className="h-12 w-12 mx-auto text-destructive/40 mb-3" />
+                        <p className="text-sm text-destructive">Suche fehlgeschlagen</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {(emailsError as any)?.message || "Unbekannter Fehler"}
+                        </p>
+                      </div>
+                    ) : filteredEmails.length === 0 ? (
+                      <div className="p-8 text-center">
+                        <Mail className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
+                        <p className="text-sm text-muted-foreground">
+                          {isSearching ? "Keine Treffer gefunden" : "Keine E-Mails vorhanden"}
+                        </p>
+                      </div>
+                    ) : (
+                      filteredEmails.map((email) => (
+                        <div
+                          key={email.id}
+                          className={cn("relative group border-b", selectedEmailIds.has(email.id) && "bg-primary/5")}
+                        >
+                          <div
+                            className={cn(
+                              "absolute left-1 top-1/2 -translate-y-1/2 z-10 transition-opacity",
+                              selectedEmailIds.size > 0 || selectedEmailIds.has(email.id)
+                                ? "opacity-100"
+                                : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
+                            )}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Checkbox
+                              checked={selectedEmailIds.has(email.id)}
+                              onCheckedChange={(checked) => toggleSelectEmail(email.id, !!checked)}
+                              aria-label="E-Mail auswählen"
+                              className="bg-background"
+                            />
+                          </div>
+                          <button
+                            onClick={() => setSelectedEmailId(email.id)}
+                            className={cn(
+                              "w-full text-left pl-8 pr-3 py-2 transition-colors relative",
+                              selectedEmailId === email.id ? "bg-accent" : "hover:bg-muted/50",
+                              !email.is_read && "bg-primary/10 border-l-4 border-l-primary",
+                            )}
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <span
+                                className={cn(
+                                  "text-sm truncate flex items-center gap-1.5",
+                                  !email.is_read ? "font-bold text-foreground" : "text-muted-foreground",
+                                )}
                               >
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  aria-label={`Betrag ${c.label}`}
-                                  className="w-24 bg-white border rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-primary/30 text-right text-lg font-semibold tabular-nums placeholder:text-muted-foreground/60"
-                                  style={{ color: RGI.text, borderColor: RGI.border }}
-                                  placeholder="0,00"
-                                  value={c.amount.toLocaleString("de-DE", {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2,
-                                  })}
-                                  onChange={(e) => {
-                                    const raw = e.target.value.replace(/\./g, "").replace(",", ".");
-                                    const num = raw === "" ? 0 : Number(raw);
-                                    if (Number.isNaN(num)) return;
-                                    updateExtraCost(idx, { amount: num });
-                                  }}
-                                  onBlur={() => saveExtraCost(idx)}
-                                />
-                                <span className="text-sm font-medium" style={{ color: RGI.muted }}>
-                                  €
+                                {!email.is_read && (
+                                  <span className="h-2 w-2 rounded-full bg-primary shrink-0" aria-hidden />
+                                )}
+                                {isSentFolder
+                                  ? Array.isArray(email.to_addresses) && email.to_addresses.length > 0
+                                    ? email.to_addresses.join(", ")
+                                    : "Unbekannt"
+                                  : email.from_name || email.from_address || "Unbekannt"}
+                              </span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {(() => {
+                                  const replyId = (email as any).message_id
+                                    ? (replyMap as any)[(email as any).message_id]
+                                    : null;
+                                  if (!replyId) return null;
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const sentFolder = folders.find((f) => f.name === "Gesendet");
+                                        if (sentFolder) setSelectedFolderId(sentFolder.id);
+                                        setSelectedEmailId(replyId);
+                                      }}
+                                      title="Bereits beantwortet – zur gesendeten Antwort springen"
+                                      className="text-green-600 hover:text-green-700"
+                                    >
+                                      <Reply className="h-4 w-4" strokeWidth={2.5} />
+                                    </button>
+                                  );
+                                })()}
+                                {email.has_attachments && <Paperclip className="h-3 w-3 text-muted-foreground" />}
+                                {email.is_starred && <Flag className="h-3 w-3 text-orange-500 fill-orange-500" />}
+                                {email.is_pinned && <Pin className="h-3 w-3 text-primary fill-primary" />}
+                                {email.is_etv_relevant && <Vote className="h-3 w-3 text-primary" />}
+                                <span
+                                  className={cn(
+                                    "text-[11px]",
+                                    !email.is_read ? "text-foreground font-semibold" : "text-muted-foreground",
+                                  )}
+                                >
+                                  {email.date
+                                    ? new Date(email.date).toLocaleDateString("de-DE", {
+                                        day: "2-digit",
+                                        month: "2-digit",
+                                      })
+                                    : ""}
                                 </span>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {DEFAULT_EXTRA_COST_TYPES.map((d) => (
+                            <p
+                              className={cn(
+                                "text-xs truncate",
+                                !email.is_read ? "text-foreground font-semibold" : "text-muted-foreground",
+                              )}
+                            >
+                              {email.subject || "(Kein Betreff)"}
+                            </p>
+                            <div className="flex items-center justify-between gap-1 mt-0.5">
+                              <div className="flex items-center gap-1 flex-1 min-w-0 flex-wrap">
+                                {isArchiveFolder && email.building_id && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+                                    <Building2 className="h-2.5 w-2.5" />
+                                    {buildings.find((b) => b.id === email.building_id)?.name || ""}
+                                  </Badge>
+                                )}
+                                {isArchiveFolder && email.contact_id && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+                                    <User className="h-2.5 w-2.5" />
+                                    {(() => {
+                                      const c = contacts.find((c) => c.id === email.contact_id);
+                                      return c ? getContactName(c) : "";
+                                    })()}
+                                  </Badge>
+                                )}
+                                {email.ai_category && (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                    {email.ai_category}
+                                  </Badge>
+                                )}
+                                {email.ai_priority && (
+                                  <Badge
+                                    variant={email.ai_priority === "hoch" ? "destructive" : "outline"}
+                                    className={cn(
+                                      "text-[10px] px-1.5 py-0",
+                                      email.ai_priority === "mittel" &&
+                                        "border-orange-400 text-orange-600 dark:text-orange-400",
+                                      email.ai_priority === "niedrig" &&
+                                        "border-muted-foreground/30 text-muted-foreground",
+                                    )}
+                                  >
+                                    {email.ai_priority === "hoch"
+                                      ? "Wichtig"
+                                      : email.ai_priority === "mittel"
+                                        ? "Mittel"
+                                        : "Niedrig"}
+                                  </Badge>
+                                )}
+                                {isTrashFolder && email.deleted_at && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {(() => {
+                                      const daysLeft = Math.max(
+                                        0,
+                                        30 -
+                                          Math.floor(
+                                            (Date.now() - new Date(email.deleted_at).getTime()) / (1000 * 60 * 60 * 24),
+                                          ),
+                                      );
+                                      return `${daysLeft} Tage verbleibend`;
+                                    })()}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {/* Assignment badge - clickable to change */}
+                                {(() => {
+                                  const getShortCode = (userId: string) => {
+                                    const userAccountIds = accountUsers
+                                      .filter((au) => au.user_id === userId)
+                                      .map((au) => au.account_id);
+                                    const acct = accounts.find((a) => userAccountIds.includes(a.id) && a.short_code);
+                                    if (acct?.short_code) return acct.short_code as string;
+                                    const p = adminProfiles.find((pp) => pp.user_id === userId);
+                                    return p
+                                      ? [p.first_name, p.last_name]
+                                          .filter(Boolean)
+                                          .map((n) => n?.[0])
+                                          .join("")
+                                      : "";
+                                  };
+                                  const assignedProfile = (email as any).assigned_to
+                                    ? adminProfiles.find((p) => p.user_id === (email as any).assigned_to)
+                                    : null;
+                                  const initials = (email as any).assigned_to
+                                    ? getShortCode((email as any).assigned_to)
+                                    : "";
+
+                                  if (!initials && !(email as any).assigned_to) {
+                                    return (
+                                      <select
+                                        className="h-5 w-5 rounded-full text-[9px] cursor-pointer border-0 appearance-none text-center bg-transparent text-transparent hover:bg-muted/50"
+                                        value="none"
+                                        onClick={(e) => e.stopPropagation()}
+                                        onChange={async (e) => {
+                                          e.stopPropagation();
+                                          const val = e.target.value === "none" ? null : e.target.value;
+                                          const update: any = { assigned_to: val };
+                                          if (val) {
+                                            const targetAccountIds = accountUsers
+                                              .filter((au) => au.user_id === val)
+                                              .map((au) => au.account_id);
+                                            if (
+                                              targetAccountIds.length > 0 &&
+                                              !targetAccountIds.includes(email.account_id)
+                                            ) {
+                                              update.account_id = targetAccountIds[0];
+                                            }
+                                          }
+                                          await supabase.from("emails").update(update).eq("id", email.id);
+                                          queryClient.invalidateQueries({ queryKey: ["emails"] });
+                                        }}
+                                        title="Zuordnen"
+                                        style={{
+                                          WebkitAppearance: "none",
+                                          MozAppearance: "none",
+                                          textAlignLast: "center",
+                                          padding: "0",
+                                        }}
+                                      >
+                                        <option value="none"> </option>
+                                        {adminProfiles.map((p) => (
+                                          <option key={p.user_id} value={p.user_id}>
+                                            {getShortCode(p.user_id)}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    );
+                                  }
+                                  return (
+                                    <select
+                                      className="h-5 min-w-[20px] rounded-full text-[9px] font-normal cursor-pointer border-0 appearance-none text-center text-muted-foreground"
+                                      value={(email as any).assigned_to || "none"}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={async (e) => {
+                                        e.stopPropagation();
+                                        const val = e.target.value === "none" ? null : e.target.value;
+                                        const update: any = { assigned_to: val };
+                                        if (val) {
+                                          const targetAccountIds = accountUsers
+                                            .filter((au) => au.user_id === val)
+                                            .map((au) => au.account_id);
+                                          if (
+                                            targetAccountIds.length > 0 &&
+                                            !targetAccountIds.includes(email.account_id)
+                                          ) {
+                                            update.account_id = targetAccountIds[0];
+                                          }
+                                        }
+                                        await supabase.from("emails").update(update).eq("id", email.id);
+                                        queryClient.invalidateQueries({ queryKey: ["emails"] });
+                                      }}
+                                      title={
+                                        assignedProfile
+                                          ? [assignedProfile.first_name, assignedProfile.last_name]
+                                              .filter(Boolean)
+                                              .join(" ")
+                                          : "Zuordnen"
+                                      }
+                                      style={{
+                                        WebkitAppearance: "none",
+                                        MozAppearance: "none",
+                                        textAlignLast: "center",
+                                        width: `${Math.max(24, initials.length * 9 + 10)}px`,
+                                        padding: "0 2px",
+                                      }}
+                                    >
+                                      <option value="none">—</option>
+                                      {adminProfiles.map((p) => (
+                                        <option key={p.user_id} value={p.user_id}>
+                                          {getShortCode(p.user_id)}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                            {isTrashFolder && (
+                              <div className="flex items-center gap-0.5 mt-0.5">
+                                <button
+                                  className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    restoreEmail(email.id);
+                                  }}
+                                >
+                                  <Undo2 className="h-3 w-3" />
+                                  Wiederherstellen
+                                </button>
+                              </div>
+                            )}
+                          </button>
+                        </div>
+                      ))
+                    )}
+                    {!emailsLoading && !emailsError && filteredEmails.length > 0 && canLoadMore && (
+                      <div className="p-3 flex justify-center">
                         <Button
-                          key={d.type}
-                          size="sm"
                           variant="outline"
-                          className="h-10"
-                          onClick={() => addExtraCost(d.type, d.label)}
+                          size="sm"
+                          onClick={() => setPageLimit((n) => n + (isSearching ? 500 : 200))}
                         >
-                          <Plus className="w-3 h-3 mr-1" />
-                          {d.label}
+                          Mehr laden ({emails.length} geladen)
                         </Button>
-                      ))}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-10"
-                        onClick={() => addExtraCost("sonstige", "Sonstige")}
-                      >
-                        <Plus className="w-3 h-3 mr-1" />
-                        Freie Position
-                      </Button>
-                    </div>
-                  </SectionCard>
-
-                  {/* Haftungs-Hinweis */}
-                  <div
-                    className="mt-4 rounded-lg p-3 text-xs"
-                    style={{
-                      background: "#fff",
-                      border: `1px solid ${RGI.border}`,
-                      color: RGI.muted,
-                    }}
-                  >
-                    Dieses Dokument wird automatisiert erstellt und stellt keine Rechts- oder Steuerberatung dar. Die
-                    Verantwortung für die Richtigkeit der Eingaben liegt beim Nutzer. Für die Inhalte des erzeugten
-                    Dokuments wird keine Haftung übernommen.
+                      </div>
+                    )}
                   </div>
-                </>
-              )}
-            </>
-          )}
-        </div>
+                </div>
+              </ResizablePanel>
 
-        {/* Sticky Bottom Bar */}
-        {assignmentId && periodId && (
-          <div
-            className="fixed bottom-0 left-0 right-0 z-40"
-            style={{
-              background: "#fff",
-              borderTop: `1px solid ${RGI.border}`,
-              boxShadow: "0 -4px 16px rgba(0,0,0,0.06)",
-            }}
-          >
-            <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="text-[11px] uppercase tracking-wide" style={{ color: RGI.muted }}>
-                  Ergebnis (nach Kauf sichtbar)
-                </div>
-                <div className="text-lg font-bold flex items-center gap-1" style={{ fontFamily: headingFont }}>
-                  <Lock className="w-4 h-4" style={{ color: RGI.muted }} />
-                  *.*** €
-                </div>
-              </div>
-              <Button
-                className="h-12 px-5 font-semibold"
-                style={{
-                  background: canBuy ? RGI.primary : "#d4cfc8",
-                  color: "#fff",
-                }}
-                disabled={!canBuy}
-                onClick={() => setBuyOpen(true)}
+              <ResizableHandle
+                withHandle
+                className="hidden md:flex w-1.5 bg-border hover:bg-primary/40 transition-colors"
+              />
+
+              {/* Right: Email Detail — on mobile: only visible when an email is selected */}
+              <ResizablePanel
+                defaultSize={65}
+                className={cn(selectedEmailId ? "block" : "hidden md:block", "h-full overflow-hidden min-h-0")}
               >
-                {price
-                  ? formatPrice(price.price_cents * quantity, price.currency) +
-                    (quantity > 1 ? ` (${quantity} Abrechnungen)` : "")
-                  : "Jetzt erstellen"}
-                <span className="ml-2">›</span>
-              </Button>
-            </div>
-          </div>
+                <div className="flex flex-col h-full min-h-0 min-w-0">
+                  {selectedEmail ? (
+                    <>
+                      <div
+                        className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y"
+                        style={{ WebkitOverflowScrolling: "touch" }}
+                      >
+                        <div className="p-4 space-y-2">
+                          <div className="flex items-start justify-between gap-4">
+                            <h2 className="text-lg font-semibold truncate">
+                              {selectedEmail.subject || "(Kein Betreff)"}
+                            </h2>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {isTrashFolder ? (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => restoreEmail(selectedEmail.id)}
+                                    title="Wiederherstellen"
+                                  >
+                                    <Undo2 className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 hover:text-destructive"
+                                    onClick={() => permanentDeleteEmail(selectedEmail.id)}
+                                    title="Endgültig löschen"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => toggleRead(selectedEmail.id, selectedEmail.is_read)}
+                                    title={selectedEmail.is_read ? "Als ungelesen markieren" : "Als gelesen markieren"}
+                                  >
+                                    <MailOpen className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => toggleFollowUp(selectedEmail.id, selectedEmail.is_starred)}
+                                    title={
+                                      selectedEmail.is_starred
+                                        ? "Nachverfolgung entfernen"
+                                        : "Zur Nachverfolgung markieren"
+                                    }
+                                  >
+                                    <Flag
+                                      className={cn(
+                                        "h-4 w-4",
+                                        selectedEmail.is_starred && "text-orange-500 fill-orange-500",
+                                      )}
+                                    />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => togglePin(selectedEmail.id, !!selectedEmail.is_pinned)}
+                                    title={selectedEmail.is_pinned ? "Anpinnung entfernen" : "Oben anpinnen"}
+                                  >
+                                    {selectedEmail.is_pinned ? (
+                                      <PinOff className="h-4 w-4 text-primary" />
+                                    ) : (
+                                      <Pin className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => openArchiveDialog(selectedEmail.id)}
+                                    title="Zuordnen / Archivieren"
+                                  >
+                                    <Link2 className="h-4 w-4" />
+                                  </Button>
+                                  {profile?.broker_mode_enabled && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      onClick={() => setBrokerLeadEmailId(selectedEmail.id)}
+                                      title="Interessent zuordnen"
+                                    >
+                                      <UserPlus className="h-4 w-4" />
+                                    </Button>
+                                  )}
+
+                                  {selectedEmail.is_archived && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      onClick={async () => {
+                                        await supabase
+                                          .from("emails")
+                                          .update({ is_archived: false })
+                                          .eq("id", selectedEmail.id);
+                                        queryClient.invalidateQueries({ queryKey: ["emails"] });
+                                        queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+                                        toast.success("E-Mail aus Archiv entfernt");
+                                      }}
+                                      title="Aus Archiv entfernen"
+                                    >
+                                      <ArchiveRestore className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 hover:text-destructive"
+                                    onClick={() => deleteEmail(selectedEmail.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 min-w-0">
+                              <button
+                                className="flex items-center gap-1.5 text-sm hover:underline cursor-pointer"
+                                onClick={() => setShowEmailDetails((prev) => !prev)}
+                              >
+                                <span className="font-medium text-foreground">
+                                  {selectedEmail.from_name || selectedEmail.from_address}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {selectedEmail.date && new Date(selectedEmail.date).toLocaleString("de-DE")}
+                                </span>
+                                {showEmailDetails ? (
+                                  <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+                                ) : (
+                                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                              </button>
+                              {showEmailDetails && (
+                                <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+                                  {selectedEmail.from_name && (
+                                    <div>
+                                      Von: {selectedEmail.from_name} &lt;{selectedEmail.from_address}&gt;
+                                    </div>
+                                  )}
+                                  {selectedEmail.to_addresses && (
+                                    <div>
+                                      An:{" "}
+                                      {Array.isArray(selectedEmail.to_addresses)
+                                        ? (selectedEmail.to_addresses as string[]).join(", ")
+                                        : String(selectedEmail.to_addresses)}
+                                    </div>
+                                  )}
+                                  {selectedEmail.cc_addresses && (
+                                    <div>
+                                      CC:{" "}
+                                      {Array.isArray(selectedEmail.cc_addresses)
+                                        ? (selectedEmail.cc_addresses as string[]).join(", ")
+                                        : String(selectedEmail.cc_addresses)}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            {!senderHasContact && selectedEmail.from_address && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="outline" size="sm" className="h-7 gap-1 text-xs shrink-0">
+                                    <UserPlus className="h-3.5 w-3.5" />
+                                    Kontakt speichern
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-64">
+                                  <DropdownMenuItem onClick={openNewContactFromEmail}>
+                                    <UserPlus className="h-4 w-4 mr-2" />
+                                    Neuen Kontakt anlegen
+                                  </DropdownMenuItem>
+                                  {contacts.length > 0 && (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      <div className="px-2 py-1.5">
+                                        <Input
+                                          placeholder="Kontakt suchen..."
+                                          value={contactSearchTerm}
+                                          onChange={(e) => setContactSearchTerm(e.target.value)}
+                                          className="h-7 text-xs"
+                                          onClick={(e) => e.stopPropagation()}
+                                          onKeyDown={(e) => e.stopPropagation()}
+                                        />
+                                      </div>
+                                      <div className="max-h-48 overflow-y-auto">
+                                        {contacts
+                                          .filter((c) => {
+                                            if (!contactSearchTerm.trim()) return false;
+                                            const name = getContactName(c).toLowerCase();
+                                            return name.includes(contactSearchTerm.toLowerCase());
+                                          })
+                                          .map((c) => (
+                                            <DropdownMenuItem
+                                              key={c.id}
+                                              onClick={() => {
+                                                addEmailToExistingContact(c.id);
+                                                setContactSearchTerm("");
+                                              }}
+                                            >
+                                              <UserCheck className="h-3.5 w-3.5 mr-2 shrink-0" />
+                                              {getContactName(c)}
+                                            </DropdownMenuItem>
+                                          ))}
+                                        {contactSearchTerm.trim() &&
+                                          contacts.filter((c) =>
+                                            getContactName(c).toLowerCase().includes(contactSearchTerm.toLowerCase()),
+                                          ).length === 0 && (
+                                            <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                                              Kein Kontakt gefunden
+                                            </p>
+                                          )}
+                                      </div>
+                                    </>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap gap-1.5">
+                            {selectedEmail.building_id && (
+                              <Badge variant="outline" className="gap-1">
+                                <Building2 className="h-3 w-3" />
+                                {buildings.find((b) => b.id === selectedEmail.building_id)?.name || "Liegenschaft"}
+                              </Badge>
+                            )}
+                            {selectedEmail.contact_id && (
+                              <Badge variant="outline" className="gap-1">
+                                <User className="h-3 w-3" />
+                                {(() => {
+                                  const c = contacts.find((c) => c.id === selectedEmail.contact_id);
+                                  return c ? getContactName(c) : "Kontakt";
+                                })()}
+                              </Badge>
+                            )}
+                            {(selectedEmail as any).case_id && (
+                              <Badge variant="default" className="gap-1">
+                                <Link2 className="h-3 w-3" />
+                                Vorgang verknüpft
+                              </Badge>
+                            )}
+                            {!(selectedEmail as any).case_id && (selectedEmail as any).ai_case_suggestion_id && (
+                              <Badge
+                                variant="secondary"
+                                className="gap-1 cursor-pointer"
+                                onClick={() => openArchiveDialog(selectedEmail.id)}
+                              >
+                                <Sparkles className="h-3 w-3" />
+                                KI-Vorschlag: Vorgang (
+                                {Math.round(((selectedEmail as any).ai_case_confidence || 0) * 100)}%)
+                              </Badge>
+                            )}
+                            {selectedEmail.ai_category && <Badge variant="outline">{selectedEmail.ai_category}</Badge>}
+                            {selectedEmail.ai_priority && (
+                              <Badge variant={selectedEmail.ai_priority === "hoch" ? "destructive" : "secondary"}>
+                                Priorität: {selectedEmail.ai_priority}
+                              </Badge>
+                            )}
+                          </div>
+                          {selectedEmail.ai_summary && (
+                            <p className="text-sm bg-muted/50 rounded-md p-2 italic">KI: {selectedEmail.ai_summary}</p>
+                          )}
+                        </div>
+
+                        {selectedEmail.has_attachments && (
+                          <div className="px-4 pb-2">
+                            <EmailAttachments emailId={selectedEmail.id} />
+                          </div>
+                        )}
+
+                        <Separator />
+
+                        <div className="p-4">
+                          {(() => {
+                            const html = selectedEmail.body_html ?? "";
+                            const stripped = html
+                              .replace(/<[^>]*>/g, "")
+                              .replace(/&nbsp;/gi, " ")
+                              .trim();
+                            if (html && stripped.length > 0) {
+                              return <EmailHtmlBody key={selectedEmail.id} html={html} emailId={selectedEmail.id} />;
+                            }
+                            return (
+                              <pre className="text-sm whitespace-pre-wrap font-sans">
+                                {selectedEmail.body_text || "Kein Inhalt"}
+                              </pre>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                      <div className="p-3 border-t flex gap-2">
+                        <Button
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={() => {
+                            openCompose({
+                              replyTo: {
+                                id: selectedEmail.id,
+                                message_id: (selectedEmail as any).message_id,
+                                subject: selectedEmail.subject,
+                                from_address: selectedEmail.from_address,
+                                from_name: selectedEmail.from_name,
+                                body_text: selectedEmail.body_text,
+                                date: selectedEmail.date,
+                                account_id: selectedEmail.account_id,
+                              },
+                            });
+                          }}
+                        >
+                          <Reply className="h-3.5 w-3.5" />
+                          Antworten
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={() => {
+                            openCompose({
+                              forward: {
+                                email_id: selectedEmail.id,
+                                message_id: (selectedEmail as any).message_id,
+                                subject: selectedEmail.subject,
+                                body_text: selectedEmail.body_text,
+                                body_html: selectedEmail.body_html,
+                                account_id: selectedEmail.account_id,
+                              },
+                            });
+                          }}
+                        >
+                          <Forward className="h-3.5 w-3.5" />
+                          Weiterleiten
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 ml-auto"
+                          title="Drucken / als PDF"
+                          onClick={() => setPrintDialogOpen(true)}
+                        >
+                          <Printer className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center">
+                      <div className="text-center">
+                        <Mail className="h-16 w-16 mx-auto text-muted-foreground/20 mb-4" />
+                        <p className="text-muted-foreground">Wählen Sie eine E-Mail aus</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </>
         )}
+      </div>
 
-        <Dialog open={buyOpen} onOpenChange={setBuyOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle style={{ fontFamily: headingFont }}>Zahlungspflichtig bestellen</DialogTitle>
-              <DialogDescription>
-                Nach erfolgreicher Zahlung erstellen wir Ihre Nebenkostenabrechnung als PDF und stellen sie hier zum
-                Download bereit.
-              </DialogDescription>
-            </DialogHeader>
+      <AssignEmailDialog
+        open={archiveDialogOpen}
+        onOpenChange={setArchiveDialogOpen}
+        emailId={archiveEmailId}
+        onAssign={handleAssign}
+        prefilledContactId={archiveEmailId ? emails.find((e) => e.id === archiveEmailId)?.contact_id || null : null}
+        prefilledContactPersonId={
+          archiveEmailId ? (emails.find((e) => e.id === archiveEmailId) as any)?.contact_person_id || null : null
+        }
+        prefilledBuildingId={archiveEmailId ? emails.find((e) => e.id === archiveEmailId)?.building_id || null : null}
+        prefilledCaseId={
+          archiveEmailId
+            ? (emails.find((e) => e.id === archiveEmailId) as any)?.case_id ||
+              (emails.find((e) => e.id === archiveEmailId) as any)?.ai_case_suggestion_id ||
+              null
+            : null
+        }
+        prefilledIsEtvRelevant={
+          archiveEmailId ? !!(emails.find((e) => e.id === archiveEmailId) as any)?.is_etv_relevant : false
+        }
+        prefilledEtvMeetingId={
+          archiveEmailId ? (emails.find((e) => e.id === archiveEmailId) as any)?.etv_meeting_id || null : null
+        }
+      />
 
-            <div className="space-y-3">
-              <div className="bg-muted p-3 rounded text-sm space-y-1">
-                <div className="flex justify-between">
-                  <span>
-                    Nebenkostenabrechnung {selectedPeriod?.fiscal_year}
-                    {quantity > 1 ? ` (${quantity}×)` : ""}
-                  </span>
-                  <span className="font-bold">
-                    {price && formatPrice(price.price_cents * quantity, price.currency)}
-                  </span>
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Wohnung Nr. {selectedAssignment?.unit_number}, Mieter: {tenantName}
-                </div>
+      {profile?.broker_mode_enabled && brokerLeadEmailId && (
+        <AssignBrokerLeadDialog
+          open={!!brokerLeadEmailId}
+          onOpenChange={(o) => !o && setBrokerLeadEmailId(null)}
+          emailId={brokerLeadEmailId}
+        />
+      )}
+
+      <PrintEmailDialog open={printDialogOpen} onOpenChange={setPrintDialogOpen} email={selectedEmail as any} />
+
+      <AiEmailSearchDialog
+        open={aiSearchOpen}
+        onOpenChange={setAiSearchOpen}
+        accountIds={selectedAccountIds}
+        onSelectEmail={async (emailId) => {
+          setAiSearchOpen(false);
+          const { data } = await supabase
+            .from("emails")
+            .select("id, folder_id, is_archived")
+            .eq("id", emailId)
+            .maybeSingle();
+          if (data) {
+            if (data.is_archived) {
+              const archive = folders.find((f) => f.name === "Archiv");
+              if (archive) setSelectedFolderId(archive.id);
+            } else if (data.folder_id) {
+              setSelectedFolderId(data.folder_id);
+            }
+            setSelectedEmailId(data.id);
+          }
+        }}
+      />
+
+      <Dialog open={newContactDialogOpen} onOpenChange={setNewContactDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Neuen Kontakt anlegen</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Vorname</Label>
+                <Input
+                  value={newContactData.first_name}
+                  onChange={(e) => setNewContactData((prev) => ({ ...prev, first_name: e.target.value }))}
+                />
               </div>
               <div>
-                <Label className="text-sm">E-Mail für den Versand der Abrechnung</Label>
+                <Label className="text-xs">Nachname</Label>
                 <Input
-                  type="email"
-                  className="h-11 mt-1"
-                  value={recipientEmail}
-                  onChange={(e) => setRecipientEmail(e.target.value)}
-                  placeholder="name@example.de"
+                  value={newContactData.last_name}
+                  onChange={(e) => setNewContactData((prev) => ({ ...prev, last_name: e.target.value }))}
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Vorausgefüllt mit Ihrer Account-E-Mail – Sie können sie ändern.
-                </p>
               </div>
-              <label className="flex items-start gap-2 text-sm bg-amber-50 p-3 rounded cursor-pointer">
-                <Checkbox checked={waiverChecked} onCheckedChange={(c) => setWaiverChecked(!!c)} className="mt-0.5" />
-                <span>
-                  Mit dem Kauf beginnt die Erstellung des Dokuments sofort. Ich bestätige, dass mein Widerrufsrecht mit
-                  vollständiger Ausführung erlischt.
-                </span>
-              </label>
-              <p className="text-xs text-muted-foreground">
-                Mit dem Kauf akzeptieren Sie unsere{" "}
-                <a href="/legal/agb" target="_blank" className="underline">
-                  AGB
-                </a>{" "}
-                und die{" "}
-                <a href="/legal/datenschutz" target="_blank" className="underline">
-                  Datenschutzerklärung
-                </a>{" "}
-                (Version {CURRENT_LEGAL_VERSION}).
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Dieses Dokument wird automatisiert erstellt und stellt keine Rechts- oder Steuerberatung dar. Die
-                Verantwortung für die Eingaben liegt beim Nutzer; für die Inhalte wird keine Haftung übernommen.
-              </p>
+            </div>
+            <div>
+              <Label className="text-xs">Firma</Label>
+              <Input
+                value={newContactData.company_name}
+                onChange={(e) => setNewContactData((prev) => ({ ...prev, company_name: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">E-Mail</Label>
+              <Input value={newContactData.email} disabled className="bg-muted" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewContactDialogOpen(false)}>
+              Abbrechen
+            </Button>
+            <Button onClick={handleCreateContact}>Kontakt erstellen</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {isAdmin && (
+        <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <SheetContent className="sm:max-w-xl overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>E-Mail-Einstellungen</SheetTitle>
+            </SheetHeader>
+            <div className="mt-4">
+              <EmailSettingsSection />
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
+
+      {/* Mobile Folders Sheet — replaces the desktop folder sidebar on small screens */}
+      <Sheet open={mobileFoldersOpen} onOpenChange={setMobileFoldersOpen}>
+        <SheetContent side="left" className="w-[85vw] sm:max-w-sm p-0 flex flex-col">
+          <SheetHeader className="p-3 border-b">
+            <SheetTitle className="text-left">Postfach</SheetTitle>
+          </SheetHeader>
+          <ScrollArea className="flex-1">
+            <div className="p-2">
+              <p className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ordner</p>
+              {folders.map((folder) => {
+                const Icon = folderIcons[folder.icon || "inbox"] || Mail;
+                const isActive = selectedFolderId === folder.id;
+                const count = folderCounts[folder.id] || 0;
+                return (
+                  <button
+                    key={folder.id}
+                    onClick={() => {
+                      setSelectedFolderId(folder.id);
+                      setSelectedEmailId(null);
+                      setMobileFoldersOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-3 py-3 rounded-md text-sm transition-colors",
+                      isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground",
+                    )}
+                  >
+                    <Icon className="h-5 w-5 shrink-0" />
+                    <span className="truncate flex-1 text-left">{folder.name}</span>
+                    {count > 0 && folder.name !== "Papierkorb" && (
+                      <Badge
+                        variant={isActive ? "secondary" : folder.id === SCHEDULED_FOLDER_ID ? "outline" : "default"}
+                        className={cn(
+                          "text-xs",
+                          folder.id === SCHEDULED_FOLDER_ID &&
+                            !isActive &&
+                            "border-amber-400 text-amber-700 dark:text-amber-300",
+                        )}
+                      >
+                        {count}
+                      </Badge>
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setBuyOpen(false)}>
-                Abbrechen
-              </Button>
-              <Button
-                onClick={handleBuy}
-                disabled={!waiverChecked || submitting}
-                style={{ background: RGI.primary, color: "#fff" }}
-              >
-                {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Zahlungspflichtig bestellen
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-    </TooltipProvider>
-  );
-}
+            <Separator className="my-2" />
 
-// ---------- Helper components ----------
-
-const MONATE = [
-  "Januar",
-  "Februar",
-  "März",
-  "April",
-  "Mai",
-  "Juni",
-  "Juli",
-  "August",
-  "September",
-  "Oktober",
-  "November",
-  "Dezember",
-];
-
-function DateField({
-  value,
-  onChange,
-  placeholder,
-  minDate,
-  maxDate,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  minDate?: Date;
-  maxDate?: Date;
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = value ? parseISO(value) : undefined;
-  const som = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
-  const clampMonth = (d: Date) => {
-    let x = d;
-    if (minDate && x < som(minDate)) x = som(minDate);
-    if (maxDate && x > som(maxDate)) x = som(maxDate);
-    return x;
-  };
-  const [month, setMonth] = useState<Date>(clampMonth(selected ?? minDate ?? new Date()));
-  useEffect(() => {
-    if (open) setMonth(clampMonth(selected ?? minDate ?? new Date()));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  const year = month.getFullYear();
-  const minYear = minDate ? minDate.getFullYear() : 2015;
-  const maxYear = maxDate ? maxDate.getFullYear() : new Date().getFullYear() + 1;
-  const years: number[] = [];
-  for (let y = minYear; y <= maxYear; y++) years.push(y);
-
-  const disabledMatchers = [minDate ? { before: minDate } : null, maxDate ? { after: maxDate } : null].filter(
-    Boolean,
-  ) as any[];
-
-  const selectStyle: React.CSSProperties = { borderColor: RGI.border, color: RGI.text, background: "#fff" };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="h-11 w-full rounded-lg border px-3 text-sm text-left flex items-center gap-2 outline-none transition focus:ring-2 focus:ring-primary/30"
-          style={{ borderColor: RGI.border, background: "#fff", color: selected ? RGI.text : RGI.muted }}
-        >
-          <CalendarDays className="w-4 h-4 shrink-0" style={{ color: RGI.muted }} />
-          {selected ? format(selected, "dd.MM.yyyy", { locale: de }) : (placeholder ?? "Datum wählen")}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-3" align="start">
-        <div className="flex items-center gap-1.5 mb-2">
-          <button
-            type="button"
-            aria-label="Vorheriger Monat"
-            className="h-8 w-8 rounded-md border flex items-center justify-center shrink-0 hover:bg-muted"
-            style={{ borderColor: RGI.border }}
-            onClick={() => setMonth(clampMonth(new Date(year, month.getMonth() - 1, 1)))}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <select
-            value={month.getMonth()}
-            onChange={(e) => setMonth(clampMonth(new Date(year, Number(e.target.value), 1)))}
-            className="h-8 flex-1 rounded-md border px-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-            style={selectStyle}
-          >
-            {MONATE.map((m, i) => (
-              <option key={i} value={i}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <select
-            value={year}
-            onChange={(e) => setMonth(clampMonth(new Date(Number(e.target.value), month.getMonth(), 1)))}
-            className="h-8 w-[86px] rounded-md border px-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-            style={selectStyle}
-          >
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            aria-label="Nächster Monat"
-            className="h-8 w-8 rounded-md border flex items-center justify-center shrink-0 hover:bg-muted"
-            style={{ borderColor: RGI.border }}
-            onClick={() => setMonth(clampMonth(new Date(year, month.getMonth() + 1, 1)))}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-        <Calendar
-          mode="single"
-          month={month}
-          onMonthChange={(m) => setMonth(clampMonth(m))}
-          selected={selected}
-          onSelect={(d) => {
-            onChange(d ? format(d, "yyyy-MM-dd") : "");
-            setOpen(false);
-          }}
-          fromDate={minDate}
-          toDate={maxDate}
-          disabled={disabledMatchers}
-          locale={de}
-          className="p-0"
-          classNames={{ caption: "hidden" }}
-        />
-      </PopoverContent>
-    </Popover>
-  );
-}
-function TenancyDates({
-  from,
-  to,
-  onFrom,
-  onTo,
-  periodFrom,
-  periodTo,
-}: {
-  from: string;
-  to: string;
-  onFrom: (v: string) => void;
-  onTo: (v: string) => void;
-  periodFrom?: string;
-  periodTo?: string;
-}) {
-  const pStart = periodFrom ? parseISO(periodFrom) : undefined;
-  const pEnd = periodTo ? parseISO(periodTo) : undefined;
-  const fromD = from ? parseISO(from) : undefined;
-  const toD = to ? parseISO(to) : undefined;
-  const minOf = (a?: Date, b?: Date) => (a && b ? (a < b ? a : b) : (a ?? b));
-  const maxOf = (a?: Date, b?: Date) => (a && b ? (a > b ? a : b) : (a ?? b));
-  const einzugMax = minOf(toD, pEnd);
-  const auszugMin = maxOf(fromD, pStart);
-  return (
-    <div className="rounded-xl border p-3" style={{ borderColor: RGI.border, background: RGI.bg }}>
-      <div className="text-xs font-medium mb-2 flex items-center gap-1.5" style={{ color: RGI.muted }}>
-        <CalendarDays className="w-3.5 h-3.5" />
-        Mietzeitraum dieses Mieters
-      </div>
-      <div className="flex flex-col sm:flex-row sm:items-end gap-2">
-        <div className="flex-1 min-w-0">
-          <label className="text-[11px] block mb-1" style={{ color: RGI.muted }}>
-            Einzug
-          </label>
-          <DateField value={from} onChange={onFrom} placeholder="Einzugsdatum" minDate={pStart} maxDate={einzugMax} />
-        </div>
-        <ArrowRight className="w-4 h-4 mb-3 shrink-0 hidden sm:block" style={{ color: RGI.muted }} />
-        <div className="flex-1 min-w-0">
-          <label className="text-[11px] block mb-1" style={{ color: RGI.muted }}>
-            Auszug
-          </label>
-          <DateField value={to} onChange={onTo} placeholder="Auszugsdatum" minDate={auszugMin} maxDate={pEnd} />
-        </div>
-      </div>
+            <div className="p-2">
+              <div className="flex items-center justify-between px-2 py-1">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Konten</p>
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => {
+                      setSettingsOpen(true);
+                      setMobileFoldersOpen(false);
+                    }}
+                    title="E-Mail-Konten verwalten"
+                  >
+                    <Settings className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                )}
+              </div>
+              {accounts.length === 0 ? (
+                <p className="px-2 py-2 text-xs text-muted-foreground">Noch keine E-Mail-Konten.</p>
+              ) : (
+                accounts.map((acc) => {
+                  const checked = selectedAccountIds === null || selectedAccountIds.includes(acc.id);
+                  return (
+                    <label
+                      key={acc.id}
+                      className="w-full flex items-center gap-2 px-2 py-2.5 text-sm rounded-md hover:bg-muted/50 cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => {
+                          const allIds = accounts.map((a) => a.id);
+                          const current = selectedAccountIds === null ? [...allIds] : [...selectedAccountIds];
+                          const idx = current.indexOf(acc.id);
+                          if (idx >= 0) current.splice(idx, 1);
+                          else current.push(acc.id);
+                          const next = current.length === allIds.length ? null : current;
+                          setSelectedAccountIds(next);
+                          try {
+                            localStorage.setItem("inbox-selected-accounts", JSON.stringify(next));
+                          } catch {}
+                        }}
+                      />
+                      <span className="truncate flex-1">{acc.display_name}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
     </div>
   );
-}
-function SectionCard({
-  num,
-  title,
-  icon: Icon,
-  children,
-}: {
-  num: number;
-  title: string;
-  icon: React.ComponentType<{ className?: string }>;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className="mt-4 rounded-2xl p-4"
-      style={{
-        background: RGI.card,
-        border: `1px solid ${RGI.border}`,
-        boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
-      }}
-    >
-      <div className="flex items-center gap-3 mb-3">
-        <div
-          className="h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm"
-          style={{ background: RGI.primary, color: "#fff", fontFamily: headingFont }}
-        >
-          {num}
-        </div>
-        <div className="flex items-center gap-2">
-          <Icon className="w-4 h-4" />
-          <h2 className="font-semibold text-base" style={{ fontFamily: headingFont }}>
-            {title}
-          </h2>
-        </div>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function Field({
-  label,
-  badge,
-  tooltip,
-  children,
-}: {
-  label: string;
-  badge?: "auto" | "ergänzen" | "Pflicht";
-  tooltip?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1.5">
-        <Label className="text-sm flex items-center gap-1.5">
-          {label}
-          {tooltip && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button type="button" aria-label="Erklärung">
-                  <HelpCircle className="w-3.5 h-3.5" style={{ color: RGI.muted }} />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs text-xs">{tooltip}</TooltipContent>
-            </Tooltip>
-          )}
-        </Label>
-        {badge && (
-          <span
-            className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded"
-            style={{
-              background: badge === "auto" ? RGI.greenBg : badge === "Pflicht" ? RGI.orangeBg : RGI.amberBg,
-              color: badge === "auto" ? RGI.green : badge === "Pflicht" ? RGI.orange : RGI.amber,
-            }}
-          >
-            {badge}
-          </span>
-        )}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function fieldStyle(filled: boolean): React.CSSProperties {
-  return {
-    background: filled ? RGI.greenBg : RGI.orangeBg,
-    borderColor: RGI.border,
-  };
-}
-
-function LoadingRow() {
-  return (
-    <div className="flex items-center gap-2 text-sm" style={{ color: RGI.muted }}>
-      <Loader2 className="w-4 h-4 animate-spin" /> Lade…
-    </div>
-  );
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
-function formatDe(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  return `${d}.${m}.${y}`;
-}
-
-function parseISODate(s: string): Date | null {
-  if (!s) return null;
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function daysBetweenInclusive(from: Date, to: Date): number {
-  const ms = to.getTime() - from.getTime();
-  return Math.max(0, Math.round(ms / 86400000) + 1);
-}
-
-export type ProrataInfo = {
-  active: boolean;
-  factor: number;
-  tenantDays: number;
-  periodDays: number;
-  fromISO: string | null;
-  toISO: string | null;
 };
-
-function computeProrata(
-  moveIn: string,
-  moveOut: string,
-  enabled: boolean,
-  period?: FinalizedPeriod | undefined,
-): ProrataInfo {
-  const empty: ProrataInfo = {
-    active: false,
-    factor: 1,
-    tenantDays: 0,
-    periodDays: 0,
-    fromISO: null,
-    toISO: null,
-  };
-  if (!period) return empty;
-  const pFrom = parseISODate(period.period_from);
-  const pTo = parseISODate(period.period_to);
-  if (!pFrom || !pTo) return empty;
-  const periodDays = daysBetweenInclusive(pFrom, pTo);
-  if (!enabled || (!moveIn && !moveOut)) {
-    return { ...empty, periodDays, tenantDays: periodDays, factor: 1 };
-  }
-  const mIn = parseISODate(moveIn) ?? pFrom;
-  const mOut = parseISODate(moveOut) ?? pTo;
-  const from = mIn > pFrom ? mIn : pFrom;
-  const to = mOut < pTo ? mOut : pTo;
-  if (to < from) {
-    return { ...empty, periodDays, tenantDays: 0, factor: 0, active: true };
-  }
-  const tenantDays = daysBetweenInclusive(from, to);
-  const factor = periodDays > 0 ? tenantDays / periodDays : 1;
-  return {
-    active: factor < 1,
-    factor,
-    tenantDays,
-    periodDays,
-    fromISO: from.toISOString().slice(0, 10),
-    toISO: to.toISOString().slice(0, 10),
-  };
-}
