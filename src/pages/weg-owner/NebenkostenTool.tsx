@@ -43,6 +43,8 @@ import {
   Wrench,
   CalendarDays,
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -1429,6 +1431,21 @@ export function WegOwnerNebenkostenTool() {
 
 // ---------- Helper components ----------
 
+const MONATE = [
+  "Januar",
+  "Februar",
+  "März",
+  "April",
+  "Mai",
+  "Juni",
+  "Juli",
+  "August",
+  "September",
+  "Oktober",
+  "November",
+  "Dezember",
+];
+
 function DateField({
   value,
   onChange,
@@ -1440,6 +1457,18 @@ function DateField({
 }) {
   const [open, setOpen] = useState(false);
   const selected = value ? parseISO(value) : undefined;
+  const [month, setMonth] = useState<Date>(selected ?? new Date());
+  useEffect(() => {
+    if (open) setMonth(selected ?? new Date());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const year = month.getFullYear();
+  const years: number[] = [];
+  for (let y = 2015; y <= new Date().getFullYear() + 1; y++) years.push(y);
+
+  const selectStyle: React.CSSProperties = { borderColor: RGI.border, color: RGI.text, background: "#fff" };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -1452,26 +1481,68 @@ function DateField({
           {selected ? format(selected, "dd.MM.yyyy", { locale: de }) : (placeholder ?? "Datum wählen")}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent className="w-auto p-3" align="start">
+        <div className="flex items-center gap-1.5 mb-2">
+          <button
+            type="button"
+            aria-label="Vorheriger Monat"
+            className="h-8 w-8 rounded-md border flex items-center justify-center shrink-0 hover:bg-muted"
+            style={{ borderColor: RGI.border }}
+            onClick={() => setMonth(new Date(year, month.getMonth() - 1, 1))}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <select
+            value={month.getMonth()}
+            onChange={(e) => setMonth(new Date(year, Number(e.target.value), 1))}
+            className="h-8 flex-1 rounded-md border px-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+            style={selectStyle}
+          >
+            {MONATE.map((m, i) => (
+              <option key={i} value={i}>
+                {m}
+              </option>
+            ))}
+          </select>
+          <select
+            value={year}
+            onChange={(e) => setMonth(new Date(Number(e.target.value), month.getMonth(), 1))}
+            className="h-8 w-[86px] rounded-md border px-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+            style={selectStyle}
+          >
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            aria-label="Nächster Monat"
+            className="h-8 w-8 rounded-md border flex items-center justify-center shrink-0 hover:bg-muted"
+            style={{ borderColor: RGI.border }}
+            onClick={() => setMonth(new Date(year, month.getMonth() + 1, 1))}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
         <Calendar
           mode="single"
+          month={month}
+          onMonthChange={setMonth}
           selected={selected}
           onSelect={(d) => {
             onChange(d ? format(d, "yyyy-MM-dd") : "");
             setOpen(false);
           }}
-          defaultMonth={selected}
-          captionLayout="dropdown-buttons"
-          fromYear={2015}
-          toYear={new Date().getFullYear() + 1}
-          initialFocus
           locale={de}
+          className="p-0"
+          classNames={{ caption: "hidden" }}
         />
       </PopoverContent>
     </Popover>
   );
 }
-
 function TenancyDates({
   from,
   to,
