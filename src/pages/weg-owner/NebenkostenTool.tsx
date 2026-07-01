@@ -349,7 +349,7 @@ export function WegOwnerNebenkostenTool() {
     const extraSum = round2(extraCosts.reduce((s, c) => s + extraEff(c), 0));
     const costSum = round2(autoSum + heatingValue + extraSum);
     const prepayFull = tPrepayMonthly; // Eingabe ist bereits die Jahressumme
-    const prepaySum = round2(pr.active ? prepayFull * pr.factor : prepayFull);
+    const prepaySum = round2(prepayFull); // eingetragene Summe wird 1:1 übernommen (nicht anteilig)
     const result = round2(costSum - prepaySum);
     const months = pr.periodDays > 0 ? pr.tenantDays / 30.42 : 0;
     return {
@@ -456,7 +456,7 @@ export function WegOwnerNebenkostenTool() {
     const costSum = autoSum + heatingValue + extraSum;
     // Vorauszahlung: 12 Monatsraten anteilig auf die Mietzeit (tagesgenau)
     const prepayFull = Number(prepayMonthly) || 0; // Eingabe ist bereits die Jahressumme
-    const prepaySum = prorata.active ? prepayFull * prorata.factor : prepayFull;
+    const prepaySum = prepayFull; // eingetragene Summe wird 1:1 übernommen (nicht anteilig)
     const result = costSum - prepaySum;
     return {
       autoSum,
@@ -762,8 +762,8 @@ export function WegOwnerNebenkostenTool() {
                         />
                       </Field>
                       <Field
-                        label="NK-Vorauszahlung gesamt (Jahr, €)"
-                        tooltip="Gesamte Nebenkosten-Vorauszahlung des Jahres laut Mietvertrag. Pflichtfeld."
+                        label="Geleistete NK-Vorauszahlung des Mieters (€)"
+                        tooltip="Betrag, den dieser Mieter im Abrechnungszeitraum insgesamt an NK-Vorauszahlung geleistet hat. Wird 1:1 übernommen (nicht anteilig gekürzt). Pflichtfeld."
                         badge={prepayMonthly !== "" && Number(prepayMonthly) > 0 ? undefined : "Pflicht"}
                       >
                         <Input
@@ -913,8 +913,8 @@ export function WegOwnerNebenkostenTool() {
                             </Field>
 
                             <Field
-                              label="NK-Vorauszahlung gesamt (Jahr, €)"
-                              tooltip="Gesamte Nebenkosten-Vorauszahlung des Jahres laut Mietvertrag. Pflichtfeld."
+                              label="Geleistete NK-Vorauszahlung des Mieters (€)"
+                              tooltip="Betrag, den dieser Mieter im Abrechnungszeitraum insgesamt an NK-Vorauszahlung geleistet hat. Wird 1:1 übernommen (nicht anteilig gekürzt). Pflichtfeld."
                               badge={t.prepayMonthly !== "" && Number(t.prepayMonthly) > 0 ? undefined : "Pflicht"}
                             >
                               <Input
