@@ -44,6 +44,10 @@ import {
   CalendarDays,
   ArrowRight,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format, parseISO } from "date-fns";
+import { de } from "date-fns/locale";
 import { toast } from "sonner";
 
 type Assignment = {
@@ -802,13 +806,7 @@ export function WegOwnerNebenkostenTool() {
                       </div>
 
                       {tenantChanged && (
-                        <TenancyDates
-                          from={moveIn}
-                          to={moveOut}
-                          onFrom={setMoveIn}
-                          onTo={setMoveOut}
-                          onBlur={saveTenancy}
-                        />
+                        <TenancyDates from={moveIn} to={moveOut} onFrom={setMoveIn} onTo={setMoveOut} />
                       )}
                     </div>
                   </SectionCard>
@@ -1431,20 +1429,57 @@ export function WegOwnerNebenkostenTool() {
 
 // ---------- Helper components ----------
 
+function DateField({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = value ? parseISO(value) : undefined;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="h-11 w-full rounded-lg border px-3 text-sm text-left flex items-center gap-2 outline-none transition focus:ring-2 focus:ring-primary/30"
+          style={{ borderColor: RGI.border, background: "#fff", color: selected ? RGI.text : RGI.muted }}
+        >
+          <CalendarDays className="w-4 h-4 shrink-0" style={{ color: RGI.muted }} />
+          {selected ? format(selected, "dd.MM.yyyy", { locale: de }) : (placeholder ?? "Datum wählen")}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={selected}
+          onSelect={(d) => {
+            onChange(d ? format(d, "yyyy-MM-dd") : "");
+            setOpen(false);
+          }}
+          defaultMonth={selected}
+          initialFocus
+          locale={de}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function TenancyDates({
   from,
   to,
   onFrom,
   onTo,
-  onBlur,
 }: {
   from: string;
   to: string;
   onFrom: (v: string) => void;
   onTo: (v: string) => void;
-  onBlur?: () => void;
 }) {
-  const inputStyle: React.CSSProperties = { borderColor: RGI.border, background: "#fff", color: RGI.text };
   return (
     <div className="rounded-xl border p-3" style={{ borderColor: RGI.border, background: RGI.bg }}>
       <div className="text-xs font-medium mb-2 flex items-center gap-1.5" style={{ color: RGI.muted }}>
@@ -1456,34 +1491,19 @@ function TenancyDates({
           <label className="text-[11px] block mb-1" style={{ color: RGI.muted }}>
             Einzug
           </label>
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => onFrom(e.target.value)}
-            onBlur={onBlur}
-            className="h-11 w-full rounded-lg border px-3 text-sm outline-none transition focus:ring-2 focus:ring-primary/30"
-            style={inputStyle}
-          />
+          <DateField value={from} onChange={onFrom} placeholder="Einzugsdatum" />
         </div>
         <ArrowRight className="w-4 h-4 mb-3 shrink-0" style={{ color: RGI.muted }} />
         <div className="flex-1">
           <label className="text-[11px] block mb-1" style={{ color: RGI.muted }}>
             Auszug
           </label>
-          <input
-            type="date"
-            value={to}
-            onChange={(e) => onTo(e.target.value)}
-            onBlur={onBlur}
-            className="h-11 w-full rounded-lg border px-3 text-sm outline-none transition focus:ring-2 focus:ring-primary/30"
-            style={inputStyle}
-          />
+          <DateField value={to} onChange={onTo} placeholder="Auszugsdatum" />
         </div>
       </div>
     </div>
   );
 }
-
 function SectionCard({
   num,
   title,
