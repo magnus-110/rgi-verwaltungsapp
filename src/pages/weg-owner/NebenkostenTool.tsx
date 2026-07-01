@@ -41,6 +41,8 @@ import {
   Users,
   Receipt,
   Wrench,
+  CalendarDays,
+  ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -62,7 +64,6 @@ type ExtraCost = {
 
 const DEFAULT_EXTRA_COST_TYPES = [
   { type: "grundsteuer", label: "Grundsteuer" },
-  { type: "kabel_tv", label: "Kabel / TV" },
   { type: "wartung_se", label: "Wartung Sondereigentum" },
 ];
 
@@ -801,26 +802,13 @@ export function WegOwnerNebenkostenTool() {
                       </div>
 
                       {tenantChanged && (
-                        <div className="grid grid-cols-2 gap-3">
-                          <Field label="Einzug">
-                            <Input
-                              type="date"
-                              className="h-11"
-                              value={moveIn}
-                              onChange={(e) => setMoveIn(e.target.value)}
-                              onBlur={saveTenancy}
-                            />
-                          </Field>
-                          <Field label="Auszug">
-                            <Input
-                              type="date"
-                              className="h-11"
-                              value={moveOut}
-                              onChange={(e) => setMoveOut(e.target.value)}
-                              onBlur={saveTenancy}
-                            />
-                          </Field>
-                        </div>
+                        <TenancyDates
+                          from={moveIn}
+                          to={moveOut}
+                          onFrom={setMoveIn}
+                          onTo={setMoveOut}
+                          onBlur={saveTenancy}
+                        />
                       )}
                     </div>
                   </SectionCard>
@@ -936,24 +924,12 @@ export function WegOwnerNebenkostenTool() {
                               />
                             </Field>
 
-                            <div className="grid grid-cols-2 gap-3">
-                              <Field label="Einzug">
-                                <Input
-                                  type="date"
-                                  className="h-11"
-                                  value={t.moveIn}
-                                  onChange={(e) => updateAdditionalTenant(t.id, { moveIn: e.target.value })}
-                                />
-                              </Field>
-                              <Field label="Auszug">
-                                <Input
-                                  type="date"
-                                  className="h-11"
-                                  value={t.moveOut}
-                                  onChange={(e) => updateAdditionalTenant(t.id, { moveOut: e.target.value })}
-                                />
-                              </Field>
-                            </div>
+                            <TenancyDates
+                              from={t.moveIn}
+                              to={t.moveOut}
+                              onFrom={(v) => updateAdditionalTenant(t.id, { moveIn: v })}
+                              onTo={(v) => updateAdditionalTenant(t.id, { moveOut: v })}
+                            />
 
                             <Field
                               label="Heizung / Warmwasser / Wasser (anteilig)"
@@ -1121,8 +1097,6 @@ export function WegOwnerNebenkostenTool() {
                           const disabled = disabledAccounts.has(p.account_number);
                           const consumption = !!p.consumption_based;
                           const override = positionOverrides[p.account_number];
-                          const autoValue = round2(baseShare(p) * factorForAuto(p));
-                          const value = override !== undefined ? override : autoValue;
                           const prorataApplied = prorata.active && !consumption;
                           return (
                             <div
@@ -1155,7 +1129,7 @@ export function WegOwnerNebenkostenTool() {
                                   >
                                     <span>Schlüssel {displayKey(p).toUpperCase()}</span>
                                     <span>·</span>
-                                    <span>Gesamt {p.total_amount.toFixed(2)} €</span>
+                                    <span>Gesamt *,** €</span>
                                     {consumption && (
                                       <span
                                         className="px-1.5 py-0.5 rounded-full text-[10px] font-medium ml-1"
@@ -1178,31 +1152,13 @@ export function WegOwnerNebenkostenTool() {
                                   className="flex items-baseline gap-1 shrink-0 pl-2"
                                   style={{ borderLeft: `1px solid ${disabled ? RGI.border : "rgba(0,0,0,0.08)"}` }}
                                 >
-                                  <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    disabled={disabled}
-                                    aria-label={`Mieteranteil ${p.account_name}`}
-                                    className="w-24 bg-transparent border-0 outline-none text-right text-lg font-semibold tabular-nums focus:ring-0 disabled:cursor-not-allowed"
-                                    style={{ color: RGI.text }}
-                                    value={
-                                      typeof value === "number"
-                                        ? value.toLocaleString("de-DE", {
-                                            minimumFractionDigits: 2,
-                                            maximumFractionDigits: 2,
-                                          })
-                                        : ""
-                                    }
-                                    onChange={(e) => {
-                                      const raw = e.target.value.replace(/\./g, "").replace(",", ".");
-                                      const num = raw === "" ? 0 : Number(raw);
-                                      if (Number.isNaN(num)) return;
-                                      setPositionOverrides((prev) => ({
-                                        ...prev,
-                                        [p.account_number]: num,
-                                      }));
-                                    }}
-                                  />
+                                  <span
+                                    className="w-24 text-right text-lg font-semibold tabular-nums"
+                                    style={{ color: RGI.muted, letterSpacing: "0.08em" }}
+                                    aria-label="Betrag nach Kauf sichtbar"
+                                  >
+                                    *,**
+                                  </span>
                                   <span className="text-sm font-medium" style={{ color: RGI.muted }}>
                                     €
                                   </span>
@@ -1474,6 +1430,59 @@ export function WegOwnerNebenkostenTool() {
 }
 
 // ---------- Helper components ----------
+
+function TenancyDates({
+  from,
+  to,
+  onFrom,
+  onTo,
+  onBlur,
+}: {
+  from: string;
+  to: string;
+  onFrom: (v: string) => void;
+  onTo: (v: string) => void;
+  onBlur?: () => void;
+}) {
+  const inputStyle: React.CSSProperties = { borderColor: RGI.border, background: "#fff", color: RGI.text };
+  return (
+    <div className="rounded-xl border p-3" style={{ borderColor: RGI.border, background: RGI.bg }}>
+      <div className="text-xs font-medium mb-2 flex items-center gap-1.5" style={{ color: RGI.muted }}>
+        <CalendarDays className="w-3.5 h-3.5" />
+        Mietzeitraum dieses Mieters
+      </div>
+      <div className="flex items-end gap-2">
+        <div className="flex-1">
+          <label className="text-[11px] block mb-1" style={{ color: RGI.muted }}>
+            Einzug
+          </label>
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => onFrom(e.target.value)}
+            onBlur={onBlur}
+            className="h-11 w-full rounded-lg border px-3 text-sm outline-none transition focus:ring-2 focus:ring-primary/30"
+            style={inputStyle}
+          />
+        </div>
+        <ArrowRight className="w-4 h-4 mb-3 shrink-0" style={{ color: RGI.muted }} />
+        <div className="flex-1">
+          <label className="text-[11px] block mb-1" style={{ color: RGI.muted }}>
+            Auszug
+          </label>
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => onTo(e.target.value)}
+            onBlur={onBlur}
+            className="h-11 w-full rounded-lg border px-3 text-sm outline-none transition focus:ring-2 focus:ring-primary/30"
+            style={inputStyle}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function SectionCard({
   num,
