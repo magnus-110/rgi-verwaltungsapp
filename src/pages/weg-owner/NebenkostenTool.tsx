@@ -1560,15 +1560,15 @@ function TenancyDates({
         <CalendarDays className="w-3.5 h-3.5" />
         Mietzeitraum dieses Mieters
       </div>
-      <div className="flex items-end gap-2">
-        <div className="flex-1">
+      <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+        <div className="flex-1 min-w-0">
           <label className="text-[11px] block mb-1" style={{ color: RGI.muted }}>
             Einzug
           </label>
           <DateField value={from} onChange={onFrom} placeholder="Einzugsdatum" />
         </div>
-        <ArrowRight className="w-4 h-4 mb-3 shrink-0" style={{ color: RGI.muted }} />
-        <div className="flex-1">
+        <ArrowRight className="w-4 h-4 mb-3 shrink-0 hidden sm:block" style={{ color: RGI.muted }} />
+        <div className="flex-1 min-w-0">
           <label className="text-[11px] block mb-1" style={{ color: RGI.muted }}>
             Auszug
           </label>
