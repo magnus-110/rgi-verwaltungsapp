@@ -1461,6 +1461,9 @@ function DateField({
             setOpen(false);
           }}
           defaultMonth={selected}
+          captionLayout="dropdown-buttons"
+          fromYear={2015}
+          toYear={new Date().getFullYear() + 1}
           initialFocus
           locale={de}
         />
