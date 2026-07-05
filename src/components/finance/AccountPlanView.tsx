@@ -212,7 +212,7 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
                                   <TableCell className="py-1.5 px-3 whitespace-nowrap tabular-nums">
                                     {format(new Date(b.booking_date), "dd.MM.yyyy")}
                                   </TableCell>
-                                  <TableCell className="py-1.5 px-3 font-mono text-xs">{b.receipt_number || b.booking_reference || "–"}</TableCell>
+                                  <TableCell className="py-1.5 px-3 font-mono text-xs">{b.booking_reference || b.receipt_number || "–"}</TableCell>
                                   <TableCell className="py-1.5 px-3 max-w-[400px] truncate">{b.description || "–"}</TableCell>
                                   <TableCell className="py-1.5 px-3 font-mono text-xs">
                                     {b.counter_account?.account_number || "–"}
