@@ -5,6 +5,7 @@ import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-
 import PizZip from "npm:pizzip@3.1.7";
 import Docxtemplater from "npm:docxtemplater@3.50.0";
 import { loadRecipients } from "../_shared/comm-vars.ts";
+import { firstValidEmail } from "../_shared/sanitize-email.ts";
 import {
   buildBaseUsername,
   ensureUniqueUsername,
@@ -227,14 +228,20 @@ async function ensureContactAccount(
   const base = buildBaseUsername(contact.first_name, contact.last_name, contact.company_name);
   const username = await ensureUniqueUsername(admin, base);
 
-  // Prefer real email if available (primary contact_emails)
+  // Prefer real email if available (primary contact_emails).
+  // Sanitize: stored values may contain noise like "max@x.de (privat)" or
+  // multiple addresses — an invalid string would make createUser fail.
   const { data: emails } = await admin
     .from("contact_emails")
     .select("email, is_primary")
     .eq("contact_id", contactId)
     .order("is_primary", { ascending: false });
-  const realEmail = emails && emails.length > 0 ? emails[0].email : null;
-  const authEmail = realEmail || pseudoEmail(username);
+  let realEmail: string | null = null;
+  for (const row of emails ?? []) {
+    realEmail = firstValidEmail(row.email);
+    if (realEmail) break;
+  }
+  let authEmail = realEmail || pseudoEmail(username);
   const password = generateNumericPassword(8);
   // Rolle aus allen Building-Assignments ableiten (nicht stur aus aktuellem Mode)
   const { data: allAssignmentsNew } = await admin
@@ -259,17 +266,50 @@ async function ensureContactAccount(
   });
 
   if (createErr) {
-    // Email collision → reuse existing auth user (and update password)
-    const { data: list } = await admin.auth.admin.listUsers();
-    const existing = (list?.users as any[] | undefined)?.find(
-      (u: any) => u.email?.toLowerCase() === authEmail.toLowerCase(),
-    );
-    if (!existing) {
-      console.error("createUser failed and no existing user", createErr);
-      return null;
+    // Email collision (z. B. Eheleute mit gemeinsamer E-Mail-Adresse):
+    // vorhandenen Auth-User über ALLE Seiten suchen (listUsers liefert
+    // standardmäßig nur 50 pro Seite).
+    let existing: any = null;
+    for (let page = 1; page <= 20 && !existing; page++) {
+      const { data: list, error: listErr } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+      if (listErr) break;
+      const users = (list?.users as any[]) ?? [];
+      existing = users.find((u: any) => u.email?.toLowerCase() === authEmail.toLowerCase()) || null;
+      if (users.length < 1000) break;
     }
-    authUserId = existing.id;
-    await admin.auth.admin.updateUserById(authUserId, { password });
+
+    if (existing) {
+      // Der Account gehört evtl. einem ANDEREN Kontakt (gemeinsame E-Mail).
+      // Passwort dort NICHT überschreiben, sondern für diesen Kontakt einen
+      // eigenen Account mit Pseudo-E-Mail anlegen (Login läuft über Username).
+      const { data: linkedContact } = await admin
+        .from("contacts").select("id").eq("user_id", existing.id).maybeSingle();
+      if (!linkedContact || linkedContact.id === contactId) {
+        authUserId = existing.id;
+        await admin.auth.admin.updateUserById(authUserId, { password });
+      }
+    }
+
+    if (!authUserId) {
+      // Fallback: eigener Account mit garantiert eindeutiger Pseudo-E-Mail,
+      // damit der Brief auf jeden Fall erzeugt werden kann.
+      const { data: retry, error: retryErr } = await admin.auth.admin.createUser({
+        email: pseudoEmail(username),
+        password,
+        email_confirm: true,
+        user_metadata: {
+          first_name: contact.first_name,
+          last_name: contact.last_name,
+        },
+      });
+      if (retryErr || !retry?.user) {
+        console.error("createUser failed (incl. pseudo-email fallback)", createErr, retryErr);
+        return null;
+      }
+      authUserId = retry.user.id;
+      realEmail = null; // Account läuft über Pseudo-E-Mail
+      authEmail = pseudoEmail(username);
+    }
   } else {
     authUserId = created.user!.id;
   }

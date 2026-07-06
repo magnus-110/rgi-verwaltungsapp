@@ -30,10 +30,14 @@ const FALLBACK: PlaceholderSamples = {
 };
 
 function buildSalutation(sal?: string, lastName?: string): string {
+  const s = (sal || "").trim().toLowerCase();
   if (!lastName) return "Sehr geehrte Damen und Herren,";
-  if (sal === "Herr") return `Sehr geehrter Herr ${lastName},`;
-  if (sal === "Frau") return `Sehr geehrte Frau ${lastName},`;
-  return `Sehr geehrte/r ${lastName},`;
+  if (s === "herr") return `Sehr geehrter Herr ${lastName},`;
+  if (s === "frau") return `Sehr geehrte Frau ${lastName},`;
+  if (s.includes("familie") || s === "fam" || s === "fam.") return `Sehr geehrte Familie ${lastName},`;
+  if (s.includes("eheleute")) return `Sehr geehrte Eheleute ${lastName},`;
+  if (s.includes("herr") && s.includes("frau")) return `Sehr geehrte Frau ${lastName}, sehr geehrter Herr ${lastName},`;
+  return "Sehr geehrte Damen und Herren,";
 }
 
 /**
@@ -119,3 +123,4 @@ export function usePlaceholderSamples(buildingId: string, contactIds?: string[])
     staleTime: 30_000,
   });
 }
+

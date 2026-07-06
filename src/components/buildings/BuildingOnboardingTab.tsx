@@ -68,7 +68,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
   const [managementStartDate, setManagementStartDate] = useState<Date | undefined>(undefined);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [lastResult, setLastResult] = useState<{ ok: number; failed: number; created_accounts?: number; zip_path: string } | null>(null);
+  const [lastResult, setLastResult] = useState<{ ok: number; failed: number; created_accounts?: number; zip_path: string; errors?: string[] } | null>(null);
 
   // Activation state
   const { data: activation } = useQuery({
@@ -111,6 +111,9 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
         .from("comm_templates")
         .select("id, name")
         .eq("type", "letter")
+        // Nur allgemeine Briefvorlagen anzeigen — Spezialvorlagen
+        // (z. B. ETV-Einladungen) haben ein eigenes template_kind.
+        .or("template_kind.eq.general,template_kind.is.null")
         .or(`building_id.eq.${buildingId},building_id.is.null`)
         .order("name");
       return data ?? [];
@@ -280,7 +283,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
       if (error) throw error;
       const r = data as any;
       if (r?.error) throw new Error(r.error);
-      setLastResult({ ok: r.ok, failed: r.failed, created_accounts: r.created_accounts, zip_path: r.zip_path });
+      setLastResult({ ok: r.ok, failed: r.failed, created_accounts: r.created_accounts, zip_path: r.zip_path, errors: r.errors });
       toast({
         title: "Briefe erstellt",
         description: `${r.ok} Briefe · ${r.created_accounts ?? 0} neue Accounts angelegt · ${r.failed} fehlgeschlagen.`,
@@ -503,9 +506,16 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
           </div>
 
           {lastResult?.failed ? (
-            <div className="flex items-center gap-2 text-xs text-destructive">
-              <AlertCircle className="h-4 w-4" />
-              {lastResult.failed} Briefe konnten nicht erzeugt werden.
+            <div className="space-y-1 text-xs text-destructive">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                {lastResult.failed} Brief(e) konnten nicht erzeugt werden:
+              </div>
+              <ul className="list-disc pl-6">
+                {(lastResult.errors ?? []).map((err, i) => (
+                  <li key={i}>{err}</li>
+                ))}
+              </ul>
             </div>
           ) : null}
         </CardContent>

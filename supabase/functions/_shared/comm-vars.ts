@@ -45,7 +45,15 @@ export function makeAnredeBrief(salutation: string | null, lastName: string | nu
   if (!ln) return "Sehr geehrte Damen und Herren,";
   if (sal === "herr") return `Sehr geehrter Herr ${ln},`;
   if (sal === "frau") return `Sehr geehrte Frau ${ln},`;
-  return `Sehr geehrte/r ${ln},`;
+  if (sal.includes("familie") || sal === "fam" || sal === "fam.") return `Sehr geehrte Familie ${ln},`;
+  if (sal.includes("eheleute")) return `Sehr geehrte Eheleute ${ln},`;
+  // "Herr und Frau", "Frau und Herr" u. ä.
+  if (sal.includes("herr") && sal.includes("frau")) {
+    return `Sehr geehrte Frau ${ln}, sehr geehrter Herr ${ln},`;
+  }
+  if (sal.includes("firma")) return "Sehr geehrte Damen und Herren,";
+  // Unbekannte/leere Anrede: neutral statt "Sehr geehrte/r Nachname,"
+  return "Sehr geehrte Damen und Herren,";
 }
 
 /** Verbindet eine Liste von Strings mit Komma + abschließendem " und ". */
@@ -95,7 +103,13 @@ export function combinePersons(
   const sals = valid.map((p) => (p.salutation || "").trim().toLowerCase());
   const uniqueSals = Array.from(new Set(sals));
   let anredeBrief = "";
-  if (uniqueLast.length === 1 && uniqueSals.length === 1 && (uniqueSals[0] === "frau" || uniqueSals[0] === "herr")) {
+  if (
+    uniqueLast.length === 1 && valid.length === 2 &&
+    uniqueSals.includes("herr") && uniqueSals.includes("frau")
+  ) {
+    // Ehepaar / Paar mit gleichem Nachnamen: korrekte Doppel-Anrede (Dame zuerst)
+    anredeBrief = `Sehr geehrte Frau ${uniqueLast[0]}, sehr geehrter Herr ${uniqueLast[0]},`;
+  } else if (uniqueLast.length === 1 && uniqueSals.length === 1 && (uniqueSals[0] === "frau" || uniqueSals[0] === "herr")) {
     const plural = uniqueSals[0] === "frau" ? "Sehr geehrte Frauen" : "Sehr geehrte Herren";
     anredeBrief = `${plural} ${uniqueLast[0]},`;
   } else {
@@ -320,7 +334,10 @@ export async function loadRecipients(
       const salutation = combined?.anrede ?? (personForVars?.salutation || c.salutation || "");
       const titel = personForVars?.position || "";
       const vollname = combined?.vollname || [firstName, lastName].filter(Boolean).join(" ").trim();
-      const anredeBrief = combined?.anrede_brief || makeAnredeBrief(salutation, lastName);
+      // "Familie"/"Eheleute" wird häufig im Vornamen-Feld gepflegt — dann als Anrede behandeln.
+      const effectiveSalutation =
+        salutation || (/^(familie|fam\.?|eheleute)$/i.test(firstName.trim()) ? firstName.trim() : "");
+      const anredeBrief = combined?.anrede_brief || makeAnredeBrief(effectiveSalutation, lastName);
       const email = pair.email || null;
 
       if (filter.require_email && !email) continue;
