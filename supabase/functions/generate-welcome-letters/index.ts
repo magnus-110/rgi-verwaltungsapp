@@ -439,8 +439,9 @@ Deno.serve(async (req) => {
       .from("buildings").select("management_mode").eq("id", building_id).maybeSingle();
     const mode: Mode = (bRow?.management_mode === "rent" ? "rent" : "weg");
 
-    // Owners
-    const recipients = await loadRecipients(admin, building_id, { roles: ["eigentuemer"] });
+    // Owners (inkl. Beirat — Beiratsmitglieder sind nach § 29 WEG immer auch Eigentümer,
+    // werden in der App aber teils nur mit der Rolle "beirat" geführt)
+    const recipients = await loadRecipients(admin, building_id, { roles: ["eigentuemer", "beirat"] });
     if (recipients.length === 0) return json({ error: "Keine Eigentümer gefunden." }, 400);
 
     // Group recipients by (contact_id + normalized postal address):
