@@ -274,8 +274,10 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         supabase.from("buildings").select("id, name").order("name"),
         supabase
           .from("contact_building_assignments")
-          .select("building_id, contact_id")
-          .eq("is_active", true),
+          .select("building_id, contact_id, role_in_building")
+          .eq("is_active", true)
+          // Nur Eigentümer und Beiräte anzeigen – keine Dienstleister, Mieter oder Verwalter
+          .in("role_in_building", ["eigentuemer", "beirat"]),
       ]);
       if (bRes.error) throw bRes.error;
       if (aRes.error) throw aRes.error;
@@ -1916,14 +1918,4 @@ const ScheduleButton = ({
               </span>
               <Button
                 variant="ghost" size="sm" className="h-7 text-xs"
-                onClick={() => { update({ scheduledAt: null }); setOpen(false); }}
-              >
-                Zurücksetzen
-              </Button>
-            </div>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-};
+                onClick={() => { update({ scheduledAt: null }); setOpe
