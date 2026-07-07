@@ -1918,4 +1918,14 @@ const ScheduleButton = ({
               </span>
               <Button
                 variant="ghost" size="sm" className="h-7 text-xs"
-                onClick={() => { update({ scheduledAt: null }); setOpe
+                onClick={() => { update({ scheduledAt: null }); setOpen(false); }}
+              >
+                Entfernen
+              </Button>
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
