@@ -495,6 +495,14 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                         className="cursor-pointer"
                         onClick={() => setSelectedInvoiceId(inv.id)}
                       >
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selectedIds.has(inv.id)}
+                            onCheckedChange={() => toggleSelected(inv.id)}
+                            aria-label="Rechnung auswählen"
+                          />
+                        </TableCell>
+
                         <TableCell className="font-mono text-xs">
                           <div className="flex items-center gap-1.5">
                             {isCredit && (
