@@ -78,11 +78,40 @@ Deno.serve(async (req) => {
       if (item.bcc_addresses?.length) mailOptions.bcc = item.bcc_addresses.join(", ");
 
       const atts = Array.isArray(item.attachments) ? item.attachments : [];
-      if (atts.length > 0) {
-        mailOptions.attachments = atts.map((att: any) => ({
-          filename: att.filename,
-          content: Uint8Array.from(atob(att.content), (c) => c.charCodeAt(0)),
-          contentType: att.contentType || "application/octet-stream",
+      const resolved: Array<{ filename: string; content: Uint8Array; contentType: string; storage_path?: string }> = [];
+      for (const att of atts) {
+        try {
+          let buf: Uint8Array | null = null;
+          if (att.storage_path) {
+            const { data: blob, error: dlErr } = await admin.storage
+              .from("email-attachments")
+              .download(att.storage_path);
+            if (dlErr || !blob) {
+              console.warn(`skip ${att.filename}: storage download failed (${dlErr?.message})`);
+              continue;
+            }
+            buf = new Uint8Array(await blob.arrayBuffer());
+          } else if (att.content) {
+            buf = Uint8Array.from(atob(att.content), (c) => c.charCodeAt(0));
+          } else {
+            console.warn(`skip ${att.filename}: no content or storage_path`);
+            continue;
+          }
+          resolved.push({
+            filename: att.filename,
+            content: buf,
+            contentType: att.contentType || "application/octet-stream",
+            storage_path: att.storage_path,
+          });
+        } catch (attErr) {
+          console.warn(`skip ${att.filename}: ${(attErr as Error).message}`);
+        }
+      }
+      if (resolved.length > 0) {
+        mailOptions.attachments = resolved.map((a) => ({
+          filename: a.filename,
+          content: a.content,
+          contentType: a.contentType,
         }));
       }
 
@@ -110,6 +139,12 @@ Deno.serve(async (req) => {
         has_attachments: atts.length > 0,
         message_id: `scheduled-${item.id}-${Date.now()}`,
       });
+
+      // Clean up storage-backed attachments after successful send
+      const storagePaths = atts.map((a: any) => a.storage_path).filter(Boolean);
+      if (storagePaths.length > 0) {
+        try { await admin.storage.from("email-attachments").remove(storagePaths); } catch (_) { /* ignore */ }
+      }
 
       await admin.from("scheduled_emails").update({
         status: "sent",
