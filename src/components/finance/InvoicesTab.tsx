@@ -412,9 +412,20 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                 {stuckCount} OCR neu starten
               </Button>
             )}
+            {selectedIds.size > 0 && (
+              <Button size="sm" variant="outline" onClick={exportZip} disabled={exporting}>
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-1" />
+                )}
+                ZIP export ({selectedIds.size})
+              </Button>
+            )}
             <Button size="sm" onClick={() => setIsCreateOpen(true)}>
               <Plus className="h-4 w-4 mr-1" /> Manuell anlegen
             </Button>
+
           </div>
         </CardHeader>
         <CardContent>
