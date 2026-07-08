@@ -1,41 +1,48 @@
-## Problem
+# Problem
 
-Die Doc-Generierung schlägt fehl, weil die Word-Vorlage einen Tag-Mismatch enthält:
+Am 06.07. um 08:00 wurden 32 geplante E-Mails ausgelöst. Ein großer Teil ist mit `error_message: "Failed to decode base64"` auf Status `failed` gelandet – darunter die Mail von Magnus Göttinger an Carsten Sieden (Betreff "Re: Anfrage zur Verwaltung einer 2-Parteien-WEG in Hopfen am See", `scheduled_emails.id = 3e57214a-27ee-4d4f-9773-462c540e1807`). Diese Mails wurden nie über SMTP verschickt und liegen deshalb weder im Postausgang noch im Gesendet-Ordner.
 
+# Ursache
+
+`FloatingComposeWindow.tsx` lädt Anhänge > 128 KB in den Storage-Bucket `email-attachments` hoch und speichert im `scheduled_emails.attachments`-Array nur `{ filename, storage_path, contentType, size }` (kein `content`). Kleine Anhänge werden als Base64 in `content` mitgespeichert.
+
+Der Dispatcher `supabase/functions/dispatch-scheduled-emails/index.ts` kennt aber nur den Inline-Pfad und ruft blind
+```ts
+Uint8Array.from(atob(att.content), c => c.charCodeAt(0))
 ```
-Closing tag does not match opening tag
-openingtag: "ergebnis_gruen"
-closingtag: " ergebnis_gruen"   ← Leerzeichen
-```
+auf. Für Storage-Anhänge ist `att.content = undefined` → `atob(undefined)` wirft "Failed to decode base64", der `catch` markiert die ganze Mail als `failed`. Beim regulären Sofortversand (`send-email`) funktioniert es, weil dort der Storage-Pfad ausgewertet wird.
 
-docxtemplater bricht ab → `service_orders.status` bleibt `paid`, `document_error` wird gesetzt, aber der Success-Screen pollt endlos.
+# Lösung
 
-Es gibt zwei unabhängige Themen:
+## 1. Dispatcher fixen (`supabase/functions/dispatch-scheduled-emails/index.ts`)
 
-### A) Vorlage tolerant einlesen (Code-Fix)
-Bevor das DOCX an docxtemplater geht, normalisieren wir Whitespace **innerhalb** unserer `{...}`-Tags in `word/document.xml` (und Header/Footer), damit Tippfehler wie `{/ ergebnis_gruen}`, `{# ergebnis_gruen }` oder `{ mieter_name }` nicht mehr zum Abbruch führen.
+Attachment-Mapping so aufbauen wie in `send-email`:
 
-Umsetzung in `supabase/functions/generate-service-document/index.ts`:
-1. Vor `new Docxtemplater(zip, …)` die relevanten XML-Dateien des Zips lesen.
-2. Per Regex `\{\s*([#/^]?)\s*([a-zA-Z0-9_]+)\s*\}` zu `{$1$2}` ersetzen — entfernt nur Whitespace direkt nach `{` / vor `}` und um den Section-Marker. Andere Inhalte (Word-XML-Tags zwischen Wörtern) bleiben unberührt.
-3. Zip mit normalisierten XMLs neu setzen, dann rendern.
+- Wenn `att.storage_path` vorhanden ist: über den Service-Role-Client aus dem Bucket `email-attachments` herunterladen (`storage.from("email-attachments").download(att.storage_path)`), in `Uint8Array` konvertieren und als `content` an nodemailer geben.
+- Sonst `att.content` (Base64) wie bisher dekodieren.
+- Fehlt beides → Anhang überspringen und warnen, statt die Mail zu verlieren.
+- Nach erfolgreichem Versand die hochgeladenen Storage-Objekte aufräumen (`storage.remove([...])`), analog zur bestehenden Meta-Verkleinerung.
 
-Zusätzlich Fehler sichtbar machen: bei `TemplateError` schreiben wir `status='document_error'` (statt es auf `paid` zu lassen) und speichern eine lesbare Meldung in `document_error`. Der Success-Screen soll diese Fehlermeldung anzeigen statt endlos zu spinnen.
+Zusätzlich einen `try/catch` pro Anhang, damit ein einzelner defekter Anhang nicht die komplette Mail sprengt.
 
-### B) Success-Screen: Timeout + Fehleranzeige
-In `src/pages/weg-owner/ServiceHubSuccess.tsx`:
-- Wenn `status === 'document_error'` oder `document_error` gesetzt → klare Fehlermeldung statt Spinner, plus „Erneut versuchen"-Button, der `generate-service-document` neu antriggert.
-- Nach z. B. 90 s ohne `document_ready` ebenfalls Hinweis anzeigen („Bitte Support kontaktieren / erneut versuchen").
+## 2. Fehlgeschlagene Mails vom 06.07. neu ausrollen
 
-### C) Hängende Bestellung jetzt freischalten
-Die aktuelle Bestellung steht auf `paid` ohne Dokument. Sobald A) deployt ist, kann ein einmaliger Re-Trigger von `generate-service-document` für diese `order_id` das Dokument nachträglich erzeugen. Ich packe einen „Erneut versuchen"-Button (siehe B) in den Success-Screen, der genau das tut – kein manueller SQL-Eingriff nötig.
+- Betroffene Zeilen: `SELECT id, subject, to_addresses FROM scheduled_emails WHERE status='failed' AND error_message='Failed to decode base64';`
+- Nach dem Deploy per SQL zurücksetzen:
+  ```sql
+  UPDATE scheduled_emails
+  SET status='scheduled', error_message=NULL, scheduled_at = now() + interval '2 minutes'
+  WHERE status='failed' AND error_message='Failed to decode base64';
+  ```
+  Der bestehende pg_cron-Dispatcher greift dann und verschickt sie regulär. Die Magnus→Sieden-Mail geht damit automatisch mit raus.
 
-### D) Empfehlung an dich (kein Code)
-In der Word-Vorlage den Block-Tag korrigieren: aus `{/ ergebnis_gruen}` → `{/ergebnis_gruen}` (und alle ähnlich falsch gesetzten Tags). A) ist nur die Sicherheitsnetz-Lösung; eine saubere Vorlage ist langfristig besser.
+## 3. Verifikation
 
-## Dateien
+- `supabase--edge_function_logs` für `dispatch-scheduled-emails` nach Deploy prüfen – erwartete Log-Zeilen: `sent`-Zähler > 0, keine `Failed to decode base64`.
+- Query `scheduled_emails` erneut: Zeile `3e57214a-…` sollte `status=sent`, `sent_at` gesetzt haben.
+- Im Postfach `magnus.goettinger@rgi-immobilien.de` → Gesendet nach der Mail an Carsten Sieden sehen.
 
-- `supabase/functions/generate-service-document/index.ts` — Pre-Processing der Template-XMLs + Fehler-Status setzen
-- `src/pages/weg-owner/ServiceHubSuccess.tsx` — Fehleranzeige + Retry-Button + Soft-Timeout
+# Nicht betroffen
 
-Keine DB-Migration nötig (Spalten `document_error`, `status` existieren bereits).
+- Sofortversand über `send-email` – der behandelt Storage-Anhänge bereits korrekt.
+- Serienmails (`comm-send-bulk-email`) – eigene Pipeline.
