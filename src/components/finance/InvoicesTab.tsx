@@ -4,17 +4,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, FileText, Loader2, ChevronLeft, ChevronRight, Sparkles, FileCode, RefreshCw, AlertTriangle, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { Plus, FileText, Loader2, ChevronLeft, ChevronRight, Sparkles, FileCode, RefreshCw, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Download } from "lucide-react";
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog";
 import { InvoiceDropZone } from "./InvoiceDropZone";
 import { InvoiceDetailSheet } from "./InvoiceDetailSheet";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import JSZip from "jszip";
 
 const PAGE_SIZE = 25;
+
 
 const OCR_STATUS: Record<string, { label: string; className: string }> = {
   pending: { label: "Wartend", className: "text-muted-foreground" },
@@ -42,6 +45,99 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [bulkRetrying, setBulkRetrying] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const sanitizeFilename = (s: string) =>
+    (s || "")
+      .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue")
+      .replace(/Ä/g, "Ae").replace(/Ö/g, "Oe").replace(/Ü/g, "Ue")
+      .replace(/ß/g, "ss")
+      .replace(/[^A-Za-z0-9._-]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "")
+      .slice(0, 80);
+
+  const exportZip = async () => {
+    if (selectedIds.size === 0) return;
+    setExporting(true);
+    try {
+      const { data: rows, error } = await supabase
+        .from("invoices")
+        .select("id, file_path, file_name, invoice_number, invoice_date, vendor_name")
+        .in("id", Array.from(selectedIds));
+      if (error) throw error;
+      if (!rows || rows.length === 0) {
+        toast.error("Keine Rechnungen gefunden");
+        return;
+      }
+
+      const zip = new JSZip();
+      const usedNames = new Set<string>();
+      let ok = 0;
+      let fail = 0;
+
+      for (const r of rows as any[]) {
+        if (!r.file_path) { fail++; continue; }
+        try {
+          const { data: blob, error: dlErr } = await supabase.storage
+            .from("invoices")
+            .download(r.file_path);
+          if (dlErr || !blob) { fail++; continue; }
+
+          const datePart = r.invoice_date
+            ? format(new Date(r.invoice_date), "yyyyMMdd")
+            : "ohne-datum";
+          const vendorPart = sanitizeFilename(r.vendor_name || "Lieferant");
+          const nrPart = sanitizeFilename(r.invoice_number || r.id.slice(0, 8));
+          const ext = (r.file_name?.split(".").pop() || "pdf").toLowerCase();
+          let base = `${datePart}_${vendorPart}_${nrPart}`;
+          let name = `${base}.${ext}`;
+          let i = 2;
+          while (usedNames.has(name)) {
+            name = `${base}_${i}.${ext}`;
+            i++;
+          }
+          usedNames.add(name);
+          zip.file(name, blob);
+          ok++;
+        } catch {
+          fail++;
+        }
+      }
+
+      if (ok === 0) {
+        toast.error("Keine Belege konnten geladen werden");
+        return;
+      }
+
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Rechnungen_${format(new Date(), "yyyyMMdd_HHmm")}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success(`ZIP mit ${ok} Beleg${ok === 1 ? "" : "en"} heruntergeladen${fail ? ` (${fail} fehlgeschlagen)` : ""}`);
+      setSelectedIds(new Set());
+    } catch (e: any) {
+      toast.error(`Export fehlgeschlagen: ${e?.message || "Unbekannt"}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
 
   // Count of stuck OCR jobs (error / pending) — drives the bulk-retry button
   const { data: stuckCount = 0 } = useQuery({
@@ -316,9 +412,20 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                 {stuckCount} OCR neu starten
               </Button>
             )}
+            {selectedIds.size > 0 && (
+              <Button size="sm" variant="outline" onClick={exportZip} disabled={exporting}>
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-1" />
+                )}
+                ZIP export ({selectedIds.size})
+              </Button>
+            )}
             <Button size="sm" onClick={() => setIsCreateOpen(true)}>
               <Plus className="h-4 w-4 mr-1" /> Manuell anlegen
             </Button>
+
           </div>
         </CardHeader>
         <CardContent>
@@ -337,6 +444,20 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[40px]">
+                      <Checkbox
+                        checked={invoices.length > 0 && invoices.every((i: any) => selectedIds.has(i.id))}
+                        onCheckedChange={(checked) => {
+                          setSelectedIds(prev => {
+                            const next = new Set(prev);
+                            if (checked) invoices.forEach((i: any) => next.add(i.id));
+                            else invoices.forEach((i: any) => next.delete(i.id));
+                            return next;
+                          });
+                        }}
+                        aria-label="Alle auswählen"
+                      />
+                    </TableHead>
                     <TableHead>Re.-Nr.</TableHead>
                     <TableHead>Lieferant</TableHead>
                     <TableHead>Liegenschaft</TableHead>
@@ -347,6 +468,7 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                     <TableHead className="w-[60px]">OCR</TableHead>
                   </TableRow>
                 </TableHeader>
+
                 <TableBody>
                   {invoices.map((inv: any) => {
                     const isCredit = inv.invoice_type === "credit_note";
@@ -373,6 +495,14 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                         className="cursor-pointer"
                         onClick={() => setSelectedInvoiceId(inv.id)}
                       >
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selectedIds.has(inv.id)}
+                            onCheckedChange={() => toggleSelected(inv.id)}
+                            aria-label="Rechnung auswählen"
+                          />
+                        </TableCell>
+
                         <TableCell className="font-mono text-xs">
                           <div className="flex items-center gap-1.5">
                             {isCredit && (
