@@ -444,6 +444,20 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[40px]">
+                      <Checkbox
+                        checked={invoices.length > 0 && invoices.every((i: any) => selectedIds.has(i.id))}
+                        onCheckedChange={(checked) => {
+                          setSelectedIds(prev => {
+                            const next = new Set(prev);
+                            if (checked) invoices.forEach((i: any) => next.add(i.id));
+                            else invoices.forEach((i: any) => next.delete(i.id));
+                            return next;
+                          });
+                        }}
+                        aria-label="Alle auswählen"
+                      />
+                    </TableHead>
                     <TableHead>Re.-Nr.</TableHead>
                     <TableHead>Lieferant</TableHead>
                     <TableHead>Liegenschaft</TableHead>
@@ -454,6 +468,7 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                     <TableHead className="w-[60px]">OCR</TableHead>
                   </TableRow>
                 </TableHeader>
+
                 <TableBody>
                   {invoices.map((inv: any) => {
                     const isCredit = inv.invoice_type === "credit_note";
