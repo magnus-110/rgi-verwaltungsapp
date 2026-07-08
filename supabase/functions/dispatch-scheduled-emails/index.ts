@@ -140,6 +140,12 @@ Deno.serve(async (req) => {
         message_id: `scheduled-${item.id}-${Date.now()}`,
       });
 
+      // Clean up storage-backed attachments after successful send
+      const storagePaths = atts.map((a: any) => a.storage_path).filter(Boolean);
+      if (storagePaths.length > 0) {
+        try { await admin.storage.from("email-attachments").remove(storagePaths); } catch (_) { /* ignore */ }
+      }
+
       await admin.from("scheduled_emails").update({
         status: "sent",
         sent_at: new Date().toISOString(),
