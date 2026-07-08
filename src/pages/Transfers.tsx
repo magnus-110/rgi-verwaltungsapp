@@ -653,7 +653,22 @@ export function Transfers() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[40px]">
+                    <Checkbox
+                      checked={filteredInvoices.length > 0 && filteredInvoices.every((i: any) => selectedIds.has(i.id))}
+                      onCheckedChange={(checked) => {
+                        setSelectedIds(prev => {
+                          const next = new Set(prev);
+                          if (checked) filteredInvoices.forEach((i: any) => next.add(i.id));
+                          else filteredInvoices.forEach((i: any) => next.delete(i.id));
+                          return next;
+                        });
+                      }}
+                      aria-label="Alle auswählen"
+                    />
+                  </TableHead>
                   {!showPaid && <TableHead>Fällig am</TableHead>}
+
                   <TableHead>Lieferant</TableHead>
                   <TableHead>Verwendungszweck</TableHead>
                   <TableHead>IBAN</TableHead>
