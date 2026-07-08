@@ -5,12 +5,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, isToday } from "date-fns";
 import {
   CreditCard, AlertTriangle, Play, StickyNote, Check, X, FileCode, Loader2,
-  RefreshCw, Sparkles, ArrowDownToLine, ArrowUpFromLine, Link2, Clock, ArrowUpDown,
+  RefreshCw, Sparkles, ArrowDownToLine, ArrowUpFromLine, Link2, Clock, ArrowUpDown, Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -22,6 +23,8 @@ import {
 import { toast } from "sonner";
 import { TransferReviewMode } from "@/components/transfers/TransferReviewMode";
 import { InvoiceDropZone } from "@/components/finance/InvoiceDropZone";
+import JSZip from "jszip";
+
 
 type Direction = "outgoing" | "incoming";
 
@@ -70,6 +73,99 @@ export function Transfers() {
   const [showPaid, setShowPaid] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortByBuilding, setSortByBuilding] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const sanitizeFilename = (s: string) =>
+    (s || "")
+      .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue")
+      .replace(/Ä/g, "Ae").replace(/Ö/g, "Oe").replace(/Ü/g, "Ue")
+      .replace(/ß/g, "ss")
+      .replace(/[^A-Za-z0-9._-]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "")
+      .slice(0, 80);
+
+  const exportZip = async () => {
+    if (selectedIds.size === 0) return;
+    setExporting(true);
+    try {
+      const { data: rows, error } = await supabase
+        .from("invoices")
+        .select("id, file_path, file_name, invoice_number, invoice_date, vendor_name")
+        .in("id", Array.from(selectedIds));
+      if (error) throw error;
+      if (!rows || rows.length === 0) {
+        toast.error("Keine Rechnungen gefunden");
+        return;
+      }
+
+      const zip = new JSZip();
+      const usedNames = new Set<string>();
+      let ok = 0;
+      let fail = 0;
+
+      for (const r of rows as any[]) {
+        if (!r.file_path) { fail++; continue; }
+        try {
+          const { data: blob, error: dlErr } = await supabase.storage
+            .from("invoices")
+            .download(r.file_path);
+          if (dlErr || !blob) { fail++; continue; }
+
+          const datePart = r.invoice_date
+            ? format(new Date(r.invoice_date), "yyyyMMdd")
+            : "ohne-datum";
+          const vendorPart = sanitizeFilename(r.vendor_name || "Lieferant");
+          const nrPart = sanitizeFilename(r.invoice_number || r.id.slice(0, 8));
+          const ext = (r.file_name?.split(".").pop() || "pdf").toLowerCase();
+          const base = `${datePart}_${vendorPart}_${nrPart}`;
+          let name = `${base}.${ext}`;
+          let i = 2;
+          while (usedNames.has(name)) {
+            name = `${base}_${i}.${ext}`;
+            i++;
+          }
+          usedNames.add(name);
+          zip.file(name, blob);
+          ok++;
+        } catch {
+          fail++;
+        }
+      }
+
+      if (ok === 0) {
+        toast.error("Keine Belege konnten geladen werden");
+        return;
+      }
+
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Zahlungen_${format(new Date(), "yyyyMMdd_HHmm")}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success(`ZIP mit ${ok} Beleg${ok === 1 ? "" : "en"} heruntergeladen${fail ? ` (${fail} fehlgeschlagen)` : ""}`);
+      setSelectedIds(new Set());
+    } catch (e: any) {
+      toast.error(`Export fehlgeschlagen: ${e?.message || "Unbekannt"}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [retryingOcr, setRetryingOcr] = useState<string | null>(null);
@@ -483,7 +579,14 @@ export function Transfers() {
             OCR neu starten ({stuckOcrInvoices.length})
           </Button>
         )}
+        {selectedIds.size > 0 && (
+          <Button variant="outline" onClick={exportZip} disabled={exporting} className="h-11 md:h-10">
+            {exporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+            ZIP export ({selectedIds.size})
+          </Button>
+        )}
       </div>
+
 
       {direction === "outgoing" && <InvoiceDropZone buildings={buildings} selectedBuildingId={buildingFilter === "all" ? "" : buildingFilter} />}
 
@@ -550,7 +653,22 @@ export function Transfers() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[40px]">
+                    <Checkbox
+                      checked={filteredInvoices.length > 0 && filteredInvoices.every((i: any) => selectedIds.has(i.id))}
+                      onCheckedChange={(checked) => {
+                        setSelectedIds(prev => {
+                          const next = new Set(prev);
+                          if (checked) filteredInvoices.forEach((i: any) => next.add(i.id));
+                          else filteredInvoices.forEach((i: any) => next.delete(i.id));
+                          return next;
+                        });
+                      }}
+                      aria-label="Alle auswählen"
+                    />
+                  </TableHead>
                   {!showPaid && <TableHead>Fällig am</TableHead>}
+
                   <TableHead>Lieferant</TableHead>
                   <TableHead>Verwendungszweck</TableHead>
                   <TableHead>IBAN</TableHead>
@@ -588,7 +706,15 @@ export function Transfers() {
                       className={`cursor-pointer hover:bg-muted/50 ${overdue ? "bg-destructive/5" : ""} ${isPaid ? "opacity-60" : ""}`}
                       onClick={() => openReviewForInvoice(inv)}
                     >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedIds.has(inv.id)}
+                          onCheckedChange={() => toggleSelected(inv.id)}
+                          aria-label="Beleg auswählen"
+                        />
+                      </TableCell>
                       {!showPaid && (
+
                         <TableCell className={overdue ? "text-destructive font-medium" : ""}>
                           <div className="flex items-center gap-1.5">
                             {overdue && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
