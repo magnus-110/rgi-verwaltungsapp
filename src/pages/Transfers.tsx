@@ -579,7 +579,14 @@ export function Transfers() {
             OCR neu starten ({stuckOcrInvoices.length})
           </Button>
         )}
+        {selectedIds.size > 0 && (
+          <Button variant="outline" onClick={exportZip} disabled={exporting} className="h-11 md:h-10">
+            {exporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+            ZIP export ({selectedIds.size})
+          </Button>
+        )}
       </div>
+
 
       {direction === "outgoing" && <InvoiceDropZone buildings={buildings} selectedBuildingId={buildingFilter === "all" ? "" : buildingFilter} />}
 
