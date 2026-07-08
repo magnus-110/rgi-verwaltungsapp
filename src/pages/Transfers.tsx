@@ -706,7 +706,15 @@ export function Transfers() {
                       className={`cursor-pointer hover:bg-muted/50 ${overdue ? "bg-destructive/5" : ""} ${isPaid ? "opacity-60" : ""}`}
                       onClick={() => openReviewForInvoice(inv)}
                     >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedIds.has(inv.id)}
+                          onCheckedChange={() => toggleSelected(inv.id)}
+                          aria-label="Beleg auswählen"
+                        />
+                      </TableCell>
                       {!showPaid && (
+
                         <TableCell className={overdue ? "text-destructive font-medium" : ""}>
                           <div className="flex items-center gap-1.5">
                             {overdue && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
