@@ -5,12 +5,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, isToday } from "date-fns";
 import {
   CreditCard, AlertTriangle, Play, StickyNote, Check, X, FileCode, Loader2,
-  RefreshCw, Sparkles, ArrowDownToLine, ArrowUpFromLine, Link2, Clock, ArrowUpDown,
+  RefreshCw, Sparkles, ArrowDownToLine, ArrowUpFromLine, Link2, Clock, ArrowUpDown, Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -22,6 +23,8 @@ import {
 import { toast } from "sonner";
 import { TransferReviewMode } from "@/components/transfers/TransferReviewMode";
 import { InvoiceDropZone } from "@/components/finance/InvoiceDropZone";
+import JSZip from "jszip";
+
 
 type Direction = "outgoing" | "incoming";
 
