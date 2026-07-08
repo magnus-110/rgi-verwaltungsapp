@@ -45,6 +45,99 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [bulkRetrying, setBulkRetrying] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const sanitizeFilename = (s: string) =>
+    (s || "")
+      .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue")
+      .replace(/Ä/g, "Ae").replace(/Ö/g, "Oe").replace(/Ü/g, "Ue")
+      .replace(/ß/g, "ss")
+      .replace(/[^A-Za-z0-9._-]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "")
+      .slice(0, 80);
+
+  const exportZip = async () => {
+    if (selectedIds.size === 0) return;
+    setExporting(true);
+    try {
+      const { data: rows, error } = await supabase
+        .from("invoices")
+        .select("id, file_path, file_name, invoice_number, invoice_date, vendor_name")
+        .in("id", Array.from(selectedIds));
+      if (error) throw error;
+      if (!rows || rows.length === 0) {
+        toast.error("Keine Rechnungen gefunden");
+        return;
+      }
+
+      const zip = new JSZip();
+      const usedNames = new Set<string>();
+      let ok = 0;
+      let fail = 0;
+
+      for (const r of rows as any[]) {
+        if (!r.file_path) { fail++; continue; }
+        try {
+          const { data: blob, error: dlErr } = await supabase.storage
+            .from("invoices")
+            .download(r.file_path);
+          if (dlErr || !blob) { fail++; continue; }
+
+          const datePart = r.invoice_date
+            ? format(new Date(r.invoice_date), "yyyyMMdd")
+            : "ohne-datum";
+          const vendorPart = sanitizeFilename(r.vendor_name || "Lieferant");
+          const nrPart = sanitizeFilename(r.invoice_number || r.id.slice(0, 8));
+          const ext = (r.file_name?.split(".").pop() || "pdf").toLowerCase();
+          let base = `${datePart}_${vendorPart}_${nrPart}`;
+          let name = `${base}.${ext}`;
+          let i = 2;
+          while (usedNames.has(name)) {
+            name = `${base}_${i}.${ext}`;
+            i++;
+          }
+          usedNames.add(name);
+          zip.file(name, blob);
+          ok++;
+        } catch {
+          fail++;
+        }
+      }
+
+      if (ok === 0) {
+        toast.error("Keine Belege konnten geladen werden");
+        return;
+      }
+
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Rechnungen_${format(new Date(), "yyyyMMdd_HHmm")}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success(`ZIP mit ${ok} Beleg${ok === 1 ? "" : "en"} heruntergeladen${fail ? ` (${fail} fehlgeschlagen)` : ""}`);
+      setSelectedIds(new Set());
+    } catch (e: any) {
+      toast.error(`Export fehlgeschlagen: ${e?.message || "Unbekannt"}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
 
   // Count of stuck OCR jobs (error / pending) — drives the bulk-retry button
   const { data: stuckCount = 0 } = useQuery({
