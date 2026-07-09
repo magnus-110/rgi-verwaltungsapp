@@ -13,7 +13,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
 import {
-  UserCheck, UserX, Shield, Link2, Copy, Lock, AlertTriangle, Loader2, RefreshCw
+  UserCheck, UserX, Shield, Link2, Copy, Lock, AlertTriangle, Loader2, RefreshCw, FileText, X
 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -33,6 +33,8 @@ interface Attendee {
   proxy_token: string | null;
   proxy_token_used: boolean | null;
   proxy_external_name: string | null;
+  proxy_document_file_id: string | null;
+  proxy_document?: { id: string; display_name: string | null; file_path: string } | null;
   pre_vote_instructions: any;
   self_registered_at: string | null;
   checked_in_at: string | null;
@@ -63,6 +65,8 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
   const [proxyDialog, setProxyDialog] = useState<string | null>(null);
   const [proxyType, setProxyType] = useState<string>("manager");
   const [proxyContactId, setProxyContactId] = useState<string>("");
+  const [proxyFile, setProxyFile] = useState<File | null>(null);
+  const [proxyGrantedVia, setProxyGrantedVia] = useState<string>("email");
 
   const isLocked = false; // 1h-Sperre entfernt
 
@@ -77,7 +81,8 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
           contact_building_assignments!inner(
             id, unit_number, role_in_building,
             contacts!inner(id, first_name, last_name, company_name)
-          )
+          ),
+          proxy_document:building_files(id, display_name, file_path)
         `)
         .eq("meeting_id", meetingId);
       if (error) throw error;
@@ -162,8 +167,48 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
 
   // Set proxy
   const setProxyMutation = useMutation({
-    mutationFn: async ({ attendeeId, type, contactId }: { attendeeId: string; type: string; contactId?: string }) => {
+    mutationFn: async ({ attendeeId, type, contactId, file, grantedVia }: { attendeeId: string; type: string; contactId?: string; file?: File | null; grantedVia?: string }) => {
       const token = type === "external" ? crypto.randomUUID() : null;
+
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // Optional: Vollmacht-Dokument ins DMS hochladen (Textform-Nachweis § 25 Abs. 3 WEG)
+      let documentFileId: string | null = null;
+      if (file) {
+        if (file.size > 50 * 1024 * 1024) throw new Error(`${file.name}: max. 50 MB`);
+        const ext = file.name.split(".").pop();
+        const path = `${buildingId}/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("building-files").upload(path, file);
+        if (upErr) throw upErr;
+
+        // Passende DMS-Kategorie suchen (falls vorhanden)
+        const { data: cat } = await supabase
+          .from("building_file_categories")
+          .select("id")
+          .eq("building_id", buildingId)
+          .ilike("name", "%vollmacht%")
+          .limit(1)
+          .maybeSingle();
+
+        const { data: inserted, error: insErr } = await (supabase.from("building_files") as any)
+          .insert({
+            display_name: file.name,
+            file_path: path,
+            file_size: file.size,
+            mime_type: file.type,
+            category_id: cat?.id || null,
+            building_id: buildingId,
+            uploaded_by: user?.id,
+            management_mode: "weg",
+            visibility_role: "intern",
+            visible_to_users: false,
+            source: "manual",
+          })
+          .select("id")
+          .single();
+        if (insErr) throw insErr;
+        documentFileId = inserted.id;
+      }
 
       // Determine if proxy holder is already present
       let proxyHolderPresent = false;
@@ -176,14 +221,19 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
         proxyHolderPresent = holderAttendee?.attendance_type === "present";
       }
 
-      const { error } = await supabase
-        .from("etv_attendees")
+      const { error } = await (supabase
+        .from("etv_attendees") as any)
         .update({
           proxy_type: type,
           proxy_contact_id: type !== "external" ? (contactId || null) : null,
           proxy_token: token,
           attendance_type: "proxy",
           checked_in_at: proxyHolderPresent ? new Date().toISOString() : null,
+          ...(documentFileId ? { proxy_document_file_id: documentFileId } : {}),
+          proxy_source: "admin_manual",
+          proxy_granted_via: grantedVia || null,
+          proxy_recorded_by: user?.id || null,
+          proxy_recorded_at: new Date().toISOString(),
         })
         .eq("id", attendeeId);
       if (error) throw error;
@@ -193,6 +243,7 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
       queryClient.invalidateQueries({ queryKey: ["etv-attendees", meetingId] });
       queryClient.invalidateQueries({ queryKey: ["etv-attendees-live", meetingId] });
       setProxyDialog(null);
+      setProxyFile(null);
       if (token) {
         const link = `${window.location.origin}/etv-proxy/${token}`;
         navigator.clipboard.writeText(link);
@@ -214,6 +265,15 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
       initMutation.mutate();
     }
   }, [attendees.length, owners.length, loadingAttendees, meetingId]);
+
+  const openProxyDocument = async (filePath: string) => {
+    const { data, error } = await supabase.storage.from("building-files").createSignedUrl(filePath, 600);
+    if (error || !data?.signedUrl) {
+      toast({ title: "Fehler", description: "Dokument konnte nicht geöffnet werden.", variant: "destructive" });
+      return;
+    }
+    window.open(data.signedUrl, "_blank");
+  };
 
   const getContactName = (contact: any) => {
     if (contact.company_name) return contact.company_name;
@@ -299,9 +359,19 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
                       )}
                       {attendanceBadge(attendee.attendance_type)}
                     </div>
-                    {attendee.proxy_type && attendee.proxy_type !== "manager" && (
+                    {attendee.proxy_type && (attendee.proxy_type !== "manager" || attendee.proxy_document) && (
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Vollmacht: {attendee.proxy_type === "owner" ? (proxyContactName || "Eigentümer") : (attendee.proxy_external_name || "Extern")}
+                        Vollmacht: {attendee.proxy_type === "manager" ? "Verwalter" : attendee.proxy_type === "owner" ? (proxyContactName || "Eigentümer") : (attendee.proxy_external_name || "Extern")}
+                        {attendee.proxy_document?.file_path && (
+                          <button
+                            className="ml-2 text-primary hover:underline inline-flex items-center gap-1"
+                            title={attendee.proxy_document.display_name || "Vollmacht-Dokument"}
+                            onClick={() => openProxyDocument(attendee.proxy_document!.file_path)}
+                          >
+                            <FileText className="h-3 w-3" />
+                            Dokument öffnen
+                          </button>
+                        )}
                         {attendee.proxy_token && (
                           <button
                             className="ml-2 text-primary hover:underline inline-flex items-center gap-1"
@@ -329,6 +399,8 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
                             setProxyDialog(attendee.id);
                             setProxyType("manager");
                             setProxyContactId("");
+                            setProxyFile(null);
+                            setProxyGrantedVia("email");
                           }}
                         >
                           <Shield className="h-4 w-4 text-blue-500" />
@@ -397,6 +469,42 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
                 Es wird ein einmaliger Token-Link generiert, den Sie an die externe Person weitergeben können.
               </p>
             )}
+
+            <div className="space-y-2">
+              <Label>Vollmacht erhalten per</Label>
+              <Select value={proxyGrantedVia} onValueChange={setProxyGrantedVia}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="email">E-Mail</SelectItem>
+                  <SelectItem value="paper">Papier</SelectItem>
+                  <SelectItem value="app">App</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Vollmacht-Dokument (optional)</Label>
+              {proxyFile ? (
+                <div className="flex items-center gap-2 text-sm p-2 bg-muted rounded">
+                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate flex-1">{proxyFile.name}</span>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setProxyFile(null)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <Input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.eml,.msg,.doc,.docx"
+                  onChange={(e) => setProxyFile(e.target.files?.[0] || null)}
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                Nachweis der Vollmacht (Textform gem. § 25 Abs. 3 WEG), z. B. die per E-Mail erhaltene Vollmacht als PDF. Wird im DMS des Gebäudes abgelegt.
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setProxyDialog(null)}>Abbrechen</Button>
@@ -407,6 +515,8 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
                     attendeeId: proxyDialog,
                     type: proxyType,
                     contactId: proxyContactId || undefined,
+                    file: proxyFile,
+                    grantedVia: proxyGrantedVia,
                   });
                 }
               }}

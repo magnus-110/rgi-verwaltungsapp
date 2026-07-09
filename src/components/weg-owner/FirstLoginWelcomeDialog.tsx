@@ -120,6 +120,11 @@ export const FirstLoginWelcomeDialog = ({
   };
 
   const finishAndOpenTour = () => {
+    // Onboarding-Auto-Open SPERREN, bevor der Dialog schließt und der
+    // OnboardingFAB mountet. Das Flag wird dort als Initialwert gelesen und
+    // erst nach Ende/Abbruch der Tour wieder gelöst. So legt sich das
+    // Onboarding nie über die Tour.
+    (window as any).__rgiOnboardingWaitForTour = true;
     onClose();
     // Kurze Verzögerung, damit Dialog vollständig geschlossen ist
     // und Tour-Targets im DOM gemountet sind.

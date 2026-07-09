@@ -39,6 +39,7 @@ import {
   CalendarClock,
   Users,
   Printer,
+  AlertTriangle,
 } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Input } from "@/components/ui/input";
@@ -449,7 +450,7 @@ export const Inbox = () => {
   ]);
 
   const EMAIL_COLUMNS =
-    "id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, contact_person_id, assigned_to, deleted_at, case_id, message_id, is_etv_relevant, etv_meeting_id";
+    "id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, attachments_incomplete, ai_category, ai_priority, ai_summary, building_id, contact_id, contact_person_id, assigned_to, deleted_at, case_id, message_id, is_etv_relevant, etv_meeting_id";
 
   const {
     data: emails = [],
@@ -2153,6 +2154,19 @@ export const Inbox = () => {
                         {selectedEmail.has_attachments && (
                           <div className="px-4 pb-2">
                             <EmailAttachments emailId={selectedEmail.id} />
+                          </div>
+                        )}
+
+                        {selectedEmail.attachments_incomplete && (
+                          <div className="px-4 pb-2">
+                            <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                              <span>
+                                Diese E-Mail enthält laut Server einen Anhang, der beim Import nicht
+                                übernommen werden konnte (z. B. zu groß). Bitte den Anhang direkt im
+                                Postfach öffnen oder die Nachricht erneut abrufen.
+                              </span>
+                            </div>
                           </div>
                         )}
 

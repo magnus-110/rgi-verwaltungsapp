@@ -4748,6 +4748,7 @@ export type Database = {
           from_address: string | null
           from_name: string | null
           has_attachments: boolean
+          attachments_incomplete: boolean
           id: string
           imap_uid: string | null
           in_reply_to: string | null
@@ -4795,6 +4796,7 @@ export type Database = {
           from_address?: string | null
           from_name?: string | null
           has_attachments?: boolean
+          attachments_incomplete?: boolean
           id?: string
           imap_uid?: string | null
           in_reply_to?: string | null
@@ -4842,6 +4844,7 @@ export type Database = {
           from_address?: string | null
           from_name?: string | null
           has_attachments?: boolean
+          attachments_incomplete?: boolean
           id?: string
           imap_uid?: string | null
           in_reply_to?: string | null
@@ -9907,6 +9910,7 @@ export type Database = {
           from_address: string | null
           from_name: string | null
           has_attachments: boolean
+          attachments_incomplete: boolean
           id: string
           imap_uid: string | null
           in_reply_to: string | null

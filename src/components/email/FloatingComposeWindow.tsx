@@ -1920,7 +1920,7 @@ const ScheduleButton = ({
                 variant="ghost" size="sm" className="h-7 text-xs"
                 onClick={() => { update({ scheduledAt: null }); setOpen(false); }}
               >
-                Entfernen
+                Zurücksetzen
               </Button>
             </div>
           )}
@@ -1928,4 +1928,4 @@ const ScheduleButton = ({
       </PopoverContent>
     </Popover>
   );
-}
+};

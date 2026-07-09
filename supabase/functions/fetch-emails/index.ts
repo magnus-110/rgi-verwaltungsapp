@@ -9,8 +9,10 @@ const corsHeaders = {
 
 const MAX_MESSAGES_PER_ACCOUNT_RUN = 5;
 const MAX_TEXT_PART_BYTES = 1024 * 1024;
-const MAX_ATTACHMENT_PART_BYTES = 6 * 1024 * 1024;
-const MAX_ATTACHMENT_TOTAL_BYTES = 12 * 1024 * 1024;
+// Angehoben von 6/12 MB: Versicherungs-/Behoerden-PDFs sind oft groesser.
+// Bewusst < 256 MB Edge-Worker-Limit gehalten (inkl. Base64-Overhead).
+const MAX_ATTACHMENT_PART_BYTES = 20 * 1024 * 1024;
+const MAX_ATTACHMENT_TOTAL_BYTES = 40 * 1024 * 1024;
 
 interface EmailAccount {
   id: string;
@@ -374,9 +376,10 @@ async function fetchAccountEmails(
         const { bodyText, bodyHtml } = await downloadBodyTextFromStructure(client, uid, msg.bodyStructure);
         const structureAttachmentParts = collectAttachmentParts(msg.bodyStructure);
         // Nur "echte" Anhänge zählen (keine inline CID-Signatur-Bilder etc.)
-        const structureHasRealAttachment = structureAttachmentParts.some(
+        const structureRealAttachmentCount = structureAttachmentParts.filter(
           ({ node }) => isRealAttachmentNode(node) && !isInlineAttachmentNode(node)
-        );
+        ).length;
+        const structureHasRealAttachment = structureRealAttachmentCount > 0;
         let attachments: ParsedAttachment[] = [];
         if (structureAttachmentParts.length > 0) {
           try {
@@ -391,6 +394,10 @@ async function fetchAccountEmails(
 
         const realAttachments = attachments.filter((a) => !a.isInline);
         const hasAttachments = structureHasRealAttachment || realAttachments.length > 0;
+        // Echter Anhang laut Struktur, aber nicht (vollstaendig) gespeichert
+        // (z. B. zu gross oder Download-Fehler) -> markieren fuer UI-Hinweis.
+        const attachmentsIncomplete =
+          structureRealAttachmentCount > realAttachments.length;
 
         const { data: insertedEmail, error: insertError } = await supabase
           .from("emails")
@@ -410,6 +417,7 @@ async function fetchAccountEmails(
             is_read: msg.flags?.has("\\Seen") || false,
             is_starred: msg.flags?.has("\\Flagged") || false,
             has_attachments: hasAttachments,
+            attachments_incomplete: attachmentsIncomplete,
             assigned_to: defaultAssignedTo,
           })
           .select("id")
@@ -1317,8 +1325,19 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
       .select("is_inline")
       .eq("email_id", emailId);
     const hasReal = (allAtt || []).some((a: any) => a.is_inline === false);
-    await supabase.from("emails").update({ has_attachments: hasReal }).eq("id", emailId);
+    const storedRealCount = (allAtt || []).filter((a: any) => a.is_inline === false).length;
+    const structureRealCount = collectAttachmentParts(msg.bodyStructure).filter(
+      ({ node }) => isRealAttachmentNode(node) && !isInlineAttachmentNode(node)
+    ).length;
+    const attachmentsIncomplete = structureRealCount > storedRealCount;
+    await supabase
+      .from("emails")
+      .update({ has_attachments: hasReal, attachments_incomplete: attachmentsIncomplete })
+      .eq("id", emailId);
     summary.has_attachments = hasReal;
+    summary.attachments_incomplete = attachmentsIncomplete;
+    summary.structure_real_count = structureRealCount;
+    summary.stored_real_count = storedRealCount;
   } finally {
     try { if (client.usable) await client.logout(); } catch (_) {}
     await new Promise((r) => setTimeout(r, 100));
