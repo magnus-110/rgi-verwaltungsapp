@@ -215,7 +215,7 @@ export const WegOwnerMeetings = () => {
       if (!meetingIds.length || !assignmentIds.length) return [];
       const { data, error } = await supabase
         .from("etv_attendees")
-        .select("id, meeting_id, assignment_id, attendance_type, proxy_type, self_registered_at")
+        .select("id, meeting_id, assignment_id, attendance_type, proxy_type, self_registered_at, self_reported_type")
         .in("meeting_id", meetingIds)
         .in("assignment_id", assignmentIds);
       if (error) throw error;
@@ -230,15 +230,17 @@ export const WegOwnerMeetings = () => {
       const existing = (allMyAttendees as any[]).find((a) => a.meeting_id === meetingId && a.assignment_id === assignmentId);
       const nowIso = new Date().toISOString();
       if (existing) {
-        const { error } = await supabase
-          .from("etv_attendees")
+        // Selbstmeldung ist nur Information — die verbindliche Anwesenheit bestätigt die Verwaltung per Check-in
+        const { error } = await (supabase
+          .from("etv_attendees") as any)
           .update({
-            attendance_type: type,
+            self_reported_type: type,
             proxy_type: null,
             proxy_contact_id: null,
             proxy_token: null,
             proxy_external_name: null,
             self_registered_at: nowIso,
+            ...(existing.attendance_type === "proxy" ? { attendance_type: "absent", checked_in_at: null } : {}),
           })
           .eq("id", existing.id);
         if (error) throw error;
@@ -246,7 +248,8 @@ export const WegOwnerMeetings = () => {
         const { error } = await supabase.from("etv_attendees").insert({
           meeting_id: meetingId,
           assignment_id: assignmentId,
-          attendance_type: type,
+          attendance_type: "absent",
+          self_reported_type: type,
           self_registered_at: nowIso,
         } as any);
         if (error) throw error;
@@ -387,8 +390,8 @@ export const WegOwnerMeetings = () => {
         }
         filteredInstructions = Object.keys(filtered).length > 0 ? filtered : null;
       }
-      const { error } = await supabase
-        .from("etv_attendees")
+      const { error } = await (supabase
+        .from("etv_attendees") as any)
         .update({
           proxy_type: type,
           proxy_contact_id: type === "owner" ? (contactId || null) : null,
@@ -396,6 +399,9 @@ export const WegOwnerMeetings = () => {
           proxy_external_name: type === "external" ? (externalName || null) : null,
           pre_vote_instructions: filteredInstructions,
           self_registered_at: new Date().toISOString(),
+          self_reported_type: "proxy",
+          proxy_source: "self_service",
+          proxy_granted_via: "app",
         })
         .eq("id", attendeeId);
       if (error) throw error;
@@ -764,9 +770,9 @@ export const WegOwnerMeetings = () => {
                                     );
                                     return att?.proxy_type
                                       ? "proxy"
-                                      : att?.attendance_type === "present"
+                                      : att?.self_reported_type === "present"
                                       ? "present"
-                                      : att?.attendance_type === "absent" && att?.self_registered_at
+                                      : att?.self_reported_type === "absent"
                                       ? "absent"
                                       : null;
                                   });
@@ -1055,8 +1061,8 @@ export const WegOwnerMeetings = () => {
                                     </Badge>
                                   )}
                                 </div>
-                              ) : attendee.attendance_type === "present" ? (
-                                <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Anwesend</Badge>
+                              ) : attendee.self_reported_type === "present" ? (
+                                <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Anwesend gemeldet</Badge>
                               ) : (
                                 <Badge variant="outline" className="text-muted-foreground">
                                   {locked ? "Offen" : "Vollmacht erteilen →"}
