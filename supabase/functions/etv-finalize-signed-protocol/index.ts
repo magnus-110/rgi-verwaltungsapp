@@ -145,6 +145,16 @@ Deno.serve(async (req) => {
         .eq("slug", "versammlung-protokolle")
         .maybeSingle();
 
+      // Aufrufer für uploaded_by ermitteln (Pflichtfeld)
+      let uploadedBy: string | null = meeting?.created_by || null;
+      try {
+        const jwt = (req.headers.get("Authorization") || "").replace("Bearer ", "");
+        if (jwt) {
+          const { data: userData } = await admin.auth.getUser(jwt);
+          if (userData?.user?.id) uploadedBy = userData.user.id;
+        }
+      } catch (_) { /* Fallback bleibt meeting.created_by */ }
+
       const dmsPath = `versammlung-protokolle/${building.id}/${meeting_id}/${finalName}`;
       const { error: dmsUpErr } = await admin.storage.from("building-files")
         .upload(dmsPath, finalBytes, { contentType: "application/pdf", upsert: true });
@@ -152,6 +162,7 @@ Deno.serve(async (req) => {
 
       const { data: bf, error: bfErr } = await admin.from("building_files").insert({
         building_id: building.id,
+        uploaded_by: uploadedBy,
         category_id: cat?.id || null,
         display_name: finalName,
         description: `Unterzeichnetes Protokoll der Versammlung "${meeting?.title || ""}" vom ${meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString("de-DE") : ""}`,

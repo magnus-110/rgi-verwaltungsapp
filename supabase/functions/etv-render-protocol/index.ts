@@ -449,6 +449,16 @@ Deno.serve(async (req) => {
           .eq("id", meeting.building_id)
           .maybeSingle();
 
+        // Aufrufer für uploaded_by ermitteln (Pflichtfeld)
+        let uploadedBy: string | null = meeting.created_by || null;
+        try {
+          const jwt = (req.headers.get("Authorization") || "").replace("Bearer ", "");
+          if (jwt) {
+            const { data: userData } = await admin.auth.getUser(jwt);
+            if (userData?.user?.id) uploadedBy = userData.user.id;
+          }
+        } catch (_) { /* Fallback bleibt meeting.created_by */ }
+
         const dmsName = `${baseName}.pdf`;
         const dmsPath = `versammlung-protokolle/${meeting.building_id}/${meeting_id}/${dmsName}`;
         const { error: dmsUpErr } = await admin.storage.from("building-files")
@@ -466,6 +476,7 @@ Deno.serve(async (req) => {
         } else {
           const { data: bf, error: bfErr } = await admin.from("building_files").insert({
             building_id: meeting.building_id,
+            uploaded_by: uploadedBy,
             category_id: cat?.id || null,
             display_name: dmsName,
             description: `Protokoll der Versammlung "${meeting.title || ""}" vom ${meetingDateStr}`,
