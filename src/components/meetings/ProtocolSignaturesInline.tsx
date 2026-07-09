@@ -191,7 +191,7 @@ export function ProtocolSignaturesInline({ meetingId }: { meetingId: string }) {
         ))}
       </div>
       <div className="flex items-center justify-between pt-1">
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-[10px]">
+        <Badge variant={allSigned ? "default" : "outline"} className="text-[10px]">
           {signatures.length} / 3 unterschrieben
         </Badge>
         <Button

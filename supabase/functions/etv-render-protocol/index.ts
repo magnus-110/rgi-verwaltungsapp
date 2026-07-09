@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { meeting_id, template_id, output_format = "pdf", inspect = false } = await req.json();
+    const { meeting_id, template_id, output_format = "pdf", inspect = false, file_to_dms = false } = await req.json();
     if (!inspect && !meeting_id) return json({ error: "meeting_id erforderlich" }, 400);
     if (!["docx", "pdf"].includes(output_format)) return json({ error: "output_format docx|pdf" }, 400);
 
@@ -431,9 +431,65 @@ Deno.serve(async (req) => {
       storage_path: outPath,
     }).select("id").single();
 
+    // Optional: PDF im DMS unter „Protokolle" (versammlung-protokolle) ablegen
+    let dmsFileId: string | null = null;
+    if (file_to_dms && output_format === "pdf") {
+      try {
+        await admin.rpc("ensure_stammakte_categories", { p_building_id: meeting.building_id });
+        const { data: cat } = await admin
+          .from("building_file_categories")
+          .select("id")
+          .eq("building_id", meeting.building_id)
+          .eq("slug", "versammlung-protokolle")
+          .maybeSingle();
+
+        const { data: bmode } = await admin
+          .from("buildings")
+          .select("management_mode")
+          .eq("id", meeting.building_id)
+          .maybeSingle();
+
+        const dmsName = `${baseName}.pdf`;
+        const dmsPath = `versammlung-protokolle/${meeting.building_id}/${meeting_id}/${dmsName}`;
+        const { error: dmsUpErr } = await admin.storage.from("building-files")
+          .upload(dmsPath, outBytes, { contentType: "application/pdf", upsert: true });
+        if (dmsUpErr) throw dmsUpErr;
+
+        // Bestehenden DMS-Eintrag aktualisieren statt duplizieren
+        const { data: existingBf } = await admin.from("building_files")
+          .select("id")
+          .eq("file_path", dmsPath)
+          .maybeSingle();
+        if (existingBf?.id) {
+          await admin.from("building_files").update({ file_size: outBytes.length }).eq("id", existingBf.id);
+          dmsFileId = existingBf.id;
+        } else {
+          const { data: bf, error: bfErr } = await admin.from("building_files").insert({
+            building_id: meeting.building_id,
+            category_id: cat?.id || null,
+            display_name: dmsName,
+            description: `Protokoll der Versammlung "${meeting.title || ""}" vom ${meetingDateStr}`,
+            file_path: dmsPath,
+            file_size: outBytes.length,
+            mime_type: "application/pdf",
+            management_mode: bmode?.management_mode || "weg",
+            source: "manual",
+            rag_enabled: true,
+            visibility_role: "alle",
+            visible_to_users: true,
+            tags: ["protokoll", "etv"],
+          }).select("id").single();
+          if (bfErr) throw bfErr;
+          dmsFileId = bf?.id || null;
+        }
+      } catch (dmsErr) {
+        console.error("DMS-Ablage fehlgeschlagen (nicht-fatal):", dmsErr);
+      }
+    }
+
     const { data: signed } = await admin.storage.from("building-files").createSignedUrl(outPath, 60 * 60);
 
-    return json({ ok: true, render_id: render?.id, storage_path: outPath, signed_url: signed?.signedUrl });
+    return json({ ok: true, render_id: render?.id, storage_path: outPath, signed_url: signed?.signedUrl, dms_file_id: dmsFileId });
   } catch (e: any) {
     console.error("etv-render-protocol error", e);
     const tplErrors = e?.properties?.errors;

@@ -1365,7 +1365,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     ? a.self_reported_type === "present"
                       ? (a.attendance_type === "present"
                           ? { label: "Selbst: Anwesend", cls: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" }
-                          : { label: "Selbst: Anwesend – bitte bestätigen", cls: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" })
+                          : { label: "Selbst: Anwesend – bitte bestätigen", cls: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" })
                       : a.self_reported_type === "proxy"
                       ? { label: "Selbst: Vollmacht", cls: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" }
                       : { label: "Selbst: Abwesend", cls: "bg-muted text-muted-foreground" }

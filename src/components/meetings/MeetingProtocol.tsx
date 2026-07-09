@@ -99,10 +99,25 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
       if (error) throw error;
       const { error: resError } = await supabase.from("etv_resolutions").update({ published: true }).eq("meeting_id", meetingId);
       if (resError) throw resError;
+      // PDF via CloudConvert erzeugen und im DMS unter „Protokolle" ablegen
+      const { data, error: renderError } = await supabase.functions.invoke("etv-render-protocol", {
+        body: { meeting_id: meetingId, output_format: "pdf", file_to_dms: true },
+      });
+      if (renderError) throw renderError;
+      if (data?.error) throw new Error(data.error);
+      return data as { dms_file_id: string | null };
     },
-    onSuccess: () => {
+    onSuccess: (d) => {
       queryClient.invalidateQueries({ queryKey: ["etv-meeting-protocol", meetingId] });
-      toast({ title: "Veröffentlicht", description: "Protokoll und Beschlüsse sind im Eigentümer-Portal sichtbar." });
+      toast({
+        title: "Veröffentlicht",
+        description: d?.dms_file_id
+          ? "Protokoll ist im Eigentümer-Portal sichtbar und wurde als PDF im DMS unter Protokolle abgelegt."
+          : "Protokoll ist im Eigentümer-Portal sichtbar. Die DMS-Ablage konnte nicht erstellt werden.",
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Fehler beim Veröffentlichen", description: err.message, variant: "destructive" });
     },
   });
 

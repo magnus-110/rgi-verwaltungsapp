@@ -156,7 +156,7 @@ export function ProtocolRenderActions({ meetingId }: Props) {
           })}
         </div>
         <div className="flex items-center justify-between pt-2">
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">{signatures.length} / 3 unterschrieben</Badge>
+          <Badge variant={allSigned ? "default" : "outline"}>{signatures.length} / 3 unterschrieben</Badge>
           <Button onClick={() => setFinalizeConfirm(true)} disabled={!allSigned || finalize.isPending} className="gap-2">
             {finalize.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
             Final signieren & im DMS ablegen
