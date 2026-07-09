@@ -18,7 +18,7 @@ import {
 import {
   Play, Square, CheckCircle2, XCircle, Users, BarChart3, UserCheck, UserX,
   ArrowLeft, ArrowRight, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Save, Shield, Copy, Lock, AlertTriangle,
-  RefreshCw, StickyNote, FileText, Plus, Gavel, ArrowUp, ArrowDown
+  RefreshCw, StickyNote, FileText, Plus, Gavel, ArrowUp, ArrowDown, X
 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -71,6 +71,8 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   const [proxyDialog, setProxyDialog] = useState<string | null>(null);
   const [proxyType, setProxyType] = useState<string>("manager");
   const [proxyContactId, setProxyContactId] = useState<string>("");
+  const [proxyFile, setProxyFile] = useState<File | null>(null);
+  const [proxyGrantedVia, setProxyGrantedVia] = useState<string>("email");
   
   // Geschäftsbeschluss dialog
   const [showProceduralDialog, setShowProceduralDialog] = useState(false);
@@ -134,7 +136,8 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
             id, unit_number, role_in_building,
             contacts!inner(id, first_name, last_name, company_name),
             contact_building_shares(share_type, share_value)
-          )
+          ),
+          proxy_document:building_files(id, display_name, file_path)
         `)
         .eq("meeting_id", meetingId);
       if (error) throw error;
@@ -591,12 +594,58 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   });
 
   const setProxyMutation = useMutation({
-    mutationFn: async ({ attendeeId, type, contactId }: { attendeeId: string; type: string; contactId?: string }) => {
+    mutationFn: async ({ attendeeId, type, contactId, file, grantedVia }: { attendeeId: string; type: string; contactId?: string; file?: File | null; grantedVia?: string }) => {
       const token = type === "external" ? crypto.randomUUID() : null;
-      const { error } = await supabase.from("etv_attendees").update({
+
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // Optional: Vollmacht-Dokument ins DMS hochladen (Textform-Nachweis § 25 Abs. 3 WEG)
+      let documentFileId: string | null = null;
+      if (file) {
+        if (file.size > 50 * 1024 * 1024) throw new Error(`${file.name}: max. 50 MB`);
+        const ext = file.name.split(".").pop();
+        const path = `${buildingId}/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("building-files").upload(path, file);
+        if (upErr) throw upErr;
+
+        // Passende DMS-Kategorie suchen (falls vorhanden)
+        const { data: cat } = await supabase
+          .from("building_file_categories")
+          .select("id")
+          .eq("building_id", buildingId)
+          .ilike("name", "%vollmacht%")
+          .limit(1)
+          .maybeSingle();
+
+        const { data: inserted, error: insErr } = await (supabase.from("building_files") as any)
+          .insert({
+            display_name: file.name,
+            file_path: path,
+            file_size: file.size,
+            mime_type: file.type,
+            category_id: cat?.id || null,
+            building_id: buildingId,
+            uploaded_by: user?.id,
+            management_mode: "weg",
+            visibility_role: "intern",
+            visible_to_users: false,
+            source: "manual",
+          })
+          .select("id")
+          .single();
+        if (insErr) throw insErr;
+        documentFileId = inserted.id;
+      }
+
+      const { error } = await (supabase.from("etv_attendees") as any).update({
         attendance_type: "proxy", proxy_type: type,
         proxy_contact_id: type !== "external" ? (contactId || null) : null,
         proxy_token: token,
+        ...(documentFileId ? { proxy_document_file_id: documentFileId } : {}),
+        proxy_source: "admin_manual",
+        proxy_granted_via: grantedVia || null,
+        proxy_recorded_by: user?.id || null,
+        proxy_recorded_at: new Date().toISOString(),
       }).eq("id", attendeeId);
       if (error) throw error;
       return token;
@@ -604,6 +653,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     onSuccess: (token) => {
       queryClient.invalidateQueries({ queryKey: ["etv-attendees-live", meetingId] });
       setProxyDialog(null);
+      setProxyFile(null);
       if (token) {
         navigator.clipboard.writeText(`${window.location.origin}/etv-proxy/${token}`);
         toast({ title: "Vollmacht-Link kopiert" });
@@ -611,7 +661,19 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
         toast({ title: "Vollmacht erteilt" });
       }
     },
+    onError: (err: any) => {
+      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+    },
   });
+
+  const openProxyDocument = async (filePath: string) => {
+    const { data, error } = await supabase.storage.from("building-files").createSignedUrl(filePath, 600);
+    if (error || !data?.signedUrl) {
+      toast({ title: "Fehler", description: "Dokument konnte nicht geöffnet werden.", variant: "destructive" });
+      return;
+    }
+    window.open(data.signedUrl, "_blank");
+  };
 
   // Geschäftsbeschluss options
   const [proceduralAutoAccept, setProceduralAutoAccept] = useState(true);
@@ -1330,8 +1392,32 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                             })() : (a.proxy_external_name || "Extern")}
                           </Badge>
                         )}
+                        {a.proxy_document?.file_path && (
+                          <button
+                            className="text-primary hover:text-primary/80 shrink-0"
+                            title={`Vollmacht-Dokument öffnen: ${a.proxy_document.display_name || ""}`}
+                            onClick={() => openProxyDocument(a.proxy_document.file_path)}
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Vollmacht erfassen"
+                          onClick={() => {
+                            setProxyDialog(a.id);
+                            setProxyType("manager");
+                            setProxyContactId("");
+                            setProxyFile(null);
+                            setProxyGrantedVia("email");
+                          }}
+                        >
+                          <Shield className="h-4 w-4 text-blue-500" />
+                        </Button>
                         <Switch
                           checked={a.attendance_type === "present" || (a.attendance_type === "proxy" && !!a.checked_in_at)}
                           onCheckedChange={(checked) => checkInMutation.mutate({ id: a.id, present: checked })}
@@ -1416,6 +1502,112 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
 
 
       {/* Geschäftsbeschluss Dialog */}
+      {/* Vollmacht-Dialog */}
+      <Dialog open={!!proxyDialog} onOpenChange={() => setProxyDialog(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Vollmacht erfassen
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Vollmacht-Typ</Label>
+              <Select value={proxyType} onValueChange={setProxyType}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manager">An Verwalter</SelectItem>
+                  <SelectItem value="owner">An anderen Eigentümer</SelectItem>
+                  <SelectItem value="external">An externe Person (Token-Link)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {proxyType === "owner" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Eigentümer auswählen</Label>
+                <Select value={proxyContactId} onValueChange={setProxyContactId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Eigentümer wählen..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allContacts.map((c: any) => (
+                      <SelectItem key={c.contacts.id} value={c.contacts.id}>
+                        {getContactName(c.contacts)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {proxyType === "external" && (
+              <p className="text-sm text-muted-foreground">
+                Es wird ein einmaliger Token-Link generiert, den Sie an die externe Person weitergeben können.
+              </p>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Vollmacht erhalten per</Label>
+              <Select value={proxyGrantedVia} onValueChange={setProxyGrantedVia}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="email">E-Mail</SelectItem>
+                  <SelectItem value="paper">Papier</SelectItem>
+                  <SelectItem value="app">App</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Vollmacht-Dokument (optional)</Label>
+              {proxyFile ? (
+                <div className="flex items-center gap-2 text-sm p-2 bg-muted rounded">
+                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate flex-1">{proxyFile.name}</span>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setProxyFile(null)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <Input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.eml,.msg,.doc,.docx"
+                  onChange={(e) => setProxyFile(e.target.files?.[0] || null)}
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                Nachweis der Vollmacht (Textform gem. § 25 Abs. 3 WEG), z. B. die per E-Mail erhaltene Vollmacht als PDF. Wird im DMS des Gebäudes abgelegt.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProxyDialog(null)}>Abbrechen</Button>
+            <Button
+              onClick={() => {
+                if (proxyDialog) {
+                  setProxyMutation.mutate({
+                    attendeeId: proxyDialog,
+                    type: proxyType,
+                    contactId: proxyContactId || undefined,
+                    file: proxyFile,
+                    grantedVia: proxyGrantedVia,
+                  });
+                }
+              }}
+              disabled={setProxyMutation.isPending || (proxyType === "owner" && !proxyContactId)}
+            >
+              {setProxyMutation.isPending ? "Speichern..." : "Vollmacht erteilen"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showProceduralDialog} onOpenChange={setShowProceduralDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
