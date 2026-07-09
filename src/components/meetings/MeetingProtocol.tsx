@@ -174,11 +174,11 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
       <div className="flex flex-wrap gap-2">
         <Button
           onClick={() => publishMutation.mutate()}
-          disabled={publishMutation.isPending || meeting?.protocol_published}
+          disabled={publishMutation.isPending}
           variant="ghost" size="sm" className="gap-2 text-xs"
         >
           <Send className="h-3.5 w-3.5" />
-          {meeting?.protocol_published ? "Veröffentlicht ✓" : "Im Portal veröffentlichen"}
+          {publishMutation.isPending ? "Wird veröffentlicht..." : meeting?.protocol_published ? "Erneut veröffentlichen (PDF → DMS)" : "Im Portal veröffentlichen"}
         </Button>
       </div>
 
