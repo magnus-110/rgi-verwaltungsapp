@@ -26,22 +26,24 @@ function SignatureColumn({
   role,
   label,
   existing,
+  defaultName,
   onSaved,
 }: {
   meetingId: string;
   role: RoleKey;
   label: string;
   existing?: { signer_name: string; signature_png: string } | null;
+  defaultName?: string;
   onSaved: () => void;
 }) {
-  const [name, setName] = useState(existing?.signer_name || "");
+  const [name, setName] = useState(existing?.signer_name || defaultName || "");
   const [png, setPng] = useState<string | null>(existing?.signature_png || null);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    setName(existing?.signer_name || "");
+    setName(existing?.signer_name || defaultName || "");
     setPng(existing?.signature_png || null);
-  }, [existing?.signer_name, existing?.signature_png]);
+  }, [existing?.signer_name, existing?.signature_png, defaultName]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -132,6 +134,20 @@ function SignatureColumn({
 
 export function ProtocolSignaturesInline({ meetingId }: { meetingId: string }) {
   const qc = useQueryClient();
+
+  // Versammlungsleiter / Protokollführer aus der Versammlung vorbelegen
+  const { data: meetingInfo } = useQuery({
+    queryKey: ["etv-meeting-signer-names", meetingId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("etv_meetings")
+        .select("meeting_chair, minutes_taker")
+        .eq("id", meetingId)
+        .maybeSingle();
+      return data as { meeting_chair: string | null; minutes_taker: string | null } | null;
+    },
+  });
+
   const { data: signatures = [] } = useQuery({
     queryKey: ["etv-protocol-signatures", meetingId],
     queryFn: async () => {
@@ -169,12 +185,13 @@ export function ProtocolSignaturesInline({ meetingId }: { meetingId: string }) {
             role={r.key}
             label={r.label}
             existing={signatures.find((s: any) => s.role === r.key) || null}
+            defaultName={r.key === "leiter" ? (meetingInfo?.meeting_chair || "") : r.key === "protokollant" ? (meetingInfo?.minutes_taker || "") : ""}
             onSaved={invalidate}
           />
         ))}
       </div>
       <div className="flex items-center justify-between pt-1">
-        <Badge variant={allSigned ? "default" : "outline"} className="text-[10px]">
+        <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-[10px]">
           {signatures.length} / 3 unterschrieben
         </Badge>
         <Button

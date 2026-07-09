@@ -44,6 +44,19 @@ export function ProtocolRenderActions({ meetingId }: Props) {
     },
   });
 
+  // Versammlungsleiter / Protokollführer aus der Versammlung vorbelegen
+  const { data: meetingInfo } = useQuery({
+    queryKey: ["etv-meeting-signer-names", meetingId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("etv_meetings")
+        .select("meeting_chair, minutes_taker")
+        .eq("id", meetingId)
+        .maybeSingle();
+      return data as { meeting_chair: string | null; minutes_taker: string | null } | null;
+    },
+  });
+
   const render = useMutation({
     mutationFn: async (format: "docx" | "pdf") => {
       const { data, error } = await supabase.functions.invoke("etv-render-protocol", {
@@ -95,7 +108,7 @@ export function ProtocolRenderActions({ meetingId }: Props) {
   const openSignDialog = (role: "leiter" | "protokollant" | "eigentuemer") => {
     setSignRole(role);
     const existing = signatures.find((s: any) => s.role === role);
-    setSignerName(existing?.signer_name || "");
+    setSignerName(existing?.signer_name || (role === "leiter" ? (meetingInfo?.meeting_chair || "") : role === "protokollant" ? (meetingInfo?.minutes_taker || "") : ""));
     setSignaturePng(null);
     setSignOpen(true);
   };
@@ -143,7 +156,7 @@ export function ProtocolRenderActions({ meetingId }: Props) {
           })}
         </div>
         <div className="flex items-center justify-between pt-2">
-          <Badge variant={allSigned ? "default" : "outline"}>{signatures.length} / 3 unterschrieben</Badge>
+          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">{signatures.length} / 3 unterschrieben</Badge>
           <Button onClick={() => setFinalizeConfirm(true)} disabled={!allSigned || finalize.isPending} className="gap-2">
             {finalize.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
             Final signieren & im DMS ablegen

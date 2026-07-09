@@ -158,14 +158,6 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
       {/* Sekundär */}
       <div className="flex flex-wrap gap-2">
         <Button
-          onClick={() => generateMutation.mutate()}
-          disabled={generateMutation.isPending}
-          variant="ghost" size="sm" className="gap-2 text-xs"
-        >
-          {generateMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          KI-Protokolltext neu generieren
-        </Button>
-        <Button
           onClick={() => publishMutation.mutate()}
           disabled={publishMutation.isPending || meeting?.protocol_published}
           variant="ghost" size="sm" className="gap-2 text-xs"
