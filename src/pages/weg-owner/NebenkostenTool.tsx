@@ -470,23 +470,33 @@ export function WegOwnerNebenkostenTool() {
     };
   }, [autoPositions, positionOverrides, disabledAccounts, heatingOverride, extraCosts, prepayMonthly, prorata]);
 
-  const additionalTenantsValid =
-    !tenantChanged ||
-    (additionalTenants.length > 0 &&
-      additionalTenants.every((t) => t.name.trim() && t.prepayMonthly !== "" && Number(t.prepayMonthly) > 0));
-
-  const canBuy = !!(
-    assignmentId &&
-    periodId &&
-    tenantName &&
-    prepayMonthly !== "" &&
-    Number(prepayMonthly) > 0 &&
-    additionalTenantsValid &&
-    !loadingData
+  // Weitere Mieter sind optional. Wenn welche eingetragen sind, müssen sie vollständig sein.
+  const additionalTenantsValid = additionalTenants.every(
+    (t) => t.name.trim() && t.prepayMonthly !== "" && Number(t.prepayMonthly) > 0,
   );
 
-  // Anzahl der Abrechnungen (= Anzahl Produkte im Checkout)
-  const quantity = tenantChanged ? 1 + additionalTenants.length : 1;
+  const missingFields = useMemo(() => {
+    const list: string[] = [];
+    if (!assignmentId) list.push("Wohnung auswählen");
+    if (!periodId) list.push("Abrechnungszeitraum auswählen");
+    if (!tenantName.trim()) list.push("Name des Mieters eintragen");
+    if (prepayMonthly === "" || Number(prepayMonthly) <= 0)
+      list.push("Geleistete NK-Vorauszahlung des Mieters eintragen");
+    additionalTenants.forEach((t, idx) => {
+      const missing: string[] = [];
+      if (!t.name.trim()) missing.push("Name");
+      if (t.prepayMonthly === "" || Number(t.prepayMonthly) <= 0) missing.push("NK-Vorauszahlung");
+      if (missing.length > 0) list.push(`Weiterer Mieter #${idx + 2}: ${missing.join(", ")} fehlt`);
+    });
+    if (loadingData) list.push("Daten werden noch geladen …");
+    return list;
+  }, [assignmentId, periodId, tenantName, prepayMonthly, additionalTenants, loadingData]);
+
+  const canBuy = missingFields.length === 0 && additionalTenantsValid;
+
+  // Anzahl der Abrechnungen (= Anzahl Produkte im Checkout).
+  // Ohne zusätzliche Mieter wird immer nur 1 Abrechnung berechnet – auch wenn "Mieterwechsel" aktiv ist.
+  const quantity = 1 + additionalTenants.length;
 
   const isInitialLoading =
     loadingAssignments || (!!assignmentId && loadingPeriods) || (!!assignmentId && !!periodId && loadingData);
@@ -879,9 +889,20 @@ export function WegOwnerNebenkostenTool() {
                     <SectionCard num={4} title="Weitere Mieter (nach dem Wechsel)" icon={Users}>
                       <div className="space-y-4">
                         <p className="text-xs" style={{ color: RGI.muted }}>
-                          Fügen Sie hier alle weiteren Mieter hinzu, die in diesem Abrechnungsjahr in der Wohnung
-                          gewohnt haben. Pro Mieter wird eine eigene anteilige Abrechnung erstellt.
+                          <strong>Optional:</strong> Fügen Sie hier weitere Mieter (Vor- oder Nachmieter)
+                          hinzu, wenn Sie deren Abrechnungen im selben Vorgang erstellen möchten. Pro Mieter
+                          wird eine eigene anteilige Abrechnung berechnet und berechnet. Wenn Sie nur Ihre
+                          eigene Abrechnung erzeugen möchten, lassen Sie diesen Bereich einfach leer –
+                          es wird dann nur <strong>eine</strong> Abrechnung erstellt.
                         </p>
+                        {additionalTenants.length === 0 && (
+                          <div
+                            className="text-xs rounded-md px-3 py-2 inline-block"
+                            style={{ background: "#f3efea", color: RGI.muted, border: `1px solid ${RGI.border}` }}
+                          >
+                            Aktuell: nur 1 Abrechnung – weitere Mieter sind optional.
+                          </div>
+                        )}
 
                         {additionalTenants.map((t, idx) => (
                           <div
@@ -1336,15 +1357,37 @@ export function WegOwnerNebenkostenTool() {
                   <Lock className="w-4 h-4" style={{ color: RGI.muted }} />
                   *.*** €
                 </div>
+                {!canBuy && (
+                  <div className="text-[11px] mt-0.5" style={{ color: RGI.muted }}>
+                    Noch nicht startklar – tippen für Details
+                  </div>
+                )}
               </div>
               <Button
                 className="h-12 px-5 font-semibold"
                 style={{
                   background: canBuy ? RGI.primary : "#d4cfc8",
                   color: "#fff",
+                  cursor: canBuy ? "pointer" : "help",
                 }}
-                disabled={!canBuy}
-                onClick={() => setBuyOpen(true)}
+                aria-disabled={!canBuy}
+                onClick={() => {
+                  if (!canBuy) {
+                    const items = missingFields.length > 0 ? missingFields : ["Bitte alle Pflichtfelder ausfüllen."];
+                    toast.error("Noch nicht startklar", {
+                      description: (
+                        <ul className="list-disc pl-4 space-y-0.5">
+                          {items.map((m, i) => (
+                            <li key={i}>{m}</li>
+                          ))}
+                        </ul>
+                      ) as any,
+                      duration: 6000,
+                    });
+                    return;
+                  }
+                  setBuyOpen(true);
+                }}
               >
                 {price
                   ? formatPrice(price.price_cents * quantity, price.currency) +
