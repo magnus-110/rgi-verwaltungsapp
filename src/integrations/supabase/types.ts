@@ -4729,6 +4729,7 @@ export type Database = {
           ai_priority: string | null
           ai_summary: string | null
           assigned_to: string | null
+          attachments_incomplete: boolean
           bcc_addresses: Json | null
           body_html: string | null
           body_text: string | null
@@ -4748,7 +4749,6 @@ export type Database = {
           from_address: string | null
           from_name: string | null
           has_attachments: boolean
-          attachments_incomplete: boolean
           id: string
           imap_uid: string | null
           in_reply_to: string | null
@@ -4777,6 +4777,7 @@ export type Database = {
           ai_priority?: string | null
           ai_summary?: string | null
           assigned_to?: string | null
+          attachments_incomplete?: boolean
           bcc_addresses?: Json | null
           body_html?: string | null
           body_text?: string | null
@@ -4796,7 +4797,6 @@ export type Database = {
           from_address?: string | null
           from_name?: string | null
           has_attachments?: boolean
-          attachments_incomplete?: boolean
           id?: string
           imap_uid?: string | null
           in_reply_to?: string | null
@@ -4825,6 +4825,7 @@ export type Database = {
           ai_priority?: string | null
           ai_summary?: string | null
           assigned_to?: string | null
+          attachments_incomplete?: boolean
           bcc_addresses?: Json | null
           body_html?: string | null
           body_text?: string | null
@@ -4844,7 +4845,6 @@ export type Database = {
           from_address?: string | null
           from_name?: string | null
           has_attachments?: boolean
-          attachments_incomplete?: boolean
           id?: string
           imap_uid?: string | null
           in_reply_to?: string | null
@@ -5063,11 +5063,17 @@ export type Database = {
           meeting_id: string
           pre_vote_instructions: Json | null
           proxy_contact_id: string | null
+          proxy_document_file_id: string | null
           proxy_external_name: string | null
+          proxy_granted_via: string | null
+          proxy_recorded_at: string | null
+          proxy_recorded_by: string | null
+          proxy_source: string | null
           proxy_token: string | null
           proxy_token_used: boolean | null
           proxy_type: string | null
           self_registered_at: string | null
+          self_reported_type: string | null
           voting_banned_items: string[] | null
         }
         Insert: {
@@ -5079,11 +5085,17 @@ export type Database = {
           meeting_id: string
           pre_vote_instructions?: Json | null
           proxy_contact_id?: string | null
+          proxy_document_file_id?: string | null
           proxy_external_name?: string | null
+          proxy_granted_via?: string | null
+          proxy_recorded_at?: string | null
+          proxy_recorded_by?: string | null
+          proxy_source?: string | null
           proxy_token?: string | null
           proxy_token_used?: boolean | null
           proxy_type?: string | null
           self_registered_at?: string | null
+          self_reported_type?: string | null
           voting_banned_items?: string[] | null
         }
         Update: {
@@ -5095,11 +5107,17 @@ export type Database = {
           meeting_id?: string
           pre_vote_instructions?: Json | null
           proxy_contact_id?: string | null
+          proxy_document_file_id?: string | null
           proxy_external_name?: string | null
+          proxy_granted_via?: string | null
+          proxy_recorded_at?: string | null
+          proxy_recorded_by?: string | null
+          proxy_source?: string | null
           proxy_token?: string | null
           proxy_token_used?: boolean | null
           proxy_type?: string | null
           self_registered_at?: string | null
+          self_reported_type?: string | null
           voting_banned_items?: string[] | null
         }
         Relationships: [
@@ -5122,6 +5140,13 @@ export type Database = {
             columns: ["proxy_contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_attendees_proxy_document_file_id_fkey"
+            columns: ["proxy_document_file_id"]
+            isOneToOne: false
+            referencedRelation: "building_files"
             referencedColumns: ["id"]
           },
         ]
@@ -5169,6 +5194,7 @@ export type Database = {
           building_id: string
           created_at: string | null
           created_by: string | null
+          ended_at: string | null
           id: string
           is_secret_ballot: boolean
           location: string | null
@@ -5189,6 +5215,7 @@ export type Database = {
           building_id: string
           created_at?: string | null
           created_by?: string | null
+          ended_at?: string | null
           id?: string
           is_secret_ballot?: boolean
           location?: string | null
@@ -5209,6 +5236,7 @@ export type Database = {
           building_id?: string
           created_at?: string | null
           created_by?: string | null
+          ended_at?: string | null
           id?: string
           is_secret_ballot?: boolean
           location?: string | null
@@ -9891,6 +9919,7 @@ export type Database = {
           ai_priority: string | null
           ai_summary: string | null
           assigned_to: string | null
+          attachments_incomplete: boolean
           bcc_addresses: Json | null
           body_html: string | null
           body_text: string | null
@@ -9910,7 +9939,6 @@ export type Database = {
           from_address: string | null
           from_name: string | null
           has_attachments: boolean
-          attachments_incomplete: boolean
           id: string
           imap_uid: string | null
           in_reply_to: string | null
