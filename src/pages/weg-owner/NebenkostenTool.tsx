@@ -1357,15 +1357,37 @@ export function WegOwnerNebenkostenTool() {
                   <Lock className="w-4 h-4" style={{ color: RGI.muted }} />
                   *.*** €
                 </div>
+                {!canBuy && (
+                  <div className="text-[11px] mt-0.5" style={{ color: RGI.muted }}>
+                    Noch nicht startklar – tippen für Details
+                  </div>
+                )}
               </div>
               <Button
                 className="h-12 px-5 font-semibold"
                 style={{
                   background: canBuy ? RGI.primary : "#d4cfc8",
                   color: "#fff",
+                  cursor: canBuy ? "pointer" : "help",
                 }}
-                disabled={!canBuy}
-                onClick={() => setBuyOpen(true)}
+                aria-disabled={!canBuy}
+                onClick={() => {
+                  if (!canBuy) {
+                    const items = missingFields.length > 0 ? missingFields : ["Bitte alle Pflichtfelder ausfüllen."];
+                    toast.error("Noch nicht startklar", {
+                      description: (
+                        <ul className="list-disc pl-4 space-y-0.5">
+                          {items.map((m, i) => (
+                            <li key={i}>{m}</li>
+                          ))}
+                        </ul>
+                      ) as any,
+                      duration: 6000,
+                    });
+                    return;
+                  }
+                  setBuyOpen(true);
+                }}
               >
                 {price
                   ? formatPrice(price.price_cents * quantity, price.currency) +
