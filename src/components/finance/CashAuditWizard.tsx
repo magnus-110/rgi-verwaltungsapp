@@ -45,7 +45,7 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
         .from("cash_audits")
         .select(`
           *,
-          buildings(name, address),
+          buildings(name, address, postal_code, city),
           billing_periods(fiscal_year, period_from, period_to),
           contacts!cash_audits_auditor_contact_id_fkey(
             id, company_name,
@@ -297,7 +297,7 @@ export function CashAuditWizard({ auditId, onBack, tokenMode, token }: CashAudit
             )}
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Prüfer: {auditorName} · {building?.address}
+            Prüfer: {auditorName} · {[building?.address, (building as any)?.city].filter(Boolean).join(", ")}
           </p>
           <Progress value={progressPercent} className="mt-2 h-1.5" />
         </div>

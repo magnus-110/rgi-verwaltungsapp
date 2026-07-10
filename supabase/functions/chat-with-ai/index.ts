@@ -168,7 +168,7 @@ serve(async (req) => {
         .maybeSingle();
       
       if (building) {
-        contextData += `\n\nGebäudeinformationen:\nName: ${building.name}\nAdresse: ${building.address}\nTyp: ${building.type}\nVerwaltungsmodus: ${building.management_mode}`;
+        contextData += `\n\nGebäudeinformationen:\nName: ${building.name}\nAdresse: ${[building.address, building.city].filter(Boolean).join(", ")}\nTyp: ${building.type}\nVerwaltungsmodus: ${building.management_mode}`;
         
         // Fetch building managers for tenant's building
         const managerProfiles = await fetchBuildingManagers(profile.building_id);
@@ -214,7 +214,7 @@ serve(async (req) => {
       if (buildings && buildings.length > 0) {
         contextData += `\n\nVerfügbare Gebäude:\n`;
         buildings.forEach(building => {
-          contextData += `- ${building.name} (${building.address})\n`;
+          contextData += `- ${building.name} (${[building.address, building.city].filter(Boolean).join(", ")})\n`;
         });
       }
 
@@ -285,12 +285,12 @@ serve(async (req) => {
         for (const ub of userBuildings) {
           const { data: building } = await supabase
             .from('buildings')
-            .select('name, address')
+            .select('name, address, postal_code, city')
             .eq('id', ub.building_id)
             .single();
           
           if (building) {
-            contextData += `\n- ${building.name} (${building.address})\n`;
+            contextData += `\n- ${building.name} (${[building.address, building.city].filter(Boolean).join(", ")})\n`;
             const managerProfiles = await fetchBuildingManagers(ub.building_id);
             if (managerProfiles.length > 0) {
               managerProfiles.forEach(manager => {

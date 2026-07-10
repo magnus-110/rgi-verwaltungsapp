@@ -36,7 +36,7 @@ serve(async (req) => {
     // Load meeting
     const { data: meeting, error: meetingErr } = await supabase
       .from('etv_meetings')
-      .select('*, buildings(name, address, manager_name, unit_count)')
+      .select('*, buildings(name, address, postal_code, city, manager_name, unit_count)')
       .eq('id', meetingId)
       .maybeSingle();
     if (meetingErr) {
@@ -129,7 +129,7 @@ VERSAMMLUNGSDATEN:
 Titel: ${meeting.title}
 Datum/Uhrzeit: ${meetingDate}
 Ort: ${meeting.location || 'Nicht angegeben'}
-Liegenschaft: ${building?.name || ''}, ${building?.address || ''}
+Liegenschaft: ${building?.name || ''}, ${[building?.address, [building?.postal_code, building?.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")}
 Verwalter: ${building?.manager_name || 'Nicht angegeben'}
 Gesamtanzahl Einheiten: ${building?.unit_count || 'Unbekannt'}
 Gesamt-MEA: ${totalMea.toFixed(4)}

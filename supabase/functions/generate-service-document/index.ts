@@ -236,12 +236,12 @@ Deno.serve(async (req) => {
     if (order.assignment_id) {
       const { data: cba } = await admin
         .from("contact_building_assignments")
-        .select("unit_number, building_id, buildings:building_id(name,address)")
+        .select("unit_number, building_id, buildings:building_id(name,address,postal_code,city)")
         .eq("id", order.assignment_id)
         .maybeSingle();
       objekt = {
         name: (cba as any)?.buildings?.name ?? "",
-        adresse: (cba as any)?.buildings?.address ?? "",
+        adresse: [(cba as any)?.buildings?.address, [(cba as any)?.buildings?.postal_code, (cba as any)?.buildings?.city].filter(Boolean).join(" ")].filter(Boolean).join(", "),
         wohnung: (cba as any)?.unit_number ?? "",
       };
     }

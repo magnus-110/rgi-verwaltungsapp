@@ -26,7 +26,7 @@ function normalizeText(s: string | null | undefined): string {
 function buildingTokens(b: { name: string | null; address: string | null }): string[] {
   const tokens = new Set<string>();
   const name = normalizeText(b.name);
-  const addr = normalizeText(b.address);
+  const addr = normalizeText([b.address, b.city].filter(Boolean).join(" "));
   if (name && name.length >= 4) tokens.add(name);
   if (addr) {
     tokens.add(addr);
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
 
     const { data: buildings } = await supabaseAdmin
       .from("buildings")
-      .select("id, name, address");
+      .select("id, name, address, city");
 
     const { data: contacts } = await supabaseAdmin
       .from("contacts")
@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
           ? "" // already determined, AI doesn't need to choose
           : (buildingCandidates.length > 0
               ? buildingCandidates
-                  .map((b) => `- "${b.name}" (${b.address}) [ID: ${b.id}]`)
+                  .map((b) => `- "${b.name}" (${[b.address, b.city].filter(Boolean).join(", ")}) [ID: ${b.id}]`)
                   .join("\n")
               : "(Keine eindeutigen Gebäude-Kandidaten gefunden)");
 

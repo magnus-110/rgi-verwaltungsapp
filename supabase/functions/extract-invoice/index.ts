@@ -113,7 +113,7 @@ function findBestBuildingMatch(
   let bestScore = 0;
 
   for (const b of buildings) {
-    const combined = normalizeForMatch(`${b.address || ""} ${b.name || ""}`);
+    const combined = normalizeForMatch(`${b.address || ""} ${b.city || ""} ${b.name || ""}`);
     const stems = extractStreetStems(combined);
     if (stems.length === 0) continue;
     const buildingPostal = extractPostalCodes(combined)[0] || null;
@@ -269,7 +269,7 @@ serve(async (req) => {
           const isCompany = invoice.is_company_invoice || isCompanyInvoice === true;
           let matchedBuildingId: string | null = invoice.building_id || null;
           if (!isCompany && !matchedBuildingId && eInvoice.recipient_address) {
-            const { data: allBuildings } = await supabase.from("buildings").select("id, name, address");
+            const { data: allBuildings } = await supabase.from("buildings").select("id, name, address, city");
             if (allBuildings) {
               matchedBuildingId = findBestBuildingMatch(eInvoice.recipient_address, allBuildings);
             }
@@ -563,7 +563,7 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
     if (!isCompany && !matchedBuildingId && extracted.recipient_address) {
       const { data: allBuildings } = await supabase
         .from("buildings")
-        .select("id, name, address");
+        .select("id, name, address, city");
       
       if (allBuildings && allBuildings.length > 0) {
         matchedBuildingId = findBestBuildingMatch(extracted.recipient_address, allBuildings);

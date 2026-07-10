@@ -208,7 +208,7 @@ Deno.serve(async (req) => {
     }
 
     // Building + period
-    const { data: building } = await admin.from("buildings").select("id, name, address").eq("id", building_id).maybeSingle();
+    const { data: building } = await admin.from("buildings").select("id, name, address, postal_code, city").eq("id", building_id).maybeSingle();
     let period: any = null;
     if (period_id) {
       const r = await admin.from("billing_periods").select("id, period_from, period_to").eq("id", period_id).maybeSingle();
@@ -378,7 +378,7 @@ Deno.serve(async (req) => {
         einheit_nr: owner.unit_number || "",
         einheit_lage: owner.floor_location || "",
         gebaeude_name: building?.name || "",
-        gebaeude_adresse: building?.address || "",
+        gebaeude_adresse: [building?.address, [building?.postal_code, building?.city].filter(Boolean).join(" ")].filter(Boolean).join(", "),
         wirtschaftsjahr: String(fiscal_year),
         periode_von: fmtDateDe(period?.period_from),
         periode_bis: fmtDateDe(period?.period_to),

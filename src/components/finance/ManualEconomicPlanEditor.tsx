@@ -59,7 +59,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     queryKey: ["building-info-mep", buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("buildings").select("name, address, manager_name").eq("id", buildingId).single();
+        .from("buildings").select("name, address, postal_code, city, manager_name").eq("id", buildingId).single();
       if (error) throw error;
       return data;
     },
@@ -663,7 +663,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date());
 
   const buildBaseContext = () => {
-    const { street, zipCity } = splitAddress(building?.address || "");
+    const street = building?.address || "";
+    const zipCity = [(building as any)?.postal_code, (building as any)?.city].filter(Boolean).join(" ") || splitAddress(building?.address || "").zipCity;
     return {
       fiscal_year: fiscalYear,
       period_from: `01.01.${fiscalYear}`,
@@ -673,7 +674,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       building_address: street,
       building_zip_city: zipCity,
       gebaeude_name: building?.name || "",
-      gebaeude_adresse: building?.address || "",
+      gebaeude_adresse: [street, zipCity].filter(Boolean).join(", "),
       plan_status: (plan?.status === "active" ? "Aktiv" : "Entwurf"),
       manager_name: building?.manager_name || "RGI Immobilien",
       manager_phone: "08363 960656",

@@ -63,7 +63,7 @@ export function ProtocolReadableView({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("etv_meetings")
-        .select("*, buildings(name, address, manager_name)")
+        .select("*, buildings(name, address, postal_code, city, manager_name)")
         .eq("id", meetingId)
         .single();
       if (error) throw error;
@@ -135,7 +135,7 @@ export function ProtocolReadableView({
         </div>
         <h1 className="text-2xl font-semibold mt-1 leading-tight">{building?.name || "WEG"}</h1>
         {building?.address && (
-          <p className="text-sm text-muted-foreground mt-0.5">{building.address}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">{[building.address, [(building as any).postal_code, (building as any).city].filter(Boolean).join(" ")].filter(Boolean).join(", ")}</p>
         )}
       </header>
 

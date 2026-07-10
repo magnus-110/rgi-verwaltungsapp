@@ -21,7 +21,7 @@ export function HeatingExportSection({ buildingId, periodId, fiscalYear }: Heati
   const { data: building } = useQuery({
     queryKey: ["building-detail", buildingId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("buildings").select("name, building_code, address").eq("id", buildingId).single();
+      const { data, error } = await supabase.from("buildings").select("name, building_code, address, postal_code, city").eq("id", buildingId).single();
       if (error) throw error;
       return data;
     },
@@ -112,7 +112,7 @@ export function HeatingExportSection({ buildingId, periodId, fiscalYear }: Heati
     lines.push("Heizkosten-Export für Ablesefirma");
     lines.push(`Liegenschaft;${building?.name || ""};${building?.building_code || ""}`);
     if (unitLabel) lines.push(`Heizkreis;${unitLabel}`);
-    lines.push(`Adresse;${building?.address || ""}`);
+    lines.push(`Adresse;${[building?.address, [(building as any)?.postal_code, (building as any)?.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")}`);
     lines.push(`Abrechnungszeitraum;${period?.period_from || ""};${period?.period_to || ""}`);
     lines.push(`Ablesefirma;${period?.heating_provider || ""}`);
     lines.push("");

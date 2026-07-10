@@ -233,7 +233,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     queryFn: async () => {
       const { data, error } = await supabase
         .from("buildings")
-        .select("id, name, address")
+        .select("id, name, address, postal_code, city")
         .eq("id", buildingId)
         .maybeSingle();
       if (error) throw error;
@@ -427,7 +427,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   const previewCtx = useMemo<CertificateContext | null>(() => {
     if (!building) return null;
     return {
-      building: { name: building?.name, address: building?.address },
+      building: { name: building?.name, address: [building?.address, [(building as any)?.postal_code, (building as any)?.city].filter(Boolean).join(" ")].filter(Boolean).join(", ") },
       fiscalYear,
       periodFrom: period?.period_from,
       periodTo: period?.period_to,
@@ -442,7 +442,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     try {
       const logo = await loadLogoBase64();
       const ctx: CertificateContext = {
-        building: { name: building?.name, address: building?.address },
+        building: { name: building?.name, address: [building?.address, [(building as any)?.postal_code, (building as any)?.city].filter(Boolean).join(" ")].filter(Boolean).join(", ") },
         fiscalYear,
         periodFrom: period?.period_from,
         periodTo: period?.period_to,
@@ -463,7 +463,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     try {
       const logo = await loadLogoBase64();
       const ctx: CertificateContext = {
-        building: { name: building?.name, address: building?.address },
+        building: { name: building?.name, address: [building?.address, [(building as any)?.postal_code, (building as any)?.city].filter(Boolean).join(" ")].filter(Boolean).join(", ") },
         fiscalYear,
         periodFrom: period?.period_from,
         periodTo: period?.period_to,

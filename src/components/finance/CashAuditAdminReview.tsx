@@ -35,7 +35,7 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
         .from("cash_audits")
         .select(`
           *,
-          buildings(id, name, address),
+          buildings(id, name, address, postal_code, city),
           billing_periods(fiscal_year, period_from, period_to),
           contacts!cash_audits_auditor_contact_id_fkey(
             id, company_name,
@@ -311,7 +311,7 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
             <Badge variant="secondary" className="ml-auto">Verwaltungs-Ansicht</Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Prüfer: {auditorName} · {building?.address}
+            Prüfer: {auditorName} · {[building?.address, (building as any)?.city].filter(Boolean).join(", ")}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => setPreviewMode(true)} className="gap-1.5">
