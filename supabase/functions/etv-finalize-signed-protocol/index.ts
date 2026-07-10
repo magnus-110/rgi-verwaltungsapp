@@ -165,7 +165,7 @@ Deno.serve(async (req) => {
         building_id: building.id,
         uploaded_by: uploadedBy,
         category_id: cat?.id || null,
-        display_name: `Protokoll ${fiscalYear} (signiert).pdf`,
+        display_name: `Protokoll ${fiscalYear}.pdf`,
         description: `Unterzeichnetes Protokoll der Versammlung "${meeting?.title || ""}" vom ${meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString("de-DE") : ""}`,
         file_path: dmsPath,
         file_size: finalBytes.length,
