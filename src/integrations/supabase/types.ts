@@ -2141,6 +2141,7 @@ export type Database = {
           billing_only: boolean
           booking_instructions: string | null
           building_code: string
+          city: string | null
           created_at: string | null
           creditor_id: string | null
           etv_default_location: string | null
@@ -2153,6 +2154,7 @@ export type Database = {
           management_start_date: string | null
           manager_name: string | null
           name: string
+          postal_code: string | null
           takeover_completed_at: string | null
           type: string | null
           unit_count: number
@@ -2165,6 +2167,7 @@ export type Database = {
           billing_only?: boolean
           booking_instructions?: string | null
           building_code: string
+          city?: string | null
           created_at?: string | null
           creditor_id?: string | null
           etv_default_location?: string | null
@@ -2177,6 +2180,7 @@ export type Database = {
           management_start_date?: string | null
           manager_name?: string | null
           name: string
+          postal_code?: string | null
           takeover_completed_at?: string | null
           type?: string | null
           unit_count?: number
@@ -2189,6 +2193,7 @@ export type Database = {
           billing_only?: boolean
           booking_instructions?: string | null
           building_code?: string
+          city?: string | null
           created_at?: string | null
           creditor_id?: string | null
           etv_default_location?: string | null
@@ -2201,6 +2206,7 @@ export type Database = {
           management_start_date?: string | null
           manager_name?: string | null
           name?: string
+          postal_code?: string | null
           takeover_completed_at?: string | null
           type?: string | null
           unit_count?: number
@@ -6356,6 +6362,8 @@ export type Database = {
           closing_plan_path: string | null
           closing_plan_uploaded_at: string | null
           closing_plan_uploaded_by: string | null
+          has_closing_plan: boolean
+          has_key_card: boolean
           property_number: string
           tag_template_name: string | null
           tag_template_path: string | null
@@ -6369,6 +6377,8 @@ export type Database = {
           closing_plan_path?: string | null
           closing_plan_uploaded_at?: string | null
           closing_plan_uploaded_by?: string | null
+          has_closing_plan?: boolean
+          has_key_card?: boolean
           property_number?: string
           tag_template_name?: string | null
           tag_template_path?: string | null
@@ -6382,6 +6392,8 @@ export type Database = {
           closing_plan_path?: string | null
           closing_plan_uploaded_at?: string | null
           closing_plan_uploaded_by?: string | null
+          has_closing_plan?: boolean
+          has_key_card?: boolean
           property_number?: string
           tag_template_name?: string | null
           tag_template_path?: string | null
@@ -6457,6 +6469,57 @@ export type Database = {
           sort_order?: number
         }
         Relationships: []
+      }
+      key_tag_files: {
+        Row: {
+          building_id: string
+          created_at: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          id: string
+          mime_type: string | null
+          tag_id: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          building_id: string
+          created_at?: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+          tag_id: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          building_id?: string
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+          tag_id?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "key_tag_files_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "key_tag_files_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "key_tags"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       key_tags: {
         Row: {
