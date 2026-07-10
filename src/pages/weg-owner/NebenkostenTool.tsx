@@ -482,15 +482,18 @@ export function WegOwnerNebenkostenTool() {
     if (!tenantName.trim()) list.push("Name des Mieters eintragen");
     if (prepayMonthly === "" || Number(prepayMonthly) <= 0)
       list.push("Geleistete NK-Vorauszahlung des Mieters eintragen");
+    if (heatingOverride === "" || Number(heatingOverride) <= 0)
+      list.push("Heizkosten eintragen");
     additionalTenants.forEach((t, idx) => {
       const missing: string[] = [];
       if (!t.name.trim()) missing.push("Name");
       if (t.prepayMonthly === "" || Number(t.prepayMonthly) <= 0) missing.push("NK-Vorauszahlung");
+      if (t.heatingOverride === "" || Number(t.heatingOverride) <= 0) missing.push("Heizkosten");
       if (missing.length > 0) list.push(`Weiterer Mieter #${idx + 2}: ${missing.join(", ")} fehlt`);
     });
     if (loadingData) list.push("Daten werden noch geladen …");
     return list;
-  }, [assignmentId, periodId, tenantName, prepayMonthly, additionalTenants, loadingData]);
+  }, [assignmentId, periodId, tenantName, prepayMonthly, heatingOverride, additionalTenants, loadingData]);
 
   const canBuy = missingFields.length === 0 && additionalTenantsValid;
 
@@ -853,14 +856,22 @@ export function WegOwnerNebenkostenTool() {
                         ) : null}
                         <Field
                           label={heating?.label ?? "Heizung / Warmwasser / Wasser"}
-                          badge={tenantChanged ? "ergänzen" : heating?.source === "messdienst" ? "auto" : "ergänzen"}
-                          tooltip="Ihr Anteil aus der Heizkostenabrechnung des Messdienstes (z. B. Brunata, Techem, ista)."
+                          badge={
+                            heatingOverride !== "" && Number(heatingOverride) > 0
+                              ? tenantChanged
+                                ? "ergänzen"
+                                : heating?.source === "messdienst"
+                                  ? "auto"
+                                  : "ergänzen"
+                              : "Pflicht"
+                          }
+                          tooltip="Ihr Anteil aus der Heizkostenabrechnung des Messdienstes (z. B. Brunata, Techem, ista). Pflichtfeld."
                         >
                           <Input
                             type="number"
                             step="0.01"
                             className="h-11"
-                            style={fieldStyle(!tenantChanged && heating?.source === "messdienst")}
+                            style={fieldStyle(heatingOverride !== "" && Number(heatingOverride) > 0)}
                             value={heatingOverride}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             onKeyDown={(e) => {
@@ -876,6 +887,7 @@ export function WegOwnerNebenkostenTool() {
                             onChange={(e) => {
                               setHeatingOverride(e.target.value === "" ? "" : Number(e.target.value));
                             }}
+                            required
                           />
                         </Field>
 
@@ -963,8 +975,8 @@ export function WegOwnerNebenkostenTool() {
 
                             <Field
                               label="Heizung / Warmwasser / Wasser (anteilig)"
-                              badge="ergänzen"
-                              tooltip="Anteilige Summe dieses Mieters aus der Heizkostenabrechnung des Messdienstes."
+                              badge={t.heatingOverride !== "" && Number(t.heatingOverride) > 0 ? "ergänzen" : "Pflicht"}
+                              tooltip="Anteilige Summe dieses Mieters aus der Heizkostenabrechnung des Messdienstes. Pflichtfeld."
                             >
                               <Input
                                 type="number"
@@ -982,6 +994,7 @@ export function WegOwnerNebenkostenTool() {
                                     heatingOverride: e.target.value === "" ? "" : Number(e.target.value),
                                   })
                                 }
+                                required
                               />
                             </Field>
                           </div>
