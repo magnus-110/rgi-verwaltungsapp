@@ -78,9 +78,9 @@ Deno.serve(async (req) => {
     const margin = 50;
     let y = height - margin;
 
-    page.drawText("Unterschriften", { x: margin, y, size: 18, font: fontBold, color: rgb(0.1, 0.25, 0.5) });
+    page.drawText("Unterschriften", { x: margin, y, size: 18, font: fontBold, color: rgb(0.941, 0.549, 0.122) });
     y -= 12;
-    page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 1, color: rgb(0.1, 0.25, 0.5) });
+    page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 1, color: rgb(0.941, 0.549, 0.122) });
     y -= 30;
     page.drawText(`Protokoll: ${meeting?.title || ""}`, { x: margin, y, size: 11, font });
     y -= 16;
@@ -155,6 +155,7 @@ Deno.serve(async (req) => {
         }
       } catch (_) { /* Fallback bleibt meeting.created_by */ }
 
+      const fiscalYear = meeting?.meeting_date ? new Date(meeting.meeting_date).getFullYear() : new Date().getFullYear();
       const dmsPath = `versammlung-protokolle/${building.id}/${meeting_id}/${finalName}`;
       const { error: dmsUpErr } = await admin.storage.from("building-files")
         .upload(dmsPath, finalBytes, { contentType: "application/pdf", upsert: true });
@@ -164,11 +165,12 @@ Deno.serve(async (req) => {
         building_id: building.id,
         uploaded_by: uploadedBy,
         category_id: cat?.id || null,
-        display_name: finalName,
+        display_name: `Protokoll ${fiscalYear} (signiert).pdf`,
         description: `Unterzeichnetes Protokoll der Versammlung "${meeting?.title || ""}" vom ${meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString("de-DE") : ""}`,
         file_path: dmsPath,
         file_size: finalBytes.length,
         mime_type: "application/pdf",
+        fiscal_year: fiscalYear,
         management_mode: building.management_mode || "weg",
         source: "manual",
         rag_enabled: true,

@@ -30,9 +30,9 @@ async function appendSignaturePage(
   const margin = 50;
   let y = height - margin;
 
-  page.drawText("Unterschriften", { x: margin, y, size: 18, font: fontBold, color: rgb(0.1, 0.25, 0.5) });
+  page.drawText("Unterschriften", { x: margin, y, size: 18, font: fontBold, color: rgb(0.941, 0.549, 0.122) });
   y -= 12;
-  page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 1, color: rgb(0.1, 0.25, 0.5) });
+  page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 1, color: rgb(0.941, 0.549, 0.122) });
   y -= 30;
   page.drawText(`Protokoll: ${meetingTitle}`, { x: margin, y, size: 11, font });
   y -= 16;
@@ -356,7 +356,7 @@ Deno.serve(async (req) => {
       },
       tops,
       anzahl_tops: String(tops.length),
-      schlusssatz: "Die Verwaltung bedankt sich bei den anwesenden Eigentümern für ihr Erscheinen und beendet die Versammlung.",
+      schlusssatz: `Die Verwaltung bedankt sich bei den anwesenden Eigentümern für ihr Erscheinen und beendet die Versammlung.${meeting.ended_at ? ` Die Versammlung wurde um ${fmtTime(meeting.ended_at)} Uhr beendet.` : ""}`,
       ort_datum: ortDatumStadt ? `${ortDatumStadt}, ${meetingDateStr}` : meetingDateStr,
     };
 
@@ -459,7 +459,8 @@ Deno.serve(async (req) => {
           }
         } catch (_) { /* Fallback bleibt meeting.created_by */ }
 
-        const dmsName = `${baseName}.pdf`;
+        const fiscalYear = meeting.meeting_date ? new Date(meeting.meeting_date).getFullYear() : new Date().getFullYear();
+        const dmsName = `Protokoll ${fiscalYear}.pdf`;
         const dmsPath = `versammlung-protokolle/${meeting.building_id}/${meeting_id}/${dmsName}`;
         const { error: dmsUpErr } = await admin.storage.from("building-files")
           .upload(dmsPath, outBytes, { contentType: "application/pdf", upsert: true });
@@ -483,6 +484,7 @@ Deno.serve(async (req) => {
             file_path: dmsPath,
             file_size: outBytes.length,
             mime_type: "application/pdf",
+            fiscal_year: fiscalYear,
             management_mode: bmode?.management_mode || "weg",
             source: "manual",
             rag_enabled: true,

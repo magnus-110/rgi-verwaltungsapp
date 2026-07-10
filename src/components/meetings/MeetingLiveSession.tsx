@@ -403,7 +403,10 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
 
   const updateMeetingStatusMutation = useMutation({
     mutationFn: async (status: string) => {
-      const { error } = await supabase.from("etv_meetings").update({ status, quorum_reached: quorumReached }).eq("id", meetingId);
+      const patch: Record<string, any> = { status, quorum_reached: quorumReached };
+      if (status === "completed") patch.ended_at = new Date().toISOString();
+      if (status === "in_progress") patch.ended_at = null;
+      const { error } = await (supabase.from("etv_meetings") as any).update(patch).eq("id", meetingId);
       if (error) throw error;
     },
     onSuccess: () => {
