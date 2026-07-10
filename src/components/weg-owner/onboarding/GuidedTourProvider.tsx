@@ -266,7 +266,7 @@ export function GuidedTourProvider({ children }: { children: React.ReactNode }) 
         prevBtnText: "← Zurück",
         doneBtnText: "Verstanden",
         progressText: "Schritt {{current}} von {{total}}",
-        steps: resolvedSteps.map((s) => ({
+        steps: resolvedSteps.map((s): any => ({
           element: s.element,
           popover: {
             title: s.title,
