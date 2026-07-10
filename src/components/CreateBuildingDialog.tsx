@@ -31,6 +31,7 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
   const [formData, setFormData] = useState({
     name: "",
     address: "",
+    city: "",
     type: "weg",
     manager_id: "unassigned",
     unit_count: ""
@@ -92,11 +93,12 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
         .insert({
           name: formData.name,
           address: formData.address,
+          city: formData.city || null,
           management_mode: managementMode,
           type: formData.type,
           unit_count: formData.unit_count ? parseInt(formData.unit_count) : 0,
           building_code: ""
-        })
+        } as any)
         .select()
         .single();
 
@@ -118,7 +120,7 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
 
       toast.success("Gebäude erfolgreich erstellt");
       setIsOpen(false);
-      setFormData({ name: "", address: "", type: "weg", manager_id: "unassigned", unit_count: "" });
+      setFormData({ name: "", address: "", city: "", type: "weg", manager_id: "unassigned", unit_count: "" });
       setMaintenanceConfigs([]);
       onBuildingCreated?.();
     } catch (error) {
@@ -152,14 +154,25 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
               />
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="address">Adresse</Label>
-              <Input
-                id="address"
-                value={formData.address}
-                onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                required
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="address">Adresse (Straße + Nr.)</Label>
+                <Input
+                  id="address"
+                  value={formData.address}
+                  onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="city">Ort</Label>
+                <Input
+                  id="city"
+                  placeholder="z.B. Pfronten"
+                  value={formData.city}
+                  onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
+                />
+              </div>
             </div>
 
             <div className="space-y-2">

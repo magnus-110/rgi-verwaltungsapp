@@ -18,6 +18,8 @@ import { DropdownWithAdd } from "./DropdownWithAdd";
 import { HouseIcon } from "./IconPicker";
 import { downloadFilledTagTemplate } from "./tagTemplate";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Checkbox } from "@/components/ui/checkbox";
+import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
 import { toast } from "sonner";
 import { format, isPast } from "date-fns";
 import { de } from "date-fns/locale";
@@ -102,8 +104,14 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
     (historyEventFilter === "all" || e.event_type === historyEventFilter)
   );
 
+  const saveFlag = async (field: "has_closing_plan" | "has_key_card", value: boolean) => {
+    const { error } = await supabase.from("key_property_settings").update({ [field]: value } as any).eq("building_id", buildingId);
+    if (error) toast.error(error.message);
+    else qc.invalidateQueries({ queryKey: ["key-settings", buildingId] });
+  };
+
   const uploadClosingPlan = async (file: File) => {
-    const path = `${buildingId}/closing-plan-${Date.now()}-${file.name}`;
+    const path = `${buildingId}/closing-plan-${Date.now()}-${sanitizeStorageKey(file.name)}`;
     const { error } = await supabase.storage.from("key-files").upload(path, file, { upsert: true });
     if (error) { toast.error(error.message); return; }
     const { error: e2 } = await supabase.from("key_property_settings").upsert({
@@ -119,7 +127,7 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
 
   const uploadTagTemplate = async (file: File) => {
     if (!file.name.toLowerCase().endsWith(".docx")) { toast.error("Bitte eine .docx-Datei hochladen"); return; }
-    const path = `_global/tag-template-${Date.now()}-${file.name}`;
+    const path = `_global/tag-template-${Date.now()}-${sanitizeStorageKey(file.name)}`;
     const { error } = await supabase.storage.from("key-files").upload(path, file, { upsert: true });
     if (error) { toast.error(error.message); return; }
     const { error: e2 } = await supabase.from("key_global_settings" as any).upsert({
@@ -219,6 +227,22 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                       placeholder="z.B. SP-2024-001"
                       className="font-mono"
                     />
+                  </div>
+                  <div className="md:col-span-2 flex flex-wrap gap-6">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox
+                        checked={!!(settings as any)?.has_closing_plan}
+                        onCheckedChange={(v) => saveFlag("has_closing_plan", !!v)}
+                      />
+                      Schließplan vorhanden
+                    </label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox
+                        checked={!!(settings as any)?.has_key_card}
+                        onCheckedChange={(v) => saveFlag("has_key_card", !!v)}
+                      />
+                      Schlüsselkarte vorhanden
+                    </label>
                   </div>
                   <div className="md:col-span-2">
                     <Label>Schließplan (Datei)</Label>
@@ -409,6 +433,7 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [editingKeyId, setEditingKeyId] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<KeyItem>>({});
 
   const { data: keys = [] } = useQuery<KeyItem[]>({
@@ -427,11 +452,31 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
   const overdue = loan && loan.due_at && isPast(new Date(loan.due_at));
   const openReturn = loan && !loan.due_at;
 
-  const addKey = async () => {
-    const { error } = await supabase.from("keys").insert({ ...form, tag_id: tag.id });
-    if (error) { toast.error(error.message); return; }
+  const saveKey = async () => {
+    if (editingKeyId) {
+      const { error } = await supabase.from("keys").update({
+        subject_type_id: form.subject_type_id ?? null,
+        key_number: form.key_number ?? null,
+        manufacturer_id: form.manufacturer_id ?? null,
+        notes: form.notes ?? null,
+      } as any).eq("id", editingKeyId);
+      if (error) { toast.error(error.message); return; }
+    } else {
+      const { error } = await supabase.from("keys").insert({ ...form, tag_id: tag.id });
+      if (error) { toast.error(error.message); return; }
+    }
     qc.invalidateQueries({ queryKey: ["keys", tag.id] });
-    setForm({}); setShowAdd(false);
+    setForm({}); setShowAdd(false); setEditingKeyId(null);
+  };
+  const startEditKey = (k: KeyItem) => {
+    setForm({
+      subject_type_id: k.subject_type_id ?? undefined,
+      key_number: k.key_number ?? undefined,
+      manufacturer_id: k.manufacturer_id ?? undefined,
+      notes: k.notes ?? undefined,
+    });
+    setEditingKeyId(k.id);
+    setShowAdd(true);
   };
   const delKey = async (id: string) => {
     if (!confirm("Schlüssel löschen?")) return;
@@ -486,7 +531,7 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
         <div className="border-t border-border bg-muted/20 p-3 space-y-2">
           <div className="flex items-center justify-between">
             <div className="text-xs font-medium text-muted-foreground">Schlüssel ({keys.length})</div>
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(s => !s)}>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowAdd(s => !s); setEditingKeyId(null); setForm({}); }}>
               <Plus className="h-3 w-3 mr-1" /> Schlüssel
             </Button>
           </div>
@@ -527,8 +572,8 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
               </div>
               <div><Label className="text-xs">Notiz</Label><Textarea rows={2} value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
               <div className="flex justify-end gap-2">
-                <Button variant="ghost" size="sm" onClick={() => { setShowAdd(false); setForm({}); }}>Abbrechen</Button>
-                <Button size="sm" onClick={addKey}>Hinzufügen</Button>
+                <Button variant="ghost" size="sm" onClick={() => { setShowAdd(false); setForm({}); setEditingKeyId(null); }}>Abbrechen</Button>
+                <Button size="sm" onClick={saveKey}>{editingKeyId ? "Speichern" : "Hinzufügen"}</Button>
               </div>
             </div>
           )}
@@ -547,7 +592,8 @@ const TagListRow = ({ tag, type, loan, onEdit, onDelete, onLoan, onReturn, onLos
                       <div className="text-sm">{st?.name ?? "Schlüssel"} {k.key_number && <span className="font-mono text-muted-foreground">· {k.key_number}</span>}</div>
                       <div className="text-xs text-muted-foreground truncate">{mf?.name ?? "—"}{k.notes ? ` · ${k.notes}` : ""}</div>
                     </div>
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => delKey(k.id)}><Trash2 className="h-3 w-3" /></Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEditKey(k)} title="Schlüssel bearbeiten"><Edit className="h-3 w-3" /></Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => delKey(k.id)} title="Schlüssel löschen"><Trash2 className="h-3 w-3" /></Button>
                   </div>
                 );
               })}

@@ -26,6 +26,7 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
   const [keyTypeId, setKeyTypeId] = useState<string | undefined>();
   const [notes, setNotes] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [attachFiles, setAttachFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -34,8 +35,34 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
       setKeyTypeId(tag?.key_type_id);
       setNotes(tag?.notes ?? "");
       setPhotoFile(null);
+      setAttachFiles([]);
     }
   }, [open, tag]);
+
+  // Bereits hochgeladene Dateien des Anhängers
+  const { data: tagFiles = [] } = useQuery({
+    queryKey: ["key-tag-files", tag?.id],
+    queryFn: async () => {
+      if (!tag?.id) return [];
+      const { data } = await supabase.from("key_tag_files" as any).select("*").eq("tag_id", tag.id).order("created_at");
+      return (data || []) as any[];
+    },
+    enabled: !!tag?.id && open,
+  });
+
+  const openTagFile = async (filePath: string) => {
+    const { data } = await supabase.storage.from("key-files").createSignedUrl(filePath, 600);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+    else toast.error("Datei konnte nicht geöffnet werden");
+  };
+
+  const deleteTagFile = async (file: any) => {
+    if (!confirm(`Datei "${file.file_name}" löschen?`)) return;
+    await supabase.storage.from("key-files").remove([file.file_path]);
+    const { error } = await supabase.from("key_tag_files" as any).delete().eq("id", file.id);
+    if (error) toast.error(error.message);
+    else qc.invalidateQueries({ queryKey: ["key-tag-files", tag?.id] });
+  };
 
   const { data: locations = [] } = useQuery<KeyStorageLocation[]>({
     queryKey: ["key-storage-locations"],
@@ -64,13 +91,14 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
         if (error) throw error;
         photoPath = path;
       }
+      let tagId = tag?.id ?? null;
       if (tag) {
         const { error } = await supabase.from("key_tags").update({
           notes, photo_path: photoPath,
         }).eq("id", tag.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("key_tags").insert({
+        const { data: inserted, error } = await supabase.from("key_tags").insert({
           building_id: buildingId,
           storage_location_id: storageLocationId,
           key_type_id: keyTypeId,
@@ -79,8 +107,29 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
           notes,
           photo_path: photoPath,
           created_by: user?.id,
-        });
+        }).select("id").single();
         if (error) throw error;
+        tagId = inserted?.id ?? null;
+      }
+
+      // Weitere Dateien hochladen (mehrere möglich)
+      if (tagId && attachFiles.length > 0) {
+        for (const f of attachFiles) {
+          const fPath = `${buildingId}/tags/${tagId}/${Date.now()}-${sanitizeStorageKey(f.name)}`;
+          const { error: upErr } = await supabase.storage.from("key-files").upload(fPath, f, { upsert: true });
+          if (upErr) throw upErr;
+          const { error: insErr } = await supabase.from("key_tag_files" as any).insert({
+            tag_id: tagId,
+            building_id: buildingId,
+            file_path: fPath,
+            file_name: f.name,
+            file_size: f.size,
+            mime_type: f.type,
+            uploaded_by: user?.id,
+          });
+          if (insErr) throw insErr;
+        }
+        qc.invalidateQueries({ queryKey: ["key-tag-files", tagId] });
       }
       qc.invalidateQueries({ queryKey: ["key-tags", buildingId] });
       qc.invalidateQueries({ queryKey: ["key-events", buildingId] });
@@ -145,6 +194,25 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
           <div>
             <Label>Foto</Label>
             <Input type="file" accept="image/*" onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)} />
+          </div>
+          <div>
+            <Label>Weitere Dateien (mehrere möglich)</Label>
+            <Input type="file" multiple onChange={(e) => setAttachFiles(Array.from(e.target.files ?? []))} />
+            {attachFiles.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">{attachFiles.length} Datei(en) ausgewählt</p>
+            )}
+            {tagFiles.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {tagFiles.map((f: any) => (
+                  <div key={f.id} className="flex items-center gap-2 text-xs p-1.5 bg-muted rounded">
+                    <button type="button" className="truncate flex-1 text-left text-primary hover:underline" onClick={() => openTagFile(f.file_path)}>
+                      {f.file_name}
+                    </button>
+                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteTagFile(f)}>×</Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div>
             <Label>Notiz</Label>

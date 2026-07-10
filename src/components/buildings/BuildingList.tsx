@@ -19,6 +19,7 @@ interface BuildingRowData {
   name: string;
   unit_count: number;
   billing_only?: boolean;
+  city?: string | null;
 }
 
 const BuildingRow = memo(function BuildingRow({
@@ -54,6 +55,9 @@ const BuildingRow = memo(function BuildingRow({
               selected && "text-primary"
             )}>
               {building.name}
+              {building.city && (
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground/70">{building.city}</span>
+              )}
             </p>
             {building.billing_only && (
               <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 whitespace-nowrap">
@@ -79,17 +83,21 @@ export const BuildingList = ({ selectedBuildingId, onSelectBuilding }: BuildingL
     queryFn: async () => {
       const { data, error } = await supabase
         .from("buildings")
-        .select("id, name, management_mode, unit_count, billing_only")
+        .select("id, name, management_mode, unit_count, billing_only, city")
         .eq("management_mode", managementMode)
         .order("name");
       if (error) throw error;
-      return data || [];
+      return (data || []) as unknown as BuildingRowData[];
     },
   });
 
-  const filtered = buildings.filter(b =>
-    b.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filtered = buildings.filter(b => {
+    const term = searchTerm.toLowerCase();
+    return (
+      b.name.toLowerCase().includes(term) ||
+      ((b as any).city || "").toLowerCase().includes(term)
+    );
+  });
 
   const virtualizer = useVirtualizer({
     count: filtered.length,
