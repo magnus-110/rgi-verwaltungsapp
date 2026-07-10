@@ -838,13 +838,25 @@ export function BuildingContactsList({ buildingId, managementMode = "weg" }: Pro
             .eq("share_type", editingType.oldValue as any);
         }
       } else {
-        // Neu anlegen: in Katalog + in den aktuellen Share-Datensatz schreiben
-        await supabase
+        // Neu anlegen: gebäudespezifisch in den Katalog schreiben.
+        // WICHTIG: Kein .upsert({ onConflict: "building_id,value" }) verwenden!
+        // Der Unique-Index liegt auf (building_id, lower(value)) – ein onConflict
+        // auf die reine Spalte "value" hat kein passendes Constraint und schlägt
+        // fehl. Dadurch landete der neue Anteil nie im Katalog, das Dropdown
+        // blieb leer/weiß. Stattdessen prüfen wir case-insensitiv auf einen
+        // bereits vorhandenen Eintrag DIESES Gebäudes und legen ihn nur bei
+        // Bedarf an.
+        const { data: existingType } = await supabase
           .from("building_share_types")
-          .upsert(
-            { building_id: buildingId, value: val, label: val } as any,
-            { onConflict: "building_id,value" } as any,
-          );
+          .select("id")
+          .eq("building_id", buildingId)
+          .ilike("value", val)
+          .maybeSingle();
+        if (!existingType) {
+          await supabase
+            .from("building_share_types")
+            .insert({ building_id: buildingId, value: val, label: val } as any);
+        }
         await supabase
           .from("contact_building_shares")
           .update({ share_type: val } as any)
@@ -1780,6 +1792,14 @@ export function BuildingContactsList({ buildingId, managementMode = "weg" }: Pro
                                         {st.label}
                                       </SelectItem>
                                     ))}
+                                    {/* Fallback: aktuell gespeicherter Anteil, der (noch)
+                                        weder Standard noch im Custom-Katalog steht — verhindert
+                                        ein leeres/weißes Dropdown, bis der Katalog nachgeladen ist. */}
+                                    {s.share_type &&
+                                      !SHARE_TYPES.some((st) => st.value === s.share_type) &&
+                                      !customShareTypes.some((ct) => ct === s.share_type) && (
+                                        <SelectItem value={s.share_type}>{s.share_type}</SelectItem>
+                                      )}
                                     {customShareTypes.length > 0 && (
                                       <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                                         Eigene
