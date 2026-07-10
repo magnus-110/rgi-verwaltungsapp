@@ -856,14 +856,22 @@ export function WegOwnerNebenkostenTool() {
                         ) : null}
                         <Field
                           label={heating?.label ?? "Heizung / Warmwasser / Wasser"}
-                          badge={tenantChanged ? "ergänzen" : heating?.source === "messdienst" ? "auto" : "ergänzen"}
-                          tooltip="Ihr Anteil aus der Heizkostenabrechnung des Messdienstes (z. B. Brunata, Techem, ista)."
+                          badge={
+                            heatingOverride !== "" && Number(heatingOverride) > 0
+                              ? tenantChanged
+                                ? "ergänzen"
+                                : heating?.source === "messdienst"
+                                  ? "auto"
+                                  : "ergänzen"
+                              : "Pflicht"
+                          }
+                          tooltip="Ihr Anteil aus der Heizkostenabrechnung des Messdienstes (z. B. Brunata, Techem, ista). Pflichtfeld."
                         >
                           <Input
                             type="number"
                             step="0.01"
                             className="h-11"
-                            style={fieldStyle(!tenantChanged && heating?.source === "messdienst")}
+                            style={fieldStyle(heatingOverride !== "" && Number(heatingOverride) > 0)}
                             value={heatingOverride}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             onKeyDown={(e) => {
@@ -879,6 +887,7 @@ export function WegOwnerNebenkostenTool() {
                             onChange={(e) => {
                               setHeatingOverride(e.target.value === "" ? "" : Number(e.target.value));
                             }}
+                            required
                           />
                         </Field>
 
