@@ -164,8 +164,8 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-        <div className="px-2 md:px-6 bg-card border-b border-border overflow-x-auto scrollbar-hide sticky top-[72px] md:top-auto z-[9]">
-          <TabsList variant="underline" className="h-auto">
+        <div className="px-2 md:px-6 bg-card border-b border-border overflow-x-visible md:overflow-x-auto scrollbar-hide sticky top-[72px] md:top-auto z-[9]">
+          <TabsList variant="underline" className="h-auto flex-wrap md:flex-nowrap w-full md:w-auto justify-start">
             {[
               { value: "overview", label: "Übersicht" },
               // Jahreszyklus ist als Timeline in der Übersicht eingebunden – kein eigener Tab mehr.

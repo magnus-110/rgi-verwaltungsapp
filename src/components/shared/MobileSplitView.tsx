@@ -19,44 +19,11 @@ export function useMobileSplitView() {
   const isMobile = useIsMobile();
   const [mobileView, setMobileView] = React.useState<"list" | "detail">("list");
 
-  const touchStart = React.useRef<{ x: number; y: number; t: number } | null>(null);
-
-  const onTouchStart = React.useCallback((e: React.TouchEvent) => {
-    if (!isMobile) return;
-    if (e.touches.length > 1) {
-      touchStart.current = null;
-      return;
-    }
-    const t = e.touches[0];
-    touchStart.current = { x: t.clientX, y: t.clientY, t: Date.now() };
-  }, [isMobile]);
-
-  const onTouchEnd = React.useCallback((e: React.TouchEvent) => {
-    if (!isMobile || !touchStart.current) return;
-    const start = touchStart.current;
-    touchStart.current = null;
-    const t = e.changedTouches[0];
-    if (!t) return;
-    const dx = t.clientX - start.x;
-    const dy = t.clientY - start.y;
-    const dt = Date.now() - start.t;
-    const THRESHOLD = 60;
-    const MAX_OFF_AXIS_RATIO = 0.7;
-    const MAX_TIME = 800;
-    if (dt > MAX_TIME) return;
-    const absDx = Math.abs(dx);
-    const absDy = Math.abs(dy);
-    if (absDx < THRESHOLD) return;
-    if (absDy > absDx * MAX_OFF_AXIS_RATIO) return;
-    // Ignore swipes that originate on interactive scroll/draggable elements? -> Skip, kept simple.
-    if (dx < 0) {
-      // swipe left → detail
-      setMobileView("detail");
-    } else {
-      // swipe right → list
-      setMobileView("list");
-    }
-  }, [isMobile]);
+  // Swipe-Gesten bewusst deaktiviert: Der Wechsel Liste/Detail erfolgt nur noch
+  // über die sichtbaren Buttons (MobileViewSwitcher) bzw. programmatisch.
+  // Die Handler bleiben als No-Ops erhalten, damit bestehende Aufrufer nicht brechen.
+  const onTouchStart = React.useCallback((_e: React.TouchEvent) => {}, []);
+  const onTouchEnd = React.useCallback((_e: React.TouchEvent) => {}, []);
 
   return {
     isMobile,
