@@ -470,23 +470,33 @@ export function WegOwnerNebenkostenTool() {
     };
   }, [autoPositions, positionOverrides, disabledAccounts, heatingOverride, extraCosts, prepayMonthly, prorata]);
 
-  const additionalTenantsValid =
-    !tenantChanged ||
-    (additionalTenants.length > 0 &&
-      additionalTenants.every((t) => t.name.trim() && t.prepayMonthly !== "" && Number(t.prepayMonthly) > 0));
-
-  const canBuy = !!(
-    assignmentId &&
-    periodId &&
-    tenantName &&
-    prepayMonthly !== "" &&
-    Number(prepayMonthly) > 0 &&
-    additionalTenantsValid &&
-    !loadingData
+  // Weitere Mieter sind optional. Wenn welche eingetragen sind, müssen sie vollständig sein.
+  const additionalTenantsValid = additionalTenants.every(
+    (t) => t.name.trim() && t.prepayMonthly !== "" && Number(t.prepayMonthly) > 0,
   );
 
-  // Anzahl der Abrechnungen (= Anzahl Produkte im Checkout)
-  const quantity = tenantChanged ? 1 + additionalTenants.length : 1;
+  const missingFields = useMemo(() => {
+    const list: string[] = [];
+    if (!assignmentId) list.push("Wohnung auswählen");
+    if (!periodId) list.push("Abrechnungszeitraum auswählen");
+    if (!tenantName.trim()) list.push("Name des Mieters eintragen");
+    if (prepayMonthly === "" || Number(prepayMonthly) <= 0)
+      list.push("Geleistete NK-Vorauszahlung des Mieters eintragen");
+    additionalTenants.forEach((t, idx) => {
+      const missing: string[] = [];
+      if (!t.name.trim()) missing.push("Name");
+      if (t.prepayMonthly === "" || Number(t.prepayMonthly) <= 0) missing.push("NK-Vorauszahlung");
+      if (missing.length > 0) list.push(`Weiterer Mieter #${idx + 2}: ${missing.join(", ")} fehlt`);
+    });
+    if (loadingData) list.push("Daten werden noch geladen …");
+    return list;
+  }, [assignmentId, periodId, tenantName, prepayMonthly, additionalTenants, loadingData]);
+
+  const canBuy = missingFields.length === 0 && additionalTenantsValid;
+
+  // Anzahl der Abrechnungen (= Anzahl Produkte im Checkout).
+  // Ohne zusätzliche Mieter wird immer nur 1 Abrechnung berechnet – auch wenn "Mieterwechsel" aktiv ist.
+  const quantity = 1 + additionalTenants.length;
 
   const isInitialLoading =
     loadingAssignments || (!!assignmentId && loadingPeriods) || (!!assignmentId && !!periodId && loadingData);
