@@ -975,8 +975,8 @@ export function WegOwnerNebenkostenTool() {
 
                             <Field
                               label="Heizung / Warmwasser / Wasser (anteilig)"
-                              badge="ergänzen"
-                              tooltip="Anteilige Summe dieses Mieters aus der Heizkostenabrechnung des Messdienstes."
+                              badge={t.heatingOverride !== "" && Number(t.heatingOverride) > 0 ? "ergänzen" : "Pflicht"}
+                              tooltip="Anteilige Summe dieses Mieters aus der Heizkostenabrechnung des Messdienstes. Pflichtfeld."
                             >
                               <Input
                                 type="number"
@@ -994,6 +994,7 @@ export function WegOwnerNebenkostenTool() {
                                     heatingOverride: e.target.value === "" ? "" : Number(e.target.value),
                                   })
                                 }
+                                required
                               />
                             </Field>
                           </div>
