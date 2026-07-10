@@ -31,6 +31,7 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
   const [formData, setFormData] = useState({
     name: "",
     address: "",
+    postal_code: "",
     city: "",
     type: "weg",
     manager_id: "unassigned",
@@ -93,6 +94,7 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
         .insert({
           name: formData.name,
           address: formData.address,
+          postal_code: formData.postal_code || null,
           city: formData.city || null,
           management_mode: managementMode,
           type: formData.type,
@@ -120,7 +122,7 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
 
       toast.success("Gebäude erfolgreich erstellt");
       setIsOpen(false);
-      setFormData({ name: "", address: "", city: "", type: "weg", manager_id: "unassigned", unit_count: "" });
+      setFormData({ name: "", address: "", postal_code: "", city: "", type: "weg", manager_id: "unassigned", unit_count: "" });
       setMaintenanceConfigs([]);
       onBuildingCreated?.();
     } catch (error) {
@@ -154,14 +156,23 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
               />
             </div>
             
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="address">Adresse (Straße + Nr.)</Label>
+              <Input
+                id="address"
+                value={formData.address}
+                onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="grid grid-cols-[110px_1fr] gap-3">
               <div className="space-y-2">
-                <Label htmlFor="address">Adresse (Straße + Nr.)</Label>
+                <Label htmlFor="postal_code">PLZ</Label>
                 <Input
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                  required
+                  id="postal_code"
+                  placeholder="87459"
+                  value={formData.postal_code}
+                  onChange={(e) => setFormData(prev => ({ ...prev, postal_code: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">

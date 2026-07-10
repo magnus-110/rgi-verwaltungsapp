@@ -35,6 +35,8 @@ export const EditBuildingDialog = ({
   const [formData, setFormData] = useState({
     name: "",
     address: "",
+    postal_code: "",
+    city: "",
     unit_count: "",
     creditor_id: "",
     billing_only: false,
@@ -46,10 +48,27 @@ export const EditBuildingDialog = ({
       setFormData({
         name: building.name || "",
         address: building.address || "",
+        postal_code: (building as any).postal_code || "",
+        city: (building as any).city || "",
         unit_count: building.unit_count?.toString() || "0",
         creditor_id: (building as any).creditor_id || "",
         billing_only: (building as any).billing_only || false,
       });
+      // Ort/PLZ nachladen, falls das übergebene Objekt sie nicht enthält
+      supabase
+        .from("buildings")
+        .select("city, postal_code" as any)
+        .eq("id", building.id)
+        .maybeSingle()
+        .then(({ data }: any) => {
+          if (data) {
+            setFormData(prev => ({
+              ...prev,
+              city: prev.city || data.city || "",
+              postal_code: prev.postal_code || data.postal_code || "",
+            }));
+          }
+        });
     }
   }, [building]);
 
@@ -64,11 +83,13 @@ export const EditBuildingDialog = ({
         .update({
           name: formData.name,
           address: formData.address,
+          postal_code: formData.postal_code.trim() || null,
+          city: formData.city.trim() || null,
           unit_count: formData.unit_count ? parseInt(formData.unit_count) : 0,
           creditor_id: formData.creditor_id.trim() || null,
           billing_only: formData.billing_only,
           updated_at: new Date().toISOString(),
-        })
+        } as any)
         .eq("id", building.id);
 
       if (error) throw error;
@@ -102,13 +123,33 @@ export const EditBuildingDialog = ({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="address">Adresse</Label>
+              <Label htmlFor="address">Adresse (Straße + Nr.)</Label>
               <Input
                 id="address"
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 required
               />
+            </div>
+            <div className="grid grid-cols-[110px_1fr] gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="postal_code">PLZ</Label>
+                <Input
+                  id="postal_code"
+                  value={formData.postal_code}
+                  onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
+                  placeholder="87459"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="city">Ort</Label>
+                <Input
+                  id="city"
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  placeholder="z.B. Pfronten"
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="unit_count">Anzahl Einheiten</Label>

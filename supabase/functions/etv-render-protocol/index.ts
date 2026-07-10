@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
     // Daten laden
     const { data: meeting, error: mErr } = await admin
       .from("etv_meetings")
-      .select("*, buildings(name, address, manager_name, unit_count)")
+      .select("*, buildings(name, address, postal_code, city, manager_name, unit_count)")
       .eq("id", meeting_id)
       .single();
     if (mErr || !meeting) return json({ error: mErr?.message || "Versammlung nicht gefunden" }, 404);
@@ -315,20 +315,27 @@ Deno.serve(async (req) => {
     const absentList = absent.map((a: any) => `${getName(a)} (Einheit ${getUnit(a)})`).join("\n");
 
     const building = meeting.buildings as any;
-    const ortDatumStadt = (building?.address || "").split(",").pop()?.trim()?.replace(/^\d{4,5}\s*/, "") || "";
+    // Vollständige Adresse aus Straße + PLZ + Ort zusammensetzen
+    const fullAddress = [
+      building?.address,
+      [building?.postal_code, building?.city].filter(Boolean).join(" "),
+    ].filter(Boolean).join(", ");
+    const ortDatumStadt = building?.city || (building?.address || "").split(",").pop()?.trim()?.replace(/^\d{4,5}\s*/, "") || "";
     const meetingDateStr = fmtDate(meeting.meeting_date);
     const isQuorate = (present.length + proxied.length) >= 1;
 
     const payload = {
       weg: {
         name: building?.name || "",
-        adresse: building?.address || "",
+        adresse: fullAddress,
         verwalter: building?.manager_name || "",
         anzahl_einheiten: String(building?.unit_count ?? ""),
       },
       gebaeude: {
         name: building?.name || "",
-        adresse: building?.address || "",
+        adresse: fullAddress,
+        ort: building?.city || "",
+        plz: building?.postal_code || "",
       },
       versammlung: {
         titel: meeting.title || "",
