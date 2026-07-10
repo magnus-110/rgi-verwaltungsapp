@@ -889,9 +889,20 @@ export function WegOwnerNebenkostenTool() {
                     <SectionCard num={4} title="Weitere Mieter (nach dem Wechsel)" icon={Users}>
                       <div className="space-y-4">
                         <p className="text-xs" style={{ color: RGI.muted }}>
-                          Fügen Sie hier alle weiteren Mieter hinzu, die in diesem Abrechnungsjahr in der Wohnung
-                          gewohnt haben. Pro Mieter wird eine eigene anteilige Abrechnung erstellt.
+                          <strong>Optional:</strong> Fügen Sie hier weitere Mieter (Vor- oder Nachmieter)
+                          hinzu, wenn Sie deren Abrechnungen im selben Vorgang erstellen möchten. Pro Mieter
+                          wird eine eigene anteilige Abrechnung berechnet und berechnet. Wenn Sie nur Ihre
+                          eigene Abrechnung erzeugen möchten, lassen Sie diesen Bereich einfach leer –
+                          es wird dann nur <strong>eine</strong> Abrechnung erstellt.
                         </p>
+                        {additionalTenants.length === 0 && (
+                          <div
+                            className="text-xs rounded-md px-3 py-2 inline-block"
+                            style={{ background: "#f3efea", color: RGI.muted, border: `1px solid ${RGI.border}` }}
+                          >
+                            Aktuell: nur 1 Abrechnung – weitere Mieter sind optional.
+                          </div>
+                        )}
 
                         {additionalTenants.map((t, idx) => (
                           <div
