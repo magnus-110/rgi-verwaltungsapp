@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, ClipboardPaste } from "lucide-react";
 
 export const MfaChallenge = () => {
   const navigate = useNavigate();
@@ -27,6 +27,20 @@ export const MfaChallenge = () => {
       setFactorId(verified.id);
     })();
   }, [navigate]);
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const digits = (text.match(/\d/g) || []).join("").slice(0, 6);
+      if (digits.length !== 6) {
+        toast.error("Kein 6-stelliger Code in der Zwischenablage gefunden");
+        return;
+      }
+      setCode(digits);
+    } catch {
+      toast.error("Zugriff auf die Zwischenablage nicht möglich");
+    }
+  };
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,18 +84,30 @@ export const MfaChallenge = () => {
           <form onSubmit={handleVerify} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="code">Code</Label>
-              <Input
-                id="code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                placeholder="123456"
-                required
-                autoFocus
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                  placeholder="123456"
+                  required
+                  autoFocus
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                  title="Code aus Zwischenablage einfügen"
+                  onClick={handlePasteFromClipboard}
+                >
+                  <ClipboardPaste className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <Button type="submit" className="w-full" disabled={loading || code.length !== 6}>
               {loading ? "Wird geprüft..." : "Bestätigen"}
