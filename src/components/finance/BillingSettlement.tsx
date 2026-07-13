@@ -524,6 +524,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     };
   });
 
+  // Rücklagenkonten einzeln (statt einer Summenzeile) für die Bestände-Anzeige.
+  // Sortiert nach Kontonummer; Anzeige gefiltert nach non-zero je Block.
+  const reserveAccountsList = carryAccountsList
+    .filter((a) => a.category === "reserve")
+    .sort((a, b) => String(a.account_number).localeCompare(String(b.account_number)));
+
   // Distributable total (für Einzelabrechnung) — exclude:
   //  - ARAP/PRAP (4110/4130 = Bilanzkonten, kein Aufwand)
   //  - heating_prepayment Vorauszahlungskonten (1470–1473): reine Durchlaufkonten
@@ -1768,6 +1774,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                 <span>Instandhaltungsrücklage</span>
                 <span className="font-mono">{formatCurrency(Math.abs(openingReserve))}</span>
               </div>
+              {reserveAccountsList
+                .filter((a) => Math.abs(a.opening) > 0.005)
+                .map((a) => (
+                  <div key={`op-res-${a.account_number}`} className="flex justify-between text-sm pl-4 text-muted-foreground">
+                    <span>{a.account_number} {a.account_name}</span>
+                    <span className="font-mono">{formatCurrency(Math.abs(a.opening))}</span>
+                  </div>
+                ))}
               {openingFuel !== 0 && (
                 <div className="flex justify-between text-sm">
                   <span>Brennstoffanfangsbestand (Heizöl)</span>
@@ -1863,6 +1877,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                 <span>Instandhaltungsrücklage</span>
                 <span className="font-mono">{formatCurrency(Math.abs(closingReserve))}</span>
               </div>
+              {reserveAccountsList
+                .filter((a) => Math.abs(a.closing) > 0.005)
+                .map((a) => (
+                  <div key={`cl-res-${a.account_number}`} className="flex justify-between text-sm pl-4 text-muted-foreground">
+                    <span>{a.account_number} {a.account_name}</span>
+                    <span className="font-mono">{formatCurrency(Math.abs(a.closing))}</span>
+                  </div>
+                ))}
               {closingFuel !== 0 && (
                 <div className="flex justify-between text-sm">
                   <span>Brennstoffendbestand (Heizöl)</span>
