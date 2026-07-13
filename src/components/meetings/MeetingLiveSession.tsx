@@ -484,6 +484,11 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
 
 
   const castVoteMutation = useMutation({
+    // Sporadische DB-Timeouts (statement timeout) automatisch abfangen: bis zu 2x
+    // wiederholen. Der Upsert ist idempotent (onConflict), ein Retry ist gefahrlos.
+    retry: (failureCount, err: any) =>
+      failureCount < 2 && /timeout|statement|timed out/i.test(err?.message || ""),
+    retryDelay: (attempt) => attempt * 500,
     mutationFn: async ({ itemId, assignmentId, vote, meaWeight, sqmWeight }: { itemId: string; assignmentId: string; vote: string; meaWeight: number; sqmWeight?: number }) => {
       // Mark as handled so auto-cast does not overwrite this manual choice
       autoCastAttempted.current.add(`${itemId}:${assignmentId}`);
