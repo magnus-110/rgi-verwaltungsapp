@@ -641,11 +641,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
               </TableHeader>
               <TableBody>
                 {ownerCertificates.map(({ owner, total, totalDienste, totalHandwerker }) => (
-                  <TableRow
-                    key={owner.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => setPreviewOwner(owner)}
-                  >
+                  <TableRow key={owner.id}>
                     <TableCell className="font-mono text-xs">{owner.unit_number || "–"}</TableCell>
                     <TableCell className="text-sm">{ownerDisplayName(owner)}</TableCell>
                     <TableCell className="text-right font-mono text-sm font-medium">{formatCurrency(total)}</TableCell>
@@ -703,16 +699,6 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
         </Card>
       )}
 
-      <Paragraph35aCertificatePreviewDialog
-        open={!!previewOwner}
-        onOpenChange={(o) => !o && setPreviewOwner(null)}
-        owner={previewOwner}
-        ctx={previewCtx}
-        templateId={templateId}
-        buildingId={buildingId}
-        fiscalYear={fiscalYear}
-        periodId={periodId}
-      />
     </div>
   );
 }
