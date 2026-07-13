@@ -921,12 +921,17 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       .filter(Boolean)
       .flatMap((s) => normTok(s as string).split(/\s+/))
       .filter((t) => t && t.length >= 3);
-    const personAcc = personenkontenAccounts.find((a: any) => {
-      const accNumDigits = String(a.account_number || "").trim().replace(/^0+/, "");
-      if (unitDigits && accNumDigits === unitDigits) return true;
-      const accNameNorm = normTok(a.account_name);
-      return contactTokens.some((tok) => accNameNorm.includes(tok));
-    });
+    // Personenkonto strikt ueber die Einheitennummer zuordnen (Einheit 0018 -> Konto 0018).
+    // Der Namensabgleich ist NUR Fallback fuer Objekte ohne nummerierte Personenkonten —
+    // sonst trifft er bei Eigentuemern mit mehreren Einheiten das falsche (erste) Konto
+    // und zieht dessen Zahlungen faelschlich als Ueberzahlung heran.
+    const personAccByUnit = unitDigits
+      ? personenkontenAccounts.find((a: any) =>
+          String(a.account_number || "").trim().replace(/^0+/, "") === unitDigits)
+      : undefined;
+    const personAcc = personAccByUnit
+      ?? personenkontenAccounts.find((a: any) =>
+          contactTokens.some((tok) => normTok(a.account_name).includes(tok)));
     const ownerActualPaid = personAcc
       ? -signedTotalForAccount(personAcc.id, bookings as any)
       : totalPaid;
