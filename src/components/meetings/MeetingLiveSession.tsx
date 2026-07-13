@@ -207,13 +207,31 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     staleTime: 10_000,
   });
 
-  // Realtime votes
+  // Realtime votes — Payload direkt in den Cache mergen statt vollständig neu zu laden.
+  // Ein invalidateQueries bei JEDER Änderung löst ein Neuladen aus, das noch nicht
+  // committete optimistische Stimmen überschreibt (Race → Markierung verschwindet nach
+  // kurzer Zeit, obwohl gerade angeklickt). Durch das gezielte Mergen bleibt eine gerade
+  // gesetzte Stimme erhalten, auch wenn parallel weitere Stimmen eingetragen werden.
   useEffect(() => {
     if (!activeVoteItem) return;
+    const key = ["etv-votes-live", activeVoteItem];
     const channel = supabase
       .channel(`votes-${activeVoteItem}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "etv_votes", filter: `agenda_item_id=eq.${activeVoteItem}` }, () => {
-        queryClient.invalidateQueries({ queryKey: ["etv-votes-live", activeVoteItem] });
+      .on("postgres_changes", { event: "*", schema: "public", table: "etv_votes", filter: `agenda_item_id=eq.${activeVoteItem}` }, (payload: any) => {
+        queryClient.setQueryData<any[]>(key, (prev = []) => {
+          const rows = [...prev];
+          if (payload.eventType === "DELETE") {
+            const oldRec = payload.old || {};
+            return rows.filter((v: any) => v.id !== oldRec.id && v.assignment_id !== oldRec.assignment_id);
+          }
+          const rec = payload.new;
+          if (!rec) return rows;
+          // Nach assignment_id deduplizieren (Unique-Constraint agenda_item_id+assignment_id)
+          const idx = rows.findIndex((v: any) => v.assignment_id === rec.assignment_id);
+          if (idx >= 0) rows[idx] = { ...rows[idx], ...rec };
+          else rows.push(rec);
+          return rows;
+        });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -489,8 +507,13 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       queryClient.setQueryData(key, next);
       return { previous, key };
     },
-    onError: (_e, _v, ctx) => {
+    onError: (e: any, _v, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
+      toast({
+        title: "Stimme konnte nicht gespeichert werden",
+        description: e?.message || "Bitte erneut versuchen.",
+        variant: "destructive",
+      });
     },
     // Realtime channel keeps cache in sync — no manual invalidate needed
   });
@@ -512,8 +535,13 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       queryClient.setQueryData(key, previous.filter((v: any) => v.assignment_id !== assignmentId));
       return { previous, key };
     },
-    onError: (_e, _v, ctx) => {
+    onError: (e: any, _v, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
+      toast({
+        title: "Stimme konnte nicht zurückgesetzt werden",
+        description: e?.message || "Bitte erneut versuchen.",
+        variant: "destructive",
+      });
     },
   });
 
