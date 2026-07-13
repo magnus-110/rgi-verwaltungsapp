@@ -91,7 +91,9 @@ export const DISTRIBUTION_LABELS: Record<string, string> = {
 };
 
 export function isSecondaryUnit(a: OwnerAssignment): boolean {
-  return a.billing_mode === "distribution_only" || (a.unit_kind != null && a.unit_kind !== "apartment");
+  // Nur billing_mode entscheidet — Stellplaetze/Keller mit 'own_billing' erhalten eine
+  // eigene §35a-Bescheinigung; nur 'distribution_only' wird zur Hauptwohnung gefaltet.
+  return a.billing_mode === "distribution_only";
 }
 
 export function shareValue(a: OwnerAssignment, type: string): number {

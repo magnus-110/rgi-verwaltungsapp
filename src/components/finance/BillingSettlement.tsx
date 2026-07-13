@@ -213,8 +213,11 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       if (error) throw error;
       const all = (data || []) as any[];
 
+      // Nur der billing_mode entscheidet ueber eine eigene Abrechnung — NICHT die
+      // unit_kind. Stellplaetze/Keller mit billing_mode='own_billing' erhalten daher
+      // eine eigene Einzelabrechnung; nur 'distribution_only' wird zur Hauptwohnung gefaltet.
       const isSecondary = (a: any) =>
-        a?.billing_mode === "distribution_only" || (a?.unit_kind && a.unit_kind !== "apartment");
+        a?.billing_mode === "distribution_only";
 
       // Map contact_id -> Summe-Map(share_type -> value) aus Sub-Units
       const subSharesByContact = new Map<string, Map<string, number>>();
@@ -457,7 +460,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const isBankAccount = (a: any) =>
     typeof a.account_number === "string" && /^180\d?$/.test(a.account_number);
   const isReserveAccount = (a: any) =>
-    a.account_number === "1810" || a.account_number === "1820";
+    /^181\d$/.test(String(a.account_number || "")) || a.account_number === "1820";
   const isFuelStockAccount = (a: any) => a.account_number === "1450";
   const isHeatingPrepayBalanceAccount = (a: any) =>
     ["1470", "1471", "1472", "1473"].includes(a.account_number) ||
