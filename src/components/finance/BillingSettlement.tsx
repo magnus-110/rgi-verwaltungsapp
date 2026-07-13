@@ -789,11 +789,26 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         ownerShareValue = ownerCost;
         totalSharesValue = total;
       } else if (isUnitsKey) {
-        // Verwalter & Co.: 1 Einheit = 1 Anteil. Override via buildings.unit_count_for_billing möglich.
-        const totalUnits = building?.unit_count_for_billing ?? building?.unit_count ?? assignments.length;
-        totalSharesValue = totalUnits;
-        ownerShareValue = 1;
-        ownerCost = totalUnits > 0 ? (total / totalUnits) * timeProp : 0;
+        // "einheit"-Schluessel: den tatsaechlich gepflegten einheit-Anteil verwenden,
+        // NICHT pauschal 1 pro Einheit. Einheiten ohne einheit-Anteil (z. B. Stellplaetze/
+        // Garagen) tragen dadurch korrekt 0. Fallback fuer Objekte ohne gepflegte
+        // einheit-Anteile: nur Wohn-/Gewerbeeinheiten zaehlen.
+        const isMainUnit = (a: any) =>
+          a?.unit_kind == null || a.unit_kind === "apartment" || a.unit_kind === "commercial";
+        const einheitSum = assignments.reduce((s: number, a: any) =>
+          s + Number((a.contact_building_shares || []).find((sh: any) => sh.share_type === "einheit")?.share_value || 0), 0);
+        if (einheitSum > 0) {
+          const ownEinheit = Number((shares.find((s: any) => s.share_type === "einheit")?.share_value) || 0);
+          totalSharesValue = building?.unit_count_for_billing ?? einheitSum;
+          ownerShareValue = ownEinheit;
+          ownerCost = totalSharesValue > 0 ? total * (ownerShareValue / totalSharesValue) * timeProp : 0;
+        } else {
+          const eligibleCount = assignments.filter(isMainUnit).length;
+          const totalUnits = building?.unit_count_for_billing ?? eligibleCount;
+          totalSharesValue = totalUnits;
+          ownerShareValue = isMainUnit(assignment) ? 1 : 0;
+          ownerCost = (ownerShareValue && totalUnits > 0) ? (total / totalUnits) * timeProp : 0;
+        }
       } else {
         const ownerShare = shares.find((s: any) => s.share_type === shareType);
         totalSharesValue = getShareTotal(distKey);
