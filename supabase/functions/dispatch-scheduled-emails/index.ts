@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
         port: account.smtp_port,
         secure: isSecure,
         auth: { user: account.smtp_user, pass: account.smtp_password },
-        tls: { rejectUnauthorized: false },
+        tls: { rejectUnauthorized: Deno.env.get("SMTP_ALLOW_SELF_SIGNED") === "true" ? false : true },
       });
 
       const mailOptions: any = {

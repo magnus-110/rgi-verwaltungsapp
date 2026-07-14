@@ -24,6 +24,15 @@ serve(async (req) => {
   }
 
   try {
+    // --- Authentication ---
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const body = await req.json() as GetDocumentUrlRequest;
     const { documentId, pageNumber } = body;
 
@@ -38,7 +47,27 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
-    // Get document file path
+    // --- Authorization ---
+    // Look up the document with a USER-SCOPED client so RLS decides whether
+    // this caller may access it. Only if RLS returns the row do we proceed.
+    const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
+    const userClient = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: authDoc, error: authErr } = await userClient
+      .from('building_documents')
+      .select('id')
+      .eq('id', documentId)
+      .maybeSingle();
+
+    if (authErr || !authDoc) {
+      return new Response(
+        JSON.stringify({ error: 'Document not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get document file path (service role, authorization already confirmed)
     const { data: doc, error: docError } = await supabase
       .from('building_documents')
       .select('file_path, file_name, status')

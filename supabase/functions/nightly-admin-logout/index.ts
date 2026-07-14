@@ -7,9 +7,25 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // --- Authorization: this is an internal cron job. Require a shared secret. ---
+    // Accept either the service-role key or a dedicated CRON_SECRET, supplied by
+    // the scheduler as the `x-cron-secret` header. Configure CRON_SECRET in the
+    // function secrets and set the same value in the schedule/cron caller.
+    const cronSecret = Deno.env.get("CRON_SECRET");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const provided = req.headers.get("x-cron-secret") ??
+      (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
+    const allowed = new Set([cronSecret, serviceKey].filter(Boolean) as string[]);
+    if (!provided || !allowed.has(provided)) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
+      );
+    }
+
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      serviceKey
     );
 
     const { data: users, error } = await admin

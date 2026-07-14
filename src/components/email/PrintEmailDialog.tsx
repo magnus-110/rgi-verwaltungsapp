@@ -18,6 +18,7 @@ import { de } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import DOMPurify from "dompurify";
 
 interface EmailLite {
   id: string;
@@ -92,7 +93,15 @@ async function renderEmailHtml(email: EmailLite): Promise<string> {
 
   let bodyHtml = "";
   if (email.body_html) {
-    bodyHtml = await resolveInlineImages(email.body_html, email.id);
+    const resolved = await resolveInlineImages(email.body_html, email.id);
+    // SECURITY: sanitize untrusted (received) email HTML to strip <script>,
+    // inline event handlers (onerror/onload) etc. before it is inserted via
+    // innerHTML or written into the print window. Prevents stored/DOM XSS.
+    bodyHtml = DOMPurify.sanitize(resolved, {
+      USE_PROFILES: { html: true },
+      FORBID_TAGS: ["style"],
+      ADD_ATTR: ["target"],
+    });
   } else {
     bodyHtml = `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;">${escapeHtml(
       email.body_text || ""

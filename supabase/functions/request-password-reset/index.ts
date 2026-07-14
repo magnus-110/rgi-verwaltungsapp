@@ -9,11 +9,25 @@ interface ResetRequest {
   email: string
 }
 
-// Friendly password generator: Word-Word-Word-NN (avoids HIBP/leaked password rejection)
-// 6-stellige numerische Passwörter. Bei HIBP-Rejection wird in der Retry-Schleife
-// einfach ein neues generiert.
-function generateNumericPassword(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString()
+// Cryptographically secure temporary password (CSPRNG, large keyspace).
+function generateSecurePassword(length = 14): string {
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
+  const bytes = new Uint32Array(length)
+  crypto.getRandomValues(bytes)
+  let pw = ''
+  for (let i = 0; i < length; i++) pw += alphabet[bytes[i] % alphabet.length]
+  return pw + '-' + (crypto.getRandomValues(new Uint32Array(1))[0] % 90 + 10)
+}
+
+// Generic response for ALL outcomes -> prevents user enumeration.
+function genericOk(corsHeaders: Record<string, string>) {
+  return new Response(
+    JSON.stringify({
+      success: true,
+      message: 'Falls ein Konto mit dieser E-Mail-Adresse existiert, wurde ein neues Passwort versendet.'
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
 }
 
 // Send data to Make.com webhook
@@ -112,10 +126,8 @@ Deno.serve(async (req) => {
 
     if (!userId) {
       console.log('No user found for email:', normalizedEmail)
-      return new Response(
-        JSON.stringify({ error: 'Es wurde kein Account mit dieser E-Mail-Adresse gefunden. Bitte prüfen Sie die Schreibweise.' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      // Do NOT reveal that the account is unknown (prevents user enumeration).
+      return genericOk(corsHeaders)
     }
 
     const existingUser = { id: userId }
@@ -128,17 +140,15 @@ Deno.serve(async (req) => {
       .single()
 
     if (profileError || !profile) {
-      return new Response(
-        JSON.stringify({ error: 'Benutzerprofil nicht gefunden' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      // Generic response - do not disclose account state.
+      return genericOk(corsHeaders)
     }
 
     // Try to set a new password — retry with a fresh one if Supabase rejects it (e.g. HIBP leak check).
     let newPassword = ''
     let lastUpdateError: any = null
     for (let i = 0; i < 3; i++) {
-      const candidate = generateNumericPassword()
+      const candidate = generateSecurePassword()
       const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
         existingUser.id,
         { password: candidate }
@@ -148,10 +158,9 @@ Deno.serve(async (req) => {
       console.error(`Password update attempt ${i + 1} failed:`, updateError)
     }
     if (!newPassword) {
-      return new Response(
-        JSON.stringify({ error: 'Fehler beim Zurücksetzen des Passworts: ' + (lastUpdateError?.message ?? 'unbekannt') }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      console.error('Password reset failed for user:', existingUser.id, lastUpdateError?.message)
+      // Generic response - do not disclose account state.
+      return genericOk(corsHeaders)
     }
 
     // Determine management mode based on role
@@ -170,13 +179,7 @@ Deno.serve(async (req) => {
       reset_at: new Date().toISOString()
     })
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'Neues Passwort wurde generiert und per E-Mail versendet'
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    return genericOk(corsHeaders)
 
   } catch (error) {
     console.error('Function error:', error)

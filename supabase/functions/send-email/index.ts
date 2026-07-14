@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
         pass: account.smtp_password,
       },
       tls: {
-        rejectUnauthorized: false,
+        rejectUnauthorized: Deno.env.get("SMTP_ALLOW_SELF_SIGNED") === "true" ? false : true,
       },
     });
 

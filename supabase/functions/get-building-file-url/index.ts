@@ -12,6 +12,15 @@ serve(async (req) => {
   }
 
   try {
+    // --- Authentication ---
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { filePath } = await req.json();
 
     if (!filePath) {
@@ -23,9 +32,41 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 
-    // Generate signed URL valid for 1 hour
+    // --- Authorization ---
+    // Query building_files with a USER-SCOPED client so that the existing
+    // Row Level Security policies decide whether this caller may see the file.
+    // If RLS returns the row, the user is authorized; otherwise deny.
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: fileRow, error: fileErr } = await userClient
+      .from('building_files')
+      .select('id')
+      .eq('file_path', filePath)
+      .is('deleted_at', null)
+      .maybeSingle();
+
+    if (fileErr) {
+      console.error('Authorization lookup failed:', fileErr);
+      return new Response(
+        JSON.stringify({ error: 'Failed to verify access' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!fileRow) {
+      // No row visible to this user under RLS -> not authorized (or not found)
+      return new Response(
+        JSON.stringify({ error: 'Not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // --- Sign with service role only AFTER authorization succeeded ---
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { data, error } = await supabase.storage
       .from('building-files')
       .createSignedUrl(filePath, 3600);

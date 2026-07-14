@@ -66,7 +66,7 @@ export const ChatbotSettings = () => {
     try {
       const { data, error } = await supabase
         .from("chatbot_settings")
-        .select("*")
+        .select("id, model, temperature, max_tokens, management_mode, updated_at, system_prompt, knowledge_base, knowledge_items")
         .eq("management_mode", "weg")
         .single();
 

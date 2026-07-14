@@ -3,6 +3,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import nodemailer from "https://esm.sh/nodemailer@6.9.16";
 import { loadRecipients, renderString, RecipientFilter } from "../_shared/comm-vars.ts";
+import { requireAdmin } from "../_shared/require-admin.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,6 +14,10 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    // --- Authorization: only admins/employees may send bulk email ---
+    const auth = await requireAdmin(req, corsHeaders);
+    if (!auth.ok) return auth.response;
+
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -53,7 +58,7 @@ Deno.serve(async (req) => {
       port: account.smtp_port,
       secure: isSecure,
       auth: { user: account.smtp_user, pass: account.smtp_password },
-      tls: { rejectUnauthorized: false },
+      tls: { rejectUnauthorized: Deno.env.get("SMTP_ALLOW_SELF_SIGNED") === "true" ? false : true },
     });
 
     // Pre-load attachments once
