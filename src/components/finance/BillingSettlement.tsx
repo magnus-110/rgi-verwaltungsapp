@@ -681,10 +681,15 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   );
   const personenkontenPaid = -personenkontenSigned;
 
-  // EHR-Soll: Schlusssaldo Konto 1930, Fallback economicPlan.total_reserve.
-  const totalSollEHR = ehrAccountClosing > 0.005
-    ? ehrAccountClosing
-    : (Number(economicPlan?.total_reserve) || 0);
+  // EHR-Soll = gesamte planmäßige Rücklagenzuführung (ALLE Konten 193x, nicht nur
+  // 1930), damit die Einnahmen-Position "Vorschüsse auf Erhaltungsrücklage" exakt
+  // der Rücklagenzuführung entspricht (Gesamt- UND Einzelabrechnung nutzen dieselbe
+  // Größe). Fallback: Schlusssaldo Konto 1930, dann Wirtschaftsplan.
+  const totalSollEHR = totalReserve > 0.005
+    ? totalReserve
+    : (ehrAccountClosing > 0.005
+        ? ehrAccountClosing
+        : (Number(economicPlan?.total_reserve) || 0));
   const totalSollKostendeckung = Math.max(0, sollHausgeldGesamt - totalSollEHR);
   // Überzahlung = tatsächlich gezahlt − Soll-Hausgeld gesamt
   const totalUeberzahlung = personenkontenPaid - sollHausgeldGesamt;
