@@ -867,54 +867,76 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
         }
 
 
-        const items = isSingle
-          ? ownerData.map((o) => ({
-              kind: "owner" as const,
-              ownerId: o.id,
-              ownerName: o.name,
-              payload: buildOwnerPlanPayload(o.id),
-            }))
-          : [{ kind: "overall" as const, payload: buildOverallPlanPayload() }];
+        const filePrefix = isSingle ? `Einzelwirtschaftsplan_${fiscalYear}` : `Gesamtwirtschaftsplan_${fiscalYear}`;
 
-        if (isSingle && items.length === 0) {
-          toast.error("Keine Eigentümer für Einzelpläne gefunden.");
+        const fetchOne = async (requestBody: unknown): Promise<Blob> => {
+          const resp = await fetch(
+            `${SUPABASE_FUNCTIONS_URL}/generate-billing-document`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify(requestBody),
+            },
+          );
+          if (!resp.ok) {
+            const msg = await resp.text();
+            throw new Error(msg || `Export fehlgeschlagen (${resp.status})`);
+          }
+          return await resp.blob();
+        };
+
+        const docxMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+        if (!isSingle) {
+          toast.message("Wirtschaftsplan wird erzeugt…");
+          const blob = await fetchOne({
+            template_id: detail.template_id,
+            fiscal_year: fiscalYear,
+            mode: "single",
+            format: detail.format,
+            file_prefix: filePrefix,
+            items: [{ kind: "overall", payload: buildOverallPlanPayload() }],
+          });
+          triggerDownload(blob, `${filePrefix}.${detail.format}`, detail.format === "pdf" ? "application/pdf" : docxMime);
+          toast.success("Download bereit");
           return;
         }
 
-        const filePrefix = isSingle ? `Einzelwirtschaftsplan_${fiscalYear}` : `Gesamtwirtschaftsplan_${fiscalYear}`;
-        toast.message("Wirtschaftsplan wird erzeugt…");
-
-        const resp = await fetch(
-          `${SUPABASE_FUNCTIONS_URL}/generate-billing-document`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify({
+        // Einzelpläne: pro Eigentümer ein eigener, kleiner Funktionsaufruf und
+        // ZIP im Browser bauen. Ein einzelner Sammel-Request lief bei vielen
+        // Eigentümern in das Rechenlimit der Edge Function (WORKER_RESOURCE_LIMIT).
+        if (ownerData.length === 0) {
+          toast.error("Keine Eigentümer für Einzelpläne gefunden.");
+          return;
+        }
+        const JSZip = (await import("jszip")).default;
+        const zip = new JSZip();
+        const errors: string[] = [];
+        for (let i = 0; i < ownerData.length; i++) {
+          const o = ownerData[i];
+          toast.message(`Wirtschaftsplan ${i + 1}/${ownerData.length}: ${o.name}…`);
+          try {
+            const blob = await fetchOne({
               template_id: detail.template_id,
               fiscal_year: fiscalYear,
-              mode: isSingle ? "all" : "single",
+              mode: "single",
               format: detail.format,
               file_prefix: filePrefix,
-              items,
-            }),
-          },
-        );
-        if (!resp.ok) {
-          const msg = await resp.text();
-          throw new Error(msg || `Export fehlgeschlagen (${resp.status})`);
+              items: [{ kind: "owner", ownerId: o.id, ownerName: o.name, payload: buildOwnerPlanPayload(o.id) }],
+            });
+            const safeName = String(o.name || `Eigentuemer_${i + 1}`).replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 80);
+            zip.file(`${filePrefix}_${safeName}.${detail.format}`, blob);
+          } catch (err) {
+            errors.push(`${o.name}: ${err instanceof Error ? err.message : "Unbekannter Fehler"}`);
+          }
         }
-        const bytes = await resp.blob();
-        const ext = isSingle ? "zip" : detail.format;
-        const mime = isSingle
-          ? "application/zip"
-          : detail.format === "pdf"
-            ? "application/pdf"
-            : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-        triggerDownload(bytes, `${filePrefix}.${ext}`, mime);
-        toast.success("Download bereit");
+        if (errors.length > 0) zip.file("FEHLER.txt", errors.join("\n"));
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        triggerDownload(zipBlob, `${filePrefix}.zip`, "application/zip");
+        toast.success(errors.length > 0 ? `Download bereit — ${errors.length} Plan/Pläne fehlgeschlagen (siehe FEHLER.txt im ZIP)` : "Download bereit");
       } catch (err: any) {
         toast.error("Fehler: " + (err?.message || "Unbekannt"));
       }
