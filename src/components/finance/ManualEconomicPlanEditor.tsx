@@ -297,15 +297,17 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     }, 0);
   }, [assignmentsRaw]);
 
-  // Nebeneinheiten (Stellplätze etc.) bekommen keine eigene Plan-Zeile.
-  // Ihre MEA wird auf die Hauptwohnung des selben Eigentümers in diesem Building aufgeschlagen.
+  // Nur der billing_mode entscheidet über eine eigene Plan-Zeile — NICHT die
+  // unit_kind (gleiche Regel wie in BillingSettlement). Garagen/Stellplätze/Keller
+  // mit billing_mode='own_billing' erhalten einen eigenen Wirtschaftsplan; nur
+  // 'distribution_only' wird zur Hauptwohnung des Eigentümers gefaltet.
   const assignments = (assignmentsRaw as any[]).filter(
-    (a) => a?.billing_mode !== "distribution_only" && (!a?.unit_kind || a.unit_kind === "apartment")
+    (a) => a?.billing_mode !== "distribution_only"
   );
   const extraMeaByContact = (() => {
     const m = new Map<string, number>();
     for (const a of (assignmentsRaw as any[])) {
-      const isSec = a?.billing_mode === "distribution_only" || (a?.unit_kind && a.unit_kind !== "apartment");
+      const isSec = a?.billing_mode === "distribution_only";
       if (!isSec || !a.contact_id) continue;
       const v = (a.contact_building_shares || []).find((sh: any) => sh.share_type === "mea");
       m.set(a.contact_id, (m.get(a.contact_id) || 0) + (v ? Number(v.share_value) : 0));
@@ -497,7 +499,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
   const shareTotals = useMemo(() => {
     const totals: Record<string, number> = { mea: 0, stellplaetze: 0, einheit: 0, qm: 0, personen: 0 };
     for (const a of (assignmentsRaw as any[])) {
-      const isApartment = (!a.unit_kind || a.unit_kind === "apartment" || a.unit_kind === "commercial") && a.billing_mode !== "distribution_only";
+      const isApartment = a.billing_mode !== "distribution_only";
       const area = Number(a.area_sqm_override || 0);
       if (isApartment) {
         totals.einheit += 1;
@@ -558,7 +560,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       for (const a of (assignmentsRaw as any[])) {
         if (a.id === assignmentRaw.id) continue;
         if (a.contact_id !== ownContactId) continue;
-        const isSec = a?.billing_mode === "distribution_only" || (a?.unit_kind && a.unit_kind !== "apartment");
+        const isSec = a?.billing_mode === "distribution_only";
         if (!isSec) continue;
         sum += collectFor(a, types);
       }

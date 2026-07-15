@@ -1218,21 +1218,61 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
 
 
-      // Regulärer Download (DOCX/PDF/ZIP) — alter Pfad.
+      // Sammel-Download: pro Dokument ein eigener, kleiner Funktionsaufruf und
+      // ZIP im Browser bauen — ein einzelner Batch-Request lief bei vielen
+      // Eigentümern in das Rechenlimit der Edge Function (WORKER_RESOURCE_LIMIT).
+      if (target === "all") {
+        const JSZip = (await import("jszip")).default;
+        const zip = new JSZip();
+        const zipErrors: string[] = [];
+        const jobs: Array<{ label: string; fileBase: string; body: any }> = [
+          {
+            label: "Gesamtabrechnung",
+            fileBase: `00_Abrechnung_${fiscalYear}_Gesamt`,
+            body: {
+              template_id: tplId, overall_template_id: effectiveOverallTpl,
+              fiscal_year: fiscalYear, mode: "single", format,
+              file_prefix: `Abrechnung_${fiscalYear}`,
+              items: [{ kind: "overall", payload: buildOverallPayload(inp) }],
+            },
+          },
+          ...ownerResults.map((o) => ({
+            label: o.name,
+            fileBase: `Abrechnung_${fiscalYear}_${sanitizeFilename(o.name)}`,
+            body: {
+              template_id: tplId, overall_template_id: effectiveOverallTpl,
+              fiscal_year: fiscalYear, mode: "single", format,
+              file_prefix: `Abrechnung_${fiscalYear}`,
+              items: [{ kind: "owner", ownerId: o.assignmentId, ownerName: o.name, payload: buildOwnerPayload(inp, o.assignmentId) }],
+            },
+          })),
+        ];
+        for (let i = 0; i < jobs.length; i++) {
+          toast.message(`Dokument ${i + 1}/${jobs.length}: ${jobs[i].label}…`);
+          try {
+            const blob = await callOnce(jobs[i].body);
+            zip.file(`${jobs[i].fileBase}.${format}`, blob);
+          } catch (err) {
+            zipErrors.push(`${jobs[i].label}: ${err instanceof Error ? err.message : "Unbekannter Fehler"}`);
+          }
+        }
+        if (zipErrors.length > 0) zip.file("FEHLER.txt", zipErrors.join("\n"));
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        triggerDownload(zipBlob, `Abrechnung_${fiscalYear}${format === "pdf" ? "_PDF" : ""}.zip`, "application/zip");
+        toast.success(zipErrors.length > 0 ? `Download bereit — ${zipErrors.length} Dokument(e) fehlgeschlagen (siehe FEHLER.txt im ZIP)` : "Download bereit");
+        return;
+      }
+
+      // Einzeldokument-Download (DOCX/PDF).
       let items: Array<{ kind: "owner" | "overall" | "asset_report"; ownerId?: string; ownerName?: string; payload: any }> = [];
       if (target === "overall") {
         items = [{ kind: "overall", payload: buildOverallPayload(inp) }];
       } else if (target === "asset_report") {
         items = [{ kind: "asset_report", payload: buildAssetReportPayload(inp) }];
-      } else if (target === "owner") {
-        items = [{ kind: "owner", ownerId: owner!.assignmentId, ownerName: owner!.name, payload: buildOwnerPayload(inp, owner!.assignmentId) }];
       } else {
-        items = [
-          { kind: "overall", payload: buildOverallPayload(inp) },
-          ...ownerResults.map((o) => ({ kind: "owner" as const, ownerId: o.assignmentId, ownerName: o.name, payload: buildOwnerPayload(inp, o.assignmentId) })),
-        ];
+        items = [{ kind: "owner", ownerId: owner!.assignmentId, ownerName: owner!.name, payload: buildOwnerPayload(inp, owner!.assignmentId) }];
       }
-      const mode = target === "all" ? "all" : "single";
+      const mode = "single";
       const filePrefix =
         target === "asset_report" ? `Vermoegensbericht_${fiscalYear}` : `Abrechnung_${fiscalYear}`;
       const bytes = await callOnce({
