@@ -4680,6 +4680,30 @@ export type Database = {
           },
         ]
       }
+      email_sync_log: {
+        Row: {
+          account_email: string | null
+          created_at: string | null
+          id: string
+          message: string | null
+          uid: number | null
+        }
+        Insert: {
+          account_email?: string | null
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          uid?: number | null
+        }
+        Update: {
+          account_email?: string | null
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          uid?: number | null
+        }
+        Relationships: []
+      }
       email_templates: {
         Row: {
           body: string
