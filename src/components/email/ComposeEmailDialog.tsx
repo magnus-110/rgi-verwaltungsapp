@@ -895,5 +895,3 @@ export const ComposeEmailDialog = ({
     </Dialog>
   );
 }
-
-          onOpen
