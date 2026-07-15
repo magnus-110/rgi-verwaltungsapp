@@ -1291,13 +1291,11 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         file_prefix: filePrefix,
         items,
       });
-      const ext = target === "all" ? "zip" : format;
+      const ext = format;
       const mime =
-        target === "all"
-          ? "application/zip"
-          : format === "pdf"
-            ? "application/pdf"
-            : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        format === "pdf"
+          ? "application/pdf"
+          : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
       const fname =
         target === "owner"
           ? `Einzelabrechnung_${sanitizeFilename(owner!.name)}_${fiscalYear}.${ext}`
