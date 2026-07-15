@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { textToHtmlWithLinks } from "@/lib/emailHtml";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -312,7 +313,9 @@ export const ComposeEmailDialog = ({
           bcc: bccAddresses.length > 0 ? bccAddresses : undefined,
           subject,
           body_text: bodyText,
-          body_html: forward?.body_html || undefined,
+          body_html:
+            forward?.body_html ||
+            (bodyText ? textToHtmlWithLinks(bodyText) : undefined),
           attachments: attachmentData.length > 0 ? attachmentData : undefined,
         },
       });
@@ -885,10 +888,4 @@ export const ComposeEmailDialog = ({
         />
         <DmsFilePickerDialog
           open={dmsPickerOpen}
-          onOpenChange={setDmsPickerOpen}
-          onSelectItems={handleDmsSelect}
-        />
-      </DialogContent>
-    </Dialog>
-  );
-};
+          onOpen

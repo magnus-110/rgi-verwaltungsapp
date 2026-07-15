@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { textToHtmlWithLinks } from "@/lib/emailHtml";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -607,11 +608,10 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         }),
       );
 
-      // Build combined HTML for forwards: user's new text on top + original HTML below
-      const escapeHtml = (s: string) =>
-        s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      // HTML-Version des Textes mit klickbaren Links (immer mitsenden,
+      // damit eingefügte URLs beim Empfänger anklickbar sind)
       const userTextHtml = compose.bodyText
-        ? `<div style="white-space:pre-wrap;font-family:inherit">${escapeHtml(compose.bodyText)}</div>`
+        ? textToHtmlWithLinks(compose.bodyText)
         : "";
       // Strip wrapper tags (<!DOCTYPE>, <html>, <head>...</head>, <body>) from forwarded HTML.
       // Otherwise mail clients render only the embedded <html> document and drop the user's prepended text.
@@ -626,7 +626,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       };
       const combinedHtml = compose.forwardHtml
         ? `<div>${userTextHtml}<br><hr><div><b>--- Weitergeleitete Nachricht ---</b></div>${sanitizeForwardHtml(compose.forwardHtml)}</div>`
-        : null;
+        : userTextHtml || null;
 
       // Scheduled send → store in scheduled_emails (insert or update on edit)
       if (compose.scheduledAt && new Date(compose.scheduledAt).getTime() > Date.now()) {
@@ -1929,3 +1929,4 @@ const ScheduleButton = ({
     </Popover>
   );
 };
+                                                      
