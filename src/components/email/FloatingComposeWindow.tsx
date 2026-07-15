@@ -5,6 +5,7 @@ import { textToHtmlWithLinks } from "@/lib/emailHtml";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { LinkHighlightTextarea } from "@/components/email/LinkHighlightTextarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1122,7 +1123,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             </div>
           )}
 
-          <Textarea
+          <LinkHighlightTextarea
             value={compose.bodyText}
             onChange={(e) => update({ bodyText: e.target.value })}
             placeholder="E-Mail verfassen"
@@ -1404,7 +1405,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
                 {isImproving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
               </Button>
             </div>
-            <Textarea
+            <LinkHighlightTextarea
               value={compose.bodyText}
               onChange={(e) => update({ bodyText: e.target.value })}
               placeholder="Ihre Nachricht..."
