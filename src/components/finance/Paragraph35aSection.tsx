@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { SUPABASE_FUNCTIONS_URL } from "@/integrations/supabase/functions-url";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -181,7 +182,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     else setPdfBusy(isSingle ? assignmentIds![0] : "zip");
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const url = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`;
+      const url = `${SUPABASE_FUNCTIONS_URL}/generate-35a-docx`;
       const resp = await fetch(url, {
         method: "POST",
         headers: {

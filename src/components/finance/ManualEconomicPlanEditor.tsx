@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { SUPABASE_FUNCTIONS_URL } from "@/integrations/supabase/functions-url";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -884,7 +885,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
         toast.message("Wirtschaftsplan wird erzeugt…");
 
         const resp = await fetch(
-          `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-billing-document`,
+          `${SUPABASE_FUNCTIONS_URL}/generate-billing-document`,
           {
             method: "POST",
             headers: {

@@ -7,6 +7,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { SUPABASE_FUNCTIONS_URL } from "@/integrations/supabase/functions-url";
 import { uploadGeneratedPdfToDms } from "@/components/finance/lib/uploadGeneratedPdfToDms";
 import type { DmsFolderKey } from "@/components/finance/lib/resolveDmsFolder";
 import { toast } from "sonner";
@@ -56,9 +57,9 @@ export function useDmsJobs() {
 }
 
 async function callEdgeFn(fn: DmsEdgeFn, body: any, accessToken: string): Promise<Blob> {
-  const projectId = (import.meta as any).env?.VITE_SUPABASE_PROJECT_ID;
+  
   const resp = await fetch(
-    `https://${projectId}.supabase.co/functions/v1/${fn}`,
+    `${SUPABASE_FUNCTIONS_URL}/${fn}`,
     {
       method: "POST",
       headers: {

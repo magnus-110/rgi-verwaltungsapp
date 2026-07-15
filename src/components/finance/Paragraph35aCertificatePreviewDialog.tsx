@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { SUPABASE_FUNCTIONS_URL } from "@/integrations/supabase/functions-url";
 import { useToast } from "@/hooks/use-toast";
 import {
   buildCertificateHtml,
@@ -54,7 +55,7 @@ export function Paragraph35aCertificatePreviewDialog({
     setDownloading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const url = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`;
+      const url = `${SUPABASE_FUNCTIONS_URL}/generate-35a-docx`;
       const resp = await fetch(url, {
         method: "POST",
         headers: {

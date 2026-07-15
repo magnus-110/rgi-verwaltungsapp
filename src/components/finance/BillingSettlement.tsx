@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { SUPABASE_FUNCTIONS_URL } from "@/integrations/supabase/functions-url";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1059,7 +1060,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
 
       const resp = await fetch(
-        `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`,
+        `${SUPABASE_FUNCTIONS_URL}/generate-35a-docx`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
@@ -1144,7 +1145,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         body: any,
       ): Promise<Blob> => {
         const resp = await fetch(
-          `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-billing-document`,
+          `${SUPABASE_FUNCTIONS_URL}/generate-billing-document`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
@@ -1350,7 +1351,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       let p35aItems: any[] = [];
       try {
         const r35 = await fetch(
-          `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-35a-docx`,
+          `${SUPABASE_FUNCTIONS_URL}/generate-35a-docx`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
@@ -1434,7 +1435,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         enqueueDms(`Sammelberichte ${fiscalYear}`, jobItems);
       } else {
         const resp = await fetch(
-          `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/generate-billing-document`,
+          `${SUPABASE_FUNCTIONS_URL}/generate-billing-document`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
