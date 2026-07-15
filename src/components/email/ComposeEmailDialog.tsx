@@ -888,4 +888,10 @@ export const ComposeEmailDialog = ({
         />
         <DmsFilePickerDialog
           open={dmsPickerOpen}
-          onOpen
+          onOpenChange={setDmsPickerOpen}
+          onSelectItems={handleDmsSelect}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
