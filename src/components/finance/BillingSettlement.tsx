@@ -1195,6 +1195,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           if (targetOwners.length === 0) { toast.error("Keine Eigentümer gefunden."); return; }
           const jobItems: DmsJobItem[] = targetOwners.map((o) => {
             const a = (assignments as any[]).find((x) => x.id === o.assignmentId);
+            const unitNo = a?.unit_number ? String(a.unit_number) : "";
             return {
               title: o.name,
               edgeFn: "generate-billing-document",
@@ -1202,9 +1203,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                 template_id: tplId, overall_template_id: effectiveOverallTpl,
                 fiscal_year: fiscalYear, mode: "single", format: "pdf",
                 file_prefix: `Einzelabrechnung_${fiscalYear}`,
-                items: [{ kind: "owner", ownerId: o.assignmentId, ownerName: o.name, payload: buildOwnerPayload(inp, o.assignmentId) }],
+                items: [{ kind: "owner", ownerId: o.assignmentId, ownerName: o.name, unitNumber: unitNo, payload: buildOwnerPayload(inp, o.assignmentId) }],
               },
-              displayName: `Einzelabrechnung_${fiscalYear}_${o.name}`,
+              // Einheitennummer im Anzeigenamen, damit Eigentuemer mit mehreren
+              // Einheiten (z. B. Wohnung + Garage) je Einheit ein eigenes,
+              // eindeutiges Dokument im DMS erhalten.
+              displayName: `Einzelabrechnung_${fiscalYear}_${o.name}${unitNo ? `_${unitNo}` : ""}`,
               folderKey: "einzelabrechnung",
               visibility: "eigentuemer_only",
               contactId: a?.contact_id || null,
@@ -1238,12 +1242,15 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           },
           ...ownerResults.map((o) => ({
             label: o.name,
-            fileBase: `Abrechnung_${fiscalYear}_${sanitizeFilename(o.name)}`,
+            // Einheitennummer im Dateinamen, damit Eigentuemer mit mehreren
+            // Einheiten (z. B. Wohnung + Garage) nicht denselben Namen erhalten
+            // und sich im ZIP gegenseitig ueberschreiben.
+            fileBase: `Abrechnung_${fiscalYear}_${sanitizeFilename(o.name)}${o.unitNumber && o.unitNumber !== "–" ? `_${sanitizeFilename(o.unitNumber)}` : ""}`,
             body: {
               template_id: tplId, overall_template_id: effectiveOverallTpl,
               fiscal_year: fiscalYear, mode: "single", format,
               file_prefix: `Abrechnung_${fiscalYear}`,
-              items: [{ kind: "owner", ownerId: o.assignmentId, ownerName: o.name, payload: buildOwnerPayload(inp, o.assignmentId) }],
+              items: [{ kind: "owner", ownerId: o.assignmentId, ownerName: o.name, unitNumber: o.unitNumber, payload: buildOwnerPayload(inp, o.assignmentId) }],
             },
           })),
         ];
@@ -1431,10 +1438,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         // Common (Deckblatt) aus reichstem Owner-Payload + overall ziehen und auf neue
         // Sammelbericht-Konvention normalisieren (datum_heute, abrechnungszeitraum_*, …).
         const common = remapCommon({ ...pickCommon(o.payload), ...pickCommon(p.overall) });
+        const oa = (assignments as any[]).find((x) => x.id === o.assignmentId);
         return {
           kind: "owner",
           ownerId: o.assignmentId,
           ownerName: o.name,
+          unitNumber: oa?.unit_number ? String(oa.unit_number) : undefined,
           payload: {
             // Top-Level Common (Deckblatt-Variablen ohne Prefix)
             ...common,
@@ -1465,7 +1474,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               mode: "single", format: "pdf", file_prefix: prefix,
               items: [it],
             },
-            displayName: `Sammelbericht_${fiscalYear}_${it.ownerName}`,
+            displayName: `Sammelbericht_${fiscalYear}_${it.ownerName}${it.unitNumber ? `_${it.unitNumber}` : ""}`,
             folderKey: "sammelbericht",
             visibility: "eigentuemer_only",
             contactId: a?.contact_id || null,
