@@ -1,21 +1,24 @@
 ## Problem
 
-In der neuen WEG 14 werden nur 15 statt 22 Einzelabrechnungen im DMS/ZIP abgelegt. Ursache: Eigentümer mit mehreren Einheiten (z. B. Wohnung + Garage) erhalten pro Einheit ein PDF, aber die Dateinamen enthalten nur den Eigentümernamen — dadurch überschreiben sich Wohnungs- und Garagenabrechnung im DMS bzw. ZIP gegenseitig, und pro Eigentümer bleibt nur die zuletzt geschriebene Datei übrig (meist die Garage).
+Beim Schreiben von E-Mails „überlagert" der Text sich selbst und Mausklicks landen ein paar Zeichen neben der tatsächlichen Cursor-Position. Ursache liegt in `src/components/email/LinkHighlightTextarea.tsx`.
 
-Die Edge Function ist bereits deployt und verarbeitet die 22 Einheiten korrekt — nur das Frontend produziert kollidierende Dateinamen.
+Diese Komponente legt ein Backdrop-`<div>` (mit blau eingefärbten Links) exakt unter eine transparente `<textarea>`. Damit das funktioniert, müssen beide Layer **pixelgenau** dieselben Textmetriken haben. Aktuell ist das nicht der Fall:
 
-## Fix
+1. **`<textarea>` erbt Font nicht automatisch.** Browser-Default für Textareas ist meist eine Monospace-/System-Schrift, während das Backdrop-`<div>` die App-Font (Work Sans etc.) vom Elternteil erbt. Unterschiedliche Glyphenbreiten → jedes Wort driftet ein paar Pixel, sichtbar als „verschoben um Leerzeichen". Cursor-Position (nativ von der Textarea berechnet) passt dann nicht mehr zum sichtbar gerenderten Backdrop-Text.
+2. **`line-height`, `letter-spacing`, `font-size`, `font-family` werden zwischen beiden Layern nicht explizit synchronisiert.**
+3. **Border/Padding sind ungleich:** Backdrop hat `border-transparent`, Textarea hat `border-input` — beide 1px, das passt. Aber Backdrop hat kein `box-sizing`-Reset, wodurch bei bestimmten Zoomstufen 1px verrutscht.
+4. **`text-transparent` versteckt zwar die Farbe, aber die Textarea nutzt trotzdem ihre eigene Schriftmetrik** für Caret- und Klick-Position — deshalb klickt man scheinbar „daneben".
 
-In `src/components/finance/BillingSettlement.tsx` die Einheitennummer (`unit_number` aus `contact_building_assignments`) in Anzeigename, Dateiname und Job-Item übernehmen — exakt so wie in der hochgeladenen Referenz-Datei. Drei Stellen sind betroffen:
+## Fix (nur Presentation, keine Businesslogik)
 
-1. **DMS-Queue Einzelabrechnungen (~Zeile 1197–1211):** `unit_number` aus dem Assignment lesen und in `displayName` (`Einzelabrechnung_{jahr}_{name}_{einheit}`) sowie im `items[0]` als `unitNumber` mitgeben.
+In `src/components/email/LinkHighlightTextarea.tsx`:
 
-2. **ZIP-Download „Alle Dokumente" (~Zeile 1241–1246):** `fileBase` um die sanitisierte Einheitennummer erweitern (`Abrechnung_{jahr}_{name}_{einheit}`) und `unitNumber` ins Item aufnehmen. `ownerResults` bereits pro Assignment vorhanden — dort `unitNumber` mitführen.
+- Ergänze im gemeinsamen `BASE_BOX` explizit `font-sans leading-6 tracking-normal` (oder passende Tailwind-Klassen, die zum Rest des Composers passen), damit Backdrop UND Textarea garantiert dieselbe Font/Line-Height/Letter-Spacing verwenden.
+- Setze auf der Textarea zusätzlich inline `style={{ font: 'inherit', letterSpacing: 'inherit', lineHeight: 'inherit', caretColor: 'hsl(var(--foreground))' }}`, um Browser-Defaults für Textareas zu überschreiben.
+- Stelle sicher, dass Backdrop und Textarea identische `padding` (px-3 py-2), `border`-Breite (beide 1px, transparent bzw. input), `box-sizing: border-box` (Tailwind-Default, aber explizit prüfen) und `whitespace-pre-wrap break-words` haben.
+- Backdrop bekommt `overflow-hidden`, Textarea `overflow-auto` — Scroll-Sync bleibt wie gehabt.
+- `word-break`/`overflow-wrap` auf beiden gleich setzen (`break-words` reicht).
 
-3. **Sammelbericht-Queue (~Zeile 1433–1468):** `unit_number` aus dem Assignment ableiten, in das Item aufnehmen und in `displayName` (`Sammelbericht_{jahr}_{name}_{einheit}`) verwenden.
+## Verifikation
 
-Reine Presentation-/Naming-Änderung — keine Business-Logik, keine Payload-Änderungen, keine Edge-Function-Änderungen.
-
-## Ergebnis
-
-Alle 22 Einheiten der WEG 14 erhalten eigene, eindeutig benannte PDFs im DMS und im ZIP. Eigentümer mit Wohnung + Garage bekommen beide Dokumente statt nur der zuletzt geschriebenen.
+Nach dem Fix im Preview eine E-Mail öffnen, längeren Absatz mit Links tippen, an verschiedene Stellen klicken — Cursor muss exakt an der geklickten Stelle stehen, keine sichtbare Verschiebung des Backdrop-Textes.
