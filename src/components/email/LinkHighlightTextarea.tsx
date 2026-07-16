@@ -6,14 +6,29 @@ import { cn } from "@/lib/utils";
 // (Links eingefärbt), die eigentliche Textarea darüber schreibt transparent —
 // nur der Cursor bleibt sichtbar. Scroll wird synchronisiert.
 //
-// Wichtig: Backdrop und Textarea müssen exakt dieselben Box-/Font-Klassen
-// tragen, sonst verrutscht die Hervorhebung.
+// WICHTIG: Backdrop und Textarea MÜSSEN pixelgenau identische Textmetriken
+// haben (font-family, font-size, line-height, letter-spacing, padding, border,
+// box-sizing, whitespace/word-break). Sonst driftet der Backdrop-Text gegen-
+// über der echten (unsichtbaren) Textarea, was sich als „verschobener" Text
+// und daneben klickender Cursor äußert. Browser haben für <textarea> eigene
+// Default-Fonts (oft Monospace) — deshalb erzwingen wir `font: inherit` per
+// inline-style zusätzlich zu den Tailwind-Klassen.
 
 const URL_REGEX = /(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)/gi;
 
 // Muss den Basis-Klassen von components/ui/textarea.tsx entsprechen (Box/Font)
+// + explizite Font-Metriken, damit Backdrop und Textarea deckungsgleich sind.
 const BASE_BOX =
-  "min-h-[80px] w-full rounded-md px-3 py-2 text-sm whitespace-pre-wrap break-words";
+  "min-h-[80px] w-full rounded-md border px-3 py-2 text-sm font-sans leading-6 tracking-normal whitespace-pre-wrap break-words box-border";
+
+const SHARED_STYLE: React.CSSProperties = {
+  font: "inherit",
+  fontSize: "0.875rem", // text-sm
+  lineHeight: "1.5rem", // leading-6
+  letterSpacing: "normal",
+  fontFamily: "inherit",
+  tabSize: 4,
+};
 
 function renderWithLinks(text: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
@@ -44,7 +59,7 @@ export interface LinkHighlightTextareaProps
 export const LinkHighlightTextarea = React.forwardRef<
   HTMLTextAreaElement,
   LinkHighlightTextareaProps
->(({ className, value, onScroll, ...props }, ref) => {
+>(({ className, value, onScroll, style, ...props }, ref) => {
   const backdropRef = React.useRef<HTMLDivElement>(null);
   const innerRef = React.useRef<HTMLTextAreaElement | null>(null);
 
@@ -72,10 +87,11 @@ export const LinkHighlightTextarea = React.forwardRef<
         aria-hidden
         className={cn(
           BASE_BOX,
-          "border border-transparent text-foreground",
+          "border-transparent text-foreground",
           className,
           "absolute inset-0 overflow-hidden pointer-events-none select-none",
         )}
+        style={SHARED_STYLE}
       >
         {renderWithLinks(text)}
       </div>
@@ -83,11 +99,11 @@ export const LinkHighlightTextarea = React.forwardRef<
       <textarea
         className={cn(
           BASE_BOX,
-          "flex border border-input bg-transparent ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+          "flex border-input bg-transparent ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
           className,
           "relative text-transparent",
         )}
-        style={{ caretColor: "hsl(var(--foreground))" }}
+        style={{ ...SHARED_STYLE, caretColor: "hsl(var(--foreground))", ...(style || {}) }}
         ref={setRefs}
         value={value}
         onScroll={syncScroll}
