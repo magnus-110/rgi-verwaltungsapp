@@ -1828,7 +1828,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                 <span className="font-mono">{formatCurrency(Math.abs(openingReserve))}</span>
               </div>
               {reserveAccountsList
-                .filter((a) => Math.abs(a.opening) > 0.005)
+                .filter((a) => Math.abs(a.opening) > 0.005 || Math.abs(a.closing) > 0.005)
                 .map((a) => (
                   <div key={`op-res-${a.account_number}`} className="flex justify-between text-sm pl-4 text-muted-foreground">
                     <span>{a.account_number} {a.account_name}</span>
@@ -1931,7 +1931,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                 <span className="font-mono">{formatCurrency(Math.abs(closingReserve))}</span>
               </div>
               {reserveAccountsList
-                .filter((a) => Math.abs(a.closing) > 0.005)
+                .filter((a) => Math.abs(a.opening) > 0.005 || Math.abs(a.closing) > 0.005)
                 .map((a) => (
                   <div key={`cl-res-${a.account_number}`} className="flex justify-between text-sm pl-4 text-muted-foreground">
                     <span>{a.account_number} {a.account_name}</span>
