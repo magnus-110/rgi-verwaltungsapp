@@ -273,15 +273,36 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                     </label>
                   </div>
                   <div className="md:col-span-2">
-                    <Label>Schließplan (Datei)</Label>
-                    <div className="flex items-center gap-2">
-                      <Input type="file" accept="application/pdf,image/*" onChange={(e) => e.target.files?.[0] && uploadClosingPlan(e.target.files[0])} />
-                      {settings?.closing_plan_path && (
-                        <Button variant="outline" size="sm" onClick={downloadClosingPlan}>Öffnen</Button>
-                      )}
-                    </div>
-                    {settings?.closing_plan_name && (
-                      <p className="text-xs text-muted-foreground mt-1">{settings.closing_plan_name}</p>
+                    <Label>Schließpläne (Dateien) — mehrere möglich</Label>
+                    <Input
+                      type="file"
+                      multiple
+                      accept="application/pdf,image/*"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files ?? []);
+                        if (files.length) uploadClosingPlans(files);
+                        e.target.value = "";
+                      }}
+                    />
+                    {(closingPlanFiles.length > 0 || settings?.closing_plan_path) && (
+                      <div className="mt-2 space-y-1">
+                        {settings?.closing_plan_path && (
+                          <div className="flex items-center gap-2 text-sm border rounded px-2 py-1">
+                            <span className="flex-1 truncate">{settings.closing_plan_name ?? "Schließplan"}</span>
+                            <Button variant="outline" size="sm" onClick={downloadClosingPlan}>Öffnen</Button>
+                          </div>
+                        )}
+                        {closingPlanFiles.map((f) => (
+                          <div key={f.id} className="flex items-center gap-2 text-sm border rounded px-2 py-1">
+                            <span className="flex-1 truncate">{f.file_name}</span>
+                            <span className="text-xs text-muted-foreground">{f.file_size ? `${(f.file_size / 1024 / 1024).toFixed(2)} MB` : ""}</span>
+                            <Button variant="outline" size="sm" onClick={() => openClosingPlanFile(f.file_path)}>Öffnen</Button>
+                            <Button variant="ghost" size="sm" onClick={() => deleteClosingPlanFile(f)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                   <div className="md:col-span-2">
