@@ -110,19 +110,47 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
     else qc.invalidateQueries({ queryKey: ["key-settings", buildingId] });
   };
 
-  const uploadClosingPlan = async (file: File) => {
-    const path = `${buildingId}/closing-plan-${Date.now()}-${sanitizeStorageKey(file.name)}`;
-    const { error } = await supabase.storage.from("key-files").upload(path, file, { upsert: true });
-    if (error) { toast.error(error.message); return; }
-    const { error: e2 } = await supabase.from("key_property_settings").upsert({
-      building_id: buildingId,
-      closing_plan_path: path,
-      closing_plan_name: file.name,
-      closing_plan_uploaded_at: new Date().toISOString(),
-      closing_plan_uploaded_by: user?.id,
-    });
-    if (e2) toast.error(e2.message);
-    else { qc.invalidateQueries({ queryKey: ["key-settings", buildingId] }); toast.success("Schließplan hochgeladen"); }
+  const uploadClosingPlans = async (files: File[]) => {
+    if (!files.length) return;
+    let ok = 0;
+    const errors: string[] = [];
+    for (const file of files) {
+      const path = `${buildingId}/closing-plans/${Date.now()}-${sanitizeStorageKey(file.name)}`;
+      const { error: upErr } = await supabase.storage.from("key-files").upload(path, file, { upsert: true });
+      if (upErr) { errors.push(`${file.name}: ${upErr.message}`); continue; }
+      const { error: insErr } = await supabase.from("key_closing_plan_files" as any).insert({
+        building_id: buildingId,
+        file_path: path,
+        file_name: file.name,
+        file_size: file.size,
+        mime_type: file.type,
+        uploaded_by: user?.id,
+      });
+      if (insErr) { errors.push(`${file.name}: ${insErr.message}`); continue; }
+      ok++;
+    }
+    qc.invalidateQueries({ queryKey: ["key-closing-plan-files", buildingId] });
+    if (ok) toast.success(`${ok} von ${files.length} Datei(en) hochgeladen`);
+    if (errors.length) toast.error(errors.join("\n"));
+  };
+
+  const { data: closingPlanFiles = [] } = useQuery<any[]>({
+    queryKey: ["key-closing-plan-files", buildingId],
+    queryFn: async () => (await supabase.from("key_closing_plan_files" as any).select("*").eq("building_id", buildingId).order("created_at", { ascending: false })).data as any[] ?? [],
+  });
+
+  const openClosingPlanFile = async (path: string) => {
+    const { data } = await supabase.storage.from("key-files").createSignedUrl(path, 600);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+    else toast.error("Datei konnte nicht geöffnet werden");
+  };
+
+  const deleteClosingPlanFile = async (row: any) => {
+    if (!confirm(`Datei "${row.file_name}" löschen?`)) return;
+    await supabase.storage.from("key-files").remove([row.file_path]);
+    const { error } = await supabase.from("key_closing_plan_files" as any).delete().eq("id", row.id);
+    if (error) toast.error(error.message);
+    else qc.invalidateQueries({ queryKey: ["key-closing-plan-files", buildingId] });
   };
 
   const uploadTagTemplate = async (file: File) => {
