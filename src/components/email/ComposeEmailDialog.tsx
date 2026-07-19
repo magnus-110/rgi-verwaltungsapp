@@ -6,7 +6,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LinkHighlightTextarea } from "@/components/email/LinkHighlightTextarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -558,7 +557,7 @@ export const ComposeEmailDialog = ({
             )}
 
             {/* Nachricht */}
-            <LinkHighlightTextarea
+            <Textarea
               value={bodyText}
               onChange={(e) => setBodyText(e.target.value)}
               placeholder="E-Mail verfassen"
@@ -799,7 +798,7 @@ export const ComposeEmailDialog = ({
 
           <div className="space-y-1.5">
             <Label className="text-xs">Nachricht</Label>
-            <LinkHighlightTextarea
+            <Textarea
               value={bodyText}
               onChange={(e) => setBodyText(e.target.value)}
               placeholder="Ihre Nachricht..."
