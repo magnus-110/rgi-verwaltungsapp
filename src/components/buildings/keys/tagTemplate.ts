@@ -231,4 +231,27 @@ function replaceSplitPlaceholder(
   // - mittlere Nodes: leeren
   // - last Node: Text nach dem Platzhalter
   // Damit bleibt sämtliche Run-Formatierung erhalten.
-  for (let i = tNodes.length - 1
+  // Von hinten nach vorne ersetzen, damit vorherige Offsets gültig bleiben.
+  for (let i = tNodes.length - 1; i >= 0; i--) {
+    const node = tNodes[i];
+    let replacement: string | null = null;
+    if (i === firstNode && i === lastNode) {
+      replacement =
+        node.text.slice(0, offsetInFirst) +
+        newText +
+        node.text.slice(offsetInLastEnd);
+    } else if (i === firstNode) {
+      replacement = node.text.slice(0, offsetInFirst) + newText;
+    } else if (i === lastNode) {
+      replacement = node.text.slice(offsetInLastEnd);
+    } else if (i > firstNode && i < lastNode) {
+      replacement = "";
+    }
+    if (replacement !== null) {
+      xml = xml.slice(0, node.start) + replacement + xml.slice(node.end);
+    }
+  }
+
+  // Weitere Vorkommen rekursiv ersetzen.
+  return replaceSplitPlaceholder(xml, placeholder, newText);
+}
