@@ -311,8 +311,9 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                       <Input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => e.target.files?.[0] && uploadTagTemplate(e.target.files[0])} />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Zwei Platzhalter in der Vorlage einfügen und nach Wunsch farbig formatieren (Hintergrund/Schrift):
+                      Platzhalter in der Vorlage einfügen und nach Wunsch farbig formatieren (Hintergrund/Schrift):
                       <br />• <code className="font-mono">{"{g}"}</code> → wird mit der Nummer gefüllt, wenn der Schlüsseltyp <b>grün</b> ist (sonst leer)
+                      <br />• <code className="font-mono">{"{o}"}</code> → wird mit der Nummer gefüllt, wenn der Schlüsseltyp <b>orange</b> ist (sonst leer)
                       <br />• <code className="font-mono">{"{r}"}</code> → wird mit der Nummer gefüllt, wenn der Schlüsseltyp <b>rot</b> ist (sonst leer)
                       <br />Format der Nummer: „1 / 0002 - 01". Formatierung (Größe, Farbe, Hintergrund) übernimmt Word aus der Vorlage.
                       {globalSettings?.tag_template_name && <> · Aktuell (global): {globalSettings.tag_template_name}</>}

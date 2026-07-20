@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
  *
  *   {g} → grüner Anhänger (wird mit der formatierten Nummer gefüllt,
  *         wenn die Schlüsseltyp-Farbe grün ist – sonst leer)
+ *   {o} → oranger Anhänger (wird mit der formatierten Nummer gefüllt,
+ *         wenn die Schlüsseltyp-Farbe orange ist – sonst leer)
  *   {r} → roter Anhänger (wird mit der formatierten Nummer gefüllt,
  *         wenn die Schlüsseltyp-Farbe rot ist – sonst leer)
  *
@@ -45,30 +47,33 @@ export async function downloadFilledTagTemplate(opts: {
   };
   const formattedNumber = formatTagNumber(opts.tagNumber);
 
-  // Farbe entscheiden: grün vs. rot anhand des Hex-Werts
+  // Farbe entscheiden: grün, orange oder rot anhand des Hex-Werts.
+  // Orange wird VOR Rot geprüft, da Orange sonst als "rötlich" erkannt würde.
   const isGreen = isGreenish(opts.typeColorHex);
-  const isRed = isReddish(opts.typeColorHex);
+  const isOrange = isOrangeish(opts.typeColorHex);
+  const isRed = isReddish(opts.typeColorHex) && !isOrange;
 
-  // Wenn weder eindeutig grün noch rot, fallback: nach Farbtemperatur entscheiden,
-  // sonst leeren wir beide nicht – wir füllen lieber den näheren.
-  const useGreen = isGreen || (!isRed && !isGreen ? false : false);
-  const useRed = isRed;
   const fillGreen = isGreen;
-  const fillRed = isRed || (!isGreen && !isRed); // Default zu rot, wenn unklar
+  const fillOrange = isOrange;
+  // Default zu rot, wenn die Farbe keiner Kategorie eindeutig zugeordnet werden kann.
+  const fillRed = isRed || (!isGreen && !isOrange && !isRed);
 
   const esc = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
   const greenText = fillGreen ? "GG" : "";
+  const orangeText = fillOrange ? "OO" : "";
   const redText = fillRed ? "RR" : "";
 
   // Wenn {g} oder {r} nicht befüllt wird, soll die farbige Markierung NICHT
   // sichtbar sein → Schattierung (<w:shd>) und Schriftfarbe (<w:color>) aus
   // dem zugehörigen Run entfernen, damit der Hintergrund verschwindet.
   if (!fillGreen) xml = stripRunColoring(xml, "{g}");
+  if (!fillOrange) xml = stripRunColoring(xml, "{o}");
   if (!fillRed) xml = stripRunColoring(xml, "{r}");
 
   xml = replaceSplitPlaceholder(xml, "{g}", greenText);
+  xml = replaceSplitPlaceholder(xml, "{o}", orangeText);
   xml = replaceSplitPlaceholder(xml, "{r}", redText);
   xml = replaceSplitPlaceholder(xml, "{nummer}", esc(formattedNumber));
 
@@ -108,6 +113,19 @@ function isReddish(hex?: string): boolean {
   const c = hexToRgb(hex);
   if (!c) return false;
   return c.r > c.g + 20 && c.r > c.b + 20;
+}
+function isOrangeish(hex?: string): boolean {
+  const c = hexToRgb(hex);
+  if (!c) return false;
+  // Orange: kräftiges Rot, mittleres Grün, wenig Blau – liegt klar zwischen Rot und Grün.
+  // Beispiel #FFA500 → r255 g165 b0. Grenzt gegen reines Rot (niedriges Grün) ab.
+  return (
+    c.r > 200 &&
+    c.g >= 100 && c.g <= 210 &&
+    c.b < 100 &&
+    c.r - c.g > 40 &&
+    c.g - c.b > 40
+  );
 }
 
 /**
@@ -213,23 +231,4 @@ function replaceSplitPlaceholder(
   // - mittlere Nodes: leeren
   // - last Node: Text nach dem Platzhalter
   // Damit bleibt sämtliche Run-Formatierung erhalten.
-  for (let i = tNodes.length - 1; i >= 0; i--) {
-    const node = tNodes[i];
-    let newInner: string | null = null;
-    if (i === firstNode && i === lastNode) {
-      newInner = node.text.slice(0, offsetInFirst) + newText + node.text.slice(offsetInLastEnd);
-    } else if (i === firstNode) {
-      newInner = node.text.slice(0, offsetInFirst) + newText;
-    } else if (i > firstNode && i < lastNode) {
-      newInner = "";
-    } else if (i === lastNode) {
-      newInner = node.text.slice(offsetInLastEnd);
-    }
-    if (newInner !== null) {
-      xml = xml.slice(0, node.start) + newInner + xml.slice(node.end);
-    }
-  }
-
-  // Falls weitere Vorkommen existieren → Rekursion.
-  return replaceSplitPlaceholder(xml, placeholder, newText);
-}
+  for (let i = tNodes.length - 1
