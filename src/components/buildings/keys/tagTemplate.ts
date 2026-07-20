@@ -68,9 +68,9 @@ export async function downloadFilledTagTemplate(opts: {
   // Wenn {g} oder {r} nicht befüllt wird, soll die farbige Markierung NICHT
   // sichtbar sein → Schattierung (<w:shd>) und Schriftfarbe (<w:color>) aus
   // dem zugehörigen Run entfernen, damit der Hintergrund verschwindet.
-  if (!fillGreen) xml = stripRunColoring(xml, "{g}");
-  if (!fillOrange) xml = stripRunColoring(xml, "{o}");
-  if (!fillRed) xml = stripRunColoring(xml, "{r}");
+  if (!fillGreen) xml = stripCellColoring(xml, "{g}");
+  if (!fillOrange) xml = stripCellColoring(xml, "{o}");
+  if (!fillRed) xml = stripCellColoring(xml, "{r}");
 
   xml = replaceSplitPlaceholder(xml, "{g}", greenText);
   xml = replaceSplitPlaceholder(xml, "{o}", orangeText);
