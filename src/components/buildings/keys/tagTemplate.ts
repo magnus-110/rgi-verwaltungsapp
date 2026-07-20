@@ -68,9 +68,9 @@ export async function downloadFilledTagTemplate(opts: {
   // Wenn {g} oder {r} nicht befüllt wird, soll die farbige Markierung NICHT
   // sichtbar sein → Schattierung (<w:shd>) und Schriftfarbe (<w:color>) aus
   // dem zugehörigen Run entfernen, damit der Hintergrund verschwindet.
-  if (!fillGreen) xml = stripRunColoring(xml, "{g}");
-  if (!fillOrange) xml = stripRunColoring(xml, "{o}");
-  if (!fillRed) xml = stripRunColoring(xml, "{r}");
+  if (!fillGreen) xml = stripCellColoring(xml, "{g}");
+  if (!fillOrange) xml = stripCellColoring(xml, "{o}");
+  if (!fillRed) xml = stripCellColoring(xml, "{r}");
 
   xml = replaceSplitPlaceholder(xml, "{g}", greenText);
   xml = replaceSplitPlaceholder(xml, "{o}", orangeText);
@@ -153,6 +153,97 @@ function stripRunColoring(xml: string, placeholder: string): string {
     .replace(/<w:color\b[^/]*\/>/g, "")
     .replace(/<w:highlight\b[^/]*\/>/g, "");
   return xml.slice(0, runStart) + cleaned + xml.slice(runEnd + "</w:r>".length);
+}
+
+/**
+ * Entfernt Farbgebung in der Tabellenzelle, die den gegebenen Platzhalter
+ * enthält – sowohl die Zellen-Schattierung (<w:tcPr><w:shd>) als auch
+ * alle Run-Shadings/Font-Colors/Highlights innerhalb dieser Zelle.
+ * Berücksichtigt verschachtelte Tabellen via Depth-Counter. Fällt auf
+ * stripRunColoring zurück, wenn keine umschließende Zelle gefunden wird.
+ * Behandelt mehrfaches Vorkommen desselben Platzhalters in mehreren Zellen.
+ */
+function stripCellColoring(xml: string, placeholder: string): string {
+  let cursor = 0;
+  let result = xml;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const tagIdx = result.indexOf(placeholder, cursor);
+    if (tagIdx === -1) return result;
+
+    // Umschließendes <w:tc> rückwärts suchen (mit Depth-Counter für Nested Tables)
+    const openRe = /<w:tc(?:\s[^>]*)?>/g;
+    const closeRe = /<\/w:tc>/g;
+    const opens: number[] = [];
+    let om: RegExpExecArray | null;
+    while ((om = openRe.exec(result)) !== null) {
+      if (om.index >= tagIdx) break;
+      opens.push(om.index);
+    }
+    const closesBeforeTag: number[] = [];
+    let cm: RegExpExecArray | null;
+    while ((cm = closeRe.exec(result)) !== null) {
+      if (cm.index >= tagIdx) break;
+      closesBeforeTag.push(cm.index);
+    }
+    // Zell-Start = letzter offener, der nach allen bereits geschlossenen liegt.
+    // Konkret: Stapel-Verfahren.
+    const stack: number[] = [];
+    let oi = 0;
+    let ci = 0;
+    while (oi < opens.length || ci < closesBeforeTag.length) {
+      const nextOpen = oi < opens.length ? opens[oi] : Infinity;
+      const nextClose = ci < closesBeforeTag.length ? closesBeforeTag[ci] : Infinity;
+      if (nextOpen < nextClose) {
+        stack.push(nextOpen);
+        oi++;
+      } else {
+        stack.pop();
+        ci++;
+      }
+    }
+    const cellStart = stack.length > 0 ? stack[stack.length - 1] : -1;
+
+    if (cellStart === -1) {
+      // kein <w:tc> gefunden -> Fallback Run-Level
+      result = stripRunColoring(result, placeholder);
+      // Fallback bricht die Schleife, da stripRunColoring bereits alle Vorkommen bearbeitet.
+      return result;
+    }
+
+    // Passendes </w:tc> vorwärts suchen (mit Depth-Counter)
+    const afterCellStart = result.indexOf(">", cellStart) + 1;
+    let depth = 1;
+    let searchFrom = afterCellStart;
+    let cellEnd = -1;
+    const tagRe = /<w:tc(?:\s[^>]*)?>|<\/w:tc>/g;
+    tagRe.lastIndex = searchFrom;
+    let tm: RegExpExecArray | null;
+    while ((tm = tagRe.exec(result)) !== null) {
+      if (tm[0].startsWith("</")) {
+        depth--;
+        if (depth === 0) {
+          cellEnd = tm.index + "</w:tc>".length;
+          break;
+        }
+      } else {
+        depth++;
+      }
+    }
+    if (cellEnd === -1) {
+      result = stripRunColoring(result, placeholder);
+      return result;
+    }
+
+    const cellXml = result.slice(cellStart, cellEnd);
+    const cleaned = cellXml
+      .replace(/<w:shd\b[^/]*\/>/g, "")
+      .replace(/<w:color\b[^/]*\/>/g, "")
+      .replace(/<w:highlight\b[^/]*\/>/g, "");
+    result = result.slice(0, cellStart) + cleaned + result.slice(cellEnd);
+    // Nach der Zelle weitersuchen (Länge kann sich geändert haben)
+    cursor = cellStart + cleaned.length;
+  }
 }
 
 /**

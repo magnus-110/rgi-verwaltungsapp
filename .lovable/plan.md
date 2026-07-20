@@ -1,59 +1,53 @@
-## Warum nur eine Datei ankam
+## Ursache
 
-Das Upload-Feld für den Schließplan in `src/components/buildings/keys/BuildingKeysTab.tsx` (Zeile 250) ist ein einzelnes File-Input **ohne `multiple`**. Auch das Datenmodell in `key_property_settings` speichert nur genau **einen** Schließplan pro Liegenschaft (`closing_plan_path`, `closing_plan_name`, `closing_plan_uploaded_at`, `closing_plan_uploaded_by`).
+In `src/components/buildings/keys/tagTemplate.ts` löscht `stripRunColoring` beim leeren Platzhalter nur die Formatierung des **einzelnen `<w:r>`-Runs**, der den Platzhalter enthält. Nicht angetastet werden:
 
-Beim Markieren von zwei Dateien nimmt der Browser deshalb nur die erste (`e.target.files?.[0]`) — die zweite wird verworfen. Das ist kein Berechtigungs-/RLS-Fehler, sondern eine bewusste Einschränkung, die jetzt aufgehoben werden soll.
+- **Zellen-Schattierung** in `<w:tc><w:tcPr><w:shd .../>` (das ist in Word-Vorlagen für farbige Anhänger der Standard-Weg, weil man dort per Rechtsklick → „Rahmen und Schattierung" die Zellen-Hintergrundfarbe setzt).
+- **Weitere Runs derselben Zelle** (Word splittet Text regelmäßig in mehrere `<w:r>` mit identischem `<w:rPr><w:shd/></w:rPr>`).
 
-## Ziel
+Effekt: Wenn `{o}` leer ist, bleibt die orange Zelle trotzdem orange eingefärbt → bei grüner Auswahl siehst du „Grün + Orange", bei roter „Rot + Orange", bei oranger nur „Orange" (weil die anderen zwei Zellen offenbar keine Cell-Shading haben, die orange schon).
 
-Man soll unter „Schlüssel → Stammdaten" **beliebig viele Schließpläne** ablegen, ansehen und löschen können (z. B. mehrere Schließanlagen oder Nachträge pro Liegenschaft).
+## Fix
 
-## Umsetzung
+Nur Datei `src/components/buildings/keys/tagTemplate.ts` anfassen (kein DB-, kein UI-Change nötig).
 
-### 1. Neue Tabelle für Schließplan-Dateien
+### 1. Neue Helper-Funktion `stripCellColoring(xml, placeholder)`
 
-Migration:
+- Ausgehend vom Platzhalter-Index das **umschließende `<w:tc>`** finden (nächstes `<w:tc ...>` rückwärts, passendes `</w:tc>` vorwärts).
+- Innerhalb dieses Cell-Blocks entfernen:
+  - `<w:shd .../>` in `<w:tcPr>` (Zellenhintergrund),
+  - **alle** `<w:shd .../>`, `<w:color .../>`, `<w:highlight .../>` (Run-Ebene, kein Limit auf einen Run mehr).
+- Zusätzlich `<w:tcBorders>`-Farben unangetastet lassen (nur Shading/Font-Color/Highlight).
+- Fallback: findet sich kein umschließendes `<w:tc>` (z. B. Vorlage ohne Tabelle), auf das bisherige Run-Verhalten zurückfallen.
 
-```
-create table public.key_closing_plan_files (
-  id uuid primary key default gen_random_uuid(),
-  building_id uuid not null references public.buildings(id) on delete cascade,
-  file_path text not null,      -- Objekt in Bucket "key-files"
-  file_name text not null,
-  file_size bigint,
-  mime_type text,
-  uploaded_by uuid,
-  created_at timestamptz not null default now()
-);
-create index on public.key_closing_plan_files(building_id);
+### 2. Aufrufe umstellen
 
-grant select, insert, update, delete on public.key_closing_plan_files to authenticated;
-grant all on public.key_closing_plan_files to service_role;
+Zeilen 71–73:
 
-alter table public.key_closing_plan_files enable row level security;
--- Zugriff analog zu key_tag_files: Nutzer mit Sichtbarkeit auf das Gebäude
-create policy "keys files: read"   on public.key_closing_plan_files for select to authenticated using (public.can_view_building(building_id));
-create policy "keys files: write"  on public.key_closing_plan_files for insert to authenticated with check (public.can_view_building(building_id));
-create policy "keys files: delete" on public.key_closing_plan_files for delete to authenticated using (public.can_view_building(building_id));
+```ts
+if (!fillGreen)  xml = stripCellColoring(xml, "{g}");
+if (!fillOrange) xml = stripCellColoring(xml, "{o}");
+if (!fillRed)    xml = stripCellColoring(xml, "{r}");
 ```
 
-(Policy-Helfer wird an das gleiche Muster angelehnt, das `key_tag_files` bereits nutzt; wenn dort ein anderer Helper existiert, wird derselbe verwendet.)
+Die alte `stripRunColoring` bleibt als interner Fallback, wird aber vom neuen Helper aufgerufen.
 
-Speicher: Bestehender Bucket `key-files`, Pfad `${buildingId}/closing-plans/${timestamp}-${sanitizedName}`.
+### 3. Robustheit
 
-### 2. Frontend — `BuildingKeysTab.tsx`
-
-- `<Input type="file" multiple accept="application/pdf,image/*" />` und Loop über alle ausgewählten Dateien.
-- Neue Query `key-closing-plan-files` mit Liste unter dem Upload-Feld: Dateiname, Größe, Datum, „Öffnen" (signed URL) und „Löschen" (mit Storage-Remove und DB-Delete).
-- Bestehende Einzel-Felder (`closing_plan_path/name/...` in `key_property_settings`) bleiben zunächst zur Anzeige des Erst-Uploads erhalten; neue Uploads landen ausschließlich in der neuen Tabelle. Ein kleiner Migrationsschritt zeigt den Alt-Wert weiterhin bis er gelöscht wird.
-- Toast bei Teilerfolg: „X von Y Dateien hochgeladen" plus Fehlermeldung je Datei.
-
-### 3. Kein Change an anderen Stellen
-
-Keine Änderungen an `KeyTagDialog`, Leih-Flow, Webhooks oder RLS anderer Tabellen — der Fehler betraf ausschließlich den Schließplan-Upload.
+- Beim Suchen nach `<w:tc>`/`</w:tc>` verschachtelte Tabellen berücksichtigen (Depth-Counter, kein simples `indexOf`, damit z. B. Nested Tables in einer Zelle nicht die Grenzen sprengen).
+- Nur die **erste** Cell rund um den Platzhalter behandeln; falls derselbe Platzhalter mehrfach in verschiedenen Zellen vorkommt, in einer Schleife alle Vorkommen abarbeiten, bis keiner mehr gefunden wird.
 
 ## Verifikation
 
-- Zwei PDFs (~2–3 MB) gleichzeitig auswählen → beide erscheinen in der Liste, beide via signierter URL öffenbar.
-- Löschen einer Datei entfernt sowohl Storage-Objekt als auch DB-Zeile.
-- Bestehende Alt-Dateien in `key_property_settings.closing_plan_path` sind weiter sichtbar.
+1. In der App für den Neuen Weg 14 (oder eine Test-Liegenschaft) je einen Schlüsselanhänger in Grün, Rot und Orange erstellen und drucken.
+2. Erwartet:
+   - Grün → nur grüne Zelle gefüllt, orange & rote Zelle **weiß**.
+   - Rot → nur rote Zelle gefüllt.
+   - Orange → nur orange Zelle gefüllt.
+3. Zur Sicherheit die generierte DOCX einmal entpacken (`unzip -p Anhaenger_*.docx word/document.xml`) und prüfen, dass in den beiden ungenutzten Zellen kein `<w:shd .../>` mehr im `<w:tcPr>` steht.
+
+## Nicht Teil dieses Fixes
+
+- Keine Änderungen an der Word-Vorlage selbst — die aktuelle Vorlage bleibt gültig.
+- Keine Änderung an der Farbwerkung (`isGreenish` / `isOrangeish` / `isReddish`).
+- Keine Änderung an §35a / Bank-Reconciliation / anderen Themen aus vorherigen Turns.
