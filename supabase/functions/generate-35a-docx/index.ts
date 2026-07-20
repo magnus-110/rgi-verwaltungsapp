@@ -85,7 +85,10 @@ function normalizeDistributionKey(key: string | null | undefined): string {
 }
 
 function isSecondary(a: any) {
-  return a.billing_mode === "distribution_only" || (a.unit_kind != null && a.unit_kind !== "apartment");
+  // Nur billing_mode entscheidet — Einheiten (auch Garagen/Stellplätze/Keller) mit
+  // 'own_billing' erhalten eine eigene §35a-Bescheinigung; nur 'distribution_only'
+  // wird zur Hauptwohnung gefaltet (konsistent mit paragraph35aDistribution.ts).
+  return a.billing_mode === "distribution_only";
 }
 function shareValue(a: any, type: string): number {
   const needle = String(type || "").trim().toLowerCase();
