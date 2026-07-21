@@ -24,7 +24,15 @@ export interface AuditBookingRow {
   chart_of_accounts?: { account_number: string; account_name: string } | null;
   counter_account?: { account_number: string; account_name: string } | null;
   invoices?: { id: string; vendor_name?: string | null; file_path?: string | null; gross_amount?: number | null; invoice_number?: string | null } | null;
-  booking_templates?: { id: string; name: string; expected_amount?: number | null; interval?: string | null; vendor_name?: string | null } | null;
+  booking_templates?: {
+    id: string;
+    name: string;
+    expected_amount?: number | null;
+    interval?: string | null;
+    vendor_name?: string | null;
+    linked_invoice_id?: string | null;
+    linked_invoice?: { id: string; vendor_name?: string | null; file_path?: string | null; gross_amount?: number | null; invoice_number?: string | null } | null;
+  } | null;
 }
 
 interface SplitSibling {
