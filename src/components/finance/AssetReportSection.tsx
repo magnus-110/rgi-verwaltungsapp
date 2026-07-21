@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Wallet, Flame } from "lucide-react";
 import { signedTotalForAccount } from "./lib/bookingAggregation";
+import { getAccrualDisplaySign } from "./lib/accrualSign";
 import { AssetReportItemsCard } from "./AssetReportItemsCard";
 
 interface OwnerResultLike {
@@ -207,10 +208,15 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear, ownerResu
   //  Vorzeichendrehung aus Vermögenssicht:
   //    4160 (Ausg. im Folgejahr für lfd. J., PRA-Bildung) → Verbindlichkeit ggü. Folgejahr → −
   //    4180 (Einn. im Folgejahr für lfd. J., ARA-Bildung) → Forderung an Folgejahr → +
+  //  WICHTIG: Betrag = |Saldo| × Anzeige-Vorzeichen — IDENTISCH zum Dokumentpfad
+  //  (buildAssetReportPayload). closingFor() liefert bereits einen signierten
+  //  Saldo; ein zusätzliches Drehen des Vorzeichens (früher: -closingFor) würde
+  //  das Ergebnis doppelt invertieren und zu falschen Summen führen.
   // ============================================================
   const abgFolgeAccs = relevantAccs.filter(isAbgrenzungFolgejahr).sort((a, b) => a.account_number.localeCompare(b.account_number));
   const abgFolgeLines: SectionLine[] = abgFolgeAccs.map(a => ({
-    key: a.id, label: accrualLabel(a), account_number: a.account_number, amount: -closingFor(a),
+    key: a.id, label: accrualLabel(a), account_number: a.account_number,
+    amount: Math.abs(closingFor(a)) * -getAccrualDisplaySign(a.account_number),
   }));
 
   // ============================================================
@@ -219,10 +225,13 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear, ownerResu
   const forderungAccs = relevantAccs.filter(isForderung).sort((a, b) => a.account_number.localeCompare(b.account_number));
   const forderungLines: SectionLine[] = forderungAccs.map(a => {
     // 4120–4139 (Einnahmen lfd. J. für Vorjahr) sind Verbindlichkeiten/Minderungen
-    // → in der Abrechnung negativ, daher auch im Vermögensbericht mit gedrehtem Vorzeichen
+    // → im Vermögensbericht negativ ausgewiesen.
+    // WICHTIG: Betrag = |Saldo| × Vorzeichen — IDENTISCH zum Dokumentpfad
+    // (buildAssetReportPayload). closingFor() ist bereits signiert; ein
+    // flip * closingFor würde bei negativem Saldo doppelt invertieren.
     const n = accNum(a);
-    const flip = n >= 4120 && n <= 4139 ? -1 : 1;
-    return { key: a.id, label: accrualLabel(a), account_number: a.account_number, amount: flip * closingFor(a) };
+    const sign = n >= 4120 && n <= 4139 ? -1 : 1;
+    return { key: a.id, label: accrualLabel(a), account_number: a.account_number, amount: Math.abs(closingFor(a)) * sign };
   });
 
   // ============================================================
@@ -326,19 +335,4 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear, ownerResu
       {fuelClosingValue !== 0 && (
         <Card className="border-amber-200 bg-amber-50/50">
           <CardContent className="py-2 flex items-center gap-2 text-xs text-muted-foreground">
-            <Flame className="h-3.5 w-3.5" />
-            Heizölrestbestand wird aus <code>fuel_inventory</code> (closing_balance) übernommen und in „Liquide Mittel" ausgewiesen.
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Vermögensstand-Endsumme */}
-      <Card className="border-primary/30 bg-primary/5">
-        <CardContent className="py-3 flex items-center justify-between">
-          <span className="font-semibold text-sm">Vermögensstand zum 31.12.{fiscalYear}</span>
-          <span className="font-mono font-semibold">{formatCurrency(grandTotal)}</span>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
+            <Fl
