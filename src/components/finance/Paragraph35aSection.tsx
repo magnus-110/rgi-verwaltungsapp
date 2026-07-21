@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { SUPABASE_FUNCTIONS_URL } from "@/integrations/supabase/functions-url";
+import JSZip from "jszip";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -182,6 +183,33 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     else setPdfBusy(isSingle ? assignmentIds![0] : "zip");
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      // Sammel-PDF: pro Eigentuemer ein Aufruf + Client-ZIP (sonst WORKER_RESOURCE_LIMIT
+      // in der Edge-Function, wenn alle PDFs in einem Aufruf konvertiert werden).
+      if (format === "pdf" && !isSingle) {
+        const ids = assignmentIds && assignmentIds.length ? assignmentIds : owners.map((o) => o.id);
+        const zip = new JSZip();
+        let failed = 0;
+        for (const id of ids) {
+          try {
+            const r = await fetch(`${SUPABASE_FUNCTIONS_URL}/generate-35a-docx`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+              body: JSON.stringify({ template_id: templateId, building_id: buildingId, fiscal_year: fiscalYear, period_id: periodId, assignment_ids: [id], format: "pdf" }),
+            });
+            if (!r.ok) throw new Error(await r.text());
+            const o = owners.find((x) => x.id === id);
+            zip.file(`35a_${fiscalYear}_${String(o?.unit_number || id).replace(/[^\w\-]+/g, "_")}.pdf`, await r.blob());
+          } catch { failed++; }
+        }
+        const out = await zip.generateAsync({ type: "blob" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(out);
+        link.download = `35a_${fiscalYear}.zip`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+        if (failed) toast({ title: `${failed} Bescheinigung(en) fehlgeschlagen`, variant: "destructive" });
+        return;
+      }
       const url = `${SUPABASE_FUNCTIONS_URL}/generate-35a-docx`;
       const resp = await fetch(url, {
         method: "POST",

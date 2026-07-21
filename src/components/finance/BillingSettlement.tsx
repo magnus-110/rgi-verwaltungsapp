@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { SUPABASE_FUNCTIONS_URL } from "@/integrations/supabase/functions-url";
+import JSZip from "jszip";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1058,6 +1059,40 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       }
 
 
+
+      // PDF-Sammelexport: pro Eigentuemer EIN Function-Aufruf (je eine CloudConvert-
+      // Konvertierung) und clientseitig zippen. Ein einziger Aufruf ueber alle
+      // Eigentuemer wuerde das Speicher-/Zeitlimit der Edge-Function sprengen
+      // (WORKER_RESOURCE_LIMIT). DOCX bleibt ein Sammelaufruf (kein CloudConvert).
+      if (format === "pdf") {
+        const owners = ownerResults;
+        if (owners.length === 0) { toast.error("Keine Eigentuemer gefunden."); return; }
+        const zip = new JSZip();
+        let failed = 0;
+        for (const o of owners) {
+          try {
+            const r = await fetch(`${SUPABASE_FUNCTIONS_URL}/generate-35a-docx`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+              body: JSON.stringify({
+                template_id: effectiveParagraph35aTpl,
+                building_id: buildingId,
+                fiscal_year: fiscalYear,
+                period_id: periodId,
+                assignment_ids: [o.assignmentId],
+                format: "pdf",
+              }),
+            });
+            if (!r.ok) throw new Error(await r.text());
+            zip.file(`35a_${fiscalYear}_${sanitizeFilename(o.name)}.pdf`, await r.blob());
+          } catch { failed++; }
+        }
+        const out = await zip.generateAsync({ type: "blob" });
+        triggerDownload(out, `35a_${fiscalYear}_PDF.zip`, "application/zip");
+        if (failed) toast.warning(`${failed} von ${owners.length} Bescheinigungen fehlgeschlagen`);
+        else toast.success("Download bereit");
+        return;
+      }
 
       const resp = await fetch(
         `${SUPABASE_FUNCTIONS_URL}/generate-35a-docx`,
