@@ -30,4 +30,12 @@ export function textToHtmlWithLinks(text: string): string {
     const trail = url.match(/[),.;:!?\]}>»"']+$/)?.[0] ?? "";
     if (trail) url = url.slice(0, url.length - trail.length);
     const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-    html += `<a href="${escapeHtml(href)}" target="_blank" rel="noo
+    html += `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>${escapeHtml(trail)}`;
+    last = (m.index ?? 0) + m[0].length;
+  }
+  html += escapeHtml(text.slice(last));
+  // Zeilenumbrüche in <br> wandeln (robust in allen Clients).
+  // \r\n und \r zuerst normalisieren, damit keine doppelten Umbrüche entstehen.
+  html = html.replace(/\r\n?/g, "\n").replace(/\n/g, "<br>");
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.4">${html}</div>`;
+}
