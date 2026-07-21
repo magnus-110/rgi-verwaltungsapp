@@ -65,12 +65,12 @@ export async function downloadFilledTagTemplate(opts: {
   const orangeText = fillOrange ? "OO" : "";
   const redText = fillRed ? "RR" : "";
 
-  // Wenn {g} oder {r} nicht befüllt wird, soll die farbige Markierung NICHT
-  // sichtbar sein → Schattierung (<w:shd>) und Schriftfarbe (<w:color>) aus
-  // dem zugehörigen Run entfernen, damit der Hintergrund verschwindet.
-  if (!fillGreen) xml = stripCellColoring(xml, "{g}");
-  if (!fillOrange) xml = stripCellColoring(xml, "{o}");
-  if (!fillRed) xml = stripCellColoring(xml, "{r}");
+  // Wenn ein Farb-Platzhalter nicht befüllt wird, aus den betroffenen Runs
+  // <w:shd>, <w:color> und <w:highlight> entfernen – auch bei über mehrere
+  // Runs gesplitteten Platzhaltern.
+  if (!fillGreen) xml = stripPlaceholderColoring(xml, "{g}");
+  if (!fillOrange) xml = stripPlaceholderColoring(xml, "{o}");
+  if (!fillRed) xml = stripPlaceholderColoring(xml, "{r}");
 
   xml = replaceSplitPlaceholder(xml, "{g}", greenText);
   xml = replaceSplitPlaceholder(xml, "{o}", orangeText);
