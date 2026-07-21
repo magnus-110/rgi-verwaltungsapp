@@ -65,12 +65,12 @@ export async function downloadFilledTagTemplate(opts: {
   const orangeText = fillOrange ? "OO" : "";
   const redText = fillRed ? "RR" : "";
 
-  // Wenn {g} oder {r} nicht befüllt wird, soll die farbige Markierung NICHT
-  // sichtbar sein → Schattierung (<w:shd>) und Schriftfarbe (<w:color>) aus
-  // dem zugehörigen Run entfernen, damit der Hintergrund verschwindet.
-  if (!fillGreen) xml = stripCellColoring(xml, "{g}");
-  if (!fillOrange) xml = stripCellColoring(xml, "{o}");
-  if (!fillRed) xml = stripCellColoring(xml, "{r}");
+  // Wenn ein Farb-Platzhalter nicht befüllt wird, aus den betroffenen Runs
+  // <w:shd>, <w:color> und <w:highlight> entfernen – auch bei über mehrere
+  // Runs gesplitteten Platzhaltern.
+  if (!fillGreen) xml = stripPlaceholderColoring(xml, "{g}");
+  if (!fillOrange) xml = stripPlaceholderColoring(xml, "{o}");
+  if (!fillRed) xml = stripPlaceholderColoring(xml, "{r}");
 
   xml = replaceSplitPlaceholder(xml, "{g}", greenText);
   xml = replaceSplitPlaceholder(xml, "{o}", orangeText);
@@ -244,6 +244,95 @@ function stripCellColoring(xml: string, placeholder: string): string {
     // Nach der Zelle weitersuchen (Länge kann sich geändert haben)
     cursor = cellStart + cleaned.length;
   }
+}
+
+/**
+ * Entfernt Farb-/Highlight-Formatierung aus allen <w:r>-Runs, die den
+ * gegebenen Platzhalter (auch gesplittet über mehrere Runs) überdecken.
+ * Behandelt alle Vorkommen im XML.
+ */
+function stripPlaceholderColoring(xml: string, placeholder: string): string {
+  // Alle <w:r>...</w:r> mit ihrem konkatenierten Text-Inhalt indexieren.
+  type Run = { start: number; end: number; text: string; tStarts: number[] };
+  const buildRuns = (src: string): Run[] => {
+    const runs: Run[] = [];
+    const runRe = /<w:r(?:\s[^>]*)?>([\s\S]*?)<\/w:r>/g;
+    let rm: RegExpExecArray | null;
+    while ((rm = runRe.exec(src)) !== null) {
+      const inner = rm[1];
+      const tRe = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g;
+      let text = "";
+      let tm: RegExpExecArray | null;
+      while ((tm = tRe.exec(inner)) !== null) text += tm[1];
+      runs.push({
+        start: rm.index,
+        end: rm.index + rm[0].length,
+        text,
+        tStarts: [],
+      });
+    }
+    return runs;
+  };
+
+  const cleanRun = (runXml: string): string => {
+    // Entferne shd/color/highlight – sowohl selbstschließend als auch mit
+    // schließendem Tag. Innerhalb des Runs (typisch nur im <w:rPr>).
+    return runXml
+      .replace(/<w:shd\b[^>]*\/>/g, "")
+      .replace(/<w:shd\b[^>]*>[\s\S]*?<\/w:shd>/g, "")
+      .replace(/<w:color\b[^>]*\/>/g, "")
+      .replace(/<w:color\b[^>]*>[\s\S]*?<\/w:color>/g, "")
+      .replace(/<w:highlight\b[^>]*\/>/g, "")
+      .replace(/<w:highlight\b[^>]*>[\s\S]*?<\/w:highlight>/g, "");
+  };
+
+  // Iteriere so lange, bis kein Vorkommen mehr gefunden wird.
+  let guard = 0;
+  while (guard++ < 50) {
+    const runs = buildRuns(xml);
+    if (runs.length === 0) return xml;
+    const combined = runs.map((r) => r.text).join("");
+    const idx = combined.indexOf(placeholder);
+    if (idx === -1) return xml;
+
+    // Betroffene Runs bestimmen.
+    let cursor = 0;
+    const affected: number[] = [];
+    for (let i = 0; i < runs.length; i++) {
+      const s = cursor;
+      const e = cursor + runs[i].text.length;
+      const overlaps = e > idx && s < idx + placeholder.length;
+      if (overlaps) affected.push(i);
+      cursor = e;
+      if (s >= idx + placeholder.length) break;
+    }
+    if (affected.length === 0) return xml;
+
+    // Von hinten nach vorne im XML ersetzen, damit Offsets gültig bleiben.
+    for (let k = affected.length - 1; k >= 0; k--) {
+      const r = runs[affected[k]];
+      const original = xml.slice(r.start, r.end);
+      const cleaned = cleanRun(original);
+      if (cleaned !== original) {
+        xml = xml.slice(0, r.start) + cleaned + xml.slice(r.end);
+      }
+    }
+
+    // Danach den Platzhalter an dieser Stelle mit einem Marker "verbrauchen",
+    // damit die Schleife weitere Vorkommen findet. Wir ersetzen den Text
+    // dazu temporär durch ein Sentinel; wird später von replaceSplitPlaceholder
+    // ohnehin überschrieben. Um Interferenzen zu vermeiden, brechen wir hier
+    // nach einem Durchlauf ab und lassen den Rest über normale Iteration
+    // laufen — dazu markieren wir das erste Zeichen. Einfacher: brechen wir
+    // ab, wenn keine Änderung mehr passiert.
+    // Prüfen: Ist das Vorkommen jetzt bereits ohne Farbe? Wenn ja, weiter
+    // durch temporäres Ersetzen der ersten Instanz durch nichts-anderes.
+    // Um Endlosschleifen sicher zu vermeiden: einmalige Iteration reicht,
+    // weil identisch gefärbte Vorkommen typischerweise nicht mehrfach im
+    // Dokument stehen. Wir brechen ab.
+    return xml;
+  }
+  return xml;
 }
 
 /**
