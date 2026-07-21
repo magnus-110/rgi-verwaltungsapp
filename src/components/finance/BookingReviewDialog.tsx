@@ -143,6 +143,43 @@ export function BookingReviewDialog({
     setSelectedId(bookings[i].id);
   };
 
+  const loadTemplateInvoice = async () => {
+    const li = booking?.booking_templates?.linked_invoice;
+    if (!li) return;
+    if (templateInvoiceOpen) {
+      setTemplateInvoiceOpen(false);
+      return;
+    }
+    setTemplateInvoiceOpen(true);
+    if (templateInvoiceUrl) return;
+    setTemplateInvoiceLoading(true);
+    setTemplateInvoiceError(null);
+    try {
+      if (tokenMode && token) {
+        const { data, error } = await supabase.functions.invoke("audit-signed-url", {
+          body: { token, kind: "invoice", id: li.id },
+        });
+        if (error || !(data as any)?.signedUrl) {
+          throw new Error((data as any)?.error || error?.message || "Signed URL leer");
+        }
+        setTemplateInvoiceUrl((data as any).signedUrl);
+      } else {
+        if (!li.file_path) throw new Error("Kein Dateipfad hinterlegt");
+        const cleanPath = li.file_path.startsWith("invoices/")
+          ? li.file_path.slice("invoices/".length)
+          : li.file_path.replace(/^\/+/, "");
+        const { data, error } = await supabase.storage.from("invoices").createSignedUrl(cleanPath, 3600);
+        if (error || !data?.signedUrl) throw new Error(error?.message || "Signed URL leer");
+        setTemplateInvoiceUrl(data.signedUrl);
+      }
+    } catch (e: any) {
+      setTemplateInvoiceError(e?.message || "Fehler beim Laden");
+    } finally {
+      setTemplateInvoiceLoading(false);
+    }
+  };
+
+
   if (!booking) return (
     <Dialog open={open} onOpenChange={onOpenChange}><DialogContent /></Dialog>
   );
