@@ -195,6 +195,8 @@ export function CashAuditJournal({ buildingId, fiscalYear, progress, onProgressC
         setNote={setNote}
         readOnly={readOnly}
         buildingId={buildingId}
+        tokenMode={tokenMode}
+        token={token}
       />
     </div>
   );
