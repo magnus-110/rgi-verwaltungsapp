@@ -84,6 +84,9 @@ export function BookingReviewDialog({
   useEffect(() => {
     setPdfUrl(null);
     setPdfError(null);
+    setTemplateInvoiceOpen(false);
+    setTemplateInvoiceUrl(null);
+    setTemplateInvoiceError(null);
     if (!booking?.invoices?.file_path) return;
     let cancelled = false;
     setPdfLoading(true);
