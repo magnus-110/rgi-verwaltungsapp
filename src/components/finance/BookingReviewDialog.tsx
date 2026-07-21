@@ -386,11 +386,45 @@ export function BookingReviewDialog({
                     <Row label="Lieferant" value={booking.booking_templates.vendor_name || "–"} />
                     <Row label="Erwarteter Betrag" value={<span className="font-mono">{fmt(booking.booking_templates.expected_amount)}</span>} />
                     <Row label="Intervall" value={booking.booking_templates.interval || "–"} />
+                    {booking.booking_templates.linked_invoice && (
+                      <>
+                        <Row label="Verknüpfte Rechnung" value={
+                          <span className="text-right">
+                            {booking.booking_templates.linked_invoice.vendor_name || "–"}
+                            {booking.booking_templates.linked_invoice.invoice_number ? ` · ${booking.booking_templates.linked_invoice.invoice_number}` : ""}
+                          </span>
+                        } />
+                        <Row label="Bruttobetrag" value={<span className="font-mono">{fmt(booking.booking_templates.linked_invoice.gross_amount)}</span>} />
+                      </>
+                    )}
                   </div>
-                  <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
-                    <p className="font-medium text-foreground mb-1">Wiederkehrende Buchung</p>
-                    Für diese Buchung existiert kein Einzelbeleg. Der Nachweis ergibt sich aus dem hinterlegten Vertrag oder Bescheid.
-                  </div>
+                  {booking.booking_templates.linked_invoice?.file_path ? (
+                    <div className="space-y-3">
+                      <Button size="sm" variant="outline" className="gap-1.5 w-full" onClick={loadTemplateInvoice}>
+                        <FileText className="h-4 w-4" />
+                        {templateInvoiceOpen ? "Rechnung ausblenden" : "Rechnung anzeigen"}
+                      </Button>
+                      {templateInvoiceOpen && (
+                        <div className="rounded-lg border bg-white overflow-hidden" style={{ height: "70vh" }}>
+                          {templateInvoiceLoading ? (
+                            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Rechnung wird geladen…</div>
+                          ) : templateInvoiceUrl ? (
+                            <iframe src={templateInvoiceUrl} className="w-full h-full border-0" title="Verknüpfte Rechnung" />
+                          ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-sm text-muted-foreground p-6 text-center gap-1">
+                              <span>Rechnung konnte nicht geladen werden.</span>
+                              {templateInvoiceError && <span className="text-xs opacity-70">{templateInvoiceError}</span>}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
+                      <p className="font-medium text-foreground mb-1">Wiederkehrende Buchung</p>
+                      Für diese Buchung existiert kein Einzelbeleg. Der Nachweis ergibt sich aus dem hinterlegten Vertrag oder Bescheid.
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
