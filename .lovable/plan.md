@@ -1,53 +1,33 @@
-## Ursache
+# Ursache
 
-In `src/components/buildings/keys/tagTemplate.ts` löscht `stripRunColoring` beim leeren Platzhalter nur die Formatierung des **einzelnen `<w:r>`-Runs**, der den Platzhalter enthält. Nicht angetastet werden:
+In deiner Vorlage stehen `{g}`, `{r}`, `{o}` **nicht in Tabellenzellen**, sondern als bunt eingefärbte Runs direkt hintereinander in einem Absatz. Word hat `{r}` und `{o}` außerdem über mehrere `<w:r>`-Runs gesplittet (`{r` + `}` bzw. `{` + `o` + `}`).
 
-- **Zellen-Schattierung** in `<w:tc><w:tcPr><w:shd .../>` (das ist in Word-Vorlagen für farbige Anhänger der Standard-Weg, weil man dort per Rechtsklick → „Rahmen und Schattierung" die Zellen-Hintergrundfarbe setzt).
-- **Weitere Runs derselben Zelle** (Word splittet Text regelmäßig in mehrere `<w:r>` mit identischem `<w:rPr><w:shd/></w:rPr>`).
+Der aktuelle Ablauf in `src/components/buildings/keys/tagTemplate.ts`:
 
-Effekt: Wenn `{o}` leer ist, bleibt die orange Zelle trotzdem orange eingefärbt → bei grüner Auswahl siehst du „Grün + Orange", bei roter „Rot + Orange", bei oranger nur „Orange" (weil die anderen zwei Zellen offenbar keine Cell-Shading haben, die orange schon).
+1. `stripCellColoring("{o}")` findet keine umschließende `<w:tc>` → Fallback auf `stripRunColoring`.
+2. `stripRunColoring` sucht per `xml.indexOf("{o}")` — findet **nichts**, weil `{o}` gesplittet ist → tut gar nichts.
+3. `replaceSplitPlaceholder` leert nur den Text, lässt aber `<w:rPr><w:shd .../></w:rPr>` mit der Füllfarbe stehen.
 
-## Fix
+Ergebnis: Die farbigen Runs von `{r}`/`{o}` behalten ihre Hintergrundfarbe, obwohl sie leer sind → beim Druck erscheinen zusätzliche orange/rote Streifen.
 
-Nur Datei `src/components/buildings/keys/tagTemplate.ts` anfassen (kein DB-, kein UI-Change nötig).
+# Fix
 
-### 1. Neue Helper-Funktion `stripCellColoring(xml, placeholder)`
+Ich ersetze `stripRunColoring` / `stripCellColoring` durch **eine** Funktion `stripPlaceholderColoring`, die gesplittete Platzhalter korrekt behandelt:
 
-- Ausgehend vom Platzhalter-Index das **umschließende `<w:tc>`** finden (nächstes `<w:tc ...>` rückwärts, passendes `</w:tc>` vorwärts).
-- Innerhalb dieses Cell-Blocks entfernen:
-  - `<w:shd .../>` in `<w:tcPr>` (Zellenhintergrund),
-  - **alle** `<w:shd .../>`, `<w:color .../>`, `<w:highlight .../>` (Run-Ebene, kein Limit auf einen Run mehr).
-- Zusätzlich `<w:tcBorders>`-Farben unangetastet lassen (nur Shading/Font-Color/Highlight).
-- Fallback: findet sich kein umschließendes `<w:tc>` (z. B. Vorlage ohne Tabelle), auf das bisherige Run-Verhalten zurückfallen.
+1. Alle `<w:r>...</w:r>`-Blöcke mit ihrem enthaltenen `<w:t>`-Text indexieren (wie `replaceSplitPlaceholder`).
+2. Über den konkatenierten virtuellen Text jedes Vorkommen des Platzhalters lokalisieren.
+3. Für **jeden** Run, der den Platzhalter-Bereich überlappt, aus dem `<w:rPr>` die Tags `<w:shd .../>`, `<w:color .../>`, `<w:highlight .../>` entfernen — sowohl selbstschließend als auch mit Attributen (`<w:shd ... />`).
+4. Falls (wie in dieser Vorlage) direkt an den Platzhalter angrenzende leere Whitespace-Runs zwischen den Farb-Placeholdern liegen, bleiben sie unverändert (keine Farbe).
 
-### 2. Aufrufe umstellen
+Datei: `src/components/buildings/keys/tagTemplate.ts`
+- Entfernt: `stripCellColoring`, `stripRunColoring` (bzw. bleiben nur als interner Fallback).
+- Neu: `stripPlaceholderColoring(xml, placeholder)`.
+- Aufrufe in Zeilen 71–73 auf die neue Funktion umstellen.
+- Reihenfolge beibehalten: erst Farbe entfernen, dann `replaceSplitPlaceholder` mit `""` bzw. `"GG"/"OO"/"RR"`.
 
-Zeilen 71–73:
+Keine Änderungen an Vorlage, DB oder anderer UI.
 
-```ts
-if (!fillGreen)  xml = stripCellColoring(xml, "{g}");
-if (!fillOrange) xml = stripCellColoring(xml, "{o}");
-if (!fillRed)    xml = stripCellColoring(xml, "{r}");
-```
+# Verifikation
 
-Die alte `stripRunColoring` bleibt als interner Fallback, wird aber vom neuen Helper aufgerufen.
-
-### 3. Robustheit
-
-- Beim Suchen nach `<w:tc>`/`</w:tc>` verschachtelte Tabellen berücksichtigen (Depth-Counter, kein simples `indexOf`, damit z. B. Nested Tables in einer Zelle nicht die Grenzen sprengen).
-- Nur die **erste** Cell rund um den Platzhalter behandeln; falls derselbe Platzhalter mehrfach in verschiedenen Zellen vorkommt, in einer Schleife alle Vorkommen abarbeiten, bis keiner mehr gefunden wird.
-
-## Verifikation
-
-1. In der App für den Neuen Weg 14 (oder eine Test-Liegenschaft) je einen Schlüsselanhänger in Grün, Rot und Orange erstellen und drucken.
-2. Erwartet:
-   - Grün → nur grüne Zelle gefüllt, orange & rote Zelle **weiß**.
-   - Rot → nur rote Zelle gefüllt.
-   - Orange → nur orange Zelle gefüllt.
-3. Zur Sicherheit die generierte DOCX einmal entpacken (`unzip -p Anhaenger_*.docx word/document.xml`) und prüfen, dass in den beiden ungenutzten Zellen kein `<w:shd .../>` mehr im `<w:tcPr>` steht.
-
-## Nicht Teil dieses Fixes
-
-- Keine Änderungen an der Word-Vorlage selbst — die aktuelle Vorlage bleibt gültig.
-- Keine Änderung an der Farbwerkung (`isGreenish` / `isOrangeish` / `isReddish`).
-- Keine Änderung an §35a / Bank-Reconciliation / anderen Themen aus vorherigen Turns.
+- Build muss durchlaufen.
+- Danach ein grüner, ein oranger und ein roter Anhänger testen — jeweils darf nur die eine Farbe erscheinen.
