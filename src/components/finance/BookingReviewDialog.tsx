@@ -57,6 +57,8 @@ interface Props {
   setNote?: (id: string, note: string) => void;
   readOnly?: boolean;
   buildingId?: string | null;
+  tokenMode?: boolean;
+  token?: string;
 }
 
 const fmt = (n?: number | null) =>
