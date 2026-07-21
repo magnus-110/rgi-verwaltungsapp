@@ -66,13 +66,17 @@ const fmt = (n?: number | null) =>
 
 export function BookingReviewDialog({
   open, onOpenChange, bookings, selectedId, setSelectedId,
-  flag, setFlag, note, setNote, readOnly, buildingId,
+  flag, setFlag, note, setNote, readOnly, buildingId, tokenMode, token,
 }: Props) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [siblings, setSiblings] = useState<SplitSibling[] | null>(null);
   const [siblingsLoading, setSiblingsLoading] = useState(false);
+  const [templateInvoiceOpen, setTemplateInvoiceOpen] = useState(false);
+  const [templateInvoiceUrl, setTemplateInvoiceUrl] = useState<string | null>(null);
+  const [templateInvoiceLoading, setTemplateInvoiceLoading] = useState(false);
+  const [templateInvoiceError, setTemplateInvoiceError] = useState<string | null>(null);
 
   const idx = bookings.findIndex((b) => b.id === selectedId);
   const booking = idx >= 0 ? bookings[idx] : null;
