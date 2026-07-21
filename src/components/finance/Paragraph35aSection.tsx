@@ -188,8 +188,10 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
       if (format === "pdf" && !isSingle) {
         const ids = assignmentIds && assignmentIds.length ? assignmentIds : owners.map((o) => o.id);
         const zip = new JSZip();
-        let failed = 0;
-        for (const id of ids) {
+        let done = 0, failed = 0;
+        const prog = toast({ title: `Erzeuge §35a-PDFs… 0/${ids.length}` });
+        const CONC = 4;
+        const genOne = async (id: string) => {
           try {
             const r = await fetch(`${SUPABASE_FUNCTIONS_URL}/generate-35a-docx`, {
               method: "POST",
@@ -200,6 +202,10 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
             const o = owners.find((x) => x.id === id);
             zip.file(`35a_${fiscalYear}_${String(o?.unit_number || id).replace(/[^\w\-]+/g, "_")}.pdf`, await r.blob());
           } catch { failed++; }
+          finally { done++; prog.update({ id: prog.id, title: `Erzeuge §35a-PDFs… ${done}/${ids.length}` }); }
+        };
+        for (let i = 0; i < ids.length; i += CONC) {
+          await Promise.all(ids.slice(i, i + CONC).map(genOne));
         }
         const out = await zip.generateAsync({ type: "blob" });
         const link = document.createElement("a");
@@ -207,7 +213,9 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
         link.download = `35a_${fiscalYear}.zip`;
         link.click();
         setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-        if (failed) toast({ title: `${failed} Bescheinigung(en) fehlgeschlagen`, variant: "destructive" });
+        prog.dismiss();
+        if (failed) toast({ title: `${failed} von ${ids.length} Bescheinigung(en) fehlgeschlagen`, variant: "destructive" });
+        else toast({ title: `${ids.length} §35a-PDFs heruntergeladen` });
         return;
       }
       const url = `${SUPABASE_FUNCTIONS_URL}/generate-35a-docx`;

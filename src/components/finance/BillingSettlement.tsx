@@ -1044,7 +1044,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               assignment_ids: [o.assignmentId],
               format: "pdf",
             },
-            displayName: `§35a_${fiscalYear}_${o.name}`,
+            displayName: `§35a_${fiscalYear}_${o.name}${a?.unit_number ? `_${a.unit_number}` : ""}`,
             folderKey: "paragraph_35a",
             visibility: "eigentuemer_only",
             contactId: a?.contact_id || null,
@@ -1067,9 +1067,15 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       if (format === "pdf") {
         const owners = ownerResults;
         if (owners.length === 0) { toast.error("Keine Eigentuemer gefunden."); return; }
+        // Pro Eigentuemer EIN Aufruf (je eine CloudConvert-Konvertierung), in kleinen
+        // Parallel-Batches fuer Tempo, mit Fortschrittsanzeige. Dateiname enthaelt die
+        // Einheiten-Nr., damit Eigentuemer mit mehreren Einheiten (Wohnung + Garage)
+        // sich im ZIP nicht gegenseitig ueberschreiben.
         const zip = new JSZip();
-        let failed = 0;
-        for (const o of owners) {
+        let done = 0, failed = 0;
+        const tId = toast.loading(`Erzeuge §35a-PDFs… 0/${owners.length}`);
+        const CONC = 4;
+        const genOne = async (o: any) => {
           try {
             const r = await fetch(`${SUPABASE_FUNCTIONS_URL}/generate-35a-docx`, {
               method: "POST",
@@ -1084,13 +1090,19 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               }),
             });
             if (!r.ok) throw new Error(await r.text());
-            zip.file(`35a_${fiscalYear}_${sanitizeFilename(o.name)}.pdf`, await r.blob());
+            const unitPart = o.unitNumber && o.unitNumber !== "–" ? `_${sanitizeFilename(o.unitNumber)}` : "";
+            zip.file(`35a_${fiscalYear}_${sanitizeFilename(o.name)}${unitPart}.pdf`, await r.blob());
           } catch { failed++; }
+          finally { done++; toast.loading(`Erzeuge §35a-PDFs… ${done}/${owners.length}`, { id: tId }); }
+        };
+        for (let i = 0; i < owners.length; i += CONC) {
+          await Promise.all(owners.slice(i, i + CONC).map(genOne));
         }
         const out = await zip.generateAsync({ type: "blob" });
         triggerDownload(out, `35a_${fiscalYear}_PDF.zip`, "application/zip");
-        if (failed) toast.warning(`${failed} von ${owners.length} Bescheinigungen fehlgeschlagen`);
-        else toast.success("Download bereit");
+        toast.dismiss(tId);
+        if (failed) toast.warning(`${failed} von ${owners.length} Bescheinigung(en) fehlgeschlagen — Rest im ZIP.`);
+        else toast.success(`${owners.length} §35a-Bescheinigungen als PDF heruntergeladen.`);
         return;
       }
 
