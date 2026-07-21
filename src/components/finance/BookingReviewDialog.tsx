@@ -24,7 +24,15 @@ export interface AuditBookingRow {
   chart_of_accounts?: { account_number: string; account_name: string } | null;
   counter_account?: { account_number: string; account_name: string } | null;
   invoices?: { id: string; vendor_name?: string | null; file_path?: string | null; gross_amount?: number | null; invoice_number?: string | null } | null;
-  booking_templates?: { id: string; name: string; expected_amount?: number | null; interval?: string | null; vendor_name?: string | null } | null;
+  booking_templates?: {
+    id: string;
+    name: string;
+    expected_amount?: number | null;
+    interval?: string | null;
+    vendor_name?: string | null;
+    linked_invoice_id?: string | null;
+    linked_invoice?: { id: string; vendor_name?: string | null; file_path?: string | null; gross_amount?: number | null; invoice_number?: string | null } | null;
+  } | null;
 }
 
 interface SplitSibling {
@@ -49,6 +57,8 @@ interface Props {
   setNote?: (id: string, note: string) => void;
   readOnly?: boolean;
   buildingId?: string | null;
+  tokenMode?: boolean;
+  token?: string;
 }
 
 const fmt = (n?: number | null) =>
@@ -56,13 +66,17 @@ const fmt = (n?: number | null) =>
 
 export function BookingReviewDialog({
   open, onOpenChange, bookings, selectedId, setSelectedId,
-  flag, setFlag, note, setNote, readOnly, buildingId,
+  flag, setFlag, note, setNote, readOnly, buildingId, tokenMode, token,
 }: Props) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [siblings, setSiblings] = useState<SplitSibling[] | null>(null);
   const [siblingsLoading, setSiblingsLoading] = useState(false);
+  const [templateInvoiceOpen, setTemplateInvoiceOpen] = useState(false);
+  const [templateInvoiceUrl, setTemplateInvoiceUrl] = useState<string | null>(null);
+  const [templateInvoiceLoading, setTemplateInvoiceLoading] = useState(false);
+  const [templateInvoiceError, setTemplateInvoiceError] = useState<string | null>(null);
 
   const idx = bookings.findIndex((b) => b.id === selectedId);
   const booking = idx >= 0 ? bookings[idx] : null;
@@ -70,6 +84,9 @@ export function BookingReviewDialog({
   useEffect(() => {
     setPdfUrl(null);
     setPdfError(null);
+    setTemplateInvoiceOpen(false);
+    setTemplateInvoiceUrl(null);
+    setTemplateInvoiceError(null);
     if (!booking?.invoices?.file_path) return;
     let cancelled = false;
     setPdfLoading(true);
@@ -125,6 +142,43 @@ export function BookingReviewDialog({
     if (i < 0 || i >= bookings.length) return;
     setSelectedId(bookings[i].id);
   };
+
+  const loadTemplateInvoice = async () => {
+    const li = booking?.booking_templates?.linked_invoice;
+    if (!li) return;
+    if (templateInvoiceOpen) {
+      setTemplateInvoiceOpen(false);
+      return;
+    }
+    setTemplateInvoiceOpen(true);
+    if (templateInvoiceUrl) return;
+    setTemplateInvoiceLoading(true);
+    setTemplateInvoiceError(null);
+    try {
+      if (tokenMode && token) {
+        const { data, error } = await supabase.functions.invoke("audit-signed-url", {
+          body: { token, kind: "invoice", id: li.id },
+        });
+        if (error || !(data as any)?.signedUrl) {
+          throw new Error((data as any)?.error || error?.message || "Signed URL leer");
+        }
+        setTemplateInvoiceUrl((data as any).signedUrl);
+      } else {
+        if (!li.file_path) throw new Error("Kein Dateipfad hinterlegt");
+        const cleanPath = li.file_path.startsWith("invoices/")
+          ? li.file_path.slice("invoices/".length)
+          : li.file_path.replace(/^\/+/, "");
+        const { data, error } = await supabase.storage.from("invoices").createSignedUrl(cleanPath, 3600);
+        if (error || !data?.signedUrl) throw new Error(error?.message || "Signed URL leer");
+        setTemplateInvoiceUrl(data.signedUrl);
+      }
+    } catch (e: any) {
+      setTemplateInvoiceError(e?.message || "Fehler beim Laden");
+    } finally {
+      setTemplateInvoiceLoading(false);
+    }
+  };
+
 
   if (!booking) return (
     <Dialog open={open} onOpenChange={onOpenChange}><DialogContent /></Dialog>
@@ -332,11 +386,45 @@ export function BookingReviewDialog({
                     <Row label="Lieferant" value={booking.booking_templates.vendor_name || "–"} />
                     <Row label="Erwarteter Betrag" value={<span className="font-mono">{fmt(booking.booking_templates.expected_amount)}</span>} />
                     <Row label="Intervall" value={booking.booking_templates.interval || "–"} />
+                    {booking.booking_templates.linked_invoice && (
+                      <>
+                        <Row label="Verknüpfte Rechnung" value={
+                          <span className="text-right">
+                            {booking.booking_templates.linked_invoice.vendor_name || "–"}
+                            {booking.booking_templates.linked_invoice.invoice_number ? ` · ${booking.booking_templates.linked_invoice.invoice_number}` : ""}
+                          </span>
+                        } />
+                        <Row label="Bruttobetrag" value={<span className="font-mono">{fmt(booking.booking_templates.linked_invoice.gross_amount)}</span>} />
+                      </>
+                    )}
                   </div>
-                  <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
-                    <p className="font-medium text-foreground mb-1">Wiederkehrende Buchung</p>
-                    Für diese Buchung existiert kein Einzelbeleg. Der Nachweis ergibt sich aus dem hinterlegten Vertrag oder Bescheid.
-                  </div>
+                  {booking.booking_templates.linked_invoice?.file_path ? (
+                    <div className="space-y-3">
+                      <Button size="sm" variant="outline" className="gap-1.5 w-full" onClick={loadTemplateInvoice}>
+                        <FileText className="h-4 w-4" />
+                        {templateInvoiceOpen ? "Rechnung ausblenden" : "Rechnung anzeigen"}
+                      </Button>
+                      {templateInvoiceOpen && (
+                        <div className="rounded-lg border bg-white overflow-hidden" style={{ height: "70vh" }}>
+                          {templateInvoiceLoading ? (
+                            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Rechnung wird geladen…</div>
+                          ) : templateInvoiceUrl ? (
+                            <iframe src={templateInvoiceUrl} className="w-full h-full border-0" title="Verknüpfte Rechnung" />
+                          ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-sm text-muted-foreground p-6 text-center gap-1">
+                              <span>Rechnung konnte nicht geladen werden.</span>
+                              {templateInvoiceError && <span className="text-xs opacity-70">{templateInvoiceError}</span>}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
+                      <p className="font-medium text-foreground mb-1">Wiederkehrende Buchung</p>
+                      Für diese Buchung existiert kein Einzelbeleg. Der Nachweis ergibt sich aus dem hinterlegten Vertrag oder Bescheid.
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
