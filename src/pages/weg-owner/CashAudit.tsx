@@ -22,7 +22,7 @@ export const WegOwnerCashAudit = () => {
       const contactIds = contacts.map((c) => c.id);
       const { data } = await supabase
         .from("cash_audits")
-        .select("id, status")
+        .select("id, status, access_token")
         .in("auditor_contact_id", contactIds)
         .gt("visible_in_portal_until", new Date().toISOString())
         .order("created_at", { ascending: false })
@@ -55,7 +55,10 @@ export const WegOwnerCashAudit = () => {
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
-      <CashAuditWizard auditId={audit.id} />
+      <CashAuditWizard
+        auditId={audit.id}
+        {...(audit.access_token ? { tokenMode: true, token: audit.access_token } : {})}
+      />
     </div>
   );
 };

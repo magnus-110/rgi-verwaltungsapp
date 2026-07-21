@@ -1,33 +1,26 @@
-# Ursache
+## Problem
 
-In deiner Vorlage stehen `{g}`, `{r}`, `{o}` **nicht in Tabellenzellen**, sondern als bunt eingefärbte Runs direkt hintereinander in einem Absatz. Word hat `{r}` und `{o}` außerdem über mehrere `<w:r>`-Runs gesplittet (`{r` + `}` bzw. `{` + `o` + `}`).
+Im Owner-Login (`/weg-owner/kassenpruefung`) wird `CashAuditWizard` ohne `tokenMode` gerendert. `CashAuditDocuments` fragt dann Rechnungen, Bankauszüge und Audit-PDFs direkt aus den Tabellen (`invoices`, `bank_statements`, `cash_audit_statements`) und öffnet Dateien über `supabase.storage.createSignedUrl(...)`. Der Owner hat auf diese Tabellen/Buckets aber keine RLS-Rechte — daher erscheinen keine Rechnungen und Kontoauszüge lassen sich nicht anklicken.
 
-Der aktuelle Ablauf in `src/components/buildings/keys/tagTemplate.ts`:
+Über den Token-Link funktioniert es, weil dort SECURITY-DEFINER-RPCs (`get_audit_invoices_by_token`, `get_audit_pdf_statements_by_token`, `get_audit_bank_statement_pdfs_by_token`) plus die Edge-Function `audit-signed-url` verwendet werden, die Token-basiert die Zugriffsrechte prüfen.
 
-1. `stripCellColoring("{o}")` findet keine umschließende `<w:tc>` → Fallback auf `stripRunColoring`.
-2. `stripRunColoring` sucht per `xml.indexOf("{o}")` — findet **nichts**, weil `{o}` gesplittet ist → tut gar nichts.
-3. `replaceSplitPlaceholder` leert nur den Text, lässt aber `<w:rPr><w:shd .../></w:rPr>` mit der Füllfarbe stehen.
+## Lösung
 
-Ergebnis: Die farbigen Runs von `{r}`/`{o}` behalten ihre Hintergrundfarbe, obwohl sie leer sind → beim Druck erscheinen zusätzliche orange/rote Streifen.
+Der Owner-Weg soll intern denselben Pfad wie der Proxy-Weg nutzen, damit alle Dokumente identisch angezeigt und geöffnet werden können.
 
-# Fix
+### Änderung in `src/pages/weg-owner/CashAudit.tsx`
 
-Ich ersetze `stripRunColoring` / `stripCellColoring` durch **eine** Funktion `stripPlaceholderColoring`, die gesplittete Platzhalter korrekt behandelt:
+- Beim Abruf des Audits zusätzlich `access_token` selektieren.
+- `CashAuditWizard` mit `tokenMode` und `token={audit.access_token}` rendern.
 
-1. Alle `<w:r>...</w:r>`-Blöcke mit ihrem enthaltenen `<w:t>`-Text indexieren (wie `replaceSplitPlaceholder`).
-2. Über den konkatenierten virtuellen Text jedes Vorkommen des Platzhalters lokalisieren.
-3. Für **jeden** Run, der den Platzhalter-Bereich überlappt, aus dem `<w:rPr>` die Tags `<w:shd .../>`, `<w:color .../>`, `<w:highlight .../>` entfernen — sowohl selbstschließend als auch mit Attributen (`<w:shd ... />`).
-4. Falls (wie in dieser Vorlage) direkt an den Platzhalter angrenzende leere Whitespace-Runs zwischen den Farb-Placeholdern liegen, bleiben sie unverändert (keine Farbe).
+Damit gehen alle Dokument-Abfragen und das Öffnen der Dateien über die bereits vorhandenen RPCs / `audit-signed-url`-Edge-Function — genau wie beim öffentlichen Link. Es sind keine RLS-, Grant- oder DB-Änderungen nötig, weil der Owner nur einen Token verwendet, der bereits zu seinem Audit gehört und der Zugriff serverseitig autorisiert wird.
 
-Datei: `src/components/buildings/keys/tagTemplate.ts`
-- Entfernt: `stripCellColoring`, `stripRunColoring` (bzw. bleiben nur als interner Fallback).
-- Neu: `stripPlaceholderColoring(xml, placeholder)`.
-- Aufrufe in Zeilen 71–73 auf die neue Funktion umstellen.
-- Reihenfolge beibehalten: erst Farbe entfernen, dann `replaceSplitPlaceholder` mit `""` bzw. `"GG"/"OO"/"RR"`.
+### Nicht-Ziel
 
-Keine Änderungen an Vorlage, DB oder anderer UI.
+- Keine Änderungen an `CashAuditDocuments`, den RPCs, den Buckets oder anderen Kassenprüfungs-Ansichten.
+- Kein neuer Token wird erzeugt; falls `access_token` fehlt, bleibt der bisherige Fallback (direkte Queries).
 
-# Verifikation
+## Verifikation
 
-- Build muss durchlaufen.
-- Danach ein grüner, ein oranger und ein roter Anhänger testen — jeweils darf nur die eine Farbe erscheinen.
+- Als Owner in Birkenweg 6 einloggen, Kassenprüfung öffnen: Rechnungen erscheinen, Kontoauszüge lassen sich öffnen.
+- Öffentlicher Proxy-Link funktioniert unverändert.
