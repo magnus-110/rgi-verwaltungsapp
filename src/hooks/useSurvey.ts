@@ -196,4 +196,9 @@ export function useSurveyResults(surveyId?: string, buildingId?: string) {
       });
 
       const participatingMea = results.reduce((s, r) => Math.max(s, r.mea_ja + r.mea_neutral + r.mea_nein), 0);
-      const beteiligungPct = totalMea > 0 ? Math.round((participatingMea / totalMea) * 100) :
+      const beteiligungPct = totalMea > 0 ? Math.round((participatingMea / totalMea) * 100) : 0;
+
+      return { results, totalMea, participatingMea, beteiligungPct };
+    },
+  });
+}

@@ -8884,6 +8884,245 @@ export type Database = {
           },
         ]
       }
+      survey_item_images: {
+        Row: {
+          caption: string | null
+          created_at: string
+          id: string
+          item_id: string
+          position: number
+          source_file_id: string | null
+          storage_path: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          item_id: string
+          position?: number
+          source_file_id?: string | null
+          storage_path: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          item_id?: string
+          position?: number
+          source_file_id?: string | null
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_item_images_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "survey_item_results"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "survey_item_images_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "survey_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_item_images_source_file_id_fkey"
+            columns: ["source_file_id"]
+            isOneToOne: false
+            referencedRelation: "building_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_items: {
+        Row: {
+          agenda_note: string | null
+          cost_tier: string | null
+          created_at: string
+          explanation: string
+          followup_options: string[] | null
+          followup_question: string | null
+          group_label: string | null
+          id: string
+          is_safety: boolean
+          on_agenda: boolean | null
+          position: number
+          survey_id: string
+          title: string
+        }
+        Insert: {
+          agenda_note?: string | null
+          cost_tier?: string | null
+          created_at?: string
+          explanation: string
+          followup_options?: string[] | null
+          followup_question?: string | null
+          group_label?: string | null
+          id?: string
+          is_safety?: boolean
+          on_agenda?: boolean | null
+          position?: number
+          survey_id: string
+          title: string
+        }
+        Update: {
+          agenda_note?: string | null
+          cost_tier?: string | null
+          created_at?: string
+          explanation?: string
+          followup_options?: string[] | null
+          followup_question?: string | null
+          group_label?: string | null
+          id?: string
+          is_safety?: boolean
+          on_agenda?: boolean | null
+          position?: number
+          survey_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_items_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_votes: {
+        Row: {
+          building_id: string
+          choice: Database["public"]["Enums"]["survey_choice"] | null
+          comment: string | null
+          contact_id: string
+          created_at: string
+          followup_choice: number | null
+          id: string
+          item_id: string
+          mea_weight: number
+          survey_id: string
+          updated_at: string
+          urgent: boolean
+        }
+        Insert: {
+          building_id: string
+          choice?: Database["public"]["Enums"]["survey_choice"] | null
+          comment?: string | null
+          contact_id: string
+          created_at?: string
+          followup_choice?: number | null
+          id?: string
+          item_id: string
+          mea_weight?: number
+          survey_id: string
+          updated_at?: string
+          urgent?: boolean
+        }
+        Update: {
+          building_id?: string
+          choice?: Database["public"]["Enums"]["survey_choice"] | null
+          comment?: string | null
+          contact_id?: string
+          created_at?: string
+          followup_choice?: number | null
+          id?: string
+          item_id?: string
+          mea_weight?: number
+          survey_id?: string
+          updated_at?: string
+          urgent?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_votes_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_votes_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_votes_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "survey_item_results"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "survey_votes_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "survey_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_votes_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      surveys: {
+        Row: {
+          building_id: string
+          closes_at: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          opens_at: string | null
+          quorum_pct: number
+          status: Database["public"]["Enums"]["survey_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          building_id: string
+          closes_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          opens_at?: string | null
+          quorum_pct?: number
+          status?: Database["public"]["Enums"]["survey_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          building_id?: string
+          closes_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          opens_at?: string | null
+          quorum_pct?: number
+          status?: Database["public"]["Enums"]["survey_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "surveys_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_deposits: {
         Row: {
           amount: number
@@ -9683,6 +9922,31 @@ export type Database = {
       }
     }
     Views: {
+      survey_item_results: {
+        Row: {
+          head_ja: number | null
+          head_nein: number | null
+          head_neutral: number | null
+          is_safety: boolean | null
+          item_id: string | null
+          mea_ja: number | null
+          mea_nein: number | null
+          mea_neutral: number | null
+          survey_id: string | null
+          title: string | null
+          urgent_count: number | null
+          votes_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_items_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_account_movements: {
         Row: {
           account_id: string | null
@@ -9734,6 +9998,7 @@ export type Database = {
         Args: { p_bank_transaction_id: string; p_bookings: Json }
         Returns: Json
       }
+      building_total_mea: { Args: { _building: string }; Returns: number }
       calculate_account_balance_at: {
         Args: { p_account_id: string; p_building_id: string; p_date: string }
         Returns: number
@@ -9746,6 +10011,8 @@ export type Database = {
         Args: { building_id_param: string }
         Returns: number
       }
+      current_contact_id: { Args: never; Returns: string }
+      current_owner_mea: { Args: { _building: string }; Returns: number }
       delete_booking_with_cleanup: {
         Args: { p_booking_id: string }
         Returns: Json
@@ -9927,6 +10194,7 @@ export type Database = {
         Args: { _contact_id: string; _user_id: string }
         Returns: boolean
       }
+      is_rgi_staff: { Args: never; Returns: boolean }
       normalize_phone_last8: { Args: { p: string }; Returns: string }
       remove_building_manager: {
         Args: { manager_id_param: string }
@@ -10217,6 +10485,8 @@ export type Database = {
         | "refunded"
         | "document_ready"
       service_type_enum: "nebenkosten" | "anlage_v" | "mietvertrag"
+      survey_choice: "ja" | "neutral" | "nein"
+      survey_status: "draft" | "open" | "closed"
       unit_kind:
         | "apartment"
         | "parking_garage"
@@ -10451,6 +10721,8 @@ export const Constants = {
         "document_ready",
       ],
       service_type_enum: ["nebenkosten", "anlage_v", "mietvertrag"],
+      survey_choice: ["ja", "neutral", "nein"],
+      survey_status: ["draft", "open", "closed"],
       unit_kind: [
         "apartment",
         "parking_garage",
