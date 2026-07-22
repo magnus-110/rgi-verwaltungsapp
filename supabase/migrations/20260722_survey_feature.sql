@@ -110,13 +110,13 @@ returns numeric language sql stable security definer set search_path = public as
     and cba.role_in_building = 'eigentuemer';
 $$;
 
--- TODO: an euer bestehendes Rollenmodell anpassen (profiles.role / has_role()).
+-- RGI-Mitarbeiter/Verwaltung (Rollen wie in AdminLayout: 'admin' | 'employee')
 create or replace function public.is_rgi_staff()
 returns boolean language sql stable security definer set search_path = public as $$
   select exists (
     select 1 from public.profiles p
     where p.user_id = auth.uid()
-      and coalesce(p.role, '') in ('admin','mitarbeiter','verwalter')   -- <— ggf. anpassen
+      and coalesce(p.role, '') in ('admin','employee')
   );
 $$;
 
@@ -229,3 +229,4 @@ create policy "survey-images staff write" on storage.objects for all
 
 create policy "survey-images owner read" on storage.objects for select
   using (bucket_id = 'survey-images' and auth.role() = 'authenticated');
+                                        

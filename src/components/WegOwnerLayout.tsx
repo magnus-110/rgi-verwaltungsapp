@@ -22,6 +22,7 @@ import {
   FolderOpen,
   Users,
   ClipboardCheck,
+  ListChecks,
   Scale,
   Store
 } from "lucide-react";
@@ -159,6 +160,12 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       label: "Versammlungen", 
       path: '/weg-owner/meetings',
       active: location.pathname.startsWith('/weg-owner/meetings')
+    },
+    { 
+      icon: ListChecks, 
+      label: "Umfrage", 
+      path: '/weg-owner/umfrage',
+      active: location.pathname.startsWith('/weg-owner/umfrage')
     },
     // Service-Hub vorübergehend deaktiviert – wird erst nach Freigabe wieder eingeblendet
     // {

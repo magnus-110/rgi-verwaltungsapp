@@ -2,6 +2,7 @@ import React from "react";
 import {
   BarChart3,
   ClipboardList,
+  ListChecks,
   Castle,
   Settings,
   LogOut,
@@ -47,6 +48,7 @@ const adminMenu = [
   { title: "Meldungen", url: "/tickets", icon: ClipboardList },
   { title: "Vorgänge", url: "/tickets/vorgaenge", icon: FolderKanban },
   { title: "Versammlungen", url: "/versammlungen", icon: Users },
+  { title: "Umfragen", url: "/umfragen", icon: ListChecks },
   { title: "Prozesse", url: "/prozesse", icon: Workflow },
   { title: "RGI Intern", url: "/rgi-intern", icon: Briefcase, adminOnly: true },
   { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
