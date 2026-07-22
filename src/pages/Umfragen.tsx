@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import SurveyDashboard from "@/components/survey/SurveyDashboard";
+import SurveyImageManager from "@/components/survey/SurveyImageManager";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 
 /**
- * Verwaltungs-Seite "Umfragen": Gebäude wählen → aktuelle Umfrage + Ergebnis-Dashboard.
+ * Verwaltungs-Seite "Umfragen": Gebäude wählen → Ergebnis-Dashboard + Bilder-Verwaltung.
  * Route: /umfragen (innerhalb AdminLayout). Nur für Verwaltung (AdminLayout schützt bereits).
  */
 export default function UmfragenPage() {
@@ -27,7 +29,6 @@ export default function UmfragenPage() {
     if (!buildingId && buildings.length) setBuildingId(buildings[0].id);
   }, [buildings, buildingId]);
 
-  // aktuellste Umfrage des Gebäudes (jeder Status)
   const { data: survey } = useQuery({
     queryKey: ["admin-survey", buildingId],
     enabled: !!buildingId,
@@ -43,7 +44,6 @@ export default function UmfragenPage() {
     },
   });
 
-  // on_agenda-Zustand der Items (manuelle Verwaltungs-Entscheidung)
   const { data: agendaMap = {} } = useQuery({
     queryKey: ["survey-items", survey?.id],
     enabled: !!survey?.id,
@@ -76,10 +76,19 @@ export default function UmfragenPage() {
         </CardContent></Card>
       ) : (
         <>
-          <div className="text-sm text-muted-foreground">
-            {survey.title} · Status: <b>{survey.status}</b>
-          </div>
-          <SurveyDashboard surveyId={survey.id} buildingId={buildingId!} agendaMap={agendaMap} />
+          <div className="text-sm text-muted-foreground">{survey.title} · Status: <b>{survey.status}</b></div>
+          <Tabs defaultValue="ergebnisse">
+            <TabsList>
+              <TabsTrigger value="ergebnisse">Ergebnisse</TabsTrigger>
+              <TabsTrigger value="bilder">Bilder</TabsTrigger>
+            </TabsList>
+            <TabsContent value="ergebnisse" className="mt-4">
+              <SurveyDashboard surveyId={survey.id} buildingId={buildingId!} agendaMap={agendaMap} />
+            </TabsContent>
+            <TabsContent value="bilder" className="mt-4">
+              <SurveyImageManager surveyId={survey.id} />
+            </TabsContent>
+          </Tabs>
         </>
       )}
     </div>
