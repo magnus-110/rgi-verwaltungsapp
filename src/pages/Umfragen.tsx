@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import SurveyDashboard from "@/components/survey/SurveyDashboard";
 import SurveyImageManager from "@/components/survey/SurveyImageManager";
+import SurveyItemsEditor from "@/components/survey/SurveyItemsEditor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -80,17 +81,10 @@ export default function UmfragenPage() {
           <Tabs defaultValue="ergebnisse">
             <TabsList>
               <TabsTrigger value="ergebnisse">Ergebnisse</TabsTrigger>
+              <TabsTrigger value="punkte">Punkte bearbeiten</TabsTrigger>
               <TabsTrigger value="bilder">Bilder</TabsTrigger>
             </TabsList>
             <TabsContent value="ergebnisse" className="mt-4">
               <SurveyDashboard surveyId={survey.id} buildingId={buildingId!} agendaMap={agendaMap} />
             </TabsContent>
-            <TabsContent value="bilder" className="mt-4">
-              <SurveyImageManager surveyId={survey.id} />
-            </TabsContent>
-          </Tabs>
-        </>
-      )}
-    </div>
-  );
-}
+            <TabsContent value="punkte" className="mt-4
