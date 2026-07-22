@@ -335,4 +335,11 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear, ownerResu
       {fuelClosingValue !== 0 && (
         <Card className="border-amber-200 bg-amber-50/50">
           <CardContent className="py-2 flex items-center gap-2 text-xs text-muted-foreground">
-            <Fl
+            <Flame className="h-4 w-4 text-amber-600" />
+            <span>Brennstoffbestand: {formatCurrency(fuelClosingValue)}</span>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
