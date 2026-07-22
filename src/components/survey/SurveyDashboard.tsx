@@ -95,4 +95,6 @@ function ResultRow({ r, on, onToggle }: { r: ItemResult; on: boolean; onToggle: 
           Auf Tagesordnung <Switch checked={on} onCheckedChange={onToggle} />
         </label>
       </div>
-    </CardContent></Card
+    </CardContent></Card>
+  );
+}
