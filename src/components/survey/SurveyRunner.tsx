@@ -246,14 +246,16 @@ function Shell({ survey, ownerMea, pct, label, children }: { survey: any; ownerM
   const isOwnerRoute = location.pathname.startsWith("/weg-owner/umfrage");
   return (
     <div id="survey-top" className="mx-auto w-full max-w-2xl overflow-x-hidden px-3 py-4 space-y-4">
-      <div className="relative text-center">
-        <h1 className="text-2xl font-bold">{survey.title}</h1>
-        <p className="text-muted-foreground">{survey.buildings?.name}</p>
-        {isOwnerRoute && (
-          <Button variant="ghost" size="sm" onClick={() => navigate("/weg-owner/umfragen")} className="absolute right-0 top-0">
+      {isOwnerRoute && (
+        <div className="flex justify-end">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/weg-owner/umfragen")}>
             <X className="h-4 w-4 mr-1" /> Schließen
           </Button>
-        )}
+        </div>
+      )}
+      <div className="text-center">
+        <h1 className="text-2xl font-bold">{survey.title}</h1>
+        <p className="text-muted-foreground">{survey.buildings?.name}</p>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-muted/30 p-3 text-sm">
         <span>Angemeldet als Eigentümer</span>
