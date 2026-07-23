@@ -26,7 +26,6 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
   const save = useSaveVote(surveyId ?? "", profile?.user_id);
 
   const [local, setLocal] = useState<Record<string, OwnerVote>>({});
-  const [lightbox, setLightbox] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   useEffect(() => { document.getElementById("survey-top")?.scrollIntoView({ block: "start", inline: "nearest" }); }, [step]);
 
@@ -167,7 +166,7 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
         {it.images.filter((im) => im.url).length > 0
           ? <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
               {it.images.filter((im) => im.url).map((im, k) => (
-                <img key={k} src={im.url!} alt={it.title} onClick={() => setLightbox(im.url!)} className="h-56 w-auto flex-shrink-0 snap-start object-cover rounded-xl border cursor-zoom-in" />
+                <img key={k} src={im.url!} alt={it.title} className="h-56 w-auto flex-shrink-0 snap-start object-cover rounded-xl border" />
               ))}
             </div>
           : it.item_type === "question"
@@ -228,13 +227,6 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
             disabled={it.item_type === "question" && !it.is_safety && !a.choice}
             onClick={() => goNext(it.id)}>Weiter →</Button>
         </div>
-
-        {lightbox && (
-          <div onClick={() => setLightbox(null)}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 cursor-zoom-out">
-            <img src={lightbox} alt="" className="max-h-full max-w-full object-contain rounded-lg" />
-          </div>
-        )}
       </CardContent></Card>
     </Shell>
   );
