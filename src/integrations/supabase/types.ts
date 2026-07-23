@@ -8941,12 +8941,15 @@ export type Database = {
           agenda_note: string | null
           cost_tier: string | null
           created_at: string
+          depends_on_choice: Database["public"]["Enums"]["survey_choice"] | null
+          depends_on_item_id: string | null
           explanation: string
           followup_options: string[] | null
           followup_question: string | null
           group_label: string | null
           id: string
           is_safety: boolean
+          item_type: string
           on_agenda: boolean | null
           position: number
           survey_id: string
@@ -8956,12 +8959,17 @@ export type Database = {
           agenda_note?: string | null
           cost_tier?: string | null
           created_at?: string
+          depends_on_choice?:
+            | Database["public"]["Enums"]["survey_choice"]
+            | null
+          depends_on_item_id?: string | null
           explanation: string
           followup_options?: string[] | null
           followup_question?: string | null
           group_label?: string | null
           id?: string
           is_safety?: boolean
+          item_type?: string
           on_agenda?: boolean | null
           position?: number
           survey_id: string
@@ -8971,18 +8979,37 @@ export type Database = {
           agenda_note?: string | null
           cost_tier?: string | null
           created_at?: string
+          depends_on_choice?:
+            | Database["public"]["Enums"]["survey_choice"]
+            | null
+          depends_on_item_id?: string | null
           explanation?: string
           followup_options?: string[] | null
           followup_question?: string | null
           group_label?: string | null
           id?: string
           is_safety?: boolean
+          item_type?: string
           on_agenda?: boolean | null
           position?: number
           survey_id?: string
           title?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "survey_items_depends_on_item_id_fkey"
+            columns: ["depends_on_item_id"]
+            isOneToOne: false
+            referencedRelation: "survey_item_results"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "survey_items_depends_on_item_id_fkey"
+            columns: ["depends_on_item_id"]
+            isOneToOne: false
+            referencedRelation: "survey_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "survey_items_survey_id_fkey"
             columns: ["survey_id"]
@@ -9080,12 +9107,17 @@ export type Database = {
           created_at: string
           created_by: string | null
           description: string | null
+          end_message: string | null
+          end_title: string | null
           id: string
+          is_visible_to_owners: boolean
           opens_at: string | null
           quorum_pct: number
           status: Database["public"]["Enums"]["survey_status"]
           title: string
           updated_at: string
+          welcome_message: string | null
+          welcome_title: string | null
         }
         Insert: {
           building_id: string
@@ -9093,12 +9125,17 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          end_message?: string | null
+          end_title?: string | null
           id?: string
+          is_visible_to_owners?: boolean
           opens_at?: string | null
           quorum_pct?: number
           status?: Database["public"]["Enums"]["survey_status"]
           title: string
           updated_at?: string
+          welcome_message?: string | null
+          welcome_title?: string | null
         }
         Update: {
           building_id?: string
@@ -9106,12 +9143,17 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          end_message?: string | null
+          end_title?: string | null
           id?: string
+          is_visible_to_owners?: boolean
           opens_at?: string | null
           quorum_pct?: number
           status?: Database["public"]["Enums"]["survey_status"]
           title?: string
           updated_at?: string
+          welcome_message?: string | null
+          welcome_title?: string | null
         }
         Relationships: [
           {
@@ -10486,7 +10528,7 @@ export type Database = {
         | "document_ready"
       service_type_enum: "nebenkosten" | "anlage_v" | "mietvertrag"
       survey_choice: "ja" | "neutral" | "nein"
-      survey_status: "draft" | "open" | "closed"
+      survey_status: "draft" | "open" | "closed" | "paused" | "archived"
       unit_kind:
         | "apartment"
         | "parking_garage"
@@ -10722,7 +10764,7 @@ export const Constants = {
       ],
       service_type_enum: ["nebenkosten", "anlage_v", "mietvertrag"],
       survey_choice: ["ja", "neutral", "nein"],
-      survey_status: ["draft", "open", "closed"],
+      survey_status: ["draft", "open", "closed", "paused", "archived"],
       unit_kind: [
         "apartment",
         "parking_garage",
