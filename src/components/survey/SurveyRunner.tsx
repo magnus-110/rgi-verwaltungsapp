@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useOwnerSurvey, useSaveVote, SurveyChoice, OwnerVote, SurveyItem, costTierSymbol } from "@/hooks/useSurvey";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ShieldAlert, ThumbsUp, Minus, ThumbsDown, CheckCircle2, ChevronDown, ArrowLeft, Info } from "lucide-react";
+import { ShieldAlert, ThumbsUp, Minus, ThumbsDown, CheckCircle2, ChevronDown, ArrowLeft, Info, X } from "lucide-react";
 
 const AMPEL: { key: SurveyChoice; label: string; sub: string; Icon: any; cls: string }[] = [
   { key: "ja", label: "Ja", sub: "finde ich sinnvoll", Icon: ThumbsUp, cls: "data-[on=true]:border-emerald-500 data-[on=true]:bg-emerald-50" },
@@ -26,6 +26,7 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
   const save = useSaveVote(surveyId ?? "", profile?.user_id);
 
   const [local, setLocal] = useState<Record<string, OwnerVote>>({});
+  const [lightbox, setLightbox] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   useEffect(() => { document.getElementById("survey-top")?.scrollIntoView({ block: "start", inline: "nearest" }); }, [step]);
 
@@ -166,7 +167,7 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
         {it.images.filter((im) => im.url).length > 0
           ? <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
               {it.images.filter((im) => im.url).map((im, k) => (
-                <img key={k} src={im.url!} alt={it.title} className="h-56 w-auto flex-shrink-0 snap-start object-cover rounded-xl border" />
+                <img key={k} src={im.url!} alt={it.title} onClick={() => setLightbox(im.url!)} className="h-56 w-auto flex-shrink-0 snap-start object-cover rounded-xl border cursor-zoom-in" />
               ))}
             </div>
           : it.item_type === "question"
@@ -227,17 +228,32 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
             disabled={it.item_type === "question" && !it.is_safety && !a.choice}
             onClick={() => goNext(it.id)}>Weiter →</Button>
         </div>
+
+        {lightbox && (
+          <div onClick={() => setLightbox(null)}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 cursor-zoom-out">
+            <img src={lightbox} alt="" className="max-h-full max-w-full object-contain rounded-lg" />
+          </div>
+        )}
       </CardContent></Card>
     </Shell>
   );
 }
 
 function Shell({ survey, ownerMea, pct, label, children }: { survey: any; ownerMea: number; pct: number; label: string; children: any }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isOwnerRoute = location.pathname.startsWith("/weg-owner/umfrage");
   return (
     <div id="survey-top" className="mx-auto w-full max-w-2xl overflow-x-hidden px-3 py-4 space-y-4">
-      <div className="text-center">
+      <div className="relative text-center">
         <h1 className="text-2xl font-bold">{survey.title}</h1>
         <p className="text-muted-foreground">{survey.buildings?.name}</p>
+        {isOwnerRoute && (
+          <Button variant="ghost" size="sm" onClick={() => navigate("/weg-owner/umfragen")} className="absolute right-0 top-0">
+            <X className="h-4 w-4 mr-1" /> Schließen
+          </Button>
+        )}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-muted/30 p-3 text-sm">
         <span>Angemeldet als Eigentümer</span>
