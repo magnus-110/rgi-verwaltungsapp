@@ -3,11 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 
 /**
  * Datenzugriff für die Eigentümer-Umfrage.
- * - Eigentümer: aktuelle offene Umfrage + eigene Stimmen laden, Stimmen speichern.
+ * - Eigentümer: alle sichtbaren Umfragen der eigenen Gebäude laden, einzelne Umfrage öffnen, Stimmen speichern.
  * - Verwaltung: Ergebnisse (Kopf + MEA) inkl. automatischer Einstufung.
  */
 
 export type SurveyChoice = "ja" | "neutral" | "nein";
+export type SurveyItemType = "question" | "info";
 
 export interface SurveyItem {
   id: string;
@@ -18,6 +19,9 @@ export interface SurveyItem {
   explanation: string;
   cost_tier: string | null;
   is_safety: boolean;
+  item_type: SurveyItemType;
+  depends_on_item_id: string | null;
+  depends_on_choice: SurveyChoice | null;
   followup_question: string | null;
   followup_options: string[] | null;
   images: { path: string; caption: string | null; url: string | null }[];
@@ -31,32 +35,92 @@ export interface OwnerVote {
   comment: string | null;
 }
 
-const SIGNED_URL_TTL = 60 * 60; // 1 h
+export interface OwnerSurveySummary {
+  id: string;
+  building_id: string;
+  title: string;
+  description: string | null;
+  closes_at: string | null;
+  building_name: string | null;
+  total_items: number;
+  answered_items: number;
+}
 
-/** Signierte URLs für private Bild-Pfade erzeugen. */
+const SIGNED_URL_TTL = 60 * 60;
+
 async function signImages(paths: string[]): Promise<Record<string, string>> {
   if (!paths.length) return {};
   const { data } = await (supabase as any).storage.from("survey-images").createSignedUrls(paths, SIGNED_URL_TTL);
   const map: Record<string, string> = {};
-  (data || []).forEach((d) => {
+  (data || []).forEach((d: any) => {
     if (d.path && d.signedUrl) map[d.path] = d.signedUrl;
   });
   return map;
 }
 
-/** Lädt die aktuell offene Umfrage für die Gebäude des eingeloggten Eigentümers. */
-export function useOwnerSurvey(userId?: string) {
+/** Liste aller für den Eigentümer sichtbaren, offenen Umfragen (RLS filtert). */
+export function useOwnerVisibleSurveys(userId?: string) {
   return useQuery({
-    queryKey: ["owner-survey", userId],
+    queryKey: ["owner-visible-surveys", userId],
     enabled: !!userId,
     queryFn: async () => {
-      // offene Umfrage der eigenen Gebäude (RLS filtert automatisch)
+      const { data: surveys } = await (supabase as any)
+        .from("surveys")
+        .select("id, building_id, title, description, closes_at, buildings(name)")
+        .order("opens_at", { ascending: false });
+      const list = (surveys || []) as any[];
+      if (!list.length) return [] as OwnerSurveySummary[];
+
+      const ids = list.map((s) => s.id);
+      const { data: items } = await (supabase as any)
+        .from("survey_items")
+        .select("id, survey_id, is_safety, item_type")
+        .in("survey_id", ids);
+      const { data: votes } = await (supabase as any)
+        .from("survey_votes")
+        .select("survey_id, item_id")
+        .in("survey_id", ids);
+
+      const totalBySurvey = new Map<string, number>();
+      (items || []).forEach((it: any) => {
+        if (it.item_type === "info" || it.is_safety) return;
+        totalBySurvey.set(it.survey_id, (totalBySurvey.get(it.survey_id) || 0) + 1);
+      });
+      const answeredBySurvey = new Map<string, number>();
+      (votes || []).forEach((v: any) => {
+        answeredBySurvey.set(v.survey_id, (answeredBySurvey.get(v.survey_id) || 0) + 1);
+      });
+
+      return list.map((s) => ({
+        id: s.id,
+        building_id: s.building_id,
+        title: s.title,
+        description: s.description,
+        closes_at: s.closes_at,
+        building_name: s.buildings?.name ?? null,
+        total_items: totalBySurvey.get(s.id) || 0,
+        answered_items: answeredBySurvey.get(s.id) || 0,
+      })) as OwnerSurveySummary[];
+    },
+  });
+}
+
+/** Kennzeichen für Menü: hat der Eigentümer aktuell sichtbare Umfragen? */
+export function useHasVisibleSurveys(userId?: string) {
+  const q = useOwnerVisibleSurveys(userId);
+  return { hasSurveys: (q.data?.length ?? 0) > 0, isLoading: q.isLoading };
+}
+
+/** Lädt eine konkrete Umfrage (Items, Bilder, eigene Stimmen, eigenes MEA). */
+export function useOwnerSurvey(surveyId?: string, userId?: string) {
+  return useQuery({
+    queryKey: ["owner-survey", surveyId, userId],
+    enabled: !!surveyId && !!userId,
+    queryFn: async () => {
       const { data: survey } = await (supabase as any)
         .from("surveys")
-        .select("id, building_id, title, description, status, closes_at, buildings(name)")
-        .eq("status", "open")
-        .order("opens_at", { ascending: false })
-        .limit(1)
+        .select("id, building_id, title, description, status, closes_at, welcome_title, welcome_message, end_title, end_message, buildings(name)")
+        .eq("id", surveyId)
         .maybeSingle();
       if (!survey) return null;
 
@@ -66,7 +130,6 @@ export function useOwnerSurvey(userId?: string) {
         .eq("survey_id", survey.id)
         .order("position", { ascending: true });
 
-      // Bilder signieren
       const allPaths = (rawItems || []).flatMap((it: any) =>
         (it.survey_item_images || []).map((im: any) => im.storage_path),
       );
@@ -81,6 +144,9 @@ export function useOwnerSurvey(userId?: string) {
         explanation: it.explanation,
         cost_tier: it.cost_tier,
         is_safety: it.is_safety,
+        item_type: (it.item_type ?? "question") as SurveyItemType,
+        depends_on_item_id: it.depends_on_item_id ?? null,
+        depends_on_choice: it.depends_on_choice ?? null,
         followup_question: it.followup_question,
         followup_options: it.followup_options,
         images: (it.survey_item_images || [])
@@ -92,13 +158,11 @@ export function useOwnerSurvey(userId?: string) {
           })),
       }));
 
-      // eigene bereits abgegebene Stimmen
       const { data: votes } = await (supabase as any)
         .from("survey_votes")
         .select("item_id, choice, followup_choice, urgent, comment")
         .eq("survey_id", survey.id);
 
-      // eigenes MEA-Stimmgewicht (informativ)
       const { data: mea } = await (supabase as any).rpc("current_owner_mea", { _building: survey.building_id });
 
       return {
@@ -131,7 +195,10 @@ export function useSaveVote(surveyId: string, userId?: string) {
         );
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["owner-survey", userId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["owner-survey", surveyId] });
+      qc.invalidateQueries({ queryKey: ["owner-visible-surveys", userId] });
+    },
   });
 }
 
@@ -150,7 +217,7 @@ export interface ItemResult {
   mea_neutral: number;
   mea_nein: number;
   urgent_count: number;
-  jaPctMea: number;         // Ja-Anteil bezogen auf teilnehmendes MEA
+  jaPctMea: number;
   einstufung: Einstufung;
 }
 
@@ -161,7 +228,6 @@ export function classify(isSafety: boolean, jaPctMea: number): Einstufung {
   return "zurueckgestellt";
 }
 
-/** Lädt Ergebnisse einer Umfrage inkl. MEA-Auswertung und Einstufung (nur Verwaltung). */
 export function useSurveyResults(surveyId?: string, buildingId?: string) {
   return useQuery({
     queryKey: ["survey-results", surveyId],
@@ -172,7 +238,6 @@ export function useSurveyResults(surveyId?: string, buildingId?: string) {
         .select("*")
         .eq("survey_id", surveyId);
 
-      // Gesamt-MEA des Gebäudes (für Prozentangaben / Beteiligung)
       const { data: totalRow } = await (supabase as any).rpc("building_total_mea", { _building: buildingId });
       const totalMea = Number(totalRow ?? 0);
 
@@ -195,10 +260,24 @@ export function useSurveyResults(surveyId?: string, buildingId?: string) {
         };
       });
 
-      const participatingMea = results.reduce((s, r) => Math.max(s, r.mea_ja + r.mea_neutral + r.mea_nein), 0);
+      const participatingMea = results.reduce(
+        (s, r) => Math.max(s, r.mea_ja + r.mea_neutral + r.mea_nein),
+        0,
+      );
       const beteiligungPct = totalMea > 0 ? Math.round((participatingMea / totalMea) * 100) : 0;
 
       return { results, totalMea, participatingMea, beteiligungPct };
     },
   });
+}
+
+/** Kosten-Skala 1–4 als € / €€ / €€€ / €€€€ – zentraler Renderer. */
+export function costTierSymbol(tier: string | null | undefined): string {
+  if (!tier || tier === "offen") return "€ offen";
+  const parts = tier.split("–").map((n) => parseInt(n, 10)).filter((n) => !isNaN(n));
+  if (!parts.length) return "€ offen";
+  const hi = Math.min(4, Math.max(1, parts[parts.length - 1]));
+  const lo = Math.min(4, Math.max(1, parts[0]));
+  if (parts.length > 1 && lo !== hi) return "€".repeat(lo) + " – " + "€".repeat(hi);
+  return "€".repeat(hi);
 }

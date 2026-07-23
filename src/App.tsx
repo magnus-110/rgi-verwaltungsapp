@@ -60,6 +60,7 @@ const WegOwnerServiceHub = lazy(() => import("./pages/weg-owner/ServiceHub").the
 const WegOwnerNebenkostenTool = lazy(() => import("./pages/weg-owner/NebenkostenTool").then(m => ({ default: m.WegOwnerNebenkostenTool })));
 const WegOwnerServiceHubSuccess = lazy(() => import("./pages/weg-owner/ServiceHubSuccess").then(m => ({ default: m.WegOwnerServiceHubSuccess })));
 const SurveyRunner = lazy(() => import("./components/survey/SurveyRunner"));
+const OwnerSurveysLanding = lazy(() => import("./components/survey/OwnerSurveysLanding"));
 const UmfragenPage = lazy(() => import("./pages/Umfragen"));
 const LegalAGB = lazy(() => import("./pages/legal/AGB"));
 const LegalDatenschutz = lazy(() => import("./pages/legal/Datenschutz"));
@@ -164,7 +165,9 @@ const App = () => (
               <Route path="/weg-owner/settings" element={<WegOwnerLayout><WegOwnerSettings /></WegOwnerLayout>} />
               <Route path="/weg-owner/files" element={<WegOwnerLayout><WegOwnerFiles /></WegOwnerLayout>} />
               <Route path="/weg-owner/meetings" element={<WegOwnerLayout><WegOwnerMeetings /></WegOwnerLayout>} />
-              <Route path="/weg-owner/umfrage" element={<WegOwnerLayout><SurveyRunner /></WegOwnerLayout>} />
+              <Route path="/weg-owner/umfragen" element={<WegOwnerLayout><OwnerSurveysLanding /></WegOwnerLayout>} />
+              <Route path="/weg-owner/umfrage" element={<WegOwnerLayout><OwnerSurveysLanding /></WegOwnerLayout>} />
+              <Route path="/weg-owner/umfrage/:id" element={<WegOwnerLayout><SurveyRunner /></WegOwnerLayout>} />
               <Route path="/weg-owner/kassenpruefung" element={<WegOwnerLayout><WegOwnerCashAudit /></WegOwnerLayout>} />
               <Route path="/weg-owner/resolutions" element={<WegOwnerLayout><WegOwnerResolutions /></WegOwnerLayout>} />
               <Route path="/weg-owner/service-hub" element={<WegOwnerLayout><WegOwnerServiceHub /></WegOwnerLayout>} />
