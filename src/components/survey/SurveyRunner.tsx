@@ -155,7 +155,6 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
   // -------- Themenkarte / Info --------
   const it = visibleItems[step - 1];
   const a = local[it.id] ?? { item_id: it.id, choice: null, followup_choice: null, urgent: false, comment: null };
-  const img = it.images[0];
 
   return (
     <Shell survey={s} ownerMea={data.ownerMea} pct={pct} label={`Punkt ${step} von ${total}`}>
@@ -163,8 +162,12 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
         {it.group_label && <div className="text-sm font-semibold uppercase tracking-wide text-primary">{it.group_label}</div>}
         <h2 className="text-2xl font-bold leading-tight">{it.title}</h2>
 
-        {img?.url
-          ? <img src={img.url} alt={it.title} className="w-full max-h-64 object-cover rounded-xl border" />
+        {it.images.filter((im) => im.url).length > 0
+          ? <div className="flex gap-2 overflow-x-auto pb-1">
+              {it.images.filter((im) => im.url).map((im, k) => (
+                <img key={k} src={im.url!} alt={it.title} className="h-52 w-auto flex-shrink-0 object-cover rounded-xl border" />
+              ))}
+            </div>
           : it.item_type === "question"
             ? <div className="flex h-40 items-center justify-center rounded-xl border border-dashed bg-muted text-muted-foreground text-sm">Foto: {it.title}</div>
             : null}
