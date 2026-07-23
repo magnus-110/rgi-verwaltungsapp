@@ -119,7 +119,7 @@ export function useOwnerSurvey(surveyId?: string, userId?: string) {
     queryFn: async () => {
       const { data: survey } = await (supabase as any)
         .from("surveys")
-        .select("id, building_id, title, description, status, closes_at, welcome_title, welcome_message, end_title, end_message, buildings(name)")
+        .select("id, building_id, title, description, status, closes_at, welcome_title, welcome_message, end_title, end_message, safety_notice, buildings(name)")
         .eq("id", surveyId)
         .maybeSingle();
       if (!survey) return null;

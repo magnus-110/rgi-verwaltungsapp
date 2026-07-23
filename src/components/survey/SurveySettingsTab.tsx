@@ -56,6 +56,7 @@ export default function SurveySettingsTab({ survey, onDeleted }: { survey: Admin
         welcome_message: form.welcome_message,
         end_title: form.end_title,
         end_message: form.end_message,
+        safety_notice: form.safety_notice,
       },
     });
 
@@ -202,6 +203,12 @@ export default function SurveySettingsTab({ survey, onDeleted }: { survey: Admin
             <Label className="mt-2 block">Nachricht</Label>
             <Textarea rows={4} value={form.end_message ?? ""}
               onChange={(e) => setForm({ ...form, end_message: e.target.value })} />
+          </div>
+          <div>
+            <h3 className="font-semibold mb-2">Hinweis bei Sicherheits-/Pflichtpunkten</h3>
+            <Label>Text (wird bei Punkten ohne Abstimmung angezeigt)</Label>
+            <Textarea rows={3} value={form.safety_notice ?? ""}
+              onChange={(e) => setForm({ ...form, safety_notice: e.target.value })} />
           </div>
         </CardContent>
       </Card>

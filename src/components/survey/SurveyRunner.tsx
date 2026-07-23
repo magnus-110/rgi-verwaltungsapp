@@ -115,7 +115,7 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
               : a?.choice === "ja" ? "Ja" : a?.choice === "neutral" ? "Neutral" : a?.choice === "nein" ? "Nein" : "—";
             return (
               <div key={it.id} className="flex items-center justify-between border-b py-3">
-                <span className="font-medium">{i + 1}. {it.title}{a?.urgent ? " ⚠" : ""}</span>
+                <span className="font-medium">{i + 1}. {it.title}</span>
                 <div className="flex items-center gap-3">
                   <Badge variant="secondary">{lbl}</Badge>
                   <Button variant="link" className="h-auto p-0" onClick={() => jumpTo(i + 1)}>ändern</Button>
@@ -187,9 +187,8 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
             <span>Diese Seite dient nur der Information — bitte weiterblättern.</span>
           </div>
         ) : it.is_safety ? (
-          <div className="rounded-lg border bg-red-50 p-4 text-red-900">
-            Diese Maßnahme wird aus Gründen der <b>Verkehrssicherungspflicht ohnehin umgesetzt</b>.
-            Sie können hier gerne einen Kommentar hinterlassen, aber nicht dagegen stimmen.
+          <div className="rounded-lg border bg-red-50 p-4 text-red-900 whitespace-pre-line">
+            {s.safety_notice || "Diese Maßnahme wird aus Gründen der Verkehrssicherungspflicht ohnehin umgesetzt und steht daher nicht zur Abstimmung."}
           </div>
         ) : (
           <>
@@ -220,23 +219,6 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
           </>
         )}
 
-        {it.item_type === "question" && (
-          <label className="flex items-center gap-3 text-base">
-            <Checkbox checked={a.urgent} onCheckedChange={(v) => setAnswer(it.id, { urgent: !!v })} /> Besonders dringend
-          </label>
-        )}
-
-        {it.item_type === "question" && (
-          <Collapsible>
-            <CollapsibleTrigger className="flex items-center gap-1 text-primary text-sm font-medium">
-              <ChevronDown className="h-4 w-4" /> Kommentar hinzufügen (freiwillig)
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <Textarea className="mt-2" placeholder="Ihre Anmerkung …" value={a.comment ?? ""}
-                onChange={(e) => setAnswer(it.id, { comment: e.target.value })} />
-            </CollapsibleContent>
-          </Collapsible>
-        )}
 
         <div className="flex gap-3 pt-2">
           <Button variant="secondary" size="lg" className="flex-1" onClick={goPrev}>← Zurück</Button>

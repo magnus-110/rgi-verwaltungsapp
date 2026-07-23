@@ -20,6 +20,7 @@ export interface AdminSurvey {
   welcome_message: string | null;
   end_title: string | null;
   end_message: string | null;
+  safety_notice: string | null;
   created_at: string;
   updated_at: string;
   item_count?: number;
