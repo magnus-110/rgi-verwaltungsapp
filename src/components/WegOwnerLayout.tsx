@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { VotingPopup } from "@/components/meetings/VotingPopup";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
+import { useHasVisibleSurveys } from "@/hooks/useSurvey";
 import { OnboardingFAB } from "@/components/onboarding/OnboardingFAB";
 import { GuidedTourProvider } from "@/components/weg-owner/onboarding/GuidedTourProvider";
 import { HelpButton } from "@/components/weg-owner/onboarding/HelpButton";
@@ -37,6 +38,7 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const hasVisibleFiles = useHasVisibleFiles(profile?.user_id);
+  const { hasSurveys } = useHasVisibleSurveys(profile?.user_id);
   const [hasAudit, setHasAudit] = useState(false);
  const [showTermsDialog, setShowTermsDialog] = useState(false);
  const [termsAccepted, setTermsAccepted] = useState<boolean | null>(null);
@@ -161,12 +163,12 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       path: '/weg-owner/meetings',
       active: location.pathname.startsWith('/weg-owner/meetings')
     },
-    { 
-      icon: ListChecks, 
-      label: "Umfrage", 
-      path: '/weg-owner/umfrage',
+    ...(hasSurveys ? [{
+      icon: ListChecks,
+      label: "Umfrage",
+      path: '/weg-owner/umfragen',
       active: location.pathname.startsWith('/weg-owner/umfrage')
-    },
+    }] : []),
     // Service-Hub vorübergehend deaktiviert – wird erst nach Freigabe wieder eingeblendet
     // {
     //   icon: Store,
