@@ -27,6 +27,7 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
 
   const [local, setLocal] = useState<Record<string, OwnerVote>>({});
   const [step, setStep] = useState(0);
+  useEffect(() => { document.getElementById("survey-top")?.scrollIntoView({ block: "start", inline: "nearest" }); }, [step]);
 
   useMemo(() => {
     if (!data) return;
@@ -163,9 +164,9 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
         <h2 className="text-2xl font-bold leading-tight">{it.title}</h2>
 
         {it.images.filter((im) => im.url).length > 0
-          ? <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          ? <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
               {it.images.filter((im) => im.url).map((im, k) => (
-                <img key={k} src={im.url!} alt={it.title} className="w-full max-h-64 object-cover rounded-xl border" />
+                <img key={k} src={im.url!} alt={it.title} className="h-56 w-auto flex-shrink-0 snap-start object-cover rounded-xl border" />
               ))}
             </div>
           : it.item_type === "question"
@@ -233,7 +234,7 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
 
 function Shell({ survey, ownerMea, pct, label, children }: { survey: any; ownerMea: number; pct: number; label: string; children: any }) {
   return (
-    <div className="mx-auto w-full max-w-2xl overflow-x-hidden px-3 py-4 space-y-4">
+    <div id="survey-top" className="mx-auto w-full max-w-2xl overflow-x-hidden px-3 py-4 space-y-4">
       <div className="text-center">
         <h1 className="text-2xl font-bold">{survey.title}</h1>
         <p className="text-muted-foreground">{survey.buildings?.name}</p>
