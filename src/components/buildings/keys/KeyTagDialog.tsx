@@ -297,11 +297,8 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
                 {attachFiles.length} neue Datei(en) ausgewählt — werden beim Speichern hochgeladen
               </p>
             )}
-
-                ))}
-              </div>
-            )}
           </div>
+
           <div>
             <Label>Notiz</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
