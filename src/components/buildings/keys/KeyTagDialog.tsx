@@ -231,23 +231,73 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
           )}
           <div>
             <Label>Foto</Label>
-            <Input type="file" accept="image/*" onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)} />
+            {currentPhotoPath && !photoFile && (
+              <div className="mt-1 flex items-center gap-3 p-2 border rounded">
+                {photoUrl ? (
+                  <img src={photoUrl} alt="Foto" className="h-16 w-16 object-cover rounded" />
+                ) : (
+                  <div className="h-16 w-16 rounded bg-muted flex items-center justify-center">
+                    <FileImage className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="flex-1 text-xs text-muted-foreground truncate">Aktuelles Foto</div>
+                {photoUrl && (
+                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(photoUrl, "_blank")} title="Öffnen">
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                )}
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={deletePhoto} title="Foto löschen">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+            <Input
+              type="file"
+              accept="image/*"
+              className="mt-2"
+              onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+            />
+            {photoFile && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Neu: {photoFile.name}{" "}
+                <button type="button" className="underline" onClick={() => setPhotoFile(null)}>entfernen</button>
+              </p>
+            )}
           </div>
           <div>
-            <Label>Weitere Dateien (mehrere möglich)</Label>
-            <Input type="file" multiple onChange={(e) => setAttachFiles(Array.from(e.target.files ?? []))} />
-            {attachFiles.length > 0 && (
-              <p className="text-xs text-muted-foreground mt-1">{attachFiles.length} Datei(en) ausgewählt</p>
-            )}
+            <Label>Weitere Dateien {tagFiles.length > 0 && <span className="text-muted-foreground">({tagFiles.length})</span>}</Label>
             {tagFiles.length > 0 && (
-              <div className="mt-2 space-y-1">
-                {tagFiles.map((f: any) => (
-                  <div key={f.id} className="flex items-center gap-2 text-xs p-1.5 bg-muted rounded">
-                    <button type="button" className="truncate flex-1 text-left text-primary hover:underline" onClick={() => openTagFile(f.file_path)}>
-                      {f.file_name}
-                    </button>
-                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteTagFile(f)}>×</Button>
-                  </div>
+              <div className="mt-1 space-y-1">
+                {tagFiles.map((f: any) => {
+                  const isImg = (f.mime_type || "").startsWith("image/");
+                  const isPdf = (f.mime_type || "").includes("pdf");
+                  const Icon = isImg ? FileImage : isPdf ? FileText : FileIcon;
+                  return (
+                    <div key={f.id} className="flex items-center gap-2 text-xs p-2 border rounded">
+                      <Icon className={`h-4 w-4 shrink-0 ${isPdf ? "text-red-600" : isImg ? "text-blue-600" : "text-muted-foreground"}`} />
+                      <button type="button" className="truncate flex-1 text-left hover:underline" onClick={() => openTagFile(f.file_path)}>
+                        {f.file_name}
+                      </button>
+                      {f.file_size && (
+                        <span className="text-muted-foreground shrink-0">
+                          {(f.file_size / 1024).toFixed(0)} KB
+                        </span>
+                      )}
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive shrink-0" onClick={() => deleteTagFile(f)} title="Löschen">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <Input type="file" multiple className="mt-2" onChange={(e) => setAttachFiles(Array.from(e.target.files ?? []))} />
+            {attachFiles.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {attachFiles.length} neue Datei(en) ausgewählt — werden beim Speichern hochgeladen
+              </p>
+            )}
+
                 ))}
               </div>
             )}
