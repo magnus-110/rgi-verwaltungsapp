@@ -39,8 +39,23 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
       setNotes(tag?.notes ?? "");
       setPhotoFile(null);
       setAttachFiles([]);
+      setPhotoRemoved(false);
     }
   }, [open, tag]);
+
+  const [photoRemoved, setPhotoRemoved] = useState(false);
+  const currentPhotoPath = photoRemoved ? null : tag?.photo_path ?? null;
+
+  const { data: photoUrl } = useQuery({
+    queryKey: ["key-tag-photo-url", currentPhotoPath],
+    queryFn: async () => {
+      if (!currentPhotoPath) return null;
+      const { data } = await supabase.storage.from("key-files").createSignedUrl(currentPhotoPath, 600);
+      return data?.signedUrl ?? null;
+    },
+    enabled: !!currentPhotoPath && open,
+  });
+
 
   // Bereits hochgeladene Dateien des Anhängers
   const { data: tagFiles = [] } = useQuery({
