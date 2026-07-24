@@ -118,13 +118,15 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
     if (!storageLocationId || !keyTypeId) { toast.error("Bitte alle Pflichtfelder wählen"); return; }
     setSaving(true);
     try {
-      let photoPath = tag?.photo_path ?? null;
+      let photoPath = photoRemoved ? null : tag?.photo_path ?? null;
       if (photoFile) {
-        const path = `${buildingId}/tags/${Date.now()}-${sanitizeStorageKey(photoFile.name)}`;
-        const { error } = await supabase.storage.from("key-files").upload(path, photoFile, { upsert: true });
+        const compressed = await compressImageIfNeeded(photoFile);
+        const path = `${buildingId}/tags/${Date.now()}-${sanitizeStorageKey(compressed.name)}`;
+        const { error } = await supabase.storage.from("key-files").upload(path, compressed, { upsert: true });
         if (error) throw error;
         photoPath = path;
       }
+
       let tagId = tag?.id ?? null;
       if (tag) {
         const { error } = await supabase.from("key_tags").update({
