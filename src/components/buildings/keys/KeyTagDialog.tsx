@@ -11,6 +11,9 @@ import { KeyTag, KeyStorageLocation, KeyType } from "./types";
 import { DropdownWithAdd } from "./DropdownWithAdd";
 import { useAuth } from "@/hooks/useAuth";
 import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
+import { compressImageIfNeeded } from "@/lib/compressImage";
+import { FileImage, FileText, File as FileIcon, X, Trash2, Eye } from "lucide-react";
+
 
 interface Props {
   open: boolean;
