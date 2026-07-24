@@ -4577,6 +4577,44 @@ export type Database = {
         }
         Relationships: []
       }
+      email_fetch_attempts: {
+        Row: {
+          account_id: string
+          attempts: number
+          first_seen: string
+          last_error: string | null
+          skipped_at: string | null
+          uid: number
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          attempts?: number
+          first_seen?: string
+          last_error?: string | null
+          skipped_at?: string | null
+          uid: number
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          attempts?: number
+          first_seen?: string
+          last_error?: string | null
+          skipped_at?: string | null
+          uid?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_fetch_attempts_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "email_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_folders: {
         Row: {
           color: string | null
@@ -9113,6 +9151,7 @@ export type Database = {
           is_visible_to_owners: boolean
           opens_at: string | null
           quorum_pct: number
+          safety_notice: string | null
           status: Database["public"]["Enums"]["survey_status"]
           title: string
           updated_at: string
@@ -9131,6 +9170,7 @@ export type Database = {
           is_visible_to_owners?: boolean
           opens_at?: string | null
           quorum_pct?: number
+          safety_notice?: string | null
           status?: Database["public"]["Enums"]["survey_status"]
           title: string
           updated_at?: string
@@ -9149,6 +9189,7 @@ export type Database = {
           is_visible_to_owners?: boolean
           opens_at?: string | null
           quorum_pct?: number
+          safety_notice?: string | null
           status?: Database["public"]["Enums"]["survey_status"]
           title?: string
           updated_at?: string
@@ -10117,6 +10158,7 @@ export type Database = {
           usage_count: number
         }[]
       }
+      flag_stale_email_sync: { Args: never; Returns: number }
       force_logout_staff: { Args: never; Returns: undefined }
       generate_building_code: {
         Args: {
