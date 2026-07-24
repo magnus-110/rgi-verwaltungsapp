@@ -248,93 +248,80 @@ function stripCellColoring(xml: string, placeholder: string): string {
 }
 
 /**
- * Entfernt Farb-/Highlight-Formatierung aus allen <w:r>-Runs, die den
- * gegebenen Platzhalter (auch gesplittet über mehrere Runs) überdecken.
- * Behandelt alle Vorkommen im XML.
+ * Entfernt für jedes Vorkommen des Platzhalters die farbliche Formatierung
+ * der umschließenden Tabellenzelle:
+ *   - Zellen-Schattierung <w:shd> innerhalb <w:tcPr>
+ *   - alle <w:shd>, <w:color>, <w:highlight> in Runs der Zelle
+ * Findet Platzhalter auch, wenn Word sie über mehrere <w:r>/<w:t> gesplittet
+ * hat. Behandelt mehrfaches Vorkommen und verschachtelte Tabellen (Depth).
  */
 function stripPlaceholderColoring(xml: string, placeholder: string): string {
-  // Alle <w:r>...</w:r> mit ihrem konkatenierten Text-Inhalt indexieren.
-  type Run = { start: number; end: number; text: string; tStarts: number[] };
-  const buildRuns = (src: string): Run[] => {
-    const runs: Run[] = [];
-    const runRe = /<w:r(?:\s[^>]*)?>([\s\S]*?)<\/w:r>/g;
-    let rm: RegExpExecArray | null;
-    while ((rm = runRe.exec(src)) !== null) {
-      const inner = rm[1];
-      const tRe = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g;
-      let text = "";
-      let tm: RegExpExecArray | null;
-      while ((tm = tRe.exec(inner)) !== null) text += tm[1];
-      runs.push({
-        start: rm.index,
-        end: rm.index + rm[0].length,
-        text,
-        tStarts: [],
-      });
-    }
-    return runs;
-  };
-
-  const cleanRun = (runXml: string): string => {
-    // Entferne shd/color/highlight – sowohl selbstschließend als auch mit
-    // schließendem Tag. Innerhalb des Runs (typisch nur im <w:rPr>).
-    return runXml
+  const cleanFragment = (s: string): string =>
+    s
       .replace(/<w:shd\b[^>]*\/>/g, "")
       .replace(/<w:shd\b[^>]*>[\s\S]*?<\/w:shd>/g, "")
       .replace(/<w:color\b[^>]*\/>/g, "")
       .replace(/<w:color\b[^>]*>[\s\S]*?<\/w:color>/g, "")
       .replace(/<w:highlight\b[^>]*\/>/g, "")
       .replace(/<w:highlight\b[^>]*>[\s\S]*?<\/w:highlight>/g, "");
+
+  const combinedTextInCell = (cellXml: string): string => {
+    let out = "";
+    const re = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(cellXml)) !== null) out += m[1];
+    return out;
   };
 
-  // Iteriere so lange, bis kein Vorkommen mehr gefunden wird.
-  let guard = 0;
-  while (guard++ < 50) {
-    const runs = buildRuns(xml);
-    if (runs.length === 0) return xml;
-    const combined = runs.map((r) => r.text).join("");
-    const idx = combined.indexOf(placeholder);
-    if (idx === -1) return xml;
-
-    // Betroffene Runs bestimmen.
-    let cursor = 0;
-    const affected: number[] = [];
-    for (let i = 0; i < runs.length; i++) {
-      const s = cursor;
-      const e = cursor + runs[i].text.length;
-      const overlaps = e > idx && s < idx + placeholder.length;
-      if (overlaps) affected.push(i);
-      cursor = e;
-      if (s >= idx + placeholder.length) break;
-    }
-    if (affected.length === 0) return xml;
-
-    // Von hinten nach vorne im XML ersetzen, damit Offsets gültig bleiben.
-    for (let k = affected.length - 1; k >= 0; k--) {
-      const r = runs[affected[k]];
-      const original = xml.slice(r.start, r.end);
-      const cleaned = cleanRun(original);
-      if (cleaned !== original) {
-        xml = xml.slice(0, r.start) + cleaned + xml.slice(r.end);
+  // Alle <w:tc>…</w:tc>-Bereiche mit korrekter Depth-Handhabung ermitteln.
+  const findCells = (src: string): { start: number; end: number }[] => {
+    const cells: { start: number; end: number }[] = [];
+    const tagRe = /<w:tc(?:\s[^>]*)?>|<\/w:tc>/g;
+    const stack: number[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = tagRe.exec(src)) !== null) {
+      if (m[0].startsWith("</")) {
+        const start = stack.pop();
+        if (start !== undefined && stack.length === 0) {
+          cells.push({ start, end: m.index + "</w:tc>".length });
+        }
+      } else {
+        stack.push(m.index);
       }
     }
+    return cells;
+  };
 
-    // Danach den Platzhalter an dieser Stelle mit einem Marker "verbrauchen",
-    // damit die Schleife weitere Vorkommen findet. Wir ersetzen den Text
-    // dazu temporär durch ein Sentinel; wird später von replaceSplitPlaceholder
-    // ohnehin überschrieben. Um Interferenzen zu vermeiden, brechen wir hier
-    // nach einem Durchlauf ab und lassen den Rest über normale Iteration
-    // laufen — dazu markieren wir das erste Zeichen. Einfacher: brechen wir
-    // ab, wenn keine Änderung mehr passiert.
-    // Prüfen: Ist das Vorkommen jetzt bereits ohne Farbe? Wenn ja, weiter
-    // durch temporäres Ersetzen der ersten Instanz durch nichts-anderes.
-    // Um Endlosschleifen sicher zu vermeiden: einmalige Iteration reicht,
-    // weil identisch gefärbte Vorkommen typischerweise nicht mehrfach im
-    // Dokument stehen. Wir brechen ab.
-    return xml;
+  // Iterativ von hinten nach vorne bereinigen, damit Offsets stabil bleiben.
+  const cells = findCells(xml).filter((c) => {
+    const cellXml = xml.slice(c.start, c.end);
+    return combinedTextInCell(cellXml).includes(placeholder);
+  });
+
+  if (cells.length === 0) {
+    // Fallback: kein <w:tc> um den Platzhalter (z. B. Fließtext) –
+    // wenigstens Run-Level-Farben entfernen.
+    let out = xml;
+    let idx = 0;
+    while ((idx = out.indexOf(placeholder, idx)) !== -1) {
+      out = stripRunColoring(out, placeholder);
+      idx += placeholder.length;
+      if (out.indexOf(placeholder, idx) === -1) break;
+    }
+    return out;
+  }
+
+  for (let i = cells.length - 1; i >= 0; i--) {
+    const c = cells[i];
+    const cellXml = xml.slice(c.start, c.end);
+    const cleaned = cleanFragment(cellXml);
+    if (cleaned !== cellXml) {
+      xml = xml.slice(0, c.start) + cleaned + xml.slice(c.end);
+    }
   }
   return xml;
 }
+
 
 /**
  * Ersetzt einen Platzhalter im document.xml, auch wenn Word ihn über
