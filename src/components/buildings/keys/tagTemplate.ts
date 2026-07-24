@@ -282,13 +282,14 @@ function stripPlaceholderColoring(xml: string, placeholder: string): string {
     while ((m = tagRe.exec(src)) !== null) {
       if (m[0].startsWith("</")) {
         const start = stack.pop();
-        if (start !== undefined && stack.length === 0) {
+        if (start !== undefined) {
           cells.push({ start, end: m.index + "</w:tc>".length });
         }
       } else {
         stack.push(m.index);
       }
     }
+
     return cells;
   };
 
