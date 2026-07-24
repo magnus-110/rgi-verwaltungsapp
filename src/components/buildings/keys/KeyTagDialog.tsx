@@ -148,9 +148,10 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
         tagId = inserted?.id ?? null;
       }
 
-      // Weitere Dateien hochladen (mehrere möglich)
+      // Weitere Dateien hochladen (mehrere möglich) — Bilder werden komprimiert
       if (tagId && attachFiles.length > 0) {
-        for (const f of attachFiles) {
+        for (const raw of attachFiles) {
+          const f = await compressImageIfNeeded(raw);
           const fPath = `${buildingId}/tags/${tagId}/${Date.now()}-${sanitizeStorageKey(f.name)}`;
           const { error: upErr } = await supabase.storage.from("key-files").upload(fPath, f, { upsert: true });
           if (upErr) throw upErr;
@@ -167,6 +168,7 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
         }
         qc.invalidateQueries({ queryKey: ["key-tag-files", tagId] });
       }
+
       qc.invalidateQueries({ queryKey: ["key-tags", buildingId] });
       qc.invalidateQueries({ queryKey: ["key-events", buildingId] });
       toast.success("Anhänger gespeichert");
