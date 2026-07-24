@@ -65,12 +65,13 @@ export async function downloadFilledTagTemplate(opts: {
   const orangeText = fillOrange ? "OO" : "";
   const redText = fillRed ? "RR" : "";
 
-  // Wenn ein Farb-Platzhalter nicht befüllt wird, aus den betroffenen Runs
-  // <w:shd>, <w:color> und <w:highlight> entfernen – auch bei über mehrere
-  // Runs gesplitteten Platzhaltern.
+  // Wenn ein Farb-Platzhalter nicht befüllt wird, aus der umschließenden
+  // Tabellenzelle alle Farb-/Schattierungs-Elemente entfernen (Zellenhintergrund
+  // via <w:tcPr><w:shd> sowie Run-Level <w:shd>/<w:color>/<w:highlight>).
   if (!fillGreen) xml = stripPlaceholderColoring(xml, "{g}");
   if (!fillOrange) xml = stripPlaceholderColoring(xml, "{o}");
   if (!fillRed) xml = stripPlaceholderColoring(xml, "{r}");
+
 
   xml = replaceSplitPlaceholder(xml, "{g}", greenText);
   xml = replaceSplitPlaceholder(xml, "{o}", orangeText);
