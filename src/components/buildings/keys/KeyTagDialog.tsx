@@ -79,8 +79,24 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
     await supabase.storage.from("key-files").remove([file.file_path]);
     const { error } = await supabase.from("key_tag_files" as any).delete().eq("id", file.id);
     if (error) toast.error(error.message);
-    else qc.invalidateQueries({ queryKey: ["key-tag-files", tag?.id] });
+    else {
+      qc.invalidateQueries({ queryKey: ["key-tag-files", tag?.id] });
+      toast.success("Datei gelöscht");
+    }
   };
+
+  const deletePhoto = async () => {
+    if (!tag?.photo_path) { setPhotoRemoved(true); setPhotoFile(null); return; }
+    if (!confirm("Foto entfernen?")) return;
+    await supabase.storage.from("key-files").remove([tag.photo_path]);
+    const { error } = await supabase.from("key_tags").update({ photo_path: null }).eq("id", tag.id);
+    if (error) { toast.error(error.message); return; }
+    setPhotoRemoved(true);
+    setPhotoFile(null);
+    qc.invalidateQueries({ queryKey: ["key-tags", buildingId] });
+    toast.success("Foto entfernt");
+  };
+
 
   const { data: locations = [] } = useQuery<KeyStorageLocation[]>({
     queryKey: ["key-storage-locations"],
