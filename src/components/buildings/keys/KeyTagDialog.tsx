@@ -11,6 +11,9 @@ import { KeyTag, KeyStorageLocation, KeyType } from "./types";
 import { DropdownWithAdd } from "./DropdownWithAdd";
 import { useAuth } from "@/hooks/useAuth";
 import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
+import { compressImageIfNeeded } from "@/lib/compressImage";
+import { FileImage, FileText, File as FileIcon, X, Trash2, Eye } from "lucide-react";
+
 
 interface Props {
   open: boolean;
@@ -36,8 +39,23 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
       setNotes(tag?.notes ?? "");
       setPhotoFile(null);
       setAttachFiles([]);
+      setPhotoRemoved(false);
     }
   }, [open, tag]);
+
+  const [photoRemoved, setPhotoRemoved] = useState(false);
+  const currentPhotoPath = photoRemoved ? null : tag?.photo_path ?? null;
+
+  const { data: photoUrl } = useQuery({
+    queryKey: ["key-tag-photo-url", currentPhotoPath],
+    queryFn: async () => {
+      if (!currentPhotoPath) return null;
+      const { data } = await supabase.storage.from("key-files").createSignedUrl(currentPhotoPath, 600);
+      return data?.signedUrl ?? null;
+    },
+    enabled: !!currentPhotoPath && open,
+  });
+
 
   // Bereits hochgeladene Dateien des Anhängers
   const { data: tagFiles = [] } = useQuery({
@@ -61,8 +79,24 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
     await supabase.storage.from("key-files").remove([file.file_path]);
     const { error } = await supabase.from("key_tag_files" as any).delete().eq("id", file.id);
     if (error) toast.error(error.message);
-    else qc.invalidateQueries({ queryKey: ["key-tag-files", tag?.id] });
+    else {
+      qc.invalidateQueries({ queryKey: ["key-tag-files", tag?.id] });
+      toast.success("Datei gelöscht");
+    }
   };
+
+  const deletePhoto = async () => {
+    if (!tag?.photo_path) { setPhotoRemoved(true); setPhotoFile(null); return; }
+    if (!confirm("Foto entfernen?")) return;
+    await supabase.storage.from("key-files").remove([tag.photo_path]);
+    const { error } = await supabase.from("key_tags").update({ photo_path: null }).eq("id", tag.id);
+    if (error) { toast.error(error.message); return; }
+    setPhotoRemoved(true);
+    setPhotoFile(null);
+    qc.invalidateQueries({ queryKey: ["key-tags", buildingId] });
+    toast.success("Foto entfernt");
+  };
+
 
   const { data: locations = [] } = useQuery<KeyStorageLocation[]>({
     queryKey: ["key-storage-locations"],
@@ -84,13 +118,15 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
     if (!storageLocationId || !keyTypeId) { toast.error("Bitte alle Pflichtfelder wählen"); return; }
     setSaving(true);
     try {
-      let photoPath = tag?.photo_path ?? null;
+      let photoPath = photoRemoved ? null : tag?.photo_path ?? null;
       if (photoFile) {
-        const path = `${buildingId}/tags/${Date.now()}-${sanitizeStorageKey(photoFile.name)}`;
-        const { error } = await supabase.storage.from("key-files").upload(path, photoFile, { upsert: true });
+        const compressed = await compressImageIfNeeded(photoFile);
+        const path = `${buildingId}/tags/${Date.now()}-${sanitizeStorageKey(compressed.name)}`;
+        const { error } = await supabase.storage.from("key-files").upload(path, compressed, { upsert: true });
         if (error) throw error;
         photoPath = path;
       }
+
       let tagId = tag?.id ?? null;
       if (tag) {
         const { error } = await supabase.from("key_tags").update({
@@ -112,9 +148,10 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
         tagId = inserted?.id ?? null;
       }
 
-      // Weitere Dateien hochladen (mehrere möglich)
+      // Weitere Dateien hochladen (mehrere möglich) — Bilder werden komprimiert
       if (tagId && attachFiles.length > 0) {
-        for (const f of attachFiles) {
+        for (const raw of attachFiles) {
+          const f = await compressImageIfNeeded(raw);
           const fPath = `${buildingId}/tags/${tagId}/${Date.now()}-${sanitizeStorageKey(f.name)}`;
           const { error: upErr } = await supabase.storage.from("key-files").upload(fPath, f, { upsert: true });
           if (upErr) throw upErr;
@@ -131,6 +168,7 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
         }
         qc.invalidateQueries({ queryKey: ["key-tag-files", tagId] });
       }
+
       qc.invalidateQueries({ queryKey: ["key-tags", buildingId] });
       qc.invalidateQueries({ queryKey: ["key-events", buildingId] });
       toast.success("Anhänger gespeichert");
@@ -193,27 +231,74 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
           )}
           <div>
             <Label>Foto</Label>
-            <Input type="file" accept="image/*" onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)} />
-          </div>
-          <div>
-            <Label>Weitere Dateien (mehrere möglich)</Label>
-            <Input type="file" multiple onChange={(e) => setAttachFiles(Array.from(e.target.files ?? []))} />
-            {attachFiles.length > 0 && (
-              <p className="text-xs text-muted-foreground mt-1">{attachFiles.length} Datei(en) ausgewählt</p>
-            )}
-            {tagFiles.length > 0 && (
-              <div className="mt-2 space-y-1">
-                {tagFiles.map((f: any) => (
-                  <div key={f.id} className="flex items-center gap-2 text-xs p-1.5 bg-muted rounded">
-                    <button type="button" className="truncate flex-1 text-left text-primary hover:underline" onClick={() => openTagFile(f.file_path)}>
-                      {f.file_name}
-                    </button>
-                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteTagFile(f)}>×</Button>
+            {currentPhotoPath && !photoFile && (
+              <div className="mt-1 flex items-center gap-3 p-2 border rounded">
+                {photoUrl ? (
+                  <img src={photoUrl} alt="Foto" className="h-16 w-16 object-cover rounded" />
+                ) : (
+                  <div className="h-16 w-16 rounded bg-muted flex items-center justify-center">
+                    <FileImage className="h-6 w-6 text-muted-foreground" />
                   </div>
-                ))}
+                )}
+                <div className="flex-1 text-xs text-muted-foreground truncate">Aktuelles Foto</div>
+                {photoUrl && (
+                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(photoUrl, "_blank")} title="Öffnen">
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                )}
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={deletePhoto} title="Foto löschen">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             )}
+            <Input
+              type="file"
+              accept="image/*"
+              className="mt-2"
+              onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+            />
+            {photoFile && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Neu: {photoFile.name}{" "}
+                <button type="button" className="underline" onClick={() => setPhotoFile(null)}>entfernen</button>
+              </p>
+            )}
           </div>
+          <div>
+            <Label>Weitere Dateien {tagFiles.length > 0 && <span className="text-muted-foreground">({tagFiles.length})</span>}</Label>
+            {tagFiles.length > 0 && (
+              <div className="mt-1 space-y-1">
+                {tagFiles.map((f: any) => {
+                  const isImg = (f.mime_type || "").startsWith("image/");
+                  const isPdf = (f.mime_type || "").includes("pdf");
+                  const Icon = isImg ? FileImage : isPdf ? FileText : FileIcon;
+                  return (
+                    <div key={f.id} className="flex items-center gap-2 text-xs p-2 border rounded">
+                      <Icon className={`h-4 w-4 shrink-0 ${isPdf ? "text-red-600" : isImg ? "text-blue-600" : "text-muted-foreground"}`} />
+                      <button type="button" className="truncate flex-1 text-left hover:underline" onClick={() => openTagFile(f.file_path)}>
+                        {f.file_name}
+                      </button>
+                      {f.file_size && (
+                        <span className="text-muted-foreground shrink-0">
+                          {(f.file_size / 1024).toFixed(0)} KB
+                        </span>
+                      )}
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive shrink-0" onClick={() => deleteTagFile(f)} title="Löschen">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <Input type="file" multiple className="mt-2" onChange={(e) => setAttachFiles(Array.from(e.target.files ?? []))} />
+            {attachFiles.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {attachFiles.length} neue Datei(en) ausgewählt — werden beim Speichern hochgeladen
+              </p>
+            )}
+          </div>
+
           <div>
             <Label>Notiz</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
