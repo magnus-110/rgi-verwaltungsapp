@@ -271,6 +271,15 @@ export function EconomicPlanLayout({
             </TableRow>
 
             {/* Footer-Zeilen Gesamtplan */}
+            {!isEinzel && totalPrev > 0 && (
+              <TableRow className="text-xs">
+                <TableCell />
+                <TableCell className="italic text-muted-foreground">Wirtschaftsplan IST-Summe Vorjahr</TableCell>
+                <TableCell colSpan={colSpan - 3} />
+                <TableCell className="text-right font-mono italic text-muted-foreground">{formatCurrency(totalPrev)}</TableCell>
+                {renderActionCell && <TableCell />}
+              </TableRow>
+            )}
             {!isEinzel && footer?.distributableTotal != null && (
               <TableRow className="text-xs">
                 <TableCell />
