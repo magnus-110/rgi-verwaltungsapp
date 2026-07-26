@@ -175,6 +175,8 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       setNewDQRelevant(false);
       setNewRequiresResolution(true);
       setNewIsActionable(false);
+      setNewIncludeDescriptionInInvitation(false);
+
       toast({ title: "TOP hinzugefügt" });
     },
     onError: (err: any) => {
