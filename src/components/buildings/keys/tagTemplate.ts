@@ -164,6 +164,8 @@ function stripRunsByColorCategory(
     );
     return cleaned;
   });
+}
+
 function isOrangeish(hex?: string): boolean {
   const c = hexToRgb(hex);
   if (!c) return false;
