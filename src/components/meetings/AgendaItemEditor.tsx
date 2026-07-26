@@ -88,6 +88,8 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [newDQRelevant, setNewDQRelevant] = useState(false);
   const [newRequiresResolution, setNewRequiresResolution] = useState(true);
   const [newIsActionable, setNewIsActionable] = useState(false);
+  const [newIncludeDescriptionInInvitation, setNewIncludeDescriptionInInvitation] = useState(false);
+
 
   // AI suggestion state
   const [newAiSuggestion, setNewAiSuggestion] = useState<string | null>(null);
