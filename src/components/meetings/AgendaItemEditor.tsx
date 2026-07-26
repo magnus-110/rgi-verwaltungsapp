@@ -156,7 +156,9 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
         double_qualified_relevant: newRequiresResolution ? newDQRelevant : false,
         requires_resolution: newRequiresResolution,
         is_actionable: newRequiresResolution ? newIsActionable : false,
+        include_description_in_invitation: newIncludeDescriptionInInvitation,
       } as any);
+
       if (error) throw error;
     },
     onSuccess: () => {
