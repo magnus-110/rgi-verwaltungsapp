@@ -123,6 +123,47 @@ function isReddish(hex?: string): boolean {
   if (!c) return false;
   return c.r > c.g + 20 && c.r > c.b + 20;
 }
+
+/**
+ * Klassifiziert einen Hex-Fill-Wert (ohne #) in eine der drei Kategorien.
+ * Gibt null zurück, wenn die Farbe keiner Kategorie klar zugeordnet werden
+ * kann (z. B. reine Textfarben, Grautöne).
+ */
+function classifyFill(hex: string): "green" | "orange" | "red" | null {
+  if (isGreenish(hex)) return "green";
+  if (isOrangeish(hex)) return "orange";
+  if (isReddish(hex)) return "red";
+  return null;
+}
+
+/**
+ * Entfernt aus jedem <w:r>, dessen Shading (<w:shd w:fill="…">) einer
+ * anderen Farbkategorie zugeordnet ist als der gewählten, sämtliche
+ * Farbgebung (<w:shd>, <w:color>, <w:highlight>) UND leert den Textinhalt.
+ * Dadurch verschwinden auch dekorative Farb-Runs ohne Platzhalter
+ * (z. B. eine rot hinterlegte Leerzeichen-Run direkt nach {r}).
+ */
+function stripRunsByColorCategory(
+  xml: string,
+  keep: "green" | "orange" | "red",
+): string {
+  const runRe = /<w:r(?:\s[^>]*)?>[\s\S]*?<\/w:r>/g;
+  return xml.replace(runRe, (run) => {
+    const fillM = run.match(/<w:shd\b[^>]*\sw:fill="([0-9A-Fa-f]{6})"/);
+    if (!fillM) return run;
+    const cat = classifyFill(fillM[1]);
+    if (!cat || cat === keep) return run;
+    let cleaned = run
+      .replace(/<w:shd\b[^>]*\/>/g, "")
+      .replace(/<w:color\b[^>]*\/>/g, "")
+      .replace(/<w:highlight\b[^>]*\/>/g, "");
+    // Textinhalt leeren, Struktur beibehalten
+    cleaned = cleaned.replace(
+      /<w:t(\s[^>]*)?>[\s\S]*?<\/w:t>/g,
+      "<w:t$1></w:t>",
+    );
+    return cleaned;
+  });
 function isOrangeish(hex?: string): boolean {
   const c = hexToRgb(hex);
   if (!c) return false;
