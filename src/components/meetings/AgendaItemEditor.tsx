@@ -270,7 +270,9 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       double_qualified_relevant: editRequiresResolution ? editDQRelevant : false,
       requires_resolution: editRequiresResolution,
       is_actionable: editRequiresResolution ? editIsActionable : false,
+      include_description_in_invitation: editIncludeDescriptionInInvitation,
     } as any);
+
     setEditingItemId(null);
     setEditNewFiles([]);
     setEditAiSuggestion(null);
