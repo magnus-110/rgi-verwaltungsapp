@@ -74,6 +74,8 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [editDQRelevant, setEditDQRelevant] = useState(false);
   const [editRequiresResolution, setEditRequiresResolution] = useState(true);
   const [editIsActionable, setEditIsActionable] = useState(false);
+  const [editIncludeDescriptionInInvitation, setEditIncludeDescriptionInInvitation] = useState(false);
+
 
   // New item form
   const [newTitle, setNewTitle] = useState("");
