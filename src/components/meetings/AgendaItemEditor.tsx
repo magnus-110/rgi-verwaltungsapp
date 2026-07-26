@@ -245,7 +245,9 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     setEditDQRelevant(item.double_qualified_relevant || false);
     setEditRequiresResolution(item.requires_resolution !== false);
     setEditIsActionable((item as any).is_actionable || false);
+    setEditIncludeDescriptionInInvitation(!!(item as any).include_description_in_invitation);
   };
+
 
   const saveEdit = async () => {
     if (!editingItemId || !editItemTitle) return;
