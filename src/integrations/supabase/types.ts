@@ -5022,6 +5022,7 @@ export type Database = {
           description: string | null
           double_qualified_relevant: boolean
           id: string
+          include_description_in_invitation: boolean
           is_actionable: boolean
           meeting_id: string
           no_count: number | null
@@ -5050,6 +5051,7 @@ export type Database = {
           description?: string | null
           double_qualified_relevant?: boolean
           id?: string
+          include_description_in_invitation?: boolean
           is_actionable?: boolean
           meeting_id: string
           no_count?: number | null
@@ -5078,6 +5080,7 @@ export type Database = {
           description?: string | null
           double_qualified_relevant?: boolean
           id?: string
+          include_description_in_invitation?: boolean
           is_actionable?: boolean
           meeting_id?: string
           no_count?: number | null

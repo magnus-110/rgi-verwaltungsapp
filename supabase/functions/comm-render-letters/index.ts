@@ -45,9 +45,12 @@ async function loadMeetingVars(admin: any, meetingId: string): Promise<Record<st
   const { data: meeting } = await admin.from("etv_meetings").select("*").eq("id", meetingId).maybeSingle();
   if (!meeting) return {};
   const { data: tops } = await admin.from("etv_agenda_items")
-    .select("title, description, sort_order").eq("meeting_id", meetingId).order("sort_order");
+    .select("title, description, sort_order, include_description_in_invitation").eq("meeting_id", meetingId).order("sort_order");
   const items = (tops || []) as any[];
-  const agendaList = items.map((t, i) => `- TOP ${i + 1}: ${t.title || ""}`).join("\n");
+  const agendaList = items.map((t, i) => {
+    const desc = t.include_description_in_invitation && t.description ? `\n  ${String(t.description).trim().replace(/\n/g, "\n  ")}` : "";
+    return `- TOP ${i + 1}: ${t.title || ""}${desc}`;
+  }).join("\n");
   const agendaTitles = items.map((t, i) => `- TOP ${i + 1}: ${t.title || ""}`).join("\n");
   const md = meeting.meeting_date ? new Date(meeting.meeting_date) : null;
   return {

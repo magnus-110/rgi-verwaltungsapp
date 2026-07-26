@@ -39,6 +39,7 @@ interface AgendaItem {
   double_qualified_relevant: boolean;
   requires_resolution: boolean;
   is_actionable: boolean;
+  include_description_in_invitation?: boolean;
 }
 
 const votingPrinciples = [
@@ -73,6 +74,8 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [editDQRelevant, setEditDQRelevant] = useState(false);
   const [editRequiresResolution, setEditRequiresResolution] = useState(true);
   const [editIsActionable, setEditIsActionable] = useState(false);
+  const [editIncludeDescriptionInInvitation, setEditIncludeDescriptionInInvitation] = useState(false);
+
 
   // New item form
   const [newTitle, setNewTitle] = useState("");
@@ -85,6 +88,8 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [newDQRelevant, setNewDQRelevant] = useState(false);
   const [newRequiresResolution, setNewRequiresResolution] = useState(true);
   const [newIsActionable, setNewIsActionable] = useState(false);
+  const [newIncludeDescriptionInInvitation, setNewIncludeDescriptionInInvitation] = useState(false);
+
 
   // AI suggestion state
   const [newAiSuggestion, setNewAiSuggestion] = useState<string | null>(null);
@@ -151,7 +156,9 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
         double_qualified_relevant: newRequiresResolution ? newDQRelevant : false,
         requires_resolution: newRequiresResolution,
         is_actionable: newRequiresResolution ? newIsActionable : false,
+        include_description_in_invitation: newIncludeDescriptionInInvitation,
       } as any);
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -168,6 +175,8 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       setNewDQRelevant(false);
       setNewRequiresResolution(true);
       setNewIsActionable(false);
+      setNewIncludeDescriptionInInvitation(false);
+
       toast({ title: "TOP hinzugefügt" });
     },
     onError: (err: any) => {
@@ -236,7 +245,9 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     setEditDQRelevant(item.double_qualified_relevant || false);
     setEditRequiresResolution(item.requires_resolution !== false);
     setEditIsActionable((item as any).is_actionable || false);
+    setEditIncludeDescriptionInInvitation(!!(item as any).include_description_in_invitation);
   };
+
 
   const saveEdit = async () => {
     if (!editingItemId || !editItemTitle) return;
@@ -259,7 +270,9 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       double_qualified_relevant: editRequiresResolution ? editDQRelevant : false,
       requires_resolution: editRequiresResolution,
       is_actionable: editRequiresResolution ? editIsActionable : false,
+      include_description_in_invitation: editIncludeDescriptionInInvitation,
     } as any);
+
     setEditingItemId(null);
     setEditNewFiles([]);
     setEditAiSuggestion(null);
@@ -510,6 +523,14 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                   <div className="space-y-1.5">
                                     <Label className="text-xs">Beschreibung</Label>
                                     <Textarea value={editItemDescription} onChange={(e) => setEditItemDescription(e.target.value)} rows={6} placeholder="Ausführliche Beschreibung des Tagesordnungspunkts..." />
+                                    <label className="flex items-start gap-2 text-xs text-muted-foreground pt-1 cursor-pointer">
+                                      <Checkbox
+                                        checked={editIncludeDescriptionInInvitation}
+                                        onCheckedChange={(v) => setEditIncludeDescriptionInInvitation(!!v)}
+                                        className="mt-0.5"
+                                      />
+                                      <span>Beschreibung in Einladung übernehmen</span>
+                                    </label>
                                   </div>
                                   <div className="flex items-center justify-between rounded-md border p-3 bg-muted/20">
                                     <div className="space-y-0.5">
@@ -695,6 +716,14 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
               onChange={(e) => setNewDescription(e.target.value)}
               rows={6}
             />
+            <label className="flex items-start gap-2 text-xs text-muted-foreground pt-1 cursor-pointer">
+              <Checkbox
+                checked={newIncludeDescriptionInInvitation}
+                onCheckedChange={(v) => setNewIncludeDescriptionInInvitation(!!v)}
+                className="mt-0.5"
+              />
+              <span>Beschreibung in Einladung übernehmen</span>
+            </label>
           </div>
           <div className="flex items-center justify-between rounded-md border p-3 bg-muted/20">
             <div className="space-y-0.5">

@@ -1073,14 +1073,17 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                         className="h-6 w-6 p-0"
                         onClick={() => {
                           const v = Number(row.planned_amount) || 0;
-                          const rounded = Math.sign(v) * Math.ceil(Math.abs(v));
+                          // Immer auf die nächste volle 10er-Stelle aufrunden (bei jedem Klick +10 wenn schon glatt)
+                          const abs = Math.abs(v);
+                          const nextTen = Math.floor(abs / 10) * 10 + 10;
+                          const rounded = (Math.sign(v) || 1) * nextTen;
                           setDrafts((p) => ({ ...p, [row.account_id]: rounded }));
                         }}
                       >
                         <ArrowUp className="h-3 w-3" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Aufrunden auf ganze €</TooltipContent>
+                    <TooltipContent>Aufrunden auf nächste 10 €</TooltipContent>
                   </Tooltip>
                 </div>
               ) : undefined}
@@ -1262,14 +1265,16 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                                     className="h-6 w-6 p-0"
                                     onClick={() => {
                                       const v = Number(row.planned_amount) || 0;
-                                      const rounded = Math.sign(v) * Math.ceil(Math.abs(v));
+                                      const abs = Math.abs(v);
+                                      const nextTen = Math.floor(abs / 10) * 10 + 10;
+                                      const rounded = (Math.sign(v) || -1) * nextTen;
                                       setUnitDrafts((p) => ({ ...p, [`${owner.id}|${row.account_id}`]: rounded }));
                                     }}
                                   >
                                     <ArrowUp className="h-3 w-3" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Aufrunden auf ganze €</TooltipContent>
+                                <TooltipContent>Aufrunden auf nächste 10 €</TooltipContent>
                               </Tooltip>
                             </div>
                           );
