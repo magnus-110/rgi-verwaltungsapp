@@ -1,40 +1,62 @@
-# Schlüssel-Modul: 3 Verbesserungen
+## 1) Farb-Bug bei Schlüsselanhänger (nur Orange erscheint zusätzlich)
 
-## 1) Dateien am Anhänger sichtbar & austauschbar (KeyTagDialog)
+**Status:** Ursache noch nicht bestätigt — die vorhandene `stripPlaceholderColoring`-Logik entfernt `<w:shd>`, `<w:color>`, `<w:highlight>` in der Zelle des jeweiligen Platzhalters. Dass Orange bei Grün und Rot trotzdem bleibt, deutet darauf hin, dass die orange Färbung **nicht** über eines dieser Elemente kommt (oder nicht in der `{o}`-Zelle sitzt).
 
-Problem: Beim Schlüssel `10/01-02 O` (Achweg 3-5) wurde versehentlich ein PDF hochgeladen, wo ein Foto hin sollte. Aktuell ist die Dateiliste eher versteckt und das Foto lässt sich nicht ersetzen/löschen.
+**Vorgehen: erst diagnostizieren, dann fixen**
+1. Aktuelle Vorlage (`key-files/_global/tag-template-…docx`) laden, `word/document.xml` inspizieren und prüfen, wo die orange Farbe tatsächlich definiert ist. Typische Verdächtige:
+   - `<w:tcBorders>` / `<w:tblBorders>` mit orangefarbenem Rand
+   - Paragraph-Shading `<w:pPr><w:shd w:fill="…">`
+   - Theme/Style-Referenzen (`<w:pStyle>`, `<w:tblStyle>`) mit orangem Fill
+   - Eine Deko-Zelle ohne `{o}`-Platzhalter, die orange gefärbt ist
+2. Basierend auf dem Fund `stripPlaceholderColoring` erweitern, damit die richtige Quelle entfernt wird (z. B. zusätzlich `<w:shd>` in `pPr`, oder Cell-Borders neutralisieren, oder Deko-Zelle über feste Position identifizieren).
+3. Für alle drei Farben identisches Verhalten verifizieren (Grün, Orange, Rot je einzeln gedruckt).
 
-Änderungen in `src/components/buildings/keys/KeyTagDialog.tsx`:
+## 2) TOP-Beschreibung optional in Einladung übernehmen
 
-- **Foto-Bereich**: Wenn bereits ein `photo_path` existiert, Thumbnail (signed URL) anzeigen mit Buttons „Öffnen“, „Löschen“ und „Ersetzen“. Löschen entfernt Storage-Objekt + setzt `photo_path=null`.
-- **Weitere Dateien**: Bestehende Liste (`tagFiles`) prominenter darstellen — Icon je Typ (Bild/PDF/anderes), Dateiname als Link, kleiner Thumbnail bei Bildern, Löschbutton. Bereits vorhanden, wird visuell überarbeitet und mit Zähler versehen.
-- Neue Dateien lassen sich weiterhin über den Datei-Auswähler ergänzen; nach dem Speichern erscheinen sie sofort in der Liste (Query-Invalidation).
+**DB-Migration**
+- Spalte `include_description_in_invitation boolean NOT NULL DEFAULT false` auf `etv_agenda_items` ergänzen.
 
-## 2) Farbmix bei Anhänger-Ausdruck beheben (`tagTemplate.ts`)
+**Admin-UI (`src/components/meetings/AgendaItemEditor.tsx`)**
+- Neue Checkbox „Beschreibung in Einladung übernehmen" unter dem Beschreibungsfeld (im Neu- und im Bearbeiten-Formular).
+- Insert/Update-Payload um das neue Feld erweitern.
 
-Ursache (in Deiner Vorlage verifiziert): die Zellen enthalten `<w:tcPr><w:shd w:fill="4EA72E"/>` / `FFA500` / `EE0000`. Die aktuelle Funktion `stripPlaceholderColoring` entfernt nur die Formatierung im `<w:r>`-Run, nicht die **Zellen-Hintergrundfarbe** in `<w:tcPr>`. Dadurch bleibt die farbige Zelle sichtbar, obwohl der Platzhalter leer ist. Außerdem bricht die Funktion nach dem ersten Vorkommen ab und findet weitere Zellen desselben Platzhalters nicht.
+**Rendering (`supabase/functions/comm-render-letters/index.ts`)**
+- Query um `include_description_in_invitation` erweitern.
+- Zusätzliche Template-Variablen bereitstellen:
+  - `agenda_list_detailed`: pro TOP eine Zeile `TOP N: Titel` + (falls Checkbox aktiv) neue Zeile mit Einrückung und Beschreibung
+  - Vorhandene Variablen `agenda_list` / `agenda_titles` bleiben unverändert (Rückwärtskompatibilität).
+- Doku im `VariableHelpSheet` ergänzen.
 
-Fix:
-- Für jeden nicht befüllten Platzhalter (`{g}`, `{o}`, `{r}`) die **umschließende Tabellenzelle** ermitteln (mit Depth-Counter für verschachtelte Tabellen — Logik ist bereits in `stripCellColoring` vorhanden) und dort `<w:shd .../>`, `<w:color .../>`, `<w:highlight .../>` entfernen — sowohl im `w:tcPr` als auch in allen Runs der Zelle.
-- Die Zellen-Suche über **alle** Vorkommen des Platzhalters iterieren (auch bei über mehrere `<w:r>` gesplitteten Platzhaltern: virtueller Gesamttext aller `<w:t>` in der Zelle bilden und prüfen, ob der Platzhalter darin vorkommt).
-- Ergebnis: Bei Auswahl „grün“ bleibt nur die grüne Zelle gefärbt; orange und rote Zellen werden hintergrund- und schriftfarblos.
+## 3) Wirtschaftsplan: 10er-Stepper beim Aufrunden
 
-## 3) Automatische Bildkomprimierung beim Upload
+In `src/components/finance/ManualEconomicPlanEditor.tsx` an beiden Stellen mit `ArrowUp` (Gesamt-View ~Zeile 1076 und Einzelplan-View ~Zeile 1265):
+- Rundungslogik umbauen von „auf nächste ganze €" auf „auf nächste 10er-Stelle nach oben (Betrag)":
+  - `const abs = Math.abs(v); const nextTen = Math.floor(abs / 10) * 10 + 10; const rounded = Math.sign(v || -1) * nextTen;`
+  - Jeder Klick springt +10 (0 → -10 → -20 → …); Vorzeichen bleibt negativ wie bisher.
+- Tooltip-Text anpassen: „Auf nächste 10er aufrunden".
 
-Ziel: Fotos/Bilder, die bei Schlüsseln (Foto & Weitere Dateien) hochgeladen werden, werden client-seitig verkleinert, bevor sie in Storage landen — reduziert Speicherverbrauch und Ladezeit.
+## 4) Vorjahres-IST-Summe im Wirtschaftsplan anzeigen
 
-Umsetzung:
-- Neue Hilfsdatei `src/lib/compressImage.ts`: Canvas-basiert, ohne zusätzliche NPM-Abhängigkeit.
-  - Nur wenn `file.type.startsWith("image/")` und nicht `image/gif`/`image/svg+xml`.
-  - Zielmaße: max. 1920 px Kante, JPEG-Qualität 0.82.
-  - Wenn das Ergebnis größer als das Original ist, Original beibehalten.
-  - Rückgabe: neues `File`-Objekt mit derselben Basis-Namen aber `.jpg`-Endung.
-- Aufruf in `KeyTagDialog.save()` für `photoFile` und für jeden Eintrag in `attachFiles`, direkt vor dem `supabase.storage.upload(...)`.
-- Keine Kompression bei PDFs/Word/etc.
+**Ziel:** Unterhalb der Plan-Summe zusätzlich die IST-Summe des Vorjahres als Vergleichszeile.
+
+**Umsetzung**
+- Bereits vorhandene `previousAmount`-Werte pro Zeile (siehe `onPreviousAmountClick`) aufsummieren → `previousTotal`.
+- In `EconomicPlanLayout` (bzw. dem `footer`-Bereich der `TableSection`, siehe Props ab Zeile 1134/1135) eine zusätzliche Fußzeile:
+  - „Vorjahres-IST gesamt: X €"
+  - Optional Differenz und Prozent-Änderung (Wiederverwendung der vorhandenen Prozent-Helper um Zeile 662).
+- Nur in der Gesamt-Ansicht (nicht in Einzelabrechnung).
 
 ## Technische Details
 
-- Keine DB-Migration nötig; Storage-Struktur bleibt unverändert.
-- `key_tag_files` wird bereits sauber gepflegt (Delete-Handler existiert).
-- Farb-Fix betrifft ausschließlich Client-seitige XML-Manipulation vor dem `zip.generate(...)` — kein Server-Roundtrip.
-- Kompression läuft im Browser (Canvas + `toBlob`); keine Auswirkung auf bestehende Uploads.
+- Migration erhält GRANTs nicht neu — nur Spalten-ALTER.
+- Keine Änderungen an bestehenden Template-Variablen — nur additiv.
+- 10er-Rundung bleibt clientseitig; keine DB-Auswirkung.
+- Farb-Fix betrifft nur `src/components/buildings/keys/tagTemplate.ts`.
+
+## Reihenfolge
+
+1. Farb-Bug diagnostizieren (Template-XML lesen) → gezielter Fix.
+2. Migration `etv_agenda_items.include_description_in_invitation`.
+3. AgendaItemEditor + comm-render-letters anpassen.
+4. 10er-Stepper.
+5. Vorjahres-IST-Fußzeile.
