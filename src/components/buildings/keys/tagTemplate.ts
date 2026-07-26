@@ -72,6 +72,14 @@ export async function downloadFilledTagTemplate(opts: {
   if (!fillOrange) xml = stripPlaceholderColoring(xml, "{o}");
   if (!fillRed) xml = stripPlaceholderColoring(xml, "{r}");
 
+  // Zusätzliche Sicherheit: Sweep ALLER Runs, deren Fill-Farbe (via <w:shd>)
+  // klar einer anderen Kategorie zugeordnet ist als der gewählten. Damit
+  // werden auch dekorative farbige Runs entfernt, in denen KEIN Platzhalter
+  // steht (z. B. eine rot hinterlegte Leerzeichen-Run direkt nach {r}, oder
+  // Vorlagen ohne {o}-Platzhalter).
+  const keepCategory: "green" | "orange" | "red" =
+    fillGreen ? "green" : fillOrange ? "orange" : "red";
+  xml = stripRunsByColorCategory(xml, keepCategory);
 
   xml = replaceSplitPlaceholder(xml, "{g}", greenText);
   xml = replaceSplitPlaceholder(xml, "{o}", orangeText);
