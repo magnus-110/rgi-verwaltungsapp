@@ -523,6 +523,14 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                   <div className="space-y-1.5">
                                     <Label className="text-xs">Beschreibung</Label>
                                     <Textarea value={editItemDescription} onChange={(e) => setEditItemDescription(e.target.value)} rows={6} placeholder="Ausführliche Beschreibung des Tagesordnungspunkts..." />
+                                    <label className="flex items-start gap-2 text-xs text-muted-foreground pt-1 cursor-pointer">
+                                      <Checkbox
+                                        checked={editIncludeDescriptionInInvitation}
+                                        onCheckedChange={(v) => setEditIncludeDescriptionInInvitation(!!v)}
+                                        className="mt-0.5"
+                                      />
+                                      <span>Beschreibung in Einladung übernehmen</span>
+                                    </label>
                                   </div>
                                   <div className="flex items-center justify-between rounded-md border p-3 bg-muted/20">
                                     <div className="space-y-0.5">
