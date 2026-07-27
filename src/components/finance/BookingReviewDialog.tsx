@@ -171,7 +171,7 @@ export function BookingReviewDialog({
         if (error || !(data as any)?.signedUrl) {
           throw new Error((data as any)?.error || error?.message || "Signed URL leer");
         }
-        setTemplateInvoiceUrl((data as any).signedUrl);
+        setTemplateInvoiceUrl(forceInlinePdf((data as any).signedUrl));
       } else {
         if (!li.file_path) throw new Error("Kein Dateipfad hinterlegt");
         const cleanPath = li.file_path.startsWith("invoices/")
@@ -179,7 +179,7 @@ export function BookingReviewDialog({
           : li.file_path.replace(/^\/+/, "");
         const { data, error } = await supabase.storage.from("invoices").createSignedUrl(cleanPath, 3600);
         if (error || !data?.signedUrl) throw new Error(error?.message || "Signed URL leer");
-        setTemplateInvoiceUrl(data.signedUrl);
+        setTemplateInvoiceUrl(forceInlinePdf(data.signedUrl));
       }
     } catch (e: any) {
       setTemplateInvoiceError(e?.message || "Fehler beim Laden");
