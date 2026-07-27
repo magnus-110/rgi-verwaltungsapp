@@ -1,55 +1,37 @@
 ## Problem
 
-Beim Klick auf bestimmte Buchungen (Beispiel: Tirolerstr. 14, WJ 2026, 09.06.2026, 380,80 €, Beleg `RG212043.PDF`) startet der Browser sofort einen Download der Rechnung und die Vorschau im Buchungsdialog bleibt leer.
+Belege mit Datei-Endung `.PDF` (Großbuchstaben) landen im Storage als `application/octet-stream`. Der bisherige Fix hängt `?response-content-type=application/pdf&response-content-disposition=inline` an die Signed URL an — aber Supabase Storage **ignoriert** diese Query-Parameter (das sind AWS-S3-spezifische Overrides, der Supabase-Proxy leitet sie nicht weiter). Der Browser sieht weiterhin `octet-stream` und triggert im `<iframe>` einen Download statt einer Anzeige.
 
-**Ursache:** Die Datei liegt im `invoices`-Bucket mit einem fehlenden oder falschen `content-type` (vermutlich `application/octet-stream`, weil sie mit Großbuchstaben-Endung `.PDF` hochgeladen wurde und der Upload keinen expliziten `contentType` gesetzt hat). Ohne `content-type: application/pdf` interpretiert der Browser die Datei nicht als PDF und lädt sie beim Einbetten in ein `<iframe>` herunter, statt sie inline anzuzeigen.
+## Lösung
 
-## Fix
+Statt zu versuchen, den Content-Type per URL zu overriden, laden wir das PDF per `fetch` in einen **Blob** und erzeugen daraus eine `blob:`-URL mit erzwungenem MIME-Typ `application/pdf`. Genau das Muster verwendet bereits `src/components/documents/PdfViewerModal.tsx` erfolgreich.
 
-Signed URLs für Rechnungs-PDFs so erzeugen, dass der Server beim Ausliefern **immer** `Content-Type: application/pdf` und `Content-Disposition: inline` mitschickt — egal, was ursprünglich gespeichert wurde. Supabase Storage unterstützt dafür Query-Parameter am Signed-URL-Response.
+### Änderungen in `src/components/finance/BookingReviewDialog.tsx`
 
-Konkret an die Signed URL anhängen:
+1. `forceInlinePdf(url)` → ersetzen durch `toInlinePdfBlobUrl(signedUrl)`:
+   - `fetch(signedUrl)` → `response.blob()`
+   - `new Blob([blob], { type: "application/pdf" })` (MIME-Typ erzwingen, unabhängig vom Server-Header)
+   - `URL.createObjectURL(...)` zurückgeben.
+2. In den beiden `useEffect`/Loader-Blöcken (Beleg + verknüpfte Rechnung):
+   - Signed URL holen wie bisher.
+   - Anschließend `toInlinePdfBlobUrl` aufrufen und das Ergebnis in `setPdfUrl` / `setTemplateInvoiceUrl` speichern.
+   - Bei Cleanup / Wechsel `URL.revokeObjectURL(...)` aufrufen, damit keine Blobs leaken.
+3. Fehler beim Fetch abfangen und in `pdfError` / `templateInvoiceError` anzeigen (inkl. Fallback-Button „PDF extern öffnen", der die originale Signed URL in neuem Tab öffnet).
 
-```
-?...&response-content-type=application/pdf&response-content-disposition=inline
-```
+### Änderungen in `supabase/functions/audit-signed-url/index.ts`
 
-### Betroffene Stellen
+Der bisherige Query-Param-Anhang bringt nichts und wird entfernt (der Client baut sich den Blob-URL clientseitig aus der reinen Signed URL). Damit ist die Funktion wieder minimal.
 
-An diesen Stellen wird eine Signed URL aus dem `invoices`-Bucket direkt in ein `<iframe>` geladen und braucht den Fix:
+### Änderungen in `src/components/finance/CashAuditDocuments.tsx` (Token- & Owner-Modus)
 
-1. `src/components/finance/BookingReviewDialog.tsx`
-   - `pdfUrl` (Zeile ~98–104) — Haupt-Beleg
-   - `templateInvoiceUrl` (Zeile ~159–173) — verknüpfte Rechnung aus Buchungsvorlage, sowohl Token- als auch Admin-Pfad
-2. Wenn `audit-signed-url` (Edge Function für Token-Modus in der Kassenprüfung) die gleiche Signed URL zurückgibt, dort denselben Query-String an die zurückgegebene URL anhängen, damit Owner-Token-Zugriffe ebenfalls inline öffnen.
+Aktuell öffnet der Kassenprüfer-View PDFs per `window.open(signedUrl)` in einem neuen Tab. Das funktioniert bei `octet-stream` browserabhängig auch als Download. Fix:
+- Neuer Helper `openPdfInline(signedUrl, fileName)`: `fetch` → `Blob({type:"application/pdf"})` → `createObjectURL` → `window.open(blobUrl)`. Für Nicht-PDF-Dateien (Endungs-Check) weiterhin direkt `window.open`.
+- `openViaToken` und `openViaStorage` nutzen diesen Helper.
 
-Nur der Rendering-/URL-Bau-Pfad wird angefasst — keine Datenmigration, keine Änderungen am Upload-Flow, keine Änderungen an bestehenden Dateien.
+## Warum das jetzt funktioniert
 
-### Umsetzung (Detail)
+Der Blob wird clientseitig mit fest `type: "application/pdf"` erstellt. Der Browser rendert Blobs nach ihrem eigenen MIME-Typ — der ursprüngliche `Content-Type`-Header des Storage-Objekts ist nicht mehr relevant. Damit werden `.PDF`-Dateien und alle Uploads ohne korrekten Content-Type zuverlässig inline angezeigt.
 
-Kleine Helper-Funktion in `BookingReviewDialog.tsx` (oder in einer geteilten Utility, wenn sinnvoll):
+## QA
 
-```ts
-function forceInlinePdf(url: string): string {
-  const sep = url.includes("?") ? "&" : "?";
-  return `${url}${sep}response-content-type=application/pdf&response-content-disposition=inline`;
-}
-```
-
-Und in beiden `setPdfUrl(...)` / `setTemplateInvoiceUrl(...)` -Aufrufen:
-
-```ts
-setPdfUrl(forceInlinePdf(data.signedUrl));
-```
-
-Für die Token-Variante (Edge Function `audit-signed-url`): entweder in der Edge Function selbst die Query-Parameter an die zurückgegebene URL anhängen (bevorzugt, damit auch andere Aufrufer profitieren), oder im Frontend nach Erhalt der URL mit derselben `forceInlinePdf`-Funktion nachbearbeiten.
-
-## Was der Fix bewusst NICHT tut
-
-- Keine Migration bestehender Dateien und keine Neuberechnung/Reset von `content-type` im Storage.
-- Kein Eingriff in Upload-Pfade (falsch gesetzter MIME beim Upload bleibt bestehen — spielt aber keine Rolle mehr, weil die Anzeige den Type überschreibt).
-- Keine Änderungen an Buchungslogik, Kassenprüfung-Datenmodell oder Detailanzeige links.
-
-## Erwartetes Ergebnis
-
-Nach dem Fix öffnet ein Klick auf jede Buchung mit hinterlegtem Rechnungs-PDF (auch `RG212043.PDF`) die Vorschau direkt inline im Dialog — kein automatischer Download mehr.
+Nach der Änderung: Buchung Tirolerstr. 14 / 09.06.2026 (`RG212043.PDF`) öffnen — Vorschau muss inline erscheinen, kein Download. Zusätzlich Kassenprüfer-Ansicht Birkenweg 6 prüfen (Owner-Login und Token-Link).

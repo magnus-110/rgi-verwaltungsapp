@@ -64,14 +64,19 @@ interface Props {
 const fmt = (n?: number | null) =>
   n == null ? "–" : n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 
-// Erzwingt Inline-Anzeige von PDFs, selbst wenn der Storage-Content-Type
-// fehlt oder auf application/octet-stream steht (z. B. bei Dateien mit
-// Großbuchstaben-Endung ".PDF"). Ohne diesen Override lädt der Browser
-// die Datei im <iframe> als Download herunter, statt sie anzuzeigen.
-function forceInlinePdf(url: string): string {
-  const sep = url.includes("?") ? "&" : "?";
-  return `${url}${sep}response-content-type=application/pdf&response-content-disposition=inline`;
+// Erzeugt aus einer Signed URL eine blob:-URL mit erzwungenem MIME-Typ
+// application/pdf. Nötig, weil Uploads mit Endung ".PDF" im Storage oft
+// als application/octet-stream landen; ein <iframe> würde die Datei sonst
+// herunterladen statt anzuzeigen. Supabase Storage ignoriert die S3-Query-
+// Parameter response-content-type/-disposition, daher clientseitig fixen.
+async function toInlinePdfBlobUrl(signedUrl: string): Promise<string> {
+  const res = await fetch(signedUrl);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const raw = await res.blob();
+  const pdfBlob = new Blob([raw], { type: "application/pdf" });
+  return URL.createObjectURL(pdfBlob);
 }
+
 
 export function BookingReviewDialog({
   open, onOpenChange, bookings, selectedId, setSelectedId,
@@ -91,13 +96,20 @@ export function BookingReviewDialog({
   const booking = idx >= 0 ? bookings[idx] : null;
 
   useEffect(() => {
-    setPdfUrl(null);
+    setPdfUrl((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return null;
+    });
     setPdfError(null);
     setTemplateInvoiceOpen(false);
-    setTemplateInvoiceUrl(null);
+    setTemplateInvoiceUrl((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return null;
+    });
     setTemplateInvoiceError(null);
     if (!booking?.invoices?.file_path) return;
     let cancelled = false;
+    let createdBlobUrl: string | null = null;
     setPdfLoading(true);
     (async () => {
       const raw = booking.invoices!.file_path!;
@@ -109,13 +121,29 @@ export function BookingReviewDialog({
       if (error || !data?.signedUrl) {
         setPdfError(error?.message || "Signed URL leer");
         console.warn("[BookingReviewDialog] signed URL failed", { cleanPath, error });
-      } else {
-        setPdfUrl(forceInlinePdf(data.signedUrl));
+        setPdfLoading(false);
+        return;
       }
-      setPdfLoading(false);
+      try {
+        const blobUrl = await toInlinePdfBlobUrl(data.signedUrl);
+        if (cancelled) {
+          URL.revokeObjectURL(blobUrl);
+        } else {
+          createdBlobUrl = blobUrl;
+          setPdfUrl(blobUrl);
+        }
+      } catch (e: any) {
+        if (!cancelled) setPdfError(e?.message || "PDF konnte nicht geladen werden");
+      } finally {
+        if (!cancelled) setPdfLoading(false);
+      }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (createdBlobUrl) URL.revokeObjectURL(createdBlobUrl);
+    };
   }, [selectedId, booking?.invoices?.file_path]);
+
 
   // Lade Geschwister sobald invoice_id existiert (auch ohne split_parts_total),
   // damit Altbestand-Splits erkannt werden.
@@ -171,7 +199,7 @@ export function BookingReviewDialog({
         if (error || !(data as any)?.signedUrl) {
           throw new Error((data as any)?.error || error?.message || "Signed URL leer");
         }
-        setTemplateInvoiceUrl(forceInlinePdf((data as any).signedUrl));
+        setTemplateInvoiceUrl(await toInlinePdfBlobUrl((data as any).signedUrl));
       } else {
         if (!li.file_path) throw new Error("Kein Dateipfad hinterlegt");
         const cleanPath = li.file_path.startsWith("invoices/")
@@ -179,7 +207,8 @@ export function BookingReviewDialog({
           : li.file_path.replace(/^\/+/, "");
         const { data, error } = await supabase.storage.from("invoices").createSignedUrl(cleanPath, 3600);
         if (error || !data?.signedUrl) throw new Error(error?.message || "Signed URL leer");
-        setTemplateInvoiceUrl(forceInlinePdf(data.signedUrl));
+        setTemplateInvoiceUrl(await toInlinePdfBlobUrl(data.signedUrl));
+
       }
     } catch (e: any) {
       setTemplateInvoiceError(e?.message || "Fehler beim Laden");

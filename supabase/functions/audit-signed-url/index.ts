@@ -69,15 +69,10 @@ Deno.serve(async (req) => {
     const { data: signed, error: sErr } = await supabase.storage.from(bucket).createSignedUrl(path, 300);
     if (sErr || !signed?.signedUrl) return json({ error: sErr?.message || "Sign failed" }, 500);
 
-    // Inline-Anzeige von PDFs erzwingen, unabhängig vom Storage-Content-Type
-    // (Dateien mit ".PDF"-Endung landen sonst als octet-stream und würden
-    // im <iframe> heruntergeladen statt angezeigt).
-    const isPdf = /\.pdf$/i.test(path);
-    const finalUrl = isPdf
-      ? `${signed.signedUrl}${signed.signedUrl.includes("?") ? "&" : "?"}response-content-type=application/pdf&response-content-disposition=inline`
-      : signed.signedUrl;
+    // Content-Type-Override wird clientseitig via Blob erzwungen (Supabase
+    // Storage honoriert die S3 response-content-*-Query-Params nicht).
+    return json({ signedUrl: signed.signedUrl });
 
-    return json({ signedUrl: finalUrl });
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }
