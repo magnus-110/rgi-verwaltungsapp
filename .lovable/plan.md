@@ -1,16 +1,23 @@
 ## Problem
 
-Auf `/admin/change-password` (Seite `src/pages/ChangePassword.tsx`) gibt es nur zwei Felder: „Neues Passwort" und „Passwort bestätigen". Beim Speichern ruft `updatePassword` → `supabase.auth.updateUser({ password })`. Supabase verlangt für Passwort-Änderungen bei „normal" eingeloggten Nutzern eine kürzlich bestätigte Anmeldung (Reauthentication) und liefert sonst einen Fehler wie „Auth session missing / require reauth". Das erklärt die Meldung „altes Passwort nötig" ohne Eingabefeld.
+Der eingeloggte Admin hat MFA aktiv. Supabase verlangt für `auth.updateUser({ password })` in diesem Fall eine **AAL2-Session**. Aktuell macht die Seite nur `signInWithPassword` als Reauth — das erzeugt aber eine frische **AAL1-Session** (Passwort allein), keine AAL2. Deshalb schlägt der direkt folgende `updateUser` mit `AAL2 session is required to update email or password when MFA is enabled` fehl (siehe Auth-Logs, `error_code: insufficient_aal`).
 
 ## Lösung
 
-1. `src/pages/ChangePassword.tsx`
-   - Neues Feld „Aktuelles Passwort" (mit Show/Hide-Toggle) oberhalb von „Neues Passwort" hinzufügen — nur anzeigen, wenn `profile.force_password_change` und `profile.must_change_password` **beide falsy** sind (bei Erstlogin ist kein altes Passwort bekannt).
-   - Vor `updatePassword(newPassword)` eine Reauth via `supabase.auth.signInWithPassword({ email: profile.email, password: currentPassword })` durchführen. Bei Fehler klare Toast-Meldung „Aktuelles Passwort ist falsch" und abbrechen.
-   - Nach erfolgreichem `signInWithPassword` das neue Passwort setzen und Erfolgs-Toast + Redirect je nach Rolle (`/admin`, `/weg-owner`, `/tenant`).
+MFA-Schritt in den Passwort-Ändern-Flow einbauen, damit die Session vor `updateUser` auf AAL2 gehoben wird.
 
-2. Keine Änderungen an `useAuth.updatePassword` oder anderen Rollen-Seiten nötig — das Feld erscheint nur, wenn kein Force-Change vorliegt, und deckt damit Admin, WEG-Owner und Tenant im normalen Betrieb ab.
+### `src/pages/ChangePassword.tsx`
+
+1. Nach erfolgreichem `signInWithPassword`-Reauth prüfen:
+   `supabase.auth.mfa.getAuthenticatorAssuranceLevel()` → wenn `currentLevel !== 'aal2'` und `nextLevel === 'aal2'`, MFA-Challenge nötig.
+2. Verifizierte TOTP-Faktoren laden über `supabase.auth.mfa.listFactors()` und den ersten `verified` TOTP-Faktor nehmen.
+3. Neuen State `mfaRequired` + `mfaCode` einführen. Sobald AAL2 nötig ist, statt sofortigem `updatePassword` ein zusätzliches Feld „Bestätigungscode aus Authenticator-App (6-stellig)" einblenden und den Submit-Button auf „Bestätigen & Passwort ändern" umschalten.
+4. Beim erneuten Submit: `mfa.challenge({ factorId })` → `mfa.verify({ factorId, challengeId, code })`. Bei Erfolg (Session ist jetzt AAL2) `updatePassword(newPassword)` ausführen. Bei Fehler klarer Toast „Code ungültig".
+5. Fehlerfall „kein verifizierter Faktor" (sollte nicht passieren, da `mfa_required` gesetzt): Toast mit Hinweis, sich einmal frisch abzumelden und via MFA-Challenge neu anzumelden.
+6. Für den erzwungenen Erstlogin (`isForcedChange`) bleibt das Verhalten unverändert — dort existiert typischerweise noch keine MFA-Enrollment.
+
+Keine Änderungen an `useAuth.updatePassword` oder anderen Rollen-Seiten. Das MFA-Feld erscheint nur, wenn Supabase AAL2 verlangt.
 
 ## Betroffene Datei
 
-- `src/pages/ChangePassword.tsx` — Feld + State + Reauth-Logik.
+- `src/pages/ChangePassword.tsx` — MFA-Challenge-Zwischenschritt (TOTP-Code) vor `updateUser`.
