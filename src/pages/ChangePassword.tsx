@@ -17,6 +17,9 @@ export const ChangePassword = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
   const { user, profile, updatePassword } = useAuth();
   const location = useLocation();
   
@@ -75,7 +78,7 @@ export const ChangePassword = () => {
 
     setLoading(true);
 
-    if (!isForcedChange) {
+    if (!isForcedChange && !mfaRequired) {
       const email = profile?.email || user?.email;
       if (!email) {
         setLoading(false);
@@ -95,6 +98,66 @@ export const ChangePassword = () => {
         });
         return;
       }
+
+      // Check whether AAL2 (MFA) is required for updateUser
+      try {
+        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        if (aal?.currentLevel !== "aal2" && aal?.nextLevel === "aal2") {
+          const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
+          if (factorsError) throw factorsError;
+          const totp = factors?.totp?.find((f) => f.status === "verified") ?? factors?.totp?.[0];
+          if (!totp) {
+            setLoading(false);
+            toast({
+              title: "MFA erforderlich",
+              description: "Kein verifizierter Authenticator gefunden. Bitte melden Sie sich neu an und schließen Sie die MFA-Prüfung ab.",
+              variant: "destructive",
+            });
+            return;
+          }
+          setMfaFactorId(totp.id);
+          setMfaRequired(true);
+          setLoading(false);
+          toast({
+            title: "Bestätigungscode erforderlich",
+            description: "Bitte geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein.",
+          });
+          return;
+        }
+      } catch (e: any) {
+        setLoading(false);
+        toast({ title: "MFA-Prüfung fehlgeschlagen", description: e?.message ?? "Unbekannter Fehler", variant: "destructive" });
+        return;
+      }
+    }
+
+    if (mfaRequired) {
+      if (!mfaFactorId) {
+        setLoading(false);
+        toast({ title: "Fehler", description: "MFA-Faktor nicht gefunden.", variant: "destructive" });
+        return;
+      }
+      if (!/^\d{6}$/.test(mfaCode.trim())) {
+        setLoading(false);
+        toast({ title: "Code ungültig", description: "Bitte 6-stelligen Code eingeben.", variant: "destructive" });
+        return;
+      }
+      const { data: challenge, error: chalErr } = await supabase.auth.mfa.challenge({ factorId: mfaFactorId });
+      if (chalErr || !challenge) {
+        setLoading(false);
+        toast({ title: "MFA-Challenge fehlgeschlagen", description: chalErr?.message ?? "Unbekannter Fehler", variant: "destructive" });
+        return;
+      }
+      const { error: verifyErr } = await supabase.auth.mfa.verify({
+        factorId: mfaFactorId,
+        challengeId: challenge.id,
+        code: mfaCode.trim(),
+      });
+      if (verifyErr) {
+        setLoading(false);
+        toast({ title: "Code ungültig", description: "Der eingegebene Code ist falsch oder abgelaufen.", variant: "destructive" });
+        return;
+      }
     }
 
     const { error } = await updatePassword(newPassword);
@@ -104,6 +167,9 @@ export const ChangePassword = () => {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      setMfaCode("");
+      setMfaRequired(false);
+      setMfaFactorId(null);
     }
   };
 
@@ -220,12 +286,28 @@ export const ChangePassword = () => {
                   </Button>
                 </div>
               </div>
+              {mfaRequired && (
+                <div className="space-y-2">
+                  <Label htmlFor="mfaCode">Bestätigungscode (Authenticator-App)</Label>
+                  <Input
+                    id="mfaCode"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={mfaCode}
+                    onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ""))}
+                    placeholder="123456"
+                    className="focus:ring-primary focus:border-primary tracking-widest text-center"
+                  />
+                </div>
+              )}
               <Button
                 type="submit"
                 className="w-full bg-gradient-primary hover:opacity-90 text-primary-foreground"
                 disabled={loading}
               >
-                {loading ? "Passwort wird geändert..." : "Passwort ändern"}
+                {loading ? "Passwort wird geändert..." : mfaRequired ? "Bestätigen & Passwort ändern" : "Passwort ändern"}
               </Button>
             </form>
           </CardContent>
