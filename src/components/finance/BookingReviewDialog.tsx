@@ -64,6 +64,15 @@ interface Props {
 const fmt = (n?: number | null) =>
   n == null ? "–" : n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 
+// Erzwingt Inline-Anzeige von PDFs, selbst wenn der Storage-Content-Type
+// fehlt oder auf application/octet-stream steht (z. B. bei Dateien mit
+// Großbuchstaben-Endung ".PDF"). Ohne diesen Override lädt der Browser
+// die Datei im <iframe> als Download herunter, statt sie anzuzeigen.
+function forceInlinePdf(url: string): string {
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}response-content-type=application/pdf&response-content-disposition=inline`;
+}
+
 export function BookingReviewDialog({
   open, onOpenChange, bookings, selectedId, setSelectedId,
   flag, setFlag, note, setNote, readOnly, buildingId, tokenMode, token,
