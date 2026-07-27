@@ -130,6 +130,8 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
       let tagId = tag?.id ?? null;
       if (tag) {
         const { error } = await supabase.from("key_tags").update({
+          storage_location_id: storageLocationId,
+          key_type_id: keyTypeId,
           notes, photo_path: photoPath,
         }).eq("id", tag.id);
         if (error) throw error;
