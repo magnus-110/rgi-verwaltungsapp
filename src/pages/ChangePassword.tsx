@@ -286,12 +286,28 @@ export const ChangePassword = () => {
                   </Button>
                 </div>
               </div>
+              {mfaRequired && (
+                <div className="space-y-2">
+                  <Label htmlFor="mfaCode">Bestätigungscode (Authenticator-App)</Label>
+                  <Input
+                    id="mfaCode"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={mfaCode}
+                    onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ""))}
+                    placeholder="123456"
+                    className="focus:ring-primary focus:border-primary tracking-widest text-center"
+                  />
+                </div>
+              )}
               <Button
                 type="submit"
                 className="w-full bg-gradient-primary hover:opacity-90 text-primary-foreground"
                 disabled={loading}
               >
-                {loading ? "Passwort wird geändert..." : "Passwort ändern"}
+                {loading ? "Passwort wird geändert..." : mfaRequired ? "Bestätigen & Passwort ändern" : "Passwort ändern"}
               </Button>
             </form>
           </CardContent>
