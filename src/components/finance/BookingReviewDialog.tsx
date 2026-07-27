@@ -110,7 +110,7 @@ export function BookingReviewDialog({
         setPdfError(error?.message || "Signed URL leer");
         console.warn("[BookingReviewDialog] signed URL failed", { cleanPath, error });
       } else {
-        setPdfUrl(data.signedUrl);
+        setPdfUrl(forceInlinePdf(data.signedUrl));
       }
       setPdfLoading(false);
     })();
