@@ -41,9 +41,11 @@ export const ChangePassword = () => {
     return <Navigate to="/" replace />;
   }
 
+  const isForcedChange = !!(profile?.force_password_change || profile?.must_change_password);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (newPassword !== confirmPassword) {
       toast({
         title: "Passwörter stimmen nicht überein",
@@ -62,12 +64,46 @@ export const ChangePassword = () => {
       return;
     }
 
+    if (!isForcedChange && !currentPassword) {
+      toast({
+        title: "Aktuelles Passwort erforderlich",
+        description: "Bitte geben Sie Ihr aktuelles Passwort ein.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
+
+    if (!isForcedChange) {
+      const email = profile?.email || user?.email;
+      if (!email) {
+        setLoading(false);
+        toast({ title: "Fehler", description: "E-Mail nicht verfügbar.", variant: "destructive" });
+        return;
+      }
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email,
+        password: currentPassword,
+      });
+      if (reauthError) {
+        setLoading(false);
+        toast({
+          title: "Aktuelles Passwort ist falsch",
+          description: "Bitte überprüfen Sie Ihr aktuelles Passwort und versuchen Sie es erneut.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     const { error } = await updatePassword(newPassword);
     setLoading(false);
 
     if (!error) {
-      // Redirect will happen automatically after profile update
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
     }
   };
 
