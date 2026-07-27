@@ -64,14 +64,19 @@ interface Props {
 const fmt = (n?: number | null) =>
   n == null ? "–" : n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 
-// Erzwingt Inline-Anzeige von PDFs, selbst wenn der Storage-Content-Type
-// fehlt oder auf application/octet-stream steht (z. B. bei Dateien mit
-// Großbuchstaben-Endung ".PDF"). Ohne diesen Override lädt der Browser
-// die Datei im <iframe> als Download herunter, statt sie anzuzeigen.
-function forceInlinePdf(url: string): string {
-  const sep = url.includes("?") ? "&" : "?";
-  return `${url}${sep}response-content-type=application/pdf&response-content-disposition=inline`;
+// Erzeugt aus einer Signed URL eine blob:-URL mit erzwungenem MIME-Typ
+// application/pdf. Nötig, weil Uploads mit Endung ".PDF" im Storage oft
+// als application/octet-stream landen; ein <iframe> würde die Datei sonst
+// herunterladen statt anzuzeigen. Supabase Storage ignoriert die S3-Query-
+// Parameter response-content-type/-disposition, daher clientseitig fixen.
+async function toInlinePdfBlobUrl(signedUrl: string): Promise<string> {
+  const res = await fetch(signedUrl);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const raw = await res.blob();
+  const pdfBlob = new Blob([raw], { type: "application/pdf" });
+  return URL.createObjectURL(pdfBlob);
 }
+
 
 export function BookingReviewDialog({
   open, onOpenChange, bookings, selectedId, setSelectedId,
