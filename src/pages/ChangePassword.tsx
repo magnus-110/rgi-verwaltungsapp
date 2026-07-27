@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,34 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Eye, EyeOff } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
+const clearStoredAuthState = () => {
+  Object.keys(localStorage).forEach((key) => {
+    if (key.startsWith("supabase.auth.") || key.includes("sb-")) {
+      localStorage.removeItem(key);
+    }
+  });
+
+  Object.keys(sessionStorage || {}).forEach((key) => {
+    if (key.startsWith("supabase.auth.") || key.includes("sb-")) {
+      sessionStorage.removeItem(key);
+    }
+  });
+};
+
+const persistMfaSession = async (data: unknown) => {
+  const sessionData = data as { access_token?: string; refresh_token?: string } | null;
+  if (!sessionData?.access_token || !sessionData?.refresh_token) return;
+
+  const { error } = await supabase.auth.setSession({
+    access_token: sessionData.access_token,
+    refresh_token: sessionData.refresh_token,
+  });
+
+  if (error) throw error;
+};
+
 export const ChangePassword = () => {
+  const navigate = useNavigate();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -20,7 +47,7 @@ export const ChangePassword = () => {
   const [mfaRequired, setMfaRequired] = useState(false);
   const [mfaCode, setMfaCode] = useState("");
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
-  const { user, profile, updatePassword } = useAuth();
+  const { user, profile } = useAuth();
   const location = useLocation();
   
   const isAdminRoute = location.pathname.startsWith('/admin/');
@@ -45,6 +72,74 @@ export const ChangePassword = () => {
   }
 
   const isForcedChange = !!(profile?.force_password_change || profile?.must_change_password);
+
+  const requestMfaCodeIfNeeded = async () => {
+    const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aalError) throw aalError;
+
+    if (aal?.currentLevel === "aal2" || aal?.nextLevel !== "aal2") {
+      return false;
+    }
+
+    const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
+    if (factorsError) throw factorsError;
+
+    const totp = factors?.totp?.find((factor) => factor.status === "verified") ?? factors?.totp?.[0];
+    if (!totp) {
+      toast({
+        title: "MFA erforderlich",
+        description: "Kein verifizierter Authenticator gefunden. Bitte melden Sie sich neu an und schließen Sie die MFA-Prüfung ab.",
+        variant: "destructive",
+      });
+      return true;
+    }
+
+    setMfaFactorId(totp.id);
+    setMfaRequired(true);
+    toast({
+      title: "Bestätigungscode erforderlich",
+      description: "Bitte geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein.",
+    });
+    return true;
+  };
+
+  const finishPasswordChange = async () => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+
+    if (error) {
+      toast({
+        title: "Passwort-Änderung fehlgeschlagen",
+        description: error.message,
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (profile && user?.id) {
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ force_password_change: false, must_change_password: false })
+        .eq("user_id", user.id);
+
+      if (profileError) {
+        console.warn("Password changed, but profile flags could not be cleared", profileError);
+      }
+    }
+
+    toast({
+      title: "Passwort erfolgreich geändert",
+      description: "Bitte melden Sie sich jetzt mit dem neuen Passwort an.",
+    });
+
+    try {
+      await supabase.auth.signOut({ scope: "global" });
+    } catch (signOutError) {
+      console.warn("Global sign-out after password change failed", signOutError);
+    }
+    clearStoredAuthState();
+    navigate("/login", { replace: true });
+    return true;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,99 +173,94 @@ export const ChangePassword = () => {
 
     setLoading(true);
 
-    if (!isForcedChange && !mfaRequired) {
-      const email = profile?.email || user?.email;
-      if (!email) {
-        setLoading(false);
-        toast({ title: "Fehler", description: "E-Mail nicht verfügbar.", variant: "destructive" });
-        return;
-      }
-      const { error: reauthError } = await supabase.auth.signInWithPassword({
-        email,
-        password: currentPassword,
-      });
-      if (reauthError) {
-        setLoading(false);
-        toast({
-          title: "Aktuelles Passwort ist falsch",
-          description: "Bitte überprüfen Sie Ihr aktuelles Passwort und versuchen Sie es erneut.",
-          variant: "destructive",
-        });
-        return;
-      }
+    try {
+      if (!isForcedChange && !mfaRequired) {
+        const email = user?.email || profile?.email;
+        if (!email) {
+          toast({ title: "Fehler", description: "E-Mail nicht verfügbar.", variant: "destructive" });
+          return;
+        }
 
-      // Check whether AAL2 (MFA) is required for updateUser
-      try {
-        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-        if (aal?.currentLevel !== "aal2" && aal?.nextLevel === "aal2") {
-          const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
-          if (factorsError) throw factorsError;
-          const totp = factors?.totp?.find((f) => f.status === "verified") ?? factors?.totp?.[0];
-          if (!totp) {
-            setLoading(false);
-            toast({
-              title: "MFA erforderlich",
-              description: "Kein verifizierter Authenticator gefunden. Bitte melden Sie sich neu an und schließen Sie die MFA-Prüfung ab.",
-              variant: "destructive",
-            });
-            return;
-          }
-          setMfaFactorId(totp.id);
-          setMfaRequired(true);
-          setLoading(false);
+        const { error: reauthError } = await supabase.auth.signInWithPassword({
+          email,
+          password: currentPassword,
+        });
+        if (reauthError) {
           toast({
-            title: "Bestätigungscode erforderlich",
-            description: "Bitte geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein.",
+            title: "Aktuelles Passwort ist falsch",
+            description: "Bitte überprüfen Sie Ihr aktuelles Passwort und versuchen Sie es erneut.",
+            variant: "destructive",
           });
           return;
         }
-      } catch (e: any) {
-        setLoading(false);
-        toast({ title: "MFA-Prüfung fehlgeschlagen", description: e?.message ?? "Unbekannter Fehler", variant: "destructive" });
-        return;
-      }
-    }
 
-    if (mfaRequired) {
-      if (!mfaFactorId) {
-        setLoading(false);
-        toast({ title: "Fehler", description: "MFA-Faktor nicht gefunden.", variant: "destructive" });
-        return;
+        const needsMfaCode = await requestMfaCodeIfNeeded();
+        if (needsMfaCode) return;
       }
-      if (!/^\d{6}$/.test(mfaCode.trim())) {
-        setLoading(false);
-        toast({ title: "Code ungültig", description: "Bitte 6-stelligen Code eingeben.", variant: "destructive" });
-        return;
+
+      if (isForcedChange && !mfaRequired) {
+        const needsMfaCode = await requestMfaCodeIfNeeded();
+        if (needsMfaCode) return;
       }
-      const { data: challenge, error: chalErr } = await supabase.auth.mfa.challenge({ factorId: mfaFactorId });
-      if (chalErr || !challenge) {
-        setLoading(false);
-        toast({ title: "MFA-Challenge fehlgeschlagen", description: chalErr?.message ?? "Unbekannter Fehler", variant: "destructive" });
-        return;
+
+      if (mfaRequired) {
+        if (!mfaFactorId) {
+          toast({ title: "Fehler", description: "MFA-Faktor nicht gefunden.", variant: "destructive" });
+          return;
+        }
+        if (!/^\d{6}$/.test(mfaCode.trim())) {
+          toast({ title: "Code ungültig", description: "Bitte 6-stelligen Code eingeben.", variant: "destructive" });
+          return;
+        }
+
+        const { data: challenge, error: chalErr } = await supabase.auth.mfa.challenge({ factorId: mfaFactorId });
+        if (chalErr || !challenge) {
+          toast({ title: "MFA-Challenge fehlgeschlagen", description: chalErr?.message ?? "Unbekannter Fehler", variant: "destructive" });
+          return;
+        }
+
+        const { data: verifyData, error: verifyErr } = await supabase.auth.mfa.verify({
+          factorId: mfaFactorId,
+          challengeId: challenge.id,
+          code: mfaCode.trim(),
+        });
+        if (verifyErr) {
+          toast({ title: "Code ungültig", description: "Der eingegebene Code ist falsch oder abgelaufen.", variant: "destructive" });
+          return;
+        }
+
+        await persistMfaSession(verifyData);
+
+        const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        if (aalError || aal?.currentLevel !== "aal2") {
+          toast({
+            title: "MFA-Bestätigung fehlt",
+            description: aalError?.message ?? "Bitte melden Sie sich neu an und bestätigen Sie den Authenticator-Code erneut.",
+            variant: "destructive",
+          });
+          return;
+        }
       }
-      const { error: verifyErr } = await supabase.auth.mfa.verify({
-        factorId: mfaFactorId,
-        challengeId: challenge.id,
-        code: mfaCode.trim(),
+
+      const changed = await finishPasswordChange();
+      if (changed) {
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        setMfaCode("");
+        setMfaRequired(false);
+        setMfaFactorId(null);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Passwort-Änderung fehlgeschlagen",
+        description: error?.message ?? "Unbekannter Fehler",
+        variant: "destructive",
       });
-      if (verifyErr) {
-        setLoading(false);
-        toast({ title: "Code ungültig", description: "Der eingegebene Code ist falsch oder abgelaufen.", variant: "destructive" });
-        return;
-      }
+    } finally {
+      setLoading(false);
     }
 
-    const { error } = await updatePassword(newPassword);
-    setLoading(false);
-
-    if (!error) {
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      setMfaCode("");
-      setMfaRequired(false);
-      setMfaFactorId(null);
-    }
   };
 
   return (

@@ -1,37 +1,30 @@
-## Problem
+## Ziel
+Die Passwortänderung soll wirklich das Supabase-Auth-Passwort aktualisieren und danach eindeutig funktionieren, statt durch Re-Login/MFA-Sessionwechsel scheinbar erfolgreich zu sein.
 
-Belege mit Datei-Endung `.PDF` (Großbuchstaben) landen im Storage als `application/octet-stream`. Der bisherige Fix hängt `?response-content-type=application/pdf&response-content-disposition=inline` an die Signed URL an — aber Supabase Storage **ignoriert** diese Query-Parameter (das sind AWS-S3-spezifische Overrides, der Supabase-Proxy leitet sie nicht weiter). Der Browser sieht weiterhin `octet-stream` und triggert im `<iframe>` einen Download statt einer Anzeige.
+## Befund
+- In `ChangePassword.tsx` wird zur Prüfung des alten Passworts `signInWithPassword()` aufgerufen.
+- Bei MFA-Konten erzeugt dieser Re-Login wieder eine AAL1-Session und kann die vorherige Session/den Auth-State überschreiben.
+- Danach wird zwar der MFA-Code abgefragt, aber der Ablauf ist fragil: UI-Erfolg und tatsächliche Passwortänderung können auseinanderlaufen, besonders durch Sessionwechsel während der laufenden Änderung.
 
-## Lösung
+## Plan
+1. **Passwortänderung in einem klaren Ablauf kapseln**
+   - In `ChangePassword.tsx` nach der alten Passwortprüfung die aktuelle Session stabilisieren.
+   - Nach MFA-Verify explizit prüfen, ob die Session wirklich `aal2` ist, bevor `updateUser({ password })` ausgeführt wird.
 
-Statt zu versuchen, den Content-Type per URL zu overriden, laden wir das PDF per `fetch` in einen **Blob** und erzeugen daraus eine `blob:`-URL mit erzwungenem MIME-Typ `application/pdf`. Genau das Muster verwendet bereits `src/components/documents/PdfViewerModal.tsx` erfolgreich.
+2. **Keine irreführende Erfolgsmeldung mehr**
+   - Erfolg nur anzeigen, wenn `supabase.auth.updateUser({ password })` ohne Fehler zurückkommt.
+   - Bei Fehlern eine konkrete Meldung anzeigen, z. B. wenn weiter `AAL2` fehlt.
 
-### Änderungen in `src/components/finance/BookingReviewDialog.tsx`
+3. **Nach erfolgreicher Änderung sauber neu anmelden lassen**
+   - Nach erfolgreichem Passwortwechsel globale Abmeldung/Session-Cleanup durchführen und zur Login-Seite leiten.
+   - Hinweis anzeigen: „Passwort geändert. Bitte mit dem neuen Passwort anmelden.“
+   - Dadurch wird verhindert, dass alte Refresh-Tokens oder MFA-Zwischenzustände den Test verfälschen.
 
-1. `forceInlinePdf(url)` → ersetzen durch `toInlinePdfBlobUrl(signedUrl)`:
-   - `fetch(signedUrl)` → `response.blob()`
-   - `new Blob([blob], { type: "application/pdf" })` (MIME-Typ erzwingen, unabhängig vom Server-Header)
-   - `URL.createObjectURL(...)` zurückgeben.
-2. In den beiden `useEffect`/Loader-Blöcken (Beleg + verknüpfte Rechnung):
-   - Signed URL holen wie bisher.
-   - Anschließend `toInlinePdfBlobUrl` aufrufen und das Ergebnis in `setPdfUrl` / `setTemplateInvoiceUrl` speichern.
-   - Bei Cleanup / Wechsel `URL.revokeObjectURL(...)` aufrufen, damit keine Blobs leaken.
-3. Fehler beim Fetch abfangen und in `pdfError` / `templateInvoiceError` anzeigen (inkl. Fallback-Button „PDF extern öffnen", der die originale Signed URL in neuem Tab öffnet).
+4. **Admin-/Owner-/Tenant-Pfade unverändert lassen**
+   - Nur die gemeinsame Passwortänderungslogik anfassen.
+   - Keine Änderungen an Rollen, Profilen oder Datenbank.
 
-### Änderungen in `supabase/functions/audit-signed-url/index.ts`
-
-Der bisherige Query-Param-Anhang bringt nichts und wird entfernt (der Client baut sich den Blob-URL clientseitig aus der reinen Signed URL). Damit ist die Funktion wieder minimal.
-
-### Änderungen in `src/components/finance/CashAuditDocuments.tsx` (Token- & Owner-Modus)
-
-Aktuell öffnet der Kassenprüfer-View PDFs per `window.open(signedUrl)` in einem neuen Tab. Das funktioniert bei `octet-stream` browserabhängig auch als Download. Fix:
-- Neuer Helper `openPdfInline(signedUrl, fileName)`: `fetch` → `Blob({type:"application/pdf"})` → `createObjectURL` → `window.open(blobUrl)`. Für Nicht-PDF-Dateien (Endungs-Check) weiterhin direkt `window.open`.
-- `openViaToken` und `openViaStorage` nutzen diesen Helper.
-
-## Warum das jetzt funktioniert
-
-Der Blob wird clientseitig mit fest `type: "application/pdf"` erstellt. Der Browser rendert Blobs nach ihrem eigenen MIME-Typ — der ursprüngliche `Content-Type`-Header des Storage-Objekts ist nicht mehr relevant. Damit werden `.PDF`-Dateien und alle Uploads ohne korrekten Content-Type zuverlässig inline angezeigt.
-
-## QA
-
-Nach der Änderung: Buchung Tirolerstr. 14 / 09.06.2026 (`RG212043.PDF`) öffnen — Vorschau muss inline erscheinen, kein Download. Zusätzlich Kassenprüfer-Ansicht Birkenweg 6 prüfen (Owner-Login und Token-Link).
+## Technische Details
+- Änderung primär in `src/pages/ChangePassword.tsx`.
+- `useAuth.updatePassword()` in `src/hooks/useAuth.tsx` ggf. so erweitern, dass es keine Erfolgsmeldung ausgibt, bevor die Seite den Gesamtprozess abgeschlossen hat, oder optional eine silent-Variante bekommt.
+- MFA-Flow: `challenge()` → `verify()` → `getAuthenticatorAssuranceLevel()` → erst dann `updateUser({ password })`.
