@@ -87,14 +87,35 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
     if (!win) toast.error("Bitte Pop-ups erlauben, um die Datei zu öffnen");
   };
 
-  const openViaToken = async (kind: "invoice" | "statement_pdf" | "bank_statement", id: string, _name: string) => {
+  // Für PDFs Content-Type clientseitig erzwingen (Storage liefert bei
+  // .PDF-Endung oft octet-stream → würde sonst als Download öffnen).
+  const openUrlSmart = async (url: string, fileName: string) => {
+    if (!/\.pdf$/i.test(fileName)) {
+      openInNewTab(url);
+      return;
+    }
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const raw = await res.blob();
+      const pdfBlob = new Blob([raw], { type: "application/pdf" });
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      openInNewTab(blobUrl);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+    } catch (e: any) {
+      console.warn("openUrlSmart fetch failed, falling back to direct URL", e);
+      openInNewTab(url);
+    }
+  };
+
+  const openViaToken = async (kind: "invoice" | "statement_pdf" | "bank_statement", id: string, name: string) => {
     try {
       const { data, error } = await supabase.functions.invoke("audit-signed-url", {
         body: { token, kind, id },
       });
       if (error) throw error;
       if ((data as any)?.signedUrl) {
-        openInNewTab((data as any).signedUrl);
+        await openUrlSmart((data as any).signedUrl, name);
       } else {
         throw new Error((data as any)?.error || "Konnte Datei nicht öffnen");
       }
@@ -103,14 +124,15 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
     }
   };
 
-  const openViaStorage = async (bucket: string, path: string, _name: string) => {
+  const openViaStorage = async (bucket: string, path: string, name: string) => {
     const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 300);
     if (error || !data?.signedUrl) {
       toast.error("Datei konnte nicht geöffnet werden");
       return;
     }
-    openInNewTab(data.signedUrl);
+    await openUrlSmart(data.signedUrl, name || path);
   };
+
 
   const openInvoice = (inv: any) => {
     if (!inv.file_path) return toast.info("Keine PDF hinterlegt");
