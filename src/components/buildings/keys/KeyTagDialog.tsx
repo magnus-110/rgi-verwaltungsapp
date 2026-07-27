@@ -111,7 +111,7 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
     const loc = locations.find(l => l.id === storageLocationId);
     const t = types.find(x => x.id === keyTypeId);
     if (!loc || !t) return "—";
-    return `${loc.code}/XXX-NN${t.code_suffix}`;
+    return `${loc.code}/XXX-NN`;
   };
 
   const save = async () => {
