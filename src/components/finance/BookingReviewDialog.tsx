@@ -96,13 +96,20 @@ export function BookingReviewDialog({
   const booking = idx >= 0 ? bookings[idx] : null;
 
   useEffect(() => {
-    setPdfUrl(null);
+    setPdfUrl((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return null;
+    });
     setPdfError(null);
     setTemplateInvoiceOpen(false);
-    setTemplateInvoiceUrl(null);
+    setTemplateInvoiceUrl((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return null;
+    });
     setTemplateInvoiceError(null);
     if (!booking?.invoices?.file_path) return;
     let cancelled = false;
+    let createdBlobUrl: string | null = null;
     setPdfLoading(true);
     (async () => {
       const raw = booking.invoices!.file_path!;
@@ -114,13 +121,29 @@ export function BookingReviewDialog({
       if (error || !data?.signedUrl) {
         setPdfError(error?.message || "Signed URL leer");
         console.warn("[BookingReviewDialog] signed URL failed", { cleanPath, error });
-      } else {
-        setPdfUrl(forceInlinePdf(data.signedUrl));
+        setPdfLoading(false);
+        return;
       }
-      setPdfLoading(false);
+      try {
+        const blobUrl = await toInlinePdfBlobUrl(data.signedUrl);
+        if (cancelled) {
+          URL.revokeObjectURL(blobUrl);
+        } else {
+          createdBlobUrl = blobUrl;
+          setPdfUrl(blobUrl);
+        }
+      } catch (e: any) {
+        if (!cancelled) setPdfError(e?.message || "PDF konnte nicht geladen werden");
+      } finally {
+        if (!cancelled) setPdfLoading(false);
+      }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (createdBlobUrl) URL.revokeObjectURL(createdBlobUrl);
+    };
   }, [selectedId, booking?.invoices?.file_path]);
+
 
   // Lade Geschwister sobald invoice_id existiert (auch ohne split_parts_total),
   // damit Altbestand-Splits erkannt werden.
