@@ -64,6 +64,15 @@ interface Props {
 const fmt = (n?: number | null) =>
   n == null ? "–" : n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 
+// Erzwingt Inline-Anzeige von PDFs, selbst wenn der Storage-Content-Type
+// fehlt oder auf application/octet-stream steht (z. B. bei Dateien mit
+// Großbuchstaben-Endung ".PDF"). Ohne diesen Override lädt der Browser
+// die Datei im <iframe> als Download herunter, statt sie anzuzeigen.
+function forceInlinePdf(url: string): string {
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}response-content-type=application/pdf&response-content-disposition=inline`;
+}
+
 export function BookingReviewDialog({
   open, onOpenChange, bookings, selectedId, setSelectedId,
   flag, setFlag, note, setNote, readOnly, buildingId, tokenMode, token,
@@ -101,7 +110,7 @@ export function BookingReviewDialog({
         setPdfError(error?.message || "Signed URL leer");
         console.warn("[BookingReviewDialog] signed URL failed", { cleanPath, error });
       } else {
-        setPdfUrl(data.signedUrl);
+        setPdfUrl(forceInlinePdf(data.signedUrl));
       }
       setPdfLoading(false);
     })();
@@ -162,7 +171,7 @@ export function BookingReviewDialog({
         if (error || !(data as any)?.signedUrl) {
           throw new Error((data as any)?.error || error?.message || "Signed URL leer");
         }
-        setTemplateInvoiceUrl((data as any).signedUrl);
+        setTemplateInvoiceUrl(forceInlinePdf((data as any).signedUrl));
       } else {
         if (!li.file_path) throw new Error("Kein Dateipfad hinterlegt");
         const cleanPath = li.file_path.startsWith("invoices/")
@@ -170,7 +179,7 @@ export function BookingReviewDialog({
           : li.file_path.replace(/^\/+/, "");
         const { data, error } = await supabase.storage.from("invoices").createSignedUrl(cleanPath, 3600);
         if (error || !data?.signedUrl) throw new Error(error?.message || "Signed URL leer");
-        setTemplateInvoiceUrl(data.signedUrl);
+        setTemplateInvoiceUrl(forceInlinePdf(data.signedUrl));
       }
     } catch (e: any) {
       setTemplateInvoiceError(e?.message || "Fehler beim Laden");
