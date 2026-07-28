@@ -81,6 +81,7 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
   const isBrokerActive = brokerEnabled && brokerMode !== null;
 
   const menuItems = isBrokerActive ? brokerMenu : adminMenu;
+  const openReportsCount = useOpenReportsCount(!isBrokerActive);
 
   const handleSignOut = async () => { await signOut(); };
 
