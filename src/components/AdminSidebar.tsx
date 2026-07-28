@@ -250,16 +250,30 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                             : "text-foreground hover:bg-muted hover:text-foreground group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
                         }
                       >
-                        {({ isActive }) => (
-                          <>
-                            <item.icon className="h-4 w-4 mr-3 flex-shrink-0" />
-                            {!collapsed && (
-                              <span className={`label-text ${(isActive || aliasActive) ? 'text-white' : ''}`}>
-                                {item.title}
-                              </span>
-                            )}
-                          </>
-                        )}
+                        {({ isActive }) => {
+                          const showBadge = item.url === "/tickets" && openReportsCount > 0;
+                          const badgeLabel = openReportsCount > 99 ? "99+" : String(openReportsCount);
+                          return (
+                            <>
+                              <div className="relative flex-shrink-0 mr-3">
+                                <item.icon className="h-4 w-4" />
+                                {showBadge && collapsed && (
+                                  <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive" />
+                                )}
+                              </div>
+                              {!collapsed && (
+                                <span className={`label-text flex-1 ${(isActive || aliasActive) ? 'text-white' : ''}`}>
+                                  {item.title}
+                                </span>
+                              )}
+                              {!collapsed && showBadge && (
+                                <span className="ml-auto inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-destructive text-white text-xs font-semibold">
+                                  {badgeLabel}
+                                </span>
+                              )}
+                            </>
+                          );
+                        }}
                       </NavLink>
                     </SidebarMenuItem>
                   );
