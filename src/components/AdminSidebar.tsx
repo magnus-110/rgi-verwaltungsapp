@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useBrokerMode } from "@/hooks/useBrokerMode";
+import { useOpenReportsCount } from "@/hooks/useOpenReportsCount";
 
 const adminMenu = [
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
