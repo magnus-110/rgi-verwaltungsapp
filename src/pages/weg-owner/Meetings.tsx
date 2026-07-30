@@ -17,6 +17,7 @@ import { OwnerLiveDashboard } from "@/components/meetings/OwnerLiveDashboard";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format as formatDate } from "date-fns";
 import { de } from "date-fns/locale";
+import { formatGermanDateTime } from "@/lib/germanDateTime";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 
