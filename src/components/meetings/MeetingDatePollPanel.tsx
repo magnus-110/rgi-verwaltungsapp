@@ -207,62 +207,86 @@ export const MeetingDatePollPanel = ({ meetingId, buildingId, onApplyDate }: Pro
         </Button>
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Terminumfrage starten</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <CalendarClock className="h-5 w-5" /> Terminumfrage starten
+              </DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
+            <div className="grid gap-6 md:grid-cols-[auto,1fr]">
               <div className="space-y-2">
-                <Label>Vorgeschlagene Tage (Mo–Fr)</Label>
-                {dates.map((d, i) => (
-                  <div key={i} className="flex gap-2">
-                    <Input
-                      type="date"
-                      value={d}
-                      onChange={(e) => {
-                        const next = [...dates];
-                        next[i] = e.target.value;
-                        setDates(next);
-                      }}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setDates(dates.filter((_, idx) => idx !== i))}
-                      disabled={dates.length === 1}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-                {dates.some((d) => d && isWeekend(d)) && (
-                  <p className="text-xs text-destructive">Samstag und Sonntag sind nicht möglich.</p>
-                )}
-                {dates.length < 10 && (
-                  <Button variant="outline" size="sm" onClick={() => setDates([...dates, ""])} className="gap-2">
-                    <Plus className="h-4 w-4" /> Tag hinzufügen
-                  </Button>
-                )}
+                <Label>Tage auswählen</Label>
+                <div className="rounded-xl border bg-card p-2 shadow-sm">
+                  <Calendar
+                    mode="multiple"
+                    selected={selectedDates}
+                    onSelect={(d) => setSelectedDates((d as Date[]) || [])}
+                    disabled={(date) => {
+                      const day = date.getDay();
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      return day === 0 || day === 6 || date < today;
+                    }}
+                    weekStartsOn={1}
+                    className="p-0 [&_.rdp-day]:h-11 [&_.rdp-day]:w-11 [&_button]:text-base"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Wochenenden sind nicht auswählbar.
+                </p>
               </div>
-              <div className="space-y-2">
-                <Label>Abfrage läuft bis</Label>
-                <Input type="date" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Hinweistext (optional)</Label>
-                <Textarea rows={2} value={introText} onChange={(e) => setIntroText(e.target.value)} />
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Ausgewählte Tage ({selectedDates.length})</Label>
+                  {selectedDates.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Noch keine Tage gewählt.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {[...selectedDates]
+                        .sort((a, b) => a.getTime() - b.getTime())
+                        .map((d) => (
+                          <Badge
+                            key={d.toISOString()}
+                            variant="secondary"
+                            className="gap-1 py-1 pl-3 pr-2 text-sm cursor-pointer"
+                            onClick={() =>
+                              setSelectedDates((prev) =>
+                                prev.filter((x) => x.toDateString() !== d.toDateString()),
+                              )
+                            }
+                          >
+                            {formatShortDate(toIso(d))}
+                            <Trash2 className="h-3.5 w-3.5 opacity-60" />
+                          </Badge>
+                        ))}
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>Abfrage läuft bis</Label>
+                  <Input type="date" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Hinweistext (optional)</Label>
+                  <Textarea rows={3} value={introText} onChange={(e) => setIntroText(e.target.value)} />
+                </div>
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>
                 Abbrechen
               </Button>
-              <Button onClick={() => createPoll.mutate()} disabled={createPoll.isPending}>
+              <Button
+                onClick={() => createPoll.mutate()}
+                disabled={createPoll.isPending || selectedDates.length < 2}
+              >
                 Starten
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
       </div>
     );
   }
