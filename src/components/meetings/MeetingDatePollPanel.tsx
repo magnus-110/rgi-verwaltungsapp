@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Calendar } from "@/components/ui/calendar";
 import { CalendarClock, Plus, Trash2, Lock, CheckCircle2 } from "lucide-react";
 import {
   evaluateOptions,
