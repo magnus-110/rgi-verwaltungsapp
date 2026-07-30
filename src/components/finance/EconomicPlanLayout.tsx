@@ -114,8 +114,12 @@ export function EconomicPlanLayout({
   footer,
   className,
 }: EconomicPlanLayoutProps) {
-  const total = rows.reduce((s, r) => s + (Number(r.planned_amount) || 0), 0);
-  const totalPrev = rows.reduce((s, r) => s + (Number(r.previousAmount) || 0), 0);
+  // Wirtschaftsplan-Konvention: Kosten werden intern negativ gespeichert,
+  // in der Darstellung IMMER als Betrag ohne Vorzeichen ausgewiesen —
+  // identisch zur Dokumentenerzeugung (dort ebenfalls Math.abs).
+  const mag = (n: unknown) => Math.abs(Number(n) || 0);
+  const total = rows.reduce((s, r) => s + mag(r.planned_amount), 0);
+  const totalPrev = rows.reduce((s, r) => s + mag(r.previousAmount), 0);
   const isEinzel = variant === "einzel";
 
   const groups: { key: string; rows: PlanRow[] }[] = [];
