@@ -37,13 +37,16 @@ const isWeekend = (iso: string) => {
   return day === 0 || day === 6;
 };
 
+const toIso = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
 export const MeetingDatePollPanel = ({ meetingId, buildingId, onApplyDate }: Props) => {
   const { profile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [dates, setDates] = useState<string[]>([""]);
+  const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [closesAt, setClosesAt] = useState(addDays(14));
   const [introText, setIntroText] = useState("");
 
