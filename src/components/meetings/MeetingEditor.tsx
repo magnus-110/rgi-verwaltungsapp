@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { berlinDateInputValue, berlinTimeInputValue, berlinLocalToIso } from "@/lib/germanDateTime";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -90,9 +91,8 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
     if (existingMeeting) {
       setTitle(existingMeeting.title);
       setBuildingId(existingMeeting.building_id);
-      const d = new Date(existingMeeting.meeting_date);
-      setMeetingDate(d.toISOString().split("T")[0]);
-      setMeetingTime(d.toTimeString().slice(0, 5));
+      setMeetingDate(berlinDateInputValue(existingMeeting.meeting_date));
+      setMeetingTime(berlinTimeInputValue(existingMeeting.meeting_date));
       setLocation(existingMeeting.location || "");
       setNotes(existingMeeting.notes || "");
       setMeetingChair((existingMeeting as any).meeting_chair || "");
@@ -103,11 +103,9 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      let meetingDateTime: string | null = null;
-      if (meetingDate) {
-        const time = meetingTime || "00:00";
-        meetingDateTime = new Date(`${meetingDate}T${time}:00`).toISOString();
-      }
+      const meetingDateTime: string | null = meetingDate
+        ? berlinLocalToIso(meetingDate, meetingTime || "00:00")
+        : null;
 
       const payload: any = {
         title,

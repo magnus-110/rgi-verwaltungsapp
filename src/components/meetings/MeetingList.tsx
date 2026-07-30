@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { formatGermanDateTime } from "@/lib/germanDateTime";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -121,7 +122,7 @@ export const MeetingList = ({ meetings, isLoading, onSelect }: MeetingListProps)
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
-                        {format(new Date(meeting.meeting_date), "dd.MM.yyyy 'um' HH:mm 'Uhr'", { locale: de })}
+                        {formatGermanDateTime(meeting.meeting_date)}
                       </span>
                       {meeting.location && (
                         <span className="flex items-center gap-1">

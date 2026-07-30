@@ -17,6 +17,7 @@ import { OwnerLiveDashboard } from "@/components/meetings/OwnerLiveDashboard";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format as formatDate } from "date-fns";
 import { de } from "date-fns/locale";
+import { formatGermanDateTime } from "@/lib/germanDateTime";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 
@@ -751,7 +752,7 @@ export const WegOwnerMeetings = () => {
                               <div className="space-y-1 text-xs text-muted-foreground">
                                 <span className="flex items-center gap-1">
                                   <Calendar className="h-3 w-3" />
-                                  {formatDate(new Date(meeting.meeting_date), "dd.MM.yyyy 'um' HH:mm 'Uhr'", { locale: de })}
+                                  {formatGermanDateTime(meeting.meeting_date)}
                                 </span>
                                 {meeting.location && (
                                   <span className="flex items-center gap-1">
@@ -937,7 +938,7 @@ export const WegOwnerMeetings = () => {
           {selectedMeeting && (
             <div className="space-y-4">
               <div className="text-sm space-y-1 text-muted-foreground">
-                <p><strong>Datum:</strong> {formatDate(new Date(selectedMeeting.meeting_date), "dd.MM.yyyy 'um' HH:mm 'Uhr'", { locale: de })}</p>
+                <p><strong>Datum:</strong> {formatGermanDateTime(selectedMeeting.meeting_date)}</p>
                 {selectedMeeting.location && <p><strong>Ort:</strong> {selectedMeeting.location}</p>}
                 <Badge variant="secondary">{statusLabels[selectedMeeting.status] || selectedMeeting.status}</Badge>
               </div>
