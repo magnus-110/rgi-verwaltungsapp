@@ -196,16 +196,32 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   });
 
   const reorderMutation = useMutation({
-    mutationFn: async (reorderedItems: { id: string; sort_order: number }[]) => {
-      for (const item of reorderedItems) {
-        const { error } = await supabase
-          .from("etv_agenda_items")
-          .update({ sort_order: item.sort_order } as any)
-          .eq("id", item.id);
-        if (error) throw error;
-      }
+    mutationFn: async (reorderedItems: AgendaItem[]) => {
+      const { error } = await supabase
+        .from("etv_agenda_items")
+        .upsert(
+          reorderedItems.map((item, idx) => ({ ...(item as any), sort_order: idx + 1 })),
+          { onConflict: "id" }
+        );
+      if (error) throw error;
     },
-    onSuccess: () => {
+    onMutate: async (reorderedItems: AgendaItem[]) => {
+      const key = ["etv-agenda-items", meetingId];
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<AgendaItem[]>(key);
+      queryClient.setQueryData<AgendaItem[]>(
+        key,
+        reorderedItems.map((item, idx) => ({ ...item, sort_order: idx + 1 }))
+      );
+      return { previous };
+    },
+    onError: (err: any, _vars, context: any) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["etv-agenda-items", meetingId], context.previous);
+      }
+      toast({ title: "Reihenfolge nicht gespeichert", description: err.message, variant: "destructive" });
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["etv-agenda-items", meetingId] });
     },
   });
@@ -215,9 +231,9 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     const reordered = Array.from(items);
     const [moved] = reordered.splice(result.source.index, 1);
     reordered.splice(result.destination.index, 0, moved);
-    const updates = reordered.map((item, idx) => ({ id: item.id, sort_order: idx + 1 }));
-    reorderMutation.mutate(updates);
+    reorderMutation.mutate(reordered);
   }, [items, reorderMutation]);
+
 
   const updateMutation = useMutation({
     mutationFn: async (item: Partial<AgendaItem> & { id: string }) => {

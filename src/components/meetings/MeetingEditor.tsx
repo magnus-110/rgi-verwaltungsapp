@@ -31,7 +31,7 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState("vorbereitung");
-  const [openSteps, setOpenSteps] = useState<Record<number, boolean>>({ 0: true });
+  const [openSteps, setOpenSteps] = useState<Record<number, boolean>>(meetingId ? {} : { 0: true });
   const [savedMeetingId, setSavedMeetingId] = useState<string | null>(meetingId);
 
   // Form state
