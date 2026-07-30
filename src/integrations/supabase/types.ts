@@ -761,6 +761,39 @@ export type Database = {
           },
         ]
       }
+      booking_match_log: {
+        Row: {
+          amount: number | null
+          booking_id: string | null
+          building_id: string | null
+          description: string | null
+          id: number
+          occurred_at: string
+          sqlerrm: string | null
+          sqlstate: string | null
+        }
+        Insert: {
+          amount?: number | null
+          booking_id?: string | null
+          building_id?: string | null
+          description?: string | null
+          id?: number
+          occurred_at?: string
+          sqlerrm?: string | null
+          sqlstate?: string | null
+        }
+        Update: {
+          amount?: number | null
+          booking_id?: string | null
+          building_id?: string | null
+          description?: string | null
+          id?: number
+          occurred_at?: string
+          sqlerrm?: string | null
+          sqlstate?: string | null
+        }
+        Relationships: []
+      }
       booking_template_presets: {
         Row: {
           category: string | null
@@ -923,6 +956,8 @@ export type Database = {
           invoice_id: string | null
           is_35a_relevant: boolean | null
           line_items_detail: Json | null
+          match_candidates: Json | null
+          match_method: string | null
           matched_template_id: string | null
           needs_review: boolean
           performance_period_from: string | null
@@ -935,6 +970,8 @@ export type Database = {
           split_part: number | null
           split_parts_total: number | null
           status: string
+          suggested_invoice_id: string | null
+          suggested_template_id: string | null
           umlagefaehig: string | null
           updated_at: string
           vat_amount: number | null
@@ -964,6 +1001,8 @@ export type Database = {
           invoice_id?: string | null
           is_35a_relevant?: boolean | null
           line_items_detail?: Json | null
+          match_candidates?: Json | null
+          match_method?: string | null
           matched_template_id?: string | null
           needs_review?: boolean
           performance_period_from?: string | null
@@ -976,6 +1015,8 @@ export type Database = {
           split_part?: number | null
           split_parts_total?: number | null
           status?: string
+          suggested_invoice_id?: string | null
+          suggested_template_id?: string | null
           umlagefaehig?: string | null
           updated_at?: string
           vat_amount?: number | null
@@ -1005,6 +1046,8 @@ export type Database = {
           invoice_id?: string | null
           is_35a_relevant?: boolean | null
           line_items_detail?: Json | null
+          match_candidates?: Json | null
+          match_method?: string | null
           matched_template_id?: string | null
           needs_review?: boolean
           performance_period_from?: string | null
@@ -1017,6 +1060,8 @@ export type Database = {
           split_part?: number | null
           split_parts_total?: number | null
           status?: string
+          suggested_invoice_id?: string | null
+          suggested_template_id?: string | null
           umlagefaehig?: string | null
           updated_at?: string
           vat_amount?: number | null
@@ -1061,6 +1106,20 @@ export type Database = {
           {
             foreignKeyName: "bookings_matched_template_id_fkey"
             columns: ["matched_template_id"]
+            isOneToOne: false
+            referencedRelation: "booking_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_suggested_invoice_id_fkey"
+            columns: ["suggested_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_suggested_template_id_fkey"
+            columns: ["suggested_template_id"]
             isOneToOne: false
             referencedRelation: "booking_templates"
             referencedColumns: ["id"]
@@ -8088,6 +8147,150 @@ export type Database = {
         }
         Relationships: []
       }
+      rgi_geloeschte_rechnungen_20260728: {
+        Row: {
+          betroffene_buchungen: string[] | null
+          betroffene_vorlagen: string[] | null
+          billing_period_from: string | null
+          billing_period_to: string | null
+          building_id: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          duplicate_of: string | null
+          einvoice_format: string | null
+          einvoice_xml_path: string | null
+          file_name: string | null
+          file_path: string | null
+          geloescht_am: string | null
+          gross_amount: number | null
+          id: string | null
+          installment_period: string | null
+          invoice_date: string | null
+          invoice_number: string | null
+          invoice_type: Database["public"]["Enums"]["invoice_type"] | null
+          is_company_invoice: boolean | null
+          leitweg_id: string | null
+          line_items: Json | null
+          meter_number: string | null
+          net_amount: number | null
+          ocr_error: string | null
+          ocr_extracted_data: Json | null
+          ocr_raw_data: Json | null
+          ocr_status: string | null
+          paid_at: string | null
+          paid_installments_total: number | null
+          payment_notes: string | null
+          payment_purpose: string | null
+          review_status: string | null
+          settlement_difference: number | null
+          status: string | null
+          suggested_account_id: string | null
+          total_consumption: number | null
+          updated_at: string | null
+          utility_contract_id: string | null
+          vat_amount: number | null
+          vendor_display_name: string | null
+          vendor_iban: string | null
+          vendor_name: string | null
+        }
+        Insert: {
+          betroffene_buchungen?: string[] | null
+          betroffene_vorlagen?: string[] | null
+          billing_period_from?: string | null
+          billing_period_to?: string | null
+          building_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          duplicate_of?: string | null
+          einvoice_format?: string | null
+          einvoice_xml_path?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          geloescht_am?: string | null
+          gross_amount?: number | null
+          id?: string | null
+          installment_period?: string | null
+          invoice_date?: string | null
+          invoice_number?: string | null
+          invoice_type?: Database["public"]["Enums"]["invoice_type"] | null
+          is_company_invoice?: boolean | null
+          leitweg_id?: string | null
+          line_items?: Json | null
+          meter_number?: string | null
+          net_amount?: number | null
+          ocr_error?: string | null
+          ocr_extracted_data?: Json | null
+          ocr_raw_data?: Json | null
+          ocr_status?: string | null
+          paid_at?: string | null
+          paid_installments_total?: number | null
+          payment_notes?: string | null
+          payment_purpose?: string | null
+          review_status?: string | null
+          settlement_difference?: number | null
+          status?: string | null
+          suggested_account_id?: string | null
+          total_consumption?: number | null
+          updated_at?: string | null
+          utility_contract_id?: string | null
+          vat_amount?: number | null
+          vendor_display_name?: string | null
+          vendor_iban?: string | null
+          vendor_name?: string | null
+        }
+        Update: {
+          betroffene_buchungen?: string[] | null
+          betroffene_vorlagen?: string[] | null
+          billing_period_from?: string | null
+          billing_period_to?: string | null
+          building_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          duplicate_of?: string | null
+          einvoice_format?: string | null
+          einvoice_xml_path?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          geloescht_am?: string | null
+          gross_amount?: number | null
+          id?: string | null
+          installment_period?: string | null
+          invoice_date?: string | null
+          invoice_number?: string | null
+          invoice_type?: Database["public"]["Enums"]["invoice_type"] | null
+          is_company_invoice?: boolean | null
+          leitweg_id?: string | null
+          line_items?: Json | null
+          meter_number?: string | null
+          net_amount?: number | null
+          ocr_error?: string | null
+          ocr_extracted_data?: Json | null
+          ocr_raw_data?: Json | null
+          ocr_status?: string | null
+          paid_at?: string | null
+          paid_installments_total?: number | null
+          payment_notes?: string | null
+          payment_purpose?: string | null
+          review_status?: string | null
+          settlement_difference?: number | null
+          status?: string | null
+          suggested_account_id?: string | null
+          total_consumption?: number | null
+          updated_at?: string | null
+          utility_contract_id?: string | null
+          vat_amount?: number | null
+          vendor_display_name?: string | null
+          vendor_iban?: string | null
+          vendor_name?: string | null
+        }
+        Relationships: []
+      }
       rgi_invoice_items: {
         Row: {
           created_at: string
@@ -8481,6 +8684,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      rgi_revert_20260728: {
+        Row: {
+          ai_confidence_mittel: boolean | null
+          ai_confidence_unsicher: boolean | null
+          amount: number | null
+          amount_35a: number | null
+          booking_date: string | null
+          building_id: string | null
+          description: string | null
+          fiscal_year: number | null
+          gesichert_am: string | null
+          id: string | null
+          is_35a_relevant: boolean | null
+          needs_review: boolean | null
+          review_note: string | null
+          settlement_35a_type: string | null
+        }
+        Insert: {
+          ai_confidence_mittel?: boolean | null
+          ai_confidence_unsicher?: boolean | null
+          amount?: number | null
+          amount_35a?: number | null
+          booking_date?: string | null
+          building_id?: string | null
+          description?: string | null
+          fiscal_year?: number | null
+          gesichert_am?: string | null
+          id?: string | null
+          is_35a_relevant?: boolean | null
+          needs_review?: boolean | null
+          review_note?: string | null
+          settlement_35a_type?: string | null
+        }
+        Update: {
+          ai_confidence_mittel?: boolean | null
+          ai_confidence_unsicher?: boolean | null
+          amount?: number | null
+          amount_35a?: number | null
+          booking_date?: string | null
+          building_id?: string | null
+          description?: string | null
+          fiscal_year?: number | null
+          gesichert_am?: string | null
+          id?: string | null
+          is_35a_relevant?: boolean | null
+          needs_review?: boolean | null
+          review_note?: string | null
+          settlement_35a_type?: string | null
+        }
+        Relationships: []
       }
       rgi_time_entries: {
         Row: {
@@ -10291,12 +10545,35 @@ export type Database = {
         Args: { endpoint_param: string; user_id_param: string }
         Returns: undefined
       }
+      rgi_extract_refs: { Args: { p_text: string }; Returns: string[] }
+      rgi_invoice_open_amount: {
+        Args: { p_exclude_booking?: string; p_invoice_id: string }
+        Returns: number
+      }
       rgi_is_admin: { Args: { _user_id: string }; Returns: boolean }
       rgi_mark_overdue: { Args: never; Returns: number }
+      rgi_match_template: {
+        Args: {
+          p_amount: number
+          p_building_id: string
+          p_counter_account: string
+          p_haystack: string
+          p_stichtag: string
+        }
+        Returns: {
+          gleichrangig: number
+          id: string
+          ti: number
+          tk: number
+          ts: number
+        }[]
+      }
       rgi_next_invoice_number: {
         Args: { p_sparte?: Database["public"]["Enums"]["rgi_sparte"] }
         Returns: string
       }
+      rgi_normalize_ref: { Args: { p_text: string }; Returns: string }
+      rgi_umlage_aus_konto: { Args: { p_account_id: string }; Returns: string }
       save_push_subscription: {
         Args: {
           auth_param: string
