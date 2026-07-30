@@ -41,6 +41,22 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
   const hasVisibleFiles = useHasVisibleFiles(profile?.user_id);
   const { hasSurveys } = useHasVisibleSurveys(profile?.user_id);
   const [hasAudit, setHasAudit] = useState(false);
+  const [hasDatePoll, setHasDatePoll] = useState(false);
+
+  useEffect(() => {
+    const checkDatePoll = async () => {
+      if (!profile?.user_id) return;
+      const today = new Date().toISOString().split("T")[0];
+      const { data } = await supabase
+        .from("etv_date_polls")
+        .select("id")
+        .eq("status", "open")
+        .gte("closes_at", today)
+        .limit(1);
+      setHasDatePoll(!!data && data.length > 0);
+    };
+    checkDatePoll();
+  }, [profile?.user_id]);
  const [showTermsDialog, setShowTermsDialog] = useState(false);
  const [termsAccepted, setTermsAccepted] = useState<boolean | null>(null);
  
