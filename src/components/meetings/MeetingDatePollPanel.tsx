@@ -169,7 +169,7 @@ export const MeetingDatePollPanel = ({ meetingId, buildingId, onApplyDate }: Pro
     onSuccess: () => {
       toast({ title: "Terminumfrage gestartet" });
       setDialogOpen(false);
-      setDates([""]);
+      setSelectedDates([]);
       queryClient.invalidateQueries({ queryKey: ["etv-date-poll", meetingId] });
     },
     onError: (e: any) => toast({ title: "Fehler", description: e.message, variant: "destructive" }),
