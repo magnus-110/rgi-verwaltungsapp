@@ -1041,6 +1041,17 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                 Plan aktivieren
               </Button>
             )}
+            {isActive && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => deactivate.mutate()}
+                disabled={deactivate.isPending}
+              >
+                {deactivate.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-1" />}
+                Aktivierung aufheben
+              </Button>
+            )}
           </div>
         </div>
 
