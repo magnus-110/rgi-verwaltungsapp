@@ -358,8 +358,9 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     });
   }, [accounts, plan, drafts, prevYearBookings, overrideKeyByAccount]);
 
-  const totalPlanned = rows.reduce((s, r) => s + r.planned_amount, 0);
-  const distributableTotal = rows.filter((r) => r.isDistributable).reduce((s, r) => s + r.planned_amount, 0);
+  // Konvention: Kosten intern negativ, Summen IMMER als Betrag (wie im Dokument).
+  const totalPlanned = rows.reduce((s, r) => s + Math.abs(r.planned_amount), 0);
+  const distributableTotal = rows.filter((r) => r.isDistributable).reduce((s, r) => s + Math.abs(r.planned_amount), 0);
 
   // ── Auto-save (debounced) ─────────────────────────────────────────
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
