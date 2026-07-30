@@ -256,8 +256,8 @@ export function EconomicPlanLayout({
                 <>
                   <TableCell />
                   <TableCell />
-                  <TableCell className="text-right font-mono">{formatCurrency(footer?.ownerTotal != null ? rows.reduce((s, r) => s + (r.totalAmount || 0), 0) : total)}</TableCell>
-                  <TableCell className="text-right font-mono">{formatCurrency(footer?.ownerTotal ?? total)}</TableCell>
+                  <TableCell className="text-right font-mono">{formatCurrency(footer?.ownerTotal != null ? rows.reduce((s, r) => s + mag(r.totalAmount), 0) : total)}</TableCell>
+                  <TableCell className="text-right font-mono">{formatCurrency(footer?.ownerTotal != null ? mag(footer.ownerTotal) : total)}</TableCell>
                 </>
               ) : (
                 <>
