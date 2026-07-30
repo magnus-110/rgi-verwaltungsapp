@@ -307,11 +307,11 @@ export function EconomicPlanLayout({
 
             {/* Footer-Zeilen Einzelplan */}
             {isEinzel && footer?.ownerTotal != null && (() => {
-              const defaultMonthlyTotal = footer.ownerTotal / 12;
-              const monthlyTotal = footer.monthlyTotalOverride ?? defaultMonthlyTotal;
-              const defaultMonthlyReserve = (footer.ownerReserveTotal ?? 0) / 12;
-              const defaultMonthlyAdvance = (footer.ownerAdvanceTotal ?? 0) / 12;
-              const monthlyAdvance = footer.monthlyAdvanceOverride ?? monthlyTotal;
+              const defaultMonthlyTotal = mag(footer.ownerTotal) / 12;
+              const monthlyTotal = footer.monthlyTotalOverride != null ? mag(footer.monthlyTotalOverride) : defaultMonthlyTotal;
+              const defaultMonthlyReserve = mag(footer.ownerReserveTotal) / 12;
+              const defaultMonthlyAdvance = mag(footer.ownerAdvanceTotal) / 12;
+              const monthlyAdvance = footer.monthlyAdvanceOverride != null ? mag(footer.monthlyAdvanceOverride) : monthlyTotal;
               const isTotalOverridden = footer.monthlyTotalOverride != null;
               const isAdvanceOverridden = footer.monthlyAdvanceOverride != null;
               return (
