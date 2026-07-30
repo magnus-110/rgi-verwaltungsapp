@@ -17,31 +17,27 @@ Neuer Menüpunkt **Terminabfrage** im Eigentümer-Menü (nur sichtbar, wenn für
 
 Sehr einfache, große Bedienung:
 
-- Einleitungstext oben:
-  "Terminfindung für die Eigentümerversammlung. Wir suchen einen Termin, an dem möglichst viele Eigentümer teilnehmen können. Bitte geben Sie zu jedem der folgenden Tage an, ob Ihnen der Termin passt, und wählen Sie anschließend die Uhrzeiten aus, die für Sie in Frage kommen."
+- Einleitung: "Terminfindung für die Eigentümerversammlung. Bitte geben Sie zu jedem Tag an, ob Sie können, und ab wann."
 - Pro Tag eine große Karte mit ausgeschriebenem Datum ("Dienstag, 14. April 2027") und drei großen Buttons:
-  - **Ja, passt** (grün) · **Vielleicht** (orange) · **Nein** (rot)
-- Direkt darunter — von Anfang an sichtbar, aber erst nach "Ja"/"Vielleicht" aktiv — die drei Uhrzeiten als große Mehrfachauswahl:
+  **Ja, passt** (grün) · **Vielleicht** (orange) · **Nein** (rot)
+- Darunter — sichtbar, aktiv erst nach "Ja"/"Vielleicht" — die früheste mögliche Uhrzeit (Einfachauswahl):
   **ab 15:00 Uhr** · **ab 17:00 Uhr** · **ab 19:00 Uhr**
-  Hinweis darunter: "Bitte wählen Sie alle Uhrzeiten, die Ihnen an diesem Tag passen." Bei "Nein" werden die Uhrzeiten ausgegraut.
+  Hinweis: "Ab wann können Sie frühestens?" Bei "Nein" ausgegraut.
 - Optionales Freitextfeld "Anmerkung an die Verwaltung".
-- Speichern-Button unten, Antworten sind bis zum Ende der Frist änderbar.
-- Abschlusstext nach dem Speichern:
-  "Vielen Dank. Die Verwaltung wertet alle Rückmeldungen aus und legt anschließend den Termin fest, der für möglichst viele Eigentümer passt. Sie erhalten die offizielle Einladung rechtzeitig danach."
-- Eigentümer sehen **ausschließlich ihre eigenen Angaben** – keine Namen, keine Zahlen, keine Balken anderer.
-- Nach Ende der Frist: eigene Antworten schreibgeschützt mit Hinweis "Die Abfrage ist abgeschlossen."
+- Speichern-Button unten, Antworten bis Fristende änderbar.
+- Eigentümer sehen **ausschließlich ihre eigenen Angaben**.
+- Nach Fristende: eigene Antworten schreibgeschützt mit Hinweis "Die Abfrage ist abgeschlossen."
 
 ## Empfehlungslogik
 
-Punkte pro Tag: Ja = 2, Vielleicht = 1, Nein = 0, keine Antwort = 0 (wird nicht negativ gewertet).
+Punkte pro Tag: Ja = 2, Vielleicht = 1, Nein = 0, keine Antwort = 0.
 
-Die Uhrzeit wird innerhalb eines Tages separat gezählt: Für jede der drei Uhrzeiten zählt, wie viele der verfügbaren Eigentümer sie angekreuzt haben. Ergebnis ist immer eine Kombination Tag + Uhrzeit.
+Uhrzeit-Logik: Wer "ab 15:00" wählt, kann auch um 17:00 und 19:00; "ab 17:00" zählt auch für 19:00. Die Verfügbarkeit je Uhrzeit ist also kumulativ.
 
-Sortiert nach: Anzahl "Nein" aufsteigend → Punktzahl absteigend → Uhrzeit mit den meisten Zustimmungen. Zusätzlich wird angezeigt:
-- Anteil der Eigentümer, die zugesagt haben
-- MEA-Anteil der Zusagen (Beschlussfähigkeit im Blick)
+Sortiert nach: Anzahl "Nein" aufsteigend → Punktzahl absteigend → Uhrzeit mit den meisten Verfügbaren. Zusätzlich: Anteil der Zusagen und MEA-Anteil.
 
-Die App zeigt die Top 3 mit Klartext-Begründung, z. B. "Dienstag, 14.04. ab 19:00 Uhr — 14 von 22 Eigentümern können, keine Absage, 19:00 Uhr ist die meistgewählte Uhrzeit an diesem Tag".
+Top 3 mit kurzer Begründung, z. B. "Dienstag, 14.04. ab 19:00 Uhr — 14 von 22 können, keine Absage".
+
 
 
 ## Technische Umsetzung
