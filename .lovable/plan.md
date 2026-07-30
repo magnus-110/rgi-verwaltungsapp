@@ -1,61 +1,57 @@
-# Terminfindung für Eigentümerversammlungen
+# Wirtschaftsplan 2026: Vorzeichen-Chaos beheben (7.322 € vs. 13.042 €)
 
-Verwaltung schlägt mehrere mögliche Tage vor (nur Wochentage Mo–Fr, kein Wochenende). Eigentümer geben pro Tag an, ob es geht, und wählen dazu die passenden Uhrzeiten. Nach Ende der Umfrage schlägt die App den besten Termin (Tag + Uhrzeit) vor.
+## Befund (verifiziert in der Datenbank)
 
-## Ablauf aus Sicht der Verwaltung
+Der Plan Birkenweg 6 / 2026 hat 10 Positionen mit **gemischten Vorzeichen**:
 
-1. Beim Anlegen einer Versammlung (Tab "Vorbereitung") gibt es einen neuen Block **Terminfindung**, direkt über der Datums-Auswahl.
-2. Solange kein Datum feststeht: Button "Terminumfrage starten".
-3. Im Dialog: 5–10 Tage vorschlagen (nur Datum, keine Uhrzeit; Samstag/Sonntag werden blockiert), Enddatum der Umfrage (Standard: heute + 14 Tage), optionaler Hinweistext.
-4. Nach dem Start zeigt der Block eine Live-Auswertung: pro Tag ein Balken mit Ja / Vielleicht / Nein, dazu die Verteilung auf die drei Uhrzeiten, Teilnahmequote, und darunter eine Tabelle **wer wie geantwortet hat** (namentlich, nur Admin).
-5. Button "Umfrage schließen" (auch automatisch nach Enddatum) → die App zeigt eine sortierte **Empfehlung** aus Tag + Uhrzeit mit Begründung.
-6. Ein Klick auf "Diesen Termin übernehmen" setzt Datum und Uhrzeit der Versammlung.
+```text
+1010 Müll                 -380      1300 Versicherungen        +42
+1011 Papiertonne           -30      1301 Gebäudeversicherung   +890
+1050 Allgemeinstrom       -280      1400 Heizung/Warmwasser  +5.500
+1500 Verwaltervergütung -1.930      1520 Kontogebühren        +150
+1600 Instandhaltung       -240      1930 Planmäßige IHR     +3.600
+```
 
-## Ablauf aus Sicht der Eigentümer
+- Vorzeichenbehaftete Summe = **7.322 €** → das zeigt die UI (und `economic_plans.total_costs`).
+- Summe der Beträge ohne Vorzeichen = **13.042 €** → das erzeugt das Dokument (dort wird überall `Math.abs` verwendet).
 
-Neuer Menüpunkt **Terminabfrage** im Eigentümer-Menü (nur sichtbar, wenn für eine der eigenen Liegenschaften eine Abfrage offen ist; zusätzlich als auffällige Karte auf dem Dashboard).
+Damit sind alle drei gemeldeten Symptome erklärt: falsche Gesamtsumme, Abweichung UI ↔ Dokument, und Positionen mal mit „−", mal mit „+". Die Einzelwirtschaftspläne sind ebenfalls betroffen, weil die Eigentümeranteile aus diesen vorzeichenbehafteten Beträgen berechnet werden — positive und negative Positionen heben sich beim Eigentümertotal gegenseitig auf.
 
-Sehr einfache, große Bedienung:
+Ursache: Beträge werden auf drei Wegen gesetzt, aber nur einer erzwingt ein Vorzeichen.
+- Manuelle Eingabe → immer `-abs(Betrag)` (negativ).
+- Klick auf den Vorjahreswert („Vorjahr übernehmen") → übernimmt den Vorjahres-IST **mit dessen Vorzeichen**, das je nach Buchungsrichtung positiv sein kann.
+- Aufrund-Pfeil → behält das vorhandene Vorzeichen bei, verstärkt den Fehler also.
 
-- Einleitung: "Terminfindung für die Eigentümerversammlung. Bitte geben Sie zu jedem Tag an, ob Sie können, und ab wann."
-- Pro Tag eine große Karte mit ausgeschriebenem Datum ("Dienstag, 14. April 2027") und drei großen Buttons:
-  **Ja, passt** (grün) · **Vielleicht** (orange) · **Nein** (rot)
-- Darunter — sichtbar, aktiv erst nach "Ja"/"Vielleicht" — die früheste mögliche Uhrzeit (Einfachauswahl):
-  **ab 15:00 Uhr** · **ab 17:00 Uhr** · **ab 19:00 Uhr**
-  Hinweis: "Ab wann können Sie frühestens?" Bei "Nein" ausgegraut.
-- Optionales Freitextfeld "Anmerkung an die Verwaltung".
-- Speichern-Button unten, Antworten bis Fristende änderbar.
-- Eigentümer sehen **ausschließlich ihre eigenen Angaben**.
-- Nach Fristende: eigene Antworten schreibgeschützt mit Hinweis "Die Abfrage ist abgeschlossen."
+Der Tirolerstr.-Plan 2026 hat dasselbe Problem (Summe Items −26.707 vs. gespeicherte `total_costs` −25.358), Adolf-Haff-Weg 3 ist zu prüfen.
 
-## Empfehlungslogik
+## Ziel
 
-Punkte pro Tag: Ja = 2, Vielleicht = 1, Nein = 0, keine Antwort = 0.
+Eine einzige, durchgängige Konvention: **Kostenpositionen im Wirtschaftsplan werden intern negativ gespeichert und in der Oberfläche wie im Dokument als positive Beträge dargestellt.** UI-Summe und Dokumentensumme sind danach zwingend identisch (13.042 €).
 
-Uhrzeit-Logik: Wer "ab 15:00" wählt, kann auch um 17:00 und 19:00; "ab 17:00" zählt auch für 19:00. Die Verfügbarkeit je Uhrzeit ist also kumulativ.
+## Umsetzung
 
-Sortiert nach: Anzahl "Nein" aufsteigend → Punktzahl absteigend → Uhrzeit mit den meisten Verfügbaren. Zusätzlich: Anteil der Zusagen und MEA-Anteil.
+1. **Eingabewege vereinheitlichen** (`ManualEconomicPlanEditor.tsx`)
+   - „Vorjahr übernehmen" speichert `-abs(Vorjahreswert)`.
+   - Aufrund-Pfeil (Gesamtplan und Einzelplan) rundet immer auf `-nächste 10 €`, unabhängig vom bisherigen Vorzeichen.
+   - Zurücksetzen-Button erscheint künftig für jeden gesetzten Wert (bisher nur bei positiven Beträgen, daher bei negativen nie sichtbar).
 
-Top 3 mit kurzer Begründung, z. B. "Dienstag, 14.04. ab 19:00 Uhr — 14 von 22 können, keine Absage".
+2. **Darstellung normalisieren** (`EconomicPlanLayout.tsx`)
+   - Positionsbeträge, Vorjahreswerte, Gruppen- und Fußzeilensummen werden als Beträge ohne Vorzeichen angezeigt, exakt wie im Dokument.
+   - Eingabefelder zeigen ebenfalls den positiven Betrag; das negative Vorzeichen bleibt reine Speicherkonvention.
 
+3. **Summenlogik** (`ManualEconomicPlanEditor.tsx`)
+   - Gesamtsumme, umlagefähige Summe, Eigentümersumme, Rücklagen- und Vorschusssumme werden über Beträge ohne Vorzeichen gebildet — dieselbe Rechnung wie im Dokument.
+   - Prozent-Änderung ggü. Vorjahr rechnet ebenfalls auf Beträgen ohne Vorzeichen.
 
+4. **Bestandsdaten korrigieren (Datenmigration)**
+   - `economic_plan_items.planned_amount` und `economic_plan_unit_items.amount` auf `-abs(...)` normalisieren.
+   - `economic_plans.total_costs` aus der Summe der Positionen neu berechnen, damit gespeicherte und angezeigte Werte übereinstimmen.
 
-## Technische Umsetzung
+5. **Verifikation**
+   - Birkenweg 6 / 2026: Gesamtsumme muss 13.042,00 € in UI **und** Dokument zeigen.
+   - Stichprobe eines Einzelwirtschaftsplans: Summe der Eigentümeranteile über alle Einheiten ≈ Gesamtsumme.
+   - Tirolerstr. 142 und Adolf-Haff-Weg 3 nach der Migration gegenprüfen.
 
-Neue Tabellen (Lovable Cloud / Supabase), an `etv_meetings` und `building_id` gekoppelt:
+## Hinweis
 
-- `etv_date_polls` — meeting_id, building_id, status (`open` / `closed`), closes_at, intro_text, timestamps
-- `etv_date_poll_options` — poll_id, proposed_date (nur Datum, Mo–Fr), sort_order
-- `etv_date_poll_responses` — poll_id, contact_id, option_id, choice (`yes` / `maybe` / `no`), earliest_time (`15` / `17` / `19`, nullable), unique (option_id, contact_id)
-- `etv_date_poll_notes` — poll_id, contact_id, note (eine Anmerkung pro Eigentümer)
-
-Zugriffsregeln:
-- Admin/Mitarbeiter: voller Zugriff auf alle vier Tabellen.
-- Eigentümer: dürfen offene Umfragen ihrer eigenen Liegenschaften lesen (über `weg_owner_buildings` / `current_contact_id()`), aber bei den Antworttabellen **nur eigene Zeilen** lesen und schreiben — dadurch sehen sie technisch keine fremden Antworten.
-- Auswertung für den Admin über die normalen Abfragen; Aggregation im Frontend.
-
-Frontend:
-- Admin: neue Komponente `MeetingDatePollPanel` im Vorbereitung-Tab des `MeetingEditor`, plus Dialog zum Anlegen der Vorschläge.
-- Eigentümer: neue Seite `src/pages/weg-owner/DatePoll.tsx` unter `/weg-owner/terminabfrage`, Eintrag im `WegOwnerLayout`-Menü und Dashboard-Karte.
-- Automatisches Schließen: beim Öffnen wird `closes_at` geprüft und der Status auf `closed` gesetzt.
-- Optional (Folgeschritt): E-Mail-Einladung an alle Eigentümer über das bestehende Kampagnen-Modul.
+Die Migration verändert bestehende Planwerte (nur das Vorzeichen, nicht die Höhe). Inhaltlich geplante Beträge bleiben unverändert.
