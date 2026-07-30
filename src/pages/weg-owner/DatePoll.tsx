@@ -218,11 +218,26 @@ export const WegOwnerDatePoll = () => {
               <div className="grid grid-cols-3 gap-1.5">
                 {(
                   [
-                    { key: "yes", label: "Ja", icon: Check },
-                    { key: "maybe", label: "Vielleicht", icon: Minus },
-                    { key: "no", label: "Nein", icon: X },
+                    {
+                      key: "yes",
+                      label: "Ja",
+                      icon: Check,
+                      active: "border-green-600 bg-green-600/10 text-green-700 dark:text-green-400",
+                    },
+                    {
+                      key: "maybe",
+                      label: "Vielleicht",
+                      icon: Minus,
+                      active: "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                    },
+                    {
+                      key: "no",
+                      label: "Nein",
+                      icon: X,
+                      active: "border-destructive bg-destructive/10 text-destructive",
+                    },
                   ] as const
-                ).map(({ key, label, icon: Icon }) => {
+                ).map(({ key, label, icon: Icon, active: activeCls }) => {
                   const active = a.choice === key;
                   return (
                     <button
@@ -236,7 +251,7 @@ export const WegOwnerDatePoll = () => {
                       }
                       className={`flex items-center justify-center gap-1 rounded-lg border px-2 py-2.5 text-xs font-medium transition-colors ${
                         active
-                          ? "border-primary bg-primary/10 text-primary"
+                          ? activeCls
                           : "border-border bg-background text-muted-foreground hover:bg-muted/60"
                       }`}
                     >
@@ -246,6 +261,7 @@ export const WegOwnerDatePoll = () => {
                   );
                 })}
               </div>
+
 
               <div className={disabled ? "opacity-40 pointer-events-none" : ""}>
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Frühestens</p>
