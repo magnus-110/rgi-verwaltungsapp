@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { formatGermanDateTime } from "@/lib/germanDateTime";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
@@ -469,7 +470,7 @@ export const EtvProxy = () => {
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm">
-                {format(meetingDate, "dd.MM.yyyy 'um' HH:mm 'Uhr'", { locale: de })}
+                {formatGermanDateTime(meeting.meeting_date)}
               </span>
             </div>
             {meeting.location && (
