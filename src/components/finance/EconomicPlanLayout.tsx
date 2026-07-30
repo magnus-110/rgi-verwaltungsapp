@@ -114,8 +114,12 @@ export function EconomicPlanLayout({
   footer,
   className,
 }: EconomicPlanLayoutProps) {
-  const total = rows.reduce((s, r) => s + (Number(r.planned_amount) || 0), 0);
-  const totalPrev = rows.reduce((s, r) => s + (Number(r.previousAmount) || 0), 0);
+  // Wirtschaftsplan-Konvention: Kosten werden intern negativ gespeichert,
+  // in der Darstellung IMMER als Betrag ohne Vorzeichen ausgewiesen —
+  // identisch zur Dokumentenerzeugung (dort ebenfalls Math.abs).
+  const mag = (n: unknown) => Math.abs(Number(n) || 0);
+  const total = rows.reduce((s, r) => s + mag(r.planned_amount), 0);
+  const totalPrev = rows.reduce((s, r) => s + mag(r.previousAmount), 0);
   const isEinzel = variant === "einzel";
 
   const groups: { key: string; rows: PlanRow[] }[] = [];
@@ -174,7 +178,7 @@ export function EconomicPlanLayout({
           </TableHeader>
           <TableBody>
             {groups.map((group) => {
-              const groupTotal = group.rows.reduce((s, r) => s + (Number(r.planned_amount) || 0), 0);
+              const groupTotal = group.rows.reduce((s, r) => s + mag(r.planned_amount), 0);
               return (
                 <>
                   {groupByCategory && (
@@ -185,8 +189,8 @@ export function EconomicPlanLayout({
                     </TableRow>
                   )}
                   {group.rows.map((row) => {
-                    const prev = Number(row.previousAmount || 0);
-                    const cur = Number(row.planned_amount || 0);
+                    const prev = mag(row.previousAmount);
+                    const cur = mag(row.planned_amount);
                     const changePct = prev > 0 ? ((cur - prev) / prev) * 100 : (cur > 0 ? 100 : 0);
                     return (
                       <TableRow key={row.account_id} className={cn(row.manually_overridden && "bg-amber-50/50 dark:bg-amber-950/20")}>
@@ -200,9 +204,9 @@ export function EconomicPlanLayout({
                           <>
                             <TableCell className="text-right font-mono text-xs">{row.totalShare != null ? formatNumber(row.totalShare, 3) : "–"}</TableCell>
                             <TableCell className="text-right font-mono text-xs">{row.yourShare != null ? formatNumber(row.yourShare, 3) : "–"}</TableCell>
-                            <TableCell className="text-right font-mono text-xs">{formatCurrency(row.totalAmount ?? 0)}</TableCell>
+                            <TableCell className="text-right font-mono text-xs">{formatCurrency(mag(row.totalAmount))}</TableCell>
                             <TableCell className="text-right font-mono">
-                              {renderAmountCell ? renderAmountCell(row) : formatCurrency(row.planned_amount)}
+                              {renderAmountCell ? renderAmountCell(row) : formatCurrency(mag(row.planned_amount))}
                             </TableCell>
                           </>
                         ) : (
@@ -220,10 +224,10 @@ export function EconomicPlanLayout({
                                 }
                               }}
                             >
-                              {row.previousAmount != null ? formatCurrency(row.previousAmount) : "–"}
+                              {row.previousAmount != null ? formatCurrency(mag(row.previousAmount)) : "–"}
                             </TableCell>
                             <TableCell className="text-right font-mono">
-                              {renderAmountCell ? renderAmountCell(row) : formatCurrency(row.planned_amount)}
+                              {renderAmountCell ? renderAmountCell(row) : formatCurrency(mag(row.planned_amount))}
                             </TableCell>
                             <TableCell className={cn("text-right font-mono text-xs", changePct > 0 ? "text-amber-700 dark:text-amber-400" : changePct < 0 ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground")}>
                               {row.previousAmount != null && row.previousAmount !== 0 ? formatPercent(changePct) : "–"}
@@ -252,8 +256,8 @@ export function EconomicPlanLayout({
                 <>
                   <TableCell />
                   <TableCell />
-                  <TableCell className="text-right font-mono">{formatCurrency(footer?.ownerTotal != null ? rows.reduce((s, r) => s + (r.totalAmount || 0), 0) : total)}</TableCell>
-                  <TableCell className="text-right font-mono">{formatCurrency(footer?.ownerTotal ?? total)}</TableCell>
+                  <TableCell className="text-right font-mono">{formatCurrency(footer?.ownerTotal != null ? rows.reduce((s, r) => s + mag(r.totalAmount), 0) : total)}</TableCell>
+                  <TableCell className="text-right font-mono">{formatCurrency(footer?.ownerTotal != null ? mag(footer.ownerTotal) : total)}</TableCell>
                 </>
               ) : (
                 <>
@@ -285,7 +289,7 @@ export function EconomicPlanLayout({
                 <TableCell />
                 <TableCell className="italic text-muted-foreground">davon umlagefähig (*)</TableCell>
                 <TableCell colSpan={colSpan - 3} />
-                <TableCell className="text-right font-mono italic">{formatCurrency(footer.distributableTotal)}</TableCell>
+                <TableCell className="text-right font-mono italic">{formatCurrency(mag(footer.distributableTotal))}</TableCell>
                 {renderActionCell && <TableCell />}
               </TableRow>
             )}
@@ -303,11 +307,11 @@ export function EconomicPlanLayout({
 
             {/* Footer-Zeilen Einzelplan */}
             {isEinzel && footer?.ownerTotal != null && (() => {
-              const defaultMonthlyTotal = footer.ownerTotal / 12;
-              const monthlyTotal = footer.monthlyTotalOverride ?? defaultMonthlyTotal;
-              const defaultMonthlyReserve = (footer.ownerReserveTotal ?? 0) / 12;
-              const defaultMonthlyAdvance = (footer.ownerAdvanceTotal ?? 0) / 12;
-              const monthlyAdvance = footer.monthlyAdvanceOverride ?? monthlyTotal;
+              const defaultMonthlyTotal = mag(footer.ownerTotal) / 12;
+              const monthlyTotal = footer.monthlyTotalOverride != null ? mag(footer.monthlyTotalOverride) : defaultMonthlyTotal;
+              const defaultMonthlyReserve = mag(footer.ownerReserveTotal) / 12;
+              const defaultMonthlyAdvance = mag(footer.ownerAdvanceTotal) / 12;
+              const monthlyAdvance = footer.monthlyAdvanceOverride != null ? mag(footer.monthlyAdvanceOverride) : monthlyTotal;
               const isTotalOverridden = footer.monthlyTotalOverride != null;
               const isAdvanceOverridden = footer.monthlyAdvanceOverride != null;
               return (

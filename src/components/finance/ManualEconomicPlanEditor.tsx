@@ -358,8 +358,9 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     });
   }, [accounts, plan, drafts, prevYearBookings, overrideKeyByAccount]);
 
-  const totalPlanned = rows.reduce((s, r) => s + r.planned_amount, 0);
-  const distributableTotal = rows.filter((r) => r.isDistributable).reduce((s, r) => s + r.planned_amount, 0);
+  // Konvention: Kosten intern negativ, Summen IMMER als Betrag (wie im Dokument).
+  const totalPlanned = rows.reduce((s, r) => s + Math.abs(r.planned_amount), 0);
+  const distributableTotal = rows.filter((r) => r.isDistributable).reduce((s, r) => s + Math.abs(r.planned_amount), 0);
 
   // ── Auto-save (debounced) ─────────────────────────────────────────
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
@@ -396,8 +397,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       }
     }
 
-    // Update plan totals
-    const newTotal = rows.reduce((s, r) => s + r.planned_amount, 0);
+    // Update plan totals (immer als positiver Gesamtbetrag)
+    const newTotal = rows.reduce((s, r) => s + Math.abs(r.planned_amount), 0);
     ops.push(Promise.resolve(
       supabase.from("economic_plans" as any)
         .update({ total_costs: newTotal } as any)
@@ -732,8 +733,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     const sumAbs = (xs: PlanRow[]) => xs.reduce((s, r) => s + Math.abs(r.planned_amount), 0);
     const distributable = unitRows.filter((r) => r.isDistributable);
     const reserve = unitRows.filter((r) => r.isReserve);
-    const monthlyTotal = monthlyTotalOverrides[ownerId] ?? Math.ceil(sumAbs(distributable) / 12);
-    const monthlyAdvance = monthlyAdvanceOverrides[ownerId] ?? monthlyTotal;
+    const monthlyTotal = Math.abs(monthlyTotalOverrides[ownerId] ?? Math.ceil(sumAbs(distributable) / 12));
+    const monthlyAdvance = Math.abs(monthlyAdvanceOverrides[ownerId] ?? monthlyTotal);
     const accountsList = unitRows.map((r) => ({
       account_number: r.account_number,
       account_name: r.account_name,
@@ -1055,7 +1056,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                   <Input
                     type="text"
                     inputMode="decimal"
-                    value={row.planned_amount === 0 ? "" : row.planned_amount}
+                    value={row.planned_amount === 0 ? "" : Math.abs(Number(row.planned_amount))}
                     placeholder="0,00"
                     className="h-7 w-28 text-right font-mono text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     onChange={(e) => {
@@ -1076,8 +1077,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                           // Immer auf die nächste volle 10er-Stelle aufrunden (bei jedem Klick +10 wenn schon glatt)
                           const abs = Math.abs(v);
                           const nextTen = Math.floor(abs / 10) * 10 + 10;
-                          const rounded = (Math.sign(v) || 1) * nextTen;
-                          setDrafts((p) => ({ ...p, [row.account_id]: rounded }));
+                          // Kosten werden immer negativ gespeichert
+                          setDrafts((p) => ({ ...p, [row.account_id]: -nextTen }));
                         }}
                       >
                         <ArrowUp className="h-3 w-3" />
@@ -1090,7 +1091,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
               onPreviousAmountClick={mode === "edit" ? (row) => {
                 const prev = Number(row.previousAmount || 0);
                 if (!prev) return;
-                setDrafts((p) => ({ ...p, [row.account_id]: prev }));
+                // Vorjahres-IST als Kostenbetrag übernehmen → immer negativ
+                setDrafts((p) => ({ ...p, [row.account_id]: -Math.abs(prev) }));
               } : undefined}
               renderDistKeyCell={mode === "edit" ? (row) => (
                 <Select
@@ -1123,7 +1125,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                 },
               } : undefined}
               renderActionCell={mode === "edit" ? (row) => (
-                row.manually_overridden && row.planned_amount > 0 ? (
+                row.manually_overridden && row.planned_amount !== 0 ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => resetValue(row.account_id)}>
@@ -1195,8 +1197,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                   const owner = ownerData.find((o) => o.id === selectedUnitId) || ownerData[0];
                   if (!owner) return null;
                   const unitRows = buildUnitRows(owner.id).filter((r) => r.isWpRelevant);
-                  const ownerTotal = unitRows.reduce((s, r) => s + r.planned_amount, 0);
-                  const ownerReserveTotal = unitRows.filter((r) => r.isReserve).reduce((s, r) => s + r.planned_amount, 0);
+                  const ownerTotal = unitRows.reduce((s, r) => s + Math.abs(r.planned_amount), 0);
+                  const ownerReserveTotal = unitRows.filter((r) => r.isReserve).reduce((s, r) => s + Math.abs(r.planned_amount), 0);
                   const ownerAdvanceTotal = ownerTotal - ownerReserveTotal;
                   const calculatedTotal = totalPlanned * owner.proportion;
                   const deviation = ownerTotal - calculatedTotal;
@@ -1244,7 +1246,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                               <Input
                                 type="text"
                                 inputMode="decimal"
-                                value={row.planned_amount === 0 ? "" : Number(row.planned_amount.toFixed(2))}
+                                value={row.planned_amount === 0 ? "" : Number(Math.abs(row.planned_amount).toFixed(2))}
                                 placeholder={noHeatingData ? "manuell" : "0,00"}
                                 className={cn(
                                   "h-7 w-28 text-right font-mono text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
@@ -1267,8 +1269,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                                       const v = Number(row.planned_amount) || 0;
                                       const abs = Math.abs(v);
                                       const nextTen = Math.floor(abs / 10) * 10 + 10;
-                                      const rounded = (Math.sign(v) || -1) * nextTen;
-                                      setUnitDrafts((p) => ({ ...p, [`${owner.id}|${row.account_id}`]: rounded }));
+                                      // Kosten werden immer negativ gespeichert
+                                      setUnitDrafts((p) => ({ ...p, [`${owner.id}|${row.account_id}`]: -nextTen }));
                                     }}
                                   >
                                     <ArrowUp className="h-3 w-3" />
