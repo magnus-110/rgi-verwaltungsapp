@@ -289,7 +289,7 @@ export function EconomicPlanLayout({
                 <TableCell />
                 <TableCell className="italic text-muted-foreground">davon umlagefähig (*)</TableCell>
                 <TableCell colSpan={colSpan - 3} />
-                <TableCell className="text-right font-mono italic">{formatCurrency(footer.distributableTotal)}</TableCell>
+                <TableCell className="text-right font-mono italic">{formatCurrency(mag(footer.distributableTotal))}</TableCell>
                 {renderActionCell && <TableCell />}
               </TableRow>
             )}
