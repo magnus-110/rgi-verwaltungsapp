@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { formatGermanDateLong, formatGermanTime } from "@/lib/germanDateTime";
 import { CheckCircle2, XCircle, MinusCircle } from "lucide-react";
 import { ProtocolSignaturesInline } from "./ProtocolSignaturesInline";
 
