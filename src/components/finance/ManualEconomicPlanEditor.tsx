@@ -1125,7 +1125,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                 },
               } : undefined}
               renderActionCell={mode === "edit" ? (row) => (
-                row.manually_overridden && row.planned_amount > 0 ? (
+                row.manually_overridden && row.planned_amount !== 0 ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => resetValue(row.account_id)}>
