@@ -141,7 +141,7 @@ export const MeetingDatePollPanel = ({ meetingId, buildingId, onApplyDate }: Pro
 
   const createPoll = useMutation({
     mutationFn: async () => {
-      const clean = dates.filter(Boolean);
+      const clean = selectedDates.map(toIso);
       if (clean.length < 2) throw new Error("Bitte mindestens 2 Tage vorschlagen.");
       if (clean.some(isWeekend)) throw new Error("Samstag und Sonntag sind nicht möglich.");
 
