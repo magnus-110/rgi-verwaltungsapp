@@ -204,9 +204,9 @@ export function EconomicPlanLayout({
                           <>
                             <TableCell className="text-right font-mono text-xs">{row.totalShare != null ? formatNumber(row.totalShare, 3) : "–"}</TableCell>
                             <TableCell className="text-right font-mono text-xs">{row.yourShare != null ? formatNumber(row.yourShare, 3) : "–"}</TableCell>
-                            <TableCell className="text-right font-mono text-xs">{formatCurrency(row.totalAmount ?? 0)}</TableCell>
+                            <TableCell className="text-right font-mono text-xs">{formatCurrency(mag(row.totalAmount))}</TableCell>
                             <TableCell className="text-right font-mono">
-                              {renderAmountCell ? renderAmountCell(row) : formatCurrency(row.planned_amount)}
+                              {renderAmountCell ? renderAmountCell(row) : formatCurrency(mag(row.planned_amount))}
                             </TableCell>
                           </>
                         ) : (
