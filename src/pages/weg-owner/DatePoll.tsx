@@ -203,7 +203,9 @@ export const WegOwnerDatePoll = () => {
       <div className="space-y-1">
         <h1 className="text-lg md:text-xl font-semibold tracking-tight">Terminfindung</h1>
         <p className="text-sm text-muted-foreground">
-          Bitte geben Sie an, ob Sie können – und ab wann.
+          Bitte geben Sie zu jedem Terminvorschlag an, ob Sie können – und ab welcher Uhrzeit.
+          „ab 15:00" bedeutet, dass auch spätere Zeiten für Sie passen. Sie können jederzeit
+          zwischenspeichern und Ihre Antwort später ändern.
         </p>
       </div>
 
@@ -264,10 +266,16 @@ export const WegOwnerDatePoll = () => {
 
 
               <div className={disabled ? "opacity-40 pointer-events-none" : ""}>
-                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Frühestens</p>
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                  Frühestens – ab wann könnten Sie an diesem Tag?
+                </p>
                 <div className="grid grid-cols-3 gap-1.5 mt-1.5">
                   {TIME_SLOTS.map((slot) => {
                     const active = a.earliest === slot;
+                    const slotActiveCls =
+                      a.choice === "maybe"
+                        ? "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium"
+                        : "border-green-600 bg-green-600/10 text-green-700 dark:text-green-400 font-medium";
                     return (
                       <button
                         key={slot}
@@ -280,7 +288,7 @@ export const WegOwnerDatePoll = () => {
                         }
                         className={`rounded-lg border px-2 py-2 text-xs transition-colors ${
                           active
-                            ? "border-foreground/30 bg-muted text-foreground font-medium"
+                            ? slotActiveCls
                             : "border-border bg-background text-muted-foreground hover:bg-muted/60"
                         }`}
                       >
