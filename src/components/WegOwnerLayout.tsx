@@ -145,6 +145,12 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       path: '/weg-owner/kassenpruefung',
       active: location.pathname.startsWith('/weg-owner/kassenpruefung')
     }] : []),
+    ...(hasDatePoll ? [{
+      icon: CalendarClock,
+      label: "Terminabfrage",
+      path: '/weg-owner/terminabfrage',
+      active: location.pathname.startsWith('/weg-owner/terminabfrage')
+    }] : []),
     { 
       icon: Scale, 
       label: "Beschlüsse", 
