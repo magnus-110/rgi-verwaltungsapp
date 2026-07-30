@@ -481,6 +481,23 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     onError: (e: any) => toast.error("Aktivierung fehlgeschlagen: " + e.message),
   });
 
+  // ── Deactivate plan (zurück auf Entwurf) ──────────────────────────
+  const deactivate = useMutation({
+    mutationFn: async () => {
+      if (!plan?.id) throw new Error("Kein Plan zum Deaktivieren");
+      const { error } = await supabase
+        .from("economic_plans" as any)
+        .update({ status: "draft", activated_by: null } as any)
+        .eq("id", plan.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Wirtschaftsplan auf Entwurf zurückgesetzt");
+      qc.invalidateQueries({ queryKey: ["manual-plan", buildingId, fiscalYear] });
+    },
+    onError: (e: any) => toast.error("Deaktivierung fehlgeschlagen: " + e.message),
+  });
+
   // ── Reset single value to 0 ───────────────────────────────────────
   const resetValue = async (accountId: string) => {
     const items = (plan?.economic_plan_items || []) as any[];
