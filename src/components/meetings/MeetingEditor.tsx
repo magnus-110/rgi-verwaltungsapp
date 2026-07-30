@@ -90,9 +90,8 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
     if (existingMeeting) {
       setTitle(existingMeeting.title);
       setBuildingId(existingMeeting.building_id);
-      const d = new Date(existingMeeting.meeting_date);
-      setMeetingDate(d.toISOString().split("T")[0]);
-      setMeetingTime(d.toTimeString().slice(0, 5));
+      setMeetingDate(berlinDateInputValue(existingMeeting.meeting_date));
+      setMeetingTime(berlinTimeInputValue(existingMeeting.meeting_date));
       setLocation(existingMeeting.location || "");
       setNotes(existingMeeting.notes || "");
       setMeetingChair((existingMeeting as any).meeting_chair || "");
