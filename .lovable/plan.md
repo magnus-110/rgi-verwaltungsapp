@@ -49,9 +49,9 @@ Die App zeigt die Top 3 mit Klartext-Begründung, z. B. "Dienstag, 14.04. ab 19:
 Neue Tabellen (Lovable Cloud / Supabase), an `etv_meetings` und `building_id` gekoppelt:
 
 - `etv_date_polls` — meeting_id, building_id, status (`open` / `closed`), closes_at, intro_text, timestamps
-- `etv_date_poll_options` — poll_id, proposed_date, proposed_time (nullable), sort_order
-- `etv_date_poll_responses` — poll_id, contact_id, option_id, choice (`yes` / `maybe` / `no`), unique (option_id, contact_id)
-- `etv_date_poll_preferences` — poll_id, contact_id, time_slots (text[]), note
+- `etv_date_poll_options` — poll_id, proposed_date (nur Datum, Mo–Fr), sort_order
+- `etv_date_poll_responses` — poll_id, contact_id, option_id, choice (`yes` / `maybe` / `no`), time_slots (text[] aus `15`, `17`, `19`), unique (option_id, contact_id)
+- `etv_date_poll_notes` — poll_id, contact_id, note (eine Anmerkung pro Eigentümer)
 
 Zugriffsregeln:
 - Admin/Mitarbeiter: voller Zugriff auf alle vier Tabellen.
