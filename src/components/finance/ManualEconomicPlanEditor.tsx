@@ -1056,7 +1056,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                   <Input
                     type="text"
                     inputMode="decimal"
-                    value={row.planned_amount === 0 ? "" : row.planned_amount}
+                    value={row.planned_amount === 0 ? "" : Math.abs(Number(row.planned_amount))}
                     placeholder="0,00"
                     className="h-7 w-28 text-right font-mono text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     onChange={(e) => {
@@ -1077,8 +1077,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                           // Immer auf die nächste volle 10er-Stelle aufrunden (bei jedem Klick +10 wenn schon glatt)
                           const abs = Math.abs(v);
                           const nextTen = Math.floor(abs / 10) * 10 + 10;
-                          const rounded = (Math.sign(v) || 1) * nextTen;
-                          setDrafts((p) => ({ ...p, [row.account_id]: rounded }));
+                          // Kosten werden immer negativ gespeichert
+                          setDrafts((p) => ({ ...p, [row.account_id]: -nextTen }));
                         }}
                       >
                         <ArrowUp className="h-3 w-3" />
@@ -1091,7 +1091,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
               onPreviousAmountClick={mode === "edit" ? (row) => {
                 const prev = Number(row.previousAmount || 0);
                 if (!prev) return;
-                setDrafts((p) => ({ ...p, [row.account_id]: prev }));
+                // Vorjahres-IST als Kostenbetrag übernehmen → immer negativ
+                setDrafts((p) => ({ ...p, [row.account_id]: -Math.abs(prev) }));
               } : undefined}
               renderDistKeyCell={mode === "edit" ? (row) => (
                 <Select
