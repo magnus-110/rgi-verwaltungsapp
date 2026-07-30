@@ -1246,7 +1246,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                               <Input
                                 type="text"
                                 inputMode="decimal"
-                                value={row.planned_amount === 0 ? "" : Number(row.planned_amount.toFixed(2))}
+                                value={row.planned_amount === 0 ? "" : Number(Math.abs(row.planned_amount).toFixed(2))}
                                 placeholder={noHeatingData ? "manuell" : "0,00"}
                                 className={cn(
                                   "h-7 w-28 text-right font-mono text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
