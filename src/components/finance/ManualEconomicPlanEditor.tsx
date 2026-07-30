@@ -1269,8 +1269,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                                       const v = Number(row.planned_amount) || 0;
                                       const abs = Math.abs(v);
                                       const nextTen = Math.floor(abs / 10) * 10 + 10;
-                                      const rounded = (Math.sign(v) || -1) * nextTen;
-                                      setUnitDrafts((p) => ({ ...p, [`${owner.id}|${row.account_id}`]: rounded }));
+                                      // Kosten werden immer negativ gespeichert
+                                      setUnitDrafts((p) => ({ ...p, [`${owner.id}|${row.account_id}`]: -nextTen }));
                                     }}
                                   >
                                     <ArrowUp className="h-3 w-3" />
