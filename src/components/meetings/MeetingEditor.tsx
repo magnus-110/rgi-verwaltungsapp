@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AgendaItemEditor } from "./AgendaItemEditor";
+import { MeetingDatePollPanel } from "./MeetingDatePollPanel";
 import { MeetingInvitationPdf } from "./MeetingInvitationPdf";
 import { MeetingLiveSession } from "./MeetingLiveSession";
 import { MeetingProtocol } from "./MeetingProtocol";
@@ -187,6 +188,17 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <CardContent className="space-y-4">
+                  {savedMeetingId && buildingId && (
+                    <MeetingDatePollPanel
+                      meetingId={savedMeetingId}
+                      buildingId={buildingId}
+                      onApplyDate={(date, time) => {
+                        setMeetingDate(date);
+                        setMeetingTime(time);
+                        toast({ title: "Termin übernommen", description: "Bitte noch speichern." });
+                      }}
+                    />
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="title">Titel *</Label>

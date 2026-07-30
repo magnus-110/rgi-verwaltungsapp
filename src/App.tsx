@@ -55,6 +55,7 @@ const WegOwnerSettings = lazy(() => import("./pages/weg-owner/Settings").then(m 
 const WegOwnerFiles = lazy(() => import("./pages/weg-owner/Files").then(m => ({ default: m.WegOwnerFiles })));
 const WegOwnerMeetings = lazy(() => import("./pages/weg-owner/Meetings").then(m => ({ default: m.WegOwnerMeetings })));
 const WegOwnerCashAudit = lazy(() => import("./pages/weg-owner/CashAudit").then(m => ({ default: m.WegOwnerCashAudit })));
+const WegOwnerDatePoll = lazy(() => import("./pages/weg-owner/DatePoll").then(m => ({ default: m.WegOwnerDatePoll })));
 const WegOwnerResolutions = lazy(() => import("./pages/weg-owner/Resolutions").then(m => ({ default: m.WegOwnerResolutions })));
 const WegOwnerServiceHub = lazy(() => import("./pages/weg-owner/ServiceHub").then(m => ({ default: m.WegOwnerServiceHub })));
 const WegOwnerNebenkostenTool = lazy(() => import("./pages/weg-owner/NebenkostenTool").then(m => ({ default: m.WegOwnerNebenkostenTool })));
@@ -169,6 +170,7 @@ const App = () => (
               <Route path="/weg-owner/umfrage" element={<WegOwnerLayout><OwnerSurveysLanding /></WegOwnerLayout>} />
               <Route path="/weg-owner/umfrage/:id" element={<WegOwnerLayout><SurveyRunner /></WegOwnerLayout>} />
               <Route path="/weg-owner/kassenpruefung" element={<WegOwnerLayout><WegOwnerCashAudit /></WegOwnerLayout>} />
+              <Route path="/weg-owner/terminabfrage" element={<WegOwnerLayout><WegOwnerDatePoll /></WegOwnerLayout>} />                                        
               <Route path="/weg-owner/resolutions" element={<WegOwnerLayout><WegOwnerResolutions /></WegOwnerLayout>} />
               <Route path="/weg-owner/service-hub" element={<WegOwnerLayout><WegOwnerServiceHub /></WegOwnerLayout>} />
               <Route path="/weg-owner/service-hub/nebenkosten" element={<WegOwnerLayout><WegOwnerNebenkostenTool /></WegOwnerLayout>} />

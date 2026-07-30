@@ -5281,6 +5281,186 @@ export type Database = {
           },
         ]
       }
+      etv_date_poll_notes: {
+        Row: {
+          contact_id: string
+          created_at: string
+          id: string
+          note: string | null
+          poll_id: string
+          updated_at: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          poll_id: string
+          updated_at?: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          poll_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etv_date_poll_notes_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_date_poll_notes_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "etv_date_polls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etv_date_poll_options: {
+        Row: {
+          created_at: string
+          id: string
+          poll_id: string
+          proposed_date: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          poll_id: string
+          proposed_date: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          poll_id?: string
+          proposed_date?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etv_date_poll_options_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "etv_date_polls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etv_date_poll_responses: {
+        Row: {
+          choice: string
+          contact_id: string
+          created_at: string
+          earliest_time: string | null
+          id: string
+          option_id: string
+          poll_id: string
+          updated_at: string
+        }
+        Insert: {
+          choice: string
+          contact_id: string
+          created_at?: string
+          earliest_time?: string | null
+          id?: string
+          option_id: string
+          poll_id: string
+          updated_at?: string
+        }
+        Update: {
+          choice?: string
+          contact_id?: string
+          created_at?: string
+          earliest_time?: string | null
+          id?: string
+          option_id?: string
+          poll_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etv_date_poll_responses_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_date_poll_responses_option_id_fkey"
+            columns: ["option_id"]
+            isOneToOne: false
+            referencedRelation: "etv_date_poll_options"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_date_poll_responses_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "etv_date_polls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etv_date_polls: {
+        Row: {
+          building_id: string
+          closes_at: string
+          created_at: string
+          created_by: string | null
+          id: string
+          intro_text: string | null
+          meeting_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          building_id: string
+          closes_at: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          intro_text?: string | null
+          meeting_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          building_id?: string
+          closes_at?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          intro_text?: string | null
+          meeting_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etv_date_polls_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_date_polls_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "etv_meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       etv_manual_notes: {
         Row: {
           building_id: string | null

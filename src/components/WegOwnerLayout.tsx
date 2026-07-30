@@ -25,7 +25,8 @@ import {
   ClipboardCheck,
   ListChecks,
   Scale,
-  Store
+  Store,
+  CalendarClock
 } from "lucide-react";
 
 interface WegOwnerLayoutProps {
@@ -40,6 +41,22 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
   const hasVisibleFiles = useHasVisibleFiles(profile?.user_id);
   const { hasSurveys } = useHasVisibleSurveys(profile?.user_id);
   const [hasAudit, setHasAudit] = useState(false);
+  const [hasDatePoll, setHasDatePoll] = useState(false);
+
+  useEffect(() => {
+    const checkDatePoll = async () => {
+      if (!profile?.user_id) return;
+      const today = new Date().toISOString().split("T")[0];
+      const { data } = await supabase
+        .from("etv_date_polls")
+        .select("id")
+        .eq("status", "open")
+        .gte("closes_at", today)
+        .limit(1);
+      setHasDatePoll(!!data && data.length > 0);
+    };
+    checkDatePoll();
+  }, [profile?.user_id]);
  const [showTermsDialog, setShowTermsDialog] = useState(false);
  const [termsAccepted, setTermsAccepted] = useState<boolean | null>(null);
  
@@ -144,6 +161,12 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       label: "Kassenprüfung",
       path: '/weg-owner/kassenpruefung',
       active: location.pathname.startsWith('/weg-owner/kassenpruefung')
+    }] : []),
+    ...(hasDatePoll ? [{
+      icon: CalendarClock,
+      label: "Terminabfrage",
+      path: '/weg-owner/terminabfrage',
+      active: location.pathname.startsWith('/weg-owner/terminabfrage')
     }] : []),
     { 
       icon: Scale, 
