@@ -25,7 +25,8 @@ import {
   ClipboardCheck,
   ListChecks,
   Scale,
-  Store
+  Store,
+  CalendarClock
 } from "lucide-react";
 
 interface WegOwnerLayoutProps {
