@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AgendaItemEditor } from "./AgendaItemEditor";
+import { MeetingDatePollPanel } from "./MeetingDatePollPanel";
 import { MeetingInvitationPdf } from "./MeetingInvitationPdf";
 import { MeetingLiveSession } from "./MeetingLiveSession";
 import { MeetingProtocol } from "./MeetingProtocol";
