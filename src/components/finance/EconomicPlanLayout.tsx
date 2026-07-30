@@ -224,10 +224,10 @@ export function EconomicPlanLayout({
                                 }
                               }}
                             >
-                              {row.previousAmount != null ? formatCurrency(row.previousAmount) : "–"}
+                              {row.previousAmount != null ? formatCurrency(mag(row.previousAmount)) : "–"}
                             </TableCell>
                             <TableCell className="text-right font-mono">
-                              {renderAmountCell ? renderAmountCell(row) : formatCurrency(row.planned_amount)}
+                              {renderAmountCell ? renderAmountCell(row) : formatCurrency(mag(row.planned_amount))}
                             </TableCell>
                             <TableCell className={cn("text-right font-mono text-xs", changePct > 0 ? "text-amber-700 dark:text-amber-400" : changePct < 0 ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground")}>
                               {row.previousAmount != null && row.previousAmount !== 0 ? formatPercent(changePct) : "–"}
