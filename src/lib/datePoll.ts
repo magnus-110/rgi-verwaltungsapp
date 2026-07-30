@@ -3,6 +3,7 @@ export type TimeSlot = (typeof TIME_SLOTS)[number];
 export type PollChoice = "yes" | "maybe" | "no";
 
 export const slotLabel = (s: string) => `ab ${s}:00 Uhr`;
+export const slotShort = (s: string) => `ab ${s}:00`;
 
 export const formatGermanDate = (iso: string) =>
   new Date(iso + "T00:00:00").toLocaleDateString("de-DE", {
