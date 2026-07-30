@@ -46,7 +46,7 @@ Neue Tabellen (Lovable Cloud / Supabase), an `etv_meetings` und `building_id` ge
 
 - `etv_date_polls` — meeting_id, building_id, status (`open` / `closed`), closes_at, intro_text, timestamps
 - `etv_date_poll_options` — poll_id, proposed_date (nur Datum, Mo–Fr), sort_order
-- `etv_date_poll_responses` — poll_id, contact_id, option_id, choice (`yes` / `maybe` / `no`), time_slots (text[] aus `15`, `17`, `19`), unique (option_id, contact_id)
+- `etv_date_poll_responses` — poll_id, contact_id, option_id, choice (`yes` / `maybe` / `no`), earliest_time (`15` / `17` / `19`, nullable), unique (option_id, contact_id)
 - `etv_date_poll_notes` — poll_id, contact_id, note (eine Anmerkung pro Eigentümer)
 
 Zugriffsregeln:
