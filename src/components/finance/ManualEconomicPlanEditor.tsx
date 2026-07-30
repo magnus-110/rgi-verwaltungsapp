@@ -733,8 +733,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     const sumAbs = (xs: PlanRow[]) => xs.reduce((s, r) => s + Math.abs(r.planned_amount), 0);
     const distributable = unitRows.filter((r) => r.isDistributable);
     const reserve = unitRows.filter((r) => r.isReserve);
-    const monthlyTotal = monthlyTotalOverrides[ownerId] ?? Math.ceil(sumAbs(distributable) / 12);
-    const monthlyAdvance = monthlyAdvanceOverrides[ownerId] ?? monthlyTotal;
+    const monthlyTotal = Math.abs(monthlyTotalOverrides[ownerId] ?? Math.ceil(sumAbs(distributable) / 12));
+    const monthlyAdvance = Math.abs(monthlyAdvanceOverrides[ownerId] ?? monthlyTotal);
     const accountsList = unitRows.map((r) => ({
       account_number: r.account_number,
       account_name: r.account_name,
