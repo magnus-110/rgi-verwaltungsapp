@@ -123,8 +123,8 @@ export function ProtocolReadableView({
   const meaUnit = totalMea > 950 && totalMea < 1050 ? "Tausendstel" : "MEA";
 
   const meetingDate = meeting.meeting_date ? new Date(meeting.meeting_date) : null;
-  const dateStr = meetingDate ? format(meetingDate, "EEEE, dd. MMMM yyyy", { locale: de }) : "—";
-  const beginStr = meetingDate ? format(meetingDate, "HH:mm", { locale: de }) + " Uhr" : "—";
+  const dateStr = formatGermanDateLong(meeting.meeting_date);
+  const beginStr = meeting.meeting_date ? `${formatGermanTime(meeting.meeting_date)} Uhr` : "—";
 
   return (
     <div className={compact ? "px-4 py-5 space-y-6" : "px-8 py-8 space-y-7 max-w-4xl mx-auto"}>
