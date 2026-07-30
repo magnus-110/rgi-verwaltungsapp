@@ -280,7 +280,7 @@ export const WegOwnerDatePoll = () => {
                         }
                         className={`rounded-lg border px-2 py-2 text-xs transition-colors ${
                           active
-                            ? "border-primary bg-primary/10 text-primary font-medium"
+                            ? "border-foreground/30 bg-muted text-foreground font-medium"
                             : "border-border bg-background text-muted-foreground hover:bg-muted/60"
                         }`}
                       >
