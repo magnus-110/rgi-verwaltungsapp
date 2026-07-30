@@ -397,8 +397,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       }
     }
 
-    // Update plan totals
-    const newTotal = rows.reduce((s, r) => s + r.planned_amount, 0);
+    // Update plan totals (immer als positiver Gesamtbetrag)
+    const newTotal = rows.reduce((s, r) => s + Math.abs(r.planned_amount), 0);
     ops.push(Promise.resolve(
       supabase.from("economic_plans" as any)
         .update({ total_costs: newTotal } as any)
