@@ -103,11 +103,9 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      let meetingDateTime: string | null = null;
-      if (meetingDate) {
-        const time = meetingTime || "00:00";
-        meetingDateTime = new Date(`${meetingDate}T${time}:00`).toISOString();
-      }
+      const meetingDateTime: string | null = meetingDate
+        ? berlinLocalToIso(meetingDate, meetingTime || "00:00")
+        : null;
 
       const payload: any = {
         title,
