@@ -170,6 +170,7 @@ const App = () => (
               <Route path="/weg-owner/umfrage" element={<WegOwnerLayout><OwnerSurveysLanding /></WegOwnerLayout>} />
               <Route path="/weg-owner/umfrage/:id" element={<WegOwnerLayout><SurveyRunner /></WegOwnerLayout>} />
               <Route path="/weg-owner/kassenpruefung" element={<WegOwnerLayout><WegOwnerCashAudit /></WegOwnerLayout>} />
+              <Route path="/weg-owner/terminabfrage" element={<WegOwnerLayout><WegOwnerDatePoll /></WegOwnerLayout>} />                                        
               <Route path="/weg-owner/resolutions" element={<WegOwnerLayout><WegOwnerResolutions /></WegOwnerLayout>} />
               <Route path="/weg-owner/service-hub" element={<WegOwnerLayout><WegOwnerServiceHub /></WegOwnerLayout>} />
               <Route path="/weg-owner/service-hub/nebenkosten" element={<WegOwnerLayout><WegOwnerNebenkostenTool /></WegOwnerLayout>} />
