@@ -178,7 +178,7 @@ export function EconomicPlanLayout({
           </TableHeader>
           <TableBody>
             {groups.map((group) => {
-              const groupTotal = group.rows.reduce((s, r) => s + (Number(r.planned_amount) || 0), 0);
+              const groupTotal = group.rows.reduce((s, r) => s + mag(r.planned_amount), 0);
               return (
                 <>
                   {groupByCategory && (
@@ -189,8 +189,8 @@ export function EconomicPlanLayout({
                     </TableRow>
                   )}
                   {group.rows.map((row) => {
-                    const prev = Number(row.previousAmount || 0);
-                    const cur = Number(row.planned_amount || 0);
+                    const prev = mag(row.previousAmount);
+                    const cur = mag(row.planned_amount);
                     const changePct = prev > 0 ? ((cur - prev) / prev) * 100 : (cur > 0 ? 100 : 0);
                     return (
                       <TableRow key={row.account_id} className={cn(row.manually_overridden && "bg-amber-50/50 dark:bg-amber-950/20")}>
