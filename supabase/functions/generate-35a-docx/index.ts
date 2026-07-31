@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
       .select(`id, booking_date, description, amount, amount_35a, is_35a_relevant,
                settlement_35a_type,
                account_id, counter_account_id, invoice_id,
-               invoices(invoice_number, invoice_date, vendor_name)`)
+               invoices:invoices!bookings_invoice_id_fkey(invoice_number, invoice_date, vendor_name, vat_rate, line_items_detail)`)
       .eq("building_id", building_id)
       .eq("fiscal_year", fiscal_year)
       .neq("status", "cancelled");
