@@ -659,7 +659,9 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
   // ── Helpers für Template-Felder (englische Aliase) ────────────────
   const DISTRIBUTION_KEY_LABELS: Record<string, string> = {
     mea: "MEA",
-    einheit: "pro Einheit",
+    einheit: "Einheiten",
+    einheiten: "Einheiten",
+    units: "Einheiten",
     qm: "pro m²",
     stellplaetze: "pro Stellplatz",
     personen: "pro Person",
@@ -667,7 +669,9 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     heizkostenverordnung: "Heizkostenverordnung",
     heating_individual: "Heizkostenverordnung",
   };
-  const distLabel = (k: string) => DISTRIBUTION_KEY_LABELS[k] || k || "—";
+  const distLabel = (k: string) =>
+    DISTRIBUTION_KEY_LABELS[String(k || "").toLowerCase()] || k || "—";
+
 
   const splitAddress = (addr: string): { street: string; zipCity: string } => {
     const parts = (addr || "").split(",").map((s) => s.trim());
