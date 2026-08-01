@@ -166,6 +166,18 @@
          </CardHeader>
          <CardContent className="space-y-4">
            <div>
+             <Label htmlFor="currentPassword">Aktuelles Passwort</Label>
+             <Input
+               id="currentPassword"
+               type="password"
+               value={passwordForm.currentPassword}
+               onChange={(e) => setPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+               placeholder="Ihr aktuelles Passwort"
+             />
+           </div>
+
+           <div>
+
              <Label htmlFor="newPassword">Neues Passwort</Label>
              <Input
                id="newPassword"
