@@ -139,7 +139,9 @@ export const WegOwnerSettings = () => {
  
      setIsUpdatingPassword(true);
      try {
-       await updatePassword(newPassword);
+       const { error } = await updatePassword(newPassword, currentPassword);
+       if (error) return;
+
        setCurrentPassword("");
        setNewPassword("");
        setConfirmPassword("");
