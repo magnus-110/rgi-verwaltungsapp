@@ -201,7 +201,7 @@
  
            <Button 
              onClick={changePassword} 
-             disabled={isUpdatingPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
+             disabled={isUpdatingPassword || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
              className="w-full md:w-auto"
            >
              {isUpdatingPassword ? "Wird geändert..." : "Passwort ändern"}
