@@ -279,11 +279,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  const updatePassword = async (newPassword: string) => {
+  const updatePassword = async (newPassword: string, currentPassword?: string) => {
     try {
       const { error } = await supabase.auth.updateUser({
-        password: newPassword
-      });
+        password: newPassword,
+        ...(currentPassword ? { current_password: currentPassword } : {}),
+      } as any);
+
 
       if (error) {
         toast({
