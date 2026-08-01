@@ -24,10 +24,12 @@ Deno.serve(async (req) => {
     try { body = await req.json() } catch { /* no body */ }
     const dryRun = body?.dry_run === true
     const buildingId: string | undefined = body?.building_id
+    const limit = Math.min(Number(body?.limit ?? 3), 10)
+    const offset = Number(body?.offset ?? 0)
 
     let q = supabase.from('key_tags').select('id, tag_number, photo_path').not('photo_path', 'is', null)
     if (buildingId) q = q.eq('building_id', buildingId)
-    const { data: tags, error } = await q
+    const { data: tags, error } = await q.order('created_at').range(offset, offset + limit - 1)
     if (error) return json({ error: error.message }, 500)
 
     const results: any[] = []
@@ -93,7 +95,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ total: tags?.length ?? 0, saved_bytes: savedBytes, dry_run: dryRun, results })
+    return json({ offset, limit, processed: tags?.length ?? 0, saved_bytes: savedBytes, dry_run: dryRun, results })
   } catch (e) {
     return json({ error: (e as Error).message }, 500)
   }
