@@ -288,7 +288,7 @@ export const ChangePassword = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {!isForcedChange && (
+              {!isRecoverySession && (
                 <div className="space-y-2">
                   <Label htmlFor="currentPassword">Aktuelles Passwort</Label>
                   <div className="relative">
