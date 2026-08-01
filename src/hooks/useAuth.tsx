@@ -27,7 +27,7 @@ interface AuthContextType {
   loading: boolean;
   signIn: (identifier: string, password: string) => Promise<{ error?: any }>;
   signOut: () => Promise<void>;
-  updatePassword: (newPassword: string) => Promise<{ error?: any }>;
+  updatePassword: (newPassword: string, currentPassword?: string) => Promise<{ error?: any }>;
   fetchProfile: () => Promise<void>;
 }
 
