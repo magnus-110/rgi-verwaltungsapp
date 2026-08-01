@@ -73,6 +73,13 @@ export const ChangePassword = () => {
 
   const isForcedChange = !!(profile?.force_password_change || profile?.must_change_password);
 
+  // Passwort-vergessen-Link: hier existiert kein altes Passwort
+  const isRecoverySession =
+    typeof window !== "undefined" &&
+    (window.location.hash.includes("type=recovery") ||
+      new URLSearchParams(window.location.search).get("type") === "recovery");
+
+
   const requestMfaCodeIfNeeded = async () => {
     const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
     if (aalError) throw aalError;
@@ -104,16 +111,24 @@ export const ChangePassword = () => {
   };
 
   const finishPasswordChange = async () => {
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+      ...(currentPassword ? { current_password: currentPassword } : {}),
+    } as any);
 
     if (error) {
+      const msg = (error as any)?.code === "invalid_credentials" ||
+        /current password/i.test(error.message)
+        ? "Das aktuelle Passwort ist falsch. Bitte prüfen Sie Ihre Eingabe."
+        : error.message;
       toast({
         title: "Passwort-Änderung fehlgeschlagen",
-        description: error.message,
+        description: msg,
         variant: "destructive",
       });
       return false;
     }
+
 
     if (profile && user?.id) {
       const { error: profileError } = await supabase
@@ -162,7 +177,7 @@ export const ChangePassword = () => {
       return;
     }
 
-    if (!isForcedChange && !currentPassword) {
+    if (!isRecoverySession && !currentPassword) {
       toast({
         title: "Aktuelles Passwort erforderlich",
         description: "Bitte geben Sie Ihr aktuelles Passwort ein.",
@@ -174,29 +189,11 @@ export const ChangePassword = () => {
     setLoading(true);
 
     try {
-      if (!isForcedChange && !mfaRequired) {
-        const email = user?.email || profile?.email;
-        if (!email) {
-          toast({ title: "Fehler", description: "E-Mail nicht verfügbar.", variant: "destructive" });
-          return;
-        }
-
-        const { error: reauthError } = await supabase.auth.signInWithPassword({
-          email,
-          password: currentPassword,
-        });
-        if (reauthError) {
-          toast({
-            title: "Aktuelles Passwort ist falsch",
-            description: "Bitte überprüfen Sie Ihr aktuelles Passwort und versuchen Sie es erneut.",
-            variant: "destructive",
-          });
-          return;
-        }
-
+      if (!mfaRequired) {
         const needsMfaCode = await requestMfaCodeIfNeeded();
         if (needsMfaCode) return;
       }
+
 
       if (isForcedChange && !mfaRequired) {
         const needsMfaCode = await requestMfaCodeIfNeeded();
@@ -291,7 +288,7 @@ export const ChangePassword = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {!isForcedChange && (
+              {!isRecoverySession && (
                 <div className="space-y-2">
                   <Label htmlFor="currentPassword">Aktuelles Passwort</Label>
                   <div className="relative">

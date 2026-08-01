@@ -71,6 +71,15 @@
    };
  
    const changePassword = async () => {
+     if (!passwordForm.currentPassword) {
+       toast({
+         title: "Fehler",
+         description: "Bitte geben Sie Ihr aktuelles Passwort ein.",
+         variant: "destructive",
+       });
+       return;
+     }
+
      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
        toast({
          title: "Fehler",
@@ -91,7 +100,7 @@
  
      setIsUpdatingPassword(true);
      try {
-       const { error } = await updatePassword(passwordForm.newPassword);
+       const { error } = await updatePassword(passwordForm.newPassword, passwordForm.currentPassword);
        if (error) throw error;
        setPasswordForm({
          currentPassword: "",
@@ -104,6 +113,7 @@
        setIsUpdatingPassword(false);
      }
    };
+
  
    return (
      <div className="max-w-4xl mx-auto space-y-6 p-4">
@@ -156,6 +166,18 @@
          </CardHeader>
          <CardContent className="space-y-4">
            <div>
+             <Label htmlFor="currentPassword">Aktuelles Passwort</Label>
+             <Input
+               id="currentPassword"
+               type="password"
+               value={passwordForm.currentPassword}
+               onChange={(e) => setPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+               placeholder="Ihr aktuelles Passwort"
+             />
+           </div>
+
+           <div>
+
              <Label htmlFor="newPassword">Neues Passwort</Label>
              <Input
                id="newPassword"
@@ -179,7 +201,7 @@
  
            <Button 
              onClick={changePassword} 
-             disabled={isUpdatingPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
+             disabled={isUpdatingPassword || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
              className="w-full md:w-auto"
            >
              {isUpdatingPassword ? "Wird geändert..." : "Passwort ändern"}

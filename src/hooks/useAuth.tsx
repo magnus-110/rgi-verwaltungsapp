@@ -27,7 +27,7 @@ interface AuthContextType {
   loading: boolean;
   signIn: (identifier: string, password: string) => Promise<{ error?: any }>;
   signOut: () => Promise<void>;
-  updatePassword: (newPassword: string) => Promise<{ error?: any }>;
+  updatePassword: (newPassword: string, currentPassword?: string) => Promise<{ error?: any }>;
   fetchProfile: () => Promise<void>;
 }
 
@@ -279,11 +279,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  const updatePassword = async (newPassword: string) => {
+  const updatePassword = async (newPassword: string, currentPassword?: string) => {
     try {
       const { error } = await supabase.auth.updateUser({
-        password: newPassword
-      });
+        password: newPassword,
+        ...(currentPassword ? { current_password: currentPassword } : {}),
+      } as any);
+
 
       if (error) {
         toast({
