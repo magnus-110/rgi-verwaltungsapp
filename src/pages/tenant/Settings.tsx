@@ -71,6 +71,15 @@
    };
  
    const changePassword = async () => {
+     if (!passwordForm.currentPassword) {
+       toast({
+         title: "Fehler",
+         description: "Bitte geben Sie Ihr aktuelles Passwort ein.",
+         variant: "destructive",
+       });
+       return;
+     }
+
      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
        toast({
          title: "Fehler",
@@ -91,7 +100,7 @@
  
      setIsUpdatingPassword(true);
      try {
-       const { error } = await updatePassword(passwordForm.newPassword);
+       const { error } = await updatePassword(passwordForm.newPassword, passwordForm.currentPassword);
        if (error) throw error;
        setPasswordForm({
          currentPassword: "",
@@ -104,6 +113,7 @@
        setIsUpdatingPassword(false);
      }
    };
+
  
    return (
      <div className="max-w-4xl mx-auto space-y-6 p-4">
