@@ -104,16 +104,24 @@ export const ChangePassword = () => {
   };
 
   const finishPasswordChange = async () => {
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+      ...(currentPassword ? { current_password: currentPassword } : {}),
+    } as any);
 
     if (error) {
+      const msg = (error as any)?.code === "invalid_credentials" ||
+        /current password/i.test(error.message)
+        ? "Das aktuelle Passwort ist falsch. Bitte prüfen Sie Ihre Eingabe."
+        : error.message;
       toast({
         title: "Passwort-Änderung fehlgeschlagen",
-        description: error.message,
+        description: msg,
         variant: "destructive",
       });
       return false;
     }
+
 
     if (profile && user?.id) {
       const { error: profileError } = await supabase
