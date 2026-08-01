@@ -73,6 +73,13 @@ export const ChangePassword = () => {
 
   const isForcedChange = !!(profile?.force_password_change || profile?.must_change_password);
 
+  // Passwort-vergessen-Link: hier existiert kein altes Passwort
+  const isRecoverySession =
+    typeof window !== "undefined" &&
+    (window.location.hash.includes("type=recovery") ||
+      new URLSearchParams(window.location.search).get("type") === "recovery");
+
+
   const requestMfaCodeIfNeeded = async () => {
     const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
     if (aalError) throw aalError;
