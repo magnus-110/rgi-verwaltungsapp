@@ -559,6 +559,43 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
 
     console.log("Extracted data:", JSON.stringify(extracted));
 
+    // ─── Merge: strukturierte E-Rechnungs-Daten schlagen OCR-Werte ───────────
+    extracted.source = "ocr";
+    if (eInvoicePartial) {
+      extracted.source = "merged";
+      extracted.einvoice_format = eInvoicePartial.format;
+      const prefer = [
+        "vendor_name",
+        "vendor_iban",
+        "invoice_number",
+        "invoice_date",
+        "due_date",
+        "net_amount",
+        "vat_amount",
+        "gross_amount",
+      ] as const;
+      for (const key of prefer) {
+        const v = (eInvoicePartial as any)[key];
+        if (v != null && v !== "") extracted[key] = v;
+      }
+      if (!extracted.recipient_address && eInvoicePartial.recipient_address) {
+        extracted.recipient_address = eInvoicePartial.recipient_address;
+      }
+      if ((!extracted.line_items || extracted.line_items.length === 0) && eInvoicePartial.line_items?.length) {
+        extracted.line_items = eInvoicePartial.line_items;
+      }
+      if (!extracted.description && eInvoicePartial.description) {
+        extracted.description = eInvoicePartial.description;
+      }
+      console.log("Merged with partial e-invoice data:", JSON.stringify({
+        invoice_number: extracted.invoice_number,
+        invoice_date: extracted.invoice_date,
+        gross_amount: extracted.gross_amount,
+      }));
+    }
+
+
+
     // Look up suggested account by number
     let suggestedAccountId: string | null = null;
     if (extracted.suggested_account_number) {
