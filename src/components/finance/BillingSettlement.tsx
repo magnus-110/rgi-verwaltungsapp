@@ -1348,7 +1348,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
       const fname =
         target === "owner"
-          ? `Einzelabrechnung_${sanitizeFilename(owner!.name)}_${fiscalYear}.${ext}`
+          ? `${unitFilePrefix((assignments as any[])?.find((x) => x.id === owner!.assignmentId)?.unit_number)}Einzelabrechnung_${sanitizeFilename(owner!.name)}_${fiscalYear}.${ext}`
           : target === "overall"
             ? `Gesamtabrechnung_${fiscalYear}.${ext}`
             : target === "asset_report"
