@@ -250,9 +250,11 @@ function parseEInvoiceXml(xmlRaw: string, formatHint: "xrechnung" | "zugferd"): 
   // ── Texte ──────────────────────────────────────────────────────────────────
   const included = findAll(xml, "IncludedNote");
   const noteBlocks = included.length ? included : findAll(xml, "Note");
-  const notes = noteBlocks
-    .map((b) => (findFirst(b, ["Content"]) || decodeEntities(b)).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim())
-    .filter(Boolean);
+  const notes = [...new Set(
+    noteBlocks
+      .map((b) => (findFirst(b, ["Content"]) || decodeEntities(b)).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim())
+      .filter(Boolean),
+  )];
   const line_items = parseLineItems(xml);
   const description =
     (notes.length ? notes.join(" | ") : null) ||
