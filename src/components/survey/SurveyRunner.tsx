@@ -198,7 +198,7 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
             <div className="grid gap-3">
               {AMPEL.map(({ key, label, sub, Icon, cls }) => (
                 <button key={key} data-on={a.choice === key}
-                  onClick={() => setAnswer(it.id, { choice: key })}
+                  onClick={() => toggleChoice(it.id, key)}
                   className={`flex items-center gap-4 rounded-xl border-2 p-4 text-left text-lg font-medium transition ${cls}`}>
                   <Icon className="h-7 w-7 shrink-0" />
                   <span>{label}<span className="block text-sm font-normal text-muted-foreground">{sub}</span></span>
@@ -210,7 +210,7 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
               <div className="rounded-lg border bg-muted/40 p-4 space-y-2">
                 <p className="font-semibold">{it.followup_question}</p>
                 {(it.followup_options ?? []).map((opt, k) => (
-                  <button key={k} onClick={() => setAnswer(it.id, { followup_choice: k })}
+                  <button key={k} onClick={() => setAnswer(it.id, { followup_choice: a.followup_choice === k ? null : k })}
                     className={`flex w-full items-center gap-3 rounded-lg border-2 p-3 text-left ${a.followup_choice === k ? "border-primary bg-primary/5" : ""}`}>
                     <span className={`h-4 w-4 rounded-full border-2 ${a.followup_choice === k ? "border-primary bg-primary" : "border-muted-foreground"}`} />
                     {opt}
