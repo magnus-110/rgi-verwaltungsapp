@@ -78,6 +78,21 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
     save.mutate({ ...a, survey_id: data.survey.id });
   };
 
+  /** Erneuter Klick auf die aktive Antwort hebt die Auswahl wieder auf. */
+  const toggleChoice = (itemId: string, key: SurveyChoice) => {
+    const cur = local[itemId]?.choice ?? null;
+    const isOff = cur === key;
+    const next: OwnerVote = {
+      item_id: itemId,
+      choice: isOff ? null : key,
+      followup_choice: isOff || key !== "ja" ? null : (local[itemId]?.followup_choice ?? null),
+      urgent: local[itemId]?.urgent ?? false,
+      comment: local[itemId]?.comment ?? null,
+    };
+    setLocal((p) => ({ ...p, [itemId]: next }));
+    if (isOff) save.mutate({ ...next, survey_id: data.survey.id });
+  };
+
   const goNext = (fromItemId?: string) => { if (fromItemId) persist(fromItemId); setStep((s) => s + 1); window.scrollTo(0, 0); };
   const goPrev = () => { setStep((s) => Math.max(0, s - 1)); window.scrollTo(0, 0); };
   const jumpTo = (s: number) => { setStep(s); window.scrollTo(0, 0); };
