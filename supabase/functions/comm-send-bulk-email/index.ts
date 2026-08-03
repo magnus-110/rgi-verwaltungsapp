@@ -134,31 +134,71 @@ Deno.serve(async (req) => {
       .eq("name", "Gesendet")
       .maybeSingle();
 
-    // Load per-recipient overrides (subject/body)
+    // Load per-recipient overrides (subject/body/persönliche Anhänge)
     const { data: overridesData } = await admin
       .from("comm_recipient_overrides")
-      .select("contact_id, subject, body_html")
+      .select("contact_id, assignment_id, email, subject, body_html, attachment_paths")
       .eq("campaign_id", campaign_id);
-    const overrideMap = new Map<string, { subject: string | null; body_html: string | null }>(
-      (overridesData || []).map((o: any) => [o.contact_id, { subject: o.subject, body_html: o.body_html }]),
-    );
+
+    type Override = { subject: string | null; body_html: string | null; attachment_paths: string[] };
+    const overrideByKey = new Map<string, Override>();
+    const overrideByContact = new Map<string, Override>();
+    for (const o of overridesData || []) {
+      const val: Override = {
+        subject: o.subject ?? null,
+        body_html: o.body_html ?? null,
+        attachment_paths: (o.attachment_paths || []) as string[],
+      };
+      if (o.assignment_id) {
+        overrideByKey.set(`${o.assignment_id}|${(o.email || "").toLowerCase()}`, val);
+      }
+      if (o.contact_id && !overrideByContact.has(o.contact_id)) overrideByContact.set(o.contact_id, val);
+    }
+
+    // Cache für persönliche Anhänge (ein Download pro Pfad)
+    const personalCache = new Map<string, { filename: string; content: Uint8Array } | null>();
+    const loadPersonal = async (paths: string[]) => {
+      const out: Array<{ filename: string; content: Uint8Array }> = [];
+      for (const p of paths) {
+        if (!personalCache.has(p)) {
+          const { data: f, error: dlErr } = await admin.storage.from("comm-assets").download(p);
+          if (dlErr || !f) {
+            console.warn("personal attachment missing", p, dlErr?.message);
+            personalCache.set(p, null);
+          } else {
+            personalCache.set(p, {
+              filename: (p.split("/").pop() || "anhang").replace(/^\d+_/, ""),
+              content: new Uint8Array(await f.arrayBuffer()),
+            });
+          }
+        }
+        const cached = personalCache.get(p);
+        if (cached) out.push(cached);
+      }
+      return out;
+    };
 
     let ok = 0, fail = 0;
     for (const r of recipients) {
-      const ov = overrideMap.get(r.contact_id);
+      const ov =
+        (r.assignment_id ? overrideByKey.get(`${r.assignment_id}|${(r.email || "").toLowerCase()}`) : undefined) ??
+        overrideByContact.get(r.contact_id);
       const effSubject = ov?.subject ?? subject;
       const effBody = ov?.body_html ?? bodyHtml;
       const renderedSubject = renderString(effSubject, r.vars);
       const renderedBody = renderString(effBody, r.vars);
       const isHtml = bodyFormat !== "plain";
+      const personal = ov?.attachment_paths?.length ? await loadPersonal(ov.attachment_paths) : [];
+      const allAttachments = [...attachments, ...personal];
       try {
         await transporter.sendMail({
           from: `${account.display_name} <${account.email_address}>`,
           to: r.email!,
           subject: renderedSubject,
           ...buildBody(renderedBody),
-          attachments,
+          attachments: allAttachments,
         });
+
         await admin.from("comm_recipients").insert({
           campaign_id, contact_id: r.contact_id, person_id: r.person_id, building_id: r.building_id,
           display_name: r.display_name, email: r.email, resolved_vars: r.vars,
@@ -177,7 +217,7 @@ Deno.serve(async (req) => {
             body_html: isHtml ? renderedBody : null,
             date: new Date().toISOString(),
             is_read: true,
-            has_attachments: attachments.length > 0,
+            has_attachments: allAttachments.length > 0,
             message_id: `bulk-${campaign_id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           });
         } catch (saveErr: any) {

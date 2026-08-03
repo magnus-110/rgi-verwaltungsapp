@@ -11,6 +11,10 @@ export type RecipientFilter = {
   /** If true, emit one recipient per distinct email address on the contact
    *  (contact_emails + every contact_persons.email). Used for Rundmails. */
   expand_all_emails?: boolean;
+  /** Rundmails: explizite Auswahl auf Adress-Ebene. Schlüsselformat
+   *  `${assignment_id}|${email_lowercase}`. Wenn gesetzt, werden nur diese
+   *  Kombinationen zu Empfängern. */
+  recipient_keys?: string[];
   /** If true, alle Assignments (= Wohneinheiten) desselben Eigentümers im
    *  Gebäude werden zu EINEM Empfänger zusammengefasst. Variablen `einheit`/`mea`
    *  enthalten dann die Komma-Liste bzw. die Summe; zusätzlich werden
@@ -25,8 +29,12 @@ export type ResolvedRecipient = {
   building_id: string;
   display_name: string;
   email: string | null;
+  /** Primäre Gebäude-Zuordnung (Einheit) des Empfängers — für persönliche Anhänge. */
+  assignment_id?: string | null;
+  unit_number?: string | null;
   vars: Record<string, any>;
 };
+
 
 const monthsDe = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
 
@@ -342,6 +350,13 @@ export async function loadRecipients(
 
       if (filter.require_email && !email) continue;
 
+      // Adress-genaue Auswahl (Rundmails)
+      if (filter.recipient_keys && filter.recipient_keys.length > 0) {
+        const key = `${a.id}|${(email || "").toLowerCase()}`;
+        if (!filter.recipient_keys.includes(key)) continue;
+      }
+
+
       const telefon = personForVars?.phone || "";
       const firma = c.company_name || "";
       const strasse = c.address_street || "";
@@ -396,7 +411,10 @@ export async function loadRecipients(
         contact_id: group.contact_id,
         person_id: personForVars?.id || null,
         building_id: buildingId,
+        assignment_id: a.id,
+        unit_number: a.unit_number || null,
         display_name: vollname || firma || "(ohne Name)",
+
         email,
         vars,
       });

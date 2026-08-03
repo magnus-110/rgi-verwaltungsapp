@@ -36,6 +36,16 @@ import { Paragraph35aSection } from "./Paragraph35aSection";
 import { FinanceDocumentsDialog } from "./FinanceDocumentsDialog";
 import { useDmsJobs, type DmsJobItem } from "@/contexts/DmsJobsProvider";
 
+/**
+ * Präfix aus der Einheitennummer (4-stellig, z. B. "0001_").
+ * Ermöglicht die automatische Zuordnung persönlicher Anhänge in Rundmails.
+ */
+const unitFilePrefix = (unitNumber?: string | null): string => {
+  const digits = String(unitNumber || "").match(/\d+/)?.[0];
+  return digits ? `${String(Number(digits)).padStart(4, "0")}_` : "";
+};
+
+
 interface BillingSettlementProps {
   buildingId: string;
   periodId: string;
@@ -1044,7 +1054,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               assignment_ids: [o.assignmentId],
               format: "pdf",
             },
-            displayName: `§35a_${fiscalYear}_${o.name}${a?.unit_number ? `_${a.unit_number}` : ""}`,
+            displayName: `${unitFilePrefix(a?.unit_number)}§35a_${fiscalYear}_${o.name}${a?.unit_number ? `_${a.unit_number}` : ""}`,
             folderKey: "paragraph_35a",
             visibility: "eigentuemer_only",
             contactId: a?.contact_id || null,
@@ -1255,7 +1265,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               // Einheitennummer im Anzeigenamen, damit Eigentuemer mit mehreren
               // Einheiten (z. B. Wohnung + Garage) je Einheit ein eigenes,
               // eindeutiges Dokument im DMS erhalten.
-              displayName: `Einzelabrechnung_${fiscalYear}_${o.name}${unitNo ? `_${unitNo}` : ""}`,
+              displayName: `${unitFilePrefix(unitNo)}Einzelabrechnung_${fiscalYear}_${o.name}${unitNo ? `_${unitNo}` : ""}`,
               folderKey: "einzelabrechnung",
               visibility: "eigentuemer_only",
               contactId: a?.contact_id || null,
@@ -1519,7 +1529,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               mode: "single", format: "pdf", file_prefix: prefix,
               items: [it],
             },
-            displayName: `Sammelbericht_${fiscalYear}_${it.ownerName}${it.unitNumber ? `_${it.unitNumber}` : ""}`,
+            displayName: `${unitFilePrefix(it.unitNumber)}Sammelbericht_${fiscalYear}_${it.ownerName}${it.unitNumber ? `_${it.unitNumber}` : ""}`,
             folderKey: "sammelbericht",
             visibility: "eigentuemer_only",
             contactId: a?.contact_id || null,
