@@ -46,6 +46,19 @@ const PLACEHOLDERS = [
   "datum_heute",
 ];
 
+const PLACEHOLDER_LABELS: Record<string, string> = {
+  anrede_brief: "Anrede",
+  vorname: "Vorname",
+  nachname: "Nachname",
+  vollname: "Vollständiger Name",
+  einheit: "Einheit",
+  gebaeude_name: "Gebäude",
+  gebaeude_strasse: "Straße",
+  verwalter_name: "Verwalter",
+  datum_heute: "Datum heute",
+};
+
+
 const fileLabel = (path: string) => (path.split("/").pop() || path).replace(/^\d+_/, "");
 
 export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
