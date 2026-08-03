@@ -1386,6 +1386,9 @@ export const Inbox = () => {
           />
         ) : isCallsFolder ? (
           <CallLogList />
+        ) : isBulkFolder ? (
+          <BulkMailPanel />
+
         ) : (
           <>
             {/* Category tabs - full width above both panels */}
