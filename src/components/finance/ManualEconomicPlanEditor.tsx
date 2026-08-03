@@ -877,9 +877,9 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                 template_id: detail.template_id, fiscal_year: fiscalYear,
                 mode: "single", format: "pdf",
                 file_prefix: `Einzelwirtschaftsplan_${fiscalYear}`,
-                items: [{ kind: "owner", ownerId: o.id, ownerName: o.name, payload: buildOwnerPlanPayload(o.id) }],
+                items: [{ kind: "owner", ownerId: o.id, ownerName: o.name, unitNumber: unitNo(o), payload: buildOwnerPlanPayload(o.id) }],
               },
-              displayName: `Einzelwirtschaftsplan_${fiscalYear}_${o.name}`,
+              displayName: `${unitFilePrefix(unitNo(o))}Einzelwirtschaftsplan_${fiscalYear}_${o.name}${unitNo(o) ? `_${unitNo(o)}` : ""}`,
               folderKey: "wirtschaftsplan_einzel",
               visibility: "eigentuemer_only",
               contactId: (o as any).raw?.contact_id || null,
@@ -949,10 +949,10 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
               mode: "single",
               format: detail.format,
               file_prefix: filePrefix,
-              items: [{ kind: "owner", ownerId: o.id, ownerName: o.name, payload: buildOwnerPlanPayload(o.id) }],
+              items: [{ kind: "owner", ownerId: o.id, ownerName: o.name, unitNumber: unitNo(o), payload: buildOwnerPlanPayload(o.id) }],
             });
             const safeName = String(o.name || `Eigentuemer_${i + 1}`).replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 80);
-            zip.file(`${filePrefix}_${safeName}.${detail.format}`, blob);
+            zip.file(`${unitFilePrefix(unitNo(o))}${filePrefix}_${safeName}${unitNo(o) ? `_${unitNo(o)}` : ""}.${detail.format}`, blob);
           } catch (err) {
             errors.push(`${o.name}: ${err instanceof Error ? err.message : "Unbekannter Fehler"}`);
           }
