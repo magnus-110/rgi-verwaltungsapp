@@ -1529,7 +1529,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               mode: "single", format: "pdf", file_prefix: prefix,
               items: [it],
             },
-            displayName: `Sammelbericht_${fiscalYear}_${it.ownerName}${it.unitNumber ? `_${it.unitNumber}` : ""}`,
+            displayName: `${unitFilePrefix(it.unitNumber)}Sammelbericht_${fiscalYear}_${it.ownerName}${it.unitNumber ? `_${it.unitNumber}` : ""}`,
             folderKey: "sammelbericht",
             visibility: "eigentuemer_only",
             contactId: a?.contact_id || null,
