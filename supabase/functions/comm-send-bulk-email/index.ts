@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
         from: `${account.display_name} <${account.email_address}>`,
         to: test_email,
         subject: `[TEST] ${renderString(subject, sample)}`,
-        ...buildBody(renderString(bodyHtml, sample)),
+        ...buildBody(withSignature(renderString(bodyHtml, sample))),
         attachments,
       });
       return json({ success: true, test: true });
