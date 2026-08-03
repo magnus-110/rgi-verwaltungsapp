@@ -322,7 +322,7 @@ serve(async (req) => {
             einvoice_format: eInvoice.format,
             leitweg_id: eInvoice.leitweg_id,
             line_items: eInvoice.line_items || [],
-            ocr_extracted_data: eInvoice,
+            ocr_extracted_data: { ...eInvoice, source: "einvoice" },
           };
           if (eInvoice.vendor_name) eUpdate.vendor_name = eInvoice.vendor_name;
           if (eInvoice.vendor_iban) eUpdate.vendor_iban = eInvoice.vendor_iban;
