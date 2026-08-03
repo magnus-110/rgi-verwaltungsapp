@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft,
+  CalendarClock,
   Loader2,
   Paperclip,
   Save,
@@ -25,6 +26,7 @@ import {
 import { useBulkRecipients, normalizeUnit, type BulkRecipient } from "./useBulkRecipients";
 import { BulkRecipientCard, type RecipientGroup } from "./BulkRecipientCard";
 import { BulkRecipientDialog } from "./BulkRecipientDialog";
+import { BulkDropzone } from "./BulkDropzone";
 import type { PlaceholderSamples } from "../usePlaceholderSamples";
 
 interface Props {
