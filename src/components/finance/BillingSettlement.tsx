@@ -35,15 +35,8 @@ import { ManualEconomicPlanEditor } from "./ManualEconomicPlanEditor";
 import { Paragraph35aSection } from "./Paragraph35aSection";
 import { FinanceDocumentsDialog } from "./FinanceDocumentsDialog";
 import { useDmsJobs, type DmsJobItem } from "@/contexts/DmsJobsProvider";
+import { unitFilePrefix } from "@/lib/unitFilePrefix";
 
-/**
- * Präfix aus der Einheitennummer (4-stellig, z. B. "0001_").
- * Ermöglicht die automatische Zuordnung persönlicher Anhänge in Rundmails.
- */
-const unitFilePrefix = (unitNumber?: string | null): string => {
-  const digits = String(unitNumber || "").match(/\d+/)?.[0];
-  return digits ? `${String(Number(digits)).padStart(4, "0")}_` : "";
-};
 
 
 interface BillingSettlementProps {
@@ -1101,7 +1094,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             });
             if (!r.ok) throw new Error(await r.text());
             const unitPart = o.unitNumber && o.unitNumber !== "–" ? `_${sanitizeFilename(o.unitNumber)}` : "";
-            zip.file(`35a_${fiscalYear}_${sanitizeFilename(o.name)}${unitPart}.pdf`, await r.blob());
+            zip.file(`${unitFilePrefix(o.unitNumber)}35a_${fiscalYear}_${sanitizeFilename(o.name)}${unitPart}.pdf`, await r.blob());
           } catch { failed++; }
           finally { done++; toast.loading(`Erzeuge §35a-PDFs… ${done}/${owners.length}`, { id: tId }); }
         };
@@ -1302,7 +1295,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             // Einheitennummer im Dateinamen, damit Eigentuemer mit mehreren
             // Einheiten (z. B. Wohnung + Garage) nicht denselben Namen erhalten
             // und sich im ZIP gegenseitig ueberschreiben.
-            fileBase: `Abrechnung_${fiscalYear}_${sanitizeFilename(o.name)}${o.unitNumber && o.unitNumber !== "–" ? `_${sanitizeFilename(o.unitNumber)}` : ""}`,
+            fileBase: `${unitFilePrefix(o.unitNumber && o.unitNumber !== "–" ? o.unitNumber : null)}Abrechnung_${fiscalYear}_${sanitizeFilename(o.name)}${o.unitNumber && o.unitNumber !== "–" ? `_${sanitizeFilename(o.unitNumber)}` : ""}`,
             body: {
               template_id: tplId, overall_template_id: effectiveOverallTpl,
               fiscal_year: fiscalYear, mode: "single", format,
