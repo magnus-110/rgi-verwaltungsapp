@@ -81,7 +81,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CallLogList } from "@/components/calls/CallLogList";
-import { Phone as PhoneIcon } from "lucide-react";
+import { Phone as PhoneIcon, Mails as MailsIcon } from "lucide-react";
+import { BulkMailPanel } from "@/components/communication/bulk/BulkMailPanel";
+
 
 const folderIcons: Record<string, any> = {
   inbox: InboxIcon,
@@ -92,7 +94,9 @@ const folderIcons: Record<string, any> = {
   "trash-2": Trash2,
   "calendar-clock": CalendarClock,
   phone: PhoneIcon,
+  mails: MailsIcon,
 };
+
 
 export const Inbox = () => {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
@@ -146,6 +150,8 @@ export const Inbox = () => {
   const SCHEDULED_FOLDER_ID = "__scheduled__";
   const DRAFTS_FOLDER_ID = "__drafts__";
   const CALLS_FOLDER_ID = "__calls__";
+  const BULK_FOLDER_ID = "__bulk__";
+
 
   // Fetch folders (auto-refresh every 60s)
   const { data: dbFolders = [] } = useQuery({
@@ -192,7 +198,17 @@ export const Inbox = () => {
         color: null,
         created_at: null,
       } as any,
+      {
+        id: BULK_FOLDER_ID,
+        name: "Rundmails",
+        icon: "mails",
+        sort_order: 1001,
+        is_system: true,
+        color: null,
+        created_at: null,
+      } as any,
     ];
+
   }, [dbFolders]);
 
   // Fetch accounts

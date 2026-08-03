@@ -3230,33 +3230,49 @@ export type Database = {
       }
       comm_recipient_overrides: {
         Row: {
+          assignment_id: string | null
+          attachment_paths: string[]
           body_html: string | null
           campaign_id: string
-          contact_id: string
+          contact_id: string | null
           created_at: string
+          email: string | null
           id: string
           subject: string | null
           updated_at: string
         }
         Insert: {
+          assignment_id?: string | null
+          attachment_paths?: string[]
           body_html?: string | null
           campaign_id: string
-          contact_id: string
+          contact_id?: string | null
           created_at?: string
+          email?: string | null
           id?: string
           subject?: string | null
           updated_at?: string
         }
         Update: {
+          assignment_id?: string | null
+          attachment_paths?: string[]
           body_html?: string | null
           campaign_id?: string
-          contact_id?: string
+          contact_id?: string | null
           created_at?: string
+          email?: string | null
           id?: string
           subject?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "comm_recipient_overrides_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "contact_building_assignments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "comm_recipient_overrides_campaign_id_fkey"
             columns: ["campaign_id"]
