@@ -1,63 +1,74 @@
-# Rundmails als eigener Navigationspunkt (mit Anhängen je Empfänger)
+# Rundmails im Postfach (mehrere Entwürfe, Empfänger je E-Mail-Adresse, Anhänge je Einheit)
 
 ## Ziel
 
-Rundmails sind heute nur im Gebäude-Hub unter "Kommunikation" versteckt. Sie bekommen einen eigenen Menüpunkt und eine vollflächige Ansicht mit Gebäudeauswahl, klarer Empfängerliste und – neu – individuellen Anhängen pro Empfänger (z. B. Einzelabrechnung zur ETV-Einladung).
+Rundmails werden ein eigener Bereich **innerhalb des Postfachs** (wie "Entwürfe" und "Geplant"). Dort lassen sich mehrere Rundmail-Entwürfe parallel führen, Empfänger pro Nachricht auf Ebene einzelner E-Mail-Adressen auswählen und persönliche Anhänge automatisch über die Einheitennummer zuordnen.
 
-## Meine Einschätzung zum Vorschlag
+## Aufbau
 
-Der Vorschlag passt. Zwei Ergänzungen, die den Nutzen deutlich erhöhen:
+**Postfach-Seitenleiste:** neuer Eintrag "Rundmails" unter Entwürfe/Geplant. Klick öffnet die Rundmail-Übersicht im Hauptbereich.
 
-1. **Automatische Zuordnung der Anhänge statt Einzel-Upload.** Bei 22 Eigentümern ist "pro Empfänger eine Datei hochladen" mühsam. Besser: alle Dateien (oder eine ZIP) in eine Dropzone ziehen; das System ordnet anhand des Dateinamens automatisch zu (Einheitennummer, Nachname, Kontaktname – genau die Namensmuster, die die Abrechnungs-PDFs schon tragen). Nicht zuordenbare Dateien landen in "Nicht zugeordnet" und können per Klick zugewiesen werden.
-2. **Anhänge direkt aus dem DMS wählen**, statt sie erneut vom Rechner hochzuladen – die Einzelabrechnungen liegen bereits unter Finanzen/Einzel im Gebäude.
+**Übersicht:** Liste aller Rundmail-Entwürfe (Name, Gebäude, Empfängerzahl, Status, geändert am) mit "Neue Rundmail". Ein Klick öffnet den Editor; man kann jederzeit zurück und einen anderen Entwurf öffnen — jeder Entwurf hält seine eigenen Empfänger, Texte und Anhänge (gespeichert als `comm_campaigns` mit Status `draft`).
 
-Zusätzlich sinnvoll: eine Sicherheitsprüfung vor dem Versand ("3 Empfänger ohne persönlichen Anhang – trotzdem senden?"), weil eine falsch zugeordnete Abrechnung ein echter Datenschutzvorfall wäre.
-
-## Aufbau der neuen Seite `/rundmails`
-
-Vollflächige Seite statt Dialog, drei Schritte in einer Ansicht (kein Wizard-Zwang, Schritte sind Abschnitte, die man frei anspringen kann):
+**Editor (eine Seite, drei Bereiche):**
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│ Rundmails      [Gebäude: Achweg 3-5 ▾]         [Verlauf]     │
-├───────────────────────────┬──────────────────────────────────┤
-│ 1 Empfänger               │ 2 Inhalt                         │
-│  [Alle] [Eigentümer]      │  Konto ▾ | Vorlage ▾             │
-│  [Mieter] [Beirat]        │  Betreff …                       │
-│  Suche …                  │  Text mit Platzhaltern           │
-│  ☑ Fam. Gah   WE 4  📎1   │                                  │
-│  ☑ M. Sieden  WE 7  📎—   │ 3 Anhänge                        │
-│  ☐ Fa. Müller ⚠ ohne Mail │  Für alle: [Datei wählen]        │
-│  …                        │  Persönlich: [Dateien hierher]   │
-│                           │   → automatisch zugeordnet: 19/22│
-│  22 ausgewählt · 20 Mails │   → 3 ohne Anhang, 1 unklar      │
-├───────────────────────────┴──────────────────────────────────┤
-│ Vorschau (Empfänger durchblättern)   [Test]  [Planen] [Senden]│
-└──────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│ ← Rundmails    Name: ETV-Einladung 2026   Gebäude: Achweg 3-5 ▾ │
+├──────────────────────────────┬──────────────────────────────────┤
+│ EMPFÄNGER                    │ INHALT                            │
+│ [Alle][Eigentümer][Mieter]   │ Konto ▾   Vorlage ▾               │
+│ Suche …                      │ Betreff (mit Platzhaltern)        │
+│ ▾ 0001 · Fam. Wiesneth       │ Text (mit Platzhaltern)           │
+│    ☑ thomas.w@freenet.de     │                                   │
+│    ☑ ines.c@freenet.de       │ ANHÄNGE                           │
+│ ▾ 0002 · M. Sieden           │ Für alle: [Dateien wählen]        │
+│    ☑ m.sieden@web.de         │ Persönlich: [Dateien hierher]     │
+│    ☐ buero@sieden.de         │  0001 → 0001_Gesamtabrechnung.pdf │
+│ ▾ 0003 · Fa. Müller ⚠ ohne   │  0002 → 0002_Gesamtabrechnung.pdf │
+│ …                            │  ⚠ 1 Datei ohne Einheit           │
+│ 22 Einheiten · 27 Adressen   │                                   │
+├──────────────────────────────┴──────────────────────────────────┤
+│ Vorschau (Empfänger durchblättern)   [Test] [Planen] [Senden]   │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-- **Gebäudeauswahl** oben, respektiert den aktiven Verwaltungsmodus (WEG/Miete). Auswahl bleibt gemerkt.
-- **Empfängerliste** entspricht exakt dem, was im Postfach über `/Gebäude` erscheint: alle Zuordnungen des Gebäudes mit Rolle, Einheit und E-Mail-Status. Rollen-Filterchips, Suche, "Alle/Keine". Personen ohne E-Mail werden sichtbar markiert statt still übersprungen.
-- **Anhänge** in zwei klar getrennten Bereichen: "Für alle" (bisheriges Verhalten) und "Persönlich je Empfänger". Im Empfängerzeilen-Badge sieht man sofort, wer eine persönliche Datei hat.
-- **Vorschau** mit aufgelösten Platzhaltern und den konkret angehängten Dateien des gewählten Empfängers.
-- Planen/Senden/Test/Verlauf funktionieren wie bisher; der bestehende Gebäude-Tab "Kommunikation" bleibt und verlinkt auf die neue Seite.
+- **Empfänger nach Einheit gruppiert**: pro Einheit alle hinterlegten Adressen (aus `contact_emails` und `contact_persons`) einzeln an-/abwählbar, Einheit-Kopfzeile schaltet alle Adressen der Einheit. Rollen-Chips, Suche, Alle/Keine. Kontakte ohne Adresse werden sichtbar markiert.
+- **Anhänge für alle** und **persönliche Anhänge**, klar getrennt.
+- **Platzhalter** wie bisher (Palette, Vorschau mit aufgelösten Werten je Empfänger).
+- **Test, Planen, Senden, Verlauf** wie bisher.
+
+## Automatische Zuordnung über die Einheitennummer
+
+Dateien werden per Drag & Drop (auch ZIP) abgelegt. Aus dem Dateinamen wird die führende Einheitennummer gelesen (`0001_…`, auch `0001-…` oder `Nr. 1`) und mit der `unit_number` der Zuordnung abgeglichen (mit führenden Nullen normalisiert). Die Datei geht an **alle ausgewählten Adressen dieser Einheit** — im Beispiel Achweg 3-5 bekommt `0001_Gesamtabrechnung.pdf` sowohl thomas.wiesneth@freenet.de als auch ines.cirkvencic@freenet.de. Nicht zuordenbare Dateien erscheinen als "ohne Einheit" und lassen sich manuell zuweisen. Vor dem Versand zeigt die Bestätigung, wie viele Empfänger keinen persönlichen Anhang haben und welche Dateien unzugeordnet sind.
+
+## Dateinamen der generierten Dokumente
+
+Damit die Automatik greift, wird die Einheitennummer bei der Dokumentenerstellung **vorangestellt und vierstellig** geschrieben, statt wie heute hinten angehängt:
+
+- heute: `Einzelabrechnung_2025_Wiesneth_1`
+- neu: `0001_Einzelabrechnung_2025_Wiesneth`
+
+Betroffen sind Einzelabrechnung, Sammelbericht und §35a-Bescheinigung in `BillingSettlement.tsx` (Zeilen 1047, 1258, 1522). Gesamtabrechnung und Vermögensbericht bleiben ohne Nummer (gehen an alle).
 
 ## Technische Umsetzung
 
-**Navigation & Seite**
-- `AdminSidebar.tsx`: Eintrag "Rundmails" (`/rundmails`, Icon `Send`) unter "Postfach"; Route in `App.tsx`.
-- Neue Seite `src/pages/Rundmails.tsx` + Komponenten unter `src/components/communication/bulk/`. Der bestehende `EmailCampaignWizard` liefert die Logik (Vorlagen, Signatur, Platzhalter, Zeitplanung); die Schritte werden in Panels zerlegt und wiederverwendet, `RecipientPicker` wird als linke Spalte eingebunden (Auswahl bleibt assignment-basiert).
+**Postfach-Integration**
+- `src/pages/Inbox.tsx`: virtueller Ordner "Rundmails" analog `isDraftsFolder`/`isScheduledFolder`; rendert das neue Panel im Hauptbereich.
+- Neue Komponenten unter `src/components/communication/bulk/`: `BulkMailPanel` (Liste), `BulkMailEditor` (Editor), `UnitRecipientPicker` (adressbasierte Auswahl), `PersonalAttachmentsPanel`. Logik aus `EmailCampaignWizard` (Vorlagen, Signatur, Platzhalter, Zeitplanung, Senden) wird wiederverwendet; der Gebäude-Tab "Kommunikation" bleibt bestehen und verlinkt ins Postfach.
+- Entwürfe: `comm_campaigns` mit `status='draft'` — Auto-Speichern beim Verlassen des Editors.
+
+**Adressbasierte Empfänger**
+- Migration: `comm_campaigns.recipient_filter` bekommt zusätzlich `email_addresses` (Liste ausgewählter Adressen je Zuordnung) — keine Schemaänderung nötig, da JSONB.
+- `supabase/functions/_shared/comm-vars.ts`: `loadRecipients` filtert bei gesetzter Adressliste auf genau diese Adressen (statt nur pro Kontakt).
 
 **Anhänge je Empfänger**
-- Migration: `comm_recipient_overrides` um `attachment_paths text[] default '{}'` erweitern (Tabelle existiert bereits, Schlüssel `campaign_id` + `contact_id`) und Unique-Constraint auf `(campaign_id, contact_id)` sicherstellen.
-- Upload nach `comm-assets` unter `campaigns/{id}/personal/{contact_id}/…`; DMS-Auswahl kopiert die Datei dorthin bzw. speichert den `building-files`-Pfad mit Präfix.
-- Auto-Zuordnung im Frontend: Dateiname gegen Einheitennummer, Nachname/Firmenname und Kontaktname matchen; Ergebnis wird als Liste "zugeordnet / unklar / ohne Datei" angezeigt und ist manuell korrigierbar. ZIP-Dateien werden clientseitig entpackt.
-- `comm-send-bulk-email/index.ts`: Overrides-Query um `attachment_paths` erweitern, pro Empfänger die persönlichen Dateien laden und an die gemeinsamen Anhänge anhängen; fehlende Dateien führen zu `failed` statt zu einer Mail ohne Anlage.
-- `comm-dispatch-scheduled` nutzt denselben Sender – geplante Rundmails erben das Verhalten automatisch.
+- Migration: `comm_recipient_overrides` um `attachment_paths text[] default '{}'` erweitern, Unique-Constraint `(campaign_id, contact_id)` sicherstellen; zusätzlich Spalte `email` für adressgenaue Zuordnung.
+- Upload nach `comm-assets` unter `campaigns/{id}/personal/{unit}/…`.
+- `comm-send-bulk-email/index.ts`: Overrides um `attachment_paths` erweitern, pro Empfänger persönliche Dateien laden und an die gemeinsamen Anhänge hängen. Fehlt eine hinterlegte Datei, wird der Empfänger als `failed` markiert statt eine Mail ohne Anlage zu senden. `comm-dispatch-scheduled` erbt das Verhalten.
 
 **Sicherheit**
-- Versandbestätigung listet Anzahl Empfänger, Empfänger ohne persönlichen Anhang und nicht zugeordnete Dateien.
-- Keine Änderung an den bestehenden Admin-Berechtigungen (`requireAdmin` im Sender bleibt).
+- Versandbestätigung mit Empfängerzahl, fehlenden Anhängen und unzugeordneten Dateien; `requireAdmin` im Sender bleibt unverändert.
 
 ## Nicht Teil dieses Plans
 
