@@ -303,12 +303,22 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
                 </Button>
               </div>
             )}
-            {inv.ocr_status === "done" && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 text-sm">
-                <Sparkles className="h-4 w-4 text-primary" />
-                Daten wurden per OCR extrahiert – bitte prüfen
-              </div>
-            )}
+            {inv.ocr_status === "done" && (() => {
+              const src = (inv.ocr_extracted_data as any)?.source;
+              const label =
+                src === "einvoice" || (!src && (inv as any).einvoice_format)
+                  ? `Daten aus E-Rechnung (${(inv as any).einvoice_format || "XML"}) übernommen – bitte prüfen`
+                  : src === "merged"
+                    ? `Daten aus E-Rechnung (${(inv as any).einvoice_format || "XML"}) + OCR zusammengeführt – bitte prüfen`
+                    : "Daten wurden per OCR extrahiert – bitte prüfen";
+              return (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 text-sm">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  {label}
+                </div>
+              );
+            })()}
+
 
             {/* PDF Preview */}
             {inv.file_path && (
