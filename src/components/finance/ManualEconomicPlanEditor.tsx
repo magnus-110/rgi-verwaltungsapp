@@ -29,6 +29,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SHARE_TYPES } from "@/lib/shareTypes";
 import { useDmsJobs, type DmsJobItem } from "@/contexts/DmsJobsProvider";
+import { unitFilePrefix } from "@/lib/unitFilePrefix";
+
+/** Einheitennummer eines Eigentümer-Datensatzes (ohne Platzhalter "–"). */
+const unitNo = (o: any): string => {
+  const u = String(o?.unitNumber || "").trim();
+  return u && u !== "–" ? u : "";
+};
 
 interface Props {
   buildingId: string;
