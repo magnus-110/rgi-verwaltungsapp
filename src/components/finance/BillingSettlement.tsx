@@ -36,6 +36,16 @@ import { Paragraph35aSection } from "./Paragraph35aSection";
 import { FinanceDocumentsDialog } from "./FinanceDocumentsDialog";
 import { useDmsJobs, type DmsJobItem } from "@/contexts/DmsJobsProvider";
 
+/**
+ * Präfix aus der Einheitennummer (4-stellig, z. B. "0001_").
+ * Ermöglicht die automatische Zuordnung persönlicher Anhänge in Rundmails.
+ */
+const unitFilePrefix = (unitNumber?: string | null): string => {
+  const digits = String(unitNumber || "").match(/\d+/)?.[0];
+  return digits ? `${String(Number(digits)).padStart(4, "0")}_` : "";
+};
+
+
 interface BillingSettlementProps {
   buildingId: string;
   periodId: string;
