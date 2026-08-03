@@ -233,7 +233,12 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
                 ))}
               </div>
             )}
+
+            <p className="text-xs text-muted-foreground">
+              Kein Beschluss — nur ein Meinungsbild zur Priorisierung. Eine Umsetzung ist damit nicht zugesagt.
+            </p>
           </>
+
         )}
 
 
