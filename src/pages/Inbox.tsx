@@ -533,7 +533,7 @@ export const Inbox = () => {
       if (error) throw error;
       return data;
     },
-    enabled: !isScheduledFolder && !isCallsFolder,
+    enabled: !isScheduledFolder && !isCallsFolder && !isBulkFolder,
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
