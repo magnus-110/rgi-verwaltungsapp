@@ -48,6 +48,16 @@ Deno.serve(async (req) => {
     }
     if (!subject || !bodyHtml) return json({ error: "Betreff oder Inhalt fehlt" }, 400);
 
+    // Signatur des Kontos unter den Text hängen (falls vorhanden und nicht bereits enthalten)
+    const signature = ((account.signature_html as string | null) || "").trim();
+    const withSignature = (rendered: string) => {
+      if (!signature) return rendered;
+      if (rendered.includes(signature)) return rendered;
+      return bodyFormat === "plain"
+        ? `${rendered}\n\n${signature}`
+        : `${rendered}<br /><br />${signature}`;
+    };
+
     // Build payload key based on chosen format
     const buildBody = (rendered: string) =>
       bodyFormat === "plain" ? { text: rendered } : { html: rendered };
@@ -85,7 +95,7 @@ Deno.serve(async (req) => {
         from: `${account.display_name} <${account.email_address}>`,
         to: test_email,
         subject: `[TEST] ${renderString(subject, sample)}`,
-        ...buildBody(renderString(bodyHtml, sample)),
+        ...buildBody(withSignature(renderString(bodyHtml, sample))),
         attachments,
       });
       return json({ success: true, test: true });
@@ -186,7 +196,7 @@ Deno.serve(async (req) => {
       const effSubject = ov?.subject ?? subject;
       const effBody = ov?.body_html ?? bodyHtml;
       const renderedSubject = renderString(effSubject, r.vars);
-      const renderedBody = renderString(effBody, r.vars);
+      const renderedBody = withSignature(renderString(effBody, r.vars));
       const isHtml = bodyFormat !== "plain";
       const personal = ov?.attachment_paths?.length ? await loadPersonal(ov.attachment_paths) : [];
       const allAttachments = [...attachments, ...personal];

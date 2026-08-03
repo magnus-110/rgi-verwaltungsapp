@@ -106,7 +106,7 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_accounts")
-        .select("id, display_name, email_address")
+        .select("id, display_name, email_address, signature_html")
         .eq("is_active", true)
         .order("display_name");
       if (error) throw error;
@@ -721,6 +721,7 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
         override={dialog ? textOverrides[dialog.key] : undefined}
         samples={dialogSamples}
         attachments={dialogGroup ? [...generalPaths, ...pathsForGroup(dialogGroup)] : []}
+        signature={(accounts as any[]).find((a) => a.id === accountId)?.signature_html || null}
         onOpenChange={(v) => !v && setDialog(null)}
         onSaveOverride={(key, s, b) =>
           setTextOverrides((prev) => {
