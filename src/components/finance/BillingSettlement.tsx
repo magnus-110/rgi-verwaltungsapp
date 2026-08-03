@@ -1265,7 +1265,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               // Einheitennummer im Anzeigenamen, damit Eigentuemer mit mehreren
               // Einheiten (z. B. Wohnung + Garage) je Einheit ein eigenes,
               // eindeutiges Dokument im DMS erhalten.
-              displayName: `Einzelabrechnung_${fiscalYear}_${o.name}${unitNo ? `_${unitNo}` : ""}`,
+              displayName: `${unitFilePrefix(unitNo)}Einzelabrechnung_${fiscalYear}_${o.name}${unitNo ? `_${unitNo}` : ""}`,
               folderKey: "einzelabrechnung",
               visibility: "eigentuemer_only",
               contactId: a?.contact_id || null,
