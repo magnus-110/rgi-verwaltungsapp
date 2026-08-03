@@ -78,6 +78,21 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
     save.mutate({ ...a, survey_id: data.survey.id });
   };
 
+  /** Erneuter Klick auf die aktive Antwort hebt die Auswahl wieder auf. */
+  const toggleChoice = (itemId: string, key: SurveyChoice) => {
+    const cur = local[itemId]?.choice ?? null;
+    const isOff = cur === key;
+    const next: OwnerVote = {
+      item_id: itemId,
+      choice: isOff ? null : key,
+      followup_choice: isOff || key !== "ja" ? null : (local[itemId]?.followup_choice ?? null),
+      urgent: local[itemId]?.urgent ?? false,
+      comment: local[itemId]?.comment ?? null,
+    };
+    setLocal((p) => ({ ...p, [itemId]: next }));
+    if (isOff) save.mutate({ ...next, survey_id: data.survey.id });
+  };
+
   const goNext = (fromItemId?: string) => { if (fromItemId) persist(fromItemId); setStep((s) => s + 1); window.scrollTo(0, 0); };
   const goPrev = () => { setStep((s) => Math.max(0, s - 1)); window.scrollTo(0, 0); };
   const jumpTo = (s: number) => { setStep(s); window.scrollTo(0, 0); };
@@ -198,7 +213,7 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
             <div className="grid gap-3">
               {AMPEL.map(({ key, label, sub, Icon, cls }) => (
                 <button key={key} data-on={a.choice === key}
-                  onClick={() => setAnswer(it.id, { choice: key })}
+                  onClick={() => toggleChoice(it.id, key)}
                   className={`flex items-center gap-4 rounded-xl border-2 p-4 text-left text-lg font-medium transition ${cls}`}>
                   <Icon className="h-7 w-7 shrink-0" />
                   <span>{label}<span className="block text-sm font-normal text-muted-foreground">{sub}</span></span>
@@ -210,7 +225,7 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
               <div className="rounded-lg border bg-muted/40 p-4 space-y-2">
                 <p className="font-semibold">{it.followup_question}</p>
                 {(it.followup_options ?? []).map((opt, k) => (
-                  <button key={k} onClick={() => setAnswer(it.id, { followup_choice: k })}
+                  <button key={k} onClick={() => setAnswer(it.id, { followup_choice: a.followup_choice === k ? null : k })}
                     className={`flex w-full items-center gap-3 rounded-lg border-2 p-3 text-left ${a.followup_choice === k ? "border-primary bg-primary/5" : ""}`}>
                     <span className={`h-4 w-4 rounded-full border-2 ${a.followup_choice === k ? "border-primary bg-primary" : "border-muted-foreground"}`} />
                     {opt}
