@@ -5,15 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
 import {
   ArrowLeft,
   Loader2,
@@ -21,12 +18,14 @@ import {
   Save,
   Search,
   Send,
-  Trash2,
   Upload,
   Users,
   X,
 } from "lucide-react";
 import { useBulkRecipients, normalizeUnit, type BulkRecipient } from "./useBulkRecipients";
+import { BulkRecipientCard, type RecipientGroup } from "./BulkRecipientCard";
+import { BulkRecipientDialog } from "./BulkRecipientDialog";
+import type { PlaceholderSamples } from "../usePlaceholderSamples";
 
 interface Props {
   campaignId: string;
@@ -60,10 +59,13 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [generalPaths, setGeneralPaths] = useState<string[]>([]);
   const [personal, setPersonal] = useState<Record<string, string[]>>({});
+  const [textOverrides, setTextOverrides] = useState<Record<string, { subject: string | null; body: string | null }>>({});
+  const [noDuplicates, setNoDuplicates] = useState(true);
   const [search, setSearch] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [busy, setBusy] = useState<null | "save" | "send" | "upload">(null);
   const [loaded, setLoaded] = useState(false);
+  const [dialog, setDialog] = useState<{ mode: "preview" | "edit"; key: string } | null>(null);
 
   const { data: campaign } = useQuery({
     queryKey: ["bulk-campaign", campaignId],
@@ -79,7 +81,7 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("comm_recipient_overrides")
-        .select("assignment_id, email, attachment_paths")
+        .select("assignment_id, email, attachment_paths, subject, body_html")
         .eq("campaign_id", campaignId);
       if (error) throw error;
       return data || [];
@@ -119,8 +121,9 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     setAccountId(campaign.email_account_id || "");
     setBuildingId(campaign.building_id);
     setGeneralPaths((campaign.attachment_paths || []) as string[]);
-    const keys = ((campaign.recipient_filter as any)?.recipient_keys || []) as string[];
-    setSelected(new Set(keys));
+    const filter = (campaign.recipient_filter as any) || {};
+    setSelected(new Set((filter.recipient_keys || []) as string[]));
+    if (typeof filter.no_duplicates === "boolean") setNoDuplicates(filter.no_duplicates);
     if (campaign.scheduled_at) setScheduledAt(new Date(campaign.scheduled_at).toISOString().slice(0, 16));
     setLoaded(true);
   }, [campaign, loaded]);
@@ -136,49 +139,93 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
       }
       return map;
     });
+    setTextOverrides((prev) => {
+      if (Object.keys(prev).length > 0) return prev;
+      const map: Record<string, { subject: string | null; body: string | null }> = {};
+      for (const o of overrides as any[]) {
+        if (!o.assignment_id) continue;
+        if (!o.subject && !o.body_html) continue;
+        map[`${o.assignment_id}|${(o.email || "").toLowerCase()}`] = {
+          subject: o.subject ?? null,
+          body: o.body_html ?? null,
+        };
+      }
+      return map;
+    });
   }, [overrides]);
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return recipients;
-    const s = search.toLowerCase();
-    return recipients.filter(
-      (r) =>
-        r.name.toLowerCase().includes(s) ||
-        r.email.toLowerCase().includes(s) ||
-        (r.unitNumber || "").toLowerCase().includes(s),
-    );
-  }, [recipients, search]);
-
-  const grouped = useMemo(() => {
-    const map = new Map<string, BulkRecipient[]>();
-    for (const r of filtered) {
-      const k = r.unitNumber || "—";
-      const arr = map.get(k) || [];
-      arr.push(r);
-      map.set(k, arr);
+  /** Empfänger-Karten: je E-Mail-Adresse zusammengefasst (oder je Einheit). */
+  const groups = useMemo<RecipientGroup[]>(() => {
+    if (!noDuplicates) {
+      return recipients.map((r) => ({
+        key: r.key,
+        keys: [r.key],
+        name: r.name,
+        email: r.email,
+        role: r.role,
+        units: r.unitNumber ? [r.unitNumber] : [],
+      }));
     }
-    return Array.from(map.entries());
-  }, [filtered]);
+    const map = new Map<string, RecipientGroup>();
+    for (const r of recipients) {
+      const id = r.email.toLowerCase();
+      const g = map.get(id);
+      if (!g) {
+        map.set(id, {
+          key: r.key,
+          keys: [r.key],
+          name: r.name,
+          email: r.email,
+          role: r.role,
+          units: r.unitNumber ? [r.unitNumber] : [],
+        });
+      } else {
+        g.keys.push(r.key);
+        if (r.unitNumber && !g.units.includes(r.unitNumber)) g.units.push(r.unitNumber);
+      }
+    }
+    return Array.from(map.values());
+  }, [recipients, noDuplicates]);
 
-  const selectedRecipients = useMemo(() => recipients.filter((r) => selected.has(r.key)), [recipients, selected]);
+  const filteredGroups = useMemo(() => {
+    if (!search.trim()) return groups;
+    const s = search.toLowerCase();
+    return groups.filter(
+      (g) =>
+        g.name.toLowerCase().includes(s) ||
+        g.email.toLowerCase().includes(s) ||
+        g.units.some((u) => u.toLowerCase().includes(s)),
+    );
+  }, [groups, search]);
 
-  const toggle = (key: string) =>
+  const pathsForGroup = (g: RecipientGroup) => {
+    const out: string[] = [];
+    for (const k of g.keys) for (const p of personal[k] || []) if (!out.includes(p)) out.push(p);
+    return out;
+  };
+
+  const isSelected = (g: RecipientGroup) => g.keys.some((k) => selected.has(k));
+  const selectedGroups = useMemo(() => groups.filter(isSelected), [groups, selected]);
+
+  const toggleGroup = (g: RecipientGroup) =>
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      const on = g.keys.some((k) => next.has(k));
+      g.keys.forEach((k) => next.delete(k));
+      if (!on) next.add(g.key);
       return next;
     });
 
-  const selectAll = () => setSelected(new Set(filtered.map((r) => r.key)));
+  const selectAll = () => setSelected(new Set(filteredGroups.map((g) => g.key)));
   const selectNone = () => setSelected(new Set());
   const selectOnePerUnit = () => {
     const seen = new Set<string>();
     const next = new Set<string>();
-    for (const r of filtered) {
-      const u = r.unitNumber || r.contactId;
+    for (const g of filteredGroups) {
+      const u = g.units[0] || g.email;
       if (seen.has(u)) continue;
       seen.add(u);
-      next.add(r.key);
+      next.add(g.key);
     }
     setSelected(next);
   };
@@ -192,8 +239,7 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     }
     const start = el.selectionStart ?? body.length;
     const end = el.selectionEnd ?? body.length;
-    const next = body.slice(0, start) + token + body.slice(end);
-    setBody(next);
+    setBody(body.slice(0, start) + token + body.slice(end));
     requestAnimationFrame(() => {
       el.focus();
       el.setSelectionRange(start + token.length, start + token.length);
@@ -230,9 +276,7 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
       for (const f of Array.from(files)) {
         const prefix = f.name.match(/^\s*(\d+)\s*[_\-. ]/)?.[1];
         const unit = prefix ? String(Number(prefix)) : null;
-        const targets = unit
-          ? recipients.filter((r) => r.unitKey === unit && (selected.size === 0 || selected.has(r.key)))
-          : [];
+        const targets: BulkRecipient[] = unit ? recipients.filter((r) => r.unitKey === unit) : [];
         if (targets.length === 0) {
           unmatched++;
           continue;
@@ -247,7 +291,8 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
       }
       toast({
         title: `${matched} Datei(en) zugeordnet`,
-        description: unmatched > 0 ? `${unmatched} ohne passende Einheitennummer (z. B. "0001_...") übersprungen.` : undefined,
+        description:
+          unmatched > 0 ? `${unmatched} ohne passende Einheitennummer (z. B. "0001_...") übersprungen.` : undefined,
         variant: unmatched > 0 ? "destructive" : "default",
       });
     } catch (e: any) {
@@ -271,18 +316,32 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     }
   };
 
-  const removePersonal = (key: string, path: string) =>
-    setPersonal((prev) => ({ ...prev, [key]: (prev[key] || []).filter((p) => p !== path) }));
+  const removePathFromGroup = (g: RecipientGroup, path: string) =>
+    setPersonal((prev) => {
+      const next = { ...prev };
+      for (const k of g.keys) next[k] = (next[k] || []).filter((p) => p !== path);
+      return next;
+    });
 
   const persist = async (status?: string) => {
     const keys = Array.from(selected);
+    const unitLabels: Record<string, string> = {};
+    for (const g of selectedGroups) if (g.units.length > 1) unitLabels[g.key] = g.units.join(", ");
+
     const update: any = {
       name: name.trim() || "Rundmail",
       subject_override: subject || null,
       body_html_override: body || null,
       email_account_id: accountId || null,
       attachment_paths: generalPaths,
-      recipient_filter: { roles: [], contact_ids: [], assignment_ids: [], recipient_keys: keys },
+      recipient_filter: {
+        roles: [],
+        contact_ids: [],
+        assignment_ids: [],
+        recipient_keys: keys,
+        no_duplicates: noDuplicates,
+        unit_labels: unitLabels,
+      },
       recipient_count: keys.length,
       scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
     };
@@ -291,19 +350,24 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     if (error) throw error;
 
     await supabase.from("comm_recipient_overrides").delete().eq("campaign_id", campaignId);
-    const rows = Object.entries(personal)
-      .filter(([key, paths]) => paths.length > 0 && selected.has(key))
-      .map(([key, paths]) => {
-        const r = recipients.find((x) => x.key === key);
+    const rows = selectedGroups
+      .map((g) => {
+        const paths = pathsForGroup(g);
+        const ov = textOverrides[g.key];
+        if (paths.length === 0 && !ov?.subject && !ov?.body) return null;
+        const r = recipients.find((x) => x.key === g.key);
+        if (!r) return null;
         return {
           campaign_id: campaignId,
-          contact_id: r?.contactId || null,
-          assignment_id: r?.assignmentId || null,
-          email: r?.email || null,
+          contact_id: r.contactId,
+          assignment_id: r.assignmentId,
+          email: r.email,
           attachment_paths: paths,
+          subject: ov?.subject ?? null,
+          body_html: ov?.body ?? null,
         };
       })
-      .filter((r) => !!r.assignment_id);
+      .filter(Boolean);
     if (rows.length > 0) {
       const { error: oErr } = await supabase.from("comm_recipient_overrides").insert(rows as any);
       if (oErr) throw oErr;
@@ -345,7 +409,9 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
       return;
     }
 
-    if (!confirm(`Rundmail jetzt an ${selected.size} Empfänger senden?`)) return;
+    const withoutAttachment = selectedGroups.filter((g) => pathsForGroup(g).length === 0).length;
+    const hint = withoutAttachment > 0 ? `\n${withoutAttachment} davon ohne persönlichen Anhang.` : "";
+    if (!confirm(`Rundmail jetzt an ${selected.size} Empfänger senden?${hint}`)) return;
     setBusy("send");
     try {
       await persist("draft");
@@ -354,7 +420,10 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
-      toast({ title: "Versand abgeschlossen", description: `${(data as any)?.ok ?? 0} gesendet, ${(data as any)?.failed ?? 0} fehlgeschlagen` });
+      toast({
+        title: "Versand abgeschlossen",
+        description: `${(data as any)?.ok ?? 0} gesendet, ${(data as any)?.failed ?? 0} fehlgeschlagen`,
+      });
       qc.invalidateQueries({ queryKey: ["bulk-campaigns"] });
       onBack();
     } catch (e: any) {
@@ -364,7 +433,25 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     }
   };
 
-  const personalCount = selectedRecipients.filter((r) => (personal[r.key] || []).length > 0).length;
+  const dialogGroup = dialog ? groups.find((g) => g.key === dialog.key) || null : null;
+  const dialogSamples: PlaceholderSamples = useMemo(() => {
+    if (!dialogGroup) return {};
+    const parts = dialogGroup.name.replace(/\s*\(.*\)$/, "").split(" ");
+    return {
+      vollname: dialogGroup.name,
+      vorname: parts.slice(0, -1).join(" ") || dialogGroup.name,
+      nachname: parts.slice(-1)[0] || "",
+      anrede_brief: `Sehr geehrte Damen und Herren,`,
+      email: dialogGroup.email,
+      einheit: dialogGroup.units.join(", "),
+      rolle: dialogGroup.role || "",
+      gebaeude_name: building?.name || "",
+      gebaeude_strasse: (building as any)?.address || "",
+      datum_heute: new Date().toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" }),
+    };
+  }, [dialogGroup, building]);
+
+  const personalCount = selectedGroups.filter((g) => pathsForGroup(g).length > 0).length;
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -394,16 +481,11 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
         </Button>
       </div>
 
-      <Tabs defaultValue="nachricht" className="flex-1 flex flex-col min-h-0">
-        <TabsList className="mx-3 mt-2 self-start">
-          <TabsTrigger value="nachricht">Nachricht</TabsTrigger>
-          <TabsTrigger value="empfaenger">Empfänger ({selected.size})</TabsTrigger>
-          <TabsTrigger value="anhaenge">Anhänge ({generalPaths.length + personalCount})</TabsTrigger>
-        </TabsList>
-
-        <ScrollArea className="flex-1 min-h-0">
-          <TabsContent value="nachricht" className="p-4 space-y-4 mt-0">
-            <div className="grid gap-4 md:grid-cols-2">
+      <div className="flex-1 min-h-0 grid lg:grid-cols-[minmax(0,1fr)_440px] divide-y lg:divide-y-0 lg:divide-x overflow-auto lg:overflow-hidden">
+        {/* Links: Inhalt + Anhänge */}
+        <ScrollArea className="min-h-0">
+          <div className="p-4 space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Absender</Label>
                 <Select value={accountId} onValueChange={setAccountId}>
@@ -448,96 +530,17 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
                 ref={bodyRef}
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
-                rows={16}
+                rows={14}
                 placeholder={"{{anrede_brief}}\n\n..."}
                 className="font-sans"
               />
             </div>
-          </TabsContent>
 
-          <TabsContent value="empfaenger" className="p-4 space-y-3 mt-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  className="pl-8 h-9"
-                  placeholder="Name, E-Mail oder Einheit suchen..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-              <Button variant="outline" size="sm" onClick={selectAll}>
-                Alle
-              </Button>
-              <Button variant="outline" size="sm" onClick={selectOnePerUnit}>
-                Eine je Einheit
-              </Button>
-              <Button variant="outline" size="sm" onClick={selectNone}>
-                Keine
-              </Button>
-            </div>
-            <p className="text-sm text-muted-foreground flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              {recipientsLoading ? "Lade Empfänger..." : `${selected.size} von ${recipients.length} Adressen ausgewählt`}
-            </p>
+            <Separator />
 
-            <div className="space-y-3">
-              {grouped.map(([unit, rows]) => (
-                <Card key={unit} className="p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-medium">{unit === "—" ? "Ohne Einheit" : `Einheit ${unit}`}</p>
-                    <button
-                      type="button"
-                      className="text-xs text-primary hover:underline"
-                      onClick={() =>
-                        setSelected((prev) => {
-                          const next = new Set(prev);
-                          const allOn = rows.every((r) => next.has(r.key));
-                          rows.forEach((r) => (allOn ? next.delete(r.key) : next.add(r.key)));
-                          return next;
-                        })
-                      }
-                    >
-                      umschalten
-                    </button>
-                  </div>
-                  <div className="space-y-1">
-                    {rows.map((r) => (
-                      <label
-                        key={r.key}
-                        className="flex items-center gap-3 p-1.5 rounded hover:bg-muted/50 cursor-pointer"
-                      >
-                        <Checkbox checked={selected.has(r.key)} onCheckedChange={() => toggle(r.key)} />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm truncate">{r.name}</div>
-                          <div className="text-xs text-muted-foreground truncate">{r.email}</div>
-                        </div>
-                        {r.role && (
-                          <Badge variant="secondary" className="capitalize text-[10px]">
-                            {r.role}
-                          </Badge>
-                        )}
-                        {(personal[r.key] || []).length > 0 && (
-                          <Badge variant="outline" className="text-[10px] gap-1">
-                            <Paperclip className="h-3 w-3" />
-                            {(personal[r.key] || []).length}
-                          </Badge>
-                        )}
-                      </label>
-                    ))}
-                  </div>
-                </Card>
-              ))}
-              {!recipientsLoading && grouped.length === 0 && (
-                <p className="text-sm text-muted-foreground">Keine E-Mail-Adressen im Gebäude gefunden.</p>
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="anhaenge" className="p-4 space-y-6 mt-0">
             <div className="space-y-2">
-              <Label>Anhänge für alle</Label>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between">
+                <Label>Anhänge für alle</Label>
                 <Button variant="outline" size="sm" asChild disabled={busy !== null}>
                   <label className="cursor-pointer">
                     <Upload className="h-4 w-4 mr-1" /> Dateien wählen
@@ -552,11 +555,14 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
                     />
                   </label>
                 </Button>
-                {busy === "upload" && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
+                {generalPaths.length === 0 && (
+                  <span className="text-xs text-muted-foreground">Keine gemeinsamen Anhänge</span>
+                )}
                 {generalPaths.map((p) => (
                   <Badge key={p} variant="secondary" className="gap-1">
+                    <Paperclip className="h-3 w-3" />
                     {fileLabel(p)}
                     <button type="button" onClick={() => setGeneralPaths((x) => x.filter((y) => y !== p))}>
                       <X className="h-3 w-3" />
@@ -566,76 +572,119 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
               </div>
             </div>
 
-            <Separator />
-
             <div className="space-y-2">
-              <Label>Persönliche Anhänge je Empfänger</Label>
+              <div className="flex items-center justify-between">
+                <Label>Persönliche Anhänge</Label>
+                <Button variant="outline" size="sm" asChild disabled={busy !== null}>
+                  <label className="cursor-pointer">
+                    {busy === "upload" ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4 mr-1" />
+                    )}
+                    Automatisch zuordnen
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        handlePersonalUpload(e.target.files);
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
-                Dateien werden automatisch anhand der Einheitennummer am Dateianfang zugeordnet, z. B.
-                <code className="mx-1">0001_Einzelabrechnung.pdf</code> → Einheit 1.
+                Zuordnung über die Einheitennummer am Dateianfang, z. B.
+                <code className="mx-1">0001_Einzelabrechnung.pdf</code> → Einheit 1. Hat eine Adresse mehrere Einheiten,
+                erhält sie alle zugehörigen Dateien in einer E-Mail.
               </p>
-              <Button variant="outline" size="sm" asChild disabled={busy !== null}>
-                <label className="cursor-pointer">
-                  <Upload className="h-4 w-4 mr-1" /> Dateien automatisch zuordnen
-                  <input
-                    type="file"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => {
-                      handlePersonalUpload(e.target.files);
-                      e.currentTarget.value = "";
-                    }}
-                  />
-                </label>
-              </Button>
+            </div>
+          </div>
+        </ScrollArea>
 
-              <div className="space-y-2 pt-2">
-                {selectedRecipients.length === 0 && (
-                  <p className="text-sm text-muted-foreground">Zuerst Empfänger auswählen.</p>
-                )}
-                {selectedRecipients.map((r) => {
-                  const paths = personal[r.key] || [];
-                  return (
-                    <Card key={r.key} className={cn("p-3 flex flex-wrap items-center gap-2", paths.length === 0 && "opacity-80")}>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm truncate">
-                          {r.unitNumber ? `${r.unitNumber} · ` : ""}
-                          {r.name}
-                        </div>
-                        <div className="text-xs text-muted-foreground truncate">{r.email}</div>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {paths.map((p) => (
-                          <Badge key={p} variant="secondary" className="gap-1">
-                            {fileLabel(p)}
-                            <button type="button" onClick={() => removePersonal(r.key, p)}>
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          </Badge>
-                        ))}
-                      </div>
-                      <Button variant="ghost" size="sm" asChild disabled={busy !== null}>
-                        <label className="cursor-pointer">
-                          <Paperclip className="h-4 w-4" />
-                          <input
-                            type="file"
-                            multiple
-                            className="hidden"
-                            onChange={(e) => {
-                              addPersonalToKey(r.key, e.target.files);
-                              e.currentTarget.value = "";
-                            }}
-                          />
-                        </label>
-                      </Button>
-                    </Card>
-                  );
-                })}
+        {/* Rechts: Empfänger-Karten */}
+        <div className="flex flex-col min-h-0 bg-muted/20">
+          <div className="p-3 space-y-2 border-b shrink-0">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="pl-8 h-9 bg-background"
+                placeholder="Name, E-Mail oder Einheit suchen..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" onClick={selectAll}>
+                Alle
+              </Button>
+              <Button variant="outline" size="sm" onClick={selectOnePerUnit}>
+                Eine je Einheit
+              </Button>
+              <Button variant="outline" size="sm" onClick={selectNone}>
+                Keine
+              </Button>
+              <div className="flex items-center gap-1.5 ml-auto">
+                <Switch id="nodup" checked={noDuplicates} onCheckedChange={(v) => setNoDuplicates(!!v)} />
+                <Label htmlFor="nodup" className="text-xs cursor-pointer">
+                  Kein Doppel
+                </Label>
               </div>
             </div>
-          </TabsContent>
-        </ScrollArea>
-      </Tabs>
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <Users className="h-3.5 w-3.5" />
+              {recipientsLoading
+                ? "Lade Empfänger..."
+                : `${selectedGroups.length} von ${groups.length} ausgewählt · ${personalCount} mit persönlichem Anhang`}
+            </p>
+          </div>
+
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="p-3 space-y-2">
+              {!recipientsLoading && filteredGroups.length === 0 && (
+                <p className="text-sm text-muted-foreground">Keine E-Mail-Adressen gefunden.</p>
+              )}
+              {filteredGroups.map((g) => (
+                <BulkRecipientCard
+                  key={g.key}
+                  group={g}
+                  selected={isSelected(g)}
+                  paths={pathsForGroup(g)}
+                  hasOverride={!!(textOverrides[g.key]?.subject || textOverrides[g.key]?.body)}
+                  busy={busy !== null}
+                  onToggle={() => toggleGroup(g)}
+                  onRemovePath={(p) => removePathFromGroup(g, p)}
+                  onAddFiles={(files) => addPersonalToKey(g.key, files)}
+                  onPreview={() => setDialog({ mode: "preview", key: g.key })}
+                  onEdit={() => setDialog({ mode: "edit", key: g.key })}
+                />
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
+      </div>
+
+      <BulkRecipientDialog
+        open={!!dialog}
+        mode={dialog?.mode || "preview"}
+        group={dialogGroup}
+        baseSubject={subject}
+        baseBody={body}
+        override={dialog ? textOverrides[dialog.key] : undefined}
+        samples={dialogSamples}
+        attachments={dialogGroup ? [...generalPaths, ...pathsForGroup(dialogGroup)] : []}
+        onOpenChange={(v) => !v && setDialog(null)}
+        onSaveOverride={(key, s, b) =>
+          setTextOverrides((prev) => {
+            const next = { ...prev };
+            if (!s && !b) delete next[key];
+            else next[key] = { subject: s, body: b };
+            return next;
+          })
+        }
+      />
     </div>
   );
 };
