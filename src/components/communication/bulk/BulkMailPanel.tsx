@@ -46,6 +46,8 @@ export const BulkMailPanel = () => {
         .eq("type", "email")
         .in("status", ["draft", "scheduled", "sending", "failed"])
         .order("updated_at", { ascending: false })
+        .limit(100);
+
 
       if (error) throw error;
       return data || [];
