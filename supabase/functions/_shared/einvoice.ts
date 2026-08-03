@@ -332,14 +332,20 @@ async function extractZugferdXml(pdfBytes: Uint8Array): Promise<string | null> {
 
   for (const raw of candidates) {
     const trimmed = raw.replace(/^[\r\n]+/, "").replace(/[\r\n]+$/, "");
-    if (looksLikeInvoiceXml(trimmed)) return trimmed;
-
     const bytes = latin1ToBytes(trimmed);
+
+    // Unkomprimiert eingebettet: latin1-Rohtext als UTF-8 neu dekodieren,
+    // sonst werden Umlaute zu "Ã¼" o. Ä.
+    if (looksLikeInvoiceXml(trimmed)) {
+      return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+    }
+
     for (const fmt of ["deflate", "deflate-raw", "gzip"] as const) {
       const out = await inflate(bytes, fmt);
       if (out && looksLikeInvoiceXml(out)) return out;
     }
   }
+
   return null;
 }
 
