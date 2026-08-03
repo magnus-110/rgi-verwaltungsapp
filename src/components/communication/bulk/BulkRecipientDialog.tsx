@@ -29,6 +29,7 @@ interface Props {
   override?: { subject: string | null; body: string | null };
   samples: PlaceholderSamples;
   attachments: string[];
+  signature?: string | null;
   onOpenChange: (v: boolean) => void;
   onSaveOverride: (key: string, subject: string | null, body: string | null) => void;
 }
