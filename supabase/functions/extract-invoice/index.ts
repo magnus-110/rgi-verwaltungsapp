@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
-import { detectAndParseEInvoice } from "../_shared/einvoice.ts";
+import { detectAndParseEInvoice, isEInvoiceComplete, type ParsedEInvoice } from "../_shared/einvoice.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -256,13 +256,28 @@ serve(async (req) => {
     const isImageFile = /\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?)$/i.test(lowerName);
 
     // ─── E-Rechnung Detection (XRechnung / ZUGFeRD) — only for PDF/XML ───
+    // Teilergebnis, falls das XML nur unvollständig lesbar war: wird nach der
+    // OCR mit deren Daten zusammengeführt (XML gewinnt bei Beträgen/Nummer/IBAN).
+    let eInvoicePartial: ParsedEInvoice | null = null;
     if (!isImageFile) {
       try {
         const fileResp = await fetch(signedUrlData.signedUrl);
         const fileBytes = new Uint8Array(await fileResp.arrayBuffer());
         const eInvoice = await detectAndParseEInvoice(fileBytes, invoice.file_name);
 
-        if (eInvoice) {
+        if (eInvoice && !isEInvoiceComplete(eInvoice)) {
+          console.warn(
+            `E-Rechnung (${eInvoice.format}) unvollständig für ${invoiceId} — fallback auf OCR`,
+            JSON.stringify({
+              invoice_number: eInvoice.invoice_number,
+              invoice_date: eInvoice.invoice_date,
+              gross_amount: eInvoice.gross_amount,
+            }),
+          );
+          eInvoicePartial = eInvoice;
+        }
+
+        if (eInvoice && isEInvoiceComplete(eInvoice)) {
           console.log(`E-Rechnung detected (${eInvoice.format}) for invoice ${invoiceId}`);
 
           // Auto-match building from recipient address (skip for company invoices)
@@ -307,7 +322,7 @@ serve(async (req) => {
             einvoice_format: eInvoice.format,
             leitweg_id: eInvoice.leitweg_id,
             line_items: eInvoice.line_items || [],
-            ocr_extracted_data: eInvoice,
+            ocr_extracted_data: { ...eInvoice, source: "einvoice" },
           };
           if (eInvoice.vendor_name) eUpdate.vendor_name = eInvoice.vendor_name;
           if (eInvoice.vendor_iban) eUpdate.vendor_iban = eInvoice.vendor_iban;
@@ -544,6 +559,43 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
 
     console.log("Extracted data:", JSON.stringify(extracted));
 
+    // ─── Merge: strukturierte E-Rechnungs-Daten schlagen OCR-Werte ───────────
+    extracted.source = "ocr";
+    if (eInvoicePartial) {
+      extracted.source = "merged";
+      extracted.einvoice_format = eInvoicePartial.format;
+      const prefer = [
+        "vendor_name",
+        "vendor_iban",
+        "invoice_number",
+        "invoice_date",
+        "due_date",
+        "net_amount",
+        "vat_amount",
+        "gross_amount",
+      ] as const;
+      for (const key of prefer) {
+        const v = (eInvoicePartial as any)[key];
+        if (v != null && v !== "") extracted[key] = v;
+      }
+      if (!extracted.recipient_address && eInvoicePartial.recipient_address) {
+        extracted.recipient_address = eInvoicePartial.recipient_address;
+      }
+      if ((!extracted.line_items || extracted.line_items.length === 0) && eInvoicePartial.line_items?.length) {
+        extracted.line_items = eInvoicePartial.line_items;
+      }
+      if (!extracted.description && eInvoicePartial.description) {
+        extracted.description = eInvoicePartial.description;
+      }
+      console.log("Merged with partial e-invoice data:", JSON.stringify({
+        invoice_number: extracted.invoice_number,
+        invoice_date: extracted.invoice_date,
+        gross_amount: extracted.gross_amount,
+      }));
+    }
+
+
+
     // Look up suggested account by number
     let suggestedAccountId: string | null = null;
     if (extracted.suggested_account_number) {
@@ -622,6 +674,8 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
       line_items: extracted.line_items || [],
       vendor_iban: extracted.vendor_iban || null,
       suggested_account_id: suggestedAccountId,
+      ...(eInvoicePartial ? { einvoice_format: eInvoicePartial.format, leitweg_id: eInvoicePartial.leitweg_id } : {}),
+
     };
 
     // Set building_id if auto-matched (never for company invoices)
