@@ -256,13 +256,28 @@ serve(async (req) => {
     const isImageFile = /\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?)$/i.test(lowerName);
 
     // ─── E-Rechnung Detection (XRechnung / ZUGFeRD) — only for PDF/XML ───
+    // Teilergebnis, falls das XML nur unvollständig lesbar war: wird nach der
+    // OCR mit deren Daten zusammengeführt (XML gewinnt bei Beträgen/Nummer/IBAN).
+    let eInvoicePartial: ParsedEInvoice | null = null;
     if (!isImageFile) {
       try {
         const fileResp = await fetch(signedUrlData.signedUrl);
         const fileBytes = new Uint8Array(await fileResp.arrayBuffer());
         const eInvoice = await detectAndParseEInvoice(fileBytes, invoice.file_name);
 
-        if (eInvoice) {
+        if (eInvoice && !isEInvoiceComplete(eInvoice)) {
+          console.warn(
+            `E-Rechnung (${eInvoice.format}) unvollständig für ${invoiceId} — fallback auf OCR`,
+            JSON.stringify({
+              invoice_number: eInvoice.invoice_number,
+              invoice_date: eInvoice.invoice_date,
+              gross_amount: eInvoice.gross_amount,
+            }),
+          );
+          eInvoicePartial = eInvoice;
+        }
+
+        if (eInvoice && isEInvoiceComplete(eInvoice)) {
           console.log(`E-Rechnung detected (${eInvoice.format}) for invoice ${invoiceId}`);
 
           // Auto-match building from recipient address (skip for company invoices)
