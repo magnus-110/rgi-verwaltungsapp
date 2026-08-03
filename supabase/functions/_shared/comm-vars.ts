@@ -15,6 +15,10 @@ export type RecipientFilter = {
    *  `${assignment_id}|${email_lowercase}`. Wenn gesetzt, werden nur diese
    *  Kombinationen zu Empfängern. */
   recipient_keys?: string[];
+  /** Rundmails: Anzeige-Label für `einheit`/`einheiten` je Schlüssel, wenn eine
+   *  Adresse mehrere Einheiten abdeckt (z. B. "0003, 0007"). */
+  unit_labels?: Record<string, string>;
+
   /** If true, alle Assignments (= Wohneinheiten) desselben Eigentümers im
    *  Gebäude werden zu EINEM Empfänger zusammengefasst. Variablen `einheit`/`mea`
    *  enthalten dann die Komma-Liste bzw. die Summe; zusätzlich werden
