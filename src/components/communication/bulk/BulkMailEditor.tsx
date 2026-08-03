@@ -7,24 +7,24 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft,
+  CalendarClock,
   Loader2,
   Paperclip,
   Save,
   Search,
   Send,
-  Upload,
   Users,
   X,
 } from "lucide-react";
 import { useBulkRecipients, normalizeUnit, type BulkRecipient } from "./useBulkRecipients";
 import { BulkRecipientCard, type RecipientGroup } from "./BulkRecipientCard";
 import { BulkRecipientDialog } from "./BulkRecipientDialog";
+import { BulkDropzone } from "./BulkDropzone";
 import type { PlaceholderSamples } from "../usePlaceholderSamples";
 
 interface Props {
@@ -43,6 +43,19 @@ const PLACEHOLDERS = [
   "verwalter_name",
   "datum_heute",
 ];
+
+const PLACEHOLDER_LABELS: Record<string, string> = {
+  anrede_brief: "Anrede",
+  vorname: "Vorname",
+  nachname: "Nachname",
+  vollname: "Vollständiger Name",
+  einheit: "Einheit",
+  gebaeude_name: "Gebäude",
+  gebaeude_strasse: "Straße",
+  verwalter_name: "Verwalter",
+  datum_heute: "Datum heute",
+};
+
 
 const fileLabel = (path: string) => (path.split("/").pop() || path).replace(/^\d+_/, "");
 
@@ -454,8 +467,8 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
   const personalCount = selectedGroups.filter((g) => pathsForGroup(g).length > 0).length;
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      <div className="flex items-center gap-2 p-3 border-b shrink-0">
+    <div className="flex flex-col h-full min-h-0 bg-muted/10">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-background/80 backdrop-blur shrink-0">
         <Button variant="ghost" size="icon" onClick={onBack} aria-label="Zurück">
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -463,19 +476,19 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Name der Rundmail"
-          className="max-w-xs h-9"
+          className="max-w-xs h-9 border-0 bg-transparent px-1 text-base font-medium shadow-none focus-visible:ring-0"
         />
         {building && (
-          <Badge variant="outline" className="hidden sm:inline-flex">
+          <Badge variant="secondary" className="hidden sm:inline-flex font-normal">
             {building.name}
           </Badge>
         )}
         <div className="flex-1" />
-        <Button variant="outline" size="sm" onClick={handleSave} disabled={busy !== null}>
+        <Button variant="ghost" size="sm" onClick={handleSave} disabled={busy !== null}>
           {busy === "save" ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
           Speichern
         </Button>
-        <Button size="sm" onClick={handleSend} disabled={busy !== null}>
+        <Button size="sm" className="rounded-full px-4" onClick={handleSend} disabled={busy !== null}>
           {busy === "send" ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
           {scheduledAt ? "Planen" : `Senden (${selected.size})`}
         </Button>
@@ -484,146 +497,178 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
       <div className="flex-1 min-h-0 grid lg:grid-cols-[minmax(0,1fr)_440px] divide-y lg:divide-y-0 lg:divide-x overflow-auto lg:overflow-hidden">
         {/* Links: Inhalt + Anhänge */}
         <ScrollArea className="min-h-0">
-          <div className="p-4 space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>Absender</Label>
-                <Select value={accountId} onValueChange={setAccountId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="E-Mail-Konto wählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accounts.map((a: any) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.display_name} ({a.email_address})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          <div className="mx-auto w-full max-w-3xl p-4 space-y-4">
+            {/* Nachrichtenkarte */}
+            <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 border-b bg-muted/20">
+                <div className="flex min-w-[240px] flex-1 items-center gap-2">
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground">Von</span>
+                  <Select value={accountId} onValueChange={setAccountId}>
+                    <SelectTrigger className="h-8 flex-1 border-0 bg-transparent px-1 text-sm shadow-none focus:ring-0">
+                      <SelectValue placeholder="E-Mail-Konto wählen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accounts.map((a: any) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.display_name} ({a.email_address})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  {scheduledAt ? (
+                    <>
+                      <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        type="datetime-local"
+                        value={scheduledAt}
+                        onChange={(e) => setScheduledAt(e.target.value)}
+                        className="h-8 w-[200px] border-0 bg-transparent px-1 text-sm shadow-none focus-visible:ring-0"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => setScheduledAt("")}
+                        aria-label="Terminierung entfernen"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-xs text-muted-foreground"
+                      onClick={() => {
+                        const d = new Date(Date.now() + 3600_000);
+                        d.setMinutes(0, 0, 0);
+                        const pad = (n: number) => String(n).padStart(2, "0");
+                        setScheduledAt(
+                          `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
+                        );
+                      }}
+                    >
+                      <CalendarClock className="h-3.5 w-3.5 mr-1" />
+                      Später senden
+                    </Button>
+                  )}
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>Geplanter Versand (optional)</Label>
-                <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+
+              <div className="border-b px-4">
+                <Input
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="Betreff"
+                  className="h-12 border-0 bg-transparent px-0 text-base font-medium shadow-none focus-visible:ring-0"
+                />
               </div>
-            </div>
 
-            <div className="space-y-1.5">
-              <Label>Betreff</Label>
-              <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Betreff" />
-            </div>
+              <Textarea
+                ref={bodyRef}
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={16}
+                placeholder={"{{anrede_brief}}\n\n..."}
+                className="min-h-[320px] resize-none border-0 bg-transparent px-4 py-3 text-sm leading-relaxed shadow-none focus-visible:ring-0"
+              />
 
-            <div className="space-y-1.5">
-              <div className="flex flex-wrap items-center gap-1">
-                <Label className="mr-2">Text</Label>
+              <div className="flex flex-wrap items-center gap-1 border-t bg-muted/20 px-3 py-2">
+                <span className="mr-1 text-[11px] uppercase tracking-wide text-muted-foreground">Platzhalter</span>
                 {PLACEHOLDERS.map((p) => (
                   <button
                     key={p}
                     type="button"
                     onClick={() => insertPlaceholder(p)}
-                    className="text-[11px] px-1.5 py-0.5 rounded border text-muted-foreground hover:bg-muted"
+                    className="rounded-full border border-border/60 bg-background px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
                   >
-                    {`{{${p}}}`}
+                    {PLACEHOLDER_LABELS[p] || p}
                   </button>
                 ))}
               </div>
-              <Textarea
-                ref={bodyRef}
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                rows={14}
-                placeholder={"{{anrede_brief}}\n\n..."}
-                className="font-sans"
-              />
             </div>
 
-            <Separator />
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Anhänge für alle</Label>
-                <Button variant="outline" size="sm" asChild disabled={busy !== null}>
-                  <label className="cursor-pointer">
-                    <Upload className="h-4 w-4 mr-1" /> Dateien wählen
-                    <input
-                      type="file"
-                      multiple
-                      className="hidden"
-                      onChange={(e) => {
-                        handleGeneralUpload(e.target.files);
-                        e.currentTarget.value = "";
-                      }}
-                    />
-                  </label>
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {generalPaths.length === 0 && (
-                  <span className="text-xs text-muted-foreground">Keine gemeinsamen Anhänge</span>
-                )}
-                {generalPaths.map((p) => (
-                  <Badge key={p} variant="secondary" className="gap-1">
-                    <Paperclip className="h-3 w-3" />
-                    {fileLabel(p)}
-                    <button type="button" onClick={() => setGeneralPaths((x) => x.filter((y) => y !== p))}>
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Persönliche Anhänge</Label>
-                <Button variant="outline" size="sm" asChild disabled={busy !== null}>
-                  <label className="cursor-pointer">
-                    {busy === "upload" ? (
-                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                    ) : (
-                      <Upload className="h-4 w-4 mr-1" />
+            {/* Anhänge */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border bg-card p-4 shadow-sm space-y-3">
+                <div className="flex items-center gap-2">
+                  <Paperclip className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-sm">Anhänge für alle</Label>
+                </div>
+                <BulkDropzone
+                  title="Dateien ablegen oder wählen"
+                  hint="Gehen an jeden ausgewählten Empfänger."
+                  busy={busy === "upload"}
+                  disabled={busy !== null}
+                  onFiles={handleGeneralUpload}
+                >
+                  <div className="flex flex-wrap gap-1.5">
+                    {generalPaths.length === 0 && (
+                      <span className="text-xs text-muted-foreground">Keine gemeinsamen Anhänge</span>
                     )}
-                    Automatisch zuordnen
-                    <input
-                      type="file"
-                      multiple
-                      className="hidden"
-                      onChange={(e) => {
-                        handlePersonalUpload(e.target.files);
-                        e.currentTarget.value = "";
-                      }}
-                    />
-                  </label>
-                </Button>
+                    {generalPaths.map((p) => (
+                      <Badge key={p} variant="secondary" className="gap-1 font-normal">
+                        <Paperclip className="h-3 w-3" />
+                        {fileLabel(p)}
+                        <button type="button" onClick={() => setGeneralPaths((x) => x.filter((y) => y !== p))}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </BulkDropzone>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Zuordnung über die Einheitennummer am Dateianfang, z. B.
-                <code className="mx-1">0001_Einzelabrechnung.pdf</code> → Einheit 1. Hat eine Adresse mehrere Einheiten,
-                erhält sie alle zugehörigen Dateien in einer E-Mail.
-              </p>
+
+              <div className="rounded-2xl border bg-card p-4 shadow-sm space-y-3">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-sm">Persönliche Anhänge</Label>
+                </div>
+                <BulkDropzone
+                  title="Dateien ablegen – automatisch zuordnen"
+                  hint={
+                    <>
+                      Zuordnung über die Einheitennummer am Dateianfang, z. B. <code>0001_Einzelabrechnung.pdf</code> →
+                      Einheit 1. Adressen mit mehreren Einheiten erhalten alle Dateien in einer E-Mail.
+                    </>
+                  }
+                  busy={busy === "upload"}
+                  disabled={busy !== null}
+                  onFiles={handlePersonalUpload}
+                >
+                  <p className="text-xs text-muted-foreground">
+                    {personalCount} von {selectedGroups.length} ausgewählten Empfängern haben einen persönlichen Anhang.
+                    Einzelne Dateien lassen sich auch direkt auf eine Empfänger-Karte ziehen.
+                  </p>
+                </BulkDropzone>
+              </div>
             </div>
           </div>
         </ScrollArea>
 
+
         {/* Rechts: Empfänger-Karten */}
         <div className="flex flex-col min-h-0 bg-muted/20">
-          <div className="p-3 space-y-2 border-b shrink-0">
+          <div className="p-3 space-y-2.5 border-b shrink-0 bg-background/60 backdrop-blur">
             <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                className="pl-8 h-9 bg-background"
+                className="pl-9 h-9 rounded-full bg-background"
                 placeholder="Name, E-Mail oder Einheit suchen..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" onClick={selectAll}>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Button variant="secondary" size="sm" className="h-7 rounded-full px-3 text-xs" onClick={selectAll}>
                 Alle
               </Button>
-              <Button variant="outline" size="sm" onClick={selectOnePerUnit}>
+              <Button variant="secondary" size="sm" className="h-7 rounded-full px-3 text-xs" onClick={selectOnePerUnit}>
                 Eine je Einheit
               </Button>
-              <Button variant="outline" size="sm" onClick={selectNone}>
+              <Button variant="secondary" size="sm" className="h-7 rounded-full px-3 text-xs" onClick={selectNone}>
                 Keine
               </Button>
               <div className="flex items-center gap-1.5 ml-auto">
@@ -633,6 +678,7 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
                 </Label>
               </div>
             </div>
+
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
               <Users className="h-3.5 w-3.5" />
               {recipientsLoading
