@@ -48,6 +48,16 @@ Deno.serve(async (req) => {
     }
     if (!subject || !bodyHtml) return json({ error: "Betreff oder Inhalt fehlt" }, 400);
 
+    // Signatur des Kontos unter den Text hängen (falls vorhanden und nicht bereits enthalten)
+    const signature = ((account.signature_html as string | null) || "").trim();
+    const withSignature = (rendered: string) => {
+      if (!signature) return rendered;
+      if (rendered.includes(signature)) return rendered;
+      return bodyFormat === "plain"
+        ? `${rendered}\n\n${signature}`
+        : `${rendered}<br /><br />${signature}`;
+    };
+
     // Build payload key based on chosen format
     const buildBody = (rendered: string) =>
       bodyFormat === "plain" ? { text: rendered } : { html: rendered };
