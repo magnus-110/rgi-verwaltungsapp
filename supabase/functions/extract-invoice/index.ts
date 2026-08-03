@@ -674,6 +674,8 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
       line_items: extracted.line_items || [],
       vendor_iban: extracted.vendor_iban || null,
       suggested_account_id: suggestedAccountId,
+      ...(eInvoicePartial ? { einvoice_format: eInvoicePartial.format, leitweg_id: eInvoicePartial.leitweg_id } : {}),
+
     };
 
     // Set building_id if auto-matched (never for company invoices)
