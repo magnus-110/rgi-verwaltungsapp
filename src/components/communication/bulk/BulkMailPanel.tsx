@@ -44,8 +44,9 @@ export const BulkMailPanel = () => {
         .from("comm_campaigns")
         .select("id, name, status, building_id, recipient_count, sent_count, failed_count, scheduled_at, updated_at, buildings(name)")
         .eq("type", "email")
+        .in("status", ["draft", "scheduled", "sending", "failed"])
         .order("updated_at", { ascending: false })
-        .limit(100);
+
       if (error) throw error;
       return data || [];
     },
