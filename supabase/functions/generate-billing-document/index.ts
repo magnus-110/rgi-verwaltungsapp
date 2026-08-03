@@ -124,6 +124,13 @@ Deno.serve(async (req) => {
 
     const prefix = file_prefix ? sanitize(file_prefix) : `Abrechnung_${fiscal_year}`;
 
+    // Einheitennummer als 4-stelliges Datei-Präfix (z. B. "0003_"),
+    // damit Rundmails Anhänge automatisch je Einheit zuordnen können.
+    const unitFilePrefix = (unitNumber?: string | null): string => {
+      const digits = String(unitNumber || "").match(/\d+/)?.[0];
+      return digits ? `${String(Number(digits)).padStart(4, "0")}_` : "";
+    };
+
     // Single
     if (mode === "single" && items.length === 1) {
       const it = items[0];
@@ -134,7 +141,7 @@ Deno.serve(async (req) => {
           ? `${prefix}_Gesamt`
           : it.kind === "asset_report"
             ? prefix
-            : `${prefix}_${sanitize(it.ownerName || "Eigentuemer")}`;
+            : `${unitFilePrefix(it.unitNumber)}${prefix}_${sanitize(it.ownerName || "Eigentuemer")}`;
       if (wantPdf) {
         const pdf = await convertDocxToPdf(docxBytes, `${baseName}.docx`);
         return new Response(pdf, {
@@ -164,7 +171,7 @@ Deno.serve(async (req) => {
         const baseName =
           it.kind === "overall"
             ? `00_${prefix}_Gesamt`
-            : `${prefix}_${sanitize(it.ownerName || `Eigentuemer_${i}`)}`;
+            : `${unitFilePrefix(it.unitNumber)}${prefix}_${sanitize(it.ownerName || `Eigentuemer_${i}`)}`;
         if (wantPdf) {
           const pdf = await convertDocxToPdf(docxBytes, `${baseName}.docx`);
           bundle.file(`${baseName}.pdf`, pdf);

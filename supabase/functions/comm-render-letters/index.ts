@@ -73,6 +73,21 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/**
+ * Datei-Präfix aus den Einheitennummern eines Empfängers (4-stellig, z. B. "0003_").
+ * Mehrere Einheiten werden verbunden ("0003-0007_"), damit der Name eindeutig bleibt
+ * und Rundmails Anhänge automatisch je Einheit zuordnen können.
+ */
+function unitPrefixFromVars(vars: Record<string, any>): string {
+  const raw = String(vars?.einheiten || vars?.einheit || "");
+  const nums = Array.from(raw.matchAll(/\d+/g))
+    .map((m) => Number(m[0]))
+    .filter((n) => Number.isFinite(n));
+  if (nums.length === 0) return "";
+  const uniq = Array.from(new Set(nums)).sort((a, b) => a - b);
+  return `${uniq.map((n) => String(n).padStart(4, "0")).join("-")}_`;
+}
+
 function sanitize(name: string): string {
   return name.replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 80);
 }
@@ -198,7 +213,8 @@ Deno.serve(async (req) => {
         const docxBuf: Uint8Array = doc.getZip().generate({ type: "uint8array" });
 
         const baseName = sanitize(r.display_name) || `empfaenger_${i + 1}`;
-        const prefix = `${String(i + 1).padStart(3, "0")}_${baseName}`;
+        const unitPrefix = unitPrefixFromVars(r.vars || {});
+        const prefix = `${unitPrefix || `${String(i + 1).padStart(3, "0")}_`}${baseName}`;
 
         let outBuf: Uint8Array = docxBuf;
         let ext = "docx";
