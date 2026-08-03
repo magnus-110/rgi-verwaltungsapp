@@ -447,6 +447,8 @@ export const Inbox = () => {
   const isScheduledFolder = selectedFolderId === SCHEDULED_FOLDER_ID;
   const isDraftsFolder = selectedFolderId === DRAFTS_FOLDER_ID;
   const isCallsFolder = selectedFolderId === CALLS_FOLDER_ID;
+  const isBulkFolder = selectedFolderId === BULK_FOLDER_ID;
+
 
   // Fetch emails for selected folder — slim columns; body wird lazy für Detail geladen
   const isSearching = searchTerm.trim().length >= 2;
