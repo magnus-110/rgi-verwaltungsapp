@@ -43,6 +43,7 @@ export const BulkRecipientDialog = ({
   override,
   samples,
   attachments,
+  signature,
   onOpenChange,
   onSaveOverride,
 }: Props) => {
@@ -58,7 +59,9 @@ export const BulkRecipientDialog = ({
   if (!group) return null;
 
   const effSubject = override?.subject ?? baseSubject;
-  const effBody = override?.body ?? baseBody;
+  const sig = (signature || "").trim();
+  const rawBody = override?.body ?? baseBody;
+  const effBody = sig && !rawBody.includes(sig) ? `${rawBody}\n\n${sig}` : rawBody;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
