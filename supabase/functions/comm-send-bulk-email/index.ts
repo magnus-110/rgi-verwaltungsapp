@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
       const effSubject = ov?.subject ?? subject;
       const effBody = ov?.body_html ?? bodyHtml;
       const renderedSubject = renderString(effSubject, r.vars);
-      const renderedBody = renderString(effBody, r.vars);
+      const renderedBody = withSignature(renderString(effBody, r.vars));
       const isHtml = bodyFormat !== "plain";
       const personal = ov?.attachment_paths?.length ? await loadPersonal(ov.attachment_paths) : [];
       const allAttachments = [...attachments, ...personal];
