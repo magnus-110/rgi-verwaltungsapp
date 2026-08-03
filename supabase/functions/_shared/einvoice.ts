@@ -1,17 +1,38 @@
-// Shared E-Rechnung Parser: XRechnung (UBL/CII) + ZUGFeRD (PDF/A-3 mit eingebettetem XML)
+// Shared E-Rechnung Parser: XRechnung (UBL/CII) + ZUGFeRD/Factur-X (PDF/A-3 mit eingebettetem XML)
 
+/**
+ * Entfernt Namespace-Präfixe: <ram:ID> → <ram_ID>, </ram:ID> → </ram_ID>.
+ * WICHTIG: Öffnende und schließende Tags getrennt behandeln — sonst wird aus
+ * "</ram:ID>" ein "<ram_ID>" (Slash verloren) und sämtliche Paar-Regexe
+ * greifen nicht mehr (das war die Ursache für komplett leere ZUGFeRD-Parses).
+ */
 function stripNs(xml: string): string {
   return xml
-    .replace(/<\/?([a-zA-Z0-9]+):/g, "<$1_")
+    .replace(/<\/\s*([a-zA-Z0-9]+):/g, "</$1_")
+    .replace(/<([a-zA-Z0-9]+):/g, "<$1_")
     .replace(/xmlns(:[a-zA-Z0-9]+)?="[^"]*"/g, "")
-    .replace(/<([a-zA-Z0-9_]+)([^>]*)\/>/g, "<$1$2></$1>");
+    .replace(/<([a-zA-Z0-9_]+)([^>]*?)\/>/g, "<$1$2></$1>");
 }
 
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)))
+    .replace(/&amp;/g, "&");
+}
+
+/** Inhalt des ersten Tags, dessen Name auf einen der Suffixe endet. */
 function findFirst(xml: string, tagSuffixes: string[]): string | null {
   for (const suffix of tagSuffixes) {
     const re = new RegExp(`<([a-zA-Z0-9_]*${suffix})\\b[^>]*>([\\s\\S]*?)<\\/\\1>`, "i");
     const m = xml.match(re);
-    if (m) return m[2].trim();
+    if (m) {
+      const v = decodeEntities(m[2]).trim();
+      if (v) return v;
+    }
   }
   return null;
 }
@@ -25,19 +46,49 @@ function findAll(xml: string, tagSuffix: string): string[] {
 }
 
 function toNum(s: string | null): number | null {
-  if (!s) return null;
-  const cleaned = s.replace(/[^\d.,-]/g, "").replace(/\.(?=\d{3}(?:[,.]|$))/g, "").replace(",", ".");
+  if (s == null) return null;
+  const cleaned = String(s)
+    .replace(/[^\d.,-]/g, "")
+    .replace(/\.(?=\d{3}(?:[,.]|$))/g, "")
+    .replace(",", ".");
   const n = parseFloat(cleaned);
   return isNaN(n) ? null : n;
 }
 
 function toIsoDate(s: string | null): string | null {
   if (!s) return null;
-  const compact = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+  const t = s.trim();
+  const compact = t.match(/(\d{4})(\d{2})(\d{2})/);
+  const iso = t.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  if (compact && /^\d{8}$/.test(t.replace(/\s/g, ""))) {
+    return `${compact[1]}-${compact[2]}-${compact[3]}`;
+  }
+  const de = t.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+  if (de) return `${de[3]}-${de[2]}-${de[1]}`;
   if (compact) return `${compact[1]}-${compact[2]}-${compact[3]}`;
-  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) return iso[0];
   return null;
+}
+
+/** Datum aus CII-Blöcken: <ram:IssueDateTime><udt:DateTimeString format="102">20260731 */
+function dateFromBlock(xml: string, blockSuffixes: string[]): string | null {
+  for (const suffix of blockSuffixes) {
+    const block = findFirst(xml, [suffix]);
+    if (!block) continue;
+    const inner = findFirst(block, ["DateTimeString", "Date"]);
+    const d = toIsoDate(inner || block);
+    if (d) return d;
+  }
+  return null;
+}
+
+export interface EInvoiceLineItem {
+  description: string;
+  quantity: number | null;
+  unit_price: number | null;
+  net_amount: number | null;
+  amount: number | null;
+  vat_rate: number | null;
 }
 
 export interface ParsedEInvoice {
@@ -57,70 +108,163 @@ export interface ParsedEInvoice {
   recipient_address: string | null;
   leitweg_id: string | null;
   payment_purpose: string | null;
-  line_items: Array<{ description: string; quantity: number | null; unit_price: number | null; net_amount: number | null }>;
+  line_items: EInvoiceLineItem[];
+}
+
+/** True, wenn genug Kerndaten erkannt wurden, um die OCR überspringen zu können. */
+export function isEInvoiceComplete(e: ParsedEInvoice | null): boolean {
+  return !!(e && e.invoice_number && e.invoice_date && e.gross_amount != null);
+}
+
+function parseAddress(partyBlock: string): string | null {
+  const addr = findFirst(partyBlock, ["PostalTradeAddress", "PostalAddress", "Address"]) || "";
+  if (!addr) return null;
+  const street = findFirst(addr, ["LineOne", "StreetName"]);
+  const street2 = findFirst(addr, ["LineTwo", "AdditionalStreetName"]);
+  const zip = findFirst(addr, ["PostcodeCode", "PostalZone"]);
+  const city = findFirst(addr, ["CityName"]);
+  const parts = [street, street2, [zip, city].filter(Boolean).join(" ")].filter(Boolean);
+  return parts.length ? parts.join(", ") : null;
+}
+
+function parseLineItems(xml: string): EInvoiceLineItem[] {
+  const ciiBlocks = findAll(xml, "IncludedSupplyChainTradeLineItem");
+  const ublBlocks = findAll(xml, "InvoiceLine");
+  const blocks = ciiBlocks.length ? ciiBlocks : ublBlocks;
+
+  return blocks.slice(0, 100).map((block) => {
+    const product = findFirst(block, ["SpecifiedTradeProduct", "Item"]) || block;
+    const description =
+      findFirst(product, ["Name", "Description"]) ||
+      findFirst(block, ["Name", "Description"]) ||
+      "";
+
+    const quantity = toNum(findFirst(block, ["BilledQuantity", "InvoicedQuantity", "Quantity"]));
+
+    const priceBlock =
+      findFirst(block, ["NetPriceProductTradePrice", "Price"]) || block;
+    const unit_price = toNum(findFirst(priceBlock, ["ChargeAmount", "PriceAmount"]));
+
+    const sumBlock =
+      findFirst(block, ["SpecifiedTradeSettlementLineMonetarySummation"]) || block;
+    const net = toNum(findFirst(sumBlock, ["LineTotalAmount", "LineExtensionAmount"]));
+
+    const taxBlock = findFirst(block, ["ApplicableTradeTax", "TaxCategory", "ClassifiedTaxCategory"]) || "";
+    const vat_rate = toNum(findFirst(taxBlock, ["RateApplicablePercent", "Percent"]));
+
+    return {
+      description: description.replace(/\s+/g, " ").trim(),
+      quantity,
+      unit_price,
+      net_amount: net,
+      // "amount" wird von der bestehenden UI/Buchungslogik gelesen (Netto-Betrag)
+      amount: net,
+      vat_rate,
+    };
+  }).filter((i) => i.description || i.net_amount != null);
 }
 
 function parseEInvoiceXml(xmlRaw: string, formatHint: "xrechnung" | "zugferd"): ParsedEInvoice {
   const xml = stripNs(xmlRaw);
 
-  const sellerBlock = findFirst(xml, ["SellerTradeParty", "AccountingSupplierParty"]) || "";
+  // ── Kopfdaten ──────────────────────────────────────────────────────────────
+  const headerBlock =
+    findFirst(xml, ["ExchangedDocument"]) || xml; // CII; bei UBL steht alles auf Root-Ebene
+
+  let invoice_number: string | null = null;
+  const ciiHeader = findFirst(xml, ["ExchangedDocument"]);
+  if (ciiHeader) {
+    invoice_number = findFirst(ciiHeader, ["ID"]);
+  } else {
+    // UBL: erstes cbc:ID direkt unter <Invoice> (vor der ersten InvoiceLine)
+    const beforeLines = xml.split(/<[a-zA-Z0-9_]*InvoiceLine\b/i)[0];
+    invoice_number = findFirst(beforeLines, ["ID"]);
+  }
+
+  const invoice_date =
+    dateFromBlock(headerBlock, ["IssueDateTime"]) ||
+    toIsoDate(findFirst(xml, ["IssueDate"])) ||
+    dateFromBlock(xml, ["IssueDateTime"]);
+
+  // ── Parteien ───────────────────────────────────────────────────────────────
+  const sellerBlock =
+    findFirst(xml, ["SellerTradeParty", "AccountingSupplierParty"]) || "";
   const vendor_name =
     findFirst(sellerBlock, ["Name", "RegistrationName"]) ||
-    findFirst(xml, ["SellerTradeParty_Name"]);
+    findFirst(findFirst(sellerBlock, ["Party"]) || "", ["Name", "RegistrationName"]);
 
-  const buyerBlock = findFirst(xml, ["BuyerTradeParty", "AccountingCustomerParty"]) || "";
-  const recipient_name = findFirst(buyerBlock, ["Name", "RegistrationName"]);
-  const buyerAddress = findFirst(buyerBlock, ["PostalTradeAddress", "PostalAddress"]) || "";
-  const recipient_address = [
-    findFirst(buyerAddress, ["LineOne", "StreetName"]),
-    findFirst(buyerAddress, ["PostcodeCode", "PostalZone"]),
-    findFirst(buyerAddress, ["CityName"]),
-  ].filter(Boolean).join(", ") || null;
+  const buyerBlock =
+    findFirst(xml, ["BuyerTradeParty", "AccountingCustomerParty"]) || "";
+  const buyerParty = findFirst(buyerBlock, ["Party"]) || buyerBlock;
+  const recipient_name = findFirst(buyerParty, ["Name", "RegistrationName"]);
+  const recipient_address = parseAddress(buyerParty);
 
-  const leitweg_id = findFirst(xml, ["BuyerReference", "BuyerOrderReferencedDocument"]);
+  const leitweg_id = findFirst(xml, ["BuyerReference"]);
 
-  const invoice_number = findFirst(xml, ["ID", "InvoiceID", "Invoice_ID"]);
-  const invoice_date = toIsoDate(
-    findFirst(xml, ["IssueDate"]) ||
-    findFirst(findFirst(xml, ["IssueDateTime"]) || "", ["DateTimeString"]) ||
-    findFirst(xml, ["DateTimeString"])
-  );
-  const due_date = toIsoDate(
-    findFirst(xml, ["DueDate"]) ||
-    findFirst(findFirst(xml, ["DueDateDateTime"]) || "", ["DateTimeString"])
-  );
+  // ── Zahlung ────────────────────────────────────────────────────────────────
+  const paymentBlocks = findAll(xml, "SpecifiedTradeSettlementPaymentMeans")
+    .concat(findAll(xml, "PaymentMeans"));
+  let vendor_iban: string | null = null;
+  let vendor_bic: string | null = null;
+  for (const pb of paymentBlocks) {
+    const acc = findFirst(pb, ["PayeePartyCreditorFinancialAccount", "PayeeFinancialAccount"]) || pb;
+    const cand = (findFirst(acc, ["IBANID", "ID"]) || "").replace(/\s/g, "");
+    if (!vendor_iban && /^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/i.test(cand)) vendor_iban = cand.toUpperCase();
+    const inst = findFirst(pb, ["PayeeSpecifiedCreditorFinancialInstitution", "FinancialInstitutionBranch"]) || "";
+    if (!vendor_bic) {
+      const bic = (findFirst(inst, ["BICID", "ID"]) || "").replace(/\s/g, "");
+      if (/^[A-Z]{6}[A-Z0-9]{2,5}$/i.test(bic)) vendor_bic = bic.toUpperCase();
+    }
+  }
+  if (!vendor_iban) {
+    vendor_iban = xml.replace(/\s/g, "").match(/\b(DE\d{20}|[A-Z]{2}\d{2}[A-Z0-9]{11,30})\b/)?.[1] || null;
+  }
 
-  const paymentBlock = findFirst(xml, ["PayeeFinancialAccount", "SpecifiedTradeSettlementPaymentMeans"]) || xml;
-  const vendor_iban =
-    findFirst(paymentBlock, ["IBANID", "ID"])?.replace(/\s/g, "").match(/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/i)?.[0] ||
-    xml.match(/\b([A-Z]{2}\d{2}[A-Z0-9]{10,30})\b/)?.[1] || null;
-  const vendor_bic = findFirst(xml, ["BICID", "FinancialInstitutionBranch"]) || null;
+  const due_date =
+    dateFromBlock(xml, ["DueDateDateTime"]) ||
+    toIsoDate(findFirst(xml, ["DueDate"]));
 
-  const summary = findFirst(xml, ["LegalMonetaryTotal", "SpecifiedTradeSettlementHeaderMonetarySummation"]) || xml;
-  const net_amount = toNum(findFirst(summary, ["TaxBasisTotalAmount", "TaxExclusiveAmount", "LineTotalAmount"]));
-  const vat_amount = toNum(findFirst(summary, ["TaxTotalAmount"])) ?? toNum(findFirst(xml, ["TaxAmount"]));
-  const gross_amount = toNum(findFirst(summary, ["GrandTotalAmount", "TaxInclusiveAmount", "PayableAmount"]));
+  // ── Summen ─────────────────────────────────────────────────────────────────
+  const summary =
+    findFirst(xml, ["SpecifiedTradeSettlementHeaderMonetarySummation", "LegalMonetaryTotal"]) || xml;
+  const net_amount =
+    toNum(findFirst(summary, ["TaxBasisTotalAmount", "TaxExclusiveAmount"])) ??
+    toNum(findFirst(summary, ["LineTotalAmount", "LineExtensionAmount"]));
+  const gross_amount =
+    toNum(findFirst(summary, ["GrandTotalAmount", "TaxInclusiveAmount"])) ??
+    toNum(findFirst(summary, ["DuePayableAmount", "PayableAmount"]));
+  let vat_amount = toNum(findFirst(summary, ["TaxTotalAmount"]));
+  if (vat_amount == null) {
+    const taxBlock = findFirst(xml, ["ApplicableTradeTax", "TaxTotal"]) || "";
+    vat_amount = toNum(findFirst(taxBlock, ["CalculatedAmount", "TaxAmount"]));
+  }
+  if (vat_amount == null && net_amount != null && gross_amount != null) {
+    vat_amount = Math.round((gross_amount - net_amount) * 100) / 100;
+  }
 
   const currency =
-    xml.match(/currencyID="([A-Z]{3})"/)?.[1] ||
-    findFirst(xml, ["DocumentCurrencyCode", "InvoiceCurrencyCode"]) || "EUR";
+    xmlRaw.match(/currencyID="([A-Z]{3})"/)?.[1] ||
+    findFirst(xml, ["InvoiceCurrencyCode", "DocumentCurrencyCode"]) ||
+    "EUR";
 
-  const description = findFirst(xml, ["Note", "IncludedNote", "Content"]);
-  const payment_purpose = findFirst(xml, ["PaymentReference", "PaymentID", "RemittanceInformation"]) || invoice_number;
+  // ── Texte ──────────────────────────────────────────────────────────────────
+  const noteBlocks = findAll(xml, "IncludedNote").concat(findAll(xml, "Note"));
+  const notes = noteBlocks
+    .map((b) => (findFirst(b, ["Content"]) || decodeEntities(b)).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const line_items = parseLineItems(xml);
+  const description =
+    (notes.length ? notes.join(" | ") : null) ||
+    (line_items.length ? line_items.map((i) => i.description).filter(Boolean).join(", ") : null);
 
-  const lineBlocks = findAll(xml, "IncludedSupplyChainTradeLineItem").concat(findAll(xml, "InvoiceLine"));
-  const line_items = lineBlocks.slice(0, 50).map((block) => ({
-    description: findFirst(block, ["Name", "Description"]) || "",
-    quantity: toNum(findFirst(block, ["BilledQuantity", "InvoicedQuantity"])),
-    unit_price: toNum(findFirst(block, ["ChargeAmount", "PriceAmount"])),
-    net_amount: toNum(findFirst(block, ["LineTotalAmount", "LineExtensionAmount"])),
-  }));
+  const payment_purpose =
+    findFirst(xml, ["PaymentReference", "RemittanceInformation", "PaymentID"]) || invoice_number;
 
   return {
     format: formatHint,
     vendor_name: vendor_name?.trim() || null,
-    vendor_iban: vendor_iban || null,
-    vendor_bic: vendor_bic?.trim() || null,
+    vendor_iban,
+    vendor_bic,
     invoice_number: invoice_number?.trim() || null,
     invoice_date,
     due_date,
@@ -128,7 +272,7 @@ function parseEInvoiceXml(xmlRaw: string, formatHint: "xrechnung" | "zugferd"): 
     vat_amount,
     gross_amount,
     currency: currency.trim(),
-    description: description?.trim() || null,
+    description: description ? description.slice(0, 2000) : null,
     recipient_name: recipient_name?.trim() || null,
     recipient_address,
     leitweg_id: leitweg_id?.trim() || null,
@@ -137,25 +281,60 @@ function parseEInvoiceXml(xmlRaw: string, formatHint: "xrechnung" | "zugferd"): 
   };
 }
 
+// ───────────────────────── PDF-Anhang-Extraktion ─────────────────────────────
+
+function looksLikeInvoiceXml(s: string): boolean {
+  return /CrossIndustryInvoice|<[a-zA-Z0-9]*:?Invoice[\s>]|CrossIndustryDocument/.test(s);
+}
+
+async function inflate(bytes: Uint8Array, format: "deflate" | "deflate-raw" | "gzip"): Promise<string | null> {
+  try {
+    const ds = new DecompressionStream(format);
+    const stream = new Blob([bytes]).stream().pipeThrough(ds);
+    return await new Response(stream).text();
+  } catch {
+    return null;
+  }
+}
+
+function latin1ToBytes(raw: string): Uint8Array {
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i) & 0xff;
+  return out;
+}
+
+/**
+ * Sucht das eingebettete Rechnungs-XML in einem ZUGFeRD/Factur-X-PDF.
+ * Robust gegenüber: zlib- und raw-deflate, unkomprimierten Streams,
+ * mehreren Anhängen und Streams ohne /Type /EmbeddedFile-Markierung.
+ */
 async function extractZugferdXml(pdfBytes: Uint8Array): Promise<string | null> {
   const txt = new TextDecoder("latin1").decode(pdfBytes);
-  const filenamePatterns = [/factur-x\.xml/i, /zugferd-invoice\.xml/i, /xrechnung\.xml/i, /ZUGFeRD-invoice\.xml/i];
-  const hasEmbedded = filenamePatterns.some((p) => p.test(txt));
-  if (!hasEmbedded) return null;
 
-  const streamRe = /\/Type\s*\/EmbeddedFile[\s\S]*?stream\r?\n([\s\S]*?)\r?\nendstream/g;
+  const candidates: string[] = [];
+
+  // 1) Explizit als EmbeddedFile markierte Streams
+  const embeddedRe = /\/Type\s*\/EmbeddedFile[\s\S]{0,800}?stream\r?\n?([\s\S]*?)endstream/g;
   let m: RegExpExecArray | null;
-  while ((m = streamRe.exec(txt)) !== null) {
-    const raw = m[1];
-    try {
-      const compressed = new Uint8Array(raw.length);
-      for (let i = 0; i < raw.length; i++) compressed[i] = raw.charCodeAt(i) & 0xff;
-      const ds = new DecompressionStream("deflate");
-      const stream = new Blob([compressed]).stream().pipeThrough(ds);
-      const decompressed = await new Response(stream).text();
-      if (decompressed.includes("CrossIndustryInvoice") || decompressed.includes("<Invoice")) return decompressed;
-    } catch {
-      if (raw.includes("CrossIndustryInvoice") || raw.includes("<Invoice")) return raw;
+  while ((m = embeddedRe.exec(txt)) !== null) candidates.push(m[1]);
+
+  // 2) Fallback: alle Streams (ZUGFeRD-XML ist meist klein, daher Größenfilter)
+  if (candidates.length < 12) {
+    const anyStreamRe = /stream\r?\n?([\s\S]*?)endstream/g;
+    let s: RegExpExecArray | null;
+    while ((s = anyStreamRe.exec(txt)) !== null) {
+      if (s[1].length > 8 && s[1].length < 4_000_000) candidates.push(s[1]);
+    }
+  }
+
+  for (const raw of candidates) {
+    const trimmed = raw.replace(/^[\r\n]+/, "").replace(/[\r\n]+$/, "");
+    if (looksLikeInvoiceXml(trimmed)) return trimmed;
+
+    const bytes = latin1ToBytes(trimmed);
+    for (const fmt of ["deflate", "deflate-raw", "gzip"] as const) {
+      const out = await inflate(bytes, fmt);
+      if (out && looksLikeInvoiceXml(out)) return out;
     }
   }
   return null;
@@ -165,12 +344,12 @@ export async function detectAndParseEInvoice(
   fileBytes: Uint8Array,
   fileName: string,
 ): Promise<ParsedEInvoice | null> {
-  const lowerName = fileName.toLowerCase();
-  const head = new TextDecoder("utf-8", { fatal: false }).decode(fileBytes.slice(0, 200)).trim();
+  const lowerName = (fileName || "").toLowerCase();
+  const head = new TextDecoder("utf-8", { fatal: false }).decode(fileBytes.slice(0, 400)).trim();
 
   if (lowerName.endsWith(".xml") || head.startsWith("<?xml") || head.startsWith("<")) {
     const xml = new TextDecoder("utf-8").decode(fileBytes);
-    if (xml.includes("CrossIndustryInvoice") || xml.includes("<Invoice") || xml.includes(":Invoice ")) {
+    if (looksLikeInvoiceXml(xml)) {
       return parseEInvoiceXml(xml, "xrechnung");
     }
     return null;
