@@ -411,6 +411,14 @@ export async function loadRecipients(
         ...freeVars,
       };
 
+      // Rundmails: Adresse deckt mehrere Einheiten ab -> Label aus dem Filter.
+      const unitLabel = filter.unit_labels?.[`${a.id}|${(email || "").toLowerCase()}`];
+      if (unitLabel) {
+        vars.einheit = unitLabel;
+        vars.einheiten = unitLabel;
+      }
+
+
       recipients.push({
         contact_id: group.contact_id,
         person_id: personForVars?.id || null,
