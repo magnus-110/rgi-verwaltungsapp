@@ -150,6 +150,24 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
     }
   };
 
+  // Dokumente archivieren / wiederherstellen (kein Löschen)
+  const setArchived = async (ids: string[], archived: boolean) => {
+    if (ids.length === 0) return;
+    const { error } = await supabase
+      .from('building_files')
+      .update({ archived_at: archived ? new Date().toISOString() : null } as any)
+      .in('id', ids);
+    if (error) {
+      toast.error((archived ? "Archivieren" : "Wiederherstellen") + " fehlgeschlagen: " + error.message);
+      return;
+    }
+    toast.success(`${ids.length} Dokument(e) ${archived ? "archiviert" : "wiederhergestellt"}`);
+    setSelectedIds(new Set());
+    queryClient.invalidateQueries({ queryKey: ['stammakte-files'] });
+    queryClient.invalidateQueries({ queryKey: ['stammakte-counts', buildingId] });
+    queryClient.invalidateQueries({ queryKey: ['stammakte-archived-count', buildingId] });
+  };
+
   if (isLoading) {
     return <div className="p-4 text-sm text-muted-foreground">Laden...</div>;
   }
@@ -160,12 +178,15 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
         <FileText className="h-10 w-10 mx-auto mb-2 opacity-30" />
         {effectiveSearch ? (
           <>Keine Dokumente für „{effectiveSearch}" gefunden.</>
+        ) : isArchiveView ? (
+          <>Keine archivierten Dokumente.</>
         ) : (
           <>Keine Dokumente in diesem Ordner.<p className="text-xs mt-1">Dateien per Drag & Drop hochladen.</p></>
         )}
       </div>
     );
   }
+
 
   return (
     <div className="flex flex-col h-full">
