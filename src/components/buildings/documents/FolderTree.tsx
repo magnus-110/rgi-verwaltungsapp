@@ -387,6 +387,9 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
                   <DropdownMenuItem onClick={() => startRename(node)}>
                     <Pencil className="h-4 w-4 mr-2" /> Umbenennen
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setFolderArchived(node, true)}>
+                    <Archive className="h-4 w-4 mr-2" /> Archivieren
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-destructive focus:text-destructive"
