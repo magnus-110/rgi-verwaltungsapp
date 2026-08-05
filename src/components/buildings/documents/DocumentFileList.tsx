@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
 import { DocFile, VISIBILITY_LABELS, getFileBucket } from "./types";
+import { ARCHIVE_CATEGORY_ID } from "./FolderTree";
 
 interface DocumentFileListProps {
   buildingId: string;
