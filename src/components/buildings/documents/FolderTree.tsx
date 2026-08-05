@@ -64,6 +64,7 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
   const [addingName, setAddingName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<TreeNode | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
   const handleDropOnFolder = async (categoryId: string, e: React.DragEvent) => {
     e.preventDefault();
@@ -361,7 +362,10 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
           ) : (
             <>
               <button
-                onClick={() => onSelect(node.id)}
+                onClick={() => {
+                  onSelect(node.id);
+                  if (hasChildren) toggle(node.id);
+                }}
                 className="truncate flex-1 text-left bg-transparent border-0 p-0"
               >
                 {node.name}
@@ -486,24 +490,32 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
       {(archivedCategories.length > 0 || archivedFileCount > 0) && (
         <div className="mt-3 pt-2 border-t">
           <button
-            onClick={() => onSelect(ARCHIVE_CATEGORY_ID)}
+            onClick={() => {
+              setArchiveOpen(o => !o);
+              onSelect(ARCHIVE_CATEGORY_ID);
+            }}
             className={cn(
               "w-full flex items-center gap-1.5 py-1.5 px-2 rounded-md text-sm hover:bg-accent text-left",
               selectedCategoryId === ARCHIVE_CATEGORY_ID && "bg-accent font-medium"
             )}
           >
+            {archiveOpen ? (
+              <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
+            )}
             <Archive className="h-4 w-4 text-muted-foreground" />
             <span className="flex-1">Archiv</span>
-            {archivedFileCount > 0 && (
+            {archiveOpen && archivedFileCount > 0 && (
               <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{archivedFileCount}</Badge>
             )}
           </button>
-          {archivedCategories
+          {archiveOpen && archivedCategories
             .filter((c: any) => !archivedCategories.some(p => p.id === c.parent_id))
             .map((c: any) => (
               <div
                 key={c.id}
-                className="group flex items-center gap-1.5 py-1 px-2 pl-7 rounded-md text-sm text-muted-foreground hover:bg-accent"
+                className="group flex items-center gap-1.5 py-1 px-2 pl-9 rounded-md text-sm text-muted-foreground hover:bg-accent"
               >
                 <Folder className="h-3.5 w-3.5 flex-shrink-0" />
                 <span className="truncate flex-1">{c.name}</span>
@@ -519,6 +531,7 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
               </div>
             ))}
         </div>
+
       )}
 
 
