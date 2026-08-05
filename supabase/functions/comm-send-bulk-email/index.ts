@@ -4,6 +4,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import nodemailer from "https://esm.sh/nodemailer@6.9.16";
 import { loadRecipients, renderString, RecipientFilter } from "../_shared/comm-vars.ts";
 import { requireAdmin } from "../_shared/require-admin.ts";
+import { looksLikeHtml, textToHtmlWithLinks } from "../_shared/text-to-html.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
