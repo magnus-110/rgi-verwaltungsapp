@@ -361,7 +361,10 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
           ) : (
             <>
               <button
-                onClick={() => onSelect(node.id)}
+                onClick={() => {
+                  onSelect(node.id);
+                  if (hasChildren) toggle(node.id);
+                }}
                 className="truncate flex-1 text-left bg-transparent border-0 p-0"
               >
                 {node.name}
