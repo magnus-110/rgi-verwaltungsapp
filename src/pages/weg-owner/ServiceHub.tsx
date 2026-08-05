@@ -121,6 +121,19 @@ export function WegOwnerServiceHub() {
           })}
         </div>
 
+        <div
+          className="mt-4 rounded-2xl px-5 py-4 text-sm"
+          style={{
+            background: "#f3efea",
+            border: `1px dashed ${RGI.border}`,
+            color: RGI.muted,
+          }}
+        >
+          Weitere Services in Vorbereitung
+        </div>
+
+
+
         <p className="text-xs mt-8 max-w-2xl" style={{ color: RGI.muted }}>
           Die erzeugten Dokumente sind automatisiert erstellt und ersetzen keine
           Rechts- oder Steuerberatung. Bitte prüfen Sie das Ergebnis vor der
