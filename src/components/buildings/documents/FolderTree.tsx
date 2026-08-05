@@ -483,6 +483,46 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
 
       {tree.map(n => renderNode(n, 0))}
 
+      {(archivedCategories.length > 0 || archivedFileCount > 0) && (
+        <div className="mt-3 pt-2 border-t">
+          <button
+            onClick={() => onSelect(ARCHIVE_CATEGORY_ID)}
+            className={cn(
+              "w-full flex items-center gap-1.5 py-1.5 px-2 rounded-md text-sm hover:bg-accent text-left",
+              selectedCategoryId === ARCHIVE_CATEGORY_ID && "bg-accent font-medium"
+            )}
+          >
+            <Archive className="h-4 w-4 text-muted-foreground" />
+            <span className="flex-1">Archiv</span>
+            {archivedFileCount > 0 && (
+              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{archivedFileCount}</Badge>
+            )}
+          </button>
+          {archivedCategories
+            .filter((c: any) => !archivedCategories.some(p => p.id === c.parent_id))
+            .map((c: any) => (
+              <div
+                key={c.id}
+                className="group flex items-center gap-1.5 py-1 px-2 pl-7 rounded-md text-sm text-muted-foreground hover:bg-accent"
+              >
+                <Folder className="h-3.5 w-3.5 flex-shrink-0" />
+                <span className="truncate flex-1">{c.name}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                  title="Wiederherstellen"
+                  onClick={() => setFolderArchived(c, false)}
+                >
+                  <ArchiveRestore className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+        </div>
+      )}
+
+
+
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
