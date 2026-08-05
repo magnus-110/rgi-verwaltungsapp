@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Receipt, FileText, FileSignature, Sparkles, ChevronRight } from "lucide-react";
+import { Receipt, Sparkles, ChevronRight } from "lucide-react";
 import { useServicePricing, formatPrice } from "@/hooks/useServicePricing";
 
 const RGI = {
@@ -25,20 +25,6 @@ export function WegOwnerServiceHub() {
       desc: "Aus Ihrer WEG-Abrechnung und den Vorauszahlungen Ihres Mieters erstellen wir ein fertiges PDF.",
       available: true,
       onClick: () => navigate("/weg-owner/service-hub/nebenkosten"),
-    },
-    {
-      key: "anlage_v" as const,
-      icon: FileText,
-      title: "Anlage V (Steuererklärung)",
-      desc: "Alle Einnahmen und Werbungskosten für Ihre Vermietungseinkünfte – passend zur Anlage V.",
-      available: false,
-    },
-    {
-      key: "mietvertrag" as const,
-      icon: FileSignature,
-      title: "Mietvertrag",
-      desc: "Rechtssicherer Mietvertrag auf Basis Ihrer Stammdaten – in wenigen Klicks.",
-      available: false,
     },
   ];
 
@@ -134,6 +120,19 @@ export function WegOwnerServiceHub() {
             );
           })}
         </div>
+
+        <div
+          className="mt-4 rounded-2xl px-5 py-4 text-sm"
+          style={{
+            background: "#f3efea",
+            border: `1px dashed ${RGI.border}`,
+            color: RGI.muted,
+          }}
+        >
+          Weitere Services in Vorbereitung
+        </div>
+
+
 
         <p className="text-xs mt-8 max-w-2xl" style={{ color: RGI.muted }}>
           Die erzeugten Dokumente sind automatisiert erstellt und ersetzen keine
