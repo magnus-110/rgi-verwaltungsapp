@@ -110,7 +110,8 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
         .select('category_id')
         .eq('building_id', buildingId)
         .eq('is_current_version', true)
-        .is('deleted_at', null);
+        .is('deleted_at', null)
+        .is('archived_at', null);
       if (error) throw error;
       const map: Record<string, number> = {};
       (data || []).forEach((row: any) => {
@@ -120,9 +121,33 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
     },
   });
 
+  const { data: archivedFileCount = 0 } = useQuery({
+    queryKey: ['stammakte-archived-count', buildingId],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('building_files')
+        .select('id', { count: 'exact', head: true })
+        .eq('building_id', buildingId)
+        .eq('is_current_version', true)
+        .is('deleted_at', null)
+        .not('archived_at', 'is', null);
+      if (error) throw error;
+      return count || 0;
+    },
+  });
+
+  const activeCategories = useMemo(
+    () => categories.filter((c: any) => !c.archived_at),
+    [categories]
+  );
+  const archivedCategories = useMemo(
+    () => categories.filter((c: any) => !!c.archived_at),
+    [categories]
+  );
+
   const tree = useMemo(() => {
     const byParent: Record<string, DocCategory[]> = {};
-    categories.forEach(c => {
+    activeCategories.forEach(c => {
       const key = c.parent_id || 'root';
       (byParent[key] ||= []).push(c);
     });
@@ -136,7 +161,8 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
       });
     };
     return build(null);
-  }, [categories, counts]);
+  }, [activeCategories, counts]);
+
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['stammakte-categories', buildingId] });
