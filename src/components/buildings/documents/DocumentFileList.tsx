@@ -301,6 +301,17 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 flex-shrink-0"
+                          title={isArchiveView ? "Wiederherstellen" : "Archivieren"}
+                          onClick={(e) => { e.stopPropagation(); setArchived([f.id], !isArchiveView); }}
+                        >
+                          {isArchiveView
+                            ? <ArchiveRestore className="h-3.5 w-3.5" />
+                            : <Archive className="h-3.5 w-3.5" />}
+                        </Button>
                       </div>
                       {f.description && (
                         <p className="text-xs text-muted-foreground truncate mt-0.5">{f.description}</p>
