@@ -167,7 +167,39 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['stammakte-categories', buildingId] });
     qc.invalidateQueries({ queryKey: ['stammakte-counts', buildingId] });
+    qc.invalidateQueries({ queryKey: ['stammakte-archived-count', buildingId] });
+    qc.invalidateQueries({ queryKey: ['stammakte-files'] });
   };
+
+  // Ordner (inkl. Unterordner und enthaltener Dateien) archivieren bzw.
+  // wiederherstellen. Archivierte Einträge bleiben erhalten, werden aber
+  // aus dem normalen Ordnerbaum ausgeblendet.
+  const setFolderArchived = async (node: { id: string; name: string }, archived: boolean) => {
+    const ids: string[] = [];
+    const collect = (id: string) => {
+      ids.push(id);
+      categories.filter(c => c.parent_id === id).forEach(c => collect(c.id));
+    };
+    collect(node.id);
+    const stamp = archived ? new Date().toISOString() : null;
+    const { error: catErr } = await supabase
+      .from('building_file_categories')
+      .update({ archived_at: stamp } as any)
+      .in('id', ids);
+    if (catErr) {
+      toast.error((archived ? "Archivieren" : "Wiederherstellen") + " fehlgeschlagen: " + catErr.message);
+      return;
+    }
+    await supabase
+      .from('building_files')
+      .update({ archived_at: stamp } as any)
+      .eq('building_id', buildingId)
+      .in('category_id', ids);
+    toast.success(archived ? `„${node.name}" archiviert` : `„${node.name}" wiederhergestellt`);
+    if (archived && ids.includes(selectedCategoryId || '')) onSelect(null);
+    refresh();
+  };
+
 
   const toggle = (id: string) => {
     setExpanded(s => {
