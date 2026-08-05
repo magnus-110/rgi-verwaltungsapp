@@ -48,21 +48,27 @@ Deno.serve(async (req) => {
     }
     if (!subject || !bodyHtml) return json({ error: "Betreff oder Inhalt fehlt" }, 400);
 
-    // Signatur des Kontos unter den Text hängen (falls vorhanden und nicht bereits enthalten)
+    // Der Rundmail-Editor liefert reinen Text. Im HTML-Modus müssen die
+    // Zeilenumbrüche in <br> gewandelt werden, sonst kommt die Mail als ein
+    // einziger Fließtext-Block an. Signatur wird danach angehängt.
     const signature = ((account.signature_html as string | null) || "").trim();
-    const withSignature = (rendered: string) => {
-      if (!signature) return rendered;
-      if (rendered.includes(signature)) return rendered;
-      return bodyFormat === "plain"
-        ? `${rendered}\n\n${signature}`
-        : `${rendered}<br /><br />${signature}`;
+
+    /** Erzeugt den finalen Body-String (HTML bzw. Plain) inkl. Signatur. */
+    const composeBody = (rendered: string) => {
+      if (bodyFormat === "plain") {
+        if (!signature || rendered.includes(signature)) return rendered;
+        return `${rendered}\n\n${signature}`;
+      }
+      let html = looksLikeHtml(rendered) ? rendered : textToHtmlWithLinks(rendered);
+      if (signature && !html.includes(signature)) {
+        html = `${html}<br /><br />${signature}`;
+      }
+      return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.4">${html}</div>`;
     };
 
-    // Build payload key based on chosen format.
-    // Im HTML-Modus kommt der Text aus einem Plain-Text-Editor: Zeilenumbrüche
-    // müssen zu <br> werden, sonst kommt alles als ein Block an.
-    const buildBody = (rendered: string) =>
-      bodyFormat === "plain" ? { text: rendered } : { html: ensureHtmlBody(rendered) };
+    const buildBody = (composed: string) =>
+      bodyFormat === "plain" ? { text: composed } : { html: composed };
+
 
 
     const isSecure = account.smtp_port === 465;
