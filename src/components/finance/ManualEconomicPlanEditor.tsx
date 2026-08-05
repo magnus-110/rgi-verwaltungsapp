@@ -763,17 +763,21 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     const reserve = unitRows.filter((r) => r.isReserve);
     const monthlyTotal = Math.abs(monthlyTotalOverrides[ownerId] ?? Math.ceil(sumAbs(distributable) / 12));
     const monthlyAdvance = Math.abs(monthlyAdvanceOverrides[ownerId] ?? monthlyTotal);
+    const fmtShare = (v: any) =>
+      v === null || v === undefined || v === "" || Number.isNaN(Number(v))
+        ? ""
+        : new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(v));
     const accountsList = unitRows.map((r) => ({
       account_number: r.account_number,
       account_name: r.account_name,
       distribution_key_label: distLabel(r.distribution_key),
       total_amount: fmtEUR(Math.abs((r as any).totalAmount ?? r.planned_amount)),
       owner_amount: fmtEUR(Math.abs(r.planned_amount)),
-      owner_share: (r as any).yourShare ?? "",
-      total_share: (r as any).totalShare ?? "",
+      owner_share: fmtShare((r as any).yourShare),
+      total_share: fmtShare((r as any).totalShare),
       // Aliase für Vorlagen, die "your_*" verwenden
       your_amount: fmtEUR(Math.abs(r.planned_amount)),
-      your_share: (r as any).yourShare ?? "",
+      your_share: fmtShare((r as any).yourShare),
       is_distributable: r.isDistributable ? "ja" : "nein",
       // deutsche Aliase
       konto_nr: r.account_number,
@@ -782,8 +786,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       verteilerschluessel: distLabel(r.distribution_key),
       gesamt_betrag: fmtEUR(Math.abs((r as any).totalAmount ?? r.planned_amount)),
       ihr_anteil: fmtEUR(Math.abs(r.planned_amount)),
-      ihr_share: (r as any).yourShare ?? "",
-      gesamt_share: (r as any).totalShare ?? "",
+      ihr_share: fmtShare((r as any).yourShare),
+      gesamt_share: fmtShare((r as any).totalShare),
       umlagefaehig: r.isDistributable ? "ja" : "nein",
       ruecklage: r.isReserve ? "ja" : "nein",
     }));
