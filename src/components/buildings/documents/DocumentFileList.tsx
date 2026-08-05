@@ -203,15 +203,26 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
           </span>
         </div>
         {someSelected && (
-          <Button
-            variant="destructive"
-            size="sm"
-            className="h-7 gap-1.5"
-            onClick={() => setConfirmOpen(true)}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Löschen
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1.5"
+              onClick={() => setArchived(Array.from(selectedIds), !isArchiveView)}
+            >
+              {isArchiveView ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+              {isArchiveView ? "Wiederherstellen" : "Archivieren"}
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-7 gap-1.5"
+              onClick={() => setConfirmOpen(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Löschen
+            </Button>
+          </div>
         )}
       </div>
 
