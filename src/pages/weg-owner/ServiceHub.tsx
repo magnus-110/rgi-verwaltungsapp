@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Receipt, Sparkles, ChevronRight } from "lucide-react";
+import { Receipt, ChevronRight } from "lucide-react";
 import { useServicePricing, formatPrice } from "@/hooks/useServicePricing";
 
 const RGI = {
