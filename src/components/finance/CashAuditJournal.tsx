@@ -40,7 +40,7 @@ export function CashAuditJournal({ buildingId, fiscalYear, progress, onProgressC
           amount_35a, is_35a_relevant, split_part, split_parts_total,
           chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
           counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name),
-          invoices(id, vendor_name, file_path, gross_amount, invoice_number),
+          invoices!bookings_invoice_id_fkey(id, vendor_name, file_path, gross_amount, invoice_number),
           booking_templates!bookings_matched_template_id_fkey(id, name, expected_amount, interval, vendor_name, linked_invoice_id, linked_invoice:invoices!booking_templates_linked_invoice_id_fkey(id, vendor_name, file_path, gross_amount, invoice_number))
         `)
         .eq("building_id", buildingId)

@@ -60,7 +60,7 @@ export function VendorHistorySection({ booking }: VendorHistorySectionProps) {
         id, booking_date, amount, booking_type, fiscal_year, status, description, booking_reference, vat_rate,
         chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
         counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name),
-        invoices(vendor_name, invoice_number)
+        invoices!bookings_invoice_id_fkey(vendor_name, invoice_number)
       `;
 
       const applyExclude = (q: any) => (currentBookingId ? q.neq("id", currentBookingId) : q);

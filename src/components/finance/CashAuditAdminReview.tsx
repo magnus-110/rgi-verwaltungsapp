@@ -78,7 +78,7 @@ export function CashAuditAdminReview({ auditId, onBack }: Props) {
           vat_rate, vat_amount, status, source, ai_warning, invoice_id,
           chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
           counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name),
-          invoices(id, file_path, file_name, vendor_name)
+          invoices!bookings_invoice_id_fkey(id, file_path, file_name, vendor_name)
         `)
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
