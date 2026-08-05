@@ -42,6 +42,8 @@ import {
 import { toast } from "sonner";
 import { DocCategory } from "./types";
 
+export const ARCHIVE_CATEGORY_ID = "__archive__";
+
 interface FolderTreeProps {
   buildingId: string;
   selectedCategoryId: string | null;
