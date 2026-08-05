@@ -58,9 +58,12 @@ Deno.serve(async (req) => {
         : `${rendered}<br /><br />${signature}`;
     };
 
-    // Build payload key based on chosen format
+    // Build payload key based on chosen format.
+    // Im HTML-Modus kommt der Text aus einem Plain-Text-Editor: Zeilenumbrüche
+    // müssen zu <br> werden, sonst kommt alles als ein Block an.
     const buildBody = (rendered: string) =>
-      bodyFormat === "plain" ? { text: rendered } : { html: rendered };
+      bodyFormat === "plain" ? { text: rendered } : { html: ensureHtmlBody(rendered) };
+
 
     const isSecure = account.smtp_port === 465;
     const transporter = nodemailer.createTransport({
