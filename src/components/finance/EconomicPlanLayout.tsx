@@ -202,8 +202,8 @@ export function EconomicPlanLayout({
                         <TableCell className="text-xs text-muted-foreground">{renderDistKeyCell ? renderDistKeyCell(row) : formatDistKey(row.distribution_key)}</TableCell>
                         {isEinzel ? (
                           <>
-                            <TableCell className="text-right font-mono text-xs">{row.totalShare != null ? formatNumber(row.totalShare, 3) : "–"}</TableCell>
-                            <TableCell className="text-right font-mono text-xs">{row.yourShare != null ? formatNumber(row.yourShare, 3) : "–"}</TableCell>
+                            <TableCell className="text-right font-mono text-xs">{row.totalShare != null ? formatNumber(row.totalShare, 2) : "–"}</TableCell>
+                            <TableCell className="text-right font-mono text-xs">{row.yourShare != null ? formatNumber(row.yourShare, 2) : "–"}</TableCell>
                             <TableCell className="text-right font-mono text-xs">{formatCurrency(mag(row.totalAmount))}</TableCell>
                             <TableCell className="text-right font-mono">
                               {renderAmountCell ? renderAmountCell(row) : formatCurrency(mag(row.planned_amount))}
