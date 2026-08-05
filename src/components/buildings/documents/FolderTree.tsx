@@ -64,6 +64,7 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
   const [addingName, setAddingName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<TreeNode | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
   const handleDropOnFolder = async (categoryId: string, e: React.DragEvent) => {
     e.preventDefault();
