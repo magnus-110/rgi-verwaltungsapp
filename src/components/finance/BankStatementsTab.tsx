@@ -636,7 +636,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange, sharedFi
           // Direkt in Buchungs-Bearbeitung springen statt Detail-Sheet
           const { data: full, error } = await supabase
             .from("bookings")
-            .select("*, invoices(id, file_path, file_name, vendor_name)")
+            .select("*, invoices!bookings_invoice_id_fkey(id, file_path, file_name, vendor_name)")
             .eq("id", txn.bookings.id)
             .maybeSingle();
           if (error || !full) { toast.error("Buchung nicht gefunden"); return; }

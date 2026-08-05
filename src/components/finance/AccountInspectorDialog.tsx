@@ -159,7 +159,7 @@ export function AccountInspectorDialog({
           amount_35a, is_35a_relevant, invoice_id,
           chart_of_accounts!bookings_account_id_fkey(id, account_number, account_name),
           counter_account:chart_of_accounts!bookings_counter_account_id_fkey(id, account_number, account_name),
-          invoices(id, file_path, file_name, vendor_name, invoice_number, gross_amount)
+          invoices!bookings_invoice_id_fkey(id, file_path, file_name, vendor_name, invoice_number, gross_amount)
         `)
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
