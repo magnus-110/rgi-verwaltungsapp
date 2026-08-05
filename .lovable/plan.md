@@ -1,35 +1,48 @@
-# Service-Hub freischalten (nur Nebenkostenabrechnung) + Stripe live
+# Service-Hub Header, Rundmail-Zeilenumbrüche, DMS-Archiv
 
-## 1. Service-Hub für Eigentümer sichtbar machen
+## 1. Service-Hub Kopfbereich (`src/pages/weg-owner/ServiceHub.tsx`)
 
-Der Menüpunkt "Service-Hub" ist in der Eigentümer-Navigation aktuell auskommentiert (die Seiten und Routen existieren bereits und funktionieren). Er wird wieder aktiviert, sodass Eigentümer den Hub im Menü sehen und die Nebenkostenabrechnung kaufen können.
+- Kleine Zeile mit Stern-Icon und „Service-Hub" oben entfernen.
+- Überschrift „Hilfreiche Dokumente auf Knopfdruck" ersetzen durch „Service-Hub".
+- Untertitel neu, bezogen auf den gesamten Hub, z. B.:
+  „Zusätzliche Verwaltungsleistungen für Eigentümer: Wir erstellen auf Basis Ihrer hinterlegten Daten geprüfte Dokumente – digital, rechtssicher formatiert und sofort verfügbar."
+- Sonst keine Änderungen an den Karten.
 
-## 2. Nur noch Nebenkostenabrechnung anzeigen
+## 2. Zeilenumbrüche bei Rundmails
 
-Im Service-Hub werden die beiden Karten "Anlage V (Steuererklärung)" und "Mietvertrag" entfernt. Stattdessen kommt unter der Nebenkosten-Karte ein dezenter Hinweis-Block:
+Ursache: Der Editor speichert reinen Text aus einem Textarea, die Kampagne wird aber ohne `body_format` gespeichert, also serverseitig als HTML versendet. In HTML werden `\n` ignoriert – die Mail kommt als ein Fließtextblock an (siehe Screenshot).
 
-> Weitere Services in Vorbereitung
+Fix in `supabase/functions/comm-send-bulk-email/index.ts` (und der Zeitplan-/Scheduler-Variante, falls sie denselben Code nutzt):
 
-Der Rest (Preis, Erstellen-Button, Rechtshinweis) bleibt unverändert. Die Datenbank-Preiseinträge für `anlage_v` und `mietvertrag` bleiben liegen (auf `active = false` gesetzt), damit sie später ohne Migration wieder aktiviert werden können.
+- Kleine Hilfsfunktion analog `src/lib/emailHtml.ts` (`textToHtmlWithLinks`) in einen Shared-Helper legen und nutzen.
+- Beim Versand prüfen: enthält der Text keine HTML-Tags, wird er escaped, URLs verlinkt und `\n` in `<br>` gewandelt – vor dem Anhängen der Signatur.
+- Gilt für Basistext, Empfänger-Overrides und Test-Mail; ebenso für den Eintrag im „Gesendet"-Ordner.
+- Vorschau in `BulkRecipientDialog.tsx` nutzt dieselbe Umwandlung, damit Vorschau = Versand.
 
-## 3. Stripe: von Sandbox auf Live umstellen
+## 3. DMS: Archiv für Dokumente und Ordner
 
-Technisch läuft das über zwei Secrets, die im Backend genutzt werden. Für den Livegang musst du in deinem Stripe-Dashboard Folgendes tun (ich kann die Werte nicht selbst erzeugen):
+Betrifft die Stammakte (`BuildingDocumentsTab` mit `FolderTree` + `DocumentFileList`).
 
-1. **Stripe-Konto aktivieren** — im Dashboard oben von "Testmodus" auf Live schalten. Dafür müssen Firmendaten, Bankverbindung und Identitätsprüfung abgeschlossen sein.
-2. **Live Secret Key kopieren** — Dashboard → Entwickler → API-Schlüssel (Live-Modus) → "Geheimer Schlüssel" (`sk_live_…`).
-3. **Live-Webhook anlegen** — Dashboard → Entwickler → Webhooks (Live-Modus) → Endpunkt hinzufügen:
-   - URL: `https://eebphowrbarzawwixqcc.supabase.co/functions/v1/stripe-webhook`
-   - Events: `checkout.session.completed` und `charge.refunded`
-   - Danach das "Signing secret" (`whsec_…`) kopieren.
-4. **Stripe Tax prüfen** — im Checkout ist `automatic_tax` aktiv. Im Live-Modus muss unter Stripe Tax die Steuerregistrierung (Deutschland) hinterlegt sein, sonst schlägt der Checkout fehl.
-5. Danach hinterlege ich die beiden Werte (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`) über das sichere Secret-Formular — du fügst sie dort ein, ich sehe sie nicht.
+Datenbank (Migration):
+- `building_files.archived_at timestamptz null`
+- `building_file_categories.archived_at timestamptz null`
+- Indizes auf `archived_at` für schnelle Filterung.
 
-Sobald die Live-Keys hinterlegt sind, läuft jeder Kauf mit echtem Geld. Empfehlung: vorher einmal komplett im Testmodus durchspielen (Kauf → Webhook → PDF-Erstellung), danach umschalten.
+Ordnerbaum (`FolderTree.tsx`):
+- Normale Struktur zeigt nur Ordner ohne `archived_at`.
+- Ganz unten ein eigener, einklappbarer Bereich „Archiv" mit allen archivierten Ordnern (inkl. ihrer Unterordner) und einem Eintrag „Archivierte Dokumente".
+- Im Drei-Punkte-Menü je Ordner: „Archivieren" bzw. im Archiv „Wiederherstellen". Archivieren setzt `archived_at` für den Ordner und alle Unterordner; die enthaltenen Dokumente bleiben im Ordner und wandern damit mit ins Archiv.
 
-## Technische Details
+Dokumentenliste (`DocumentFileList.tsx`):
+- Standardabfrage filtert `archived_at is null`; im Archiv-Modus genau umgekehrt.
+- Neues Drei-Punkte-Menü je Zeile mit „Archivieren" / „Wiederherstellen" (plus Öffnen).
+- Zusätzlich Bulk-Aktion „Archivieren" neben dem bestehenden Löschen, wenn mehrere Dokumente markiert sind.
+- Zähler im Ordnerbaum berücksichtigen den Archivstatus.
 
-- `src/components/WegOwnerLayout.tsx`: auskommentierten Service-Hub-Navigationseintrag reaktivieren.
-- `src/pages/weg-owner/ServiceHub.tsx`: `tools`-Array auf `nebenkosten` reduzieren, "Bald verfügbar"-Hinweisbox ergänzen, Grid auf eine Karte anpassen.
-- Migration: `UPDATE public.service_pricing SET active = false WHERE service_type IN ('anlage_v','mietvertrag');`
-- Keine Änderung an `create-service-checkout` / `stripe-webhook` nötig — die lesen die Keys aus den Secrets, der Umstieg ist reiner Key-Tausch.
+Archivieren ist ausdrücklich kein Löschen: Papierkorb (`deleted_at`) bleibt unverändert bestehen.
+
+## Technische Hinweise
+
+- Neue Spalten müssen in den Supabase-Typen auftauchen; bis dahin ggf. `as any` bei den Updates wie bereits im Bestand üblich.
+- Query-Keys `stammakte-files`, `stammakte-categories`, `stammakte-counts` nach jeder Archiv-Aktion invalidieren.
+- Edge Function `comm-send-bulk-email` nach der Änderung neu deployen.
