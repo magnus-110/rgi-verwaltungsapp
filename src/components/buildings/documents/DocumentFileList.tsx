@@ -70,6 +70,7 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
   const [localSearch, setLocalSearch] = useState("");
 
   const effectiveSearch = (localSearch || searchQuery).trim();
+  const isArchiveView = categoryId === ARCHIVE_CATEGORY_ID;
 
   const { data: files = [], isLoading } = useQuery({
     queryKey: ['stammakte-files', buildingId, categoryId, effectiveSearch],
@@ -87,7 +88,12 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
         .eq('is_current_version', true)
         .is('deleted_at', null);
 
-      if (categoryId) q = q.eq('category_id', categoryId);
+      if (isArchiveView) {
+        q = q.not('archived_at', 'is', null);
+      } else {
+        q = q.is('archived_at', null);
+        if (categoryId) q = q.eq('category_id', categoryId);
+      }
       q = q.order('updated_at', { ascending: false });
 
       const { data, error } = await q;
@@ -95,6 +101,7 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
       return (data || []) as unknown as DocFile[];
     },
   });
+
 
   const virtualizer = useVirtualizer({
     count: files.length,
