@@ -8,7 +8,7 @@ Der Menüpunkt "Service-Hub" ist in der Eigentümer-Navigation aktuell auskommen
 
 Im Service-Hub werden die beiden Karten "Anlage V (Steuererklärung)" und "Mietvertrag" entfernt. Stattdessen kommt unter der Nebenkosten-Karte ein dezenter Hinweis-Block:
 
-> Weitere Services in Vorbereitung — Anlage V für die Steuererklärung und der digitale Mietvertrag folgen in Kürze.
+> Weitere Services in Vorbereitung
 
 Der Rest (Preis, Erstellen-Button, Rechtshinweis) bleibt unverändert. Die Datenbank-Preiseinträge für `anlage_v` und `mietvertrag` bleiben liegen (auf `active = false` gesetzt), damit sie später ohne Migration wieder aktiviert werden können.
 
