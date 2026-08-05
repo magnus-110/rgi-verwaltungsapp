@@ -192,13 +192,12 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       path: '/weg-owner/umfragen',
       active: location.pathname.startsWith('/weg-owner/umfrage')
     }] : []),
-    // Service-Hub vorübergehend deaktiviert – wird erst nach Freigabe wieder eingeblendet
-    // {
-    //   icon: Store,
-    //   label: "Service-Hub",
-    //   path: '/weg-owner/service-hub',
-    //   active: location.pathname.startsWith('/weg-owner/service-hub')
-    // },
+    {
+      icon: Store,
+      label: "Service-Hub",
+      path: '/weg-owner/service-hub',
+      active: location.pathname.startsWith('/weg-owner/service-hub')
+    },
     { 
       icon: Sparkles, 
       label: "Chat", 
