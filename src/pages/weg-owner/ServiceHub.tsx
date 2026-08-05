@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Receipt, Sparkles, ChevronRight } from "lucide-react";
+import { Receipt, ChevronRight } from "lucide-react";
 import { useServicePricing, formatPrice } from "@/hooks/useServicePricing";
 
 const RGI = {
@@ -34,17 +34,15 @@ export function WegOwnerServiceHub() {
       style={{ background: RGI.bg, color: RGI.text, fontFamily: "'Work Sans', system-ui, sans-serif" }}
     >
       <div className="max-w-3xl mx-auto px-4 py-6">
-        <div className="flex items-center gap-2 text-xs mb-2" style={{ color: RGI.muted }}>
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Service-Hub</span>
-        </div>
         <h1 className="text-2xl font-bold leading-tight" style={{ fontFamily: headingFont }}>
-          Hilfreiche Dokumente auf Knopfdruck
+          Service-Hub
         </h1>
         <p className="text-sm mt-2 max-w-xl" style={{ color: RGI.muted }}>
-          Wir verbinden Ihre Stammdaten mit der WEG-Abrechnung und liefern ein
-          fertiges PDF. Sie prüfen, drucken, fertig.
+          Zusätzliche Verwaltungsleistungen für Eigentümer: Auf Basis Ihrer
+          hinterlegten Daten erstellen wir geprüfte Dokumente – digital,
+          sauber aufbereitet und sofort verfügbar.
         </p>
+
 
         <div
           className="mt-6 grid gap-4"

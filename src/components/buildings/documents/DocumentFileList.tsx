@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { supabase } from "@/integrations/supabase/client";
-import { FileText, Eye, Users, Lock, Calendar, Sparkles, Receipt, Mail, ExternalLink, Trash2, Loader2, Search, X } from "lucide-react";
+import { FileText, Eye, Users, Lock, Calendar, Sparkles, Receipt, Mail, ExternalLink, Trash2, Loader2, Search, X, Archive, ArchiveRestore } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
 import { DocFile, VISIBILITY_LABELS, getFileBucket } from "./types";
+import { ARCHIVE_CATEGORY_ID } from "./FolderTree";
 
 interface DocumentFileListProps {
   buildingId: string;
@@ -69,6 +70,7 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
   const [localSearch, setLocalSearch] = useState("");
 
   const effectiveSearch = (localSearch || searchQuery).trim();
+  const isArchiveView = categoryId === ARCHIVE_CATEGORY_ID;
 
   const { data: files = [], isLoading } = useQuery({
     queryKey: ['stammakte-files', buildingId, categoryId, effectiveSearch],
@@ -86,7 +88,12 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
         .eq('is_current_version', true)
         .is('deleted_at', null);
 
-      if (categoryId) q = q.eq('category_id', categoryId);
+      if (isArchiveView) {
+        q = q.not('archived_at', 'is', null);
+      } else {
+        q = q.is('archived_at', null);
+        if (categoryId) q = q.eq('category_id', categoryId);
+      }
       q = q.order('updated_at', { ascending: false });
 
       const { data, error } = await q;
@@ -94,6 +101,7 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
       return (data || []) as unknown as DocFile[];
     },
   });
+
 
   const virtualizer = useVirtualizer({
     count: files.length,
@@ -142,6 +150,24 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
     }
   };
 
+  // Dokumente archivieren / wiederherstellen (kein Löschen)
+  const setArchived = async (ids: string[], archived: boolean) => {
+    if (ids.length === 0) return;
+    const { error } = await supabase
+      .from('building_files')
+      .update({ archived_at: archived ? new Date().toISOString() : null } as any)
+      .in('id', ids);
+    if (error) {
+      toast.error((archived ? "Archivieren" : "Wiederherstellen") + " fehlgeschlagen: " + error.message);
+      return;
+    }
+    toast.success(`${ids.length} Dokument(e) ${archived ? "archiviert" : "wiederhergestellt"}`);
+    setSelectedIds(new Set());
+    queryClient.invalidateQueries({ queryKey: ['stammakte-files'] });
+    queryClient.invalidateQueries({ queryKey: ['stammakte-counts', buildingId] });
+    queryClient.invalidateQueries({ queryKey: ['stammakte-archived-count', buildingId] });
+  };
+
   if (isLoading) {
     return <div className="p-4 text-sm text-muted-foreground">Laden...</div>;
   }
@@ -152,12 +178,15 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
         <FileText className="h-10 w-10 mx-auto mb-2 opacity-30" />
         {effectiveSearch ? (
           <>Keine Dokumente für „{effectiveSearch}" gefunden.</>
+        ) : isArchiveView ? (
+          <>Keine archivierten Dokumente.</>
         ) : (
           <>Keine Dokumente in diesem Ordner.<p className="text-xs mt-1">Dateien per Drag & Drop hochladen.</p></>
         )}
       </div>
     );
   }
+
 
   return (
     <div className="flex flex-col h-full">
@@ -174,15 +203,26 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
           </span>
         </div>
         {someSelected && (
-          <Button
-            variant="destructive"
-            size="sm"
-            className="h-7 gap-1.5"
-            onClick={() => setConfirmOpen(true)}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Löschen
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1.5"
+              onClick={() => setArchived(Array.from(selectedIds), !isArchiveView)}
+            >
+              {isArchiveView ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+              {isArchiveView ? "Wiederherstellen" : "Archivieren"}
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-7 gap-1.5"
+              onClick={() => setConfirmOpen(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Löschen
+            </Button>
+          </div>
         )}
       </div>
 
@@ -260,6 +300,17 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
                           }}
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 flex-shrink-0"
+                          title={isArchiveView ? "Wiederherstellen" : "Archivieren"}
+                          onClick={(e) => { e.stopPropagation(); setArchived([f.id], !isArchiveView); }}
+                        >
+                          {isArchiveView
+                            ? <ArchiveRestore className="h-3.5 w-3.5" />
+                            : <Archive className="h-3.5 w-3.5" />}
                         </Button>
                       </div>
                       {f.description && (

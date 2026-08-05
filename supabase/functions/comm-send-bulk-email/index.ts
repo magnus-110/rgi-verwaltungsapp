@@ -4,6 +4,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import nodemailer from "https://esm.sh/nodemailer@6.9.16";
 import { loadRecipients, renderString, RecipientFilter } from "../_shared/comm-vars.ts";
 import { requireAdmin } from "../_shared/require-admin.ts";
+import { looksLikeHtml, textToHtmlWithLinks } from "../_shared/text-to-html.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,19 +50,28 @@ Deno.serve(async (req) => {
     }
     if (!subject || !bodyHtml) return json({ error: "Betreff oder Inhalt fehlt" }, 400);
 
-    // Signatur des Kontos unter den Text hängen (falls vorhanden und nicht bereits enthalten)
+    // Der Rundmail-Editor liefert reinen Text. Im HTML-Modus müssen die
+    // Zeilenumbrüche in <br> gewandelt werden, sonst kommt die Mail als ein
+    // einziger Fließtext-Block an. Signatur wird danach angehängt.
     const signature = ((account.signature_html as string | null) || "").trim();
-    const withSignature = (rendered: string) => {
-      if (!signature) return rendered;
-      if (rendered.includes(signature)) return rendered;
-      return bodyFormat === "plain"
-        ? `${rendered}\n\n${signature}`
-        : `${rendered}<br /><br />${signature}`;
+
+    /** Erzeugt den finalen Body-String (HTML bzw. Plain) inkl. Signatur. */
+    const composeBody = (rendered: string) => {
+      if (bodyFormat === "plain") {
+        if (!signature || rendered.includes(signature)) return rendered;
+        return `${rendered}\n\n${signature}`;
+      }
+      let html = looksLikeHtml(rendered) ? rendered : textToHtmlWithLinks(rendered);
+      if (signature && !html.includes(signature)) {
+        html = `${html}<br /><br />${signature}`;
+      }
+      return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.4">${html}</div>`;
     };
 
-    // Build payload key based on chosen format
-    const buildBody = (rendered: string) =>
-      bodyFormat === "plain" ? { text: rendered } : { html: rendered };
+    const buildBody = (composed: string) =>
+      bodyFormat === "plain" ? { text: composed } : { html: composed };
+
+
 
     const isSecure = account.smtp_port === 465;
     const transporter = nodemailer.createTransport({
@@ -95,7 +106,7 @@ Deno.serve(async (req) => {
         from: `${account.display_name} <${account.email_address}>`,
         to: test_email,
         subject: `[TEST] ${renderString(subject, sample)}`,
-        ...buildBody(withSignature(renderString(bodyHtml, sample))),
+        ...buildBody(composeBody(renderString(bodyHtml, sample))),
         attachments,
       });
       return json({ success: true, test: true });
@@ -196,7 +207,7 @@ Deno.serve(async (req) => {
       const effSubject = ov?.subject ?? subject;
       const effBody = ov?.body_html ?? bodyHtml;
       const renderedSubject = renderString(effSubject, r.vars);
-      const renderedBody = withSignature(renderString(effBody, r.vars));
+      const renderedBody = composeBody(renderString(effBody, r.vars));
       const isHtml = bodyFormat !== "plain";
       const personal = ov?.attachment_paths?.length ? await loadPersonal(ov.attachment_paths) : [];
       const allAttachments = [...attachments, ...personal];

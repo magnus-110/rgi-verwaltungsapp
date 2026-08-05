@@ -14,6 +14,9 @@ import {
   Plus,
   Check,
   X,
+  Archive,
+  ArchiveRestore,
+
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +41,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { DocCategory } from "./types";
+
+export const ARCHIVE_CATEGORY_ID = "__archive__";
 
 interface FolderTreeProps {
   buildingId: string;
@@ -105,7 +110,8 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
         .select('category_id')
         .eq('building_id', buildingId)
         .eq('is_current_version', true)
-        .is('deleted_at', null);
+        .is('deleted_at', null)
+        .is('archived_at', null);
       if (error) throw error;
       const map: Record<string, number> = {};
       (data || []).forEach((row: any) => {
@@ -115,9 +121,33 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
     },
   });
 
+  const { data: archivedFileCount = 0 } = useQuery({
+    queryKey: ['stammakte-archived-count', buildingId],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('building_files')
+        .select('id', { count: 'exact', head: true })
+        .eq('building_id', buildingId)
+        .eq('is_current_version', true)
+        .is('deleted_at', null)
+        .not('archived_at', 'is', null);
+      if (error) throw error;
+      return count || 0;
+    },
+  });
+
+  const activeCategories = useMemo(
+    () => categories.filter((c: any) => !c.archived_at),
+    [categories]
+  );
+  const archivedCategories = useMemo(
+    () => categories.filter((c: any) => !!c.archived_at),
+    [categories]
+  );
+
   const tree = useMemo(() => {
     const byParent: Record<string, DocCategory[]> = {};
-    categories.forEach(c => {
+    activeCategories.forEach(c => {
       const key = c.parent_id || 'root';
       (byParent[key] ||= []).push(c);
     });
@@ -131,12 +161,45 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
       });
     };
     return build(null);
-  }, [categories, counts]);
+  }, [activeCategories, counts]);
+
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['stammakte-categories', buildingId] });
     qc.invalidateQueries({ queryKey: ['stammakte-counts', buildingId] });
+    qc.invalidateQueries({ queryKey: ['stammakte-archived-count', buildingId] });
+    qc.invalidateQueries({ queryKey: ['stammakte-files'] });
   };
+
+  // Ordner (inkl. Unterordner und enthaltener Dateien) archivieren bzw.
+  // wiederherstellen. Archivierte Einträge bleiben erhalten, werden aber
+  // aus dem normalen Ordnerbaum ausgeblendet.
+  const setFolderArchived = async (node: { id: string; name: string }, archived: boolean) => {
+    const ids: string[] = [];
+    const collect = (id: string) => {
+      ids.push(id);
+      categories.filter(c => c.parent_id === id).forEach(c => collect(c.id));
+    };
+    collect(node.id);
+    const stamp = archived ? new Date().toISOString() : null;
+    const { error: catErr } = await supabase
+      .from('building_file_categories')
+      .update({ archived_at: stamp } as any)
+      .in('id', ids);
+    if (catErr) {
+      toast.error((archived ? "Archivieren" : "Wiederherstellen") + " fehlgeschlagen: " + catErr.message);
+      return;
+    }
+    await supabase
+      .from('building_files')
+      .update({ archived_at: stamp } as any)
+      .eq('building_id', buildingId)
+      .in('category_id', ids);
+    toast.success(archived ? `„${node.name}" archiviert` : `„${node.name}" wiederhergestellt`);
+    if (archived && ids.includes(selectedCategoryId || '')) onSelect(null);
+    refresh();
+  };
+
 
   const toggle = (id: string) => {
     setExpanded(s => {
@@ -324,6 +387,9 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
                   <DropdownMenuItem onClick={() => startRename(node)}>
                     <Pencil className="h-4 w-4 mr-2" /> Umbenennen
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setFolderArchived(node, true)}>
+                    <Archive className="h-4 w-4 mr-2" /> Archivieren
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-destructive focus:text-destructive"
@@ -416,6 +482,46 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
       )}
 
       {tree.map(n => renderNode(n, 0))}
+
+      {(archivedCategories.length > 0 || archivedFileCount > 0) && (
+        <div className="mt-3 pt-2 border-t">
+          <button
+            onClick={() => onSelect(ARCHIVE_CATEGORY_ID)}
+            className={cn(
+              "w-full flex items-center gap-1.5 py-1.5 px-2 rounded-md text-sm hover:bg-accent text-left",
+              selectedCategoryId === ARCHIVE_CATEGORY_ID && "bg-accent font-medium"
+            )}
+          >
+            <Archive className="h-4 w-4 text-muted-foreground" />
+            <span className="flex-1">Archiv</span>
+            {archivedFileCount > 0 && (
+              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{archivedFileCount}</Badge>
+            )}
+          </button>
+          {archivedCategories
+            .filter((c: any) => !archivedCategories.some(p => p.id === c.parent_id))
+            .map((c: any) => (
+              <div
+                key={c.id}
+                className="group flex items-center gap-1.5 py-1 px-2 pl-7 rounded-md text-sm text-muted-foreground hover:bg-accent"
+              >
+                <Folder className="h-3.5 w-3.5 flex-shrink-0" />
+                <span className="truncate flex-1">{c.name}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                  title="Wiederherstellen"
+                  onClick={() => setFolderArchived(c, false)}
+                >
+                  <ArchiveRestore className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+        </div>
+      )}
+
+
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>

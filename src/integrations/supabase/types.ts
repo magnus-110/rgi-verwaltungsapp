@@ -1681,6 +1681,7 @@ export type Database = {
       }
       building_file_categories: {
         Row: {
+          archived_at: string | null
           auto_rag_enabled: boolean
           building_id: string | null
           color: string | null
@@ -1695,6 +1696,7 @@ export type Database = {
           sort_order: number | null
         }
         Insert: {
+          archived_at?: string | null
           auto_rag_enabled?: boolean
           building_id?: string | null
           color?: string | null
@@ -1709,6 +1711,7 @@ export type Database = {
           sort_order?: number | null
         }
         Update: {
+          archived_at?: string | null
           auto_rag_enabled?: boolean
           building_id?: string | null
           color?: string | null
@@ -1780,6 +1783,7 @@ export type Database = {
       }
       building_files: {
         Row: {
+          archived_at: string | null
           assigned_user_id: string | null
           broker_property_id: string | null
           building_id: string | null
@@ -1816,6 +1820,7 @@ export type Database = {
           visible_to_users: boolean
         }
         Insert: {
+          archived_at?: string | null
           assigned_user_id?: string | null
           broker_property_id?: string | null
           building_id?: string | null
@@ -1852,6 +1857,7 @@ export type Database = {
           visible_to_users?: boolean
         }
         Update: {
+          archived_at?: string | null
           assigned_user_id?: string | null
           broker_property_id?: string | null
           building_id?: string | null
