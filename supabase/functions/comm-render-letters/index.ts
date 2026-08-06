@@ -79,6 +79,8 @@ async function loadMeetingVars(admin: any, meetingId: string): Promise<Record<st
     agenda_list: agendaList,
     agenda_titles: agendaTitles,
     top_count: String(items.length),
+    // Loop-Platzhalter {#agenda} … {/agenda} für frei gestaltbares Word-Layout je TOP
+    agenda,
   };
 }
 
