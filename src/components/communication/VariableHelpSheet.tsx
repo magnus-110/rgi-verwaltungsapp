@@ -68,10 +68,9 @@ const GROUPS: { title: string; vars: { key: string; desc: string }[] }[] = [
       { key: "meeting_location", desc: "Versammlungsort" },
       { key: "meeting_chair", desc: "Versammlungsleiter" },
       { key: "minutes_taker", desc: "Protokollführer" },
-      { key: "agenda_list", desc: "Komplette TOP-Liste, Beschreibung eingerückt darunter (nur wenn am TOP aktiviert)" },
+      { key: "agenda_list", desc: "Komplette TOP-Liste mit Beschreibungen (mehrzeilig)" },
       { key: "agenda_titles", desc: "Nur die TOP-Titel (mehrzeilig)" },
       { key: "top_count", desc: "Anzahl der TOPs" },
-      { key: "#agenda", desc: "Schleife über alle TOPs – mit {{/agenda}} beenden. Innen nutzbar: nummer, titel, beschreibung, #hat_beschreibung" },
     ],
   },
   {

@@ -41,31 +41,17 @@ function formatMeetingTime(d: Date): string {
   return `${parts.hour}:${parts.minute}`;
 }
 
-async function loadMeetingVars(admin: any, meetingId: string): Promise<Record<string, any>> {
+async function loadMeetingVars(admin: any, meetingId: string): Promise<Record<string,string>> {
   const { data: meeting } = await admin.from("etv_meetings").select("*").eq("id", meetingId).maybeSingle();
   if (!meeting) return {};
   const { data: tops } = await admin.from("etv_agenda_items")
     .select("title, description, sort_order, include_description_in_invitation").eq("meeting_id", meetingId).order("sort_order");
   const items = (tops || []) as any[];
-  // Beschreibung nur übernehmen, wenn die Checkbox am TOP gesetzt ist.
-  const agenda = items.map((t, i) => {
-    const raw = t.include_description_in_invitation ? String(t.description ?? "").trim() : "";
-    // Mehrzeilige Beschreibungen behalten ihre Absätze, jede Zeile wird eingerückt.
-    const beschreibung = raw
-      ? raw.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0).map((l) => `    ${l}`).join("\n")
-      : "";
-    return {
-      nummer: String(i + 1),
-      titel: String(t.title || "").trim(),
-      beschreibung: raw,
-      beschreibung_eingerueckt: beschreibung,
-      hat_beschreibung: beschreibung.length > 0,
-    };
-  });
-  const agendaList = agenda
-    .map((t) => `TOP ${t.nummer} – ${t.titel}${t.hat_beschreibung ? `\n${t.beschreibung_eingerueckt}` : ""}`)
-    .join("\n\n");
-  const agendaTitles = agenda.map((t) => `TOP ${t.nummer} – ${t.titel}`).join("\n");
+  const agendaList = items.map((t, i) => {
+    const desc = t.include_description_in_invitation && t.description ? `\n  ${String(t.description).trim().replace(/\n/g, "\n  ")}` : "";
+    return `- TOP ${i + 1}: ${t.title || ""}${desc}`;
+  }).join("\n");
+  const agendaTitles = items.map((t, i) => `- TOP ${i + 1}: ${t.title || ""}`).join("\n");
   const md = meeting.meeting_date ? new Date(meeting.meeting_date) : null;
   return {
     meeting_title: meeting.title || "",
@@ -79,8 +65,6 @@ async function loadMeetingVars(admin: any, meetingId: string): Promise<Record<st
     agenda_list: agendaList,
     agenda_titles: agendaTitles,
     top_count: String(items.length),
-    // Loop-Platzhalter {#agenda} … {/agenda} für frei gestaltbares Word-Layout je TOP
-    agenda,
   };
 }
 
