@@ -41,7 +41,7 @@ function formatMeetingTime(d: Date): string {
   return `${parts.hour}:${parts.minute}`;
 }
 
-async function loadMeetingVars(admin: any, meetingId: string): Promise<Record<string,string>> {
+async function loadMeetingVars(admin: any, meetingId: string): Promise<Record<string, any>> {
   const { data: meeting } = await admin.from("etv_meetings").select("*").eq("id", meetingId).maybeSingle();
   if (!meeting) return {};
   const { data: tops } = await admin.from("etv_agenda_items")
