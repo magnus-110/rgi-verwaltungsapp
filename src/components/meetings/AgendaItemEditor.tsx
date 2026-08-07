@@ -17,6 +17,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2, Check, BookTemplate, ChevronDown, ChevronUp, Settings, Gavel, Info, FolderOpen, Wrench } from "lucide-react";
 import { DmsFilePickerDialog } from "./DmsFilePickerDialog";
 import { ManagementReportPanel } from "./ManagementReportPanel";
+import { ReportSections, emptyReportSections, composeReportDescription } from "@/lib/managementReport";
+
 
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel,
@@ -77,6 +79,9 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [editRequiresResolution, setEditRequiresResolution] = useState(true);
   const [editIsActionable, setEditIsActionable] = useState(false);
   const [editIncludeDescriptionInInvitation, setEditIncludeDescriptionInInvitation] = useState(false);
+  const [editIsReport, setEditIsReport] = useState(false);
+  const [editReportSections, setEditReportSections] = useState<ReportSections>(emptyReportSections());
+
 
 
   // New item form
@@ -264,7 +269,10 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     setEditRequiresResolution(item.requires_resolution !== false);
     setEditIsActionable((item as any).is_actionable || false);
     setEditIncludeDescriptionInInvitation(!!(item as any).include_description_in_invitation);
+    setEditIsReport(!!(item as any).is_management_report);
+    setEditReportSections({ ...emptyReportSections(), ...(((item as any).report_sections ?? {}) as ReportSections) });
   };
+
 
 
   const saveEdit = async () => {
@@ -279,7 +287,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     updateMutation.mutate({
       id: editingItemId,
       title: editItemTitle,
-      description: editItemDescription || null,
+      description: (editIsReport ? composeReportDescription(editReportSections) : editItemDescription) || null,
       resolution_text: editRequiresResolution ? (editItemResolution || null) : null,
       voting_principle: editItemPrinciple,
       category: editItemCategory,
@@ -288,8 +296,11 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       double_qualified_relevant: editRequiresResolution ? editDQRelevant : false,
       requires_resolution: editRequiresResolution,
       is_actionable: editRequiresResolution ? editIsActionable : false,
-      include_description_in_invitation: editIncludeDescriptionInInvitation,
+      include_description_in_invitation: editIsReport ? true : editIncludeDescriptionInInvitation,
+      is_management_report: editIsReport,
+      report_sections: editIsReport ? editReportSections : null,
     } as any);
+
 
     setEditingItemId(null);
     setEditNewFiles([]);
@@ -539,17 +550,39 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                     </div>
                                   </div>
                                   <div className="space-y-1.5">
-                                    <Label className="text-xs">Beschreibung</Label>
-                                    <Textarea value={editItemDescription} onChange={(e) => setEditItemDescription(e.target.value)} rows={6} placeholder="Ausführliche Beschreibung des Tagesordnungspunkts..." />
-                                    <label className="flex items-start gap-2 text-xs text-muted-foreground pt-1 cursor-pointer">
-                                      <Checkbox
-                                        checked={editIncludeDescriptionInInvitation}
-                                        onCheckedChange={(v) => setEditIncludeDescriptionInInvitation(!!v)}
-                                        className="mt-0.5"
-                                      />
-                                      <span>Beschreibung in Einladung übernehmen</span>
-                                    </label>
+                                    <div className="flex items-center justify-between">
+                                      <Label className="text-xs">{editIsReport ? "Bericht der Verwaltung" : "Beschreibung"}</Label>
+                                      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+                                        <span>Bericht der Verwaltung</span>
+                                        <Switch checked={editIsReport} onCheckedChange={setEditIsReport} className="scale-75" />
+                                      </label>
+                                    </div>
+                                    {editIsReport ? (
+                                      <>
+                                        <p className="text-[11px] text-muted-foreground">
+                                          Die vier Abschnitte ersetzen die Beschreibung: Sie erscheinen als TOP-Beschreibung für die Eigentümer und füllen zugleich die Word-Vorlage.
+                                        </p>
+                                        <ManagementReportPanel
+                                          itemId={editingItemId}
+                                          values={editReportSections}
+                                          onChange={setEditReportSections}
+                                        />
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Textarea value={editItemDescription} onChange={(e) => setEditItemDescription(e.target.value)} rows={6} placeholder="Ausführliche Beschreibung des Tagesordnungspunkts..." />
+                                        <label className="flex items-start gap-2 text-xs text-muted-foreground pt-1 cursor-pointer">
+                                          <Checkbox
+                                            checked={editIncludeDescriptionInInvitation}
+                                            onCheckedChange={(v) => setEditIncludeDescriptionInInvitation(!!v)}
+                                            className="mt-0.5"
+                                          />
+                                          <span>Beschreibung in Einladung übernehmen</span>
+                                        </label>
+                                      </>
+                                    )}
                                   </div>
+
                                   <div className="flex items-center justify-between rounded-md border p-3 bg-muted/20">
                                     <div className="space-y-0.5">
                                       <Label className="text-xs font-medium flex items-center gap-1.5">
@@ -617,12 +650,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                     </div>
                                   )}
                                   {renderEditAttachments()}
-                                  <ManagementReportPanel
-                                    itemId={item.id}
-                                    meetingId={meetingId}
-                                    isReport={!!(item as any).is_management_report}
-                                    sections={((item as any).report_sections ?? {}) as Record<string, string>}
-                                  />
+
 
                                   <div className="flex justify-end gap-2">
                                     <Button variant="outline" size="sm" onClick={() => { setEditingItemId(null); setEditAiSuggestion(null); }}>Abbrechen</Button>
