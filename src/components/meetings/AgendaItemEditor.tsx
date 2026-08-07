@@ -680,7 +680,14 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                       })}
                                     </div>
                                   )}
+                                  <ManagementReportPanel
+                                    itemId={item.id}
+                                    meetingId={meetingId}
+                                    isReport={!!(item as any).is_management_report}
+                                    sections={((item as any).report_sections ?? {}) as Record<string, string>}
+                                  />
                                 </>
+
                               )}
                             </div>
                           </div>
