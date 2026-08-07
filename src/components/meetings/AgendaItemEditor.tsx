@@ -617,6 +617,13 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                     </div>
                                   )}
                                   {renderEditAttachments()}
+                                  <ManagementReportPanel
+                                    itemId={item.id}
+                                    meetingId={meetingId}
+                                    isReport={!!(item as any).is_management_report}
+                                    sections={((item as any).report_sections ?? {}) as Record<string, string>}
+                                  />
+
                                   <div className="flex justify-end gap-2">
                                     <Button variant="outline" size="sm" onClick={() => { setEditingItemId(null); setEditAiSuggestion(null); }}>Abbrechen</Button>
                                     <Button size="sm" onClick={saveEdit} disabled={!editItemTitle || updateMutation.isPending}>Speichern</Button>
@@ -682,12 +689,12 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                       })}
                                     </div>
                                   )}
-                                  <ManagementReportPanel
-                                    itemId={item.id}
-                                    meetingId={meetingId}
-                                    isReport={!!(item as any).is_management_report}
-                                    sections={((item as any).report_sections ?? {}) as Record<string, string>}
-                                  />
+                                  {(item as any).is_management_report && (
+                                    <Badge variant="outline" className="text-[10px] gap-1 text-muted-foreground w-fit">
+                                      <FileText className="h-3 w-3" /> Bericht der Verwaltung
+                                    </Badge>
+                                  )}
+
                                 </>
 
                               )}

@@ -97,13 +97,14 @@ export function ManagementReportPanel({ itemId, meetingId, isReport, sections }:
   };
 
   return (
-    <div className="rounded-md border bg-muted/10 p-3 space-y-3">
+    <div className="space-y-3 pt-1">
       <div className="flex items-center justify-between">
-        <Label className="text-xs font-medium flex items-center gap-1.5">
-          <FileSignature className="h-3.5 w-3.5" /> Bericht der Verwaltung
+        <Label className="text-[11px] font-normal text-muted-foreground flex items-center gap-1.5">
+          <FileSignature className="h-3 w-3" /> Bericht der Verwaltung
         </Label>
-        <Switch checked={enabled} onCheckedChange={toggle} />
+        <Switch checked={enabled} onCheckedChange={toggle} className="scale-90" />
       </div>
+
 
       {enabled && (
         <>
