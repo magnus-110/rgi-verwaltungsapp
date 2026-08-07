@@ -250,9 +250,16 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["etv-agenda-items", meetingId] });
+      setEditingItemId(null);
+      setEditNewFiles([]);
+      setEditAiSuggestion(null);
       toast({ title: "TOP aktualisiert" });
     },
+    onError: (err: any) => {
+      toast({ title: "Speichern fehlgeschlagen", description: err.message, variant: "destructive" });
+    },
   });
+
 
   const startEditing = (item: AgendaItem) => {
     setEditingItemId(item.id);
