@@ -287,7 +287,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     updateMutation.mutate({
       id: editingItemId,
       title: editItemTitle,
-      description: (editIsReport ? composeReportDescription(editReportSections) : editItemDescription) || null,
+      description: editItemDescription || null,
       resolution_text: editRequiresResolution ? (editItemResolution || null) : null,
       voting_principle: editItemPrinciple,
       category: editItemCategory,
