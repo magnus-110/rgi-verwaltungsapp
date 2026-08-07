@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2, Check, BookTemplate, ChevronDown, ChevronUp, Settings, Gavel, Info, FolderOpen, Wrench } from "lucide-react";
 import { DmsFilePickerDialog } from "./DmsFilePickerDialog";
 import { ManagementReportPanel } from "./ManagementReportPanel";
-import { ReportSections, emptyReportSections, composeReportDescription } from "@/lib/managementReport";
+import { ReportSections, emptyReportSections } from "@/lib/managementReport";
 
 
 import {
