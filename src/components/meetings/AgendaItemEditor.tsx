@@ -682,12 +682,12 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                       })}
                                     </div>
                                   )}
-                                  <ManagementReportPanel
-                                    itemId={item.id}
-                                    meetingId={meetingId}
-                                    isReport={!!(item as any).is_management_report}
-                                    sections={((item as any).report_sections ?? {}) as Record<string, string>}
-                                  />
+                                  {(item as any).is_management_report && (
+                                    <Badge variant="outline" className="text-[10px] gap-1 text-muted-foreground w-fit">
+                                      <FileText className="h-3 w-3" /> Bericht der Verwaltung
+                                    </Badge>
+                                  )}
+
                                 </>
 
                               )}
