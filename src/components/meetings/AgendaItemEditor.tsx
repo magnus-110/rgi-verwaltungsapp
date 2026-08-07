@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2, Check, BookTemplate, ChevronDown, ChevronUp, Settings, Gavel, Info, FolderOpen, Wrench } from "lucide-react";
 import { DmsFilePickerDialog } from "./DmsFilePickerDialog";
 import { ManagementReportPanel } from "./ManagementReportPanel";
-import { ReportSections, emptyReportSections, composeReportDescription } from "@/lib/managementReport";
+import { ReportSections, emptyReportSections } from "@/lib/managementReport";
 
 
 import {
@@ -287,7 +287,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     updateMutation.mutate({
       id: editingItemId,
       title: editItemTitle,
-      description: (editIsReport ? composeReportDescription(editReportSections) : editItemDescription) || null,
+      description: editItemDescription || null,
       resolution_text: editRequiresResolution ? (editItemResolution || null) : null,
       voting_principle: editItemPrinciple,
       category: editItemCategory,
@@ -296,7 +296,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       double_qualified_relevant: editRequiresResolution ? editDQRelevant : false,
       requires_resolution: editRequiresResolution,
       is_actionable: editRequiresResolution ? editIsActionable : false,
-      include_description_in_invitation: editIsReport ? true : editIncludeDescriptionInInvitation,
+      include_description_in_invitation: editIncludeDescriptionInInvitation,
       is_management_report: editIsReport,
       report_sections: editIsReport ? editReportSections : null,
     } as any);
