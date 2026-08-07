@@ -140,8 +140,8 @@ Deno.serve(async (req) => {
         titel: meeting.title || "",
         datum: meetingDateStr,
         ort: meeting.location || "",
-        beginn: fmtTime(meeting.start_time ?? meeting.started_at),
-        leitung: meeting.chairperson || meeting.leader_name || "",
+        beginn: fmtTime(meeting.lock_time),
+        leitung: meeting.meeting_chair || "",
       },
       top: { nummer: String((item.sort_order ?? 0) + 1), titel: item.title || "" },
       bericht: {
