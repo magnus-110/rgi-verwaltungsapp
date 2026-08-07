@@ -269,7 +269,10 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     setEditRequiresResolution(item.requires_resolution !== false);
     setEditIsActionable((item as any).is_actionable || false);
     setEditIncludeDescriptionInInvitation(!!(item as any).include_description_in_invitation);
+    setEditIsReport(!!(item as any).is_management_report);
+    setEditReportSections({ ...emptyReportSections(), ...(((item as any).report_sections ?? {}) as ReportSections) });
   };
+
 
 
   const saveEdit = async () => {
