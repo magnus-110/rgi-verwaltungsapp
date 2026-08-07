@@ -650,12 +650,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                     </div>
                                   )}
                                   {renderEditAttachments()}
-                                  <ManagementReportPanel
-                                    itemId={item.id}
-                                    meetingId={meetingId}
-                                    isReport={!!(item as any).is_management_report}
-                                    sections={((item as any).report_sections ?? {}) as Record<string, string>}
-                                  />
+
 
                                   <div className="flex justify-end gap-2">
                                     <Button variant="outline" size="sm" onClick={() => { setEditingItemId(null); setEditAiSuggestion(null); }}>Abbrechen</Button>
