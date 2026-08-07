@@ -287,7 +287,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     updateMutation.mutate({
       id: editingItemId,
       title: editItemTitle,
-      description: editItemDescription || null,
+      description: (editIsReport ? composeReportDescription(editReportSections) : editItemDescription) || null,
       resolution_text: editRequiresResolution ? (editItemResolution || null) : null,
       voting_principle: editItemPrinciple,
       category: editItemCategory,
@@ -296,8 +296,11 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       double_qualified_relevant: editRequiresResolution ? editDQRelevant : false,
       requires_resolution: editRequiresResolution,
       is_actionable: editRequiresResolution ? editIsActionable : false,
-      include_description_in_invitation: editIncludeDescriptionInInvitation,
+      include_description_in_invitation: editIsReport ? true : editIncludeDescriptionInInvitation,
+      is_management_report: editIsReport,
+      report_sections: editIsReport ? editReportSections : null,
     } as any);
+
 
     setEditingItemId(null);
     setEditNewFiles([]);
