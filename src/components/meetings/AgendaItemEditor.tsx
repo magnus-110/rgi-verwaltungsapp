@@ -305,14 +305,10 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       is_actionable: editRequiresResolution ? editIsActionable : false,
       include_description_in_invitation: editIncludeDescriptionInInvitation,
       is_management_report: editIsReport,
-      report_sections: editIsReport ? editReportSections : null,
+      report_sections: editIsReport ? editReportSections : {},
     } as any);
-
-
-    setEditingItemId(null);
-    setEditNewFiles([]);
-    setEditAiSuggestion(null);
   };
+
 
   const applyTemplate = (template: any, target: "new" | "edit") => {
     if (target === "new") {
