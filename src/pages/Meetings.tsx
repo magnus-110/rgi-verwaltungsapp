@@ -192,6 +192,10 @@ export const Meetings = () => {
         <TabsContent value="templates" className="mt-4">
           <ProtocolTemplatesTab />
         </TabsContent>
+        <TabsContent value="report-templates" className="mt-4">
+          <ReportTemplatesTab />
+        </TabsContent>
+
       </Tabs>
 
       {/* Mobile FAB */}
