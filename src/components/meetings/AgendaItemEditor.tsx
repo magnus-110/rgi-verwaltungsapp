@@ -550,17 +550,39 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                     </div>
                                   </div>
                                   <div className="space-y-1.5">
-                                    <Label className="text-xs">Beschreibung</Label>
-                                    <Textarea value={editItemDescription} onChange={(e) => setEditItemDescription(e.target.value)} rows={6} placeholder="Ausführliche Beschreibung des Tagesordnungspunkts..." />
-                                    <label className="flex items-start gap-2 text-xs text-muted-foreground pt-1 cursor-pointer">
-                                      <Checkbox
-                                        checked={editIncludeDescriptionInInvitation}
-                                        onCheckedChange={(v) => setEditIncludeDescriptionInInvitation(!!v)}
-                                        className="mt-0.5"
-                                      />
-                                      <span>Beschreibung in Einladung übernehmen</span>
-                                    </label>
+                                    <div className="flex items-center justify-between">
+                                      <Label className="text-xs">{editIsReport ? "Bericht der Verwaltung" : "Beschreibung"}</Label>
+                                      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+                                        <span>Bericht der Verwaltung</span>
+                                        <Switch checked={editIsReport} onCheckedChange={setEditIsReport} className="scale-75" />
+                                      </label>
+                                    </div>
+                                    {editIsReport ? (
+                                      <>
+                                        <p className="text-[11px] text-muted-foreground">
+                                          Die vier Abschnitte ersetzen die Beschreibung: Sie erscheinen als TOP-Beschreibung für die Eigentümer und füllen zugleich die Word-Vorlage.
+                                        </p>
+                                        <ManagementReportPanel
+                                          itemId={editingItemId}
+                                          values={editReportSections}
+                                          onChange={setEditReportSections}
+                                        />
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Textarea value={editItemDescription} onChange={(e) => setEditItemDescription(e.target.value)} rows={6} placeholder="Ausführliche Beschreibung des Tagesordnungspunkts..." />
+                                        <label className="flex items-start gap-2 text-xs text-muted-foreground pt-1 cursor-pointer">
+                                          <Checkbox
+                                            checked={editIncludeDescriptionInInvitation}
+                                            onCheckedChange={(v) => setEditIncludeDescriptionInInvitation(!!v)}
+                                            className="mt-0.5"
+                                          />
+                                          <span>Beschreibung in Einladung übernehmen</span>
+                                        </label>
+                                      </>
+                                    )}
                                   </div>
+
                                   <div className="flex items-center justify-between rounded-md border p-3 bg-muted/20">
                                     <div className="space-y-0.5">
                                       <Label className="text-xs font-medium flex items-center gap-1.5">
