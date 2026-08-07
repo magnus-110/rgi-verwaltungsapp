@@ -154,7 +154,13 @@ export const Meetings = () => {
             <span className="hidden sm:inline">Protokoll-Vorlagen</span>
             <span className="sm:hidden">Vorlagen</span>
           </TabsTrigger>
+          <TabsTrigger value="report-templates" className="gap-1.5 md:gap-2 min-h-[44px] text-xs md:text-sm">
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">Bericht-Vorlagen</span>
+            <span className="sm:hidden">Bericht</span>
+          </TabsTrigger>
         </TabsList>
+
         <TabsContent value="meetings" className="mt-4">
           <Tabs defaultValue="active">
             <TabsList>
