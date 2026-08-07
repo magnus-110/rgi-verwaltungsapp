@@ -16,6 +16,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2, Check, BookTemplate, ChevronDown, ChevronUp, Settings, Gavel, Info, FolderOpen, Wrench } from "lucide-react";
 import { DmsFilePickerDialog } from "./DmsFilePickerDialog";
+import { ManagementReportPanel } from "./ManagementReportPanel";
+
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
@@ -680,7 +682,14 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                       })}
                                     </div>
                                   )}
+                                  <ManagementReportPanel
+                                    itemId={item.id}
+                                    meetingId={meetingId}
+                                    isReport={!!(item as any).is_management_report}
+                                    sections={((item as any).report_sections ?? {}) as Record<string, string>}
+                                  />
                                 </>
+
                               )}
                             </div>
                           </div>

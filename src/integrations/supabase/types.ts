@@ -5105,8 +5105,10 @@ export type Database = {
           id: string
           include_description_in_invitation: boolean
           is_actionable: boolean
+          is_management_report: boolean
           meeting_id: string
           no_count: number | null
+          report_sections: Json
           requires_double_qualified: boolean
           requires_resolution: boolean
           resolution_text: string | null
@@ -5134,8 +5136,10 @@ export type Database = {
           id?: string
           include_description_in_invitation?: boolean
           is_actionable?: boolean
+          is_management_report?: boolean
           meeting_id: string
           no_count?: number | null
+          report_sections?: Json
           requires_double_qualified?: boolean
           requires_resolution?: boolean
           resolution_text?: string | null
@@ -5163,8 +5167,10 @@ export type Database = {
           id?: string
           include_description_in_invitation?: boolean
           is_actionable?: boolean
+          is_management_report?: boolean
           meeting_id?: string
           no_count?: number | null
+          report_sections?: Json
           requires_double_qualified?: boolean
           requires_resolution?: boolean
           resolution_text?: string | null
@@ -5728,6 +5734,91 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          id?: string
+          is_default?: boolean
+          name?: string
+          placeholder_schema?: Json | null
+          storage_path?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      etv_report_renders: {
+        Row: {
+          agenda_item_id: string | null
+          created_at: string
+          created_by: string | null
+          format: string
+          id: string
+          meeting_id: string
+          storage_path: string
+          template_id: string | null
+        }
+        Insert: {
+          agenda_item_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          format?: string
+          id?: string
+          meeting_id: string
+          storage_path: string
+          template_id?: string | null
+        }
+        Update: {
+          agenda_item_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          format?: string
+          id?: string
+          meeting_id?: string
+          storage_path?: string
+          template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etv_report_renders_agenda_item_id_fkey"
+            columns: ["agenda_item_id"]
+            isOneToOne: false
+            referencedRelation: "etv_agenda_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_report_renders_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "etv_meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_report_renders_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "etv_report_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etv_report_templates: {
+        Row: {
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          placeholder_schema: Json | null
+          storage_path: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          placeholder_schema?: Json | null
+          storage_path: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
           id?: string
           is_default?: boolean
           name?: string
