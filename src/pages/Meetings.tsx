@@ -9,6 +9,8 @@ import { ResolutionLedger } from "@/components/meetings/ResolutionLedger";
 import { SubmittedTopsManager } from "@/components/meetings/SubmittedTopsManager";
 
 import { ProtocolTemplatesTab } from "@/components/meetings/ProtocolTemplatesTab";
+import { ReportTemplatesTab } from "@/components/meetings/ReportTemplatesTab";
+
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
