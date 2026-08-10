@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
 import { compressImageIfNeeded } from "@/lib/compressImage";
 import { FileImage, FileText, File as FileIcon, X, Trash2, Eye } from "lucide-react";
+import { KeyItemsSection } from "./KeyItemsSection";
 
 
 interface Props {
