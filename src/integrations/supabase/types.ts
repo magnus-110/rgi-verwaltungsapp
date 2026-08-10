@@ -6821,7 +6821,6 @@ export type Database = {
           closing_plan_uploaded_at: string | null
           closing_plan_uploaded_by: string | null
           has_closing_plan: boolean
-          has_key_card: boolean
           property_number: string
           tag_template_name: string | null
           tag_template_path: string | null
@@ -6836,7 +6835,6 @@ export type Database = {
           closing_plan_uploaded_at?: string | null
           closing_plan_uploaded_by?: string | null
           has_closing_plan?: boolean
-          has_key_card?: boolean
           property_number: string
           tag_template_name?: string | null
           tag_template_path?: string | null
@@ -6851,7 +6849,6 @@ export type Database = {
           closing_plan_uploaded_at?: string | null
           closing_plan_uploaded_by?: string | null
           has_closing_plan?: boolean
-          has_key_card?: boolean
           property_number?: string
           tag_template_name?: string | null
           tag_template_path?: string | null

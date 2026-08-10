@@ -104,7 +104,7 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
     (historyEventFilter === "all" || e.event_type === historyEventFilter)
   );
 
-  const saveFlag = async (field: "has_closing_plan" | "has_key_card", value: boolean) => {
+  const saveFlag = async (field: "has_closing_plan", value: boolean) => {
     const { error } = await supabase.from("key_property_settings").update({ [field]: value } as any).eq("building_id", buildingId);
     if (error) toast.error(error.message);
     else qc.invalidateQueries({ queryKey: ["key-settings", buildingId] });
@@ -262,14 +262,7 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
                         checked={!!(settings as any)?.has_closing_plan}
                         onCheckedChange={(v) => saveFlag("has_closing_plan", !!v)}
                       />
-                      Schließplan vorhanden
-                    </label>
-                    <label className="flex items-center gap-2 text-sm cursor-pointer">
-                      <Checkbox
-                        checked={!!(settings as any)?.has_key_card}
-                        onCheckedChange={(v) => saveFlag("has_key_card", !!v)}
-                      />
-                      Schlüsselkarte vorhanden
+                      Zentralschließanlage vorhanden
                     </label>
                   </div>
                   <div className="md:col-span-2">
