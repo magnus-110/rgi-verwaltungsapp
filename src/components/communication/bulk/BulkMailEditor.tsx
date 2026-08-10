@@ -152,6 +152,17 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
       }
       return map;
     });
+    // Entwurf mit gespeicherten Anhängen, aber leerer Auswahl: Empfänger wieder anhaken.
+    setSelected((prev) => {
+      if (prev.size > 0) return prev;
+      const next = new Set<string>();
+      for (const o of overrides as any[]) {
+        if (!o.assignment_id) continue;
+        next.add(`${o.assignment_id}|${(o.email || "").toLowerCase()}`);
+      }
+      return next.size > 0 ? next : prev;
+    });
+
     setTextOverrides((prev) => {
       if (Object.keys(prev).length > 0) return prev;
       const map: Record<string, { subject: string | null; body: string | null }> = {};
