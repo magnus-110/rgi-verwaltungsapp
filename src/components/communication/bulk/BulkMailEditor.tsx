@@ -169,43 +169,51 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
 
   /** Empfänger-Karten: je E-Mail-Adresse zusammengefasst (oder je Einheit). */
   const groups = useMemo<RecipientGroup[]>(() => {
-    if (!noDuplicates) {
-      return recipients.map((r) => ({
-        key: r.key,
-        keys: [r.key],
-        name: r.name,
-        email: r.email,
-        role: r.role,
-        units: r.unitNumber ? [r.unitNumber] : [],
-      }));
-    }
+    const toGroup = (r: BulkRecipient): RecipientGroup => ({
+      key: r.key,
+      keys: [r.key],
+      name: r.name,
+      names: [r.name],
+      email: r.email,
+      hasEmail: r.hasEmail,
+      role: r.role,
+      units: r.unitNumber ? [r.unitNumber] : [],
+    });
+
+    if (!noDuplicates) return recipients.map(toGroup);
+
     const map = new Map<string, RecipientGroup>();
+    const out: RecipientGroup[] = [];
     for (const r of recipients) {
+      // Zuordnungen ohne E-Mail nie zusammenfassen — sie sollen einzeln sichtbar bleiben.
+      if (!r.hasEmail) {
+        out.push(toGroup(r));
+        continue;
+      }
       const id = r.email.toLowerCase();
       const g = map.get(id);
       if (!g) {
-        map.set(id, {
-          key: r.key,
-          keys: [r.key],
-          name: r.name,
-          email: r.email,
-          role: r.role,
-          units: r.unitNumber ? [r.unitNumber] : [],
-        });
+        const ng = toGroup(r);
+        map.set(id, ng);
+        out.push(ng);
       } else {
         g.keys.push(r.key);
+        if (!g.names.includes(r.name)) g.names.push(r.name);
         if (r.unitNumber && !g.units.includes(r.unitNumber)) g.units.push(r.unitNumber);
       }
     }
-    return Array.from(map.values());
+    return out;
   }, [recipients, noDuplicates]);
+
+  const selectableGroups = useMemo(() => groups.filter((g) => g.hasEmail), [groups]);
+  const missingEmailGroups = useMemo(() => groups.filter((g) => !g.hasEmail), [groups]);
 
   const filteredGroups = useMemo(() => {
     if (!search.trim()) return groups;
     const s = search.toLowerCase();
     return groups.filter(
       (g) =>
-        g.name.toLowerCase().includes(s) ||
+        g.names.some((n) => n.toLowerCase().includes(s)) ||
         g.email.toLowerCase().includes(s) ||
         g.units.some((u) => u.toLowerCase().includes(s)),
     );
@@ -218,7 +226,7 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
   };
 
   const isSelected = (g: RecipientGroup) => g.keys.some((k) => selected.has(k));
-  const selectedGroups = useMemo(() => groups.filter(isSelected), [groups, selected]);
+  const selectedGroups = useMemo(() => selectableGroups.filter(isSelected), [selectableGroups, selected]);
 
   const toggleGroup = (g: RecipientGroup) =>
     setSelected((prev) => {
@@ -229,12 +237,14 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
       return next;
     });
 
-  const selectAll = () => setSelected(new Set(filteredGroups.map((g) => g.key)));
+  const selectAll = () =>
+    setSelected(new Set(filteredGroups.filter((g) => g.hasEmail).map((g) => g.key)));
   const selectNone = () => setSelected(new Set());
   const selectOnePerUnit = () => {
     const seen = new Set<string>();
     const next = new Set<string>();
     for (const g of filteredGroups) {
+      if (!g.hasEmail) continue;
       const u = g.units[0] || g.email;
       if (seen.has(u)) continue;
       seen.add(u);
@@ -242,6 +252,7 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     }
     setSelected(next);
   };
+
 
   const insertPlaceholder = (v: string) => {
     const el = bodyRef.current;
