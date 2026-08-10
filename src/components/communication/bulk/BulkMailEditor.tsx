@@ -443,8 +443,9 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, selected, personal, textOverrides, generalPaths, noDuplicates]);
 
-
+  const handleSave = async () => {
     setBusy("save");
+
     try {
       await persist("draft");
       toast({ title: "Entwurf gespeichert" });
