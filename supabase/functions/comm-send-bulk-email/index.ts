@@ -132,8 +132,29 @@ Deno.serve(async (req) => {
       const allSelected = await loadRecipients(admin, campaign.building_id, { ...filter, require_email: false, expand_all_emails: true }, freeVars);
       recipients = allSelected.filter((r) => !!r.email);
       const missing = allSelected.length - recipients.length;
-      console.log(`[comm-send-bulk-email] campaign=${campaign_id} selected=${allSelected.length} withEmail=${recipients.length} missingEmail=${missing}`);
+
+      // Ausgewählte Schlüssel, die der Server nicht auflösen konnte (z. B. Kontakt
+      // geändert/gelöscht) — dürfen nicht lautlos verschwinden.
+      const wantedKeys = (filter.recipient_keys || []) as string[];
+      const resolvedKeys = new Set(
+        allSelected.map((r) => `${r.assignment_id ?? ""}|${(r.email || "").toLowerCase()}`),
+      );
+      const skippedKeys = wantedKeys.filter((k) => !resolvedKeys.has(k));
+      if (skippedKeys.length > 0) {
+        console.warn(`[comm-send-bulk-email] campaign=${campaign_id} nicht auflösbare Empfänger:`, skippedKeys);
+      }
+
+      console.log(`[comm-send-bulk-email] campaign=${campaign_id} selected=${allSelected.length} withEmail=${recipients.length} missingEmail=${missing} skipped=${skippedKeys.length}`);
       await admin.from("comm_recipients").delete().eq("campaign_id", campaign_id);
+
+      if (skippedKeys.length > 0) {
+        await admin
+          .from("comm_campaigns")
+          .update({
+            error_message: `${skippedKeys.length} ausgewählte Empfänger konnten nicht zugeordnet werden (evtl. Adresse im Adressbuch geändert). Bitte Auswahl prüfen.`,
+          })
+          .eq("id", campaign_id);
+      }
 
       if (allSelected.length > 0 && recipients.length === 0) {
         const sample = allSelected.slice(0, 3).map((r) => r.display_name).join(", ");
@@ -142,6 +163,7 @@ Deno.serve(async (req) => {
         return json({ error: msg }, 400);
       }
     }
+
 
     if (recipients.length === 0) {
       await admin.from("comm_campaigns").update({ status: "failed", error_message: "Keine Empfänger" }).eq("id", campaign_id);
