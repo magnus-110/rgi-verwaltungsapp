@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
 import { compressImageIfNeeded } from "@/lib/compressImage";
 import { FileImage, FileText, File as FileIcon, X, Trash2, Eye } from "lucide-react";
+import { KeyItemsSection } from "./KeyItemsSection";
 
 
 interface Props {
@@ -184,7 +185,7 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{tag ? "Anhänger bearbeiten" : "Neuer Anhänger"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div>
@@ -305,6 +306,12 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
             <Label>Notiz</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           </div>
+
+          {tag && (
+            <div className="border-t pt-3">
+              <KeyItemsSection tagId={tag.id} />
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>Abbrechen</Button>

@@ -380,9 +380,17 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
           body_html: ov?.body ?? null,
         };
       })
-      .filter(Boolean);
-    if (rows.length > 0) {
-      const { error: oErr } = await supabase.from("comm_recipient_overrides").insert(rows as any);
+      .filter(Boolean) as any[];
+    // Doppelte Zeilen (gleiche Zuordnung + E-Mail) zusammenführen — verhindert Unique-Konflikte
+    const seen = new Set<string>();
+    const uniqueRows = rows.filter((r) => {
+      const k = `${r.contact_id}|${r.assignment_id ?? ""}|${(r.email || "").toLowerCase()}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    if (uniqueRows.length > 0) {
+      const { error: oErr } = await supabase.from("comm_recipient_overrides").insert(uniqueRows as any);
       if (oErr) throw oErr;
     }
     qc.invalidateQueries({ queryKey: ["bulk-campaigns"] });
