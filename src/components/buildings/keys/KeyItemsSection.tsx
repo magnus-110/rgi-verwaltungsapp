@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import { DropdownWithAdd } from "./DropdownWithAdd";
-import { HouseIcon } from "./HouseIcon";
+import { HouseIcon } from "./IconPicker";
 import { KeyItem, KeySubjectType, KeyManufacturer } from "./types";
 
 interface Props {
