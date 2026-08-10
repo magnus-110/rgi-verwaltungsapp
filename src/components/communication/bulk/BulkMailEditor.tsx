@@ -479,8 +479,25 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     }
 
     const withoutAttachment = selectedGroups.filter((g) => pathsForGroup(g).length === 0).length;
-    const hint = withoutAttachment > 0 ? `\n${withoutAttachment} davon ohne persönlichen Anhang.` : "";
-    if (!confirm(`Rundmail jetzt an ${selected.size} Empfänger senden?${hint}`)) return;
+    const notSelected = selectableGroups.filter((g) => !isSelected(g));
+    const lines = [`Rundmail jetzt an ${selectedGroups.length} Empfänger senden?`, ""];
+    if (withoutAttachment > 0) lines.push(`• ${withoutAttachment} ohne persönlichen Anhang`);
+    if (notSelected.length > 0)
+      lines.push(
+        `• ${notSelected.length} nicht ausgewählt: ${notSelected
+          .slice(0, 8)
+          .map((g) => `${g.units.join("/") || "–"} ${g.names[0]}`)
+          .join(", ")}${notSelected.length > 8 ? " …" : ""}`,
+      );
+    if (missingEmailGroups.length > 0)
+      lines.push(
+        `• ${missingEmailGroups.length} ohne E-Mail-Adresse: ${missingEmailGroups
+          .slice(0, 8)
+          .map((g) => `${g.units.join("/") || "–"} ${g.names[0]}`)
+          .join(", ")}${missingEmailGroups.length > 8 ? " …" : ""}`,
+      );
+    if (!confirm(lines.join("\n"))) return;
+
     setBusy("send");
     try {
       await persist("draft");
