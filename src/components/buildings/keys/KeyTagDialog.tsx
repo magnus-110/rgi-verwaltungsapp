@@ -305,6 +305,12 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
             <Label>Notiz</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           </div>
+
+          {tag && (
+            <div className="border-t pt-3">
+              <KeyItemsSection tagId={tag.id} />
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>Abbrechen</Button>
