@@ -152,6 +152,17 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
       }
       return map;
     });
+    // Entwurf mit gespeicherten Anhängen, aber leerer Auswahl: Empfänger wieder anhaken.
+    setSelected((prev) => {
+      if (prev.size > 0) return prev;
+      const next = new Set<string>();
+      for (const o of overrides as any[]) {
+        if (!o.assignment_id) continue;
+        next.add(`${o.assignment_id}|${(o.email || "").toLowerCase()}`);
+      }
+      return next.size > 0 ? next : prev;
+    });
+
     setTextOverrides((prev) => {
       if (Object.keys(prev).length > 0) return prev;
       const map: Record<string, { subject: string | null; body: string | null }> = {};
@@ -169,43 +180,51 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
 
   /** Empfänger-Karten: je E-Mail-Adresse zusammengefasst (oder je Einheit). */
   const groups = useMemo<RecipientGroup[]>(() => {
-    if (!noDuplicates) {
-      return recipients.map((r) => ({
-        key: r.key,
-        keys: [r.key],
-        name: r.name,
-        email: r.email,
-        role: r.role,
-        units: r.unitNumber ? [r.unitNumber] : [],
-      }));
-    }
+    const toGroup = (r: BulkRecipient): RecipientGroup => ({
+      key: r.key,
+      keys: [r.key],
+      name: r.name,
+      names: [r.name],
+      email: r.email,
+      hasEmail: r.hasEmail,
+      role: r.role,
+      units: r.unitNumber ? [r.unitNumber] : [],
+    });
+
+    if (!noDuplicates) return recipients.map(toGroup);
+
     const map = new Map<string, RecipientGroup>();
+    const out: RecipientGroup[] = [];
     for (const r of recipients) {
+      // Zuordnungen ohne E-Mail nie zusammenfassen — sie sollen einzeln sichtbar bleiben.
+      if (!r.hasEmail) {
+        out.push(toGroup(r));
+        continue;
+      }
       const id = r.email.toLowerCase();
       const g = map.get(id);
       if (!g) {
-        map.set(id, {
-          key: r.key,
-          keys: [r.key],
-          name: r.name,
-          email: r.email,
-          role: r.role,
-          units: r.unitNumber ? [r.unitNumber] : [],
-        });
+        const ng = toGroup(r);
+        map.set(id, ng);
+        out.push(ng);
       } else {
         g.keys.push(r.key);
+        if (!g.names.includes(r.name)) g.names.push(r.name);
         if (r.unitNumber && !g.units.includes(r.unitNumber)) g.units.push(r.unitNumber);
       }
     }
-    return Array.from(map.values());
+    return out;
   }, [recipients, noDuplicates]);
+
+  const selectableGroups = useMemo(() => groups.filter((g) => g.hasEmail), [groups]);
+  const missingEmailGroups = useMemo(() => groups.filter((g) => !g.hasEmail), [groups]);
 
   const filteredGroups = useMemo(() => {
     if (!search.trim()) return groups;
     const s = search.toLowerCase();
     return groups.filter(
       (g) =>
-        g.name.toLowerCase().includes(s) ||
+        g.names.some((n) => n.toLowerCase().includes(s)) ||
         g.email.toLowerCase().includes(s) ||
         g.units.some((u) => u.toLowerCase().includes(s)),
     );
@@ -218,7 +237,7 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
   };
 
   const isSelected = (g: RecipientGroup) => g.keys.some((k) => selected.has(k));
-  const selectedGroups = useMemo(() => groups.filter(isSelected), [groups, selected]);
+  const selectedGroups = useMemo(() => selectableGroups.filter(isSelected), [selectableGroups, selected]);
 
   const toggleGroup = (g: RecipientGroup) =>
     setSelected((prev) => {
@@ -229,12 +248,14 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
       return next;
     });
 
-  const selectAll = () => setSelected(new Set(filteredGroups.map((g) => g.key)));
+  const selectAll = () =>
+    setSelected(new Set(filteredGroups.filter((g) => g.hasEmail).map((g) => g.key)));
   const selectNone = () => setSelected(new Set());
   const selectOnePerUnit = () => {
     const seen = new Set<string>();
     const next = new Set<string>();
     for (const g of filteredGroups) {
+      if (!g.hasEmail) continue;
       const u = g.units[0] || g.email;
       if (seen.has(u)) continue;
       seen.add(u);
@@ -242,6 +263,7 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     }
     setSelected(next);
   };
+
 
   const insertPlaceholder = (v: string) => {
     const el = bodyRef.current;
@@ -285,11 +307,14 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     setBusy("upload");
     let matched = 0;
     let unmatched = 0;
+    const noEmailUnits = new Set<string>();
     try {
       for (const f of Array.from(files)) {
         const prefix = f.name.match(/^\s*(\d+)\s*[_\-. ]/)?.[1];
         const unit = prefix ? String(Number(prefix)) : null;
-        const targets: BulkRecipient[] = unit ? recipients.filter((r) => r.unitKey === unit) : [];
+        const inUnit: BulkRecipient[] = unit ? recipients.filter((r) => r.unitKey === unit) : [];
+        inUnit.filter((r) => !r.hasEmail).forEach((r) => noEmailUnits.add(r.unitNumber || "?"));
+        const targets = inUnit.filter((r) => r.hasEmail);
         if (targets.length === 0) {
           unmatched++;
           continue;
@@ -300,13 +325,25 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
           for (const t of targets) next[t.key] = [...(next[t.key] || []), path];
           return next;
         });
+        // Empfänger mit persönlichem Anhang immer auch auswählen
+        setSelected((prev) => {
+          const next = new Set(prev);
+          for (const t of targets) {
+            const g = groups.find((x) => x.keys.includes(t.key));
+            if (g && !g.keys.some((k) => next.has(k))) next.add(g.key);
+          }
+          return next;
+        });
         matched++;
       }
+      const hints: string[] = [];
+      if (unmatched > 0) hints.push(`${unmatched} ohne passende Einheitennummer (z. B. "0001_...") übersprungen.`);
+      if (noEmailUnits.size > 0)
+        hints.push(`Einheit(en) ${Array.from(noEmailUnits).join(", ")} haben keine E-Mail-Adresse.`);
       toast({
         title: `${matched} Datei(en) zugeordnet`,
-        description:
-          unmatched > 0 ? `${unmatched} ohne passende Einheitennummer (z. B. "0001_...") übersprungen.` : undefined,
-        variant: unmatched > 0 ? "destructive" : "default",
+        description: hints.join(" ") || undefined,
+        variant: hints.length > 0 ? "destructive" : "default",
       });
     } catch (e: any) {
       toast({ title: "Upload fehlgeschlagen", description: e?.message, variant: "destructive" });
@@ -314,6 +351,7 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
       setBusy(null);
     }
   };
+
 
   const addPersonalToKey = async (key: string, files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -396,8 +434,29 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     qc.invalidateQueries({ queryKey: ["bulk-campaigns"] });
   };
 
+  // Autosave: Auswahl + persönliche Anhänge dürfen nicht nur im Browser-Zustand hängen.
+  const persistRef = useRef(persist);
+  persistRef.current = persist;
+  const [autoSaving, setAutoSaving] = useState(false);
+  useEffect(() => {
+    if (!loaded || busy) return;
+    const t = setTimeout(async () => {
+      try {
+        setAutoSaving(true);
+        await persistRef.current();
+      } catch (e: any) {
+        console.warn("[bulk] Autosave fehlgeschlagen:", e?.message || e);
+      } finally {
+        setAutoSaving(false);
+      }
+    }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, selected, personal, textOverrides, generalPaths, noDuplicates]);
+
   const handleSave = async () => {
     setBusy("save");
+
     try {
       await persist("draft");
       toast({ title: "Entwurf gespeichert" });
@@ -431,8 +490,25 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     }
 
     const withoutAttachment = selectedGroups.filter((g) => pathsForGroup(g).length === 0).length;
-    const hint = withoutAttachment > 0 ? `\n${withoutAttachment} davon ohne persönlichen Anhang.` : "";
-    if (!confirm(`Rundmail jetzt an ${selected.size} Empfänger senden?${hint}`)) return;
+    const notSelected = selectableGroups.filter((g) => !isSelected(g));
+    const lines = [`Rundmail jetzt an ${selectedGroups.length} Empfänger senden?`, ""];
+    if (withoutAttachment > 0) lines.push(`• ${withoutAttachment} ohne persönlichen Anhang`);
+    if (notSelected.length > 0)
+      lines.push(
+        `• ${notSelected.length} nicht ausgewählt: ${notSelected
+          .slice(0, 8)
+          .map((g) => `${g.units.join("/") || "–"} ${g.names[0]}`)
+          .join(", ")}${notSelected.length > 8 ? " …" : ""}`,
+      );
+    if (missingEmailGroups.length > 0)
+      lines.push(
+        `• ${missingEmailGroups.length} ohne E-Mail-Adresse: ${missingEmailGroups
+          .slice(0, 8)
+          .map((g) => `${g.units.join("/") || "–"} ${g.names[0]}`)
+          .join(", ")}${missingEmailGroups.length > 8 ? " …" : ""}`,
+      );
+    if (!confirm(lines.join("\n"))) return;
+
     setBusy("send");
     try {
       await persist("draft");
@@ -691,7 +767,10 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
               <Users className="h-3.5 w-3.5" />
               {recipientsLoading
                 ? "Lade Empfänger..."
-                : `${selectedGroups.length} von ${groups.length} ausgewählt · ${personalCount} mit persönlichem Anhang`}
+                : `${selectedGroups.length} von ${selectableGroups.length} ausgewählt · ${personalCount} mit persönlichem Anhang${
+                    missingEmailGroups.length > 0 ? ` · ${missingEmailGroups.length} ohne E-Mail` : ""
+                  }${autoSaving ? " · speichert…" : ""}`}
+
             </p>
           </div>
 

@@ -12,10 +12,14 @@ export type RecipientGroup = {
   /** alle Schlüssel derselben E-Mail-Adresse (bei Zusammenfassung > 1) */
   keys: string[];
   name: string;
+  /** alle Namen, die sich diese Adresse teilen */
+  names: string[];
   email: string;
+  hasEmail: boolean;
   role: string | null;
   units: string[];
 };
+
 
 const fileLabel = (path: string) => (path.split("/").pop() || path).replace(/^\d+_/, "");
 
@@ -44,7 +48,30 @@ export const BulkRecipientCard = ({
   onPreview,
   onEdit,
 }: Props) => {
-  const { isOver, dropProps } = useFileDrop(onAddFiles, busy);
+  const { isOver, dropProps } = useFileDrop(onAddFiles, busy || !group.hasEmail);
+
+  if (!group.hasEmail) {
+    return (
+      <Card className="rounded-xl border border-dashed border-destructive/40 bg-destructive/[0.04] p-3 shadow-none">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 h-4 w-4 rounded border border-muted-foreground/40 bg-muted" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-sm font-medium truncate">{group.name}</span>
+              {group.units.map((u) => (
+                <Badge key={u} variant="outline" className="text-[10px] font-normal">
+                  {u}
+                </Badge>
+              ))}
+            </div>
+            <div className="text-xs text-destructive">
+              Keine E-Mail-Adresse hinterlegt — bitte im Adressbuch ergänzen.
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card
@@ -66,7 +93,7 @@ export const BulkRecipientCard = ({
         <Checkbox checked={selected} onCheckedChange={onToggle} className="mt-0.5" />
         <button type="button" className="min-w-0 flex-1 text-left" onClick={onToggle}>
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-sm font-medium truncate">{group.name}</span>
+            <span className="text-sm font-medium truncate">{group.names.join(" / ")}</span>
             {group.units.map((u) => (
               <Badge key={u} variant="outline" className="text-[10px] font-normal">
                 {u}
@@ -94,6 +121,7 @@ export const BulkRecipientCard = ({
           </Button>
         </div>
       </div>
+
 
       <div className="mt-2 pl-7 flex flex-wrap items-center gap-1.5">
         {paths.length === 0 ? (
