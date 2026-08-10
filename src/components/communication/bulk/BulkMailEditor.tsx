@@ -296,11 +296,14 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     setBusy("upload");
     let matched = 0;
     let unmatched = 0;
+    const noEmailUnits = new Set<string>();
     try {
       for (const f of Array.from(files)) {
         const prefix = f.name.match(/^\s*(\d+)\s*[_\-. ]/)?.[1];
         const unit = prefix ? String(Number(prefix)) : null;
-        const targets: BulkRecipient[] = unit ? recipients.filter((r) => r.unitKey === unit) : [];
+        const inUnit: BulkRecipient[] = unit ? recipients.filter((r) => r.unitKey === unit) : [];
+        inUnit.filter((r) => !r.hasEmail).forEach((r) => noEmailUnits.add(r.unitNumber || "?"));
+        const targets = inUnit.filter((r) => r.hasEmail);
         if (targets.length === 0) {
           unmatched++;
           continue;
@@ -311,13 +314,25 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
           for (const t of targets) next[t.key] = [...(next[t.key] || []), path];
           return next;
         });
+        // Empfänger mit persönlichem Anhang immer auch auswählen
+        setSelected((prev) => {
+          const next = new Set(prev);
+          for (const t of targets) {
+            const g = groups.find((x) => x.keys.includes(t.key));
+            if (g && !g.keys.some((k) => next.has(k))) next.add(g.key);
+          }
+          return next;
+        });
         matched++;
       }
+      const hints: string[] = [];
+      if (unmatched > 0) hints.push(`${unmatched} ohne passende Einheitennummer (z. B. "0001_...") übersprungen.`);
+      if (noEmailUnits.size > 0)
+        hints.push(`Einheit(en) ${Array.from(noEmailUnits).join(", ")} haben keine E-Mail-Adresse.`);
       toast({
         title: `${matched} Datei(en) zugeordnet`,
-        description:
-          unmatched > 0 ? `${unmatched} ohne passende Einheitennummer (z. B. "0001_...") übersprungen.` : undefined,
-        variant: unmatched > 0 ? "destructive" : "default",
+        description: hints.join(" ") || undefined,
+        variant: hints.length > 0 ? "destructive" : "default",
       });
     } catch (e: any) {
       toast({ title: "Upload fehlgeschlagen", description: e?.message, variant: "destructive" });
@@ -325,6 +340,7 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
       setBusy(null);
     }
   };
+
 
   const addPersonalToKey = async (key: string, files: FileList | null) => {
     if (!files || files.length === 0) return;
