@@ -1,0 +1,1 @@
+ALTER TABLE public.key_property_settings DROP COLUMN IF EXISTS has_key_card;
