@@ -185,7 +185,7 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{tag ? "Anhänger bearbeiten" : "Neuer Anhänger"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div>
