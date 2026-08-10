@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { extractEmails } from "@/lib/extractEmails";
 
 export type BulkRecipient = {
   /** `${assignment_id}|${email_lowercase}` — Schlüssel für Auswahl + Anhänge */
@@ -11,15 +12,11 @@ export type BulkRecipient = {
   unitKey: string | null;
   role: string | null;
   name: string;
+  /** leer, wenn keine verwertbare Adresse hinterlegt ist */
   email: string;
-  source: "kontakt" | "person";
+  hasEmail: boolean;
+  source: "kontakt" | "person" | "keine";
 };
-
-const splitEmails = (raw: string | null | undefined): string[] =>
-  (raw || "")
-    .split(/[,;\s]+/)
-    .map((e) => e.trim())
-    .filter((e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
 
 export const normalizeUnit = (u: string | null | undefined): string | null => {
   if (!u) return null;
@@ -64,14 +61,14 @@ export const useBulkRecipients = (buildingId: string | null, excludeRoles: strin
       (ce || [])
         .sort((a: any, b: any) => Number(!!b.is_primary) - Number(!!a.is_primary))
         .forEach((r: any) =>
-          splitEmails(r.email).forEach((e) =>
+          extractEmails(r.email).forEach((e) =>
             push(r.contact_id, { email: e, label: null, source: "kontakt", primary: !!r.is_primary }),
           ),
         );
       (cp || [])
         .sort((a: any, b: any) => Number(!!b.is_primary) - Number(!!a.is_primary))
         .forEach((p: any) =>
-          splitEmails(p.email).forEach((e) =>
+          extractEmails(p.email).forEach((e) =>
             push(p.contact_id, {
               email: e,
               label: [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || null,
@@ -85,7 +82,25 @@ export const useBulkRecipients = (buildingId: string | null, excludeRoles: strin
       for (const a of rows as any[]) {
         const c = a.contacts;
         const baseName = c?.company_name || `${c?.first_name || ""} ${c?.last_name || ""}`.trim() || "(ohne Name)";
-        for (const cand of byContact.get(a.contact_id) || []) {
+        const cands = byContact.get(a.contact_id) || [];
+        if (cands.length === 0) {
+          // Zuordnung ohne verwertbare E-Mail: trotzdem als (nicht wählbare)
+          // Karte ausgeben, damit niemand unsichtbar aus der Liste fällt.
+          out.push({
+            key: `${a.id}|`,
+            assignmentId: a.id,
+            contactId: a.contact_id,
+            unitNumber: a.unit_number || null,
+            unitKey: normalizeUnit(a.unit_number),
+            role: a.role_in_building || null,
+            name: baseName,
+            email: "",
+            hasEmail: false,
+            source: "keine",
+          });
+          continue;
+        }
+        for (const cand of cands) {
           out.push({
             key: `${a.id}|${cand.email.toLowerCase()}`,
             assignmentId: a.id,
@@ -95,10 +110,25 @@ export const useBulkRecipients = (buildingId: string | null, excludeRoles: strin
             role: a.role_in_building || null,
             name: cand.label && cand.label !== baseName ? `${baseName} (${cand.label})` : baseName,
             email: cand.email,
+            hasEmail: true,
             source: cand.source,
           });
         }
       }
+
+      // Diagnose: jede aktive Zuordnung muss mindestens eine Karte erzeugen.
+      const covered = new Set(out.map((r) => r.assignmentId));
+      const missing = (rows as any[]).filter((a) => !covered.has(a.id));
+      if (missing.length > 0) {
+        console.warn(
+          "[bulk-recipients] Zuordnungen ohne Empfänger-Karte:",
+          missing.map((a) => ({ id: a.id, unit: a.unit_number, contact: a.contact_id })),
+        );
+      }
+      console.debug(
+        `[bulk-recipients] building=${buildingId} zuordnungen=${rows.length} karten=${out.length} ohne_email=${out.filter((r) => !r.hasEmail).length}`,
+      );
+
       return out.sort((x, y) => {
         const xu = x.unitNumber || "zzz";
         const yu = y.unitNumber || "zzz";
