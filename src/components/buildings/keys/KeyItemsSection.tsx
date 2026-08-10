@@ -29,7 +29,7 @@ export const KeyItemsSection = ({ tagId }: Props) => {
   const { data: subjectTypes = [] } = useQuery<KeySubjectType[]>({
     queryKey: ["key-subject-types"],
     queryFn: async () =>
-      (await supabase.from("key_subject_types").select("*").eq("is_active", true).order("sort_order")).data ?? [],
+      (await supabase.from("key_subject_types").select("*").eq("is_active", true).order("name")).data ?? [],
   });
   const { data: manufacturers = [] } = useQuery<KeyManufacturer[]>({
     queryKey: ["key-manufacturers"],
