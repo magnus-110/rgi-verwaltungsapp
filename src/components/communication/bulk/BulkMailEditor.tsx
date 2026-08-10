@@ -767,7 +767,10 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
               <Users className="h-3.5 w-3.5" />
               {recipientsLoading
                 ? "Lade Empfänger..."
-                : `${selectedGroups.length} von ${groups.length} ausgewählt · ${personalCount} mit persönlichem Anhang`}
+                : `${selectedGroups.length} von ${selectableGroups.length} ausgewählt · ${personalCount} mit persönlichem Anhang${
+                    missingEmailGroups.length > 0 ? ` · ${missingEmailGroups.length} ohne E-Mail` : ""
+                  }${autoSaving ? " · speichert…" : ""}`}
+
             </p>
           </div>
 
