@@ -12,10 +12,14 @@ export type RecipientGroup = {
   /** alle Schlüssel derselben E-Mail-Adresse (bei Zusammenfassung > 1) */
   keys: string[];
   name: string;
+  /** alle Namen, die sich diese Adresse teilen */
+  names: string[];
   email: string;
+  hasEmail: boolean;
   role: string | null;
   units: string[];
 };
+
 
 const fileLabel = (path: string) => (path.split("/").pop() || path).replace(/^\d+_/, "");
 
