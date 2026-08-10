@@ -423,7 +423,27 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     qc.invalidateQueries({ queryKey: ["bulk-campaigns"] });
   };
 
-  const handleSave = async () => {
+  // Autosave: Auswahl + persönliche Anhänge dürfen nicht nur im Browser-Zustand hängen.
+  const persistRef = useRef(persist);
+  persistRef.current = persist;
+  const [autoSaving, setAutoSaving] = useState(false);
+  useEffect(() => {
+    if (!loaded || busy) return;
+    const t = setTimeout(async () => {
+      try {
+        setAutoSaving(true);
+        await persistRef.current();
+      } catch (e: any) {
+        console.warn("[bulk] Autosave fehlgeschlagen:", e?.message || e);
+      } finally {
+        setAutoSaving(false);
+      }
+    }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, selected, personal, textOverrides, generalPaths, noDuplicates]);
+
+
     setBusy("save");
     try {
       await persist("draft");
