@@ -213,6 +213,7 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
       </header>
       
       <main className="pt-16">
+        <BackendStatusBanner />
         {children}
       </main>
      

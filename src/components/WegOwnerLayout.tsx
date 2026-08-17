@@ -302,6 +302,7 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       </header>
       
       <main className="pt-16">
+        <BackendStatusBanner />
         {children}
       </main>
      

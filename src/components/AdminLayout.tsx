@@ -72,6 +72,9 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
           />
           <main className="flex-1 flex flex-col overflow-hidden min-w-0">
             <header className="h-16 border-b bg-background flex items-center px-4 shrink-0 hidden lg:flex">
+          <main className="flex-1 flex flex-col overflow-hidden min-w-0">
+            <BackendStatusBanner />
+            <header className="h-16 border-b bg-background flex items-center px-4 shrink-0 hidden lg:flex">
               <SidebarTrigger className="mr-4" />
               <h1 className="heading-primary text-xl font-semibold truncate">
                 {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
@@ -86,6 +89,9 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
                 <ErrorBoundary fallbackTitle="Diese Seite konnte nicht geladen werden">
                   <RequireMfa>{children}</RequireMfa>
                 </ErrorBoundary>
+              </div>
+            </div>
+          </main>
               </div>
             </div>
           </main>
