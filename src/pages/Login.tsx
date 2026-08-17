@@ -126,9 +126,11 @@ export const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md mb-4">
+        <BackendStatusBanner />
+      </div>
       <div className="w-full max-w-md">
-        {/* RGI Logo */}
         <div className="text-center mb-8">
           <img 
             src="/lovable-uploads/8cc4ac02-ecfc-41ef-945a-738115d31106.png" 
