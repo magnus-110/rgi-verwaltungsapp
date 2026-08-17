@@ -43,10 +43,12 @@ export const Login = () => {
     try {
       const { error } = await signIn(identifier, password);
       if (error) {
-        // signIn already shows a toast; avoid duplicate noise
+        // signIn zeigt bereits einen Toast; hier nur Health-Check auslösen
+        reportError(error);
       }
     } catch (error) {
-      toast.error("Ein Fehler ist aufgetreten");
+      reportError(error);
+      toast.error(getAuthErrorMessage(error));
     } finally {
       setLoading(false);
     }
