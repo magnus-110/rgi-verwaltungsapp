@@ -101,16 +101,18 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
 
 export const AdminLayout = ({ children }: AdminLayoutProps) => {
   return (
-    <UploadProvider>
-      <DmsJobsProvider>
-        <ManagementModeProvider>
-          <BrokerModeProvider>
-            <AdminLayoutContent>{children}</AdminLayoutContent>
-            <UploadProgressWidget />
-            <DmsJobsTray />
-          </BrokerModeProvider>
-        </ManagementModeProvider>
-      </DmsJobsProvider>
-    </UploadProvider>
+    <BackendHealthProvider>
+      <UploadProvider>
+        <DmsJobsProvider>
+          <ManagementModeProvider>
+            <BrokerModeProvider>
+              <AdminLayoutContent>{children}</AdminLayoutContent>
+              <UploadProgressWidget />
+              <DmsJobsTray />
+            </BrokerModeProvider>
+          </ManagementModeProvider>
+        </DmsJobsProvider>
+      </UploadProvider>
+    </BackendHealthProvider>
   );
 };

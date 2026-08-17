@@ -211,9 +211,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       });
 
       if (error) {
+        const { getAuthErrorMessage } = await import("@/lib/authErrorMessage");
         toast({
           title: "Anmeldung fehlgeschlagen",
-          description: error.message,
+          description: getAuthErrorMessage(error),
           variant: "destructive",
         });
         return { error };
