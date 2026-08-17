@@ -59,11 +59,13 @@ export const Login = () => {
       const { error } = await auth.signInWithPasskey();
       if (error) {
         if (error.name === "NotAllowedError" || error.code === "user_cancelled") return;
-        toast.error(error.message ?? "Passkey-Anmeldung fehlgeschlagen.");
+        reportError(error);
+        toast.error(getAuthErrorMessage(error));
       }
     } catch (e: any) {
       if (e?.name === "NotAllowedError") return;
-      toast.error(e?.message ?? "Passkey-Anmeldung fehlgeschlagen.");
+      reportError(e);
+      toast.error(getAuthErrorMessage(e));
     } finally {
       setPasskeyLoading(false);
     }
