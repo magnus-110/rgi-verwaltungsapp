@@ -9,6 +9,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Eye, EyeOff, Fingerprint } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { getAuthErrorMessage } from "@/lib/authErrorMessage";
+import { useBackendHealth } from "@/hooks/useBackendHealth";
+import { BackendStatusBanner } from "@/components/system/BackendStatusBanner";
 
 export const Login = () => {
   const [identifier, setIdentifier] = useState("");
@@ -22,6 +25,7 @@ export const Login = () => {
   const passkeySupported =
     typeof window !== "undefined" && !!(window as any).PublicKeyCredential;
   const { signIn, user, profile } = useAuth();
+  const { reportError } = useBackendHealth();
 
   // Passkey-Anmeldung wird ausschließlich durch Klick auf den Passkey-Button
   // ausgelöst – kein automatischer Conditional-UI-Prompt beim Seitenaufruf.
@@ -39,10 +43,12 @@ export const Login = () => {
     try {
       const { error } = await signIn(identifier, password);
       if (error) {
-        // signIn already shows a toast; avoid duplicate noise
+        // signIn zeigt bereits einen Toast; hier nur Health-Check auslösen
+        reportError(error);
       }
     } catch (error) {
-      toast.error("Ein Fehler ist aufgetreten");
+      reportError(error);
+      toast.error(getAuthErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -59,11 +65,13 @@ export const Login = () => {
       const { error } = await auth.signInWithPasskey();
       if (error) {
         if (error.name === "NotAllowedError" || error.code === "user_cancelled") return;
-        toast.error(error.message ?? "Passkey-Anmeldung fehlgeschlagen.");
+        reportError(error);
+        toast.error(getAuthErrorMessage(error));
       }
     } catch (e: any) {
       if (e?.name === "NotAllowedError") return;
-      toast.error(e?.message ?? "Passkey-Anmeldung fehlgeschlagen.");
+      reportError(e);
+      toast.error(getAuthErrorMessage(e));
     } finally {
       setPasskeyLoading(false);
     }
@@ -118,9 +126,11 @@ export const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md mb-4">
+        <BackendStatusBanner />
+      </div>
       <div className="w-full max-w-md">
-        {/* RGI Logo */}
         <div className="text-center mb-8">
           <img 
             src="/lovable-uploads/8cc4ac02-ecfc-41ef-945a-738115d31106.png" 

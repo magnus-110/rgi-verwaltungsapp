@@ -12,6 +12,8 @@ import { DmsJobsTray } from "./finance/DmsJobsTray";
 import { PasskeyPromptDialog } from "./PasskeyPromptDialog";
 import { RequireMfa } from "./RequireMfa";
 import { BrokerModeProvider } from "@/hooks/useBrokerMode";
+import { BackendHealthProvider } from "@/hooks/useBackendHealth";
+import { BackendStatusBanner } from "@/components/system/BackendStatusBanner";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -69,6 +71,7 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
             onModeChange={setManagementMode} 
           />
           <main className="flex-1 flex flex-col overflow-hidden min-w-0">
+            <BackendStatusBanner />
             <header className="h-16 border-b bg-background flex items-center px-4 shrink-0 hidden lg:flex">
               <SidebarTrigger className="mr-4" />
               <h1 className="heading-primary text-xl font-semibold truncate">
@@ -98,16 +101,18 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
 
 export const AdminLayout = ({ children }: AdminLayoutProps) => {
   return (
-    <UploadProvider>
-      <DmsJobsProvider>
-        <ManagementModeProvider>
-          <BrokerModeProvider>
-            <AdminLayoutContent>{children}</AdminLayoutContent>
-            <UploadProgressWidget />
-            <DmsJobsTray />
-          </BrokerModeProvider>
-        </ManagementModeProvider>
-      </DmsJobsProvider>
-    </UploadProvider>
+    <BackendHealthProvider>
+      <UploadProvider>
+        <DmsJobsProvider>
+          <ManagementModeProvider>
+            <BrokerModeProvider>
+              <AdminLayoutContent>{children}</AdminLayoutContent>
+              <UploadProgressWidget />
+              <DmsJobsTray />
+            </BrokerModeProvider>
+          </ManagementModeProvider>
+        </DmsJobsProvider>
+      </UploadProvider>
+    </BackendHealthProvider>
   );
 };

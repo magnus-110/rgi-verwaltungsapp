@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { VotingPopup } from "@/components/meetings/VotingPopup";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 import { useHasVisibleSurveys } from "@/hooks/useSurvey";
+import { BackendStatusBanner } from "@/components/system/BackendStatusBanner";
 import { OnboardingFAB } from "@/components/onboarding/OnboardingFAB";
 import { GuidedTourProvider } from "@/components/weg-owner/onboarding/GuidedTourProvider";
 import { HelpButton } from "@/components/weg-owner/onboarding/HelpButton";
@@ -301,6 +302,7 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       </header>
       
       <main className="pt-16">
+        <BackendStatusBanner />
         {children}
       </main>
      
