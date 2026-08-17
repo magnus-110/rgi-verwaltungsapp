@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
  import { PasskeyPromptDialog } from "@/components/PasskeyPromptDialog";
  import { supabase } from "@/integrations/supabase/client";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
+import { BackendStatusBanner } from "@/components/system/BackendStatusBanner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { 
