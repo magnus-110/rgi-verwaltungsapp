@@ -9,6 +9,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Eye, EyeOff, Fingerprint } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { getAuthErrorMessage } from "@/lib/authErrorMessage";
+import { useBackendHealth } from "@/hooks/useBackendHealth";
+import { BackendStatusBanner } from "@/components/system/BackendStatusBanner";
 
 export const Login = () => {
   const [identifier, setIdentifier] = useState("");
@@ -22,6 +25,7 @@ export const Login = () => {
   const passkeySupported =
     typeof window !== "undefined" && !!(window as any).PublicKeyCredential;
   const { signIn, user, profile } = useAuth();
+  const { reportError } = useBackendHealth();
 
   // Passkey-Anmeldung wird ausschließlich durch Klick auf den Passkey-Button
   // ausgelöst – kein automatischer Conditional-UI-Prompt beim Seitenaufruf.
