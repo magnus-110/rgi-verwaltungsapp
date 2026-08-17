@@ -11,10 +11,11 @@ Wenn das Backend ausfällt, soll die App das erkennen, verständlich erklären u
 
 ## Umsetzung
 
-### 1. Health-Check
+### 1. Health-Check (sparsam, ereignisgesteuert)
 
-- Kleiner Dienst, der in regelmäßigem Abstand (alle 30 s, nur wenn der Browser-Tab aktiv ist) prüft, ob das Backend antwortet. Bei erkanntem Ausfall wird schneller nachgeprüft (alle 10 s), um die Rückkehr sofort zu bemerken.
-- Zusätzlich wird jeder Auth-/Datenfehler, der auf einen Serverausfall hindeutet, als Auslöser gewertet — dann startet die Prüfung sofort.
+- Kein Dauer-Polling im Normalbetrieb. Geprüft wird nur, wenn ein Auth-/Datenfehler auftritt, der auf einen Serverausfall hindeutet (500/503, "Database error", "Failed to fetch").
+- Ist der Ausfall bestätigt, wird nur noch alle 60 s nachgeprüft (und nur bei aktivem Browser-Tab), bis die Verbindung zurück ist. Zusätzlich manuell über "Erneut versuchen".
+
 
 ### 2. Statusbanner
 
