@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar, MapPin, Users, Plus, Building2, FileText, Upload, Trash2, ClipboardList, Clock, CheckCircle2, XCircle, Pause, Pencil, ExternalLink, Shield, Lock, UserX, Copy, Link2, ChevronRight, ChevronDown, Vote } from "lucide-react";
-import { OwnerLiveDashboard } from "@/components/meetings/OwnerLiveDashboard";
+
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format as formatDate } from "date-fns";
 import { de } from "date-fns/locale";
@@ -277,11 +277,6 @@ export const WegOwnerMeetings = () => {
         () => {
           queryClient.invalidateQueries({ queryKey: ["weg-owner-agenda", selectedMeetingId] });
           queryClient.invalidateQueries({ queryKey: ["weg-owner-meetings"] });
-        }
-      )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'etv_votes' },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["weg-owner-agenda", selectedMeetingId] });
         }
       )
       .subscribe();
@@ -943,10 +938,6 @@ export const WegOwnerMeetings = () => {
                 <Badge variant="secondary">{statusLabels[selectedMeeting.status] || selectedMeeting.status}</Badge>
               </div>
 
-              {/* Live Dashboard for in_progress meetings */}
-              {selectedMeeting.status === "in_progress" && (
-                <OwnerLiveDashboard meetingId={selectedMeeting.id} agendaItems={agendaItems} />
-              )}
 
               <h3 className="font-semibold text-foreground">Tagesordnung</h3>
               {agendaItems.length === 0 ? (
@@ -1313,12 +1304,6 @@ export const WegOwnerMeetings = () => {
                         </Badge>
                       )}
                     </div>
-                  )}
-
-                  {item.status === "voting" && (
-                    <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                      Abstimmung läuft gerade
-                    </Badge>
                   )}
                 </div>
               </>

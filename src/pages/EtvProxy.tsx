@@ -1,15 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Shield, Calendar, MapPin, Building2, CheckCircle2, AlertTriangle,
-  Vote, XCircle, MinusCircle, ChevronDown, Users, BarChart3, UserCheck,
+  Vote, Users, BarChart3, UserCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -20,11 +19,8 @@ import { useToast } from "@/hooks/use-toast";
 
 export const EtvProxy = () => {
   const { token } = useParams<{ token: string }>();
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [selectedVote, setSelectedVote] = useState<string | null>(null);
-  const [descOpen, setDescOpen] = useState(false);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [redeeming, setRedeeming] = useState(false);
 
@@ -81,17 +77,6 @@ export const EtvProxy = () => {
     retry: false,
   });
 
-  // Track previous voting item id to reset local state on changes
-  const prevVotingIdRef = useRef<string | null>(null);
-  const activeVotingId: string | null = state?.active_voting_item?.id ?? null;
-  useEffect(() => {
-    if (prevVotingIdRef.current !== activeVotingId) {
-      setSelectedVote(null);
-      setDescOpen(false);
-      prevVotingIdRef.current = activeVotingId;
-    }
-  }, [activeVotingId]);
-
   // iOS-safe polling: own setInterval + wake-up hooks (visibilitychange / pageshow / focus / online)
   const [channelEpoch, setChannelEpoch] = useState(0);
   const meetingStatus: string | undefined = state?.meeting?.status;
@@ -141,31 +126,11 @@ export const EtvProxy = () => {
       .channel(`proxy-db-${meetingId}-${channelEpoch}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "etv_agenda_items", filter: `meeting_id=eq.${meetingId}` }, () => { refetch(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "etv_meetings", filter: `id=eq.${meetingId}` }, () => { refetch(); })
-      .on("postgres_changes", { event: "*", schema: "public", table: "etv_votes" }, () => { refetch(); })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [meetingId, refetch, channelEpoch]);
 
 
-  const castVoteMutation = useMutation({
-    mutationFn: async (vote: string) => {
-      if (!activeVotingId || !token) throw new Error("Missing data");
-      const res = await supabase.functions.invoke("cast-proxy-vote", {
-        body: { token, agenda_item_id: activeVotingId, vote },
-      });
-      if (res.error) throw res.error;
-      if (res.data?.error) throw new Error(res.data.error);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["proxy-state", token] });
-    },
-  });
-
-  const getContactName = (contact: any) => {
-    if (!contact) return "Unbekannt";
-    if (contact.company_name) return contact.company_name;
-    return [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Unbenannt";
-  };
 
   if (isLoading) {
     return (
@@ -208,12 +173,7 @@ export const EtvProxy = () => {
   const isActive = meeting.status === "in_progress";
   const tokenUsed = state.proxy_token_used === true;
   const assignmentInfo = state.assignment;
-  const isSecretBallot = meeting.is_secret_ballot ?? true;
 
-  const votingItem = state.active_voting_item;
-  const hasVoted = !!state.has_voted;
-  const counts = state.live_counts || { yes: 0, no: 0, abstain: 0, yes_mea: 0, no_mea: 0, abstain_mea: 0 };
-  const singleVotes: any[] = state.single_votes || [];
   const agendaItems: any[] = state.agenda || [];
   const attendeeStats = state.attendees || { present: 0, total: 0 };
 
@@ -235,194 +195,9 @@ export const EtvProxy = () => {
   }
 
 
-  const voteButtons = [
-    { value: "yes", label: "Ja", icon: CheckCircle2, className: "bg-green-600 hover:bg-green-700 text-white" },
-    { value: "no", label: "Nein", icon: XCircle, className: "bg-red-600 hover:bg-red-700 text-white" },
-    { value: "abstain", label: "Enthaltung", icon: MinusCircle, className: "" },
-  ];
-
   const activeAgendaItem = agendaItems.find((i: any) => i.status === "voting");
   const votedAgendaItems = agendaItems.filter((i: any) => i.status === "voted" || i.status === "closed");
 
-  const fmtMea = (n: number) => Number(n || 0).toLocaleString("de-DE", { maximumFractionDigits: 6 });
-
-  // Fullscreen voting overlay
-  if (votingItem) {
-    return (
-      <div className="min-h-screen bg-background overflow-y-auto">
-        <div className="min-h-screen flex items-start sm:items-center justify-center p-4 py-6">
-          <div className="w-full max-w-lg space-y-4 sm:space-y-5">
-            <div className="flex items-center gap-2 justify-center">
-              <Vote className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
-              <h1 className="text-xl sm:text-2xl font-bold">Abstimmung</h1>
-            </div>
-            {assignmentInfo?.unit_number && (
-              <div className="text-center">
-                <Badge variant="outline" className="text-sm px-3 py-1 border-primary/30">
-                  Einheit {assignmentInfo.unit_number}
-                </Badge>
-              </div>
-            )}
-
-
-
-          {hasVoted ? (
-            <div className="space-y-5">
-              <div className="py-6 text-center space-y-3">
-                <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto" />
-                <p className="text-xl font-semibold">Stimme abgegeben!</p>
-              </div>
-
-              {/* Live Results */}
-              <Card>
-                <CardContent className="p-4 space-y-3">
-                  <h3 className="font-semibold text-sm text-center">Live-Ergebnis</h3>
-                  <div className="flex justify-center gap-6 text-base">
-                    <span className="text-green-600 font-bold">Ja: {counts.yes}</span>
-                    <span className="text-red-600 font-bold">Nein: {counts.no}</span>
-                    <span className="text-muted-foreground font-semibold">Enth.: {counts.abstain}</span>
-                  </div>
-                  {votingItem.voting_principle === "mea" && (
-                    <div className="flex justify-center gap-6 text-xs text-muted-foreground">
-                      <span>MEA Ja: {fmtMea(counts.yes_mea)}</span>
-                      <span>MEA Nein: {fmtMea(counts.no_mea)}</span>
-                      <span>MEA Enth.: {fmtMea(counts.abstain_mea)}</span>
-                    </div>
-                  )}
-
-                  {!isSecretBallot && singleVotes.length > 0 && (
-                    <div className="space-y-1 pt-2 border-t border-border">
-                      <p className="text-xs text-muted-foreground text-center">Einzelstimmen</p>
-                      {singleVotes.map((v: any, i: number) => (
-                        <div key={i} className="flex items-center justify-between text-sm py-0.5">
-                          <div className="flex items-center gap-1.5">
-                            <span>{getContactName(v)}</span>
-                            {v?.unit_number && (
-                              <Badge variant="outline" className="text-[9px] px-1 py-0">E{v.unit_number}</Badge>
-                            )}
-                          </div>
-                          <span className={
-                            v.vote === "yes" ? "text-green-600 font-semibold" :
-                            v.vote === "no" ? "text-red-600 font-semibold" :
-                            "text-muted-foreground"
-                          }>
-                            {v.vote === "yes" ? "Ja" : v.vote === "no" ? "Nein" : "Enthaltung"}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <p className="text-xs text-center text-muted-foreground">
-                Ergebnisse werden live aktualisiert. Die Ansicht wechselt automatisch, wenn die Abstimmung beendet wird.
-              </p>
-              <div className="flex items-center justify-between gap-2 px-1">
-                <p className="text-[11px] text-muted-foreground">
-                  {lastUpdate ? `Aktualisiert ${lastUpdate.toLocaleTimeString("de-DE")}` : "—"}
-                </p>
-                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => refetch()}>
-                  Jetzt aktualisieren
-                </Button>
-              </div>
-
-            </div>
-          ) : (
-            <>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Tagesordnungspunkt</p>
-                <p className="font-semibold text-lg">{votingItem.title}</p>
-              </div>
-
-              {votingItem.description && (
-                <Collapsible open={descOpen} onOpenChange={setDescOpen}>
-                  <CollapsibleTrigger className="flex items-center gap-1 text-sm text-primary hover:underline">
-                    <ChevronDown className={`h-4 w-4 transition-transform ${descOpen ? "rotate-180" : ""}`} />
-                    Beschreibung anzeigen
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <p className="text-sm bg-muted rounded-lg p-3 mt-2">{votingItem.description}</p>
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
-
-              {votingItem.resolution_text && (
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Beschlusstext</p>
-                  <p className="text-sm bg-muted rounded-lg p-3">{votingItem.resolution_text}</p>
-                </div>
-              )}
-
-              <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                Abstimmung läuft
-              </Badge>
-
-              {/* Live results during voting */}
-              {!isSecretBallot ? (
-                <Card>
-                  <CardContent className="p-3 space-y-2">
-                    <h3 className="font-semibold text-sm text-center">Live-Ergebnis</h3>
-                    <div className="flex justify-center gap-4 sm:gap-6 text-sm">
-                      <span className="text-green-600 font-bold">Ja: {counts.yes}</span>
-                      <span className="text-red-600 font-bold">Nein: {counts.no}</span>
-                      <span className="text-muted-foreground font-semibold">Enth.: {counts.abstain}</span>
-                    </div>
-                    {votingItem.voting_principle === "mea" && (
-                      <div className="flex justify-center gap-4 sm:gap-6 text-[11px] text-muted-foreground">
-                        <span>MEA Ja: {fmtMea(counts.yes_mea)}</span>
-                        <span>MEA Nein: {fmtMea(counts.no_mea)}</span>
-                        <span>MEA Enth.: {fmtMea(counts.abstain_mea)}</span>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="bg-muted rounded-lg p-3 text-center text-xs text-muted-foreground">
-                  Geheime Abstimmung — bisher {counts.yes + counts.no + counts.abstain} Stimme{(counts.yes + counts.no + counts.abstain) === 1 ? "" : "n"} eingegangen
-                </div>
-              )}
-
-              <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                {voteButtons.map(({ value, label, icon: Icon, className }) => (
-                  <Button
-                    key={value}
-                    size="lg"
-                    variant={value === "abstain" ? "outline" : "default"}
-                    className={`h-20 sm:h-24 flex-col gap-1 sm:gap-1.5 text-xs sm:text-base transition-all ${
-                      value !== "abstain" ? className : ""
-                    } ${
-                      selectedVote === value
-                        ? "ring-4 ring-primary ring-offset-2 scale-105"
-                        : "opacity-80 hover:opacity-100"
-                    }`}
-                    onClick={() => setSelectedVote(value)}
-                    disabled={castVoteMutation.isPending}
-                  >
-                    <Icon className="h-6 w-6 sm:h-8 sm:w-8" />
-                    <span>{label}</span>
-                  </Button>
-                ))}
-              </div>
-
-              {selectedVote && (
-                <Button
-                  size="lg"
-                  className="w-full h-12 sm:h-14 text-base sm:text-lg font-semibold"
-                  onClick={() => castVoteMutation.mutate(selectedVote)}
-                  disabled={castVoteMutation.isPending}
-                >
-                  {castVoteMutation.isPending ? "Wird gespeichert…" : "Stimme bestätigen"}
-                </Button>
-              )}
-
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
 
 
   return (
@@ -539,7 +314,7 @@ export const EtvProxy = () => {
               <div className="space-y-2">
                 <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto" />
                 <p className="text-sm text-muted-foreground">
-                  Die Versammlung läuft. Ihre Vollmacht ist aktiv — sobald eine Abstimmung beginnt, erscheint hier automatisch die Abstimmungsansicht.
+                  Die Versammlung läuft. Ihre Vollmacht ist aktiv — die Abstimmungen werden vor Ort durch die Verwaltung erfasst.
                 </p>
               </div>
             ) : isCompleted ? (
