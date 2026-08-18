@@ -276,12 +276,12 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   };
 
   // Track which (itemId:assignmentId) pairs have been handled in this mount.
-  // NOT cleared on activeVoteItem change so that manual resets/overrides
+  // NOT cleared on TOP change so that manual resets/overrides
   // do not get overwritten by re-runs of the auto-cast effect.
   const autoCastAttempted = useRef<Set<string>>(new Set());
 
   // Auto-cast pre-vote instructions (Papier-Weisungen / Admin-Vorauswahl).
-  // Depends ONLY on activeVoteItem and attendees — NOT currentVotes — to avoid
+  // Depends ONLY on the opened TOP and attendees — NOT currentVotes — to avoid
   // a feedback loop where realtime invalidations re-trigger the effect.
   useEffect(() => {
     if (!selectedTopId) return;
@@ -559,8 +559,6 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       } as AgendaItem;
     },
     onSuccess: (resultItem) => {
-      // Keep activeVoteItem set so the vote grid stays visible with the final state.
-      // It will be cleared when the user opens another TOP or closes the dialog.
       setResultDialog(resultItem);
       queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
       queryClient.invalidateQueries({ queryKey: ["etv-votes-live", resultItem.id] });
