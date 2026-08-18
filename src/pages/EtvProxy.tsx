@@ -1,15 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Shield, Calendar, MapPin, Building2, CheckCircle2, AlertTriangle,
-  Vote, XCircle, MinusCircle, ChevronDown, Users, BarChart3, UserCheck,
+  Vote, Users, BarChart3, UserCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -23,8 +22,6 @@ export const EtvProxy = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [selectedVote, setSelectedVote] = useState<string | null>(null);
-  const [descOpen, setDescOpen] = useState(false);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [redeeming, setRedeeming] = useState(false);
 
@@ -81,17 +78,6 @@ export const EtvProxy = () => {
     retry: false,
   });
 
-  // Track previous voting item id to reset local state on changes
-  const prevVotingIdRef = useRef<string | null>(null);
-  const activeVotingId: string | null = state?.active_voting_item?.id ?? null;
-  useEffect(() => {
-    if (prevVotingIdRef.current !== activeVotingId) {
-      setSelectedVote(null);
-      setDescOpen(false);
-      prevVotingIdRef.current = activeVotingId;
-    }
-  }, [activeVotingId]);
-
   // iOS-safe polling: own setInterval + wake-up hooks (visibilitychange / pageshow / focus / online)
   const [channelEpoch, setChannelEpoch] = useState(0);
   const meetingStatus: string | undefined = state?.meeting?.status;
@@ -141,7 +127,6 @@ export const EtvProxy = () => {
       .channel(`proxy-db-${meetingId}-${channelEpoch}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "etv_agenda_items", filter: `meeting_id=eq.${meetingId}` }, () => { refetch(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "etv_meetings", filter: `id=eq.${meetingId}` }, () => { refetch(); })
-      .on("postgres_changes", { event: "*", schema: "public", table: "etv_votes" }, () => { refetch(); })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [meetingId, refetch, channelEpoch]);
@@ -195,12 +180,7 @@ export const EtvProxy = () => {
   const isActive = meeting.status === "in_progress";
   const tokenUsed = state.proxy_token_used === true;
   const assignmentInfo = state.assignment;
-  const isSecretBallot = meeting.is_secret_ballot ?? true;
 
-  const votingItem = state.active_voting_item;
-  const hasVoted = !!state.has_voted;
-  const counts = state.live_counts || { yes: 0, no: 0, abstain: 0, yes_mea: 0, no_mea: 0, abstain_mea: 0 };
-  const singleVotes: any[] = state.single_votes || [];
   const agendaItems: any[] = state.agenda || [];
   const attendeeStats = state.attendees || { present: 0, total: 0 };
 
@@ -225,7 +205,6 @@ export const EtvProxy = () => {
   const activeAgendaItem = agendaItems.find((i: any) => i.status === "voting");
   const votedAgendaItems = agendaItems.filter((i: any) => i.status === "voted" || i.status === "closed");
 
-  const fmtMea = (n: number) => Number(n || 0).toLocaleString("de-DE", { maximumFractionDigits: 6 });
 
 
   return (
@@ -342,7 +321,7 @@ export const EtvProxy = () => {
               <div className="space-y-2">
                 <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto" />
                 <p className="text-sm text-muted-foreground">
-                  Die Versammlung läuft. Ihre Vollmacht ist aktiv — sobald eine Abstimmung beginnt, erscheint hier automatisch die Abstimmungsansicht.
+                  Die Versammlung läuft. Ihre Vollmacht ist aktiv — die Abstimmungen werden vor Ort durch die Verwaltung erfasst.
                 </p>
               </div>
             ) : isCompleted ? (
