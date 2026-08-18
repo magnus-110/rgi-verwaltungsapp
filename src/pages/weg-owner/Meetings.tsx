@@ -1305,12 +1305,6 @@ export const WegOwnerMeetings = () => {
                       )}
                     </div>
                   )}
-
-                  {item.status === "voting" && (
-                    <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                      Abstimmung läuft gerade
-                    </Badge>
-                  )}
                 </div>
               </>
             );
