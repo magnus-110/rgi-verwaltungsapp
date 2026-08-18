@@ -3,7 +3,7 @@ import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
  import { FirstLoginWelcomeDialog } from "@/components/weg-owner/FirstLoginWelcomeDialog";
 import { supabase } from "@/integrations/supabase/client";
-import { VotingPopup } from "@/components/meetings/VotingPopup";
+
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 import { useHasVisibleSurveys } from "@/hooks/useSurvey";
 import { BackendStatusBanner } from "@/components/system/BackendStatusBanner";
