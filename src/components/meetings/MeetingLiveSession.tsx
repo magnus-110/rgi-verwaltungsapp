@@ -64,7 +64,6 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   const queryClient = useQueryClient();
 
   const [selectedTopId, setSelectedTopId] = useState<string | null>(null);
-  const [activeVoteItem, setActiveVoteItem] = useState<string | null>(null);
   const [resultDialog, setResultDialog] = useState<AgendaItem | null>(null);
   const [editResolution, setEditResolution] = useState<Record<string, string>>({});
   const [editNotes, setEditNotes] = useState<Record<string, string>>({});
@@ -174,26 +173,9 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     },
   });
 
-  // Load votes for active item (realtime keeps it fresh — no polling needed)
+  // Load votes for the currently opened TOP (realtime keeps it fresh)
   const { data: currentVotes = [] } = useQuery({
-    queryKey: ["etv-votes-live", activeVoteItem],
-    queryFn: async () => {
-      if (!activeVoteItem) return [];
-      const { data, error } = await supabase
-        .from("etv_votes")
-        .select("*")
-        .eq("agenda_item_id", activeVoteItem);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!activeVoteItem,
-    staleTime: 30_000,
-  });
-
-  // Separate vote load for the selected TOP so closed/confirmed results still show
-  // the actual MEA sums after activeVoteItem is no longer available.
-  const { data: selectedItemVotes = [] } = useQuery({
-    queryKey: ["etv-votes-detail", selectedTopId],
+    queryKey: ["etv-votes-live", selectedTopId],
     queryFn: async () => {
       if (!selectedTopId) return [];
       const { data, error } = await supabase
@@ -204,7 +186,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       return data || [];
     },
     enabled: !!selectedTopId,
-    staleTime: 10_000,
+    staleTime: 30_000,
   });
 
   // Realtime votes — Payload direkt in den Cache mergen statt vollständig neu zu laden.
@@ -213,11 +195,11 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   // kurzer Zeit, obwohl gerade angeklickt). Durch das gezielte Mergen bleibt eine gerade
   // gesetzte Stimme erhalten, auch wenn parallel weitere Stimmen eingetragen werden.
   useEffect(() => {
-    if (!activeVoteItem) return;
-    const key = ["etv-votes-live", activeVoteItem];
+    if (!selectedTopId) return;
+    const key = ["etv-votes-live", selectedTopId];
     const channel = supabase
-      .channel(`votes-${activeVoteItem}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "etv_votes", filter: `agenda_item_id=eq.${activeVoteItem}` }, (payload: any) => {
+      .channel(`votes-${selectedTopId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "etv_votes", filter: `agenda_item_id=eq.${selectedTopId}` }, (payload: any) => {
         queryClient.setQueryData<any[]>(key, (prev = []) => {
           const rows = [...prev];
           if (payload.eventType === "DELETE") {
@@ -235,15 +217,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [activeVoteItem, queryClient]);
-
-  // Sync activeVoteItem with any agenda item already in 'voting' status
-  // (e.g. when reopening the session or after a refresh)
-  useEffect(() => {
-    if (activeVoteItem) return;
-    const ongoing = agendaItems.find((it: any) => it.status === "voting");
-    if (ongoing) setActiveVoteItem(ongoing.id);
-  }, [agendaItems, activeVoteItem]);
+  }, [selectedTopId, queryClient]);
 
   // Init edit state from loaded data
   useEffect(() => {
@@ -310,40 +284,42 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   // Depends ONLY on activeVoteItem and attendees — NOT currentVotes — to avoid
   // a feedback loop where realtime invalidations re-trigger the effect.
   useEffect(() => {
-    if (!activeVoteItem) return;
+    if (!selectedTopId) return;
+    const openItem = agendaItems.find((it: any) => it.id === selectedTopId);
+    if (openItem?.status !== "voting") return;
     const eligible = attendees.filter(
       (a: any) =>
         (a.attendance_type === "present" || (a.attendance_type === "proxy" && a.checked_in_at)) &&
         a.pre_vote_instructions &&
-        (a.pre_vote_instructions as any)[activeVoteItem]
+        (a.pre_vote_instructions as any)[selectedTopId]
     );
     if (eligible.length === 0) return;
     // Read current votes from the query cache (avoids re-running on currentVotes change)
-    const cached = (queryClient.getQueryData<any[]>(["etv-votes-live", activeVoteItem]) || []);
+    const cached = (queryClient.getQueryData<any[]>(["etv-votes-live", selectedTopId]) || []);
     const existingByAssignment = new Set(cached.map((v: any) => v.assignment_id));
     const todo = eligible.filter((a: any) => {
       if (existingByAssignment.has(a.assignment_id)) return false;
-      const key = `${activeVoteItem}:${a.assignment_id}`;
+      const key = `${selectedTopId}:${a.assignment_id}`;
       if (autoCastAttempted.current.has(key)) return false;
       return true;
     });
     if (todo.length === 0) return;
     (async () => {
       for (const att of todo) {
-        const vote = (att.pre_vote_instructions as any)[activeVoteItem];
+        const vote = (att.pre_vote_instructions as any)[selectedTopId];
         if (!["yes", "no", "abstain"].includes(vote)) continue;
-        const key = `${activeVoteItem}:${att.assignment_id}`;
+        const key = `${selectedTopId}:${att.assignment_id}`;
         autoCastAttempted.current.add(key);
         // Double-check via DB to avoid re-casting after a manual reset
         const { data: existing } = await supabase
           .from("etv_votes")
           .select("assignment_id, is_manual_override")
-          .eq("agenda_item_id", activeVoteItem)
+          .eq("agenda_item_id", selectedTopId)
           .eq("assignment_id", att.assignment_id)
           .maybeSingle();
         if (existing) continue;
         await supabase.from("etv_votes").upsert({
-          agenda_item_id: activeVoteItem,
+          agenda_item_id: selectedTopId,
           assignment_id: att.assignment_id,
           vote,
           mea_weight: getMeaWeight(att),
@@ -352,9 +328,9 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
           voted_at: new Date().toISOString(),
         } as any, { onConflict: "agenda_item_id,assignment_id" });
       }
-      queryClient.invalidateQueries({ queryKey: ["etv-votes-live", activeVoteItem] });
+      queryClient.invalidateQueries({ queryKey: ["etv-votes-live", selectedTopId] });
     })();
-  }, [activeVoteItem, attendees, queryClient]);
+  }, [selectedTopId, agendaItems, attendees, queryClient]);
 
   // Compute result for a given voting principle
   // Einfache Mehrheit: Ja > Nein (Enthaltungen zählen NICHT als Nein-Stimmen)
@@ -462,7 +438,6 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       return cast;
     },
     onSuccess: (cast, itemId) => {
-      setActiveVoteItem(itemId);
       queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
       queryClient.invalidateQueries({ queryKey: ["etv-votes-live", itemId] });
       // Broadcast to proxy/owner sessions so they instantly refetch
@@ -589,7 +564,6 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       setResultDialog(resultItem);
       queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
       queryClient.invalidateQueries({ queryKey: ["etv-votes-live", resultItem.id] });
-      queryClient.invalidateQueries({ queryKey: ["etv-votes-detail", resultItem.id] });
     },
   });
 
@@ -786,7 +760,6 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       if (error) throw error;
     },
     onSuccess: (_, itemId) => {
-      setActiveVoteItem(itemId);
       queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
       queryClient.invalidateQueries({ queryKey: ["etv-votes-live", itemId] });
       try {
@@ -890,10 +863,10 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
 
   // ============ TOP DETAIL VIEW ============
   if (selectedItem) {
-    const isActive = activeVoteItem === selectedItem.id;
+    const isActive = selectedItem.status === "voting";
     const isVoted = selectedItem.status === "voted";
     const isClosed = selectedItem.status === "closed";
-    const votedCount = isActive ? currentVotes.length : 0;
+    const votedCount = currentVotes.length;
     const eligibleCount = presentOrRepresented.length;
 
     return (
@@ -973,7 +946,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                 </div>
                 <Switch
                   checked={selectedItem.requires_resolution !== false}
-                  disabled={!!activeVoteItem}
+                  disabled={isActive}
                   onCheckedChange={(v) => updateItemMutation.mutate({ itemId: selectedItem.id, patch: { requires_resolution: v } })}
                 />
               </div>
@@ -983,7 +956,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     <Label className="text-xs">Abstimmungsmethode</Label>
                     <Select
                       value={selectedItem.voting_principle}
-                      disabled={!!activeVoteItem}
+                      disabled={isActive}
                       onValueChange={(v) => updateItemMutation.mutate({ itemId: selectedItem.id, patch: { voting_principle: v } })}
                     >
                       <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
@@ -998,7 +971,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     <Label className="text-xs">DQ erforderlich</Label>
                     <Switch
                       checked={selectedItem.requires_double_qualified}
-                      disabled={!!activeVoteItem}
+                      disabled={isActive}
                       onCheckedChange={(v) => updateItemMutation.mutate({ itemId: selectedItem.id, patch: { requires_double_qualified: v } })}
                     />
                   </div>
@@ -1006,13 +979,13 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     <Label className="text-xs">DQ relevant (Ergebnis anzeigen)</Label>
                     <Switch
                       checked={selectedItem.double_qualified_relevant}
-                      disabled={!!activeVoteItem}
+                      disabled={isActive}
                       onCheckedChange={(v) => updateItemMutation.mutate({ itemId: selectedItem.id, patch: { double_qualified_relevant: v } })}
                     />
                   </div>
                 </>
               )}
-              {!!activeVoteItem && (
+              {isActive && (
                 <p className="text-[11px] text-amber-600 dark:text-amber-400">Während laufender Abstimmung gesperrt.</p>
               )}
             </div>
@@ -1048,7 +1021,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                   <BarChart3 className="h-4 w-4" /> Abstimmung
                 </p>
                 <div className="flex gap-2">
-                  {!isVoted && !isClosed && !isActive && !activeVoteItem && (
+                  {!isVoted && !isClosed && !isActive && (
                     <Button size="sm" onClick={() => startVotingMutation.mutate(selectedItem.id)} disabled={!quorumReached} className="gap-1">
                       <Play className="h-3 w-3" /> Abstimmung starten
                     </Button>
@@ -1145,7 +1118,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                 const isMea = selectedItem.voting_principle === "mea";
                 const fmt = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
                 // Berechnung aus den Stimmen des ausgewählten TOPs (auch nach Bestätigung/Refresh)
-                const resultVotes = selectedItemVotes.length > 0 ? selectedItemVotes : currentVotes;
+                const resultVotes = currentVotes;
                 const liveMeaYes = resultVotes.filter((v: any) => v.vote === "yes").reduce((s: number, v: any) => s + (Number(v.mea_weight) || 0), 0);
                 const liveMeaNo = resultVotes.filter((v: any) => v.vote === "no").reduce((s: number, v: any) => s + (Number(v.mea_weight) || 0), 0);
                 const liveMeaAbs = resultVotes.filter((v: any) => v.vote === "abstain").reduce((s: number, v: any) => s + (Number(v.mea_weight) || 0), 0);
