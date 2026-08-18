@@ -943,10 +943,6 @@ export const WegOwnerMeetings = () => {
                 <Badge variant="secondary">{statusLabels[selectedMeeting.status] || selectedMeeting.status}</Badge>
               </div>
 
-              {/* Live Dashboard for in_progress meetings */}
-              {selectedMeeting.status === "in_progress" && (
-                <OwnerLiveDashboard meetingId={selectedMeeting.id} agendaItems={agendaItems} />
-              )}
 
               <h3 className="font-semibold text-foreground">Tagesordnung</h3>
               {agendaItems.length === 0 ? (
