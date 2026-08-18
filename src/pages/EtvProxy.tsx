@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,6 @@ import { useToast } from "@/hooks/use-toast";
 
 export const EtvProxy = () => {
   const { token } = useParams<{ token: string }>();
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
@@ -132,12 +131,6 @@ export const EtvProxy = () => {
   }, [meetingId, refetch, channelEpoch]);
 
 
-
-  const getContactName = (contact: any) => {
-    if (!contact) return "Unbekannt";
-    if (contact.company_name) return contact.company_name;
-    return [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Unbenannt";
-  };
 
   if (isLoading) {
     return (
