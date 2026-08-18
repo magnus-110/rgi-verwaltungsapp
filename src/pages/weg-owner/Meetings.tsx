@@ -279,11 +279,6 @@ export const WegOwnerMeetings = () => {
           queryClient.invalidateQueries({ queryKey: ["weg-owner-meetings"] });
         }
       )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'etv_votes' },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["weg-owner-agenda", selectedMeetingId] });
-        }
-      )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [selectedMeetingId, queryClient]);
