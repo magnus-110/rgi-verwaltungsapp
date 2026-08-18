@@ -313,7 +313,7 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
           onClose={handleTermsAccepted}
         />
       )}
-      <VotingPopup />
+      
       {/* Onboarding-Wizard erst zeigen, wenn AGB akzeptiert wurden */}
       {termsAccepted === true && <OnboardingFAB />}
       {/* Geführte Hilfe-Tour, jederzeit über den Hilfe-Knopf */}
