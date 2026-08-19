@@ -13,6 +13,12 @@ const MAX_TEXT_PART_BYTES = 1024 * 1024;
 // Bewusst < 256 MB Edge-Worker-Limit gehalten (inkl. Base64-Overhead).
 const MAX_ATTACHMENT_PART_BYTES = 20 * 1024 * 1024;
 const MAX_ATTACHMENT_TOTAL_BYTES = 40 * 1024 * 1024;
+// Gift-Mail-Schutz: Nachrichten oberhalb dieser Gesamtgroesse werden ohne
+// Anhaenge gespeichert, damit ein einzelnes Monster-Mail das Konto nicht blockiert.
+const MAX_MESSAGE_TOTAL_BYTES = 25 * 1024 * 1024;
+// Zeitbudget pro Konto-Lauf: sauber abbrechen, bevor "CPU Time exceeded" hart killt.
+const ACCOUNT_TIME_BUDGET_MS = 40_000;
+
 
 interface EmailAccount {
   id: string;
@@ -328,9 +334,34 @@ async function fetchAccountEmails(
     // Strikt klein halten — edge-runtime crasht sonst still mit "Memory limit exceeded".
     const uidsToFetch = uids.slice(0, MAX_MESSAGES_PER_ACCOUNT_RUN);
     let maxUid = effectiveLastUid;
+    const accountDeadline = Date.now() + ACCOUNT_TIME_BUDGET_MS;
+    let timedOut = false;
+    let skippedOversized = 0;
+
+    // Fortschritt SOFORT persistieren: wird der Worker mitten im Lauf wegen
+    // CPU-/Memory-Limit gekillt, bleibt der Stand erhalten und der naechste Lauf
+    // macht dort weiter, statt ewig dieselbe Mail erneut zu versuchen.
+    const bumpUid = async (uid: number) => {
+      if (uid <= maxUid) return;
+      maxUid = uid;
+      try {
+        await supabase
+          .from("email_accounts")
+          .update({ last_uid: String(uid) })
+          .eq("id", account.id);
+      } catch (e: any) {
+        console.error(`last_uid update failed for ${account.email_address}:`, e?.message);
+      }
+    };
 
     for (const uid of uidsToFetch) {
+      if (Date.now() > accountDeadline) {
+        timedOut = true;
+        console.warn(`[${account.email_address}] Zeitbudget erreicht — Lauf wird sauber beendet (Stand UID ${maxUid}).`);
+        break;
+      }
       try {
+
         const msg = await client.fetchOne(`${uid}`, {
           uid: true,
           flags: true,
@@ -347,7 +378,7 @@ async function fetchAccountEmails(
           const emailDate = new Date(envelope.date);
           const cutoff = new Date(account.import_since);
           if (emailDate < cutoff) {
-            if (uid > maxUid) maxUid = uid;
+            await bumpUid(uid);
             console.log(`Skipping UID ${uid} (older than import_since): ${envelope.subject}`);
             continue;
           }
@@ -367,7 +398,7 @@ async function fetchAccountEmails(
           .maybeSingle();
 
         if (existing) {
-          if (uid > maxUid) maxUid = uid;
+          await bumpUid(uid);
           continue;
         }
 
@@ -380,8 +411,20 @@ async function fetchAccountEmails(
           ({ node }) => isRealAttachmentNode(node) && !isInlineAttachmentNode(node)
         ).length;
         const structureHasRealAttachment = structureRealAttachmentCount > 0;
+        // Gesamtgroesse der Anhangsteile schaetzen (Gift-Mail-Schutz)
+        const structureTotalBytes = structureAttachmentParts.reduce(
+          (sum, { node }: any) => sum + (Number(node?.size) || 0),
+          0,
+        );
+        const oversized = structureTotalBytes > MAX_MESSAGE_TOTAL_BYTES;
+        if (oversized) {
+          skippedOversized++;
+          console.warn(
+            `[${account.email_address}] UID ${uid}: Anhaenge zu gross (${(structureTotalBytes / 1024 / 1024).toFixed(1)} MB) — Mail wird ohne Anhaenge gespeichert.`,
+          );
+        }
         let attachments: ParsedAttachment[] = [];
-        if (structureAttachmentParts.length > 0) {
+        if (!oversized && structureAttachmentParts.length > 0) {
           try {
             attachments = await downloadAttachmentsFromStructure(client, uid, msg.bodyStructure, {
               maxPartBytes: MAX_ATTACHMENT_PART_BYTES,
@@ -391,6 +434,7 @@ async function fetchAccountEmails(
             console.error(`Attachment download failed for UID ${uid}:`, dlErr.message);
           }
         }
+
 
         const realAttachments = attachments.filter((a) => !a.isInline);
         const hasAttachments = structureHasRealAttachment || realAttachments.length > 0;
@@ -466,7 +510,7 @@ async function fetchAccountEmails(
           uidsToDelete.push(uid);
         }
 
-        if (uid > maxUid) maxUid = uid;
+        await bumpUid(uid);
         fetched++;
         console.log(`Fetched email UID ${uid}: ${envelope.subject} (${attachments.length} attachments)`);
         // Drop attachment buffers from memory before next iteration
@@ -474,11 +518,13 @@ async function fetchAccountEmails(
       } catch (msgErr: any) {
         console.error(`Error processing message UID ${uid}:`, msgErr.message);
         // Avoid one poison UID blocking the entire mailbox forever.
-        if (uid > maxUid) maxUid = uid;
+        await bumpUid(uid);
       }
     }
 
-    console.log(`Fetch loop complete: ${fetched} emails fetched, maxUid: ${maxUid}`);
+    console.log(
+      `Fetch loop complete: ${fetched} emails fetched, maxUid: ${maxUid}, backlog: ${Math.max(0, uids.length - uidsToFetch.length)}${timedOut ? " (Zeitbudget)" : ""}${skippedOversized ? `, ${skippedOversized} zu grosse Mails ohne Anhang` : ""}`,
+    );
 
     if (maxUid > 0 || (currentUidValidity && currentUidValidity !== account.uid_validity)) {
       const update: Record<string, unknown> = {};
@@ -489,14 +535,20 @@ async function fetchAccountEmails(
 
     // WICHTIG: last_sync_at *jetzt* persistieren — bevor logout()/close() im finally
     // ggf. den Worker mit OOM/Hang killt. Sonst bleibt last_sync_at endlos alt.
+    const syncNote = timedOut
+      ? "Zeitbudget erreicht — Rest wird beim naechsten Lauf geholt."
+      : skippedOversized > 0
+        ? `${skippedOversized} sehr grosse Nachricht(en) ohne Anhaenge gespeichert.`
+        : null;
     try {
       await supabase
         .from("email_accounts")
-        .update({ last_sync_at: new Date().toISOString(), last_sync_error: null })
+        .update({ last_sync_at: new Date().toISOString(), last_sync_error: syncNote })
         .eq("id", account.id);
     } catch (e: any) {
       console.error(`last_sync_at update failed for ${account.email_address}:`, e?.message);
     }
+
 
     if (account.delete_after_import && uidsToDelete.length > 0) {
       try {
