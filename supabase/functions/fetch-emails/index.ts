@@ -411,8 +411,20 @@ async function fetchAccountEmails(
           ({ node }) => isRealAttachmentNode(node) && !isInlineAttachmentNode(node)
         ).length;
         const structureHasRealAttachment = structureRealAttachmentCount > 0;
+        // Gesamtgroesse der Anhangsteile schaetzen (Gift-Mail-Schutz)
+        const structureTotalBytes = structureAttachmentParts.reduce(
+          (sum, { node }: any) => sum + (Number(node?.size) || 0),
+          0,
+        );
+        const oversized = structureTotalBytes > MAX_MESSAGE_TOTAL_BYTES;
+        if (oversized) {
+          skippedOversized++;
+          console.warn(
+            `[${account.email_address}] UID ${uid}: Anhaenge zu gross (${(structureTotalBytes / 1024 / 1024).toFixed(1)} MB) — Mail wird ohne Anhaenge gespeichert.`,
+          );
+        }
         let attachments: ParsedAttachment[] = [];
-        if (structureAttachmentParts.length > 0) {
+        if (!oversized && structureAttachmentParts.length > 0) {
           try {
             attachments = await downloadAttachmentsFromStructure(client, uid, msg.bodyStructure, {
               maxPartBytes: MAX_ATTACHMENT_PART_BYTES,
@@ -422,6 +434,7 @@ async function fetchAccountEmails(
             console.error(`Attachment download failed for UID ${uid}:`, dlErr.message);
           }
         }
+
 
         const realAttachments = attachments.filter((a) => !a.isInline);
         const hasAttachments = structureHasRealAttachment || realAttachments.length > 0;
