@@ -13,6 +13,12 @@ const MAX_TEXT_PART_BYTES = 1024 * 1024;
 // Bewusst < 256 MB Edge-Worker-Limit gehalten (inkl. Base64-Overhead).
 const MAX_ATTACHMENT_PART_BYTES = 20 * 1024 * 1024;
 const MAX_ATTACHMENT_TOTAL_BYTES = 40 * 1024 * 1024;
+// Gift-Mail-Schutz: Nachrichten oberhalb dieser Gesamtgroesse werden ohne
+// Anhaenge gespeichert, damit ein einzelnes Monster-Mail das Konto nicht blockiert.
+const MAX_MESSAGE_TOTAL_BYTES = 25 * 1024 * 1024;
+// Zeitbudget pro Konto-Lauf: sauber abbrechen, bevor "CPU Time exceeded" hart killt.
+const ACCOUNT_TIME_BUDGET_MS = 40_000;
+
 
 interface EmailAccount {
   id: string;
