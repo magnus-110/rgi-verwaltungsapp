@@ -353,7 +353,7 @@ async function fetchAccountEmails(
           const emailDate = new Date(envelope.date);
           const cutoff = new Date(account.import_since);
           if (emailDate < cutoff) {
-            if (uid > maxUid) maxUid = uid;
+            await bumpUid(uid);
             console.log(`Skipping UID ${uid} (older than import_since): ${envelope.subject}`);
             continue;
           }
@@ -373,7 +373,7 @@ async function fetchAccountEmails(
           .maybeSingle();
 
         if (existing) {
-          if (uid > maxUid) maxUid = uid;
+          await bumpUid(uid);
           continue;
         }
 
@@ -472,7 +472,7 @@ async function fetchAccountEmails(
           uidsToDelete.push(uid);
         }
 
-        if (uid > maxUid) maxUid = uid;
+        await bumpUid(uid);
         fetched++;
         console.log(`Fetched email UID ${uid}: ${envelope.subject} (${attachments.length} attachments)`);
         // Drop attachment buffers from memory before next iteration
@@ -480,7 +480,7 @@ async function fetchAccountEmails(
       } catch (msgErr: any) {
         console.error(`Error processing message UID ${uid}:`, msgErr.message);
         // Avoid one poison UID blocking the entire mailbox forever.
-        if (uid > maxUid) maxUid = uid;
+        await bumpUid(uid);
       }
     }
 
