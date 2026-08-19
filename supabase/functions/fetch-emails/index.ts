@@ -334,9 +334,34 @@ async function fetchAccountEmails(
     // Strikt klein halten — edge-runtime crasht sonst still mit "Memory limit exceeded".
     const uidsToFetch = uids.slice(0, MAX_MESSAGES_PER_ACCOUNT_RUN);
     let maxUid = effectiveLastUid;
+    const accountDeadline = Date.now() + ACCOUNT_TIME_BUDGET_MS;
+    let timedOut = false;
+    let skippedOversized = 0;
+
+    // Fortschritt SOFORT persistieren: wird der Worker mitten im Lauf wegen
+    // CPU-/Memory-Limit gekillt, bleibt der Stand erhalten und der naechste Lauf
+    // macht dort weiter, statt ewig dieselbe Mail erneut zu versuchen.
+    const bumpUid = async (uid: number) => {
+      if (uid <= maxUid) return;
+      maxUid = uid;
+      try {
+        await supabase
+          .from("email_accounts")
+          .update({ last_uid: String(uid) })
+          .eq("id", account.id);
+      } catch (e: any) {
+        console.error(`last_uid update failed for ${account.email_address}:`, e?.message);
+      }
+    };
 
     for (const uid of uidsToFetch) {
+      if (Date.now() > accountDeadline) {
+        timedOut = true;
+        console.warn(`[${account.email_address}] Zeitbudget erreicht — Lauf wird sauber beendet (Stand UID ${maxUid}).`);
+        break;
+      }
       try {
+
         const msg = await client.fetchOne(`${uid}`, {
           uid: true,
           flags: true,
