@@ -470,7 +470,7 @@ interface ManualNotesSectionProps {
   buildings: any[];
 }
 
-const ManualNotesSection = ({ buildingFilter, buildings }: ManualNotesSectionProps) => {
+const ManualNotesSection = ({ buildingFilter, buildings: buildingsFromTops }: ManualNotesSectionProps) => {
   const { profile } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -479,6 +479,23 @@ const ManualNotesSection = ({ buildingFilter, buildings }: ManualNotesSectionPro
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [buildingId, setBuildingId] = useState<string>("");
+
+  // Alle WEG-Liegenschaften auswählbar machen (nicht nur die mit vorhandenen Anträgen)
+  const { data: allBuildings = [] } = useQuery({
+    queryKey: ["weg-buildings-manual-notes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("id, name")
+        .eq("management_mode", "weg")
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const buildings = allBuildings.length ? allBuildings : buildingsFromTops;
+
 
   const { data: notes = [], isLoading } = useQuery({
     queryKey: ["etv-manual-notes", buildingFilter],
