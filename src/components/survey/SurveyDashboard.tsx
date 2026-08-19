@@ -1,9 +1,11 @@
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useSurveyResults, Einstufung, ItemResult } from "@/hooks/useSurvey";
+import { useSurveyResults, useSurveyVoteDetails, Einstufung, ItemResult, VoteDetail } from "@/hooks/useSurvey";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 
 /**
  * Verwaltungs-Dashboard: Ergebnisse einer Umfrage (Kopf + MEA), automatische
@@ -24,6 +26,7 @@ export default function SurveyDashboard({ surveyId, buildingId, agendaMap }: {
 }) {
   const qc = useQueryClient();
   const { data, isLoading } = useSurveyResults(surveyId, buildingId);
+  const { data: voteDetails = {} } = useSurveyVoteDetails(surveyId, buildingId);
 
   const setAgenda = useMutation({
     mutationFn: async ({ itemId, on }: { itemId: string; on: boolean }) => {
@@ -52,7 +55,7 @@ export default function SurveyDashboard({ surveyId, buildingId, agendaMap }: {
       )}
 
       {data.results.map((r) => (
-        <ResultRow key={r.item_id} r={r}
+        <ResultRow key={r.item_id} r={r} votes={voteDetails[r.item_id] || []}
           on={agendaMap[r.item_id] ?? EINSTUFUNG[r.einstufung].defaultOn}
           onToggle={(on) => setAgenda.mutate({ itemId: r.item_id, on })} />
       ))}
@@ -69,7 +72,44 @@ function Kpi({ value, label }: { value: string; label: string }) {
   );
 }
 
-function ResultRow({ r, on, onToggle }: { r: ItemResult; on: boolean; onToggle: (on: boolean) => void }) {
+const CHOICE_BADGE: Record<string, { label: string; cls: string }> = {
+  ja: { label: "Ja", cls: "bg-emerald-100 text-emerald-700" },
+  neutral: { label: "Neutral", cls: "bg-muted text-muted-foreground" },
+  nein: { label: "Nein", cls: "bg-red-100 text-red-700" },
+};
+
+function VoteList({ votes }: { votes: VoteDetail[] }) {
+  return (
+    <Collapsible>
+      <CollapsibleTrigger className="group flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+        <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+        Einzelstimmen anzeigen ({votes.length})
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-2 space-y-2 border-t pt-2">
+        {votes.map((v) => {
+          const badge = CHOICE_BADGE[v.choice ?? ""] ?? { label: "—", cls: "bg-muted text-muted-foreground" };
+          return (
+            <div key={v.contact_id} className="text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">{v.name}</span>
+                {v.unit_number && <span className="text-xs text-muted-foreground">Einheit {v.unit_number}</span>}
+                <span className="text-xs text-muted-foreground">MEA {v.mea.toLocaleString("de-DE")}</span>
+                <Badge className={badge.cls + " hover:" + badge.cls}>{badge.label}</Badge>
+                {v.urgent && <span className="text-xs font-medium text-amber-700">dringend</span>}
+              </div>
+              {v.followup_text && (
+                <div className="text-xs text-muted-foreground">Folgeantwort: „{v.followup_text}“</div>
+              )}
+              {v.comment && <div className="text-xs italic text-muted-foreground">„{v.comment}“</div>}
+            </div>
+          );
+        })}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function ResultRow({ r, on, onToggle, votes }: { r: ItemResult; on: boolean; onToggle: (on: boolean) => void; votes: VoteDetail[] }) {
   const part = r.mea_ja + r.mea_neutral + r.mea_nein || 1;
   const jaP = Math.round((r.mea_ja / part) * 100);
   const neuP = Math.round((r.mea_neutral / part) * 100);
@@ -95,6 +135,7 @@ function ResultRow({ r, on, onToggle }: { r: ItemResult; on: boolean; onToggle: 
           Auf Tagesordnung <Switch checked={on} onCheckedChange={onToggle} />
         </label>
       </div>
+      {votes.length > 0 && <VoteList votes={votes} />}
     </CardContent></Card>
   );
 }
