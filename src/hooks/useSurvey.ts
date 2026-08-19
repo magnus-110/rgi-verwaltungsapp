@@ -281,3 +281,90 @@ export function costTierSymbol(tier: string | null | undefined): string {
   if (parts.length > 1 && lo !== hi) return "€".repeat(lo) + " – " + "€".repeat(hi);
   return "€".repeat(hi);
 }
+
+// ---------------- Einzelstimmen (Verwaltung) ----------------
+
+export interface VoteDetail {
+  contact_id: string;
+  name: string;
+  unit_number: string | null;
+  mea: number;
+  choice: SurveyChoice | null;
+  followup_text: string | null;
+  urgent: boolean;
+  comment: string | null;
+}
+
+/** Einzelstimmen je Umfragepunkt (nur Verwaltung – RLS erlaubt Vollzugriff via is_rgi_staff()). */
+export function useSurveyVoteDetails(surveyId?: string, buildingId?: string) {
+  return useQuery({
+    queryKey: ["survey-vote-details", surveyId],
+    enabled: !!surveyId,
+    queryFn: async () => {
+      const { data: votes } = await (supabase as any)
+        .from("survey_votes")
+        .select("item_id, contact_id, choice, followup_choice, urgent, comment, mea_weight")
+        .eq("survey_id", surveyId);
+      const rows = (votes || []) as any[];
+      if (!rows.length) return {} as Record<string, VoteDetail[]>;
+
+      const contactIds = Array.from(new Set(rows.map((r) => r.contact_id).filter(Boolean)));
+      const { data: contacts } = await (supabase as any)
+        .from("contacts")
+        .select("id, first_name, last_name, company_name")
+        .in("id", contactIds);
+      const nameById = new Map<string, string>();
+      (contacts || []).forEach((c: any) => {
+        const n = [c.first_name, c.last_name].filter(Boolean).join(" ").trim() || c.company_name || "Unbekannt";
+        nameById.set(c.id, n);
+      });
+
+      const unitById = new Map<string, string>();
+      if (buildingId) {
+        const { data: assigns } = await (supabase as any)
+          .from("contact_building_assignments")
+          .select("contact_id, unit_number")
+          .eq("building_id", buildingId)
+          .in("contact_id", contactIds);
+        (assigns || []).forEach((a: any) => {
+          if (a.unit_number && !unitById.has(a.contact_id)) unitById.set(a.contact_id, a.unit_number);
+        });
+      }
+
+      const { data: items } = await (supabase as any)
+        .from("survey_items")
+        .select("id, followup_options")
+        .eq("survey_id", surveyId);
+      const optsById = new Map<string, string[]>();
+      (items || []).forEach((it: any) => optsById.set(it.id, it.followup_options || []));
+
+      const grouped: Record<string, VoteDetail[]> = {};
+      rows.forEach((r) => {
+        const opts = optsById.get(r.item_id) || [];
+        const fi = r.followup_choice;
+        const detail: VoteDetail = {
+          contact_id: r.contact_id,
+          name: nameById.get(r.contact_id) || "Unbekannt",
+          unit_number: unitById.get(r.contact_id) ?? null,
+          mea: Number(r.mea_weight ?? 0),
+          choice: r.choice,
+          followup_text: fi === null || fi === undefined ? null : opts[fi] ?? `Option ${fi + 1}`,
+          urgent: !!r.urgent,
+          comment: r.comment,
+        };
+        (grouped[r.item_id] ||= []).push(detail);
+      });
+
+      Object.values(grouped).forEach((list) =>
+        list.sort((a, b) => {
+          const ca = a.comment ? 0 : 1;
+          const cb = b.comment ? 0 : 1;
+          if (ca !== cb) return ca - cb;
+          return a.name.localeCompare(b.name, "de");
+        }),
+      );
+
+      return grouped;
+    },
+  });
+}
