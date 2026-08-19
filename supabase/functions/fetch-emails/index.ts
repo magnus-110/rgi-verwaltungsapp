@@ -522,7 +522,9 @@ async function fetchAccountEmails(
       }
     }
 
-    console.log(`Fetch loop complete: ${fetched} emails fetched, maxUid: ${maxUid}`);
+    console.log(
+      `Fetch loop complete: ${fetched} emails fetched, maxUid: ${maxUid}, backlog: ${Math.max(0, uids.length - uidsToFetch.length)}${timedOut ? " (Zeitbudget)" : ""}${skippedOversized ? `, ${skippedOversized} zu grosse Mails ohne Anhang` : ""}`,
+    );
 
     if (maxUid > 0 || (currentUidValidity && currentUidValidity !== account.uid_validity)) {
       const update: Record<string, unknown> = {};
@@ -533,14 +535,20 @@ async function fetchAccountEmails(
 
     // WICHTIG: last_sync_at *jetzt* persistieren — bevor logout()/close() im finally
     // ggf. den Worker mit OOM/Hang killt. Sonst bleibt last_sync_at endlos alt.
+    const syncNote = timedOut
+      ? "Zeitbudget erreicht — Rest wird beim naechsten Lauf geholt."
+      : skippedOversized > 0
+        ? `${skippedOversized} sehr grosse Nachricht(en) ohne Anhaenge gespeichert.`
+        : null;
     try {
       await supabase
         .from("email_accounts")
-        .update({ last_sync_at: new Date().toISOString(), last_sync_error: null })
+        .update({ last_sync_at: new Date().toISOString(), last_sync_error: syncNote })
         .eq("id", account.id);
     } catch (e: any) {
       console.error(`last_sync_at update failed for ${account.email_address}:`, e?.message);
     }
+
 
     if (account.delete_after_import && uidsToDelete.length > 0) {
       try {
