@@ -1,26 +1,41 @@
-# Postfach regina.goettinger: Abruf hängt an einer "Gift-Mail"
+# Wirtschaftsplan Birkenweg 6: Vorjahres-IST bei Allgemeinstrom und Heizung korrigieren
 
-## Was los ist (geprüft)
+## Was ich geprüft habe
 
-- Konto `regina.goettinger@rgi-immobilien.de` ist aktiv, letzter erfolgreicher Sync: **18.08.2026, 14:05 Uhr**; im Konto steht bereits die Warnung "Kein E-Mail-Abruf seit 1154 Minuten".
-- Gespeicherter Abruf-Stand (`last_uid`) steht fest auf **87559**, das Postfach bei Strato ist bei 87610. Es sind also ~50 Mails offen.
-- In den Logs wiederholt sich bei jedem Lauf exakt derselbe Ablauf: Postfach öffnen → "Found 50 UIDs to fetch" → **"CPU Time exceeded"** → Abbruch.
-- Ursache: Pro Lauf werden 5 Mails verarbeitet, aber der Abruf-Stand wird **erst nach der kompletten Schleife** gespeichert. Die erste offene Mail (UID 87560, vermutlich sehr groß / viele Anhänge) sprengt das CPU-Limit der Edge Function — dadurch wird gar nichts gespeichert und der nächste Lauf beginnt wieder bei derselben Mail. Endlosschleife: Das Postfach steht seit dem 18.08. still.
-- Genau dasselbe Muster erklärt den früheren Vorfall bei `magnus.goettinger@`.
+Ich habe die Buchungen 2025 der Liegenschaft Birkenweg 6 direkt in der Datenbank ausgewertet:
 
-## Was gebaut wird
+| Konto | Wert im Wirtschaftsplan | Tatsächlicher Saldo 2025 |
+|---|---|---|
+| 1050 Allgemeinstrom | 279,19 € | **111,68 €** |
+| 1400 Heizung / Warmwasser | 636,04 € | **5.148,99 €** |
 
-1. **Fortschritt sofort sichern** (Kernfix): `last_uid` wird nach **jeder einzelnen** verarbeiteten Mail in der Datenbank hochgezählt, nicht erst am Schleifenende. Damit kann ein Absturz nie mehr den kompletten Lauf zurücksetzen — der nächste Lauf macht dort weiter, wo es abgebrochen ist.
-2. **Zeitbudget pro Lauf**: Die Schleife bricht nach einem festen Zeitlimit (ca. 40 Sekunden) sauber ab, statt vom Laufzeit-Wächter hart gekillt zu werden.
-3. **Gift-Mail-Schutz**: Vor dem Download wird die Nachrichtengröße aus der Struktur geprüft. Ist eine Mail zu groß, wird sie mit Betreff/Absender und dem Hinweis "Anhänge unvollständig" gespeichert (Anhänge werden übersprungen) statt den Lauf zu blockieren. Die Mail ist damit sichtbar, nur ohne Anhang.
-4. **Nachlauf-Zähler**: Solange ein Konto Rückstand hat, holt die Funktion beim Aufruf mehrere kleine Blöcke hintereinander (innerhalb des Zeitbudgets), damit die ~50 aufgestauten Mails zügig nachlaufen.
-5. **Sichtbarkeit**: Bei Abbruch wegen Zeit/Größe wird eine verständliche Meldung in `last_sync_error` geschrieben (z. B. "Große Nachricht übersprungen"), statt einer reinen Hänge-Warnung.
+Die tatsächlichen Werte entsprechen genau dem, was du erwartet hast.
 
-## Technische Details
+## Ursache
 
-- Datei: `supabase/functions/fetch-emails/index.ts`
-  - `last_uid`-Update aus dem Block nach der Schleife (Zeile ~483) in die Schleife ziehen (leichtes `update` nur des UID-Feldes, nach erfolgreichem Insert/Skip).
-  - Deadline via `Date.now()` beim Start; Abbruch der `for`-Schleife bei Überschreitung, danach normaler Persist-Pfad inkl. `last_sync_at`.
-  - Größenprüfung über `msg.bodyStructure.size` bzw. Summe der Attachment-Parts gegen ein neues Limit (z. B. 25 MB) — bei Überschreitung `attachments_incomplete: true` setzen und `downloadAttachmentsFromStructure` überspringen.
-- Keine Schema-Änderung nötig (`attachments_incomplete`, `last_uid`, `last_sync_error` existieren bereits).
-- Nach dem Deploy: Sync für Reginas Konto manuell anstoßen und in den Function-Logs prüfen, dass `last_uid` über 87559 steigt.
+Zum 31.12.2025 gibt es fünf Umbuchungen auf Konto 1400 (Kategorie `heating_repost`):
+
+- 167,51 € Heizungsstrom (von 1050)
+- 3.075,90 € Gas (von 1470)
+- 745,83 € Wasser/Kanal (von 1473)
+- 389,54 € Gerätemiete Brunata (von 1431)
+- 134,17 € Heizungswartung (von 1440)
+
+Die Vorjahres-IST-Berechnung im Wirtschaftsplan-Editor blendet alle Buchungen mit der Kategorie `heating_repost` grundsätzlich aus. Dadurch passiert genau das, was du siehst:
+
+- Konto 1050 bleibt beim Bruttowert 279,19 €, weil der Abzug des Heizungsstroms (167,51 €) ignoriert wird.
+- Konto 1400 zeigt nur die direkt gebuchten 636,04 €, weil die gesamte Heizkosten-Umbuchung (4.512,95 €) ignoriert wird.
+
+## Fix
+
+In `src/components/finance/ManualEconomicPlanEditor.tsx` in der Funktion `sumForAccount` den pauschalen Ausschluss von `heating_repost` entfernen, sodass Umbuchungen wie jede andere Buchung auf beide beteiligten Konten wirken (Quellkonto entlastet, 1400 belastet).
+
+Ergebnis danach: Allgemeinstrom 111,68 €, Heizung/Warmwasser 5.148,99 €, und ebenso korrekt reduziert bei 1431, 1440, 1470, 1473.
+
+## Kontrolle
+
+Nach der Änderung prüfe ich per Datenbankabfrage gegen die UI, dass die Vorjahresspalte für Birkenweg 6 exakt die oben genannten Salden zeigt, und kontrolliere, dass die Summenzeile weiterhin stimmig ist (keine Doppelzählung, da die Umbuchung auf beiden Seiten wirkt).
+
+## Technischer Hinweis
+
+Betroffen ist nur die Vorjahres-IST-Spalte des Wirtschaftsplan-Editors. Die Abrechnungslogik (`BillingSettlement`, DOCX-Erzeugung) bleibt unverändert.
