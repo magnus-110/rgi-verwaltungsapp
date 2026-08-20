@@ -1,0 +1,47 @@
+--- a/rgi-verwaltungsapp-main/src/components/finance/ManualEconomicPlanEditor.tsx	2026-08-19 09:34:58.000000000 +0000
++++ b/rgi-verwaltungsapp-main/src/components/finance/ManualEconomicPlanEditor.tsx	2026-08-20 09:43:44.572574950 +0000
+@@ -22,6 +22,7 @@
+ import { useAuth } from "@/hooks/useAuth";
+ import { toast } from "sonner";
+ import { EconomicPlanLayout, PlanRow } from "./EconomicPlanLayout";
++import { sumForAccount as sumBookingsForAccount } from "./lib/bookingAggregation";
+ import { isReserveContributionAccount } from "@/lib/accountClassification";
+ import { cn } from "@/lib/utils";
+ import { Switch } from "@/components/ui/switch";
+@@ -219,14 +220,29 @@
+     [heatingByAssignment]
+   );
+ 
++  /**
++   * Vorjahres-IST eines Kontos — identische Aggregation wie in der
++   * Gesamtabrechnung (bank-zentrisch über account_id UND counter_account_id,
++   * siehe lib/bookingAggregation).
++   *
++   * WICHTIG: Heizkosten-Umbuchungen (booking_category = 'heating_repost')
++   * werden bewusst MITGEZÄHLT. Sie verschieben zum Jahresende Kosten von den
++   * Quellkonten (z. B. 1050 Allgemeinstrom, 1470 Gas, 1473 Wasser) auf 1400
++   * Heizung/Warmwasser und wirken über account_id/counter_account_id auf
++   * beiden Seiten. Wurden sie hier ausgeblendet, zeigte die Spalte
++   * "IST Vorjahr" den Stand VOR der Umbuchung und wich damit von der
++   * Gesamtabrechnung ab.
++   *
++   * Beispiel Birkenweg 6, WJ 2025 (Umbuchung Heizungsstrom 167,51 €):
++   *   Konto 1050  vorher 279,19 €    → korrekt 111,68 €
++   *   Konto 1400  vorher   636,04 €  → korrekt 5.148,99 €
++   */
+   const sumForAccount = (accId: string): number => {
+-    return (prevYearBookings as any[]).reduce((s, b) => {
+-      if (b.booking_category === "heating_repost") return s;
+-      const amt = Number(b.amount) || 0;
+-      if (b.account_id === accId) return s + amt;
+-      if (b.counter_account_id === accId) return s - amt;
+-      return s;
+-    }, 0);
++    // Auf Cent runden: Quellkonten, die vollständig umgebucht wurden, ergeben
++    // sonst Float-Reste (z. B. -1,1e-13) und würden als "0,00 €" mit absurder
++    // Änderungsquote statt als leere Zeile erscheinen.
++    const raw = sumBookingsForAccount(accId, prevYearBookings as any[]);
++    return Math.round(raw * 100) / 100;
+   };
+ 
+   // Effektive Konten: Default = NUR WP-relevant markierte Konten.
