@@ -220,14 +220,17 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
   );
 
   const sumForAccount = (accId: string): number => {
+    // Heizkosten-Umbuchungen (heating_repost) werden NICHT ausgeblendet:
+    // sie entlasten das Quellkonto (z. B. 1050 Allgemeinstrom → Heizungsstrom)
+    // und belasten 1400. Nur so zeigt die Vorjahres-IST-Spalte echte Nettowerte.
     return (prevYearBookings as any[]).reduce((s, b) => {
-      if (b.booking_category === "heating_repost") return s;
       const amt = Number(b.amount) || 0;
       if (b.account_id === accId) return s + amt;
       if (b.counter_account_id === accId) return s - amt;
       return s;
     }, 0);
   };
+
 
   // Effektive Konten: Default = NUR WP-relevant markierte Konten.
   // "Alle anzeigen" zeigt sämtliche Konten der Liegenschaft (z. B. um Personenkonten auszuschließen/einzuschließen).
