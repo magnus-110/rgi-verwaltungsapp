@@ -1,0 +1,1526 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>RGI Immobilien &ndash; Schaufensteranzeige</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* ============================================================
+   Schriften - liegen neben dieser Datei unter fonts/ und werden
+   nicht aus dem Netz geladen. Faellt das Internet aus, sieht der
+   Bildschirm trotzdem richtig aus.
+
+   Jost      ersetzt Century Gothic (geometrische Grotesk, SIL OFL)
+   Work Sans Fliesstext, wie auf der Website (SIL OFL)
+   ============================================================ */
+@font-face{ font-family:'Jost'; src:url('fonts/jost-600.woff2') format('woff2'); font-weight:600; font-style:normal; }
+@font-face{ font-family:'Jost'; src:url('fonts/jost-700.woff2') format('woff2'); font-weight:700; font-style:normal; }
+@font-face{ font-family:'Work Sans'; src:url('fonts/worksans-400.woff2') format('woff2'); font-weight:400; font-style:normal; }
+@font-face{ font-family:'Work Sans'; src:url('fonts/worksans-500.woff2') format('woff2'); font-weight:500; font-style:normal; }
+@font-face{ font-family:'Work Sans'; src:url('fonts/worksans-600.woff2') format('woff2'); font-weight:600; font-style:normal; }
+@font-face{ font-family:'Work Sans'; src:url('fonts/worksans-700.woff2') format('woff2'); font-weight:700; font-style:normal; }
+@font-face{ font-family:'Work Sans'; src:url('fonts/worksans-800.woff2') format('woff2'); font-weight:800; font-style:normal; }
+
+/* ============================================================
+   RGI Immobilien - Schaufensteranzeige
+   Zielgeraet: Samsung OM55N-S, Hochformat 1080 x 1920
+   (Querformat wird ebenfalls sauber dargestellt)
+
+   Farben und Schriften stammen aus dem Code der RGI-
+   VerwaltungsApp, damit Bildschirm, App und Flyer identisch
+   wirken.
+
+   Bewusst konservatives CSS: kein CSS-Grid, kein flex-gap,
+   kein backdrop-filter - der Tizen-4.0-Browser des OM55N-S
+   entspricht etwa Chrome 56.
+   ============================================================ */
+
+:root{
+  --orange:#ee7202;
+  --orange-dark:#d6650b;
+  --orange-soft:#fdf0e3;
+  --bg:#faf8f5;
+  --card:#ffffff;
+  --line:#e7e0d8;
+  --text:#1f1a14;
+  --muted:#7a6f63;
+}
+
+*{ -webkit-box-sizing:border-box; box-sizing:border-box; margin:0; padding:0; }
+
+/* 1rem = 1 % der kuerzeren Bildschirmkante (zusaetzlich per JS gesetzt) */
+html{ font-size:1vmin; }
+
+html,body{
+  width:100%; height:100%;
+  overflow:hidden;
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Work Sans','Helvetica Neue',Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  -webkit-user-select:none; user-select:none;
+  cursor:none;
+}
+
+.head{
+  font-family:'Jost','Century Gothic',CenturyGothic,'Work Sans',Arial,sans-serif;
+  font-weight:600;
+  letter-spacing:-0.02em;
+  line-height:1.12;
+}
+
+#stage{ position:absolute; top:0; left:0; right:0; bottom:0; }
+
+.slide{
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  opacity:0;
+  -webkit-transition:opacity 800ms ease;
+  transition:opacity 800ms ease;
+  display:-webkit-box; display:-webkit-flex; display:flex;
+  -webkit-box-orient:vertical; -webkit-flex-direction:column; flex-direction:column;
+  background:var(--bg);
+}
+.slide.is-active{ opacity:1; }
+.slide.is-out{ opacity:0; }
+
+/* ============================================================
+   Fernzone - aus 10 bis 15 m lesbar
+   ============================================================ */
+/* Feste Hoehe, damit die Trennkante zum Foto zwischen den
+   Folien nicht springt - die Schlagzeile sitzt immer unten. */
+.far{
+  -webkit-flex:0 0 23%; flex:0 0 23%;
+  background:var(--bg);
+  padding:4.6rem 5rem 3.4rem 5rem;
+  position:relative;
+  display:-webkit-box; display:-webkit-flex; display:flex;
+  -webkit-box-orient:vertical; -webkit-flex-direction:column; flex-direction:column;
+  overflow:hidden;
+}
+
+.far-top{
+  display:-webkit-box; display:-webkit-flex; display:flex;
+  -webkit-align-items:center; align-items:center;
+  -webkit-justify-content:space-between; justify-content:space-between;
+}
+.far-top .logo{ height:6.4rem; width:auto; display:block; }
+
+.pill{
+  font-size:2.1rem; font-weight:700; letter-spacing:.18em;
+  text-transform:uppercase;
+  color:var(--orange-dark);
+  background:var(--orange-soft);
+  border:2px solid rgba(238,114,2,.28);
+  padding:.9rem 2.2rem; border-radius:99px;
+  white-space:nowrap;
+}
+.pill.is-rent{
+  color:#1f5f8b; background:#e9f2f8; border-color:rgba(31,95,139,.25);
+}
+
+/* Die Schlagzeile bleibt immer einzeilig. Die Schriftgroesse
+   wird per JS so weit reduziert, bis das Wort in eine Zeile
+   passt - kurze Begriffe werden dadurch sehr gross. */
+.headline{
+  display:block;
+  white-space:nowrap;
+  overflow:hidden;
+  font-family:'Jost','Century Gothic',CenturyGothic,'Work Sans',Arial,sans-serif;
+  font-weight:700;
+  letter-spacing:-0.035em;
+  line-height:1;
+  color:var(--text);
+  font-size:17rem;   /* Startwert, wird per JS verkleinert */
+  margin-top:auto;   /* schiebt Schlagzeile und Sublinie nach unten */
+}
+
+.subline{
+  margin-top:2.2rem;
+  font-size:3.4rem; font-weight:500;
+  color:var(--muted);
+}
+.subline .dot{
+  display:inline-block; width:1.2rem; height:1.2rem; border-radius:50%;
+  background:var(--orange); margin-right:1.4rem; vertical-align:middle;
+}
+
+.rule{
+  height:.5rem; width:14rem; background:var(--orange);
+  margin-top:3rem; border-radius:99px;
+}
+
+/* ============================================================
+   Fotozone
+   ============================================================ */
+.photo{
+  -webkit-flex:1 1 auto; flex:1 1 auto;
+  position:relative; overflow:hidden;
+  background:#efeae4;
+  min-height:0;
+}
+.photo img{
+  position:absolute; top:0; left:0;
+  width:100%; height:100%;
+  object-fit:cover;
+  -webkit-animation:kb 18s ease-out forwards;
+  animation:kb 18s ease-out forwards;
+}
+@-webkit-keyframes kb{ from{ -webkit-transform:scale(1);} to{ -webkit-transform:scale(1.06);} }
+@keyframes kb{ from{ transform:scale(1);} to{ transform:scale(1.06);} }
+
+/* Dezenter Balken fuer Referenzobjekte */
+.sold{
+  position:absolute; left:0; right:0; bottom:0; z-index:3;
+  background:var(--orange);
+  color:#fff;
+  font-size:2.6rem; font-weight:700; letter-spacing:.2em;
+  text-transform:uppercase; text-align:center;
+  padding:1.5rem 2rem;
+}
+
+.shots{
+  position:absolute; right:3rem; top:3rem; z-index:3;
+  background:rgba(31,26,20,.6); color:#fff;
+  font-size:1.9rem; font-weight:500;
+  padding:.7rem 1.6rem; border-radius:99px;
+}
+
+/* ============================================================
+   Nahzone - liest, wer stehen bleibt
+   ============================================================ */
+.near{
+  -webkit-flex:0 0 auto; flex:0 0 auto;
+  background:var(--card);
+  border-top:2px solid var(--line);
+  padding:4rem 5rem 3.4rem 5rem;
+}
+
+.price{
+  font-size:7.4rem; font-weight:800; color:var(--orange);
+  letter-spacing:-0.035em; line-height:1;
+}
+.price .unit{ font-size:3rem; font-weight:600; letter-spacing:0; margin-left:.8rem; }
+.price-sub{
+  font-size:2.1rem; font-weight:500; color:var(--muted);
+  margin-top:1.2rem;
+}
+
+.facts{
+  display:-webkit-box; display:-webkit-flex; display:flex;
+  -webkit-flex-wrap:wrap; flex-wrap:wrap;
+  margin:3rem -1.8rem 0 -1.8rem;
+}
+.fact{ padding:0 1.8rem 2rem 1.8rem; }
+.fact .v{ font-size:4rem; font-weight:700; line-height:1; }
+.fact .v small{ font-size:2.3rem; font-weight:600; }
+.fact .k{
+  font-size:1.7rem; font-weight:600; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--muted); margin-top:.7rem;
+}
+
+.chips{
+  display:-webkit-box; display:-webkit-flex; display:flex;
+  -webkit-flex-wrap:wrap; flex-wrap:wrap;
+  margin:1rem -.6rem 0 -.6rem;
+}
+.chip{
+  margin:0 .6rem 1.1rem .6rem;
+  border:2px solid var(--line);
+  background:var(--bg);
+  color:var(--text);
+  font-size:1.9rem; font-weight:600;
+  padding:.7rem 1.7rem; border-radius:99px;
+}
+
+/* Pflichtangaben nach GEG - stehen ausserhalb beschnittener
+   Bereiche und werden nie gekuerzt. */
+.energy{
+  font-size:1.8rem; font-weight:500; line-height:1.5;
+  color:var(--muted);
+  border-top:2px solid var(--line);
+  padding-top:2rem; margin-top:2.4rem;
+}
+.energy b{ color:var(--text); font-weight:700; }
+
+.cta{
+  display:-webkit-box; display:-webkit-flex; display:flex;
+  -webkit-align-items:center; align-items:center;
+  border-top:2px solid var(--line);
+  padding-top:2.8rem; margin-top:2.8rem;
+}
+.qr{
+  -webkit-flex:0 0 auto; flex:0 0 auto;
+  width:17rem; height:17rem;
+  background:#fff; padding:.9rem;
+  border:2px solid var(--line); border-radius:1.4rem;
+  margin-right:3rem;
+}
+.qr svg{ display:block; width:100%; height:100%; }
+.cta-txt{ min-width:0; }
+.cta-txt .l1{ font-size:2.8rem; font-weight:700; line-height:1.25; }
+.cta-txt .l2{ font-size:2.4rem; font-weight:600; color:var(--orange); margin-top:.7rem; }
+.cta-txt .l3{ font-size:1.9rem; font-weight:500; color:var(--muted); margin-top:.7rem; }
+
+/* ============================================================
+   Kontaktleiste - laeuft auf jeder Folie mit
+   ============================================================ */
+.bar{
+  -webkit-flex:0 0 auto; flex:0 0 auto;
+  background:var(--text); color:rgba(255,255,255,.82);
+  font-size:1.42rem; font-weight:500;
+  padding:1.7rem 4.2rem;
+  white-space:nowrap; overflow:hidden;
+  display:-webkit-box; display:-webkit-flex; display:flex;
+  -webkit-align-items:center; align-items:center;
+  -webkit-justify-content:space-between; justify-content:space-between;
+}
+.bar .info{ -webkit-flex:1 1 auto; flex:1 1 auto; min-width:0; overflow:hidden; }
+.bar .clock{ -webkit-flex:0 0 auto; flex:0 0 auto; margin-left:2.4rem; }
+.bar b{ color:#fff; font-weight:700; }
+.bar .sep{ color:var(--orange); margin:0 1.2rem; font-weight:700; }
+.bar .clock{ color:#fff; font-weight:700; }
+
+/* ============================================================
+   Inhaltsfolien (Kundenstimme, Fachbereich, App, Auftakt)
+   ============================================================ */
+.body{
+  -webkit-flex:1 1 auto; flex:1 1 auto;
+  min-height:0; overflow:hidden;
+  background:var(--card);
+  padding:4.4rem 5rem;
+}
+.body.on-bg{ background:var(--bg); }
+.body.center{
+  display:-webkit-box; display:-webkit-flex; display:flex;
+  -webkit-box-orient:vertical; -webkit-flex-direction:column; flex-direction:column;
+  -webkit-justify-content:center; justify-content:center;
+  padding-left:6rem; padding-right:6rem;
+}
+
+.lead{
+  font-size:2.8rem; font-weight:400; line-height:1.55;
+  color:var(--muted);
+}
+.lead b{ color:var(--text); font-weight:600; }
+
+.points{ margin-top:3.4rem; }
+.point{
+  display:-webkit-box; display:-webkit-flex; display:flex;
+  margin-bottom:2.4rem;
+}
+.point .n{
+  -webkit-flex:0 0 auto; flex:0 0 auto;
+  width:5.4rem; height:5.4rem; border-radius:1.2rem;
+  background:var(--orange-soft); color:var(--orange);
+  font-size:2.2rem; font-weight:800;
+  text-align:center; line-height:5.4rem;
+  margin-right:2.4rem;
+}
+.point .t{ font-size:2.5rem; font-weight:600; line-height:1.4; padding-top:.7rem; }
+
+/* --- Kundenstimme --- */
+.quote{
+  font-family:'Jost','Century Gothic',CenturyGothic,'Work Sans',Arial,sans-serif;
+  font-size:5.6rem; font-weight:500; line-height:1.38;
+  letter-spacing:-0.02em;
+  color:var(--text);
+}
+.stars{ margin-top:4rem; line-height:0; }
+.stars svg{
+  width:4.4rem; height:4.4rem; fill:#f5a623;
+  display:inline-block; vertical-align:middle; margin-right:.8rem;
+}
+.author{
+  margin-top:1.6rem; font-size:2.4rem; font-weight:600; color:var(--muted);
+}
+.author .role{ display:block; font-size:1.9rem; font-weight:500; margin-top:.6rem; }
+
+/* --- Jahreszyklus --- */
+.cycle{ margin-top:3.4rem; }
+.step{
+  display:-webkit-box; display:-webkit-flex; display:flex;
+  -webkit-align-items:center; align-items:center;
+  border-bottom:2px solid var(--line);
+  padding:1.9rem 0;
+}
+.step:last-child{ border-bottom:0; }
+.step .num{
+  -webkit-flex:0 0 auto; flex:0 0 auto;
+  width:4.6rem; height:4.6rem; border-radius:99px;
+  border:.35rem solid var(--orange);
+  color:var(--orange); font-size:1.9rem; font-weight:800;
+  text-align:center; line-height:3.9rem;
+  margin-right:2.4rem;
+}
+.step .lbl{ font-size:2.7rem; font-weight:600; }
+.step .sub{ font-size:1.9rem; font-weight:500; color:var(--muted); margin-top:.3rem; }
+
+.appwrap{
+  display:-webkit-box; display:-webkit-flex; display:flex;
+  -webkit-align-items:center; align-items:center;
+  margin-top:3rem;
+}
+.appphone{
+  -webkit-flex:0 0 44%; flex:0 0 44%;
+  padding-right:3rem;
+}
+.appphone img{ display:block; width:100%; height:auto; }
+.appmain{ -webkit-flex:1 1 auto; flex:1 1 auto; min-width:0; }
+.appmain .cycle{ margin-top:0; }
+
+.features{
+  display:-webkit-box; display:-webkit-flex; display:flex;
+  -webkit-flex-wrap:wrap; flex-wrap:wrap;
+  margin:2.6rem -.6rem 0 -.6rem;
+}
+.feature{
+  margin:0 .6rem 1.1rem .6rem;
+  background:var(--orange-soft); color:var(--orange-dark);
+  border:2px solid rgba(238,114,2,.2);
+  font-size:1.9rem; font-weight:600;
+  padding:.7rem 1.7rem; border-radius:99px;
+}
+
+/* --- Auftaktfolie ---------------------------------------
+   Im Hochformat wird das fertig gestaltete Bild (1080x1920)
+   randlos gezeigt - kein Zoom, kein Zuschnitt, keine
+   Kontaktleiste, weil die Gestaltung bereits geschlossen ist.
+   Im Querformat greift die aufgebaute Fassung darunter.
+   -------------------------------------------------------- */
+.auftakt{
+  -webkit-flex:1 1 auto; flex:1 1 auto;
+  position:relative; overflow:hidden; background:#f2efeb;
+}
+.auftakt-img{
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  object-fit:cover;
+}
+.auftakt .opening{ display:none; }
+.auftakt ~ .bar{ display:none; }
+
+/* --- aufgebaute Auftaktfolie (Querformat) --- */
+.opening{
+  -webkit-flex:1 1 auto; flex:1 1 auto;
+  position:relative; overflow:hidden; background:#2a251f;
+  display:-webkit-box; display:-webkit-flex; display:flex;
+  -webkit-box-orient:vertical; -webkit-flex-direction:column; flex-direction:column;
+  -webkit-justify-content:flex-end; justify-content:flex-end;
+}
+/* Nur das direkte Hintergrundbild, nicht das Logo darin. */
+.opening > img{
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  object-fit:cover;
+  -webkit-animation:kb 22s ease-out forwards; animation:kb 22s ease-out forwards;
+}
+.opening .scrim{
+  position:absolute; top:0; left:0; width:100%; height:100%; z-index:1;
+  background:-webkit-linear-gradient(top, rgba(31,26,20,.15) 0%, rgba(31,26,20,.86) 62%, rgba(31,26,20,.95) 100%);
+  background:linear-gradient(to bottom, rgba(31,26,20,.15) 0%, rgba(31,26,20,.86) 62%, rgba(31,26,20,.95) 100%);
+}
+.opening .inner{ position:relative; z-index:2; padding:5rem 5rem 5rem 5rem; }
+.opening .logo-lg{ position:static; height:9rem; width:auto; display:block; }
+.opening .logo-row{ margin-bottom:4rem; overflow:hidden; }
+.opening h1{
+  font-family:'Jost','Century Gothic',CenturyGothic,'Work Sans',Arial,sans-serif;
+  font-weight:600; letter-spacing:-0.025em; line-height:1.15;
+  font-size:7.6rem; color:#fff;
+}
+.opening .tag{
+  margin-top:3rem; font-size:3rem; font-weight:600;
+  color:#fff; opacity:.85; letter-spacing:.02em;
+}
+.opening .tag i{ color:var(--orange); font-style:normal; font-weight:700; margin:0 1rem; }
+
+/* ============================================================
+   Fortschrittsbalken und Statusfeld
+   ============================================================ */
+/* Fortschrittsbalken laeuft als eine einzige CSS-Bewegung durch -
+   dadurch fluessig statt ruckweise. */
+#bar{
+  position:absolute; left:0; bottom:0; height:.55rem; width:100%;
+  background:var(--orange); z-index:60;
+  -webkit-transform:scaleX(0); transform:scaleX(0);
+  -webkit-transform-origin:left center; transform-origin:left center;
+  will-change:transform;
+}
+#dbg{
+  position:absolute; top:0; left:0; z-index:99;
+  background:rgba(0,0,0,.82); color:#0f0;
+  font-family:monospace; font-size:1.5rem;
+  padding:1rem 1.4rem; max-width:70%;
+  white-space:pre-wrap; display:none;
+}
+
+/* ============================================================
+   Querformat - gleiche Bausteine, zweispaltig
+   ============================================================ */
+@media (orientation:landscape){
+  .slide{ display:block; }
+  .far{
+    position:absolute; top:0; left:0; width:44%; height:100%;
+    padding:4.4rem 4rem 8.5rem 4.4rem;
+    border-right:2px solid var(--line);
+    overflow:hidden;
+  }
+  .photo{
+    position:absolute; top:0; left:44%; right:0; height:40%;
+    width:auto;
+  }
+  /* Im Querformat ist die Nahzone flacher - Schrift, QR und
+     Abstaende werden entsprechend zurueckgenommen, damit die
+     Pflichtangaben und der QR-Code sicher hineinpassen. */
+  .near{
+    position:absolute; top:40%; left:44%; right:0; bottom:6.2rem;
+    border-top:0; border-left:0;
+    padding:2.8rem 4.4rem 1.8rem 4.4rem;
+    overflow:hidden;
+  }
+  .near .facts{ margin-top:1.8rem; }
+  .near .chips{ margin-top:.4rem; }
+  .near .fact{ padding-bottom:1.4rem; }
+  .near .fact .v{ font-size:3.2rem; }
+  .near .energy{ padding-top:1.6rem; margin-top:1.8rem; }
+  .near .cta{ padding-top:1.6rem; margin-top:1.6rem; }
+  .near .qr{ width:12.5rem; height:12.5rem; margin-right:2.2rem; }
+  .near .cta-txt .l1{ font-size:2.3rem; }
+  .near .cta-txt .l2{ font-size:2rem; }
+  .near .cta-txt .l3{ font-size:1.7rem; }
+  .near .price-sub{ margin-top:.8rem; }
+  .body{
+    position:absolute; top:0; left:44%; right:0; bottom:6.2rem;
+    padding:4rem 4.4rem;
+  }
+  .auftakt{
+    position:absolute; top:0; left:0; right:0; bottom:6.2rem;
+  }
+  .auftakt-img{ display:none; }
+  .auftakt ~ .bar{ display:-webkit-box; display:-webkit-flex; display:flex; }
+  .opening{
+    position:absolute; top:0; left:0; right:0; bottom:0;
+    display:-webkit-box; display:-webkit-flex; display:flex;
+  }
+  .auftakt .opening{ display:-webkit-box; display:-webkit-flex; display:flex; }
+  .bar{
+    position:absolute; left:0; right:0; bottom:0; height:6.2rem;
+    padding:0 4.4rem;
+  }
+  .headline{ font-size:12rem; }
+  .quote{ font-size:3.8rem; }
+  .price{ font-size:6rem; }
+  .opening h1{ font-size:6.4rem; }
+}
+</style>
+</head>
+<body>
+
+<div id="stage"></div>
+<div id="bar"></div>
+<pre id="dbg"></pre>
+
+<script>
+/* ============================================================
+   RGI Immobilien - Schaufensteranzeige
+   Zielgeraet: Samsung OM55N-S (Tizen 4.0 / SSSP6, ~Chrome 56)
+
+   Bewusst ES5: kein let/const, keine Arrow Functions, keine
+   Template Literals, kein fetch, kein Promise, kein Optional
+   Chaining. Nur XMLHttpRequest und klassische Funktionen.
+
+   Steuerung per URL-Parameter, z. B.
+     /display/?dauer=16&ort=Pfronten&debug=1
+
+     dauer            Sekunden je Objektfolie      (Standard 16)
+     inhaltsdauer     Sekunden je Inhaltsfolie     (Standard 13)
+     ort              nur Objekte aus diesem Ort
+     max              hoechstens N Objekte
+     puls             Sekunden je Aenderungspruefung (Standard 30)
+     aktualisierung   Minuten bis zum Vollabruf      (Standard 10)
+     debug=1          Statusfeld einblenden
+   ============================================================ */
+(function(){
+'use strict';
+
+/* ------------------------------------------------------------
+   Konfiguration - hier lassen sich Bilder und Texte tauschen,
+   ohne den Rest der Datei anzufassen.
+   ------------------------------------------------------------ */
+var SUPABASE_URL = 'https://jsrhluehonepowausjzt.supabase.co';
+var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzcmhsdWVob25lcG93YXVzanp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc5NTY2MjcsImV4cCI6MjA4MzUzMjYyN30.Ld9YIabNPYpTEv5Q3wZhFU8sp7u09ZKi-0QGcVgD4DI';
+
+/* Das Logo steckt direkt in dieser Datei. Es kann daher nicht
+   fehlschlagen, egal wie die Seite ausgeliefert wird. */
+var LOGO = 'data:image/png;base64,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';
+
+/* Alle uebrigen Bilder liegen im selben Ordner wie diese Datei und
+   werden relativ geladen - unabhaengig davon, unter welchem Pfad
+   die Seite spaeter liegt. Sie sind bereits auf Bildschirmgroesse
+   verkleinert, damit sie schnell da sind. */
+var IMG = {
+  auftakt:    'bg-verkauf.jpg',
+  verkauf:    'bg-verkauf.jpg',
+  vermietung: 'bg-vermietung.jpg',
+  verwaltung: 'bg-verwaltung.jpg',
+  fallback:   'bg-verkauf.jpg',
+  app:        'app-mockup.png',
+  auftakt2:   'auftakt.jpg'   /* fertige Auftaktfolie, 1080x1920 */
+};
+
+/* Kontaktzeile - Angaben aus dem RGI-Flyer */
+var KONTAKT = {
+  adresse: 'Vilstalstra&szlig;e 4, 87459 Pfronten',
+  telefon: '08363 960656',
+  zeiten:  'Mo&ndash;Fr 10:00&ndash;15:00 &middot; Termine nach Vereinbarung',
+  web:     'rgi-immobilien.de'
+};
+
+var QR = {
+  verkauf:    'M0 0h7v1H0zM8 0h3v1H8zM13 0h3v1H13zM17 0h3v1H17zM22 0h7v1H22zM0 1h1v1H0zM6 1h1v1H6zM8 1h2v1H8zM12 1h2v1H12zM16 1h1v1H16zM18 1h1v1H18zM20 1h1v1H20zM22 1h1v1H22zM28 1h1v1H28zM0 2h1v1H0zM2 2h3v1H2zM6 2h1v1H6zM10 2h1v1H10zM12 2h1v1H12zM16 2h1v1H16zM20 2h1v1H20zM22 2h1v1H22zM24 2h3v1H24zM28 2h1v1H28zM0 3h1v1H0zM2 3h3v1H2zM6 3h1v1H6zM8 3h2v1H8zM11 3h1v1H11zM14 3h2v1H14zM17 3h1v1H17zM19 3h1v1H19zM22 3h1v1H22zM24 3h3v1H24zM28 3h1v1H28zM0 4h1v1H0zM2 4h3v1H2zM6 4h1v1H6zM9 4h1v1H9zM11 4h1v1H11zM14 4h1v1H14zM16 4h2v1H16zM19 4h1v1H19zM22 4h1v1H22zM24 4h3v1H24zM28 4h1v1H28zM0 5h1v1H0zM6 5h1v1H6zM9 5h1v1H9zM11 5h1v1H11zM13 5h1v1H13zM15 5h2v1H15zM18 5h3v1H18zM22 5h1v1H22zM28 5h1v1H28zM0 6h7v1H0zM8 6h1v1H8zM10 6h1v1H10zM12 6h1v1H12zM14 6h1v1H14zM16 6h1v1H16zM18 6h1v1H18zM20 6h1v1H20zM22 6h7v1H22zM8 7h1v1H8zM11 7h2v1H11zM15 7h3v1H15zM0 8h1v1H0zM2 8h2v1H2zM5 8h3v1H5zM9 8h2v1H9zM12 8h2v1H12zM15 8h5v1H15zM22 8h1v1H22zM25 8h1v1H25zM27 8h2v1H27zM0 9h1v1H0zM2 9h4v1H2zM8 9h2v1H8zM11 9h1v1H11zM13 9h3v1H13zM18 9h7v1H18zM28 9h1v1H28zM4 10h5v1H4zM10 10h1v1H10zM12 10h2v1H12zM17 10h2v1H17zM22 10h1v1H22zM26 10h2v1H26zM0 11h1v1H0zM3 11h2v1H3zM8 11h1v1H8zM10 11h1v1H10zM12 11h1v1H12zM16 11h1v1H16zM18 11h2v1H18zM21 11h4v1H21zM28 11h1v1H28zM1 12h1v1H1zM3 12h4v1H3zM10 12h1v1H10zM12 12h1v1H12zM14 12h2v1H14zM17 12h3v1H17zM25 12h2v1H25zM0 13h2v1H0zM8 13h2v1H8zM11 13h1v1H11zM14 13h1v1H14zM19 13h1v1H19zM22 13h2v1H22zM26 13h3v1H26zM0 14h4v1H0zM6 14h1v1H6zM8 14h1v1H8zM12 14h2v1H12zM16 14h4v1H16zM21 14h1v1H21zM23 14h1v1H23zM26 14h3v1H26zM2 15h2v1H2zM5 15h1v1H5zM7 15h4v1H7zM14 15h1v1H14zM16 15h1v1H16zM20 15h1v1H20zM27 15h1v1H27zM0 16h2v1H0zM3 16h1v1H3zM6 16h4v1H6zM14 16h1v1H14zM18 16h4v1H18zM23 16h3v1H23zM27 16h1v1H27zM1 17h3v1H1zM7 17h2v1H7zM10 17h3v1H10zM14 17h2v1H14zM18 17h1v1H18zM20 17h1v1H20zM23 17h1v1H23zM25 17h3v1H25zM0 18h1v1H0zM6 18h1v1H6zM9 18h1v1H9zM11 18h1v1H11zM13 18h5v1H13zM20 18h1v1H20zM22 18h2v1H22zM26 18h1v1H26zM2 19h1v1H2zM4 19h1v1H4zM8 19h4v1H8zM13 19h2v1H13zM16 19h2v1H16zM20 19h2v1H20zM26 19h1v1H26zM1 20h1v1H1zM4 20h4v1H4zM9 20h1v1H9zM12 20h3v1H12zM17 20h2v1H17zM20 20h7v1H20zM8 21h1v1H8zM11 21h2v1H11zM16 21h1v1H16zM18 21h1v1H18zM20 21h1v1H20zM24 21h5v1H24zM0 22h7v1H0zM8 22h1v1H8zM10 22h3v1H10zM14 22h1v1H14zM16 22h5v1H16zM22 22h1v1H22zM24 22h2v1H24zM27 22h1v1H27zM0 23h1v1H0zM6 23h1v1H6zM8 23h1v1H8zM10 23h5v1H10zM16 23h1v1H16zM18 23h1v1H18zM20 23h1v1H20zM24 23h2v1H24zM27 23h2v1H27zM0 24h1v1H0zM2 24h3v1H2zM6 24h1v1H6zM10 24h3v1H10zM15 24h1v1H15zM17 24h1v1H17zM20 24h5v1H20zM26 24h2v1H26zM0 25h1v1H0zM2 25h3v1H2zM6 25h1v1H6zM8 25h2v1H8zM15 25h4v1H15zM21 25h1v1H21zM23 25h3v1H23zM28 25h1v1H28zM0 26h1v1H0zM2 26h3v1H2zM6 26h1v1H6zM8 26h2v1H8zM11 26h3v1H11zM17 26h1v1H17zM19 26h1v1H19zM23 26h1v1H23zM26 26h1v1H26zM28 26h1v1H28zM0 27h1v1H0zM6 27h1v1H6zM9 27h1v1H9zM11 27h3v1H11zM18 27h1v1H18zM20 27h1v1H20zM22 27h1v1H22zM25 27h1v1H25zM27 27h1v1H27zM0 28h7v1H0zM8 28h1v1H8zM12 28h2v1H12zM15 28h1v1H15zM18 28h6v1H18zM25 28h1v1H25zM27 28h1v1H27z',
+  vermietung: 'M0 0h7v1H0zM9 0h4v1H9zM15 0h1v1H15zM17 0h3v1H17zM22 0h7v1H22zM0 1h1v1H0zM6 1h1v1H6zM10 1h1v1H10zM15 1h3v1H15zM22 1h1v1H22zM28 1h1v1H28zM0 2h1v1H0zM2 2h3v1H2zM6 2h1v1H6zM8 2h4v1H8zM16 2h1v1H16zM18 2h3v1H18zM22 2h1v1H22zM24 2h3v1H24zM28 2h1v1H28zM0 3h1v1H0zM2 3h3v1H2zM6 3h1v1H6zM8 3h4v1H8zM15 3h1v1H15zM17 3h1v1H17zM19 3h1v1H19zM22 3h1v1H22zM24 3h3v1H24zM28 3h1v1H28zM0 4h1v1H0zM2 4h3v1H2zM6 4h1v1H6zM8 4h2v1H8zM12 4h2v1H12zM16 4h1v1H16zM18 4h3v1H18zM22 4h1v1H22zM24 4h3v1H24zM28 4h1v1H28zM0 5h1v1H0zM6 5h1v1H6zM8 5h3v1H8zM13 5h3v1H13zM20 5h1v1H20zM22 5h1v1H22zM28 5h1v1H28zM0 6h7v1H0zM8 6h1v1H8zM10 6h1v1H10zM12 6h1v1H12zM14 6h1v1H14zM16 6h1v1H16zM18 6h1v1H18zM20 6h1v1H20zM22 6h7v1H22zM8 7h2v1H8zM13 7h1v1H13zM16 7h1v1H16zM18 7h1v1H18zM20 7h1v1H20zM0 8h1v1H0zM2 8h5v1H2zM10 8h3v1H10zM14 8h1v1H14zM17 8h1v1H17zM22 8h5v1H22zM2 9h3v1H2zM7 9h2v1H7zM10 9h1v1H10zM12 9h1v1H12zM16 9h1v1H16zM18 9h7v1H18zM28 9h1v1H28zM0 10h1v1H0zM3 10h4v1H3zM8 10h1v1H8zM10 10h1v1H10zM12 10h1v1H12zM15 10h2v1H15zM20 10h5v1H20zM1 11h2v1H1zM4 11h2v1H4zM7 11h1v1H7zM9 11h1v1H9zM12 11h1v1H12zM14 11h3v1H14zM23 11h1v1H23zM25 11h1v1H25zM27 11h1v1H27zM2 12h2v1H2zM6 12h3v1H6zM11 12h2v1H11zM15 12h5v1H15zM25 12h2v1H25zM0 13h2v1H0zM4 13h1v1H4zM9 13h1v1H9zM11 13h4v1H11zM16 13h7v1H16zM24 13h1v1H24zM28 13h1v1H28zM1 14h3v1H1zM6 14h4v1H6zM11 14h1v1H11zM13 14h3v1H13zM17 14h1v1H17zM22 14h5v1H22zM0 15h2v1H0zM4 15h1v1H4zM7 15h1v1H7zM9 15h1v1H9zM12 15h2v1H12zM15 15h2v1H15zM20 15h1v1H20zM27 15h1v1H27zM1 16h1v1H1zM3 16h2v1H3zM6 16h4v1H6zM14 16h4v1H14zM19 16h1v1H19zM25 16h2v1H25zM0 17h1v1H0zM2 17h1v1H2zM7 17h2v1H7zM10 17h2v1H10zM16 17h1v1H16zM19 17h6v1H19zM26 17h1v1H26zM28 17h1v1H28zM0 18h1v1H0zM5 18h2v1H5zM8 18h2v1H8zM12 18h1v1H12zM15 18h3v1H15zM20 18h1v1H20zM22 18h2v1H22zM26 18h1v1H26zM0 19h1v1H0zM4 19h1v1H4zM11 19h1v1H11zM14 19h3v1H14zM18 19h1v1H18zM23 19h2v1H23zM27 19h1v1H27zM0 20h1v1H0zM5 20h3v1H5zM10 20h1v1H10zM15 20h1v1H15zM17 20h1v1H17zM19 20h6v1H19zM26 20h3v1H26zM8 21h1v1H8zM11 21h1v1H11zM13 21h2v1H13zM16 21h1v1H16zM18 21h1v1H18zM20 21h1v1H20zM24 21h5v1H24zM0 22h7v1H0zM9 22h3v1H9zM13 22h4v1H13zM19 22h2v1H19zM22 22h1v1H22zM24 22h3v1H24zM0 23h1v1H0zM6 23h1v1H6zM8 23h2v1H8zM13 23h1v1H13zM15 23h1v1H15zM19 23h2v1H19zM24 23h1v1H24zM27 23h1v1H27zM0 24h1v1H0zM2 24h3v1H2zM6 24h1v1H6zM8 24h1v1H8zM10 24h1v1H10zM14 24h1v1H14zM17 24h1v1H17zM20 24h5v1H20zM26 24h1v1H26zM0 25h1v1H0zM2 25h3v1H2zM6 25h1v1H6zM8 25h2v1H8zM12 25h1v1H12zM16 25h1v1H16zM20 25h1v1H20zM25 25h4v1H25zM0 26h1v1H0zM2 26h3v1H2zM6 26h1v1H6zM8 26h3v1H8zM12 26h7v1H12zM21 26h7v1H21zM0 27h1v1H0zM6 27h1v1H6zM9 27h2v1H9zM15 27h2v1H15zM18 27h1v1H18zM20 27h1v1H20zM22 27h1v1H22zM25 27h1v1H25zM27 27h1v1H27zM0 28h7v1H0zM8 28h1v1H8zM11 28h1v1H11zM13 28h2v1H13zM17 28h1v1H17zM19 28h1v1H19zM22 28h1v1H22zM24 28h3v1H24z',
+  verwaltung: 'M0 0h7v1H0zM8 0h2v1H8zM12 0h3v1H12zM17 0h2v1H17zM20 0h1v1H20zM22 0h7v1H22zM0 1h1v1H0zM6 1h1v1H6zM9 1h1v1H9zM11 1h4v1H11zM16 1h2v1H16zM19 1h2v1H19zM22 1h1v1H22zM28 1h1v1H28zM0 2h1v1H0zM2 2h3v1H2zM6 2h1v1H6zM10 2h1v1H10zM17 2h1v1H17zM19 2h2v1H19zM22 2h1v1H22zM24 2h3v1H24zM28 2h1v1H28zM0 3h1v1H0zM2 3h3v1H2zM6 3h1v1H6zM8 3h1v1H8zM11 3h1v1H11zM15 3h2v1H15zM18 3h2v1H18zM22 3h1v1H22zM24 3h3v1H24zM28 3h1v1H28zM0 4h1v1H0zM2 4h3v1H2zM6 4h1v1H6zM8 4h2v1H8zM14 4h3v1H14zM18 4h1v1H18zM22 4h1v1H22zM24 4h3v1H24zM28 4h1v1H28zM0 5h1v1H0zM6 5h1v1H6zM8 5h2v1H8zM11 5h2v1H11zM19 5h1v1H19zM22 5h1v1H22zM28 5h1v1H28zM0 6h7v1H0zM8 6h1v1H8zM10 6h1v1H10zM12 6h1v1H12zM14 6h1v1H14zM16 6h1v1H16zM18 6h1v1H18zM20 6h1v1H20zM22 6h7v1H22zM8 7h1v1H8zM10 7h1v1H10zM13 7h1v1H13zM17 7h1v1H17zM20 7h1v1H20zM0 8h1v1H0zM4 8h1v1H4zM6 8h6v1H6zM13 8h1v1H13zM15 8h1v1H15zM17 8h1v1H17zM19 8h7v1H19zM28 8h1v1H28zM0 9h3v1H0zM4 9h1v1H4zM8 9h1v1H8zM10 9h7v1H10zM18 9h1v1H18zM22 9h7v1H22zM1 10h1v1H1zM3 10h4v1H3zM9 10h2v1H9zM15 10h1v1H15zM17 10h2v1H17zM20 10h2v1H20zM28 10h1v1H28zM0 11h2v1H0zM4 11h2v1H4zM7 11h1v1H7zM11 11h2v1H11zM14 11h2v1H14zM17 11h2v1H17zM22 11h1v1H22zM24 11h2v1H24zM27 11h2v1H27zM1 12h2v1H1zM4 12h1v1H4zM6 12h2v1H6zM9 12h2v1H9zM13 12h2v1H13zM16 12h3v1H16zM20 12h2v1H20zM27 12h1v1H27zM0 13h1v1H0zM3 13h1v1H3zM7 13h1v1H7zM10 13h2v1H10zM15 13h4v1H15zM22 13h1v1H22zM24 13h5v1H24zM1 14h7v1H1zM9 14h1v1H9zM11 14h1v1H11zM13 14h4v1H13zM18 14h1v1H18zM25 14h2v1H25zM28 14h1v1H28zM2 15h2v1H2zM5 15h1v1H5zM7 15h1v1H7zM10 15h1v1H10zM13 15h1v1H13zM15 15h1v1H15zM17 15h2v1H17zM20 15h1v1H20zM22 15h3v1H22zM27 15h2v1H27zM1 16h3v1H1zM5 16h2v1H5zM8 16h6v1H8zM16 16h2v1H16zM20 16h2v1H20zM27 16h1v1H27zM0 17h2v1H0zM5 17h1v1H5zM8 17h4v1H8zM13 17h4v1H13zM22 17h4v1H22zM27 17h2v1H27zM6 18h2v1H6zM10 18h3v1H10zM15 18h2v1H15zM18 18h1v1H18zM20 18h1v1H20zM24 18h1v1H24zM26 18h1v1H26zM28 18h1v1H28zM2 19h2v1H2zM5 19h1v1H5zM7 19h2v1H7zM10 19h3v1H10zM14 19h2v1H14zM17 19h1v1H17zM22 19h1v1H22zM27 19h2v1H27zM0 20h2v1H0zM4 20h4v1H4zM10 20h6v1H10zM17 20h1v1H17zM20 20h6v1H20zM28 20h1v1H28zM8 21h2v1H8zM11 21h2v1H11zM15 21h2v1H15zM18 21h3v1H18zM24 21h1v1H24zM28 21h1v1H28zM0 22h7v1H0zM8 22h8v1H8zM17 22h4v1H17zM22 22h1v1H22zM24 22h3v1H24zM28 22h1v1H28zM0 23h1v1H0zM6 23h1v1H6zM9 23h1v1H9zM13 23h1v1H13zM15 23h6v1H15zM24 23h1v1H24zM27 23h2v1H27zM0 24h1v1H0zM2 24h3v1H2zM6 24h1v1H6zM8 24h2v1H8zM11 24h3v1H11zM17 24h1v1H17zM19 24h7v1H19zM27 24h1v1H27zM0 25h1v1H0zM2 25h3v1H2zM6 25h1v1H6zM10 25h1v1H10zM13 25h4v1H13zM19 25h1v1H19zM21 25h1v1H21zM28 25h1v1H28zM0 26h1v1H0zM2 26h3v1H2zM6 26h1v1H6zM11 26h3v1H11zM15 26h1v1H15zM21 26h1v1H21zM25 26h4v1H25zM0 27h1v1H0zM6 27h1v1H6zM10 27h2v1H10zM14 27h1v1H14zM17 27h1v1H17zM20 27h1v1H20zM23 27h3v1H23zM27 27h2v1H27zM0 28h7v1H0zM8 28h1v1H8zM10 28h1v1H10zM12 28h2v1H12zM16 28h2v1H16zM20 28h3v1H20zM24 28h1v1H24zM27 28h1v1H27z',
+  kontakt:    'M0 0h7v1H0zM10 0h1v1H10zM12 0h2v1H12zM16 0h5v1H16zM22 0h7v1H22zM0 1h1v1H0zM6 1h1v1H6zM9 1h2v1H9zM12 1h4v1H12zM18 1h1v1H18zM22 1h1v1H22zM28 1h1v1H28zM0 2h1v1H0zM2 2h3v1H2zM6 2h1v1H6zM9 2h2v1H9zM13 2h1v1H13zM16 2h5v1H16zM22 2h1v1H22zM24 2h3v1H24zM28 2h1v1H28zM0 3h1v1H0zM2 3h3v1H2zM6 3h1v1H6zM10 3h2v1H10zM13 3h3v1H13zM18 3h1v1H18zM22 3h1v1H22zM24 3h3v1H24zM28 3h1v1H28zM0 4h1v1H0zM2 4h3v1H2zM6 4h1v1H6zM9 4h3v1H9zM13 4h2v1H13zM16 4h1v1H16zM18 4h1v1H18zM22 4h1v1H22zM24 4h3v1H24zM28 4h1v1H28zM0 5h1v1H0zM6 5h1v1H6zM8 5h1v1H8zM13 5h2v1H13zM18 5h2v1H18zM22 5h1v1H22zM28 5h1v1H28zM0 6h7v1H0zM8 6h1v1H8zM10 6h1v1H10zM12 6h1v1H12zM14 6h1v1H14zM16 6h1v1H16zM18 6h1v1H18zM20 6h1v1H20zM22 6h7v1H22zM9 7h4v1H9zM14 7h1v1H14zM17 7h1v1H17zM20 7h1v1H20zM0 8h1v1H0zM3 8h1v1H3zM5 8h2v1H5zM8 8h1v1H8zM15 8h2v1H15zM21 8h1v1H21zM23 8h1v1H23zM2 9h3v1H2zM11 9h2v1H11zM14 9h2v1H14zM17 9h1v1H17zM20 9h3v1H20zM25 9h1v1H25zM28 9h1v1H28zM0 10h1v1H0zM2 10h6v1H2zM10 10h3v1H10zM19 10h1v1H19zM22 10h6v1H22zM0 11h2v1H0zM4 11h2v1H4zM7 11h1v1H7zM9 11h1v1H9zM14 11h2v1H14zM18 11h3v1H18zM23 11h2v1H23zM26 11h2v1H26zM3 12h1v1H3zM6 12h1v1H6zM9 12h1v1H9zM12 12h1v1H12zM16 12h7v1H16zM25 12h1v1H25zM27 12h2v1H27zM0 13h1v1H0zM2 13h1v1H2zM7 13h2v1H7zM12 13h1v1H12zM15 13h2v1H15zM19 13h3v1H19zM23 13h1v1H23zM1 14h2v1H1zM4 14h3v1H4zM8 14h2v1H8zM16 14h1v1H16zM21 14h1v1H21zM24 14h5v1H24zM0 15h2v1H0zM3 15h1v1H3zM9 15h3v1H9zM13 15h8v1H13zM23 15h3v1H23zM27 15h1v1H27zM0 16h1v1H0zM4 16h5v1H4zM11 16h4v1H11zM16 16h2v1H16zM20 16h2v1H20zM27 16h1v1H27zM1 17h5v1H1zM8 17h3v1H8zM12 17h1v1H12zM16 17h2v1H16zM21 17h3v1H21zM25 17h1v1H25zM28 17h1v1H28zM0 18h1v1H0zM2 18h1v1H2zM6 18h2v1H6zM12 18h2v1H12zM17 18h2v1H17zM21 18h1v1H21zM23 18h1v1H23zM27 18h2v1H27zM3 19h1v1H3zM5 19h1v1H5zM7 19h1v1H7zM12 19h2v1H12zM16 19h3v1H16zM22 19h1v1H22zM27 19h2v1H27zM0 20h1v1H0zM3 20h5v1H3zM10 20h1v1H10zM14 20h3v1H14zM19 20h6v1H19zM26 20h1v1H26zM8 21h1v1H8zM10 21h4v1H10zM16 21h1v1H16zM19 21h2v1H19zM24 21h1v1H24zM26 21h3v1H26zM0 22h7v1H0zM10 22h1v1H10zM13 22h2v1H13zM16 22h2v1H16zM20 22h1v1H20zM22 22h1v1H22zM24 22h1v1H24zM27 22h1v1H27zM0 23h1v1H0zM6 23h1v1H6zM8 23h2v1H8zM11 23h3v1H11zM15 23h1v1H15zM18 23h1v1H18zM20 23h1v1H20zM24 23h3v1H24zM0 24h1v1H0zM2 24h3v1H2zM6 24h1v1H6zM12 24h1v1H12zM14 24h1v1H14zM16 24h2v1H16zM20 24h5v1H20zM28 24h1v1H28zM0 25h1v1H0zM2 25h3v1H2zM6 25h1v1H6zM8 25h2v1H8zM11 25h1v1H11zM14 25h1v1H14zM20 25h1v1H20zM22 25h6v1H22zM0 26h1v1H0zM2 26h3v1H2zM6 26h1v1H6zM10 26h1v1H10zM12 26h1v1H12zM16 26h1v1H16zM24 26h3v1H24zM28 26h1v1H28zM0 27h1v1H0zM6 27h1v1H6zM11 27h1v1H11zM14 27h4v1H14zM19 27h2v1H19zM22 27h3v1H22zM27 27h1v1H27zM0 28h7v1H0zM8 28h2v1H8zM12 28h1v1H12zM14 28h1v1H14zM16 28h2v1H16zM20 28h3v1H20zM24 28h1v1H24zM27 28h1v1H27z'
+};
+
+var q            = parseQuery();
+var SLIDE_MS     = num(q.dauer, 16) * 1000;
+var CONTENT_MS   = num(q.inhaltsdauer, 13) * 1000;
+var PULSE_MS     = num(q.puls, 30) * 1000;              /* Aenderungspruefung  */
+var REFRESH_MS   = num(q.aktualisierung, 10) * 60 * 1000; /* Vollabruf als Netz  */
+var RELOAD_AFTER = 6 * 60 * 60 * 1000;
+var FILTER_ORT   = q.ort || '';
+var MAX_OBJECTS  = num(q.max, 0);
+var DEBUG        = q.debug === '1';
+var CACHE_KEY    = 'rgi_display_v2';
+
+/* ------------------------------------------------------------
+   Zustand
+   ------------------------------------------------------------ */
+var stage  = document.getElementById('stage');
+var barEl  = document.getElementById('bar');
+var dbgBox = document.getElementById('dbg');
+
+var current   = null;
+var offers    = [];   /* verfuegbare Objekte  */
+var refs      = [];   /* verkauft / vermietet */
+var playlist  = [];
+var playPos   = 0;
+var offerPos  = 0;
+var refPos    = 0;
+var contentPos= 0;
+var timer     = null;
+var bootTime  = nowMs();
+var fingerAbdruck = null;  /* Kennung des Datenstands  */
+var datenNeu      = false; /* Ablaufplan neu aufbauen  */
+var mitSubtype    = true;  /* Spalte property_subtype vorhanden? */
+
+if (DEBUG) { dbgBox.style.display = 'block'; }
+
+/* ------------------------------------------------------------
+   Grundmass: 1rem = 1 % der kuerzeren Bildschirmkante
+   ------------------------------------------------------------ */
+function setRootSize(){
+  var w = window.innerWidth  || document.documentElement.clientWidth  || 1080;
+  var h = window.innerHeight || document.documentElement.clientHeight || 1920;
+  var base = Math.min(w, h) / 100;
+  if (base < 4)  { base = 4; }
+  if (base > 24) { base = 24; }
+  document.documentElement.style.fontSize = base + 'px';
+}
+setRootSize();
+if (window.addEventListener) {
+  window.addEventListener('resize', setRootSize, false);
+  window.addEventListener('orientationchange', setRootSize, false);
+}
+
+/* ============================================================
+   Hilfsfunktionen
+   ============================================================ */
+function nowMs(){ return (new Date()).getTime(); }
+function pad(n){ return (n < 10 ? '0' : '') + n; }
+
+function num(v, def){
+  var n = parseFloat(v);
+  return (isFinite(n) && n > 0) ? n : def;
+}
+
+function parseQuery(){
+  var out = {};
+  var s = window.location.search.replace(/^\?/, '');
+  if (!s) { return out; }
+  var parts = s.split('&');
+  for (var i = 0; i < parts.length; i++){
+    var kv = parts[i].split('=');
+    if (kv[0]) { out[decodeURIComponent(kv[0])] = decodeURIComponent((kv[1] || '').replace(/\+/g, ' ')); }
+  }
+  return out;
+}
+
+function esc(s){
+  if (s === null || s === undefined) { return ''; }
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+/* Deutsche Zahlformatierung ohne Intl - manche Tizen-Builds
+   liefern kein vollstaendiges ICU mit. */
+function deNum(n, decimals){
+  if (n === null || n === undefined || !isFinite(n)) { return ''; }
+  var neg = n < 0;
+  n = Math.abs(n);
+  var d = (decimals === undefined) ? 0 : decimals;
+  var split = n.toFixed(d).split('.');
+  var whole = split[0];
+  var frac  = split.length > 1 ? split[1] : '';
+  var out = '', c = 0;
+  for (var i = whole.length - 1; i >= 0; i--){
+    out = whole.charAt(i) + out;
+    c++;
+    if (c % 3 === 0 && i > 0) { out = '.' + out; }
+  }
+  if (frac) { out = out + ',' + frac; }
+  return (neg ? '-' : '') + out;
+}
+
+/* Nachkommastellen anzeigen, aber keine erfinden:
+   3,57 bleibt 3,57 - 120,0 wird zu 120. */
+function deSmart(n, maxDec){
+  if (n === null || n === undefined || !isFinite(n)) { return ''; }
+  var s = deNum(n, (maxDec === undefined) ? 1 : maxDec);
+  if (s.indexOf(',') !== -1) {
+    s = s.replace(/0+$/, '').replace(/,$/, '');
+  }
+  return s;
+}
+
+function qrSvg(key){
+  var d = QR[key];
+  if (!d) { return ''; }
+  return '<svg viewBox="0 0 29 29" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">'
+       + '<path fill="#1f1a14" d="' + d + '"/></svg>';
+}
+
+/* Sterne als Vektor - kein Schriftzeichen, das auf dem Bildschirm
+   fehlen koennte. */
+function sterneHtml(n){
+  var d = 'M12 2.4l2.94 5.96 6.58.96-4.76 4.64 1.12 6.55L12 17.42 '
+        + '6.12 20.51l1.12-6.55L2.48 9.32l6.58-.96z';
+  var out = '<div class="stars">';
+  for (var i = 0; i < n; i++){
+    out += '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="' + d + '"/></svg>';
+  }
+  return out + '</div>';
+}
+
+function dbg(msg){
+  if (!DEBUG) { return; }
+  var t = new Date();
+  dbgBox.textContent = (dbgBox.textContent + '\n'
+    + pad(t.getHours()) + ':' + pad(t.getMinutes()) + ':' + pad(t.getSeconds())
+    + '  ' + msg).split('\n').slice(-14).join('\n');
+}
+
+/* ============================================================
+   Kontaktleiste
+   ============================================================ */
+function barHtml(){
+  var t = new Date();
+  return '<div class="bar">'
+    + '<div class="info"><b>RGI Immobilien</b><span class="sep">&middot;</span>' + KONTAKT.adresse
+    + '<span class="sep">&middot;</span>' + KONTAKT.telefon
+    + '<span class="sep">&middot;</span>' + KONTAKT.zeiten + '</div>'
+    + '<div class="clock">' + pad(t.getHours()) + ':' + pad(t.getMinutes()) + '</div>'
+    + '</div>';
+}
+
+/* Uhr in der laufenden Folie nachziehen */
+setInterval(function(){
+  if (!current) { return; }
+  var c = current.getElementsByClassName('clock')[0];
+  if (c) {
+    var t = new Date();
+    c.innerHTML = pad(t.getHours()) + ':' + pad(t.getMinutes());
+  }
+}, 20000);
+
+/* ============================================================
+   Datenabruf
+   ============================================================ */
+function statusFilter(){
+  return 'available,' + encodeURIComponent('verfügbar') + ',sold,rented';
+}
+
+function buildUrl(){
+  var sel = 'id,title,description,transaction_type,property_type,'
+          + (mitSubtype ? 'property_subtype,' : '')
+          + 'postal_code,city,district,'
+          + 'living_space,plot_size,rooms,floor_number,year_built,'
+          + 'has_balcony,has_terrace,has_garden,has_cellar,has_parking,has_elevator,'
+          + 'has_guest_toilet,has_fitted_kitchen,is_barrier_free,'
+          + 'purchase_price,cold_rent,warm_rent,provision,'
+          + 'energy_value,energy_efficiency_class,energy_certificate_type,'
+          + 'heating_type,energy_source,'
+          + 'availability_status,is_active,reference_sort_order,created_at,'
+          + 'property_images(image_url,sort_order)';
+
+  var u = SUPABASE_URL + '/rest/v1/properties'
+        + '?select=' + encodeURIComponent(sel)
+        + '&availability_status=in.(' + statusFilter() + ')'
+        + '&order=created_at.desc';
+
+  if (FILTER_ORT) { u += '&city=eq.' + encodeURIComponent(FILTER_ORT); }
+  return u;
+}
+
+function load(){
+  var xhr = new XMLHttpRequest();
+  try { xhr.open('GET', buildUrl(), true); }
+  catch (e) { onFail('open'); return; }
+
+  xhr.timeout = 20000;
+  xhr.setRequestHeader('apikey', SUPABASE_KEY);
+  xhr.setRequestHeader('Authorization', 'Bearer ' + SUPABASE_KEY);
+  xhr.setRequestHeader('Accept', 'application/json');
+
+  xhr.onreadystatechange = function(){
+    if (xhr.readyState !== 4) { return; }
+    if (xhr.status >= 200 && xhr.status < 300) {
+      var data = null;
+      try { data = JSON.parse(xhr.responseText); } catch (e2) { data = null; }
+      if (data && data.length !== undefined) { onData(data); }
+      else { onFail('parse'); }
+    } else if (xhr.status === 400 && mitSubtype) {
+      /* Die optionale Spalte property_subtype gibt es noch nicht -
+         einmalig ohne sie erneut abfragen. */
+      mitSubtype = false;
+      dbg('property_subtype nicht vorhanden, Abfrage ohne die Spalte');
+      load();
+    } else {
+      onFail('http ' + xhr.status);
+    }
+  };
+  xhr.ontimeout = function(){ onFail('timeout'); };
+  xhr.onerror   = function(){ onFail('network'); };
+  try { xhr.send(null); } catch (e3) { onFail('send'); }
+}
+
+function onData(list){
+  partition(list);
+  saveCache(list);
+  dbg('geladen: ' + offers.length + ' Angebote, ' + refs.length + ' Referenzen');
+  if (!current) { start(); }
+  else { datenNeu = true; }   /* Ablaufplan an der naechsten Folienkante erneuern */
+}
+
+/* ------------------------------------------------------------
+   Pulsabfrage: fragt nur Anzahl und juengstes Aenderungsdatum
+   ab - wenige hundert Byte. Erst wenn sich daran etwas aendert,
+   werden die vollstaendigen Daten geholt. Dadurch erscheint ein
+   neues oder geaendertes Objekt binnen rund einer halben Minute
+   auf dem Bildschirm, ohne die Datenbank zu belasten.
+   ------------------------------------------------------------ */
+function pulse(){
+  var u = SUPABASE_URL + '/rest/v1/properties'
+        + '?select=updated_at'
+        + '&availability_status=in.(' + statusFilter() + ')'
+        + '&order=updated_at.desc&limit=1';
+  if (FILTER_ORT) { u += '&city=eq.' + encodeURIComponent(FILTER_ORT); }
+
+  var xhr = new XMLHttpRequest();
+  try { xhr.open('GET', u, true); } catch (e) { return; }
+  xhr.timeout = 12000;
+  xhr.setRequestHeader('apikey', SUPABASE_KEY);
+  xhr.setRequestHeader('Authorization', 'Bearer ' + SUPABASE_KEY);
+  xhr.setRequestHeader('Accept', 'application/json');
+  xhr.setRequestHeader('Prefer', 'count=exact');
+
+  xhr.onreadystatechange = function(){
+    if (xhr.readyState !== 4) { return; }
+    if (xhr.status < 200 || xhr.status >= 300) { return; }
+    var anzahl = '';
+    try { anzahl = xhr.getResponseHeader('Content-Range') || ''; } catch (e2) { anzahl = ''; }
+    var kennung = anzahl + '|' + xhr.responseText;
+
+    if (fingerAbdruck === null) { fingerAbdruck = kennung; return; }
+    if (kennung !== fingerAbdruck) {
+      fingerAbdruck = kennung;
+      dbg('Aenderung erkannt, lade neu');
+      load();
+    }
+  };
+  xhr.onerror   = function(){};
+  xhr.ontimeout = function(){};
+  try { xhr.send(null); } catch (e3) { /* stillhalten, naechster Puls */ }
+}
+
+function onFail(why){
+  dbg('Fehler: ' + why);
+  if (!current) {
+    var cached = loadCache();
+    if (cached) { partition(cached); dbg('Cache: ' + offers.length + '/' + refs.length); }
+    start();
+  }
+}
+
+function isAvailable(p){
+  return (p.availability_status === 'available' || p.availability_status === 'verfügbar')
+      && p.is_active === true;
+}
+function isReference(p){
+  return p.availability_status === 'sold' || p.availability_status === 'rented';
+}
+
+function partition(list){
+  var a = [], r = [], i, j;
+  for (i = 0; i < list.length; i++){
+    var p = list[i];
+    if (!p || !p.id || !p.title) { continue; }
+
+    var imgs = p.property_images || [];
+    imgs.sort(function(x, y){ return (x.sort_order || 0) - (y.sort_order || 0); });
+    var urls = [];
+    for (j = 0; j < imgs.length; j++){
+      if (imgs[j] && imgs[j].image_url) { urls.push(imgs[j].image_url); }
+    }
+    p._imgs = urls;
+
+    if (isAvailable(p))      { a.push(p); }
+    else if (isReference(p)) { r.push(p); }
+  }
+  r.sort(function(x, y){
+    var ox = (x.reference_sort_order === null || x.reference_sort_order === undefined) ? 999 : x.reference_sort_order;
+    var oy = (y.reference_sort_order === null || y.reference_sort_order === undefined) ? 999 : y.reference_sort_order;
+    return ox - oy;
+  });
+  if (MAX_OBJECTS > 0) { a = a.slice(0, MAX_OBJECTS); }
+  offers = a;
+  refs   = r;
+}
+
+function saveCache(list){
+  try { window.localStorage.setItem(CACHE_KEY, JSON.stringify({ t: nowMs(), d: list })); }
+  catch (e) { /* privater Modus - egal */ }
+}
+function loadCache(){
+  try {
+    var raw = window.localStorage.getItem(CACHE_KEY);
+    if (!raw) { return null; }
+    var o = JSON.parse(raw);
+    return (o && o.d && o.d.length) ? o.d : null;
+  } catch (e) { return null; }
+}
+
+/* ============================================================
+   Objektbeschriftung
+   ============================================================ */
+
+/* Die Datenbank kennt nur vier grobe Immobilienarten.
+   Bei Wohnungen laesst sich aus der Zimmerzahl eine
+   praezisere Bezeichnung bilden. */
+function objektart(p){
+  /* Wenn in der Datenbank eine genauere Bezeichnung hinterlegt
+     ist (Spalte property_subtype, z. B. "Einfamilienhaus" oder
+     "Hotel"), hat diese Vorrang. */
+  if (p.property_subtype) { return String(p.property_subtype); }
+
+  var t = p.property_type;
+  if (t === 'Wohnung') {
+    if (p.rooms) { return deSmart(p.rooms, 1) + '-Zimmer-Wohnung'; }
+    return 'Eigentumswohnung';
+  }
+  if (t === 'Haus')       { return 'Haus'; }
+  if (t === 'Grundstück') { return 'Grundstück'; }
+  if (t === 'Gewerbe')    { return 'Gewerbefläche'; }
+  return t || 'Immobilie';
+}
+
+function ortZeile(p){
+  var parts = [];
+  if (p.postal_code) { parts.push(esc(p.postal_code)); }
+  if (p.city)        { parts.push(esc(p.city)); }
+  var s = parts.join(' ');
+  if (p.district) { s += (s ? ' &ndash; ' : '') + esc(p.district); }
+  return s || 'Standort auf Anfrage';
+}
+
+function preisBlock(p){
+  if (p.transaction_type === 'rent') {
+    if (!p.cold_rent) { return '<div class="price" style="font-size:4.4rem">Miete auf Anfrage</div>'; }
+    return '<div class="price">' + deNum(p.cold_rent, 0) + '&nbsp;&euro;'
+         + '<span class="unit">/ Monat</span></div>'
+         + '<div class="price-sub">Kaltmiete'
+         + (p.warm_rent ? '&nbsp;&middot;&nbsp;Warmmiete ' + deNum(p.warm_rent, 0) + '&nbsp;&euro;' : '')
+         + '</div>';
+  }
+  if (!p.purchase_price) { return '<div class="price" style="font-size:4.4rem">Preis auf Anfrage</div>'; }
+  return '<div class="price">' + deNum(p.purchase_price, 0) + '&nbsp;&euro;</div>'
+       + '<div class="price-sub">Kaufpreis'
+       + (p.provision ? '&nbsp;&middot;&nbsp;K&auml;uferprovision ' + deSmart(p.provision, 2) + '&nbsp;% inkl. MwSt.' : '')
+       + '</div>';
+}
+
+function faktenBlock(p, maxCount){
+  var f = [];
+  if (p.rooms)        { f.push([deSmart(p.rooms, 1), 'Zimmer']); }
+  if (p.living_space) { f.push([deSmart(p.living_space, 1) + ' <small>m&sup2;</small>', 'Wohnfl&auml;che']); }
+  if (p.plot_size)    { f.push([deSmart(p.plot_size, 1) + ' <small>m&sup2;</small>', 'Grundst&uuml;ck']); }
+  if (p.year_built)   { f.push([String(p.year_built), 'Baujahr']); }
+  if (!f.length) { return ''; }
+  var html = '<div class="facts">', n = maxCount || 4;
+  for (var i = 0; i < f.length && i < n; i++){
+    html += '<div class="fact"><div class="v">' + f[i][0] + '</div><div class="k">' + f[i][1] + '</div></div>';
+  }
+  return html + '</div>';
+}
+
+var MERKMALE = [
+  ['has_balcony',        'Balkon'],
+  ['has_terrace',        'Terrasse'],
+  ['has_garden',         'Garten'],
+  ['has_parking',        'Stellplatz'],
+  ['has_elevator',       'Aufzug'],
+  ['has_fitted_kitchen', 'Einbauk&uuml;che'],
+  ['has_cellar',         'Keller'],
+  ['has_guest_toilet',   'G&auml;ste-WC'],
+  ['is_barrier_free',    'Barrierefrei']
+];
+
+function merkmaleBlock(p, maxCount){
+  var html = '', n = 0, max = maxCount || 5;
+  for (var i = 0; i < MERKMALE.length && n < max; i++){
+    if (p[MERKMALE[i][0]] === true) {
+      html += '<div class="chip">' + MERKMALE[i][1] + '</div>';
+      n++;
+    }
+  }
+  return n ? '<div class="chips">' + html + '</div>' : '';
+}
+
+/* Pflichtangaben nach GEG fuer Immobilienanzeigen */
+function energieBlock(p){
+  var b = [];
+  if (p.energy_certificate_type)  { b.push(esc(p.energy_certificate_type)); }
+  if (p.energy_value)             { b.push('Energiekennwert <b>' + deSmart(p.energy_value, 1) + ' kWh/(m&sup2;&middot;a)</b>'); }
+  if (p.energy_efficiency_class)  { b.push('Effizienzklasse <b>' + esc(p.energy_efficiency_class) + '</b>'); }
+  if (p.energy_source)            { b.push('Energietr&auml;ger ' + esc(p.energy_source)); }
+  if (p.heating_type)             { b.push('Heizung ' + esc(p.heating_type)); }
+  if (p.year_built)               { b.push('Baujahr ' + esc(p.year_built)); }
+  if (!b.length) { return ''; }
+  return '<div class="energy">' + b.join('&nbsp;&middot;&nbsp;') + '</div>';
+}
+
+/* ============================================================
+   Folie: verfuegbares Objekt
+   ============================================================ */
+function slideObjekt(p){
+  var miete = (p.transaction_type === 'rent');
+  var img   = (p._imgs && p._imgs.length) ? p._imgs[0] : IMG.fallback;
+  var qrKey = miete ? 'vermietung' : 'verkauf';
+  var seite = miete ? 'rgi-immobilien.de/vermietung' : 'rgi-immobilien.de/verkauf';
+
+  return ''
+  + '<div class="far">'
+  +   '<div class="far-top">'
+  +     '<img class="logo" src="' + LOGO + '" alt="RGI Immobilien">'
+  +     '<div class="pill' + (miete ? ' is-rent' : '') + '">'
+  +       (miete ? 'Zu vermieten' : 'Zu verkaufen') + '</div>'
+  +   '</div>'
+  +   '<div class="headline" data-fit="1">' + esc(objektart(p)) + '</div>'
+  +   '<div class="subline"><span class="dot"></span>' + ortZeile(p) + '</div>'
+  + '</div>'
+  + '<div class="photo">'
+  +   '<img src="' + esc(img) + '" alt="">'
+  +   ((p._imgs && p._imgs.length > 1) ? '<div class="shots">' + p._imgs.length + ' Fotos online</div>' : '')
+  + '</div>'
+  + '<div class="near">'
+  +   preisBlock(p)
+  +   faktenBlock(p)
+  +   merkmaleBlock(p)
+  +   energieBlock(p)
+  +   '<div class="cta">'
+  +     '<div class="qr">' + qrSvg(qrKey) + '</div>'
+  +     '<div class="cta-txt">'
+  +       '<div class="l1">Alle Details und weitere Objekte</div>'
+  +       '<div class="l2">' + seite + '</div>'
+  +       '<div class="l3">Oder kommen Sie herein &ndash; wir beraten Sie gern.</div>'
+  +     '</div>'
+  +   '</div>'
+  + '</div>'
+  + barHtml();
+}
+
+/* ============================================================
+   Folie: Referenzobjekt (verkauft / vermietet)
+   ============================================================ */
+function slideReferenz(p){
+  var miete = (p.transaction_type === 'rent');
+  var img   = (p._imgs && p._imgs.length) ? p._imgs[0] : IMG.fallback;
+
+  return ''
+  + '<div class="far">'
+  +   '<div class="far-top">'
+  +     '<img class="logo" src="' + LOGO + '" alt="RGI Immobilien">'
+  +     '<div class="pill">Referenz</div>'
+  +   '</div>'
+  +   '<div class="headline" data-fit="1">' + esc(objektart(p)) + '</div>'
+  +   '<div class="subline"><span class="dot"></span>' + ortZeile(p) + '</div>'
+  + '</div>'
+  + '<div class="photo">'
+  +   '<img src="' + esc(img) + '" alt="">'
+  +   '<div class="sold">' + (miete ? 'Vermittelt' : 'Verkauft') + '</div>'
+  + '</div>'
+  + '<div class="near">'
+  +   '<div class="lead" style="font-size:3rem"><b>'
+  +     (miete ? 'Erfolgreich vermittelt.' : 'Erfolgreich verkauft.') + '</b> '
+  +     'Eines von vielen Objekten, die wir f&uuml;r unsere Eigent&uuml;mer begleitet haben.'
+  +   '</div>'
+  +   faktenBlock(p, 3)
+  +   '<div class="cta">'
+  +     '<div class="qr">' + qrSvg('verkauf') + '</div>'
+  +     '<div class="cta-txt">'
+  +       '<div class="l1">Was ist Ihre Immobilie wert?</div>'
+  +       '<div class="l2">Kostenlose Marktpreiseinsch&auml;tzung</div>'
+  +       '<div class="l3">' + KONTAKT.web + '/verkauf</div>'
+  +     '</div>'
+  +   '</div>'
+  + '</div>'
+  + barHtml();
+}
+
+/* ============================================================
+   Inhaltsfolien
+   ============================================================ */
+
+function shell(farTop, headline, subline, mitte, unten){
+  return ''
+  + '<div class="far">'
+  +   '<div class="far-top">'
+  +     '<img class="logo" src="' + LOGO + '" alt="RGI Immobilien">'
+  +     (farTop ? '<div class="pill">' + farTop + '</div>' : '<div></div>')
+  +   '</div>'
+  +   '<div class="headline" data-fit="1">' + headline + '</div>'
+  +   (subline ? '<div class="subline">' + subline + '</div>' : '<div class="rule"></div>')
+  + '</div>'
+  + mitte
+  + unten
+  + barHtml();
+}
+
+/* --- Kundenstimmen (w&ouml;rtlich aus dem RGI-Flyer) --- */
+var STIMMEN = [
+  {
+    text: 'Frau G&ouml;ttinger war immer hilfsbereit, erreichbar und beantwortete '
+        + 'unsere Fragen schnellstm&ouml;glich. Wir waren sehr zufrieden mit ihrer '
+        + 'Arbeit. Wir k&ouml;nnen sie absolut weiterempfehlen.',
+    von: 'Eigent&uuml;mer aus F&uuml;ssen'
+  },
+  {
+    text: 'Wir haben Frau Regina G&ouml;ttinger als &auml;u&szlig;erst seri&ouml;s, '
+        + 'fachkundig, termintreu und zuverl&auml;ssig sch&auml;tzen gelernt. Mit gutem '
+        + 'Gewissen empfehlen wir sie als absolute Fachfrau weiter.',
+    von: 'Eigent&uuml;mer aus Pfronten'
+  }
+];
+
+function slideStimme(i){
+  var s = STIMMEN[i % STIMMEN.length];
+  return ''
+  + '<div class="far">'
+  +   '<div class="far-top">'
+  +     '<img class="logo" src="' + LOGO + '" alt="RGI Immobilien">'
+  +     '<div class="pill">Kundenstimme</div>'
+  +   '</div>'
+  +   '<div class="headline" data-fit="1">5-Sterne-Service</div>'
+  + '</div>'
+  + '<div class="body on-bg center">'
+  +   '<div class="quote">&bdquo;' + s.text + '&ldquo;</div>'
+  +   sterneHtml(5)
+  +   '<div class="author">&ndash; ' + s.von + '</div>'
+  + '</div>'
+  + barHtml();
+}
+
+/* --- Fachbereiche (Texte aus dem RGI-Flyer) --- */
+var BEREICHE = [
+  {
+    key: 'verkauf',
+    titel: 'Verkauf',
+    lead: 'Der Verkauf einer Immobilie ist <b>Vertrauenssache</b> und verlangt '
+        + 'Marktkenntnis. Wir ermitteln den realistischen Bestpreis durch fundierte '
+        + 'Analyse und sorgen f&uuml;r eine hochwertige Pr&auml;sentation.',
+    punkte: [
+      'Kostenlose Marktpreiseinsch&auml;tzung',
+      'Professionelles Expos&eacute; und Vermarktung auf allen Portalen',
+      'Komplette Abwicklung bis zum Notartermin'
+    ],
+    cta1: 'Was ist Ihre Immobilie wert?',
+    cta2: 'Kostenlose Bewertung',
+    seite: 'rgi-immobilien.de/verkauf'
+  },
+  {
+    key: 'vermietung',
+    titel: 'Vermietung',
+    lead: 'Die Rendite steht und f&auml;llt mit dem <b>richtigen Mieter</b>. '
+        + 'Wir nehmen Ihnen die aufwendige Suche ab und finden Mieter, die zu '
+        + 'Ihrer Immobilie passen.',
+    punkte: [
+      'Strikte Bonit&auml;tspr&uuml;fung und Vorauswahl',
+      'Rechtssichere Vertr&auml;ge und &Uuml;bergabeprotokoll',
+      'Langfristige Mietverh&auml;ltnisse statt Leerstand'
+    ],
+    cta1: 'Immobilie zu vermieten?',
+    cta2: 'Sprechen Sie uns an',
+    seite: 'rgi-immobilien.de/vermietung'
+  },
+  {
+    key: 'verwaltung',
+    titel: 'Verwaltung',
+    lead: 'Genie&szlig;en Sie Ihr Eigentum <b>ohne den t&auml;glichen Aufwand</b>. '
+        + 'Wir &uuml;bernehmen die kaufm&auml;nnische und technische Verwaltung &ndash; '
+        + 'von der Jahresabrechnung bis zur Instandhaltung.',
+    punkte: [
+      'WEG-, Miet- und Sondereigentumsverwaltung',
+      'Zertifizierte Verwalter nach &sect;26a WEG',
+      'Direkter Ansprechpartner statt Warteschleife'
+    ],
+    cta1: 'Verwaltung wechseln?',
+    cta2: 'Wir erstellen Ihnen ein Angebot',
+    seite: 'rgi-immobilien.de/verwaltung'
+  }
+];
+
+function slideBereich(i){
+  var b = BEREICHE[i % BEREICHE.length];
+  var punkte = '<div class="points">';
+  for (var j = 0; j < b.punkte.length; j++){
+    punkte += '<div class="point"><div class="n">' + pad(j + 1) + '</div>'
+            + '<div class="t">' + b.punkte[j] + '</div></div>';
+  }
+  punkte += '</div>';
+
+  return ''
+  + '<div class="far">'
+  +   '<div class="far-top">'
+  +     '<img class="logo" src="' + LOGO + '" alt="RGI Immobilien">'
+  +     '<div class="pill">Unsere Leistungen</div>'
+  +   '</div>'
+  +   '<div class="headline" data-fit="1">' + b.titel + '</div>'
+  +   '<div class="rule"></div>'
+  + '</div>'
+  + '<div class="photo"><img src="' + IMG[b.key] + '" alt=""></div>'
+  + '<div class="near">'
+  +   '<div class="lead">' + b.lead + '</div>'
+  +   punkte
+  +   '<div class="cta">'
+  +     '<div class="qr">' + qrSvg(b.key) + '</div>'
+  +     '<div class="cta-txt">'
+  +       '<div class="l1">' + b.cta1 + '</div>'
+  +       '<div class="l2">' + b.cta2 + '</div>'
+  +       '<div class="l3">' + b.seite + '</div>'
+  +     '</div>'
+  +   '</div>'
+  + '</div>'
+  + barHtml();
+}
+
+/* --- Verwaltungs-App --- */
+var ZYKLUS = [
+  ['Beschl&uuml;sse',  'Umsetzung nachvollziehbar dokumentiert'],
+  ['Heizkosten',       'Abrechnung der Verbr&auml;uche'],
+  ['Jahresabrechnung', 'Gepr&uuml;ft und online einsehbar'],
+  ['Kassenpr&uuml;fung','Digital statt Aktenordner'],
+  ['Versammlung',      'Terminabfrage und Einladung in der App']
+];
+
+var APP_FUNKTIONEN = [
+  'Meldungen &amp; Ticketsystem', 'Dokumente online', 'Beschluss-Sammlung',
+  'Schwarzes Brett', 'Umfragen', 'KI-Chat', 'Notfallkontakte',
+  'Nebenkostenabrechnung f&uuml;r Ihre Mieter'
+];
+
+function slideApp(){
+  var steps = '<div class="cycle">';
+  for (var i = 0; i < ZYKLUS.length; i++){
+    steps += '<div class="step">'
+          +    '<div class="num">' + pad(i + 1) + '</div>'
+          +    '<div><div class="lbl">' + ZYKLUS[i][0] + '</div>'
+          +    '<div class="sub">' + ZYKLUS[i][1] + '</div></div>'
+          +  '</div>';
+  }
+  steps += '</div>';
+
+  var feats = '<div class="features">';
+  for (var j = 0; j < APP_FUNKTIONEN.length; j++){
+    feats += '<div class="feature">' + APP_FUNKTIONEN[j] + '</div>';
+  }
+  feats += '</div>';
+
+  return ''
+  + '<div class="far">'
+  +   '<div class="far-top">'
+  +     '<img class="logo" src="' + LOGO + '" alt="RGI Immobilien">'
+  +     '<div class="pill">Verwaltung digital</div>'
+  +   '</div>'
+  +   '<div class="headline" data-fit="1">Ihre Eigent&uuml;mer-App</div>'
+  +   '<div class="rule"></div>'
+  + '</div>'
+  + '<div class="body center">'
+  +   '<div class="lead">Das Verwaltungsjahr ist bei uns <b>jederzeit einsehbar</b>. '
+  +   'Eigent&uuml;mer sehen in der App, wo ihre Gemeinschaft gerade steht.</div>'
+  +   '<div class="appwrap">'
+  +     '<div class="appphone"><img src="' + IMG.app + '" alt=""></div>'
+  +     '<div class="appmain">' + steps + '</div>'
+  +   '</div>'
+  +   feats
+  + '</div>'
+  + barHtml();
+}
+
+/* --- Auftaktfolie ---
+   Im Hochformat das fertig gestaltete Bild, im Querformat die
+   aufgebaute Fassung - die Umschaltung macht das CSS. */
+function slideAuftakt(){
+  return ''
+  + '<div class="auftakt">'
+  +   '<img class="auftakt-img" src="' + IMG.auftakt2 + '" alt="">'
+  +   '<div class="opening">'
+  +   '<img src="' + IMG.auftakt + '" alt="">'
+  +   '<div class="scrim"></div>'
+  +   '<div class="inner">'
+  +     '<div class="logo-row"><img class="logo-lg" src="' + LOGO + '" alt="RGI Immobilien"></div>'
+  +     '<h1>Damit Sie sich<br>zur&uuml;cklehnen k&ouml;nnen.</h1>'
+  +     '<div class="tag">Verkauf<i>&middot;</i>Vermietung<i>&middot;</i>Verwaltung</div>'
+  +     '</div>'
+  +   '</div>'
+  + '</div>'
+  + barHtml();
+}
+
+/* ============================================================
+   Ablaufplan
+   ============================================================
+   Rhythmus je Runde: zwei Angebote, eine Inhaltsfolie,
+   ein weiteres Angebot, eine Referenz, eine Inhaltsfolie.
+   Fehlt eine Gattung, wird sie uebersprungen.
+   ============================================================ */
+var INHALTE = [
+  function(){ return { html: slideAuftakt(),  ms: CONTENT_MS }; },
+  function(){ return { html: slideBereich(0), ms: CONTENT_MS }; },
+  function(){ return { html: slideStimme(0),  ms: CONTENT_MS }; },
+  function(){ return { html: slideBereich(1), ms: CONTENT_MS }; },
+  function(){ return { html: slideApp(),      ms: CONTENT_MS + 4000 }; },
+  function(){ return { html: slideStimme(1),  ms: CONTENT_MS }; },
+  function(){ return { html: slideBereich(2), ms: CONTENT_MS }; }
+];
+
+function nextOffer(){
+  if (!offers.length) { return null; }
+  var p = offers[offerPos % offers.length];
+  offerPos++;
+  return { html: slideObjekt(p), ms: SLIDE_MS, img: firstImg(p) };
+}
+function nextRef(){
+  if (!refs.length) { return null; }
+  var p = refs[refPos % refs.length];
+  refPos++;
+  return { html: slideReferenz(p), ms: SLIDE_MS, img: firstImg(p) };
+}
+function nextContent(){
+  var f = INHALTE[contentPos % INHALTE.length];
+  contentPos++;
+  return f();
+}
+function firstImg(p){
+  return (p._imgs && p._imgs.length) ? p._imgs[0] : null;
+}
+
+function buildPlaylist(){
+  var out = [], s;
+  var pattern = ['offer','offer','content','offer','ref','content'];
+  for (var i = 0; i < pattern.length; i++){
+    if (pattern[i] === 'offer')        { s = nextOffer(); }
+    else if (pattern[i] === 'ref')     { s = nextRef(); }
+    else                               { s = nextContent(); }
+    if (s) { out.push(s); }
+  }
+  /* Falls gar keine Objekte vorhanden sind, laufen nur Inhaltsfolien. */
+  if (!out.length) {
+    for (var j = 0; j < INHALTE.length; j++){ out.push(nextContent()); }
+  }
+  return out;
+}
+
+/* ============================================================
+   Darstellung
+   ============================================================ */
+
+/* Schlagzeile auf eine Zeile bringen: Schriftgroesse
+   schrittweise reduzieren, bis das Wort hineinpasst. */
+function fitHeadlines(root){
+  var els = root.getElementsByClassName('headline');
+  for (var i = 0; i < els.length; i++){
+    var el = els[i];
+    var max = parseFloat(window.getComputedStyle
+      ? window.getComputedStyle(el).fontSize
+      : '170');
+    var size = max;
+    var min  = max * 0.34;
+    var guard = 0;
+    while (el.scrollWidth > el.clientWidth && size > min && guard < 200) {
+      size = size * 0.96;
+      el.style.fontSize = size + 'px';
+      guard++;
+    }
+  }
+}
+
+function show(html, ms){
+  var el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = html;
+  stage.appendChild(el);
+
+  bilderAbsichern(el);
+  fitHeadlines(el);
+
+  /* Reflow erzwingen, damit der Opacity-Uebergang greift */
+  /* jshint -W030 */
+  el.offsetHeight;
+  el.className = 'slide is-active';
+
+  if (current) {
+    var old = current;
+    old.className = 'slide is-out';
+    window.setTimeout(function(){
+      if (old.parentNode) { old.parentNode.removeChild(old); }
+    }, 1100);
+  }
+  current = el;
+  runBar(ms);
+}
+
+function runBar(ms){
+  /* Zuruecksetzen ohne Uebergang, Reflow erzwingen, dann in einem
+     Zug linear durchlaufen lassen. */
+  barEl.style.webkitTransition = 'none';
+  barEl.style.transition = 'none';
+  barEl.style.webkitTransform = 'scaleX(0)';
+  barEl.style.transform = 'scaleX(0)';
+  /* jshint -W030 */
+  barEl.offsetHeight;
+  barEl.style.webkitTransition = '-webkit-transform ' + ms + 'ms linear';
+  barEl.style.transition = 'transform ' + ms + 'ms linear';
+  barEl.style.webkitTransform = 'scaleX(1)';
+  barEl.style.transform = 'scaleX(1)';
+}
+
+/* ------------------------------------------------------------
+   Bildverwaltung
+
+   Die Objektfotos kommen aus der Cloud und brauchen manchmal
+   laenger als eine Folie steht. Deshalb werden sie vorgeladen
+   und die geladenen Bilder behalten, damit sie beim naechsten
+   Durchlauf sofort da sind. Schlaegt ein Bild fehl, wird es
+   einmal erneut versucht; klappt auch das nicht, bleibt statt
+   eines kaputten Symbols eine ruhige Flaeche stehen.
+   ------------------------------------------------------------ */
+var bildCache = {};
+var bildReihe = [];
+
+function preload(url){
+  if (!url || bildCache[url]) { return; }
+  var im = new Image();
+  im.src = url;
+  bildCache[url] = im;
+  bildReihe.push(url);
+  while (bildReihe.length > 40) {
+    delete bildCache[bildReihe.shift()];
+  }
+}
+
+function bilderAbsichern(root){
+  var imgs = root.getElementsByTagName('img');
+  for (var i = 0; i < imgs.length; i++){
+    (function(img){
+      img.onerror = function(){
+        if (!img.getAttribute('data-retry')) {
+          img.setAttribute('data-retry', '1');
+          var src = img.src;
+          window.setTimeout(function(){
+            img.src = src + (src.indexOf('?') === -1 ? '?' : '&') + 'r=' + nowMs();
+          }, 1500);
+          return;
+        }
+        img.style.visibility = 'hidden';
+        dbg('Bild nicht ladbar: ' + img.src);
+      };
+      /* Falls das Bild schon im Cache steckt und bereits fehlerhaft
+         war, greift onerror nicht mehr - deshalb hier pruefen. */
+      if (img.complete && img.naturalWidth === 0 && img.src) { img.onerror(); }
+    })(imgs[i]);
+  }
+}
+
+function tick(){
+  /* Geplanter Neustart nur an einer Folienkante, damit nie
+     mitten in der Anzeige neu geladen wird. */
+  if (nowMs() - bootTime > RELOAD_AFTER) {
+    dbg('geplanter Reload');
+    window.location.reload();
+    return;
+  }
+
+  /* Neue Daten uebernehmen - die Zaehler laufen weiter, daher
+     springt die Rotation dabei nicht sichtbar zurueck. */
+  if (datenNeu) {
+    datenNeu = false;
+    playlist = buildPlaylist();
+    playPos = 0;
+  }
+
+  if (playPos >= playlist.length) {
+    playlist = buildPlaylist();
+    playPos = 0;
+  }
+
+  var s = playlist[playPos];
+  playPos++;
+  show(s.html, s.ms);
+
+  if (playPos < playlist.length) { preload(playlist[playPos].img); }
+
+  timer = window.setTimeout(tick, s.ms);
+}
+
+function start(){
+  if (timer) { window.clearTimeout(timer); }
+  playlist = buildPlaylist();
+  playPos = 0;
+  tick();
+}
+
+/* Falls doch ein Fehler durchrutscht: nicht mit leerer Seite
+   stehen bleiben, sondern nach 30 s neu laden. */
+window.onerror = function(m, src, line){
+  dbg('JS-Fehler: ' + m + ' @' + line);
+  window.setTimeout(function(){ window.location.reload(); }, 30000);
+  return true;
+};
+
+load();
+window.setInterval(pulse, PULSE_MS);   /* alle 30 s: hat sich etwas geaendert? */
+window.setInterval(load,  REFRESH_MS); /* alle 10 min: Vollabruf als Sicherheitsnetz */
+
+/* Falls der erste Abruf haengt: nach 8 s trotzdem etwas zeigen */
+window.setTimeout(function(){
+  if (!current) {
+    var cached = loadCache();
+    if (cached) { partition(cached); }
+    start();
+  }
+}, 8000);
+
+})();
+</script>
+</body>
+</html>

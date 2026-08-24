@@ -1,0 +1,84 @@
+# ============================================================
+# RGI Immobilien – Netlify Hosting Config
+# ============================================================
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# ------------------------------------------------------------
+# Redirects (Reihenfolge ist wichtig — erste Regel gewinnt)
+# ------------------------------------------------------------
+
+# 1) www → non-www (301)
+[[redirects]]
+  from = "https://www.rgi-immobilien.de/*"
+  to = "https://rgi-immobilien.de/:splat"
+  status = 301
+  force = true
+
+# 2) SPA-Fallback für Routen ohne prerenderte HTML
+#    (statische .html-Dateien aus dist/ haben automatisch Vorrang)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# ------------------------------------------------------------
+# Cache-Header
+# ------------------------------------------------------------
+
+# Hash-benannte Assets: 1 Jahr cachen
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# HTML: nie cachen, damit neue Deployments sofort sichtbar sind
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# Sicherheits-Header (alle Routen)
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# ------------------------------------------------------------
+# Schaufensteranzeige (/display/)
+# Schriften und Bilder aendern sich praktisch nie und werden
+# deshalb lange vorgehalten - der Bildschirm laedt sie dann nur
+# einmal statt bei jeder Folie neu.
+# ------------------------------------------------------------
+
+[[headers]]
+  for = "/display/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/display/*.jpg"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/display/*.png"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/display/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+# Bilder der Website ebenfalls cachen (bisher ohne Header)
+[[headers]]
+  for = "/lovable-uploads/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
