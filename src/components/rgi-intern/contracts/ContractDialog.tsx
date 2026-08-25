@@ -497,7 +497,7 @@ export function ContractDialog({ open, onOpenChange, contract, presetBuildingId 
             <Info className="w-4 h-4 shrink-0 mt-0.5" />
             <span>
               Alle Werte sind frei eintragbar. Nichts wird aus den Gebäudestammdaten übernommen,
-              solange du es nicht selbst über „In Bausteine übernehmen" auslöst.
+              solange du es nicht selbst über „In Bausteine übernehmen“ auslöst.
             </span>
           </div>
         </div>

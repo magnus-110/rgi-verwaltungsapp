@@ -143,7 +143,7 @@ export function ContractsTab() {
         <Skeleton className="h-64" />
       ) : rows.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">
-          Noch kein Vertrag erfasst. Klick auf „Neuer Vertrag" oder wähle oben ein Objekt.
+          Noch kein Vertrag erfasst. Klick auf „Neuer Vertrag“ oder wähle oben ein Objekt.
         </Card>
       ) : (
         <Card className="overflow-x-auto">
@@ -254,7 +254,7 @@ export function ContractsTab() {
           <AlertDialogHeader>
             <AlertDialogTitle>Vertrag löschen?</AlertDialogTitle>
             <AlertDialogDescription>
-              Der Vertrag für „{confirmDelete?.building?.name}" wird mit allen Honorarbausteinen
+              Der Vertrag für „{confirmDelete?.building?.name}“ wird mit allen Honorarbausteinen
               entfernt. Das Dokument im DMS bleibt bestehen.
             </AlertDialogDescription>
           </AlertDialogHeader>
