@@ -27,7 +27,7 @@ export function ProjectsTab() {
       </div>
 
       {isLoading ? <Skeleton className="h-32" /> : (projects ?? []).length === 0 ? (
-        <Card className="p-8 text-center text-sm text-muted-foreground">Noch keine Projekte. Klick auf „Neues Projekt".</Card>
+        <Card className="p-8 text-center text-sm text-muted-foreground">Noch keine Projekte. Klick auf „Neues Projekt“.</Card>
       ) : (
         <Card className="divide-y">
           {projects?.map((p) => (

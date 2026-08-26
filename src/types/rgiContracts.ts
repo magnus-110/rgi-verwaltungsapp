@@ -230,7 +230,7 @@ export const BASIS_CHOICES: { value: FeeBasis; label: string }[] = [
 //
 // Damit lässt sich ein neuer Vertrag mit einem Klick vorbelegen und
 // danach anpassen. Quelle: „Verwaltervertrag für Wohnungseigentums-
-// anlagen", Fassung 2026, §§ 3 und 4.
+// anlagen“, Fassung 2026, §§ 3 und 4.
 // ---------------------------------------------------------------
 
 export interface StandardFee {
