@@ -102,6 +102,14 @@ export function CompanyFileList({ categoryId, search, selectedFileId, onSelect }
         {files.map((f) => (
           <div
             key={f.id}
+            draggable
+            onDragStart={(e) => {
+              // Gehoert die Zeile zur Auswahl, wandert die ganze Auswahl mit.
+              const ids = checked.has(f.id) && checked.size > 0 ? Array.from(checked) : [f.id];
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("application/x-dms-file-ids", JSON.stringify(ids));
+              e.dataTransfer.setData("text/plain", ids.join(","));
+            }}
             onClick={() => onSelect(f)}
             onDoubleClick={() => openFile(f)}
             className={cn(
