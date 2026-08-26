@@ -124,6 +124,25 @@ async function convertDocxToPdf(docxBytes: Uint8Array, filename: string): Promis
   return new Uint8Array(await dl.arrayBuffer());
 }
 
+/**
+ * Nutzer-ID aus dem mitgeschickten Zugangstoken. Wird als `uploaded_by` fuer
+ * die Ablage im Firmen-DMS gebraucht; die Spalte darf nicht leer sein.
+ */
+function userIdFromRequest(req: Request): string | null {
+  try {
+    const raw = req.headers.get("Authorization") || "";
+    const token = raw.replace(/^Bearer\s+/i, "").trim();
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4 !== 0) b64 += "=";
+    const payload = JSON.parse(atob(b64));
+    return typeof payload?.sub === "string" ? payload.sub : null;
+  } catch {
+    return null;
+  }
+}
+
 function json(b: unknown, status = 200) {
   return new Response(JSON.stringify(b), {
     status,
@@ -405,9 +424,11 @@ Deno.serve(async (req) => {
 
     let pdfPath: string | null = null;
     let pdfError: string | null = null;
+    let pdfSize = 0;
     if (formats.includes("pdf")) {
       try {
         const pdfBytes = await convertDocxToPdf(docxBytes, `${baseName}.docx`);
+        pdfSize = pdfBytes.length;
         pdfPath = `offers/pdf/${offer.id}/${baseName}.pdf`;
         const { error: pdfUploadError } = await admin.storage.from("invoices").upload(pdfPath, pdfBytes, {
           contentType: "application/pdf",
@@ -428,6 +449,7 @@ Deno.serve(async (req) => {
     let summaryDocxPath: string | null = null;
     let summaryPdfPath: string | null = null;
     let summaryError: string | null = null;
+    let summaryPdfSize = 0;
     const summaryTemplatePath = await templatePathOfKind("contract_summary");
     if (!summaryTemplatePath) {
       summaryError = "Keine Vorlage für das Übersichtsblatt hinterlegt.";
@@ -445,6 +467,7 @@ Deno.serve(async (req) => {
 
         if (formats.includes("pdf")) {
           const sumPdf = await convertDocxToPdf(sumDocx, `${sumBase}.docx`);
+          summaryPdfSize = sumPdf.length;
           summaryPdfPath = `offers/uebersicht-pdf/${offer.id}/${sumBase}.pdf`;
           const { error: sumPdfErr } = await admin.storage.from("invoices").upload(summaryPdfPath, sumPdf, {
             contentType: "application/pdf",
@@ -466,8 +489,102 @@ Deno.serve(async (req) => {
       ...(summaryPdfPath ? { summary_pdf_storage_path: summaryPdfPath } : {}),
     }).eq("id", offer.id);
 
+    // --- Ablage in der Firmenablage -----------------------------------------
+    // Die Dateien werden NICHT kopiert: der Eintrag zeigt auf denselben Pfad im
+    // Bucket 'invoices'. Schlaegt etwas fehl, bleibt der Vertragsentwurf gueltig.
+    let dmsError: string | null = null;
+    try {
+      const uploadedBy = userIdFromRequest(req) || offer.created_by || null;
+      if (!uploadedBy) {
+        dmsError = "Kein Benutzer ermittelbar, Ablage übersprungen.";
+      } else {
+        const { data: root } = await admin
+          .from("building_file_categories")
+          .select("id")
+          .eq("is_company", true)
+          .eq("slug", "rgi-angebote")
+          .maybeSingle();
+
+        let folderId: string | null = root?.id ?? null;
+        if (root?.id) {
+          // Je Interessent ein Unterordner, idempotent ueber den Slug.
+          const slug = `rgi-angebot-${offer.id}`;
+          const { data: sub } = await admin
+            .from("building_file_categories")
+            .select("id")
+            .eq("is_company", true)
+            .eq("slug", slug)
+            .maybeSingle();
+          if (sub?.id) {
+            folderId = sub.id;
+          } else {
+            const { data: created } = await admin
+              .from("building_file_categories")
+              .insert({
+                name: offer.prospect_name || "Angebot",
+                slug,
+                parent_id: root.id,
+                building_id: null,
+                is_company: true,
+                management_mode: "weg",
+                sort_order: 10,
+              })
+              .select("id")
+              .maybeSingle();
+            if (created?.id) folderId = created.id;
+          }
+        }
+
+        const register = async (path: string, displayName: string, size: number) => {
+          const { data: existing } = await admin
+            .from("building_files")
+            .select("id")
+            .eq("file_path", path)
+            .maybeSingle();
+          if (existing?.id) {
+            await admin
+              .from("building_files")
+              .update({
+                display_name: displayName,
+                file_size: size,
+                category_id: folderId,
+                storage_bucket: "invoices",
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", existing.id);
+            return;
+          }
+          await admin.from("building_files").insert({
+            display_name: displayName,
+            file_path: path,
+            file_size: size,
+            mime_type: "application/pdf",
+            category_id: folderId,
+            building_id: null,
+            is_company: true,
+            storage_bucket: "invoices",
+            management_mode: "weg",
+            visibility_role: "intern",
+            visible_to_users: false,
+            source: "manual",
+            uploaded_by: uploadedBy,
+          });
+        };
+
+        const label = offer.prospect_name || "Angebot";
+        if (pdfPath) await register(pdfPath, `Verwaltervertrag – ${label}`, pdfSize);
+        if (summaryPdfPath) {
+          await register(summaryPdfPath, `Übersichtsblatt – ${label}`, summaryPdfSize);
+        }
+      }
+    } catch (de: any) {
+      console.error("DMS registration failed", de);
+      dmsError = String(de?.message || de);
+    }
+
     return json({
       ok: true,
+      dms_error: dmsError,
       docx_path: docxPath,
       pdf_path: pdfPath,
       pdf_error: pdfError,
