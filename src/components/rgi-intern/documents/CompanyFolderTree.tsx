@@ -24,6 +24,7 @@ import {
   Layers,
   MoreVertical,
   Pencil,
+  ReceiptText,
   Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -34,7 +35,11 @@ import {
   useRenameCompanyFolder,
   useDeleteCompanyFolder,
 } from "@/hooks/useCompanyDocuments";
-import { CompanyFolder } from "./types";
+import {
+  CompanyFolder,
+  VIRTUAL_INVOICES_IN,
+  VIRTUAL_INVOICES_OUT,
+} from "./types";
 
 interface Props {
   selectedId: string | null;
@@ -204,6 +209,28 @@ export function CompanyFolderTree({ selectedId, onSelect }: Props) {
       >
         <FolderPlus className="h-4 w-4" /> Neuer Ordner
       </Button>
+
+      <div className="pt-3">
+        <p className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          Automatisch
+        </p>
+        {[
+          { id: VIRTUAL_INVOICES_OUT, label: "Rechnungen an Kunden" },
+          { id: VIRTUAL_INVOICES_IN, label: "Rechnungen von Lieferanten" },
+        ].map((entry) => (
+          <button
+            key={entry.id}
+            className={cn(
+              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted/60",
+              selectedId === entry.id && "bg-primary/10 text-primary",
+            )}
+            onClick={() => onSelect(entry.id)}
+          >
+            <ReceiptText className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">{entry.label}</span>
+          </button>
+        ))}
+      </div>
 
       <Dialog open={!!dialog} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent className="sm:max-w-md">
