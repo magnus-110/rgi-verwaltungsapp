@@ -346,3 +346,76 @@ export function useCreateInvoiceFromBillables() {
     onError: (e: any) => toast.error(e.message),
   });
 }
+
+// ---------------------------------------------------------------
+// Entwurf verwerfen
+// ---------------------------------------------------------------
+
+/**
+ * Löscht einen Rechnungsentwurf und gibt frei, was er verbraucht hat.
+ *
+ * Die Fremdschlüssel räumen fast alles von selbst auf: Positionen und
+ * Zahlungen verschwinden mit der Rechnung, und die Zeiterfassungen
+ * verlieren ihre Zuordnung, tauchen also wieder unter den offenen
+ * Stunden auf.
+ *
+ * Eine Sache aber nicht: billable_events behalten ihren Status
+ * „invoiced". Ohne die Rechnung dahinter wären diese Posten dauerhaft
+ * als abgerechnet markiert und würden nie wieder im Abrechnungsblatt
+ * erscheinen. Deshalb werden sie hier zuerst zurückgesetzt.
+ *
+ * Festgeschriebene Rechnungen sind ausgenommen: eine vergebene Nummer
+ * darf nicht spurlos verschwinden, dafür gibt es die Stornierung.
+ */
+export function useDeleteInvoiceDraft() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (invoice: { id: string; invoice_number?: string | null }) => {
+      if (invoice.invoice_number) {
+        throw new Error(
+          "Diese Rechnung hat schon eine Nummer und lässt sich nicht mehr löschen. Dafür gibt es die Stornierung.",
+        );
+      }
+
+      // Welche Posten hängen daran? Nur zum Mitzählen für die Meldung.
+      const { data: linked, error: lErr } = await db
+        .from("billable_events")
+        .select("id")
+        .eq("rgi_invoice_id", invoice.id);
+      if (lErr) throw lErr;
+
+      // 1) Posten freigeben — muss vor dem Löschen passieren, danach
+      //    ist die Verknüpfung weg und sie wären nicht mehr auffindbar.
+      if ((linked ?? []).length > 0) {
+        const { error: relErr } = await db
+          .from("billable_events")
+          .update({
+            status: "approved",
+            settled_via: null,
+            settled_on: null,
+            rgi_invoice_id: null,
+            rgi_invoice_item_id: null,
+          })
+          .eq("rgi_invoice_id", invoice.id);
+        if (relErr) throw relErr;
+      }
+
+      // 2) Rechnung löschen. Positionen, Zahlungen und die Zuordnung
+      //    der Stunden räumen die Fremdschlüssel selbst ab.
+      const { error } = await db.from("rgi_invoices").delete().eq("id", invoice.id);
+      if (error) throw error;
+
+      return { released: (linked ?? []).length };
+    },
+    onSuccess: (r) => {
+      invalidate(qc);
+      qc.invalidateQueries({ queryKey: ["rgi", "time"] });
+      toast.success(
+        r.released > 0
+          ? `Entwurf gelöscht — ${r.released} ${r.released === 1 ? "Posten ist" : "Posten sind"} wieder offen`
+          : "Entwurf gelöscht",
+      );
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}

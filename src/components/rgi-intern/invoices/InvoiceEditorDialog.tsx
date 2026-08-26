@@ -23,6 +23,10 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Trash2, Plus, RefreshCw, Download, FileSignature, FileStack, Save, FolderInput,
   Wallet, Landmark, ChevronUp, ChevronDown, Pencil,
 } from "lucide-react";
@@ -34,6 +38,7 @@ import {
   useRgiItemPresets, useUpsertRgiItemPreset,
   rgiNextInvoiceNumber, rgiRenderInvoice, rgiSignedUrl, type RgiInvoiceItem,
 } from "@/hooks/useRgi";
+import { useDeleteInvoiceDraft } from "@/hooks/useRgiBilling";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { ImportFromProjectDialog } from "./ImportFromProjectDialog";
@@ -76,11 +81,13 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
   const update = useUpdateRgiInvoice();
   const upsertItems = useUpsertRgiInvoiceItems();
   const upsertPreset = useUpsertRgiItemPreset();
+  const deleteDraft = useDeleteInvoiceDraft();
 
   const [d, setD] = useState<Draft>(emptyDraft());
   const [rendering, setRendering] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [headOpen, setHeadOpen] = useState(false);
+  const [askDelete, setAskDelete] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -572,6 +579,13 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
             Gesamt <b className="font-mono tabular-nums">{formatEur(totals.gross)}</b>
           </span>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Schließen</Button>
+          {!isFinal && invoiceId && (
+            <Button variant="ghost" onClick={() => setAskDelete(true)}
+              disabled={deleteDraft.isPending || rendering}
+              className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10">
+              <Trash2 className="w-4 h-4" />Entwurf löschen
+            </Button>
+          )}
           {!isFinal && (
             <Button variant="secondary" onClick={saveDraft}
               disabled={create.isPending || update.isPending || rendering}>
@@ -593,6 +607,41 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog open={askDelete} onOpenChange={setAskDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Entwurf löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Der Entwurf mit seinen {d.items.length} Positionen wird gelöscht. Angehakte
+              Posten und verbrauchte Stunden werden wieder freigegeben und stehen erneut
+              unter „Abzurechnen“.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteDraft.isPending}
+              onClick={async () => {
+                if (!invoiceId) return;
+                try {
+                  await deleteDraft.mutateAsync({
+                    id: invoiceId,
+                    invoice_number: invoice?.invoice_number ?? null,
+                  });
+                  setAskDelete(false);
+                  onOpenChange(false);
+                } catch {
+                  setAskDelete(false);
+                }
+              }}
+            >
+              Endgültig löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {d.project_id && (
         <ImportFromProjectDialog

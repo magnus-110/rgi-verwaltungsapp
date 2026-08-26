@@ -17,9 +17,13 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Search, ChevronRight, FileWarning, Plus, CircleDot, Clock, Wallet,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Search, ChevronRight, FileWarning, Plus, CircleDot, Clock, Wallet, Trash2,
 } from "lucide-react";
-import { useBillingOverview } from "@/hooks/useRgiBilling";
+import { useBillingOverview, useDeleteInvoiceDraft } from "@/hooks/useRgiBilling";
 import { useRgiInvoices, useRgiClients } from "@/hooks/useRgi";
 import {
   type BillingOverviewRow, feeYearBilled, hasOpenWork, openWorkNet,
@@ -54,6 +58,8 @@ export function InvoicesTab() {
   const [editorId, setEditorId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [toDelete, setToDelete] = useState<any | null>(null);
+  const deleteDraft = useDeleteInvoiceDraft();
 
   const clientName = (id: string) => clients?.find((c) => c.id === id)?.name ?? "—";
   const buildingName = (id: string | null) =>
@@ -210,6 +216,17 @@ export function InvoicesTab() {
             </div>
           )}
         </div>
+        {/* Nur Entwürfe. Eine Rechnung mit Nummer wird storniert, nie gelöscht. */}
+        {!inv.invoice_number && (
+          <Button
+            variant="ghost" size="icon"
+            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+            title="Entwurf löschen"
+            onClick={(e) => { e.stopPropagation(); setToDelete(inv); }}
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        )}
         <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
       </div>
     );
@@ -337,6 +354,45 @@ export function InvoicesTab() {
         buildingName={buildingName}
         clientName={clientName}
       />
+
+      {/* Entwurf löschen */}
+      <AlertDialog open={!!toDelete} onOpenChange={(v) => !v && setToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Entwurf löschen?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  {(buildingName(toDelete?.building_id) ?? (toDelete ? clientName(toDelete.client_id) : "")) || "Entwurf"}
+                  {toDelete ? ` · ${formatEur(Number(toDelete.total_gross))}` : ""}
+                </p>
+                <p>
+                  Der Entwurf und seine Positionen werden gelöscht. Angehakte Posten und
+                  verbrauchte Stunden werden wieder freigegeben und stehen erneut unter
+                  „Abzurechnen“.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteDraft.isPending}
+              onClick={async () => {
+                if (!toDelete) return;
+                try {
+                  await deleteDraft.mutateAsync(toDelete);
+                } finally {
+                  setToDelete(null);
+                }
+              }}
+            >
+              Endgültig löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
