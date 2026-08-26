@@ -82,9 +82,40 @@ export interface BillingOverviewRow {
   base_monthly_net: number;
   open_count: number;
   open_net: number;
+  /** Abrechenbare, noch nicht zugeordnete Projektstunden. */
+  open_hours: number;
+  open_hours_net: number;
+  /** Honorarjahre, die bereits auf einer Rechnung stehen. */
+  billed_periods: string[];
   last_invoice_number: string | null;
   last_invoice_date: string | null;
   last_invoice_gross: number | null;
+}
+
+/** Ist das Honorar fuer dieses Jahr schon in Rechnung gestellt? */
+export function feeYearBilled(row: BillingOverviewRow, year: number): boolean {
+  return (row.billed_periods ?? []).includes(String(year));
+}
+
+/**
+ * Was bei diesem Objekt zusammenkaeme, wenn man jetzt abrechnet:
+ * erfasste Posten, offene Stunden und - solange das Jahr noch nicht
+ * abgerechnet ist - zwoelf Monate Grundverguetung.
+ *
+ * Vorschlaege wie die Paragraf-35a-Bescheinigung sind bewusst nicht
+ * enthalten: die brauchen ohnehin eine Entscheidung und wuerden die
+ * Zahl in der Uebersicht zu einem Versprechen machen.
+ */
+export function openWorkNet(row: BillingOverviewRow, year: number): number {
+  const base = feeYearBilled(row, year) ? 0 : Number(row.base_monthly_net) * 12;
+  return Math.round((base + Number(row.open_net) + Number(row.open_hours_net)) * 100) / 100;
+}
+
+/** Objekte ohne irgendetwas Offenes gehoeren nicht in den Stapel. */
+export function hasOpenWork(row: BillingOverviewRow, year: number): boolean {
+  return row.open_count > 0
+    || Number(row.open_hours) > 0
+    || (Number(row.base_monthly_net) > 0 && !feeYearBilled(row, year));
 }
 
 // ---------------------------------------------------------------
@@ -331,6 +362,12 @@ export function suggestionsFromContract(
           .join(" · ")
       : undefined;
 
+    // Die Bescheinigung faellt je Einheit an, nicht einmal je Objekt.
+    const unitsForYear =
+      (contract.units_apartment ?? 0) + (contract.units_commercial ?? 0);
+    const defaultQty =
+      fee.basis === "item_year" && unitsForYear > 0 ? unitsForYear : 1;
+
     const hints = [fee.note, tierNote].filter(Boolean) as string[];
     if (fee.min_amount) hints.push(`mindestens ${formatEur(Number(fee.min_amount))}`);
     if (fee.max_count) hints.push(`höchstens ${fee.max_count} ×`);
@@ -341,7 +378,7 @@ export function suggestionsFromContract(
       eventId: null,
       status: "suggested",
       label: isTier ? fee.label.replace(/,?\s*Stufe\s*\d+$/i, "") : fee.label,
-      quantity: 1,
+      quantity: defaultQty,
       unit: unitFor(fee.basis),
       unitPriceNet: percent ? null : net,
       vatRate: Number(fee.vat_rate),
