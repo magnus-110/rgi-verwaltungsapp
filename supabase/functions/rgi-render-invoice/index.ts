@@ -154,13 +154,21 @@ Deno.serve(async (req) => {
       : "";
     const clientName = invoice.client_name_snapshot || invoice.client?.name || "";
     const clientAddress = invoice.client_address_snapshot || [invoice.client?.address_line1, [invoice.client?.zip, invoice.client?.city].filter(Boolean).join(" "), invoice.client?.country].filter(Boolean).join(", ");
+    // Selbstentnahme vom Objektkonto statt Ueberweisung. Die Word-
+    // Vorlage schaltet darueber den Zahlungsblock um: {#entnahme}
+    // druckt den Entnahmehinweis, {^entnahme} die Bankverbindung.
+    // Ein Zahlungsziel gibt es bei Entnahme nicht.
+    const isWithdrawal = invoice.paid_by_withdrawal === true;
+    const withdrawnOn = fmtDate(invoice.withdrawn_on);
+
     const payload = {
+      entnahme: isWithdrawal,
       Rechnungsnummer: invoiceNumber,
       Rechnungsdatum: issueDate,
-      Faellig: dueDate,
-      Fällig: dueDate,
-      Faelligkeit: dueDate,
-      Fälligkeit: dueDate,
+      Faellig: isWithdrawal ? "" : dueDate,
+      Fällig: isWithdrawal ? "" : dueDate,
+      Faelligkeit: isWithdrawal ? "" : dueDate,
+      Fälligkeit: isWithdrawal ? "" : dueDate,
       Leistungszeitraum: servicePeriod,
       Kundennummer: invoice.client?.customer_no || "",
       Kunde: clientName,
@@ -211,7 +219,9 @@ Deno.serve(async (req) => {
       rechnung: {
         nummer: invoiceNumber,
         datum: issueDate,
-        faellig: dueDate,
+        faellig: isWithdrawal ? "" : dueDate,
+        entnahme: isWithdrawal,
+        entnommen_am: withdrawnOn || issueDate,
         leistungszeitraum: servicePeriod,
         intro: invoice.intro_text || "",
         footer: invoice.footer_text || company?.default_footer_text || "",
