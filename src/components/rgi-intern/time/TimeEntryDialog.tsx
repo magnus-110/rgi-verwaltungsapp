@@ -18,7 +18,7 @@ interface Props {
   projects: RgiProject[];
 }
 
-/** Nimmt „1:30", „1,5" oder „90" und macht daraus Minuten. */
+/** Nimmt „1:30“, „1,5“ oder „90“ und macht daraus Minuten. */
 function parseDuration(input: string): number {
   const s = (input ?? "").trim();
   if (!s) return 0;

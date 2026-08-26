@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,7 @@ interface Props {
   presetBuildingId?: string | null;
 }
 
-/** Eine Zeile im Schritt „Honorar": eine Einheitenart mit Anzahl und Satz. */
+/** Eine Zeile im Schritt „Honorar“: eine Einheitenart mit Anzahl und Satz. */
 interface UnitRow {
   kind: FeeUnitKind;
   label: string;
@@ -48,6 +48,9 @@ interface ExtraRow {
   max_count: string;
   tier_from: string;
   tier_to: string;
+  /** Steuert nur die Sichtbarkeit der Staffelfelder im Formular. */
+  has_tier: boolean;
+  halved_if_supervised: boolean;
   is_gross: boolean;
   debtor: "community" | "owner" | "tenant";
   role: string;
@@ -153,6 +156,8 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
             max_count: f.max_count == null ? "" : String(f.max_count),
             tier_from: str(f.tier_from ?? null),
             tier_to: str(f.tier_to ?? null),
+            has_tier: f.tier_from != null || f.tier_to != null,
+            halved_if_supervised: !!f.halved_if_supervised,
             is_gross: f.is_gross,
             debtor: f.debtor,
             role: f.role ?? "",
@@ -229,6 +234,7 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
       {
         _key: key(), fee_type: entry.fee_type, label: entry.label, basis: entry.basis,
         value: "", threshold: "", min_amount: "", max_count: "", tier_from: "", tier_to: "",
+        has_tier: false, halved_if_supervised: false,
         is_gross: false, debtor: entry.debtor ?? "community", role: "", note: "",
       },
     ]);
@@ -240,6 +246,7 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
       {
         _key: key(), fee_type: "custom", label: "", basis: "case",
         value: "", threshold: "", min_amount: "", max_count: "", tier_from: "", tier_to: "",
+        has_tier: false, halved_if_supervised: false,
         is_gross: false, debtor: "community", role: "", note: "",
       },
     ]);
@@ -257,6 +264,8 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
         max_count: f.max_count == null ? "" : String(f.max_count),
         tier_from: str(f.tier_from ?? null),
         tier_to: str(f.tier_to ?? null),
+        has_tier: f.tier_from != null || f.tier_to != null,
+        halved_if_supervised: !!f.halved_if_supervised,
         is_gross: f.is_gross,
         debtor: f.debtor ?? "community",
         role: f.role ?? "",
@@ -285,7 +294,10 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
       const saved = await upsert.mutateAsync({
         ...(contract ? { id: contract.id } : {}),
         building_id: buildingId,
-        status: "active",
+        // Beim Bearbeiten den bestehenden Status behalten, damit ein
+        // Entwurf oder ein beendeter Vertrag nicht stillschweigend
+        // wieder aktiv wird.
+        status: contract?.status ?? "active",
         appointed_from: from || null,
         appointed_until: openEnded ? null : until || null,
         resolution_date: resolutionDate || null,
@@ -328,8 +340,9 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
             threshold: dec(e.threshold),
             min_amount: dec(e.min_amount),
             max_count: e.max_count ? Number(e.max_count) : null,
-            tier_from: dec(e.tier_from),
-            tier_to: dec(e.tier_to),
+            tier_from: e.has_tier ? dec(e.tier_from) : null,
+            tier_to: e.has_tier ? dec(e.tier_to) : null,
+            halved_if_supervised: e.halved_if_supervised,
             is_gross: e.is_gross,
             vat_rate: 19,
             debtor: e.debtor,
@@ -353,6 +366,11 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col">
+        {/* Titel für Screenreader; sichtbar steht die Frage im Kopf. */}
+        <DialogTitle className="sr-only">
+          {contract ? "Vertrag bearbeiten" : "Neuen Vertrag anlegen"}
+        </DialogTitle>
+
         {/* ---------- Kopf mit Fortschritt ---------- */}
         <div className="px-6 pt-5 pb-4 border-b">
           <div className="flex items-center gap-2 mb-3">
@@ -705,22 +723,48 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
                           <Input className="mt-1" inputMode="decimal" value={e.min_amount}
                             onChange={(ev) => setExtra(e._key, { min_amount: ev.target.value })} placeholder="250,00" />
                         </div>
-                        {(e.tier_from || e.tier_to) && (
+                        {e.has_tier && (
                           <div className="flex gap-3">
                             <div className="w-[140px]">
-                              <Label className="text-xs text-muted-foreground">Staffel von</Label>
+                              <Label className="text-xs text-muted-foreground">Diese Stufe gilt von</Label>
                               <Input className="mt-1" inputMode="decimal" value={e.tier_from}
-                                onChange={(ev) => setExtra(e._key, { tier_from: ev.target.value })} />
+                                onChange={(ev) => setExtra(e._key, { tier_from: ev.target.value })}
+                                placeholder="0,00" />
                             </div>
                             <div className="w-[140px]">
-                              <Label className="text-xs text-muted-foreground">Staffel bis</Label>
+                              <Label className="text-xs text-muted-foreground">bis</Label>
                               <Input className="mt-1" inputMode="decimal" value={e.tier_to}
                                 onChange={(ev) => setExtra(e._key, { tier_to: ev.target.value })}
-                                placeholder="offen" />
+                                placeholder="nach oben offen" />
                             </div>
                           </div>
                         )}
                       </div>
+                    )}
+
+                    {pct && (
+                      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={e.has_tier}
+                            onCheckedChange={(v) => setExtra(e._key, { has_tier: !!v })}
+                          />
+                          Der Satz gilt gestaffelt
+                        </label>
+                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={e.halved_if_supervised}
+                            onCheckedChange={(v) => setExtra(e._key, { halved_if_supervised: !!v })}
+                          />
+                          Halbiert sich, wenn ein Architekt die Bauleitung führt
+                        </label>
+                      </div>
+                    )}
+                    {pct && e.has_tier && (
+                      <p className="text-xs text-muted-foreground">
+                        Für jede weitere Stufe eine eigene Position mit demselben Namen anlegen und
+                        die Grenzen setzen — so wie in § 4 Ziff. 8 unseres Vertrags.
+                      </p>
                     )}
 
                     {e.basis === "item" && (

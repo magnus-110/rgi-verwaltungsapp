@@ -198,7 +198,7 @@ export const FEE_CATALOG: FeeCatalogEntry[] = [
 
 /**
  * Klartext-Einheit hinter dem Betragsfeld, damit im Formular niemand
- * wissen muss, was „Bemessung" bedeutet.
+ * wissen muss, was „Bemessung“ bedeutet.
  */
 export const BASIS_SUFFIX: Record<FeeBasis, string> = {
   unit_month: "€ je Einheit im Monat",
