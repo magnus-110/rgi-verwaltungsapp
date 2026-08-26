@@ -283,7 +283,9 @@ export function useLinkedPayment(invoiceId: string | null) {
     queryKey: invoiceId ? ["rgi", "linked-payment", invoiceId] : ["rgi", "linked-payment", "none"],
     enabled: !!invoiceId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      // `as any`: rgi_invoice_id kam mit der Migration dazu, die
+      // generierten Supabase-Typen kennen die Spalte noch nicht.
+      const { data, error } = await (supabase as any)
         .from("invoices")
         .select("id, status, paid_at, due_date, building_id, buildings(name)")
         .eq("rgi_invoice_id", invoiceId!)
