@@ -8,11 +8,12 @@ import {
 import { useIsRgiAdmin } from "@/hooks/useRgiAdmin";
 import {
   Briefcase, BarChart3, Clock, Users, FolderKanban, FileStack,
-  Settings, ClipboardList, Timer, FileSignature, Receipt,
+  Settings, ClipboardList, Timer, FileSignature, Receipt, Handshake,
 } from "lucide-react";
 
 import { CockpitTab } from "@/components/rgi-intern/dashboard/CockpitTab";
 import { ContractsTab } from "@/components/rgi-intern/contracts/ContractsTab";
+import { OffersTab } from "@/components/rgi-intern/offers/OffersTab";
 import { ClientsTab } from "@/components/rgi-intern/clients/ClientsTab";
 import { ProjectsTab } from "@/components/rgi-intern/projects/ProjectsTab";
 import { TimeEntriesTab } from "@/components/rgi-intern/time/TimeEntriesTab";
@@ -23,7 +24,7 @@ import { CompanySettingsTab } from "@/components/rgi-intern/settings/CompanySett
 import { TimeClockAdminTab } from "@/components/rgi-intern/timeclock/TimeClockAdminTab";
 
 type AreaId =
-  | "cockpit" | "contracts" | "invoices"
+  | "cockpit" | "contracts" | "invoices" | "offers"
   | "projects" | "time" | "timeclock"
   | "clients" | "templates" | "presets" | "settings";
 
@@ -60,6 +61,12 @@ const GROUPS: NavGroup[] = [
       { id: "projects", title: "Projekte", icon: FolderKanban, caption: "Projekte je Kunde und Objekt, mit eigenem Stundensatz" },
       { id: "time", title: "Stunden", icon: Clock, caption: "Abrechenbare Projektzeiten erfassen und in Rechnung stellen" },
       { id: "timeclock", title: "Stempelzeiten", icon: Timer, caption: "Arbeitszeit des Teams erfassen, korrigieren und freigeben" },
+    ],
+  },
+  {
+    label: "Wachstum",
+    items: [
+      { id: "offers", title: "Angebote", icon: Handshake, caption: "Anfragen neuer WEG, Honorar festlegen und Vertragsentwurf erzeugen" },
     ],
   },
   {
@@ -171,6 +178,7 @@ export default function RgiIntern() {
           {area === "cockpit" && <CockpitTab onNavigate={(a) => setArea(a as AreaId)} />}
           {area === "contracts" && <ContractsTab />}
           {area === "invoices" && <InvoicesTab />}
+          {area === "offers" && <OffersTab />}
           {area === "projects" && <ProjectsTab />}
           {area === "time" && <TimeEntriesTab />}
           {area === "timeclock" && <TimeClockAdminTab />}

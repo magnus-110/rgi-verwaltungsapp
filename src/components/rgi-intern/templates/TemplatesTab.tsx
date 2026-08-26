@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const PLACEHOLDERS = [
   ["Häufige Kurzformen", ["{Rechnungsnummer}", "{Rechnungsdatum}", "{Fällig}", "{Leistungszeitraum}", "{Kundennummer}", "{Kunde}", "{Kundenadresse}", "{Nettobetrag}", "{Umsatzsteuer}", "{Gesamtbetrag}", "{IBAN}", "{BIC}"]],
@@ -25,6 +26,8 @@ export function TemplatesTab() {
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  // Art der Vorlage: Rechnung oder Vertragsentwurf für Angebote.
+  const [kind, setKind] = useState<"invoice" | "contract">("invoice");
 
   const upload = async (file: File) => {
     setUploading(true);
@@ -33,10 +36,10 @@ export function TemplatesTab() {
       const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error: upErr } = await supabase.storage.from("rgi-invoice-templates").upload(path, file);
       if (upErr) throw upErr;
-      const { data: inserted, error: insErr } = await supabase.from("rgi_invoice_templates").insert({
+      const { data: inserted, error: insErr } = await (supabase as any).from("rgi_invoice_templates").insert({
         name: file.name.replace(/\.[^.]+$/, ""),
         storage_path: path,
-        template_kind: "invoice",
+        template_kind: kind,
       } as any).select().single();
       if (insErr) throw insErr;
       // Fire-and-forget placeholder parse (with correct template_id)
@@ -62,6 +65,13 @@ export function TemplatesTab() {
     <div className="space-y-4 mt-4">
       <div className="flex gap-2 items-center">
         <input ref={inputRef} type="file" accept=".docx" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+        <Select value={kind} onValueChange={(v) => setKind(v as "invoice" | "contract")}>
+          <SelectTrigger className="w-[210px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="invoice">Vorlage für Rechnungen</SelectItem>
+            <SelectItem value="contract">Vorlage für Verträge</SelectItem>
+          </SelectContent>
+        </Select>
         <Button onClick={() => inputRef.current?.click()} disabled={uploading} className="gap-1.5"><Upload className="w-4 h-4" />Vorlage (.docx) hochladen</Button>
         <Sheet>
           <SheetTrigger asChild><Button variant="outline" className="gap-1.5"><Info className="w-4 h-4" />Platzhalter-Hilfe</Button></SheetTrigger>
@@ -99,6 +109,7 @@ export function TemplatesTab() {
                   <div className="flex items-center gap-2">
                     <span className="font-medium truncate">{t.name}</span>
                     {t.is_default && <Badge>Standard</Badge>}
+                    {t.template_kind === "contract" && <Badge variant="secondary">Vertrag</Badge>}
                     {t.sparte && <Badge variant="outline">{t.sparte}</Badge>}
                   </div>
                   <div className="text-xs text-muted-foreground">

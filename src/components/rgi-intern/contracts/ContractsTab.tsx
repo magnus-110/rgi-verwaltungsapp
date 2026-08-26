@@ -14,7 +14,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Search, AlertTriangle, FileWarning } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Plus, Pencil, Trash2, Search, AlertTriangle, FileWarning, ChevronDown } from "lucide-react";
 import {
   useManagementContracts, useBuildingsWithoutContract, useDeleteContract,
 } from "@/hooks/useManagementContracts";
@@ -37,6 +38,9 @@ export function ContractsTab() {
   const [confirmDelete, setConfirmDelete] = useState<ContractWithDetails | null>(null);
   const [search, setSearch] = useState("");
   const [modeFilter, setModeFilter] = useState<ModeFilter>("all");
+  // Eingeklappt, damit die Vertragsliste nicht von der Lückenliste
+  // verdeckt wird — es sind über fünfzig Objekte.
+  const [missingOpen, setMissingOpen] = useState(false);
 
   const rows = useMemo(() => {
     const list = (contracts ?? []).filter((c) => {
@@ -112,30 +116,40 @@ export function ContractsTab() {
         </div>
       )}
 
-      {/* Objekte ohne Vertrag */}
+      {/* Objekte ohne Vertrag — standardmäßig eingeklappt */}
       {(missing ?? []).length > 0 && (
-        <Card className="p-4">
-          <div className="flex items-start gap-2 mb-3">
-            <FileWarning className="w-4 h-4 text-muted-foreground mt-0.5" />
-            <div>
-              <h3 className="text-sm font-semibold">Objekte ohne erfassten Vertrag</h3>
-              <p className="text-xs text-muted-foreground">
+        <Collapsible open={missingOpen} onOpenChange={setMissingOpen}>
+          <Card className="px-4 py-3">
+            <CollapsibleTrigger asChild>
+              <button type="button" className="w-full flex items-center gap-2 text-left">
+                <FileWarning className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span className="text-sm font-medium">Objekte ohne erfassten Vertrag</span>
+                <Badge variant="secondary" className="shrink-0">{(missing ?? []).length}</Badge>
+                <div className="flex-1" />
+                <ChevronDown
+                  className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${missingOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <p className="text-xs text-muted-foreground mt-2.5">
                 Hinweis, keine Sperre. Objekte in Anbahnung gehören in die Angebotsstrecke.
+                Klick auf ein Objekt legt den Vertrag dafür an.
               </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {(missing ?? []).map((b: any) => (
-              <Button key={b.id} variant="outline" size="sm" className="gap-1.5" onClick={() => openNew(b.id)}>
-                <Plus className="w-3.5 h-3.5" />
-                {b.name}
-                <span className="text-xs text-muted-foreground">
-                  {b.management_mode === "weg" ? "WEG" : "Miete"}
-                </span>
-              </Button>
-            ))}
-          </div>
-        </Card>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {(missing ?? []).map((b: any) => (
+                  <Button key={b.id} variant="outline" size="sm" className="gap-1.5" onClick={() => openNew(b.id)}>
+                    <Plus className="w-3.5 h-3.5" />
+                    {b.name}
+                    <span className="text-xs text-muted-foreground">
+                      {b.management_mode === "weg" ? "WEG" : "Miete"}
+                    </span>
+                  </Button>
+                ))}
+              </div>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
       )}
 
       {/* Tabelle */}
