@@ -34,6 +34,7 @@ import {
   useCreateCompanyFolder,
   useRenameCompanyFolder,
   useDeleteCompanyFolder,
+  useMoveCompanyFiles,
 } from "@/hooks/useCompanyDocuments";
 import {
   CompanyFolder,
@@ -56,8 +57,11 @@ export function CompanyFolderTree({ selectedId, onSelect }: Props) {
   const createFolder = useCreateCompanyFolder();
   const renameFolder = useRenameCompanyFolder();
   const deleteFolder = useDeleteCompanyFolder();
+  const moveFiles = useMoveCompanyFiles();
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Ordner, ueber dem gerade eine Datei schwebt — nur fuer die Hervorhebung.
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [dialog, setDialog] = useState<
     { mode: "create"; parentId: string | null } | { mode: "rename"; id: string; name: string } | null
   >(null);
@@ -88,6 +92,34 @@ export function CompanyFolderTree({ selectedId, onSelect }: Props) {
       return next;
     });
 
+  /** Nimmt gezogene Dokumente auf und haengt sie an den Zielordner. */
+  const acceptDrop = (categoryId: string | null, e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDropTarget(null);
+    const raw = e.dataTransfer.getData("application/x-dms-file-ids");
+    if (!raw) return;
+    let ids: string[] = [];
+    try {
+      ids = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    if (!Array.isArray(ids) || ids.length === 0) return;
+    moveFiles.mutate({ ids, categoryId });
+  };
+
+  const dropHandlers = (targetKey: string, categoryId: string | null) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes("application/x-dms-file-ids")) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      setDropTarget(targetKey);
+    },
+    onDragLeave: () => setDropTarget((prev) => (prev === targetKey ? null : prev)),
+    onDrop: (e: React.DragEvent) => acceptDrop(categoryId, e),
+  });
+
   const openCreate = (parentId: string | null) => {
     setDraftName("");
     setDialog({ mode: "create", parentId });
@@ -110,9 +142,11 @@ export function CompanyFolderTree({ selectedId, onSelect }: Props) {
     return (
       <div key={node.id}>
         <div
+          {...dropHandlers(node.id, node.id)}
           className={cn(
             "group flex items-center gap-1 rounded-md pr-1 hover:bg-muted/60",
             isActive && "bg-primary/10 text-primary",
+            dropTarget === node.id && "ring-2 ring-primary ring-inset bg-primary/10",
           )}
           style={{ paddingLeft: depth * 12 }}
         >
@@ -183,11 +217,14 @@ export function CompanyFolderTree({ selectedId, onSelect }: Props) {
   return (
     <div className="space-y-1">
       <button
+        {...dropHandlers("__root__", null)}
         className={cn(
           "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted/60",
           selectedId === null && "bg-primary/10 text-primary",
+          dropTarget === "__root__" && "ring-2 ring-primary ring-inset bg-primary/10",
         )}
         onClick={() => onSelect(null)}
+        title="Dokumente hierher ziehen, um sie aus allen Ordnern zu nehmen"
       >
         <Layers className="h-4 w-4 flex-shrink-0" />
         <span className="truncate">Alle Dokumente</span>

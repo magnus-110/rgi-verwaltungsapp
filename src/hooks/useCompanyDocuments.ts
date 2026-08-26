@@ -256,6 +256,31 @@ export function useUpdateCompanyFile() {
   });
 }
 
+/** Verschiebt Dokumente per Ziehen in einen anderen Ordner. */
+export function useMoveCompanyFiles() {
+  const invalidate = useInvalidateCompanyDocuments();
+  return useMutation({
+    mutationFn: async ({
+      ids,
+      categoryId,
+    }: {
+      ids: string[];
+      categoryId: string | null;
+    }) => {
+      const { error } = await db
+        .from("building_files")
+        .update({ category_id: categoryId })
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: (_d, { ids }) => {
+      toast.success(`${ids.length} Dokument(e) verschoben`);
+      invalidate();
+    },
+    onError: (e: any) => toast.error(e.message ?? "Verschieben fehlgeschlagen"),
+  });
+}
+
 /** Verschiebt Dokumente in den Papierkorb (kein endgültiges Löschen). */
 export function useDeleteCompanyFiles() {
   const invalidate = useInvalidateCompanyDocuments();
