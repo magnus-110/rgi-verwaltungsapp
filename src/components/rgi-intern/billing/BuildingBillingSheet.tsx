@@ -45,12 +45,20 @@ interface Props {
   onOpenChange: (v: boolean) => void;
   buildingId: string | null;
   buildingName: string;
+  /**
+   * Wird mit der ID des frisch angelegten Entwurfs aufgerufen. Ohne
+   * das musste man den Entwurf in einer zweiten Liste wiederfinden -
+   * genau die Naht, an der der Vorgang bisher abriss.
+   */
+  onDraftCreated?: (invoiceId: string) => void;
 }
 
 /** Lokale Änderungen an einer Zeile, bevor sie gespeichert werden. */
 type Override = Partial<Pick<BillingRow, "label" | "quantity" | "unitPriceNet" | "vatRate">>;
 
-export function BuildingBillingSheet({ open, onOpenChange, buildingId, buildingName }: Props) {
+export function BuildingBillingSheet({
+  open, onOpenChange, buildingId, buildingName, onDraftCreated,
+}: Props) {
   const { user } = useAuth();
   const currentYear = new Date().getFullYear();
 
@@ -668,7 +676,7 @@ export function BuildingBillingSheet({ open, onOpenChange, buildingId, buildingN
         pending={createInvoice.isPending}
         onConfirm={async (opts) => {
           if (!buildingId) return;
-          await createInvoice.mutateAsync({
+          const inv = await createInvoice.mutateAsync({
             buildingId,
             rows: readyRows,
             createdBy: user?.id,
@@ -678,6 +686,7 @@ export function BuildingBillingSheet({ open, onOpenChange, buildingId, buildingN
           setSelected(new Set());
           setOverrides({});
           setExtraRows([]);
+          if (inv?.id) onDraftCreated?.(inv.id);
         }}
       />
     </>

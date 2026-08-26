@@ -8,7 +8,7 @@ import {
 import { useIsRgiAdmin } from "@/hooks/useRgiAdmin";
 import {
   Briefcase, BarChart3, Clock, Users, FolderKanban, FileStack,
-  Settings, ClipboardList, Timer, FileSignature, Receipt, Handshake, ListChecks,
+  Settings, ClipboardList, Timer, FileSignature, Receipt, Handshake,
 } from "lucide-react";
 
 import { CockpitTab } from "@/components/rgi-intern/dashboard/CockpitTab";
@@ -18,14 +18,13 @@ import { ClientsTab } from "@/components/rgi-intern/clients/ClientsTab";
 import { ProjectsTab } from "@/components/rgi-intern/projects/ProjectsTab";
 import { TimeEntriesTab } from "@/components/rgi-intern/time/TimeEntriesTab";
 import { InvoicesTab } from "@/components/rgi-intern/invoices/InvoicesTab";
-import { BillingTab } from "@/components/rgi-intern/billing/BillingTab";
 import { TemplatesTab } from "@/components/rgi-intern/templates/TemplatesTab";
 import { ItemPresetsTab } from "@/components/rgi-intern/item-presets/ItemPresetsTab";
 import { CompanySettingsTab } from "@/components/rgi-intern/settings/CompanySettingsTab";
 import { TimeClockAdminTab } from "@/components/rgi-intern/timeclock/TimeClockAdminTab";
 
 type AreaId =
-  | "cockpit" | "contracts" | "billing" | "invoices" | "offers"
+  | "cockpit" | "contracts" | "invoices" | "offers"
   | "projects" | "time" | "timeclock"
   | "clients" | "templates" | "presets" | "settings";
 
@@ -53,8 +52,7 @@ const GROUPS: NavGroup[] = [
     label: "Ertrag",
     items: [
       { id: "contracts", title: "Verträge", icon: FileSignature, caption: "Verwalterverträge mit Honorarbausteinen, Laufzeiten und Indexstand" },
-      { id: "billing", title: "Abrechnung", icon: ListChecks, caption: "Was ist je Liegenschaft abrechenbar — und was davon ist erledigt" },
-      { id: "invoices", title: "Rechnungen", icon: Receipt, caption: "Ausgangsrechnungen, Zahlungen und Dokumente" },
+      { id: "invoices", title: "Rechnungen", icon: Receipt, caption: "Von der offenen Leistung bis zur bezahlten Rechnung" },
     ],
   },
   {
@@ -172,14 +170,13 @@ export default function RgiIntern() {
           <div className="mb-4 pb-3 border-b">
             <h2 className="text-base font-semibold flex items-center gap-2">
               {current.title}
-              {area === "billing" && <Badge variant="secondary" className="font-normal">neu</Badge>}
+              {area === "invoices" && <Badge variant="secondary" className="font-normal">neu</Badge>}
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">{current.caption}</p>
           </div>
 
           {area === "cockpit" && <CockpitTab onNavigate={(a) => setArea(a as AreaId)} />}
           {area === "contracts" && <ContractsTab />}
-          {area === "billing" && <BillingTab />}
           {area === "invoices" && <InvoicesTab />}
           {area === "offers" && <OffersTab />}
           {area === "projects" && <ProjectsTab />}
