@@ -80,6 +80,94 @@ async function convertDocxToPdf(docxBytes: Uint8Array, filename: string): Promis
   return new Uint8Array(await dl.arrayBuffer());
 }
 
+/**
+ * Stellt die fertige Rechnung als Zahlungsposten beim Objekt ein.
+ *
+ * Sie landet in derselben Tabelle wie jede Eingangsrechnung, damit
+ * sie im naechsten Ueberweisungslauf der WEG einfach mitlaeuft -
+ * mit PDF als Beleg, Verwendungszweck und Bankverbindung.
+ *
+ * Nur fuer festgeschriebene Rechnungen: ein Entwurf ohne Nummer
+ * hat in der Zahlungsliste nichts verloren. Beim erneuten Erzeugen
+ * wird der vorhandene Posten aktualisiert, nie ein zweiter angelegt.
+ */
+async function pushToPayments(
+  admin: any,
+  invoice: any,
+  company: any,
+  items: any[],
+  totals: { net: number; vat: number; gross: number },
+  filePath: string | null,
+  fileName: string | null,
+): Promise<"created" | "updated" | "skipped"> {
+  if (!invoice.invoice_number) return "skipped";
+
+  // Ohne Objekt gibt es keine Zahlungsliste, in die der Posten
+  // gehoert. Der Kunde kann das Objekt mitbringen.
+  const buildingId = invoice.building_id || invoice.client?.building_id || null;
+  if (!buildingId) return "skipped";
+
+  const first = items[0]?.description?.trim() || "";
+  const kurz = items.length > 1 ? `${first} u. a.` : first;
+  const zweck = [`Re. Nr. ${invoice.invoice_number}`, kurz].filter(Boolean).join(", ").slice(0, 140);
+  const isWithdrawal = invoice.paid_by_withdrawal === true;
+
+  const row: Record<string, unknown> = {
+    building_id: buildingId,
+    rgi_invoice_id: invoice.id,
+    invoice_number: invoice.invoice_number,
+    vendor_name: company?.legal_name || "RGI Immobilien",
+    vendor_iban: company?.iban || null,
+    invoice_date: invoice.issue_date,
+    // Bei Selbstentnahme gibt es kein Zahlungsziel. Damit der Posten
+    // trotzdem oben in der nach Faelligkeit sortierten Liste steht,
+    // zaehlt das Rechnungsdatum.
+    due_date: invoice.due_date || invoice.issue_date,
+    gross_amount: Math.round(totals.gross * 100) / 100,
+    net_amount: Math.round(totals.net * 100) / 100,
+    vat_amount: Math.round(totals.vat * 100) / 100,
+    description: kurz || `Rechnung ${invoice.invoice_number}`,
+    payment_purpose: zweck,
+    payment_notes: isWithdrawal ? "Selbstentnahme vom Objektkonto" : null,
+    invoice_type: "standard",
+    is_company_invoice: false,
+    // Der Beleg kommt aus dem eigenen Haus - es gibt nichts
+    // auszulesen und nichts zu pruefen.
+    ocr_status: "done",
+    review_status: "verified",
+    line_items: items.map((it: any) => ({
+      description: it.description || "",
+      amount: it.lineNet,
+      quantity: it.quantity,
+      vat_rate: it.vatRate,
+    })),
+    ...(filePath ? { file_path: filePath, file_name: fileName } : {}),
+  };
+
+  const { data: existing } = await admin
+    .from("invoices")
+    .select("id, status")
+    .eq("rgi_invoice_id", invoice.id)
+    .maybeSingle();
+
+  if (existing) {
+    // Ein bereits bezahlter Posten wird nur noch um den frischen
+    // Beleg ergaenzt - Betraege und Status bleiben, wie sie sind.
+    const patch = existing.status === "paid"
+      ? (filePath ? { file_path: filePath, file_name: fileName } : {})
+      : row;
+    if (Object.keys(patch).length > 0) {
+      const { error } = await admin.from("invoices").update(patch).eq("id", existing.id);
+      if (error) throw error;
+    }
+    return "updated";
+  }
+
+  const { error } = await admin.from("invoices").insert({ ...row, status: "open" });
+  if (error) throw error;
+  return "created";
+}
+
 function json(b: unknown, status = 200) {
   return new Response(JSON.stringify(b), {
     status,
@@ -322,7 +410,30 @@ Deno.serve(async (req) => {
       ...(pdfPath ? { pdf_storage_path: pdfPath } : {}),
     }).eq("id", invoice.id);
 
-    return json({ ok: true, docx_path: docxPath, pdf_path: pdfPath, pdf_error: pdfError });
+    // Ab in die Zahlungsliste des Objekts. Scheitert das, ist die
+    // Rechnung trotzdem erzeugt - der Hinweis geht als payment_error
+    // zurueck, statt den ganzen Vorgang abzubrechen.
+    let payment: string | null = null;
+    let paymentError: string | null = null;
+    try {
+      payment = await pushToPayments(
+        admin, invoice, company, items, totals,
+        pdfPath ?? docxPath,
+        `${baseName}.${pdfPath ? "pdf" : "docx"}`,
+      );
+    } catch (qe: any) {
+      console.error("pushToPayments failed", qe);
+      paymentError = String(qe?.message || qe);
+    }
+
+    return json({
+      ok: true,
+      docx_path: docxPath,
+      pdf_path: pdfPath,
+      pdf_error: pdfError,
+      payment,
+      payment_error: paymentError,
+    });
   } catch (e: any) {
     console.error("rgi-render-invoice error", e);
     const tplErrors = e?.properties?.errors;
