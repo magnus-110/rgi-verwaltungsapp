@@ -40,7 +40,16 @@ const CONTRACT_DEFAULTS: Record<string, string> = {
   "beirat.sitzungen_inklusive": "vier",
   "index.basisjahr": "2020",
   "ort": "Pfronten",
+  // Nur fuer das Uebersichtsblatt
+  "uebersicht.laufzeit": "3 Jahre",
+  "extrakosten":
+    "Zusatzkosten entstehen nur bei Sonderfällen wie z. B. Eigentümerwechsel, außerordentliche " +
+    "Versammlungen, aufwendige Versicherungsschäden, Bauprojekte ab 5000€ oder Rechtsangelegenheiten. " +
+    "Abgerechnet wird pauschal, prozentual oder nach Zeitaufwand – je nach Sonderfall.",
 };
+
+/** Werte, die als mehrzeiliges Feld bearbeitet werden. */
+const DEFAULT_MULTILINE = new Set(["extrakosten"]);
 
 const DEFAULT_LABEL: Record<string, string> = {
   "laufzeit.jahre": "Laufzeit",
@@ -51,6 +60,8 @@ const DEFAULT_LABEL: Record<string, string> = {
   "beirat.sitzungen_inklusive": "Beiratssitzungen inklusive",
   "index.basisjahr": "Index-Basisjahr",
   "ort": "Ort der Unterschrift",
+  "uebersicht.laufzeit": "Laufzeit auf dem Übersichtsblatt",
+  "extrakosten": "Übersichtsblatt: Text unter „Was kostet Extra?“",
 };
 
 const dec = (s: string): number | null => {
@@ -483,13 +494,22 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {Object.keys(CONTRACT_DEFAULTS).map((k) => (
-                    <div key={k}>
+                    <div key={k} className={DEFAULT_MULTILINE.has(k) ? "sm:col-span-2" : undefined}>
                       <Label className="text-xs text-muted-foreground">{DEFAULT_LABEL[k] ?? k}</Label>
-                      <Input
-                        className="mt-1"
-                        value={defaults[k] ?? ""}
-                        onChange={(e) => setDefaults((d) => ({ ...d, [k]: e.target.value }))}
-                      />
+                      {DEFAULT_MULTILINE.has(k) ? (
+                        <Textarea
+                          className="mt-1"
+                          rows={4}
+                          value={defaults[k] ?? ""}
+                          onChange={(e) => setDefaults((d) => ({ ...d, [k]: e.target.value }))}
+                        />
+                      ) : (
+                        <Input
+                          className="mt-1"
+                          value={defaults[k] ?? ""}
+                          onChange={(e) => setDefaults((d) => ({ ...d, [k]: e.target.value }))}
+                        />
+                      )}
                     </div>
                   ))}
                   <div>

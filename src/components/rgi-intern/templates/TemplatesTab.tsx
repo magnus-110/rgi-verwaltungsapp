@@ -18,7 +18,7 @@ const PLACEHOLDERS = [
   ["Rechnung", ["{rechnung.nummer}", "{rechnung.datum}", "{rechnung.faellig}", "{rechnung.leistungszeitraum}", "{rechnung.intro}", "{rechnung.footer}"]],
   ["Positionen-Loop", ["{#positionen}{nr}{/positionen}", "{#positionen}{beschreibung}{/positionen}", "{#positionen}{menge}{/positionen}", "{#positionen}{einheit}{/positionen}", "{#positionen}{einzelpreis}{/positionen}", "{#positionen}{ust}{/positionen}", "{#positionen}{summe}{/positionen}"]],
   ["Summen", ["{summe.netto}", "{summe.ust19}", "{summe.ust7}", "{summe.ust0}", "{summe.brutto}"]],
-  ["Übersichtsblatt zum Vertrag", ["{weg.name}", "{uebersicht.laufzeit}", "{uebersicht.kuendigung}", "{uebersicht.wohnung}", "{uebersicht.garage}", "{uebersicht.teileigentum}", "{uebersicht.sonstiges}"]],
+  ["Übersichtsblatt zum Vertrag", ["{weg.name}", "{uebersicht.laufzeit}", "{uebersicht.kuendigung}", "{uebersicht.wohnung}", "{uebersicht.garage}", "{uebersicht.teileigentum}", "{uebersicht.sonstiges}", "{extrakosten}"]],
 ];
 
 type TemplateKind = "invoice" | "contract" | "contract_summary";

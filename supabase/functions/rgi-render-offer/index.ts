@@ -7,6 +7,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import PizZip from "https://esm.sh/pizzip@3.1.7";
 import Docxtemplater from "https://esm.sh/docxtemplater@3.50.0";
 
+// Standardtext fuer den Abschnitt "Was kostet Extra?" auf dem
+// Uebersichtsblatt. Je Angebot ueber contract_defaults["extrakosten"]
+// ueberschreibbar.
+const EXTRAKOSTEN_STANDARD =
+  "Zusatzkosten entstehen nur bei Sonderfällen wie z. B. Eigentümerwechsel, außerordentliche " +
+  "Versammlungen, aufwendige Versicherungsschäden, Bauprojekte ab 5000€ oder Rechtsangelegenheiten. " +
+  "Abgerechnet wird pauschal, prozentual oder nach Zeitaufwand – je nach Sonderfall.";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -368,6 +376,10 @@ Deno.serve(async (req) => {
     payload["uebersicht.garage"] = rateOrDash(offer.rate_parking, offer.units_parking);
     payload["uebersicht.teileigentum"] = rateOrDash(offer.rate_commercial, offer.units_commercial);
     payload["uebersicht.sonstiges"] = rateOrDash(offer.rate_other, offer.units_other);
+    // Beide Schreibweisen, damit die Vorlage {extrakosten} oder den
+    // ausfuehrlicheren Namen verwenden kann.
+    payload["extrakosten"] = def("extrakosten", EXTRAKOSTEN_STANDARD);
+    payload["uebersicht.extrakosten"] = payload["extrakosten"];
 
     let docxBytes: Uint8Array;
     try {
