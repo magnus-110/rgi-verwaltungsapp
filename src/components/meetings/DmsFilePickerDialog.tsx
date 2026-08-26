@@ -15,17 +15,29 @@ import {
   Eye,
   FileText,
   Folder,
+  Landmark,
   Loader2,
   Search,
   User,
 } from "lucide-react";
 import { toast } from "sonner";
+import { getFileBucket } from "@/components/buildings/documents/types";
+import {
+  VIRTUAL_INVOICES_IN,
+  VIRTUAL_INVOICES_OUT,
+} from "@/components/rgi-intern/documents/types";
 
 export interface DmsPickerItem {
   path: string;
   name: string;
   mimeType: string | null;
   size: number | null;
+  /**
+   * Ablageort der Datei. Angebots- und Rechnungsdokumente liegen im Bucket
+   * `invoices`, alles andere in `building-files` — ohne diese Angabe wuerde
+   * der Aufrufer beim Anhaengen im falschen Bucket suchen.
+   */
+  bucket: string;
 }
 
 interface Props {
@@ -48,6 +60,8 @@ interface FileRow {
   created_at: string;
   fiscal_year: number | null;
   assigned_user_id: string | null;
+  source: string | null;
+  storage_bucket: string | null;
 }
 interface CategoryRow {
   id: string;
@@ -77,6 +91,8 @@ interface PersonRow {
 
 const NO_CAT = "__none__";
 const SEC_BUILDING = "__building__";
+/** Pseudo-Auswahl fuer die Firmenablage von RGI Immobilien. */
+const COMPANY_SCOPE = "__rgi__";
 
 const formatSize = (b: number | null) => {
   if (b == null) return "";
@@ -141,6 +157,8 @@ export const DmsFilePickerDialog = ({
     enabled: open && !!buildingId,
   });
 
+  const isCompanyScope = selectedBuildingId === COMPANY_SCOPE;
+
   const currentBuilding =
     buildings.find((b) => b.id === selectedBuildingId) ||
     (presetBuilding && presetBuilding.id === selectedBuildingId ? presetBuilding : null);
@@ -149,12 +167,107 @@ export const DmsFilePickerDialog = ({
   const { data, isLoading } = useQuery({
     queryKey: ["dms-picker-files", selectedBuildingId, currentBuilding?.management_mode],
     queryFn: async () => {
+      // Firmenablage: keine Liegenschaft, keine Personen — nur Ordner und Dateien.
+      if (isCompanyScope) {
+        const db = supabase as any;
+        const [compFiles, compCats] = await Promise.all([
+          db
+            .from("building_files")
+            .select(
+              "id, display_name, file_path, file_size, mime_type, category_id, created_at, fiscal_year, assigned_user_id, source, storage_bucket",
+            )
+            .eq("is_company", true)
+            .eq("is_current_version", true)
+            .is("deleted_at", null)
+            .is("archived_at", null)
+            .order("created_at", { ascending: false })
+            .limit(3000),
+          db
+            .from("building_file_categories")
+            .select("id, name, parent_id, sort_order")
+            .eq("is_company", true)
+            .is("archived_at", null)
+            .order("sort_order"),
+        ]);
+        if (compFiles.error) throw compFiles.error;
+        if (compCats.error) throw compCats.error;
+
+        // Rechnungen kommen direkt aus ihren Tabellen — sie werden nicht in
+        // die Dateiablage kopiert, sondern hier nur als zwei Ordner gezeigt.
+        const [outInv, inInv] = await Promise.all([
+          db
+            .from("rgi_invoices")
+            .select("id, invoice_number, issue_date, client_name_snapshot, pdf_storage_path")
+            .not("pdf_storage_path", "is", null)
+            .order("issue_date", { ascending: false })
+            .limit(300),
+          db
+            .from("invoices")
+            .select("id, invoice_number, invoice_date, vendor_display_name, vendor_name, file_path")
+            .eq("is_company_invoice", true)
+            .not("file_path", "is", null)
+            .order("invoice_date", { ascending: false })
+            .limit(300),
+        ]);
+
+        const dateLabel = (d: string | null) =>
+          d ? new Date(d).toLocaleDateString("de-DE") : "ohne Datum";
+
+        const invoiceRows: FileRow[] = [
+          ...((outInv.data || []) as any[]).map((r) => ({
+            id: `inv-out:${r.id}`,
+            display_name: [r.invoice_number || "Entwurf", r.client_name_snapshot || "Kunde", dateLabel(r.issue_date)]
+              .filter(Boolean)
+              .join(" · "),
+            file_path: r.pdf_storage_path as string,
+            file_size: null,
+            mime_type: "application/pdf",
+            category_id: VIRTUAL_INVOICES_OUT,
+            created_at: r.issue_date ?? "",
+            fiscal_year: null,
+            assigned_user_id: null,
+            source: "invoice",
+            storage_bucket: "invoices",
+          })),
+          ...((inInv.data || []) as any[]).map((r) => ({
+            id: `inv-in:${r.id}`,
+            display_name: [
+              r.invoice_number || "ohne Nummer",
+              r.vendor_display_name || r.vendor_name || "Lieferant",
+              dateLabel(r.invoice_date),
+            ]
+              .filter(Boolean)
+              .join(" · "),
+            file_path: r.file_path as string,
+            file_size: null,
+            mime_type: "application/pdf",
+            category_id: VIRTUAL_INVOICES_IN,
+            created_at: r.invoice_date ?? "",
+            fiscal_year: null,
+            assigned_user_id: null,
+            source: "invoice",
+            storage_bucket: "invoices",
+          })),
+        ];
+
+        const invoiceCategories: CategoryRow[] = [
+          { id: VIRTUAL_INVOICES_OUT, name: "Rechnungen an Kunden", parent_id: null, sort_order: 900 },
+          { id: VIRTUAL_INVOICES_IN, name: "Rechnungen von Lieferanten", parent_id: null, sort_order: 910 },
+        ];
+
+        return {
+          files: [...((compFiles.data || []) as FileRow[]), ...invoiceRows],
+          categories: [...((compCats.data || []) as CategoryRow[]), ...invoiceCategories],
+          persons: [] as PersonRow[],
+        };
+      }
+
       const mode = currentBuilding?.management_mode || "weg";
       const [filesRes, catRes] = await Promise.all([
         supabase
           .from("building_files")
           .select(
-            "id, display_name, file_path, file_size, mime_type, category_id, created_at, fiscal_year, assigned_user_id",
+            "id, display_name, file_path, file_size, mime_type, category_id, created_at, fiscal_year, assigned_user_id, source, storage_bucket",
           )
           .eq("building_id", selectedBuildingId!)
           .eq("is_current_version", true)
@@ -195,7 +308,8 @@ export const DmsFilePickerDialog = ({
       }
 
       return {
-        files: (filesRes.data || []) as FileRow[],
+        // Die generierte types.ts kennt `storage_bucket` noch nicht.
+        files: (filesRes.data || []) as unknown as FileRow[],
         categories: (catRes.data || []) as CategoryRow[],
         persons,
       };
@@ -296,8 +410,10 @@ export const DmsFilePickerDialog = ({
 
     out.push({
       id: SEC_BUILDING,
-      title: "Gebäude",
-      subtitle: "Alle nicht-personenbezogenen Dokumente",
+      title: isCompanyScope ? "Firmendokumente" : "Gebäude",
+      subtitle: isCompanyScope
+        ? "Alle Dokumente von RGI Immobilien"
+        : "Alle nicht-personenbezogenen Dokumente",
       kind: "building",
       total: bySection.get(SEC_BUILDING)!.length,
       folders: buildSection(SEC_BUILDING, bySection.get(SEC_BUILDING)!),
@@ -316,7 +432,7 @@ export const DmsFilePickerDialog = ({
       });
     }
     return out;
-  }, [filteredFiles, persons, categories]);
+  }, [filteredFiles, persons, categories, isCompanyScope]);
 
 
   // Bei aktiver Suche alle Sektionen/Ordner automatisch öffnen
@@ -377,6 +493,16 @@ export const DmsFilePickerDialog = ({
   const handlePreview = async (f: FileRow) => {
     setPreviewing(f.id);
     try {
+      const bucket = getFileBucket(f.source, f.storage_bucket);
+      // Die Edge Function kennt nur den Bucket der Liegenschaftsdokumente.
+      if (isCompanyScope || bucket !== "building-files") {
+        const { data, error } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(f.file_path, 600);
+        if (error || !data?.signedUrl) throw error || new Error("kein Link");
+        window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+        return;
+      }
       const { data, error } = await supabase.functions.invoke("get-building-file-url", {
         body: { filePath: f.file_path },
       });
@@ -398,6 +524,7 @@ export const DmsFilePickerDialog = ({
         name: f.display_name || (f.file_path?.split("/").pop() ?? "Dokument"),
         mimeType: f.mime_type ?? null,
         size: typeof f.file_size === "number" ? f.file_size : null,
+        bucket: getFileBucket(f.source, f.storage_bucket),
       })),
     );
     onOpenChange(false);
@@ -427,9 +554,15 @@ export const DmsFilePickerDialog = ({
               </Button>
             )}
             <DialogTitle className="flex-1">
-              {showBuildingStep ? "Liegenschaft wählen" : "Aus DMS auswählen"}
+              {showBuildingStep ? "Ablage wählen" : "Aus DMS auswählen"}
             </DialogTitle>
           </div>
+          {!showBuildingStep && isCompanyScope && (
+            <p className="text-xs text-muted-foreground truncate">
+              <Landmark className="inline h-3 w-3 mr-1 -mt-0.5" />
+              RGI Immobilien
+            </p>
+          )}
           {!showBuildingStep && currentBuilding && (
             <p className="text-xs text-muted-foreground truncate">
               <Building2 className="inline h-3 w-3 mr-1 -mt-0.5" />
@@ -441,6 +574,29 @@ export const DmsFilePickerDialog = ({
 
         {showBuildingStep ? (
           <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground px-1">
+              Firma
+            </p>
+            <button
+              type="button"
+              onClick={() => setSelectedBuildingId(COMPANY_SCOPE)}
+              className="w-full text-left p-3 rounded-md border border-primary/40 bg-primary/5 hover:bg-primary/10 transition flex items-center gap-3"
+            >
+              <div className="h-10 w-10 rounded-md bg-primary/15 text-primary flex items-center justify-center shrink-0">
+                <Landmark className="h-5 w-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">RGI Immobilien</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  Flyer, Angebote, Verträge und Rechnungen der Firma
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </button>
+
+            <p className="pt-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground px-1">
+              Liegenschaften
+            </p>
             {loadingBuildings ? (
               <p className="text-sm text-muted-foreground p-4">Wird geladen…</p>
             ) : buildings.length === 0 ? (
