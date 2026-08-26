@@ -22,6 +22,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { getFileBucket } from "@/components/buildings/documents/types";
+import {
+  VIRTUAL_INVOICES_IN,
+  VIRTUAL_INVOICES_OUT,
+} from "@/components/rgi-intern/documents/types";
 
 export interface DmsPickerItem {
   path: string;
@@ -57,6 +61,7 @@ interface FileRow {
   fiscal_year: number | null;
   assigned_user_id: string | null;
   source: string | null;
+  storage_bucket: string | null;
 }
 interface CategoryRow {
   id: string;
@@ -169,7 +174,7 @@ export const DmsFilePickerDialog = ({
           db
             .from("building_files")
             .select(
-              "id, display_name, file_path, file_size, mime_type, category_id, created_at, fiscal_year, assigned_user_id, source",
+              "id, display_name, file_path, file_size, mime_type, category_id, created_at, fiscal_year, assigned_user_id, source, storage_bucket",
             )
             .eq("is_company", true)
             .eq("is_current_version", true)
@@ -186,9 +191,73 @@ export const DmsFilePickerDialog = ({
         ]);
         if (compFiles.error) throw compFiles.error;
         if (compCats.error) throw compCats.error;
+
+        // Rechnungen kommen direkt aus ihren Tabellen — sie werden nicht in
+        // die Dateiablage kopiert, sondern hier nur als zwei Ordner gezeigt.
+        const [outInv, inInv] = await Promise.all([
+          db
+            .from("rgi_invoices")
+            .select("id, invoice_number, issue_date, client_name_snapshot, pdf_storage_path")
+            .not("pdf_storage_path", "is", null)
+            .order("issue_date", { ascending: false })
+            .limit(300),
+          db
+            .from("invoices")
+            .select("id, invoice_number, invoice_date, vendor_display_name, vendor_name, file_path")
+            .eq("is_company_invoice", true)
+            .not("file_path", "is", null)
+            .order("invoice_date", { ascending: false })
+            .limit(300),
+        ]);
+
+        const dateLabel = (d: string | null) =>
+          d ? new Date(d).toLocaleDateString("de-DE") : "ohne Datum";
+
+        const invoiceRows: FileRow[] = [
+          ...((outInv.data || []) as any[]).map((r) => ({
+            id: `inv-out:${r.id}`,
+            display_name: [r.invoice_number || "Entwurf", r.client_name_snapshot || "Kunde", dateLabel(r.issue_date)]
+              .filter(Boolean)
+              .join(" · "),
+            file_path: r.pdf_storage_path as string,
+            file_size: null,
+            mime_type: "application/pdf",
+            category_id: VIRTUAL_INVOICES_OUT,
+            created_at: r.issue_date ?? "",
+            fiscal_year: null,
+            assigned_user_id: null,
+            source: "invoice",
+            storage_bucket: "invoices",
+          })),
+          ...((inInv.data || []) as any[]).map((r) => ({
+            id: `inv-in:${r.id}`,
+            display_name: [
+              r.invoice_number || "ohne Nummer",
+              r.vendor_display_name || r.vendor_name || "Lieferant",
+              dateLabel(r.invoice_date),
+            ]
+              .filter(Boolean)
+              .join(" · "),
+            file_path: r.file_path as string,
+            file_size: null,
+            mime_type: "application/pdf",
+            category_id: VIRTUAL_INVOICES_IN,
+            created_at: r.invoice_date ?? "",
+            fiscal_year: null,
+            assigned_user_id: null,
+            source: "invoice",
+            storage_bucket: "invoices",
+          })),
+        ];
+
+        const invoiceCategories: CategoryRow[] = [
+          { id: VIRTUAL_INVOICES_OUT, name: "Rechnungen an Kunden", parent_id: null, sort_order: 900 },
+          { id: VIRTUAL_INVOICES_IN, name: "Rechnungen von Lieferanten", parent_id: null, sort_order: 910 },
+        ];
+
         return {
-          files: (compFiles.data || []) as FileRow[],
-          categories: (compCats.data || []) as CategoryRow[],
+          files: [...((compFiles.data || []) as FileRow[]), ...invoiceRows],
+          categories: [...((compCats.data || []) as CategoryRow[]), ...invoiceCategories],
           persons: [] as PersonRow[],
         };
       }
@@ -198,7 +267,7 @@ export const DmsFilePickerDialog = ({
         supabase
           .from("building_files")
           .select(
-            "id, display_name, file_path, file_size, mime_type, category_id, created_at, fiscal_year, assigned_user_id, source",
+            "id, display_name, file_path, file_size, mime_type, category_id, created_at, fiscal_year, assigned_user_id, source, storage_bucket",
           )
           .eq("building_id", selectedBuildingId!)
           .eq("is_current_version", true)
@@ -239,7 +308,8 @@ export const DmsFilePickerDialog = ({
       }
 
       return {
-        files: (filesRes.data || []) as FileRow[],
+        // Die generierte types.ts kennt `storage_bucket` noch nicht.
+        files: (filesRes.data || []) as unknown as FileRow[],
         categories: (catRes.data || []) as CategoryRow[],
         persons,
       };
@@ -423,7 +493,7 @@ export const DmsFilePickerDialog = ({
   const handlePreview = async (f: FileRow) => {
     setPreviewing(f.id);
     try {
-      const bucket = getFileBucket(f.source);
+      const bucket = getFileBucket(f.source, f.storage_bucket);
       // Die Edge Function kennt nur den Bucket der Liegenschaftsdokumente.
       if (isCompanyScope || bucket !== "building-files") {
         const { data, error } = await supabase.storage
@@ -454,7 +524,7 @@ export const DmsFilePickerDialog = ({
         name: f.display_name || (f.file_path?.split("/").pop() ?? "Dokument"),
         mimeType: f.mime_type ?? null,
         size: typeof f.file_size === "number" ? f.file_size : null,
-        bucket: getFileBucket(f.source),
+        bucket: getFileBucket(f.source, f.storage_bucket),
       })),
     );
     onOpenChange(false);
