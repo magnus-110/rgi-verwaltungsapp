@@ -15,12 +15,14 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
   FileType, Download, RefreshCw, CheckCircle, Wallet, Landmark, Receipt, AlertTriangle,
+  CreditCard,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   useRgiInvoice, useRgiInvoiceItems, useRgiPayments, useAddRgiPayment,
-  rgiRenderInvoice, rgiSignedUrl,
+  useLinkedPayment, rgiRenderInvoice, rgiSignedUrl,
 } from "@/hooks/useRgi";
+import { Link } from "react-router-dom";
 import { formatDate, formatEur } from "@/types/rgiContracts";
 
 interface Props {
@@ -37,6 +39,7 @@ export function InvoiceDetailDialog({
   const { data: invoice } = useRgiInvoice(open ? invoiceId : null);
   const { data: items } = useRgiInvoiceItems(open ? invoiceId : null);
   const { data: payments } = useRgiPayments(open ? invoiceId : null);
+  const { data: linked } = useLinkedPayment(open ? invoiceId : null);
   const addPayment = useAddRgiPayment();
 
   const [amount, setAmount] = useState("");
@@ -134,6 +137,25 @@ export function InvoiceDetailDialog({
             </span>
           </span>
         </div>
+
+        {/* Posten in der Zahlungsliste des Objekts */}
+        {linked && (
+          <div className="flex items-start gap-2.5 rounded-md border p-3 text-sm">
+            <CreditCard className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
+            <span className="min-w-0">
+              {linked.status === "paid" ? "In Zahlungen erledigt" : "Steht in Zahlungen"}
+              <span className="block text-xs text-muted-foreground mt-0.5">
+                {linked.buildings?.name ?? "Objekt"}
+                {linked.status === "paid"
+                  ? linked.paid_at ? ` · abgehakt am ${formatDate(linked.paid_at.slice(0, 10))}` : ""
+                  : " · noch nicht abgehakt"}
+              </span>
+            </span>
+            <Button asChild variant="ghost" size="sm" className="ml-auto shrink-0 gap-1.5">
+              <Link to={`/zahlungen?direction=outgoing`}>Öffnen</Link>
+            </Button>
+          </div>
+        )}
 
         {/* Positionen */}
         <div className="rounded-md border divide-y">

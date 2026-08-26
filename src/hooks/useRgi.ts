@@ -273,6 +273,29 @@ export function useRgiPayments(invoiceId: string | null) {
   });
 }
 
+/**
+ * Der Zahlungsposten, der beim Objekt aus dieser Rechnung entstanden
+ * ist. Damit man in RGI Intern sieht, ob sie im Überweisungslauf der
+ * WEG schon erledigt wurde — ohne den Bereich zu wechseln.
+ */
+export function useLinkedPayment(invoiceId: string | null) {
+  return useQuery({
+    queryKey: invoiceId ? ["rgi", "linked-payment", invoiceId] : ["rgi", "linked-payment", "none"],
+    enabled: !!invoiceId,
+    queryFn: async () => {
+      // `as any`: rgi_invoice_id kam mit der Migration dazu, die
+      // generierten Supabase-Typen kennen die Spalte noch nicht.
+      const { data, error } = await (supabase as any)
+        .from("invoices")
+        .select("id, status, paid_at, due_date, building_id, buildings(name)")
+        .eq("rgi_invoice_id", invoiceId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data as any | null;
+    },
+  });
+}
+
 export function useCreateRgiInvoice() {
   const qc = useQueryClient();
   return useMutation({
@@ -353,7 +376,14 @@ export async function rgiRenderInvoice(invoiceId: string, formats?: ("docx" | "p
     body: { invoice_id: invoiceId, ...(formats ? { formats } : {}) },
   });
   if (error) throw error;
-  return data as { docx_path: string; pdf_path?: string | null; pdf_error?: string | null };
+  return data as {
+    docx_path: string;
+    pdf_path?: string | null;
+    pdf_error?: string | null;
+    /** "created" | "updated" | "skipped" — Posten in der Zahlungsliste des Objekts. */
+    payment?: string | null;
+    payment_error?: string | null;
+  };
 }
 
 export async function rgiSignedUrl(bucket: string, path: string) {

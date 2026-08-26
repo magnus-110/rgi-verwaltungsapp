@@ -241,7 +241,16 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
       }
 
       const r = await rgiRenderInvoice(id);
-      toast.success(`Nummer ${extra.invoice_number ?? invoice?.invoice_number} vergeben, PDF erzeugt`);
+      const nr = extra.invoice_number ?? invoice?.invoice_number;
+      // Der Posten in der Zahlungsliste ist der eigentliche Zweck des
+      // Ganzen — deshalb steht er in der Meldung, nicht nur das PDF.
+      toast.success(`Nummer ${nr} vergeben, PDF erzeugt`, {
+        description: r?.payment === "created" || r?.payment === "updated"
+          ? "Die Rechnung steht jetzt unter „Zahlungen“ beim Objekt."
+          : r?.payment_error
+            ? `Nicht in Zahlungen eingestellt: ${r.payment_error}`
+            : "Ohne Objektbezug — nicht in Zahlungen eingestellt.",
+      });
       if (r?.pdf_path) window.open(await rgiSignedUrl("invoices", r.pdf_path), "_blank");
       onOpenChange(false);
     } catch (e: any) {
