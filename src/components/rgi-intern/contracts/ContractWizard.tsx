@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUpsertContract, useSaveContractFees, useContractFilesForBuilding } from "@/hooks/useManagementContracts";
+import { useBuildingUnitStats } from "@/hooks/useOffers";
 import {
   BASIS_CHOICES, BASIS_SUFFIX, FEE_CATALOG, RGI_STANDARD_APPROVAL_LIMIT,
   RGI_STANDARD_FEES, formatEur, isPercentBasis, toNet,
@@ -106,6 +107,7 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
   const [notes, setNotes] = useState("");
 
   const { data: dmsFiles } = useContractFilesForBuilding(buildingId || null);
+  const { data: unitStats } = useBuildingUnitStats(buildingId || null);
 
   // ---------- Laden ----------
   useEffect(() => {
@@ -520,6 +522,55 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
           {/* ===== Schritt 3: Honorar ===== */}
           {step === 2 && (
             <div className="space-y-5">
+              {/* Was die App zu diesem Objekt schon weiß. Nur ein Angebot —
+                  übernommen wird es erst auf Klick. */}
+              {unitStats && (unitStats.unitCount != null || unitStats.assignedTotal > 0) && (
+                <div className="rounded-md border bg-muted/40 px-4 py-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1.5">
+                    In der App hinterlegt
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                    {unitStats.unitCount != null && (
+                      <span>
+                        Gebäudedaten: <strong>{unitStats.unitCount}</strong> Einheiten
+                      </span>
+                    )}
+                    {unitStats.assignedTotal > 0 && (
+                      <span className="text-muted-foreground">
+                        Erfasste Zuordnungen: {unitStats.assigned.apartment} Wohnungen
+                        {unitStats.assigned.commercial > 0 && `, ${unitStats.assigned.commercial} Teileigentum`}
+                        {unitStats.assigned.parking > 0 && `, ${unitStats.assigned.parking} Stellplätze`}
+                        {unitStats.assigned.other > 0 && `, ${unitStats.assigned.other} sonstige`}
+                      </span>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7"
+                      onClick={() => {
+                        const a = unitStats.assigned.apartment || unitStats.unitCount || 0;
+                        setUnits((prev) =>
+                          prev.map((u) =>
+                            u.kind === "apartment"
+                              ? { ...u, count: a ? String(a) : u.count }
+                              : u.kind === "parking" && unitStats.assigned.parking
+                              ? { ...u, count: String(unitStats.assigned.parking) }
+                              : u.kind === "commercial" && unitStats.assigned.commercial
+                              ? { ...u, count: String(unitStats.assigned.commercial) }
+                              : u
+                          )
+                        );
+                      }}
+                    >
+                      Zahlen übernehmen
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Maßgeblich bleibt, was im Vertrag steht — die Zahlen unten kannst du frei ändern.
+                  </p>
+                </div>
+              )}
+
               <div className="inline-flex rounded-md border p-0.5">
                 <button
                   type="button"
