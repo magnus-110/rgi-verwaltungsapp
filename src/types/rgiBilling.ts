@@ -119,6 +119,9 @@ export interface BillingRow {
   needsInput?: boolean;
   /** Für Stundenzeilen: welche Zeiterfassungen dahinterstecken. */
   timeEntryIds?: string[];
+  /** Für Stundenzeilen: aus welchem Projekt sie stammen. */
+  projectId?: string | null;
+  projectName?: string | null;
   invoiceNumber?: string | null;
   invoiceId?: string | null;
   dismissedReason?: string | null;
