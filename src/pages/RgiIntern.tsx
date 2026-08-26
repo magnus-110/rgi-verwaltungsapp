@@ -8,7 +8,7 @@ import {
 import { useIsRgiAdmin } from "@/hooks/useRgiAdmin";
 import {
   Briefcase, BarChart3, Clock, Users, FolderKanban, FileStack,
-  Settings, ClipboardList, Timer, FileSignature, Receipt, Handshake, ListChecks,
+  Settings, ClipboardList, Timer, FileSignature, Receipt, Handshake, ListChecks, FolderArchive,
 } from "lucide-react";
 
 import { CockpitTab } from "@/components/rgi-intern/dashboard/CockpitTab";
@@ -23,11 +23,12 @@ import { TemplatesTab } from "@/components/rgi-intern/templates/TemplatesTab";
 import { ItemPresetsTab } from "@/components/rgi-intern/item-presets/ItemPresetsTab";
 import { CompanySettingsTab } from "@/components/rgi-intern/settings/CompanySettingsTab";
 import { TimeClockAdminTab } from "@/components/rgi-intern/timeclock/TimeClockAdminTab";
+import { DocumentsTab } from "@/components/rgi-intern/documents/DocumentsTab";
 
 type AreaId =
   | "cockpit" | "contracts" | "billing" | "invoices" | "offers"
   | "projects" | "time" | "timeclock"
-  | "clients" | "templates" | "presets" | "settings";
+  | "clients" | "documents" | "templates" | "presets" | "settings";
 
 interface AreaDef {
   id: AreaId;
@@ -75,6 +76,7 @@ const GROUPS: NavGroup[] = [
     label: "Einrichtung",
     items: [
       { id: "clients", title: "Kunden", icon: Users, caption: "Rechnungsempfänger aus Kontakten, Objekten oder frei angelegt" },
+      { id: "documents", title: "Dokumente", icon: FolderArchive, caption: "Dokumentenablage der Firma — Flyer, Verträge, Angebote und Rechnungen" },
       { id: "templates", title: "Word-Vorlagen", icon: FileStack, caption: "Layouts für Rechnungen und Angebote mit Platzhaltern" },
       { id: "presets", title: "Positionsvorlagen", icon: ClipboardList, caption: "Wiederkehrende Rechnungspositionen als Bausteine" },
       { id: "settings", title: "Firmendaten", icon: Settings, caption: "Stammdaten, Nummernkreis, Zahlungsziel und Mahngebühren" },
@@ -186,6 +188,7 @@ export default function RgiIntern() {
           {area === "time" && <TimeEntriesTab />}
           {area === "timeclock" && <TimeClockAdminTab />}
           {area === "clients" && <ClientsTab />}
+          {area === "documents" && <DocumentsTab />}
           {area === "templates" && <TemplatesTab />}
           {area === "presets" && <ItemPresetsTab />}
           {area === "settings" && <CompanySettingsTab />}
