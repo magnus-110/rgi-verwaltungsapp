@@ -57,21 +57,40 @@ export function useBuildingBillables(buildingId: string | null) {
 }
 
 /**
- * Offene Stunden einer Liegenschaft: abrechenbar, noch keiner
- * Rechnungsposition zugeordnet, über die Projekte des Objekts.
+ * Offene Stunden einer Liegenschaft: abrechenbar und noch keiner
+ * Rechnungsposition zugeordnet.
+ *
+ * Ein Projekt gehört auf zwei Wegen zu einem Objekt: direkt über
+ * rgi_projects.building_id oder indirekt über seinen Kunden. In der
+ * Praxis ist fast nur der zweite Weg gefüllt, weil building_id an den
+ * Projekten erst später dazugekommen ist. Beide Wege werden gesucht,
+ * sonst bleiben die Stunden unsichtbar.
  */
 export function useOpenTimeForBuilding(buildingId: string | null) {
   return useQuery({
     queryKey: buildingId ? K.openTime(buildingId) : ["rgi", "billing", "time", "none"],
     enabled: !!buildingId,
     queryFn: async () => {
+      // Kunden dieses Objekts — über sie hängen die meisten Projekte.
+      const { data: clients, error: cErr } = await db
+        .from("rgi_clients")
+        .select("id, default_hourly_rate")
+        .eq("building_id", buildingId!);
+      if (cErr) throw cErr;
+      const clientIds = (clients ?? []).map((c: any) => c.id);
+
+      const filters = [`building_id.eq.${buildingId}`];
+      if (clientIds.length) filters.push(`client_id.in.(${clientIds.join(",")})`);
+
       const { data: projects, error: pErr } = await db
         .from("rgi_projects")
-        .select("id, name, client_id, hourly_rate, sparte")
-        .eq("building_id", buildingId!);
+        .select("id, name, client_id, building_id, default_hourly_rate, sparte, status")
+        .or(filters.join(","))
+        .order("name");
       if (pErr) throw pErr;
+
       const ids = (projects ?? []).map((p: any) => p.id);
-      if (!ids.length) return { projects: [], entries: [] as any[] };
+      if (!ids.length) return { projects: [], entries: [] as any[], clients: clients ?? [] };
 
       const { data: entries, error: tErr } = await db
         .from("rgi_time_entries")
@@ -81,7 +100,7 @@ export function useOpenTimeForBuilding(buildingId: string | null) {
         .eq("billable", true)
         .order("date", { ascending: false });
       if (tErr) throw tErr;
-      return { projects: projects ?? [], entries: entries ?? [] };
+      return { projects: projects ?? [], entries: entries ?? [], clients: clients ?? [] };
     },
   });
 }

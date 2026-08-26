@@ -15,11 +15,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Plus, Pencil, Trash2, Search, AlertTriangle, FileWarning, ChevronDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, AlertTriangle, FileWarning, ChevronDown, Eye } from "lucide-react";
 import {
   useManagementContracts, useBuildingsWithoutContract, useDeleteContract,
 } from "@/hooks/useManagementContracts";
 import { ContractWizard } from "./ContractWizard";
+import { ContractDetailDialog } from "./ContractDetailDialog";
 import {
   CONTRACT_STATUS_LABEL, contractWarnings, formatDate, formatEur, monthlyNet, monthsUntil,
   type ContractWithDetails,
@@ -36,6 +37,7 @@ export function ContractsTab() {
   const [editing, setEditing] = useState<ContractWithDetails | null>(null);
   const [presetBuilding, setPresetBuilding] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ContractWithDetails | null>(null);
+  const [detail, setDetail] = useState<ContractWithDetails | null>(null);
   const [search, setSearch] = useState("");
   const [modeFilter, setModeFilter] = useState<ModeFilter>("all");
   // Eingeklappt, damit die Vertragsliste nicht von der Lückenliste
@@ -172,7 +174,7 @@ export function ContractsTab() {
                 <TableHead className="text-right">je WE</TableHead>
                 <TableHead>Bestellung bis</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-[90px]" />
+                <TableHead className="w-[120px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -181,7 +183,11 @@ export function ContractsTab() {
                 const crit = warnings.filter((w) => w.level === "crit");
                 const warn = warnings.filter((w) => w.level === "warn");
                 return (
-                  <TableRow key={c.id}>
+                  <TableRow
+                    key={c.id}
+                    className="cursor-pointer"
+                    onClick={() => setDetail(c)}
+                  >
                     <TableCell>
                       <div className="font-medium">{c.building?.name ?? "—"}</div>
                       <div className="text-xs text-muted-foreground">
@@ -238,12 +244,15 @@ export function ContractsTab() {
                         {CONTRACT_STATUS_LABEL[c.status]}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>
+                        <Button variant="ghost" size="sm" title="Details ansehen" onClick={() => setDetail(c)}>
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" title="Bearbeiten" onClick={() => openEdit(c)}>
                           <Pencil className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(c)}>
+                        <Button variant="ghost" size="sm" title="Löschen" onClick={() => setConfirmDelete(c)}>
                           <Trash2 className="w-4 h-4 text-destructive" />
                         </Button>
                       </div>
@@ -255,6 +264,13 @@ export function ContractsTab() {
           </Table>
         </Card>
       )}
+
+      <ContractDetailDialog
+        open={!!detail}
+        onOpenChange={(v) => !v && setDetail(null)}
+        contract={detail}
+        onEdit={(c) => { setDetail(null); openEdit(c); }}
+      />
 
       <ContractWizard
         open={dialogOpen}
