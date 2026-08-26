@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Plus, Save, MoreVertical, Trash2, Ban, Calculator, FileStack, Receipt, Undo2, Info,
+  FolderKanban,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -102,11 +103,15 @@ export function BuildingBillingSheet({ open, onOpenChange, buildingId, buildingN
   const timeRows: BillingRow[] = useMemo(() => {
     const entries = time?.entries ?? [];
     const projects = time?.projects ?? [];
+    const clients = (time as any)?.clients ?? [];
     return entries.map((e: any) => {
       const proj = projects.find((p: any) => p.id === e.project_id);
+      const client = clients.find((c: any) => c.id === proj?.client_id);
+      // Stundensatz: am Eintrag, sonst am Projekt, sonst am Kunden.
       const rate =
         e.hourly_rate != null ? Number(e.hourly_rate)
         : proj?.default_hourly_rate != null ? Number(proj.default_hourly_rate)
+        : client?.default_hourly_rate != null ? Number(client.default_hourly_rate)
         : 0;
       return {
         key: `time:${e.id}`,
@@ -125,8 +130,9 @@ export function BuildingBillingSheet({ open, onOpenChange, buildingId, buildingN
         sourceKind: "time_entry" as const,
         sourceId: e.id,
         occurredOn: e.date,
-        hint: proj?.name ? `Projekt ${proj.name}` : undefined,
         timeEntryIds: [e.id],
+        projectId: proj?.id ?? null,
+        projectName: proj?.name?.trim() || "Ohne Projekt",
       };
     });
   }, [time, contract]);
@@ -268,23 +274,40 @@ export function BuildingBillingSheet({ open, onOpenChange, buildingId, buildingN
     });
   };
 
+  /**
+   * Zusammenfassen geschieht je Projekt, nicht über alles hinweg:
+   * auf der Rechnung soll „Eingangsplattform, 2,5 Std" stehen und
+   * nicht ein anonymer Sammelposten über drei Baustellen.
+   */
   const readyRows = useMemo(() => {
     if (!mergeTime) return chosen;
     const timeSel = chosen.filter((r) => r.origin === "time");
-    if (timeSel.length < 2) return chosen;
-    const hours = timeSel.reduce((s, r) => s + r.quantity, 0);
-    const cost = timeSel.reduce((s, r) => s + rowNet(r), 0);
-    const dates = timeSel.map((r) => r.occurredOn).sort();
-    const merged: BillingRow = {
-      ...timeSel[0],
-      key: "time:merged",
-      label: `Zeithonorar ${formatDate(dates[0])} – ${formatDate(dates[dates.length - 1])}`,
-      quantity: Math.round(hours * 100) / 100,
-      unitPriceNet: hours > 0 ? Math.round((cost / hours) * 100) / 100 : 0,
-      hint: `${timeSel.length} Zeiterfassungen zusammengefasst`,
-      timeEntryIds: timeSel.flatMap((r) => r.timeEntryIds ?? []),
-    };
-    return [...chosen.filter((r) => r.origin !== "time"), merged];
+    if (!timeSel.length) return chosen;
+
+    const byProject = new Map<string, BillingRow[]>();
+    for (const r of timeSel) {
+      const k = r.projectId ?? "none";
+      byProject.set(k, [...(byProject.get(k) ?? []), r]);
+    }
+
+    const merged: BillingRow[] = [];
+    for (const [projectId, rows] of byProject) {
+      if (rows.length === 1) { merged.push(rows[0]); continue; }
+      const hours = rows.reduce((s, r) => s + r.quantity, 0);
+      const cost = rows.reduce((s, r) => s + rowNet(r), 0);
+      const dates = rows.map((r) => r.occurredOn).filter(Boolean).sort();
+      const name = rows[0].projectName ?? "Zeithonorar";
+      merged.push({
+        ...rows[0],
+        key: `time:merged:${projectId}`,
+        label: `${name} — Zeitaufwand ${formatDate(dates[0])} bis ${formatDate(dates[dates.length - 1])}`,
+        quantity: Math.round(hours * 100) / 100,
+        unitPriceNet: hours > 0 ? Math.round((cost / hours) * 100) / 100 : 0,
+        hint: `${rows.length} Zeiterfassungen zusammengefasst`,
+        timeEntryIds: rows.flatMap((r) => r.timeEntryIds ?? []),
+      });
+    }
+    return [...chosen.filter((r) => r.origin !== "time"), ...merged];
   }, [chosen, mergeTime]);
 
   // ---------------- Darstellung ----------------
@@ -307,9 +330,56 @@ export function BuildingBillingSheet({ open, onOpenChange, buildingId, buildingN
     return <Badge variant="outline" className="font-normal">{ROW_STATUS_LABEL[r.status]}</Badge>;
   };
 
-  const renderGroup = (title: string, rows: BillingRow[], note?: string) => {
+  /**
+   * Stundenzeilen bekommen je Projekt eine Zwischenüberschrift mit
+   * Gesamtstunden und einem Haken, der das ganze Projekt auswählt —
+   * damit „Eingangsplattform, 2,5 Std" ein Griff ist und nicht drei.
+   */
+  const renderProjectHeader = (name: string, rows: BillingRow[]) => {
+    const openRows = rows.filter(isOpenRow);
+    const hours = rows.reduce((s, r) => s + r.quantity, 0);
+    return (
+      <div className="flex items-center gap-2 px-4 py-1.5 bg-muted/20 border-b">
+        <div className="w-4">
+          {openRows.length > 0 && (
+            <Checkbox
+              checked={openRows.length > 0 && openRows.every((r) => selected.has(r.key))}
+              onCheckedChange={() => toggleGroup(rows)}
+              aria-label={`Alle Stunden aus ${name} auswählen`}
+            />
+          )}
+        </div>
+        <FolderKanban className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        <span className="text-sm font-medium truncate">{name}</span>
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          {hours.toLocaleString("de-DE", { maximumFractionDigits: 2 })} Std · {rows.length}{" "}
+          {rows.length === 1 ? "Eintrag" : "Einträge"}
+        </span>
+        <span className="ml-auto text-sm font-mono">{formatEur(rowsNet(rows))}</span>
+      </div>
+    );
+  };
+
+  const renderGroup = (
+    title: string,
+    rows: BillingRow[],
+    note?: string,
+    byProject = false,
+  ) => {
     if (!rows.length) return null;
     const openRows = rows.filter(isOpenRow);
+
+    // Nach Projekt gruppieren, Reihenfolge nach Gesamtaufwand.
+    const projectGroups = byProject
+      ? [...rows.reduce((m, r) => {
+          const k = r.projectName ?? "Ohne Projekt";
+          m.set(k, [...(m.get(k) ?? []), r]);
+          return m;
+        }, new Map<string, BillingRow[]>())].sort(
+          (a, b) => rowsNet(b[1]) - rowsNet(a[1]),
+        )
+      : [];
+
     return (
       <Card className="overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-muted/40">
@@ -321,12 +391,25 @@ export function BuildingBillingSheet({ open, onOpenChange, buildingId, buildingN
             />
           )}
           <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</span>
-          <span className="text-xs text-muted-foreground">· {rows.length}</span>
+          <span className="text-xs text-muted-foreground">
+            · {byProject ? `${projectGroups.length} ${projectGroups.length === 1 ? "Projekt" : "Projekte"}` : rows.length}
+          </span>
           {note && <span className="text-xs text-muted-foreground ml-auto">{note}</span>}
         </div>
 
-        <div className="divide-y">
-          {rows.map((r) => {
+        {byProject
+          ? projectGroups.map(([name, projectRows]) => (
+              <div key={name}>
+                {renderProjectHeader(name, projectRows)}
+                <div className="divide-y">{projectRows.map(renderRow)}</div>
+              </div>
+            ))
+          : <div className="divide-y">{rows.map(renderRow)}</div>}
+      </Card>
+    );
+  };
+
+  function renderRow(r: BillingRow) {
             const selectable = isOpenRow(r) && !(r.needsInput && !r.unitPriceNet);
             const edited = !!overrides[r.key];
             return (
@@ -429,11 +512,7 @@ export function BuildingBillingSheet({ open, onOpenChange, buildingId, buildingN
                 </DropdownMenu>
               </div>
             );
-          })}
-        </div>
-      </Card>
-    );
-  };
+  }
 
   const years = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
 
@@ -519,7 +598,11 @@ export function BuildingBillingSheet({ open, onOpenChange, buildingId, buildingN
                   "Aus dem Verwaltervertrag", groups.contract,
                   contract ? "Vorschläge — nichts wird ohne dein Zutun abgerechnet" : undefined,
                 )}
-                {renderGroup("Erfasste Stunden", groups.time, "abrechenbar, noch keiner Rechnung zugeordnet")}
+                {renderGroup(
+                  "Erfasste Stunden", groups.time,
+                  "nach Projekt, abrechenbar und noch keiner Rechnung zugeordnet",
+                  true,
+                )}
                 {renderGroup("Aus Positionsvorlagen", groups.preset)}
                 {renderGroup("Freie Positionen", groups.manual)}
               </>
