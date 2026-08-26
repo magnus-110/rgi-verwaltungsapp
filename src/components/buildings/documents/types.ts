@@ -43,6 +43,7 @@ export interface DocFile {
   uploaded_by: string;
   extracted_text: string | null;
   fiscal_year: number | null;
+  storage_bucket?: string | null;
 }
 
 export const VISIBILITY_LABELS: Record<VisibilityRole, string> = {
@@ -52,11 +53,18 @@ export const VISIBILITY_LABELS: Record<VisibilityRole, string> = {
 };
 
 /**
- * Resolve the storage bucket for a building_files row based on its source.
- * Invoice-derived rows are stored in the `invoices` bucket, everything else
- * lives in the `building-files` bucket.
+ * Resolve the storage bucket for a building_files row.
+ *
+ * Rows may carry the bucket explicitly in `storage_bucket`; that always wins.
+ * Older rows have no such value, for those the bucket is derived from
+ * `source`: invoice-derived rows live in the `invoices` bucket, everything
+ * else in `building-files`.
  */
-export function getFileBucket(source: FileSource | string | null | undefined): string {
+export function getFileBucket(
+  source: FileSource | string | null | undefined,
+  storageBucket?: string | null,
+): string {
+  if (storageBucket) return storageBucket;
   if (source === 'invoice') return 'invoices';
   return 'building-files';
 }
