@@ -9,7 +9,12 @@ import { CompanyFolderTree } from "./CompanyFolderTree";
 import { CompanyFileList } from "./CompanyFileList";
 import { CompanyFileDetail } from "./CompanyFileDetail";
 import { CompanyUploadDialog } from "./CompanyUploadDialog";
-import { CompanyFile } from "./types";
+import { CompanyInvoiceList } from "./CompanyInvoiceList";
+import {
+  CompanyFile,
+  isVirtualInvoiceFolder,
+  VIRTUAL_INVOICES_OUT,
+} from "./types";
 
 /**
  * Dokumentenablage der Firma RGI Immobilien. Aufbau wie im Liegenschafts-DMS:
@@ -24,6 +29,11 @@ export function DocumentsTab() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [mobileView, setMobileView] = useState<"tree" | "list" | "detail">("tree");
+
+  // Die beiden Rechnungsordner halten keine eigenen Dateien, sie zeigen direkt
+  // die Rechnungen aus der App. Deshalb entfaellt dort der Detailbereich.
+  const showsInvoices = isVirtualInvoiceFolder(categoryId);
+  const invoiceDirection = categoryId === VIRTUAL_INVOICES_OUT ? "outgoing" : "incoming";
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -73,7 +83,10 @@ export function DocumentsTab() {
               <CompanyFolderTree selectedId={categoryId} onSelect={selectFolder} />
             </div>
           )}
-          {mobileView === "list" && (
+          {mobileView === "list" && showsInvoices && (
+            <CompanyInvoiceList direction={invoiceDirection} />
+          )}
+          {mobileView === "list" && !showsInvoices && (
             <div className="flex h-full flex-col">
               <div className="border-b p-3">
                 <div className="relative">
@@ -132,16 +145,18 @@ export function DocumentsTab() {
             placeholder="In allen Firmendokumenten suchen…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            disabled={showsInvoices}
           />
         </div>
-        <Button onClick={openUpload}>
+        <Button onClick={openUpload} disabled={showsInvoices}>
           <Upload className="mr-2 h-4 w-4" /> Hochladen
         </Button>
       </div>
 
       <div
         className={cn(
-          "relative grid min-h-0 flex-1 grid-cols-[260px_1fr_320px] gap-3",
+          "relative grid min-h-0 flex-1 gap-3",
+          showsInvoices ? "grid-cols-[260px_1fr]" : "grid-cols-[260px_1fr_320px]",
           isDragging && "rounded-lg ring-2 ring-primary ring-offset-2",
         )}
       >
@@ -157,16 +172,22 @@ export function DocumentsTab() {
           <CompanyFolderTree selectedId={categoryId} onSelect={selectFolder} />
         </Card>
         <Card className="overflow-hidden">
-          <CompanyFileList
-            categoryId={categoryId}
-            search={search}
-            selectedFileId={selectedFile?.id ?? null}
-            onSelect={selectFile}
-          />
+          {showsInvoices ? (
+            <CompanyInvoiceList direction={invoiceDirection} />
+          ) : (
+            <CompanyFileList
+              categoryId={categoryId}
+              search={search}
+              selectedFileId={selectedFile?.id ?? null}
+              onSelect={selectFile}
+            />
+          )}
         </Card>
-        <Card className="overflow-hidden">
-          <CompanyFileDetail file={selectedFile} onClose={() => setSelectedFile(null)} />
-        </Card>
+        {!showsInvoices && (
+          <Card className="overflow-hidden">
+            <CompanyFileDetail file={selectedFile} onClose={() => setSelectedFile(null)} />
+          </Card>
+        )}
       </div>
 
       <CompanyUploadDialog

@@ -50,7 +50,7 @@ export function useCompanyFiles(categoryId: string | null, search: string) {
       let q = db
         .from("building_files")
         .select(
-          "id, display_name, description, file_path, file_size, mime_type, category_id, source, tags, created_at, updated_at, deleted_at",
+          "id, display_name, description, file_path, file_size, mime_type, category_id, source, storage_bucket, tags, created_at, updated_at, deleted_at",
         );
 
       if (term) {
@@ -111,9 +111,10 @@ export function useInvalidateCompanyDocuments() {
 export async function companyFileUrl(file: {
   file_path: string;
   source?: string | null;
+  storage_bucket?: string | null;
 }): Promise<string> {
   const { data, error } = await supabase.storage
-    .from(companyFileBucket(file.source))
+    .from(companyFileBucket(file.source, file.storage_bucket))
     .createSignedUrl(file.file_path, 600);
   if (error) throw error;
   return data.signedUrl;
