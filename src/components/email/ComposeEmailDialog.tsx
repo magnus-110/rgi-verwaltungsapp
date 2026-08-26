@@ -174,7 +174,7 @@ export const ComposeEmailDialog = ({
             continue;
           }
           const { data: signed, error: signErr } = await supabase.storage
-            .from("building-files")
+            .from(item.bucket || "building-files")
             .createSignedUrl(item.path, 300);
           if (signErr || !signed?.signedUrl) {
             toast.error(`${item.name}: konnte nicht geladen werden`);
