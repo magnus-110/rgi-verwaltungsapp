@@ -28,6 +28,7 @@ export interface CompanyFile {
   mime_type: string | null;
   category_id: string | null;
   source: string;
+  storage_bucket: string | null;
   tags: string[];
   created_at: string;
   updated_at: string;
@@ -38,7 +39,11 @@ export interface CompanyFile {
  * Bucket einer Firmendatei. Angebots- und Rechnungsdateien liegen im Bucket
  * `invoices`, alles manuell Hochgeladene in `building-files`.
  */
-export function companyFileBucket(source: string | null | undefined): string {
+export function companyFileBucket(
+  source: string | null | undefined,
+  storageBucket?: string | null,
+): string {
+  if (storageBucket) return storageBucket;
   return source === "invoice" ? "invoices" : COMPANY_BUCKET;
 }
 
@@ -47,4 +52,17 @@ export function formatBytes(bytes: number | null | undefined): string {
   if (b < 1024) return `${b} B`;
   if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
   return `${(b / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/**
+ * Zwei automatische Ordner. Sie halten keine eigenen Dateien, sondern zeigen
+ * direkt, was in der App schon vorhanden ist: Ausgangsrechnungen aus
+ * `rgi_invoices` und Eingangsrechnungen aus `invoices` mit der Markierung
+ * "Firmenrechnung". Deshalb wird nichts kopiert und nichts veraltet.
+ */
+export const VIRTUAL_INVOICES_OUT = "__inv_out__";
+export const VIRTUAL_INVOICES_IN = "__inv_in__";
+
+export function isVirtualInvoiceFolder(id: string | null): boolean {
+  return id === VIRTUAL_INVOICES_OUT || id === VIRTUAL_INVOICES_IN;
 }
