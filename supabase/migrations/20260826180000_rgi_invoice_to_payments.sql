@@ -89,6 +89,51 @@ CREATE TRIGGER trg_invoices_rgi_payment_sync
   FOR EACH ROW
   EXECUTE FUNCTION public.rgi_sync_payment_from_invoice();
 
+-- ---------- 2b. Zurueckgenommene Zahlung ----------
+-- rgi_recompute_invoice_paid kannte den Rueckweg nicht: faellt der
+-- bezahlte Betrag auf null, blieb die Rechnung auf 'paid' stehen -
+-- sie waere also bezahlt ohne einen Cent Zahlung. Das faellt jetzt
+-- auf, weil der Haken in Zahlungen jederzeit wieder weg kann; es
+-- galt aber genauso fuer eine von Hand geloeschte Zahlung.
+CREATE OR REPLACE FUNCTION public.rgi_recompute_invoice_paid()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_inv UUID; v_paid NUMERIC(12,2); v_total NUMERIC(12,2);
+  v_due DATE; v_number TEXT;
+BEGIN
+  v_inv := COALESCE(NEW.invoice_id, OLD.invoice_id);
+  SELECT COALESCE(SUM(amount), 0) INTO v_paid
+    FROM public.rgi_payments WHERE invoice_id = v_inv;
+  SELECT total_gross, due_date, invoice_number
+    INTO v_total, v_due, v_number
+    FROM public.rgi_invoices WHERE id = v_inv;
+
+  UPDATE public.rgi_invoices SET
+    paid_amount = v_paid,
+    paid_at = CASE WHEN v_paid >= v_total AND v_total > 0 THEN now() ELSE NULL END,
+    status = CASE
+      WHEN status = 'cancelled' THEN status
+      WHEN v_paid >= v_total AND v_total > 0 THEN 'paid'::rgi_invoice_status
+      WHEN v_paid > 0 THEN 'partial'::rgi_invoice_status
+      WHEN v_due IS NOT NULL AND v_due < CURRENT_DATE
+           AND status IN ('sent', 'partial', 'paid', 'overdue')
+        THEN 'overdue'::rgi_invoice_status
+      -- Nichts mehr bezahlt: zurueck auf den Stand davor.
+      WHEN status IN ('paid', 'partial', 'overdue')
+        THEN CASE WHEN v_number IS NULL
+                  THEN 'draft'::rgi_invoice_status
+                  ELSE 'sent'::rgi_invoice_status END
+      ELSE status
+    END
+  WHERE id = v_inv;
+  RETURN NULL;
+END;
+$$;
+
 -- ---------- 3. Storno raeumt auf ----------
 -- Eine stornierte Rechnung darf in der Zahlungsliste nicht
 -- stehenbleiben. Bereits bezahlte Posten bleiben als Beleg
