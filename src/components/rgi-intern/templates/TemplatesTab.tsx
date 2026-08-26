@@ -18,7 +18,16 @@ const PLACEHOLDERS = [
   ["Rechnung", ["{rechnung.nummer}", "{rechnung.datum}", "{rechnung.faellig}", "{rechnung.leistungszeitraum}", "{rechnung.intro}", "{rechnung.footer}"]],
   ["Positionen-Loop", ["{#positionen}{nr}{/positionen}", "{#positionen}{beschreibung}{/positionen}", "{#positionen}{menge}{/positionen}", "{#positionen}{einheit}{/positionen}", "{#positionen}{einzelpreis}{/positionen}", "{#positionen}{ust}{/positionen}", "{#positionen}{summe}{/positionen}"]],
   ["Summen", ["{summe.netto}", "{summe.ust19}", "{summe.ust7}", "{summe.ust0}", "{summe.brutto}"]],
+  ["Übersichtsblatt zum Vertrag", ["{weg.name}", "{uebersicht.laufzeit}", "{uebersicht.kuendigung}", "{uebersicht.wohnung}", "{uebersicht.garage}", "{uebersicht.teileigentum}", "{uebersicht.sonstiges}", "{extrakosten}"]],
 ];
+
+type TemplateKind = "invoice" | "contract" | "contract_summary";
+
+const TEMPLATE_KIND_LABEL: Record<TemplateKind, string> = {
+  invoice: "Vorlage für Rechnungen",
+  contract: "Vorlage für Verträge",
+  contract_summary: "Vorlage für Übersichtsblatt",
+};
 
 export function TemplatesTab() {
   const { data: templates, isLoading } = useRgiTemplates();
@@ -26,8 +35,9 @@ export function TemplatesTab() {
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  // Art der Vorlage: Rechnung oder Vertragsentwurf für Angebote.
-  const [kind, setKind] = useState<"invoice" | "contract">("invoice");
+  // Art der Vorlage: Rechnung, Vertragsentwurf für Angebote oder das
+  // einseitige Übersichtsblatt, das zum Vertragsentwurf mitgeliefert wird.
+  const [kind, setKind] = useState<TemplateKind>("invoice");
 
   const upload = async (file: File) => {
     setUploading(true);
@@ -65,11 +75,12 @@ export function TemplatesTab() {
     <div className="space-y-4 mt-4">
       <div className="flex gap-2 items-center">
         <input ref={inputRef} type="file" accept=".docx" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
-        <Select value={kind} onValueChange={(v) => setKind(v as "invoice" | "contract")}>
-          <SelectTrigger className="w-[210px]"><SelectValue /></SelectTrigger>
+        <Select value={kind} onValueChange={(v) => setKind(v as TemplateKind)}>
+          <SelectTrigger className="w-[240px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="invoice">Vorlage für Rechnungen</SelectItem>
-            <SelectItem value="contract">Vorlage für Verträge</SelectItem>
+            {(Object.keys(TEMPLATE_KIND_LABEL) as TemplateKind[]).map((k) => (
+              <SelectItem key={k} value={k}>{TEMPLATE_KIND_LABEL[k]}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Button onClick={() => inputRef.current?.click()} disabled={uploading} className="gap-1.5"><Upload className="w-4 h-4" />Vorlage (.docx) hochladen</Button>

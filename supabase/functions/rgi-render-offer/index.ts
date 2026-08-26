@@ -7,6 +7,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import PizZip from "https://esm.sh/pizzip@3.1.7";
 import Docxtemplater from "https://esm.sh/docxtemplater@3.50.0";
 
+// Standardtext fuer den Abschnitt "Was kostet Extra?" auf dem
+// Uebersichtsblatt. Je Angebot ueber contract_defaults["extrakosten"]
+// ueberschreibbar.
+const EXTRAKOSTEN_STANDARD =
+  "Zusatzkosten entstehen nur bei Sonderfällen wie z. B. Eigentümerwechsel, außerordentliche " +
+  "Versammlungen, aufwendige Versicherungsschäden, Bauprojekte ab 5000€ oder Rechtsangelegenheiten. " +
+  "Abgerechnet wird pauschal, prozentual oder nach Zeitaufwand – je nach Sonderfall.";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -147,40 +155,73 @@ Deno.serve(async (req) => {
 
     const { data: company } = await admin.from("rgi_company_settings").select("*").limit(1).maybeSingle();
 
-    // Vorlage bestimmen: erst die am Angebot hinterlegte, sonst die
-    // Standard-Vertragsvorlage, sonst die neueste Vertragsvorlage.
-    let templatePath: string | null = offer.template?.storage_path || null;
-    if (!templatePath) {
+    // Vorlage einer Art bestimmen: erst die als Standard markierte, sonst die
+    // neueste. Wird fuer den Vertrag und fuer das Uebersichtsblatt genutzt.
+    const templatePathOfKind = async (kind: string): Promise<string | null> => {
       const { data: defaultTpl } = await admin
         .from("rgi_invoice_templates")
         .select("storage_path")
-        .eq("template_kind", "contract")
+        .eq("template_kind", kind)
         .eq("is_default", true)
         .limit(1)
         .maybeSingle();
-      templatePath = defaultTpl?.storage_path || null;
-    }
-    if (!templatePath) {
+      if (defaultTpl?.storage_path) return defaultTpl.storage_path;
       const { data: latestTpl } = await admin
         .from("rgi_invoice_templates")
         .select("storage_path")
-        .eq("template_kind", "contract")
+        .eq("template_kind", kind)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      templatePath = latestTpl?.storage_path || null;
-    }
+      return latestTpl?.storage_path || null;
+    };
+
+    // Am Angebot hinterlegte Vorlage hat Vorrang vor der Standardvorlage.
+    const templatePath: string | null =
+      offer.template?.storage_path || (await templatePathOfKind("contract"));
     if (!templatePath) return json({ error: "Keine Vertragsvorlage hinterlegt" }, 400);
 
-    const { data: tplFile, error: tplErr } = await admin.storage
-      .from("rgi-invoice-templates")
-      .download(templatePath);
-    if (tplErr || !tplFile) {
-      const msg = /not.?found|object/i.test(tplErr?.message || "")
-        ? "Die Vorlagendatei wurde im Speicher nicht gefunden. Bitte die Word-Vorlage erneut hochladen."
-        : (tplErr?.message || "Vorlage nicht ladbar");
-      return json({ error: msg }, 404);
-    }
+    /** Laedt eine Vorlage und fuellt sie mit den Platzhalterwerten. */
+    const renderFromTemplate = async (
+      path: string,
+      payload: Record<string, any>,
+    ): Promise<Uint8Array> => {
+      const { data: file, error: dlErr } = await admin.storage
+        .from("rgi-invoice-templates")
+        .download(path);
+      if (dlErr || !file) {
+        const msg = /not.?found|object/i.test(dlErr?.message || "")
+          ? "Die Vorlagendatei wurde im Speicher nicht gefunden. Bitte die Word-Vorlage erneut hochladen."
+          : (dlErr?.message || "Vorlage nicht ladbar");
+        throw new Error(msg);
+      }
+      const buf = new Uint8Array(await file.arrayBuffer());
+      let z: PizZip;
+      try {
+        z = new PizZip(buf);
+      } catch (zErr: any) {
+        throw new Error(`Vorlage ist keine gültige .docx-Datei: ${zErr?.message || zErr}`);
+      }
+      // Word's spell-/grammar-checker injects <w:proofErr/> tags inside placeholders
+      // like {weg.anschrift}, splitting them across runs and breaking docxtemplater.
+      // Also strip bookmark markers for the same reason.
+      const SPLIT_RE = /<w:(?:proofErr|bookmarkStart|bookmarkEnd)\b[^>]*\/>/g;
+      for (const name of Object.keys(z.files)) {
+        if (/^word\/(document|header\d*|footer\d*)\.xml$/.test(name)) {
+          const f = z.file(name);
+          if (!f) continue;
+          z.file(name, f.asText().replace(SPLIT_RE, ""));
+        }
+      }
+      const d = new Docxtemplater(z, {
+        paragraphLoop: true,
+        linebreaks: true,
+        delimiters: { start: "{", end: "}" },
+        nullGetter: () => "",
+      });
+      d.render(withDotAliases(payload));
+      return d.getZip().generate({ type: "uint8array" });
+    };
 
     // Konstanten und Rubrumsangaben lassen sich je Angebot ueber
     // offers.contract_defaults unter dem gleichnamigen Schluessel
@@ -320,32 +361,29 @@ Deno.serve(async (req) => {
       "datum": def("datum", fmtDate(today)),
     };
 
-    const tplBuf = new Uint8Array(await tplFile.arrayBuffer());
-    let zip: PizZip;
+    // --- Zusatzwerte fuer das einseitige Uebersichtsblatt -------------------
+    // Leere Kategorien bekommen einen Gedankenstrich, damit auf dem Blatt
+    // keine halbleere Zeile steht.
+    const rateOrDash = (rate: unknown, count: unknown): string => {
+      const r = toNum(rate);
+      const c = toNum(count);
+      if (r === null || r <= 0 || c === null || c <= 0) return "–";
+      return `${dec(r)} €`;
+    };
+    payload["uebersicht.laufzeit"] = def("uebersicht.laufzeit", "3 Jahre");
+    payload["uebersicht.kuendigung"] = def("uebersicht.kuendigung", "6 Monate");
+    payload["uebersicht.wohnung"] = rateOrDash(offer.rate_apartment, offer.units_apartment);
+    payload["uebersicht.garage"] = rateOrDash(offer.rate_parking, offer.units_parking);
+    payload["uebersicht.teileigentum"] = rateOrDash(offer.rate_commercial, offer.units_commercial);
+    payload["uebersicht.sonstiges"] = rateOrDash(offer.rate_other, offer.units_other);
+    // Beide Schreibweisen, damit die Vorlage {extrakosten} oder den
+    // ausfuehrlicheren Namen verwenden kann.
+    payload["extrakosten"] = def("extrakosten", EXTRAKOSTEN_STANDARD);
+    payload["uebersicht.extrakosten"] = payload["extrakosten"];
+
+    let docxBytes: Uint8Array;
     try {
-      zip = new PizZip(tplBuf);
-    } catch (zErr: any) {
-      return json({ error: `Vorlage ist keine gültige .docx-Datei: ${zErr?.message || zErr}` }, 422);
-    }
-    // Word's spell-/grammar-checker injects <w:proofErr/> tags inside placeholders
-    // like {weg.anschrift}, splitting them across runs and breaking docxtemplater.
-    // Also strip bookmark markers for the same reason.
-    const SPLIT_RE = /<w:(?:proofErr|bookmarkStart|bookmarkEnd)\b[^>]*\/>/g;
-    for (const name of Object.keys(zip.files)) {
-      if (/^word\/(document|header\d*|footer\d*)\.xml$/.test(name)) {
-        const f = zip.file(name);
-        if (!f) continue;
-        zip.file(name, f.asText().replace(SPLIT_RE, ""));
-      }
-    }
-    const doc = new Docxtemplater(zip, {
-      paragraphLoop: true,
-      linebreaks: true,
-      delimiters: { start: "{", end: "}" },
-      nullGetter: () => "",
-    });
-    try {
-      doc.render(withDotAliases(payload));
+      docxBytes = await renderFromTemplate(templatePath, payload);
     } catch (rErr: any) {
       const tplErrors = rErr?.properties?.errors;
       if (Array.isArray(tplErrors) && tplErrors.length) {
@@ -354,7 +392,6 @@ Deno.serve(async (req) => {
       }
       return json({ error: `Word-Rendering fehlgeschlagen: ${rErr?.message || rErr}` }, 500);
     }
-    const docxBytes = doc.getZip().generate({ type: "uint8array" });
 
     const baseName = `Verwaltervertrag_${sanitize(offer.prospect_name || "Angebot")}`;
     const docxPath = `offers/docx/${offer.id}/${baseName}.docx`;
@@ -384,12 +421,60 @@ Deno.serve(async (req) => {
       }
     }
 
+    // --- Einseitiges Uebersichtsblatt ---------------------------------------
+    // Es entsteht aus einer eigenen Vorlage. Fehlt sie oder geht etwas schief,
+    // bleibt der Vertragsentwurf trotzdem gueltig; der Grund wandert in die
+    // Antwort, damit die Oberflaeche ihn anzeigen kann.
+    let summaryDocxPath: string | null = null;
+    let summaryPdfPath: string | null = null;
+    let summaryError: string | null = null;
+    const summaryTemplatePath = await templatePathOfKind("contract_summary");
+    if (!summaryTemplatePath) {
+      summaryError = "Keine Vorlage für das Übersichtsblatt hinterlegt.";
+    } else {
+      try {
+        const sumBase = `Uebersicht_${sanitize(offer.prospect_name || "Angebot")}`;
+        const sumDocx = await renderFromTemplate(summaryTemplatePath, payload);
+        summaryDocxPath = `offers/uebersicht-docx/${offer.id}/${sumBase}.docx`;
+        const { error: sumUpErr } = await admin.storage.from("invoices").upload(summaryDocxPath, sumDocx, {
+          contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          cacheControl: "0",
+          upsert: true,
+        });
+        if (sumUpErr) throw new Error(`Upload fehlgeschlagen: ${sumUpErr.message}`);
+
+        if (formats.includes("pdf")) {
+          const sumPdf = await convertDocxToPdf(sumDocx, `${sumBase}.docx`);
+          summaryPdfPath = `offers/uebersicht-pdf/${offer.id}/${sumBase}.pdf`;
+          const { error: sumPdfErr } = await admin.storage.from("invoices").upload(summaryPdfPath, sumPdf, {
+            contentType: "application/pdf",
+            cacheControl: "0",
+            upsert: true,
+          });
+          if (sumPdfErr) throw new Error(`PDF-Upload fehlgeschlagen: ${sumPdfErr.message}`);
+        }
+      } catch (se: any) {
+        console.error("summary rendering failed", se);
+        summaryError = String(se?.message || se);
+      }
+    }
+
     await admin.from("offers").update({
       docx_storage_path: docxPath,
       ...(pdfPath ? { pdf_storage_path: pdfPath } : {}),
+      ...(summaryDocxPath ? { summary_docx_storage_path: summaryDocxPath } : {}),
+      ...(summaryPdfPath ? { summary_pdf_storage_path: summaryPdfPath } : {}),
     }).eq("id", offer.id);
 
-    return json({ ok: true, docx_path: docxPath, pdf_path: pdfPath, pdf_error: pdfError });
+    return json({
+      ok: true,
+      docx_path: docxPath,
+      pdf_path: pdfPath,
+      pdf_error: pdfError,
+      summary_docx_path: summaryDocxPath,
+      summary_pdf_path: summaryPdfPath,
+      summary_error: summaryError,
+    });
   } catch (e: any) {
     console.error("rgi-render-offer error", e);
     const tplErrors = e?.properties?.errors;

@@ -11,7 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Search, FileText, Download, CalendarClock, ArrowRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileText, Download, CalendarClock, ArrowRight, FileBadge } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -173,6 +173,16 @@ export function OffersTab() {
                   {o.pdf_storage_path && (
                     <Button variant="ghost" size="sm" title="PDF öffnen" onClick={() => openFile(o.pdf_storage_path!)}>
                       <Download className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {(o.summary_pdf_storage_path || o.summary_docx_storage_path) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Übersichtsblatt öffnen"
+                      onClick={() => openFile((o.summary_pdf_storage_path || o.summary_docx_storage_path)!)}
+                    >
+                      <FileBadge className="w-4 h-4" />
                     </Button>
                   )}
                   {o.status !== "won" && (

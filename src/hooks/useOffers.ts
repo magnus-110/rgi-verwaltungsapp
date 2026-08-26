@@ -73,6 +73,8 @@ export interface Offer {
   template_id: string | null;
   docx_storage_path: string | null;
   pdf_storage_path: string | null;
+  summary_docx_storage_path: string | null;
+  summary_pdf_storage_path: string | null;
   sent_on: string | null;
   follow_up_on: string | null;
   decided_on: string | null;
@@ -212,14 +214,26 @@ export function useSaveOfferItems() {
   });
 }
 
-/** Erzeugt den Vertragsentwurf als Word-Datei und optional als PDF. */
+/**
+ * Erzeugt den Vertragsentwurf als Word-Datei und optional als PDF. Zusaetzlich
+ * entsteht daraus das einseitige Uebersichtsblatt, sofern dafuer eine Vorlage
+ * hinterlegt ist.
+ */
 export async function renderOffer(offerId: string, formats: ("docx" | "pdf")[] = ["docx", "pdf"]) {
   const { data, error } = await supabase.functions.invoke("rgi-render-offer", {
     body: { offer_id: offerId, formats },
   });
   if (error) throw error;
   if ((data as any)?.error) throw new Error((data as any).error);
-  return data as { ok: boolean; docx_path?: string; pdf_path?: string; pdf_error?: string };
+  return data as {
+    ok: boolean;
+    docx_path?: string;
+    pdf_path?: string;
+    pdf_error?: string;
+    summary_docx_path?: string | null;
+    summary_pdf_path?: string | null;
+    summary_error?: string | null;
+  };
 }
 
 export async function offerSignedUrl(path: string): Promise<string> {
