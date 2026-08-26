@@ -81,6 +81,12 @@ export interface ContractFee {
   valid_from: string | null;
   valid_to: string | null;
   note: string | null;
+  /** Staffelstufe: Untergrenze der Bemessungsgrundlage. */
+  tier_from?: number | null;
+  /** Staffelstufe: Obergrenze, null = nach oben offen. */
+  tier_to?: number | null;
+  /** Halbiert sich, wenn ein Sonderfachmann die Objektüberwachung führt. */
+  halved_if_supervised?: boolean | null;
 }
 
 /** Ein Vertrag samt Gebäudedaten und Bausteinen, wie ihn die Übersicht braucht. */
@@ -189,6 +195,78 @@ export const FEE_CATALOG: FeeCatalogEntry[] = [
   { fee_type: "utility_billing", label: "Nebenkostenabrechnung", basis: "item_year", modes: ["rent"] },
   { fee_type: "rent_increase", label: "Mietanpassung", basis: "case", modes: ["rent"] },
 ];
+
+/**
+ * Klartext-Einheit hinter dem Betragsfeld, damit im Formular niemand
+ * wissen muss, was „Bemessung" bedeutet.
+ */
+export const BASIS_SUFFIX: Record<FeeBasis, string> = {
+  unit_month: "€ je Einheit im Monat",
+  monthly_flat: "€ im Monat",
+  net_rent_percent: "% der Nettomiete",
+  case: "€ je Vorgang",
+  item_year: "€ je Stück und Jahr",
+  item: "€ je Stück",
+  hour: "€ je Stunde",
+  claim_payout: "% der Schadenssumme",
+  gross_project_volume: "% der Bausumme",
+  custom: "€",
+};
+
+/** Auswahl für freie Positionen, in Alltagssprache. */
+export const BASIS_CHOICES: { value: FeeBasis; label: string }[] = [
+  { value: "case", label: "Ein Betrag je Vorgang" },
+  { value: "item", label: "Ein Betrag je Stück" },
+  { value: "item_year", label: "Ein Betrag je Stück und Jahr" },
+  { value: "hour", label: "Ein Betrag je Stunde" },
+  { value: "monthly_flat", label: "Ein Betrag jeden Monat" },
+  { value: "gross_project_volume", label: "Ein Prozentsatz der Bausumme" },
+  { value: "claim_payout", label: "Ein Prozentsatz der Schadenssumme" },
+  { value: "net_rent_percent", label: "Ein Prozentsatz der Nettomiete" },
+];
+
+// ---------------------------------------------------------------
+// Standardwerte aus dem aktuellen RGI-Verwaltervertrag
+//
+// Damit lässt sich ein neuer Vertrag mit einem Klick vorbelegen und
+// danach anpassen. Quelle: „Verwaltervertrag für Wohnungseigentums-
+// anlagen", Fassung 2026, §§ 3 und 4.
+// ---------------------------------------------------------------
+
+export interface StandardFee {
+  fee_type: string;
+  label: string;
+  basis: FeeBasis;
+  amount?: number;
+  percent?: number;
+  is_gross: boolean;
+  debtor?: FeeDebtor;
+  threshold?: number;
+  min_amount?: number;
+  max_count?: number;
+  tier_from?: number;
+  tier_to?: number;
+  halved_if_supervised?: boolean;
+  role?: string;
+  note?: string;
+}
+
+export const RGI_STANDARD_FEES: StandardFee[] = [
+  { fee_type: "extra_meeting", label: "Außerordentliche Eigentümerversammlung", basis: "case", amount: 250, is_gross: false, note: "§ 4 Ziff. 1, Auslagen gesondert" },
+  { fee_type: "key", label: "Ersatzschlüssel, Bearbeitungspauschale", basis: "item", amount: 25, is_gross: false, debtor: "owner", note: "§ 4 Ziff. 2, zzgl. Lieferantenrechnung" },
+  { fee_type: "owner_change", label: "Eigentümerwechsel inkl. Verwalterzustimmung", basis: "case", amount: 250, is_gross: false, debtor: "owner", note: "§ 4 Ziff. 3" },
+  { fee_type: "insurance_pct", label: "Versicherungsschaden", basis: "claim_payout", percent: 5, min_amount: 250, is_gross: false, note: "§ 4 Ziff. 4, ab drei Arbeitsstunden oder Vor-Ort-Termin" },
+  { fee_type: "cert_35a", label: "Bescheinigung nach § 35a EStG", basis: "item_year", amount: 10, is_gross: false, note: "§ 4 Ziff. 5, je Einzelaufstellung" },
+  { fee_type: "construction_pct", label: "Bauprojekt, Stufe 1", basis: "gross_project_volume", percent: 5, threshold: 5000, min_amount: 250, tier_from: 0, tier_to: 25000, is_gross: false, halved_if_supervised: true, note: "§ 4 Ziff. 8, bis 25.000 €" },
+  { fee_type: "construction_pct", label: "Bauprojekt, Stufe 2", basis: "gross_project_volume", percent: 4, threshold: 5000, tier_from: 25000, tier_to: 100000, is_gross: false, halved_if_supervised: true, note: "§ 4 Ziff. 8, 25.000 bis 100.000 €" },
+  { fee_type: "construction_pct", label: "Bauprojekt, Stufe 3", basis: "gross_project_volume", percent: 2.5, threshold: 5000, tier_from: 100000, is_gross: false, halved_if_supervised: true, note: "§ 4 Ziff. 8, über 100.000 €" },
+  { fee_type: "hourly", label: "Zeithonorar", basis: "hour", amount: 70, is_gross: false, role: "management", note: "§ 4 Ziff. 13" },
+];
+
+/** Wieviele Beiratssitzungen pro Jahr die Pauschale abdeckt. */
+export const RGI_STANDARD_BOARD_MEETINGS = 4;
+/** Freigabegrenze für Eigenaufträge nach § 3 Abs. 2. */
+export const RGI_STANDARD_APPROVAL_LIMIT = 1500;
 
 // ---------------------------------------------------------------
 // Rechnen und Formatieren

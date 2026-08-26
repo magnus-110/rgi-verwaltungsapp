@@ -18,7 +18,7 @@ import { Plus, Pencil, Trash2, Search, AlertTriangle, FileWarning } from "lucide
 import {
   useManagementContracts, useBuildingsWithoutContract, useDeleteContract,
 } from "@/hooks/useManagementContracts";
-import { ContractDialog } from "./ContractDialog";
+import { ContractWizard } from "./ContractWizard";
 import {
   CONTRACT_STATUS_LABEL, contractWarnings, formatDate, formatEur, monthlyNet, monthsUntil,
   type ContractWithDetails,
@@ -242,7 +242,7 @@ export function ContractsTab() {
         </Card>
       )}
 
-      <ContractDialog
+      <ContractWizard
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         contract={editing}
