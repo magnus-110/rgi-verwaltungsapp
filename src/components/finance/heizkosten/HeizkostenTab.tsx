@@ -9,7 +9,7 @@
  * auffällig. Alles andere gehört in die Anlage selbst.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -28,7 +28,10 @@ interface Props {
 
 export function HeizkostenTab({ sharedBuildingId, sharedPeriodId, fiscalYear }: Props) {
   const [gewaehlt, setGewaehlt] = useState<AnlageStatus | null>(null);
-  const { data: anlagen = [], isLoading } = useAnlagenUebersicht(sharedBuildingId);
+  const { data: anlagen = [], isLoading, error } = useAnlagenUebersicht(sharedBuildingId);
+
+  // Wechselt die Liegenschaft, führt die geöffnete Anlage in die Irre.
+  useEffect(() => { setGewaehlt(null); }, [sharedBuildingId]);
 
   // Zeitraum aus der gewählten Abrechnungsperiode, sonst das Kalenderjahr.
   const { data: periode } = useQuery({
@@ -53,6 +56,21 @@ export function HeizkostenTab({ sharedBuildingId, sharedPeriodId, fiscalYear }: 
     offeneZuordnungen: anlagen.reduce((s, a) => s + (a.nutzeinheiten - a.bestaetigt), 0),
     ohneFaktor: anlagen.reduce((s, a) => s + a.geraeteOhneFaktor, 0),
   }), [anlagen]);
+
+  // Ohne gewählte Liegenschaft gibt es nichts zu zeigen.
+  if (!sharedBuildingId) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
+          <Flame className="h-6 w-6 text-muted-foreground" />
+          <p className="text-sm font-medium">Bitte oben eine Liegenschaft auswählen.</p>
+          <p className="max-w-sm text-xs text-muted-foreground">
+            Die Heizkosten werden immer für eine einzelne Liegenschaft gerechnet.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (gewaehlt) {
     const aktuell = anlagen.find((a) => a.id === gewaehlt.id) ?? gewaehlt;
@@ -91,6 +109,10 @@ export function HeizkostenTab({ sharedBuildingId, sharedPeriodId, fiscalYear }: 
             <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Anlagen werden geladen …
             </div>
+          ) : error ? (
+            <p className="py-8 text-sm text-destructive">
+              Die Anlagen konnten nicht geladen werden: {error instanceof Error ? error.message : 'unbekannter Fehler'}
+            </p>
           ) : anlagen.length === 0 ? (
             <p className="py-8 text-sm text-muted-foreground">
               Für dieses Gebäude ist noch keine Heizungsanlage angelegt.
