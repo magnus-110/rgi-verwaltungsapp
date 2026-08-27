@@ -15,7 +15,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Plus, Pencil, Trash2, Search, AlertTriangle, FileWarning, ChevronDown, Eye } from "lucide-react";
+import {
+  Plus, Pencil, Trash2, Search, AlertTriangle, FileWarning, ChevronDown, Eye,
+  Layers, Receipt,
+} from "lucide-react";
 import {
   useManagementContracts, useBuildingsWithoutContract, useDeleteContract,
 } from "@/hooks/useManagementContracts";
@@ -194,6 +197,20 @@ export function ContractsTab() {
                         {[c.building?.building_code, c.building?.city].filter(Boolean).join(" · ")}
                         {c.label ? ` · ${c.label}` : ""}
                       </div>
+                      {(c.group || c.client) && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {c.group && (
+                            <Badge variant="outline" className="text-[11px] font-normal gap-1">
+                              <Layers className="w-3 h-3" />{c.group.name}
+                            </Badge>
+                          )}
+                          {c.client && (
+                            <Badge variant="outline" className="text-[11px] font-normal gap-1">
+                              <Receipt className="w-3 h-3" />{c.client.name}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
                       {(crit.length > 0 || warn.length > 0) && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
                           {crit.map((w, i) => (

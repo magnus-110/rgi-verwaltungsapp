@@ -109,6 +109,13 @@ export function ContractDetailDialog({ open, onOpenChange, contract, onEdit }: P
           <Row label="Bestellt bis" value={c.appointed_until ? formatDate(c.appointed_until) : "unbefristet"} />
           <Row label="Beschluss vom" value={formatDate(c.resolution_date)} />
           <Row label="Fundstelle" value={c.resolution_ref || "—"} />
+          <Row
+            label="Rechnungsempfänger"
+            value={c.client?.name ?? (c.building?.management_mode === "rent"
+              ? "noch nicht hinterlegt"
+              : "die WEG des Objekts")}
+          />
+          {c.group && <Row label="Gemeinsame Urkunde" value={c.group.name} />}
         </Section>
 
         {/* Einheiten */}

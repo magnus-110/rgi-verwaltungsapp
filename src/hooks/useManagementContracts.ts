@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { ContractFee, ContractWithDetails, ManagementContract } from "@/types/rgiContracts";
+import type {
+  ContractFee, ContractGroup, ContractWithDetails, ManagementContract,
+} from "@/types/rgiContracts";
 
 // Die generierte types.ts im Repo ist veraltet und kennt die neuen
 // Tabellen nicht. Bis sie neu erzeugt wird, greifen wir hier ungetypt
@@ -18,7 +20,10 @@ export function useManagementContracts() {
       const { data, error } = await db
         .from("management_contracts")
         .select(
-          "*, building:buildings(id, name, building_code, management_mode, unit_count, city), fees:management_contract_fees(*)"
+          "*, building:buildings(id, name, building_code, management_mode, unit_count, city)," +
+          " fees:management_contract_fees(*)," +
+          " group:management_contract_groups(id, name, rgi_client_id)," +
+          " client:rgi_clients(id, name)"
         )
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -150,5 +155,70 @@ export function useContractFilesForBuilding(buildingId: string | null | undefine
       if (error) throw error;
       return data ?? [];
     },
+  });
+}
+
+// ---------------------------------------------------------------
+// Vertragsgruppen
+//
+// Eine Urkunde ueber mehrere Objekte. In der Mietverwaltung der
+// Regelfall: ein Vertrag, 24 Liegenschaften, eine Jahresrechnung.
+// ---------------------------------------------------------------
+
+const GROUP_KEY = ["rgi", "contract-groups"] as const;
+
+export function useContractGroups() {
+  return useQuery({
+    queryKey: GROUP_KEY,
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("management_contract_groups")
+        .select("*, client:rgi_clients(id, name)")
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as (ContractGroup & { client?: { id: string; name: string } | null })[];
+    },
+  });
+}
+
+export function useUpsertContractGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Partial<ContractGroup> & { name: string }) => {
+      const { data, error } = await db
+        .from("management_contract_groups")
+        .upsert(payload)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as ContractGroup;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: GROUP_KEY });
+      qc.invalidateQueries({ queryKey: ["rgi", "contracts"] });
+      toast.success("Vertragsgruppe gespeichert");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+/**
+ * Loescht eine Gruppe. Die Objektvertraege bleiben bestehen und
+ * verlieren nur ihre Zuordnung (ON DELETE SET NULL) — eine Gruppe
+ * ist eine Klammer, kein Besitzer.
+ */
+export function useDeleteContractGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await db.from("management_contract_groups").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: GROUP_KEY });
+      qc.invalidateQueries({ queryKey: ["rgi", "contracts"] });
+      toast.success("Vertragsgruppe gelöscht");
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 }
