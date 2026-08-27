@@ -29,7 +29,18 @@ import {
   type ContractWithDetails,
 } from "@/types/rgiContracts";
 
-type ModeFilter = "all" | "weg" | "rent";
+/**
+ * WEG und Mietverwaltung sind zwei verschiedene Welten: andere
+ * Vertragsform, andere Schuldner, andere Honorarlogik. Sie in einer
+ * Liste zu mischen hat mehr verwirrt als geholfen — deshalb gibt es
+ * kein „Alle" mehr, sondern eine bewusste Entscheidung.
+ */
+type ModeFilter = "weg" | "rent";
+
+const MODE_LABEL: Record<ModeFilter, string> = {
+  weg: "WEG-Verwaltung",
+  rent: "Mietverwaltung",
+};
 
 export function ContractsTab() {
   const { data: contracts, isLoading } = useManagementContracts();
@@ -42,14 +53,14 @@ export function ContractsTab() {
   const [confirmDelete, setConfirmDelete] = useState<ContractWithDetails | null>(null);
   const [detail, setDetail] = useState<ContractWithDetails | null>(null);
   const [search, setSearch] = useState("");
-  const [modeFilter, setModeFilter] = useState<ModeFilter>("all");
+  const [modeFilter, setModeFilter] = useState<ModeFilter>("weg");
   // Eingeklappt, damit die Vertragsliste nicht von der Lückenliste
   // verdeckt wird — es sind über fünfzig Objekte.
   const [missingOpen, setMissingOpen] = useState(false);
 
   const rows = useMemo(() => {
     const list = (contracts ?? []).filter((c) => {
-      if (modeFilter !== "all" && c.building?.management_mode !== modeFilter) return false;
+      if (c.building?.management_mode !== modeFilter) return false;
       if (!search) return true;
       const q = search.toLowerCase();
       return (
@@ -69,6 +80,22 @@ export function ContractsTab() {
       };
     });
   }, [contracts, search, modeFilter]);
+
+  // Anzahl je Verwaltungsart, unabhaengig von Suche und Auswahl —
+  // sonst spraenge die Zahl am Umschalter beim Tippen.
+  const countByMode = useMemo(() => {
+    const out: Record<ModeFilter, number> = { weg: 0, rent: 0 };
+    for (const c of contracts ?? []) {
+      const m = c.building?.management_mode;
+      if (m === "weg" || m === "rent") out[m]++;
+    }
+    return out;
+  }, [contracts]);
+
+  const missingForMode = useMemo(
+    () => (missing ?? []).filter((b: any) => b.management_mode === modeFilter),
+    [missing, modeFilter],
+  );
 
   const totals = useMemo(() => {
     const monthly = rows.reduce((s, r) => s + r.monthly, 0);
@@ -97,14 +124,24 @@ export function ContractsTab() {
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input className="pl-9" placeholder="Objekt suchen…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <Select value={modeFilter} onValueChange={(v) => setModeFilter(v as ModeFilter)}>
-          <SelectTrigger className="w-[190px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Verwaltungsarten</SelectItem>
-            <SelectItem value="weg">WEG-Verwaltung</SelectItem>
-            <SelectItem value="rent">Mietverwaltung</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="inline-flex rounded-md border p-0.5">
+          {(["weg", "rent"] as ModeFilter[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              aria-pressed={modeFilter === m}
+              onClick={() => setModeFilter(m)}
+              className={
+                modeFilter === m
+                  ? "px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground font-medium"
+                  : "px-3 py-1.5 text-sm rounded text-muted-foreground hover:text-foreground"
+              }
+            >
+              {MODE_LABEL[m]}
+              <span className="ml-1.5 text-xs opacity-70 tabular-nums">{countByMode[m]}</span>
+            </button>
+          ))}
+        </div>
         <div className="flex-1" />
         <Button onClick={() => openNew()} className="gap-1.5">
           <Plus className="w-4 h-4" />Neuer Vertrag
@@ -122,14 +159,16 @@ export function ContractsTab() {
       )}
 
       {/* Objekte ohne Vertrag — standardmäßig eingeklappt */}
-      {(missing ?? []).length > 0 && (
+      {missingForMode.length > 0 && (
         <Collapsible open={missingOpen} onOpenChange={setMissingOpen}>
           <Card className="px-4 py-3">
             <CollapsibleTrigger asChild>
               <button type="button" className="w-full flex items-center gap-2 text-left">
                 <FileWarning className="w-4 h-4 text-muted-foreground shrink-0" />
-                <span className="text-sm font-medium">Objekte ohne erfassten Vertrag</span>
-                <Badge variant="secondary" className="shrink-0">{(missing ?? []).length}</Badge>
+                <span className="text-sm font-medium">
+                  Objekte ohne erfassten Vertrag — {MODE_LABEL[modeFilter]}
+                </span>
+                <Badge variant="secondary" className="shrink-0">{missingForMode.length}</Badge>
                 <div className="flex-1" />
                 <ChevronDown
                   className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${missingOpen ? "rotate-180" : ""}`}
@@ -142,13 +181,10 @@ export function ContractsTab() {
                 Klick auf ein Objekt legt den Vertrag dafür an.
               </p>
               <div className="flex flex-wrap gap-2 mt-3">
-                {(missing ?? []).map((b: any) => (
+                {missingForMode.map((b: any) => (
                   <Button key={b.id} variant="outline" size="sm" className="gap-1.5" onClick={() => openNew(b.id)}>
                     <Plus className="w-3.5 h-3.5" />
                     {b.name}
-                    <span className="text-xs text-muted-foreground">
-                      {b.management_mode === "weg" ? "WEG" : "Miete"}
-                    </span>
                   </Button>
                 ))}
               </div>
@@ -162,7 +198,8 @@ export function ContractsTab() {
         <Skeleton className="h-64" />
       ) : rows.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">
-          Noch kein Vertrag erfasst. Klick auf „Neuer Vertrag“ oder wähle oben ein Objekt.
+          Kein Vertrag in der {MODE_LABEL[modeFilter]}. Klick auf „Neuer Vertrag“ oder
+          wähle oben ein Objekt ohne Vertrag.
         </Card>
       ) : (
         <Card className="overflow-x-auto">
@@ -170,7 +207,6 @@ export function ContractsTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>Objekt</TableHead>
-                <TableHead>Art</TableHead>
                 <TableHead className="text-right">Einheiten</TableHead>
                 <TableHead className="text-right">Stellplätze</TableHead>
                 <TableHead className="text-right">netto / Monat</TableHead>
@@ -226,9 +262,7 @@ export function ContractsTab() {
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm">
-                      {c.building?.management_mode === "weg" ? "WEG" : "Miete"}
-                    </TableCell>
+
                     <TableCell className="text-right tabular-nums">
                       {c.units_apartment ?? "—"}
                       {c.units_commercial ? ` + ${c.units_commercial} TE` : ""}
