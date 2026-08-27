@@ -15,9 +15,9 @@ import { supabase } from '@/integrations/supabase/client';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const hk = (tabelle: string): any => (supabase as any).from(tabelle);
 
-// ────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────
 // Typen der Oberfläche
-// ────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────
 
 export interface AnlageZeile {
   id: string;
@@ -95,41 +95,56 @@ export interface AnlageStatus extends AnlageZeile {
   letzterLauf: { id: string; status: string; period_to: string } | null;
 }
 
-// ────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────
 // Abfragen
-// ────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────
 
-/** Alle Anlagen mit ihrem Bearbeitungsstand — die Einstiegsliste. */
+/**
+ * Die Anlagen der oben gewählten Liegenschaft, mit ihrem Bearbeitungsstand.
+ *
+ * Ohne Auswahl wird bewusst nichts geladen: die Heizkosten werden immer für
+ * eine Liegenschaft gerechnet, eine Liste aller 22 Anlagen nebeneinander
+ * verleitet nur dazu, in der falschen zu arbeiten.
+ */
 export function useAnlagenUebersicht(buildingId?: string | null) {
   return useQuery({
-    queryKey: ['heizkosten-anlagen', buildingId ?? 'alle'],
+    queryKey: ['heizkosten-anlagen', buildingId ?? 'ohne'],
+    enabled: !!buildingId,
     queryFn: async (): Promise<AnlageStatus[]> => {
-      let q = hk('heating_systems')
+      const { data: anlagen, error } = await hk('heating_systems')
         .select('*, buildings(name)')
         .eq('is_active', true)
+        .eq('building_id', buildingId)
         .order('name');
-      if (buildingId) q = q.eq('building_id', buildingId);
-      const { data: anlagen, error } = await q;
       if (error) throw new Error(error.message);
 
       const rows = (anlagen ?? []) as (AnlageZeile & { buildings: { name: string } | null })[];
       if (rows.length === 0) return [];
       const ids = rows.map((a) => a.id);
 
-      const [{ data: maps }, { data: devs }, { data: laeufe }] = await Promise.all([
-        hk('heating_user_mapping').select('heating_system_id, assignment_id, confidence').in('heating_system_id', ids),
-        hk('heating_devices').select('id, heating_system_id, device_type, rating_factor').in('heating_system_id', ids),
+      // Fehler der Teilabfragen nicht verschlucken: eine stumm leere
+      // Geräteliste sieht in der Übersicht wie "kein Gerätestamm" aus.
+      const pruefe = <T,>(name: string) => (r: { data: T[] | null; error: { message: string } | null }) => {
+        if (r.error) throw new Error(`${name}: ${r.error.message}`);
+        return r.data ?? [];
+      };
+
+      const [maps, devs, laeufe] = await Promise.all([
+        hk('heating_user_mapping').select('heating_system_id, assignment_id, confidence')
+          .in('heating_system_id', ids).then(pruefe('Zuordnungen')),
+        hk('heating_devices').select('id, heating_system_id, device_type, rating_factor')
+          .in('heating_system_id', ids).then(pruefe('Gerätestamm')),
         hk('heating_settlements').select('id, heating_system_id, status, period_to')
-          .in('heating_system_id', ids).order('period_to', { ascending: false }),
+          .in('heating_system_id', ids).order('period_to', { ascending: false }).then(pruefe('Rechenläufe')),
       ]);
 
-      const mapRows = (maps ?? []) as { heating_system_id: string; assignment_id: string | null; confidence: string }[];
-      const devRows = (devs ?? []) as { id: string; heating_system_id: string; device_type: string; rating_factor: number | null }[];
-      const laufRows = (laeufe ?? []) as { id: string; heating_system_id: string; status: string; period_to: string }[];
+      const mapRows = maps as { heating_system_id: string; assignment_id: string | null; confidence: string }[];
+      const devRows = devs as { id: string; heating_system_id: string; device_type: string; rating_factor: number | null }[];
+      const laufRows = laeufe as { id: string; heating_system_id: string; status: string; period_to: string }[];
 
       // Ablesewerte nur zählen, nicht laden — die Liste braucht keine Details.
-      // Gefiltert wird über die Anlage, nicht über die Geräteliste: bei 482
-      // Geräten würde die Abfrage sonst als überlange Adresse abgewiesen.
+      // Gefiltert wird über die Anlage, nicht über die Geräteliste: bei mehreren
+      // hundert Geräten würde die Abfrage sonst als überlange Adresse abgewiesen.
       const { data: ables } = devRows.length
         ? await hk('heating_readings')
             .select('device_id, heating_devices!inner(heating_system_id)')
@@ -242,9 +257,9 @@ export function useRechenlaeufe(anlageId: string | null) {
   });
 }
 
-// ────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────
 // Schreiben
-// ────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────
 
 /** Eine Zuordnung setzen oder bestätigen. */
 export async function speichereZuordnung(
@@ -314,9 +329,9 @@ export function useHeizkostenAktualisieren() {
   };
 }
 
-// ────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────
 // Anzeige-Hilfen
-// ────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────
 
 export const ENERGIE_LABEL: Record<string, string> = {
   oil: 'Heizöl',
