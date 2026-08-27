@@ -349,11 +349,14 @@ export function contractWarnings(c: ContractWithDetails): ContractWarning[] {
   if (!(c.fees ?? []).some((f) => f.basis === "unit_month" || f.basis === "monthly_flat")) {
     out.push({ level: "crit", text: "Keine Grundvergütung erfasst" });
   }
+  // Bei einer Monatspauschale gibt es keine Bausteine je Einheitenart —
+  // dort waeren die folgenden Hinweise schlicht falsch.
+  const hatPauschale = (c.fees ?? []).some((f) => f.basis === "monthly_flat" && f.fee_type === "base");
   const parkingFee = (c.fees ?? []).find((f) => f.basis === "unit_month" && f.unit_kind === "parking");
   if (parkingFee && !parkingFee.quantity) {
     out.push({ level: "warn", text: "Stellplatzanzahl fehlt" });
   }
-  if (c.parking_billed_separately && !parkingFee) {
+  if (c.parking_billed_separately && !parkingFee && !hatPauschale) {
     out.push({ level: "warn", text: "Stellplätze als separat vergütet markiert, aber kein Baustein dafür" });
   }
   const months = monthsUntil(c.appointed_until);
