@@ -83,7 +83,7 @@ export function CockpitTab({ onNavigate }: Props) {
         level: "warn",
         text: "Abrechenbare Stunden noch nicht in Rechnung",
         meta: `${openHours.toFixed(2)} h`,
-        area: "time",
+        area: "projects",
       });
     }
     return out.sort((a, b) => (a.level === b.level ? 0 : a.level === "crit" ? -1 : 1));
