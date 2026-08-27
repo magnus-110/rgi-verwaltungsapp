@@ -9,13 +9,14 @@ import { CashAuditTab } from "@/components/finance/CashAuditTab";
 import { BankReconciliationTab } from "@/components/finance/BankReconciliationTab";
 import { RentAccountingPage } from "@/components/finance/rent/RentAccountingPage";
 import { RentBillingPage } from "@/components/finance/rent/RentBillingPage";
+import { HeizkostenTab } from "@/components/finance/heizkosten/HeizkostenTab";
 import { ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useFiscalYearContext } from "@/contexts/FiscalYearContext";
 
 
-const NEEDS_PERIOD_TABS = ["abrechnung"];
+const NEEDS_PERIOD_TABS = ["abrechnung", "heizkosten"];
 const NEEDS_PERIOD_SUB = ["bookings", "statements"]; // Sub-tabs under "buchen" that need a period
 
 const SUB_TABS = [
@@ -169,7 +170,7 @@ export const Finance = () => {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList variant="segment" className="grid w-full grid-cols-3 h-auto">
+        <TabsList variant="segment" className="grid w-full grid-cols-4 h-auto">
           {isRentMode ? (
             <TabsTrigger
               variant="segment"
@@ -219,6 +220,7 @@ export const Finance = () => {
           )}
 
           <TabsTrigger variant="segment" value="abrechnung" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3">Abrechnung</TabsTrigger>
+          <TabsTrigger variant="segment" value="heizkosten" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3"><span className="hidden sm:inline">Heizkosten</span><span className="sm:hidden">Heizk.</span></TabsTrigger>
           <TabsTrigger variant="segment" value="kassenpruefung" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3"><span className="hidden sm:inline">Kassenprüfung</span><span className="sm:hidden">Kasse</span></TabsTrigger>
         </TabsList>
 
@@ -272,6 +274,14 @@ export const Finance = () => {
               onPeriodChange={setSelectedPeriodId}
             />
           )}
+        </TabsContent>
+
+        <TabsContent value="heizkosten">
+          <HeizkostenTab
+            sharedBuildingId={selectedBuildingId}
+            sharedPeriodId={selectedPeriodId}
+            fiscalYear={selectedFiscalYear}
+          />
         </TabsContent>
 
         <TabsContent value="kassenpruefung">
