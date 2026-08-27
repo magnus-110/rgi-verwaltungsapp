@@ -14,7 +14,11 @@ import {
   ArrowLeft, ArrowRight, Check, ChevronDown, Plus, Search, Sparkles, Trash2, X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useUpsertContract, useSaveContractFees, useContractFilesForBuilding } from "@/hooks/useManagementContracts";
+import {
+  useUpsertContract, useSaveContractFees, useContractFilesForBuilding,
+  useContractGroups, useUpsertContractGroup,
+} from "@/hooks/useManagementContracts";
+import { useRgiClients } from "@/hooks/useRgi";
 import { useBuildingUnitStats } from "@/hooks/useOffers";
 import {
   BASIS_CHOICES, BASIS_SUFFIX, FEE_CATALOG, RGI_STANDARD_APPROVAL_LIMIT,
@@ -94,7 +98,16 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
   const [resolutionDate, setResolutionDate] = useState("");
   const [resolutionRef, setResolutionRef] = useState("");
 
+  // Sammelvertrag: an wen die Rechnung geht und ob der Vertrag Teil
+  // einer gemeinsamen Urkunde ist.
+  const [clientId, setClientId] = useState("");
+  const [groupId, setGroupId] = useState("");
+  const [newGroupName, setNewGroupName] = useState("");
+
   const [baseIsGross, setBaseIsGross] = useState(false);
+  // Preis je Einheit oder ein Pauschalbetrag im Monat.
+  const [feeMode, setFeeMode] = useState<"units" | "flat">("units");
+  const [flatAmount, setFlatAmount] = useState("");
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [parkingSeparate, setParkingSeparate] = useState<boolean | null>(null);
 
@@ -105,6 +118,10 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
   const [approvalLimit, setApprovalLimit] = useState("");
   const [dmsFileId, setDmsFileId] = useState("");
   const [notes, setNotes] = useState("");
+
+  const { data: clients } = useRgiClients();
+  const { data: groups } = useContractGroups();
+  const upsertGroup = useUpsertContractGroup();
 
   const { data: dmsFiles } = useContractFilesForBuilding(buildingId || null);
   const { data: unitStats } = useBuildingUnitStats(buildingId || null);
@@ -133,7 +150,13 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
       setDmsFileId(contract.dms_file_id ?? "");
       setNotes(contract.notes ?? "");
 
+      setClientId(contract.rgi_client_id ?? "");
+      setGroupId(contract.group_id ?? "");
+
       const fees = contract.fees ?? [];
+      const flatFee = fees.find((f) => f.basis === "monthly_flat" && f.fee_type === "base");
+      setFeeMode(flatFee ? "flat" : "units");
+      setFlatAmount(str(flatFee?.amount ?? null));
       const baseFees = fees.filter((f) => f.basis === "unit_month");
       setBaseIsGross(baseFees.some((f) => f.is_gross));
       setUnits(
@@ -147,6 +170,7 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
       setExtras(
         fees
           .filter((f) => f.basis !== "unit_month")
+          .filter((f) => !(f.basis === "monthly_flat" && f.fee_type === "base"))
           .map((f) => ({
             _key: key(),
             fee_type: f.fee_type,
@@ -168,6 +192,10 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
       );
     } else {
       setBuildingId(presetBuildingId ?? "");
+      setClientId("");
+      setGroupId("");
+      setFeeMode("units");
+      setFlatAmount("");
       setFrom("");
       setUntil("");
       setOpenEnded(false);
@@ -182,6 +210,7 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
       setApprovalLimit("");
       setDmsFileId("");
       setNotes("");
+      setNewGroupName("");
       setDetailsOpen(false);
     }
   }, [open, contract, presetBuildingId]);
@@ -190,15 +219,14 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
   const mode: ManagementMode = (building?.management_mode as ManagementMode) ?? "weg";
 
   // ---------- Rechnen ----------
-  const monthlyNetTotal = useMemo(
-    () =>
-      units.reduce((sum, u) => {
-        const rate = dec(u.rate) ?? 0;
-        const count = dec(u.count) ?? 0;
-        return sum + toNet(rate, baseIsGross, 19) * count;
-      }, 0),
-    [units, baseIsGross]
-  );
+  const monthlyNetTotal = useMemo(() => {
+    if (feeMode === "flat") return toNet(dec(flatAmount) ?? 0, baseIsGross, 19);
+    return units.reduce((sum, u) => {
+      const rate = dec(u.rate) ?? 0;
+      const count = dec(u.count) ?? 0;
+      return sum + toNet(rate, baseIsGross, 19) * count;
+    }, 0);
+  }, [units, baseIsGross, feeMode, flatAmount]);
 
   const filteredBuildings = useMemo(() => {
     const q = buildingSearch.trim().toLowerCase();
@@ -285,7 +313,8 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
   const canContinue =
     step === 0 ? !!buildingId :
     step === 1 ? true :
-    step === 2 ? units.some((u) => dec(u.count) && dec(u.rate)) :
+    step === 2
+      ? (feeMode === "flat" ? !!dec(flatAmount) : units.some((u) => dec(u.count) && dec(u.rate))) :
     true;
 
   const submit = async () => {
@@ -314,23 +343,41 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
         approval_limit_amount: dec(approvalLimit),
         dms_file_id: dmsFileId || null,
         notes: notes || null,
+        rgi_client_id: clientId || null,
+        group_id: groupId || null,
       } as any);
 
+      // Bei Mietverwaltung zahlt der Eigentümer, nicht die Gemeinschaft.
+      const baseDebtor = mode === "rent" ? ("owner" as const) : ("community" as const);
+
       const feeRows: Partial<ContractFee>[] = [
-        ...units
-          .filter((u) => dec(u.count) != null && dec(u.rate) != null)
-          .map((u) => ({
-            fee_type: "base",
-            label: `Grundvergütung ${u.label}`,
-            unit_kind: u.kind,
-            basis: "unit_month" as FeeBasis,
-            amount: dec(u.rate),
-            quantity: dec(u.count),
-            is_gross: baseIsGross,
-            vat_rate: 19,
-            debtor: "community" as const,
-            is_active: true,
-          })),
+        ...(feeMode === "flat"
+          ? (dec(flatAmount) != null
+              ? [{
+                  fee_type: "base",
+                  label: "Verwaltervergütung pauschal",
+                  basis: "monthly_flat" as FeeBasis,
+                  amount: dec(flatAmount),
+                  is_gross: baseIsGross,
+                  vat_rate: 19,
+                  debtor: baseDebtor,
+                  is_active: true,
+                }]
+              : [])
+          : units
+              .filter((u) => dec(u.count) != null && dec(u.rate) != null)
+              .map((u) => ({
+                fee_type: "base",
+                label: `Grundvergütung ${u.label}`,
+                unit_kind: u.kind,
+                basis: "unit_month" as FeeBasis,
+                amount: dec(u.rate),
+                quantity: dec(u.count),
+                is_gross: baseIsGross,
+                vat_rate: 19,
+                debtor: baseDebtor,
+                is_active: true,
+              }))),
         ...extras
           .filter((e) => e.label.trim() !== "")
           .map((e) => ({
@@ -458,6 +505,75 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
                   </div>
                 )}
               </div>
+
+              {/* Sammelvertrag und Rechnungsempfänger.
+                  Bei WEG bleibt beides leer — dort ist die Gemeinschaft
+                  des Objekts der Schuldner. In der Mietverwaltung ist
+                  es der Eigentümer, und oft deckt eine Urkunde viele
+                  Objekte ab. */}
+              {buildingId && (
+                <div className="border rounded-md p-4 space-y-4">
+                  <div>
+                    <Label className="text-sm font-medium">Wer bekommt die Rechnung?</Label>
+                    <Select value={clientId || "none"} onValueChange={(v) => setClientId(v === "none" ? "" : v)}>
+                      <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">
+                          {mode === "rent" ? "— noch offen —" : "Die WEG des Objekts"}
+                        </SelectItem>
+                        {(clients ?? []).map((c) => (
+                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      {mode === "rent"
+                        ? "Bei Mietverwaltung zahlt der Eigentümer — z. B. eine Firma, die mehrere Objekte hält."
+                        : "Leer lassen ist der Normalfall: das Honorar trägt die Gemeinschaft."}
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-medium">Gehört zu einer gemeinsamen Urkunde?</Label>
+                    <Select value={groupId || "none"} onValueChange={(v) => setGroupId(v === "none" ? "" : v)}>
+                      <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— eigener Vertrag —</SelectItem>
+                        {(groups ?? []).map((g) => (
+                          <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex gap-2 mt-2">
+                      <Input
+                        className="h-9"
+                        placeholder="Neue Gruppe, z. B. „Einsiedler Sammelvertrag“"
+                        value={newGroupName}
+                        onChange={(e) => setNewGroupName(e.target.value)}
+                      />
+                      <Button
+                        variant="outline"
+                        className="h-9 shrink-0"
+                        disabled={!newGroupName.trim() || upsertGroup.isPending}
+                        onClick={async () => {
+                          const g = await upsertGroup.mutateAsync({
+                            name: newGroupName.trim(),
+                            rgi_client_id: clientId || null,
+                          } as any);
+                          if (g?.id) setGroupId(g.id);
+                          setNewGroupName("");
+                        }}
+                      >
+                        Anlegen
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      Ein Vertrag über mehrere Liegenschaften wird je Objekt erfasst — die
+                      Gruppe hält sie zusammen, damit klar bleibt, dass es eine Urkunde ist.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -571,6 +687,29 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
                 </div>
               )}
 
+              <div className="flex flex-wrap gap-x-6 gap-y-3">
+              <div>
+              <div className="text-xs text-muted-foreground mb-1">Wie ist es vereinbart?</div>
+              <div className="inline-flex rounded-md border p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setFeeMode("units")}
+                  className={feeMode === "units" ? "px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground" : "px-3 py-1.5 text-sm rounded text-muted-foreground"}
+                >
+                  Preis je Einheit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFeeMode("flat")}
+                  className={feeMode === "flat" ? "px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground" : "px-3 py-1.5 text-sm rounded text-muted-foreground"}
+                >
+                  Ein Betrag im Monat
+                </button>
+              </div>
+
+              </div>
+              <div>
+              <div className="text-xs text-muted-foreground mb-1">Beträge im Vertrag</div>
               <div className="inline-flex rounded-md border p-0.5">
                 <button
                   type="button"
@@ -587,8 +726,31 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
                   Beträge sind mit MwSt.
                 </button>
               </div>
+              </div>
+              </div>
 
-              <div className="space-y-3">
+              {feeMode === "flat" && (
+                <div className="border rounded-md p-4 max-w-md">
+                  <Label className="text-sm font-medium">Wie viel im Monat?</Label>
+                  <div className="relative mt-1.5">
+                    <Input
+                      inputMode="decimal"
+                      value={flatAmount}
+                      onChange={(e) => setFlatAmount(e.target.value)}
+                      placeholder="848,63"
+                      className="pr-7"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Für Verträge, in denen ein fester Betrag vereinbart ist statt eines
+                    Preises je Einheit — oder für den Anteil eines Objekts an einer
+                    Sammelpauschale.
+                  </p>
+                </div>
+              )}
+
+              <div className={feeMode === "flat" ? "hidden" : "space-y-3"}>
                 {units.map((u, i) => (
                   <div key={u.kind} className="border rounded-md p-4">
                     <div className="flex items-center justify-between gap-2 mb-3">
@@ -632,7 +794,7 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
               </div>
 
               {/* Garagen: bewusste Ja/Nein-Frage statt stiller Annahme */}
-              {!units.some((u) => u.kind === "parking") && (
+              {feeMode === "units" && !units.some((u) => u.kind === "parking") && (
                 <div className="border rounded-md p-4">
                   <div className="font-medium text-sm">Rechnen wir Garagen und Stellplätze extra ab?</div>
                   <p className="text-xs text-muted-foreground mt-0.5 mb-3">
@@ -657,7 +819,7 @@ export function ContractWizard({ open, onOpenChange, contract, presetBuildingId 
                 </div>
               )}
 
-              <div className="flex flex-wrap gap-2">
+              <div className={feeMode === "flat" ? "hidden" : "flex flex-wrap gap-2"}>
                 {(["commercial", "other"] as FeeUnitKind[])
                   .filter((k) => !units.some((u) => u.kind === k))
                   .map((k) => (

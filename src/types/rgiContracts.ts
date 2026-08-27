@@ -54,6 +54,23 @@ export interface ManagementContract {
   termination_note: string | null;
   dms_file_id: string | null;
   notes: string | null;
+  // Sammelvertrag: mehrere Objekte unter einer Urkunde, und wer die
+  // Rechnung bekommt. In der WEG-Welt beides leer.
+  group_id: string | null;
+  rgi_client_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Eine Vertragsurkunde ueber mehrere Objekte. */
+export interface ContractGroup {
+  id: string;
+  name: string;
+  rgi_client_id: string | null;
+  appointed_from: string | null;
+  appointed_until: string | null;
+  dms_file_id: string | null;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -100,6 +117,8 @@ export interface ContractWithDetails extends ManagementContract {
     city: string | null;
   } | null;
   fees?: ContractFee[];
+  group?: { id: string; name: string; rgi_client_id: string | null } | null;
+  client?: { id: string; name: string } | null;
 }
 
 // ---------------------------------------------------------------
