@@ -14,6 +14,10 @@ window.addEventListener("vite:preloadError", (event) => {
   }
 });
 
+// Läuft die App eine Weile fehlerfrei, gilt der Versionswechsel als erledigt:
+// Reload-Zähler zurücksetzen, damit der nächste Deploy wieder automatisch greift.
+window.setTimeout(markAppLoadedSuccessfully, 8_000);
+
 // Register service worker for push notifications
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
