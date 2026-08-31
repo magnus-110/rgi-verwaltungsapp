@@ -63,6 +63,13 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "account_balances_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
         ]
       }
       account_review_notes: {
@@ -110,6 +117,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_review_notes_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -184,6 +198,13 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_booking_feedback_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
         ]
       }
       annual_cycle_tasks: {
@@ -234,6 +255,13 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "annual_cycle_tasks_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
         ]
       }
       asset_report_items: {
@@ -280,6 +308,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_report_items_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -360,6 +395,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bank_reconciliations_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "bank_reconciliations_source_statement_id_fkey"
             columns: ["source_statement_id"]
             isOneToOne: false
@@ -430,6 +472,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_statements_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -531,6 +580,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bank_transactions_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "bank_transactions_matched_invoice_id_fkey"
             columns: ["matched_invoice_id"]
             isOneToOne: false
@@ -570,13 +626,16 @@ export type Database = {
           label: string
           notes: string | null
           occurred_on: string
+          period_key: string | null
           quantity: number
+          rgi_invoice_id: string | null
           rgi_invoice_item_id: string | null
           settled_on: string | null
           settled_via: string | null
           source_id: string | null
           source_kind: string | null
           status: Database["public"]["Enums"]["rgi_billable_status"]
+          unit: string | null
           updated_at: string
           vat_rate: number
         }
@@ -596,13 +655,16 @@ export type Database = {
           label: string
           notes?: string | null
           occurred_on?: string
+          period_key?: string | null
           quantity?: number
+          rgi_invoice_id?: string | null
           rgi_invoice_item_id?: string | null
           settled_on?: string | null
           settled_via?: string | null
           source_id?: string | null
           source_kind?: string | null
           status?: Database["public"]["Enums"]["rgi_billable_status"]
+          unit?: string | null
           updated_at?: string
           vat_rate?: number
         }
@@ -622,13 +684,16 @@ export type Database = {
           label?: string
           notes?: string | null
           occurred_on?: string
+          period_key?: string | null
           quantity?: number
+          rgi_invoice_id?: string | null
           rgi_invoice_item_id?: string | null
           settled_on?: string | null
           settled_via?: string | null
           source_id?: string | null
           source_kind?: string | null
           status?: Database["public"]["Enums"]["rgi_billable_status"]
+          unit?: string | null
           updated_at?: string
           vat_rate?: number
         }
@@ -648,6 +713,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "billable_events_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "billable_events_contract_id_fkey"
             columns: ["contract_id"]
             isOneToOne: false
@@ -662,6 +734,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "billable_events_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["contract_id"]
+          },
+          {
             foreignKeyName: "billable_events_debtor_contact_id_fkey"
             columns: ["debtor_contact_id"]
             isOneToOne: false
@@ -673,6 +752,13 @@ export type Database = {
             columns: ["fee_id"]
             isOneToOne: false
             referencedRelation: "management_contract_fees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billable_events_rgi_invoice_id_fkey"
+            columns: ["rgi_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_invoices"
             referencedColumns: ["id"]
           },
           {
@@ -728,6 +814,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_periods_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -890,6 +983,13 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "booking_embeddings_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
         ]
       }
       booking_match_log: {
@@ -1045,6 +1145,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_templates_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "booking_templates_linked_document_id_fkey"
@@ -1219,6 +1326,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "bookings_counter_account_id_fkey"
@@ -1570,6 +1684,13 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "building_account_overrides_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
         ]
       }
       building_assessments: {
@@ -1624,6 +1745,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "building_assessments_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "building_assessments_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -1673,6 +1801,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_bank_accounts_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "building_bank_accounts_coa_account_id_fkey"
@@ -1773,6 +1908,13 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "building_documents_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
         ]
       }
       building_file_activity: {
@@ -1819,6 +1961,7 @@ export type Database = {
           created_at: string
           icon: string | null
           id: string
+          is_company: boolean
           is_recommended: boolean
           management_mode: Database["public"]["Enums"]["management_mode"]
           name: string
@@ -1834,6 +1977,7 @@ export type Database = {
           created_at?: string
           icon?: string | null
           id?: string
+          is_company?: boolean
           is_recommended?: boolean
           management_mode: Database["public"]["Enums"]["management_mode"]
           name: string
@@ -1849,6 +1993,7 @@ export type Database = {
           created_at?: string
           icon?: string | null
           id?: string
+          is_company?: boolean
           is_recommended?: boolean
           management_mode?: Database["public"]["Enums"]["management_mode"]
           name?: string
@@ -1863,6 +2008,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_file_categories_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "building_file_categories_parent_id_fkey"
@@ -1928,6 +2080,7 @@ export type Database = {
           file_size: number
           fiscal_year: number | null
           id: string
+          is_company: boolean
           is_current_version: boolean
           linked_billing_period_id: string | null
           linked_contact_id: string | null
@@ -1942,6 +2095,7 @@ export type Database = {
           rag_enabled: boolean
           source: Database["public"]["Enums"]["file_source"]
           source_email_id: string | null
+          storage_bucket: string | null
           tags: string[]
           updated_at: string
           uploaded_by: string
@@ -1965,6 +2119,7 @@ export type Database = {
           file_size?: number
           fiscal_year?: number | null
           id?: string
+          is_company?: boolean
           is_current_version?: boolean
           linked_billing_period_id?: string | null
           linked_contact_id?: string | null
@@ -1979,6 +2134,7 @@ export type Database = {
           rag_enabled?: boolean
           source?: Database["public"]["Enums"]["file_source"]
           source_email_id?: string | null
+          storage_bucket?: string | null
           tags?: string[]
           updated_at?: string
           uploaded_by: string
@@ -2002,6 +2158,7 @@ export type Database = {
           file_size?: number
           fiscal_year?: number | null
           id?: string
+          is_company?: boolean
           is_current_version?: boolean
           linked_billing_period_id?: string | null
           linked_contact_id?: string | null
@@ -2016,6 +2173,7 @@ export type Database = {
           rag_enabled?: boolean
           source?: Database["public"]["Enums"]["file_source"]
           source_email_id?: string | null
+          storage_bucket?: string | null
           tags?: string[]
           updated_at?: string
           uploaded_by?: string
@@ -2038,6 +2196,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_files_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "building_files_category_id_fkey"
@@ -2097,6 +2262,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "building_managers_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "building_managers_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -2138,6 +2310,13 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "building_note_categories_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
         ]
       }
       building_notes: {
@@ -2178,6 +2357,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_notes_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -2232,6 +2418,13 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "building_service_providers_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
         ]
       }
       building_share_types: {
@@ -2266,6 +2459,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_share_types_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -2328,6 +2528,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_takeover_answers_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -2482,6 +2689,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_event_buildings_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "calendar_event_buildings_event_id_fkey"
@@ -2647,6 +2861,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "call_logs_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "call_logs_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: false
@@ -2718,6 +2939,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_events_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "case_events_case_id_fkey"
@@ -2861,6 +3089,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cases_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -3014,6 +3249,13 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cash_audits_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
         ]
       }
       chart_of_accounts: {
@@ -3026,6 +3268,7 @@ export type Database = {
           created_at: string
           default_distribution_key: string | null
           default_vat_rate: number | null
+          heating_cost_type: string | null
           id: string
           is_35a_relevant: boolean | null
           is_asset_report_relevant: boolean
@@ -3051,6 +3294,7 @@ export type Database = {
           created_at?: string
           default_distribution_key?: string | null
           default_vat_rate?: number | null
+          heating_cost_type?: string | null
           id?: string
           is_35a_relevant?: boolean | null
           is_asset_report_relevant?: boolean
@@ -3076,6 +3320,7 @@ export type Database = {
           created_at?: string
           default_distribution_key?: string | null
           default_vat_rate?: number | null
+          heating_cost_type?: string | null
           id?: string
           is_35a_relevant?: boolean | null
           is_asset_report_relevant?: boolean
@@ -3099,6 +3344,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chart_of_accounts_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -3357,6 +3609,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "comm_campaigns_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "comm_campaigns_template_id_fkey"
             columns: ["template_id"]
             isOneToOne: false
@@ -3474,6 +3733,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "comm_recipients_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "comm_recipients_campaign_id_fkey"
             columns: ["campaign_id"]
             isOneToOne: false
@@ -3548,6 +3814,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comm_templates_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -3757,6 +4030,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "contact_building_assignments_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "contact_building_assignments_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -3904,6 +4184,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_change_notifications_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "contact_change_notifications_contact_id_fkey"
@@ -4227,6 +4514,13 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "document_chat_sessions_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
         ]
       }
       document_chat_settings: {
@@ -4315,6 +4609,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_chunks_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "document_chunks_category_id_fkey"
@@ -4512,6 +4813,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "economic_plans_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -4915,6 +5223,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "email_rules_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "email_rules_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -5172,6 +5487,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "emails_case_id_fkey"
@@ -5612,6 +5934,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "etv_date_polls_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "etv_date_polls_meeting_id_fkey"
             columns: ["meeting_id"]
             isOneToOne: false
@@ -5655,6 +5984,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_manual_notes_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -5729,6 +6065,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_meetings_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "etv_meetings_created_by_fkey"
@@ -6090,6 +6433,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "etv_resolutions_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "etv_resolutions_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: false
@@ -6166,6 +6516,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_submitted_tops_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "etv_submitted_tops_submitted_by_user_id_fkey"
@@ -6302,6 +6659,13 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "forum_posts_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
         ]
       }
       fuel_inventory: {
@@ -6393,6 +6757,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "fuel_inventory_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "fuel_inventory_heating_unit_id_fkey"
             columns: ["heating_unit_id"]
             isOneToOne: false
@@ -6408,6 +6779,102 @@ export type Database = {
           },
         ]
       }
+      heating_devices: {
+        Row: {
+          calibration_valid_until: string | null
+          calibration_year: number | null
+          created_at: string
+          device_no: string
+          device_type: string
+          device_type_raw: string | null
+          fbh_area_m2: number | null
+          fbh_days: number | null
+          fbh_hours_per_day: number | null
+          fbh_load_factor: number | null
+          fbh_power_w_per_m2: number | null
+          heating_system_id: string
+          id: string
+          installed_on: string | null
+          is_active: boolean
+          mapping_id: string | null
+          notes: string | null
+          position: string | null
+          rating_factor: number | null
+          rating_factor_source: string | null
+          removed_on: string | null
+          room: string | null
+          source_document: string | null
+          updated_at: string
+        }
+        Insert: {
+          calibration_valid_until?: string | null
+          calibration_year?: number | null
+          created_at?: string
+          device_no: string
+          device_type: string
+          device_type_raw?: string | null
+          fbh_area_m2?: number | null
+          fbh_days?: number | null
+          fbh_hours_per_day?: number | null
+          fbh_load_factor?: number | null
+          fbh_power_w_per_m2?: number | null
+          heating_system_id: string
+          id?: string
+          installed_on?: string | null
+          is_active?: boolean
+          mapping_id?: string | null
+          notes?: string | null
+          position?: string | null
+          rating_factor?: number | null
+          rating_factor_source?: string | null
+          removed_on?: string | null
+          room?: string | null
+          source_document?: string | null
+          updated_at?: string
+        }
+        Update: {
+          calibration_valid_until?: string | null
+          calibration_year?: number | null
+          created_at?: string
+          device_no?: string
+          device_type?: string
+          device_type_raw?: string | null
+          fbh_area_m2?: number | null
+          fbh_days?: number | null
+          fbh_hours_per_day?: number | null
+          fbh_load_factor?: number | null
+          fbh_power_w_per_m2?: number | null
+          heating_system_id?: string
+          id?: string
+          installed_on?: string | null
+          is_active?: boolean
+          mapping_id?: string | null
+          notes?: string | null
+          position?: string | null
+          rating_factor?: number | null
+          rating_factor_source?: string | null
+          removed_on?: string | null
+          room?: string | null
+          source_document?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "heating_devices_heating_system_id_fkey"
+            columns: ["heating_system_id"]
+            isOneToOne: false
+            referencedRelation: "heating_systems"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "heating_devices_mapping_id_fkey"
+            columns: ["mapping_id"]
+            isOneToOne: false
+            referencedRelation: "heating_user_mapping"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       heating_distribution_values: {
         Row: {
           amount: number
@@ -6415,9 +6882,16 @@ export type Database = {
           billing_period_id: string
           building_id: string
           created_at: string | null
+          heating_base: number | null
+          heating_consumption: number | null
+          hotwater_base: number | null
+          hotwater_consumption: number | null
           id: string
           note: string | null
+          settlement_id: string | null
+          source: string
           updated_at: string | null
+          water: number | null
         }
         Insert: {
           amount?: number
@@ -6425,9 +6899,16 @@ export type Database = {
           billing_period_id: string
           building_id: string
           created_at?: string | null
+          heating_base?: number | null
+          heating_consumption?: number | null
+          hotwater_base?: number | null
+          hotwater_consumption?: number | null
           id?: string
           note?: string | null
+          settlement_id?: string | null
+          source?: string
           updated_at?: string | null
+          water?: number | null
         }
         Update: {
           amount?: number
@@ -6435,9 +6916,16 @@ export type Database = {
           billing_period_id?: string
           building_id?: string
           created_at?: string | null
+          heating_base?: number | null
+          heating_consumption?: number | null
+          hotwater_base?: number | null
+          hotwater_consumption?: number | null
           id?: string
           note?: string | null
+          settlement_id?: string | null
+          source?: string
           updated_at?: string | null
+          water?: number | null
         }
         Relationships: [
           {
@@ -6460,6 +6948,407 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "heating_distribution_values_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
+            foreignKeyName: "heating_distribution_values_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: false
+            referencedRelation: "heating_settlements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      heating_readings: {
+        Row: {
+          consumption: number | null
+          created_at: string
+          current_value: number | null
+          device_id: string
+          estimate_level: number | null
+          estimate_reason: string | null
+          id: string
+          is_estimated: boolean
+          notes: string | null
+          period_from: string
+          period_to: string
+          previous_value: number | null
+          settlement_id: string | null
+          source: string | null
+          source_document: string | null
+          updated_at: string
+        }
+        Insert: {
+          consumption?: number | null
+          created_at?: string
+          current_value?: number | null
+          device_id: string
+          estimate_level?: number | null
+          estimate_reason?: string | null
+          id?: string
+          is_estimated?: boolean
+          notes?: string | null
+          period_from: string
+          period_to: string
+          previous_value?: number | null
+          settlement_id?: string | null
+          source?: string | null
+          source_document?: string | null
+          updated_at?: string
+        }
+        Update: {
+          consumption?: number | null
+          created_at?: string
+          current_value?: number | null
+          device_id?: string
+          estimate_level?: number | null
+          estimate_reason?: string | null
+          id?: string
+          is_estimated?: boolean
+          notes?: string | null
+          period_from?: string
+          period_to?: string
+          previous_value?: number | null
+          settlement_id?: string | null
+          source?: string | null
+          source_document?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "heating_readings_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "heating_devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "heating_readings_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: false
+            referencedRelation: "heating_settlements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      heating_settlement_items: {
+        Row: {
+          area_m2: number | null
+          assignment_id: string | null
+          co2_kg: number | null
+          co2_owner: number | null
+          co2_tenant: number | null
+          created_at: string
+          detail: Json | null
+          heating_base: number
+          heating_consumption: number
+          hotwater_base: number
+          hotwater_consumption: number
+          id: string
+          mapping_id: string | null
+          other: number
+          period_from: string | null
+          period_to: string | null
+          settlement_id: string
+          total: number
+          unit_number: string | null
+          user_name: string | null
+          water: number
+        }
+        Insert: {
+          area_m2?: number | null
+          assignment_id?: string | null
+          co2_kg?: number | null
+          co2_owner?: number | null
+          co2_tenant?: number | null
+          created_at?: string
+          detail?: Json | null
+          heating_base?: number
+          heating_consumption?: number
+          hotwater_base?: number
+          hotwater_consumption?: number
+          id?: string
+          mapping_id?: string | null
+          other?: number
+          period_from?: string | null
+          period_to?: string | null
+          settlement_id: string
+          total?: number
+          unit_number?: string | null
+          user_name?: string | null
+          water?: number
+        }
+        Update: {
+          area_m2?: number | null
+          assignment_id?: string | null
+          co2_kg?: number | null
+          co2_owner?: number | null
+          co2_tenant?: number | null
+          created_at?: string
+          detail?: Json | null
+          heating_base?: number
+          heating_consumption?: number
+          hotwater_base?: number
+          hotwater_consumption?: number
+          id?: string
+          mapping_id?: string | null
+          other?: number
+          period_from?: string | null
+          period_to?: string | null
+          settlement_id?: string
+          total?: number
+          unit_number?: string | null
+          user_name?: string | null
+          water?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "heating_settlement_items_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "contact_building_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "heating_settlement_items_mapping_id_fkey"
+            columns: ["mapping_id"]
+            isOneToOne: false
+            referencedRelation: "heating_user_mapping"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "heating_settlement_items_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: false
+            referencedRelation: "heating_settlements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      heating_settlements: {
+        Row: {
+          billing_period_id: string | null
+          building_id: string
+          calculated_at: string | null
+          calculated_by: string | null
+          checks: Json | null
+          co2_costs: number | null
+          co2_kg: number | null
+          co2_owner_share: number | null
+          created_at: string
+          engine_version: string | null
+          fiscal_year: number
+          heating_costs: number | null
+          heating_system_id: string
+          hotwater_costs: number | null
+          id: string
+          input: Json | null
+          period_from: string
+          period_to: string
+          released_at: string | null
+          released_by: string | null
+          result: Json | null
+          status: string
+          total_costs: number | null
+          updated_at: string
+          water_costs: number | null
+          ww_share: number | null
+        }
+        Insert: {
+          billing_period_id?: string | null
+          building_id: string
+          calculated_at?: string | null
+          calculated_by?: string | null
+          checks?: Json | null
+          co2_costs?: number | null
+          co2_kg?: number | null
+          co2_owner_share?: number | null
+          created_at?: string
+          engine_version?: string | null
+          fiscal_year: number
+          heating_costs?: number | null
+          heating_system_id: string
+          hotwater_costs?: number | null
+          id?: string
+          input?: Json | null
+          period_from: string
+          period_to: string
+          released_at?: string | null
+          released_by?: string | null
+          result?: Json | null
+          status?: string
+          total_costs?: number | null
+          updated_at?: string
+          water_costs?: number | null
+          ww_share?: number | null
+        }
+        Update: {
+          billing_period_id?: string | null
+          building_id?: string
+          calculated_at?: string | null
+          calculated_by?: string | null
+          checks?: Json | null
+          co2_costs?: number | null
+          co2_kg?: number | null
+          co2_owner_share?: number | null
+          created_at?: string
+          engine_version?: string | null
+          fiscal_year?: number
+          heating_costs?: number | null
+          heating_system_id?: string
+          hotwater_costs?: number | null
+          id?: string
+          input?: Json | null
+          period_from?: string
+          period_to?: string
+          released_at?: string | null
+          released_by?: string | null
+          result?: Json | null
+          status?: string
+          total_costs?: number | null
+          updated_at?: string
+          water_costs?: number | null
+          ww_share?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "heating_settlements_billing_period_id_fkey"
+            columns: ["billing_period_id"]
+            isOneToOne: false
+            referencedRelation: "billing_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "heating_settlements_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "heating_settlements_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
+            foreignKeyName: "heating_settlements_heating_system_id_fkey"
+            columns: ["heating_system_id"]
+            isOneToOne: false
+            referencedRelation: "heating_systems"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      heating_systems: {
+        Row: {
+          billing_area_m2: number | null
+          building_id: string
+          calorific_value_kwh: number | null
+          co2_owner_share: number | null
+          connected_hot_water: boolean
+          created_at: string
+          energy_source: string
+          formula_calorific_factor: number
+          formula_temperature_c: number
+          fuel_unit: string | null
+          heating_base_share: number
+          heating_consumption_unit: string | null
+          hotwater_area_m2: number | null
+          hotwater_base_share: number
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          period_start_day: number
+          period_start_month: number
+          provider: string | null
+          provider_property_no: string | null
+          separation_fixed_share: number | null
+          separation_method: string
+          settings_source: string | null
+          updated_at: string
+          ww_share_rounding: string
+        }
+        Insert: {
+          billing_area_m2?: number | null
+          building_id: string
+          calorific_value_kwh?: number | null
+          co2_owner_share?: number | null
+          connected_hot_water?: boolean
+          created_at?: string
+          energy_source?: string
+          formula_calorific_factor?: number
+          formula_temperature_c?: number
+          fuel_unit?: string | null
+          heating_base_share?: number
+          heating_consumption_unit?: string | null
+          hotwater_area_m2?: number | null
+          hotwater_base_share?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          period_start_day?: number
+          period_start_month?: number
+          provider?: string | null
+          provider_property_no?: string | null
+          separation_fixed_share?: number | null
+          separation_method?: string
+          settings_source?: string | null
+          updated_at?: string
+          ww_share_rounding?: string
+        }
+        Update: {
+          billing_area_m2?: number | null
+          building_id?: string
+          calorific_value_kwh?: number | null
+          co2_owner_share?: number | null
+          connected_hot_water?: boolean
+          created_at?: string
+          energy_source?: string
+          formula_calorific_factor?: number
+          formula_temperature_c?: number
+          fuel_unit?: string | null
+          heating_base_share?: number
+          heating_consumption_unit?: string | null
+          hotwater_area_m2?: number | null
+          hotwater_base_share?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          period_start_day?: number
+          period_start_month?: number
+          provider?: string | null
+          provider_property_no?: string | null
+          separation_fixed_share?: number | null
+          separation_method?: string
+          settings_source?: string | null
+          updated_at?: string
+          ww_share_rounding?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "heating_systems_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "heating_systems_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -6503,6 +7392,76 @@ export type Database = {
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "heating_units_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+        ]
+      }
+      heating_user_mapping: {
+        Row: {
+          assignment_id: string | null
+          confidence: string
+          created_at: string
+          heating_system_id: string
+          id: string
+          matched_by: string | null
+          notes: string | null
+          provider_external_no: string | null
+          provider_location: string | null
+          provider_user_name: string | null
+          provider_user_no: string
+          unit_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          assignment_id?: string | null
+          confidence?: string
+          created_at?: string
+          heating_system_id: string
+          id?: string
+          matched_by?: string | null
+          notes?: string | null
+          provider_external_no?: string | null
+          provider_location?: string | null
+          provider_user_name?: string | null
+          provider_user_no: string
+          unit_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assignment_id?: string | null
+          confidence?: string
+          created_at?: string
+          heating_system_id?: string
+          id?: string
+          matched_by?: string | null
+          notes?: string | null
+          provider_external_no?: string | null
+          provider_location?: string | null
+          provider_user_name?: string | null
+          provider_user_no?: string
+          unit_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "heating_user_mapping_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "contact_building_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "heating_user_mapping_heating_system_id_fkey"
+            columns: ["heating_system_id"]
+            isOneToOne: false
+            referencedRelation: "heating_systems"
             referencedColumns: ["id"]
           },
         ]
@@ -6559,6 +7518,7 @@ export type Database = {
           payment_notes: string | null
           payment_purpose: string | null
           review_status: string
+          rgi_invoice_id: string | null
           settlement_difference: number | null
           status: string
           suggested_account_id: string | null
@@ -6603,6 +7563,7 @@ export type Database = {
           payment_notes?: string | null
           payment_purpose?: string | null
           review_status?: string
+          rgi_invoice_id?: string | null
           settlement_difference?: number | null
           status?: string
           suggested_account_id?: string | null
@@ -6647,6 +7608,7 @@ export type Database = {
           payment_notes?: string | null
           payment_purpose?: string | null
           review_status?: string
+          rgi_invoice_id?: string | null
           settlement_difference?: number | null
           status?: string
           suggested_account_id?: string | null
@@ -6667,10 +7629,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "invoices_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "invoices_duplicate_of_fkey"
             columns: ["duplicate_of"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_rgi_invoice_id_fkey"
+            columns: ["rgi_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_invoices"
             referencedColumns: ["id"]
           },
           {
@@ -6728,6 +7704,13 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "key_closing_plan_files_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
         ]
       }
       key_events: {
@@ -6774,6 +7757,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "key_events_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "key_events_key_id_fkey"
@@ -6911,6 +7901,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "key_loans_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "key_loans_tag_id_fkey"
             columns: ["tag_id"]
             isOneToOne: false
@@ -6993,6 +7990,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "key_property_settings_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: true
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -7099,6 +8103,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "key_tag_files_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "key_tag_files_tag_id_fkey"
             columns: ["tag_id"]
             isOneToOne: false
@@ -7157,6 +8168,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "key_tags_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "key_tags_current_loan_fk"
@@ -7350,6 +8368,13 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "maintenance_configs_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
         ]
       }
       management_contract_fees: {
@@ -7455,6 +8480,60 @@ export type Database = {
             referencedRelation: "management_contracts"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "management_contract_fees_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["contract_id"]
+          },
+        ]
+      }
+      management_contract_groups: {
+        Row: {
+          appointed_from: string | null
+          appointed_until: string | null
+          created_at: string
+          created_by: string | null
+          dms_file_id: string | null
+          id: string
+          name: string
+          notes: string | null
+          rgi_client_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          appointed_from?: string | null
+          appointed_until?: string | null
+          created_at?: string
+          created_by?: string | null
+          dms_file_id?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          rgi_client_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          appointed_from?: string | null
+          appointed_until?: string | null
+          created_at?: string
+          created_by?: string | null
+          dms_file_id?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          rgi_client_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "management_contract_groups_rgi_client_id_fkey"
+            columns: ["rgi_client_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_clients"
+            referencedColumns: ["id"]
+          },
         ]
       }
       management_contracts: {
@@ -7467,6 +8546,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           dms_file_id: string | null
+          group_id: string | null
           id: string
           index_base_month: string | null
           index_base_value: number | null
@@ -7478,6 +8558,7 @@ export type Database = {
           payment_interval: string | null
           resolution_date: string | null
           resolution_ref: string | null
+          rgi_client_id: string | null
           self_debit_day: number | null
           status: Database["public"]["Enums"]["rgi_contract_status"]
           template_version: string | null
@@ -7497,6 +8578,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           dms_file_id?: string | null
+          group_id?: string | null
           id?: string
           index_base_month?: string | null
           index_base_value?: number | null
@@ -7508,6 +8590,7 @@ export type Database = {
           payment_interval?: string | null
           resolution_date?: string | null
           resolution_ref?: string | null
+          rgi_client_id?: string | null
           self_debit_day?: number | null
           status?: Database["public"]["Enums"]["rgi_contract_status"]
           template_version?: string | null
@@ -7527,6 +8610,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           dms_file_id?: string | null
+          group_id?: string | null
           id?: string
           index_base_month?: string | null
           index_base_value?: number | null
@@ -7538,6 +8622,7 @@ export type Database = {
           payment_interval?: string | null
           resolution_date?: string | null
           resolution_ref?: string | null
+          rgi_client_id?: string | null
           self_debit_day?: number | null
           status?: Database["public"]["Enums"]["rgi_contract_status"]
           template_version?: string | null
@@ -7557,10 +8642,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "management_contracts_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "management_contracts_dms_file_id_fkey"
             columns: ["dms_file_id"]
             isOneToOne: false
             referencedRelation: "building_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "management_contracts_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "management_contract_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "management_contracts_rgi_client_id_fkey"
+            columns: ["rgi_client_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_clients"
             referencedColumns: ["id"]
           },
         ]
@@ -7725,16 +8831,21 @@ export type Database = {
           amount: number | null
           basis: Database["public"]["Enums"]["rgi_fee_basis"]
           created_at: string
+          debtor: Database["public"]["Enums"]["rgi_fee_debtor"]
           fee_type: string | null
+          halved_if_supervised: boolean
           id: string
           is_gross: boolean
           is_included: boolean
           label: string
+          max_count: number | null
+          min_amount: number | null
           note: string | null
           offer_id: string
           percent: number | null
           position: number
           quantity: number | null
+          threshold: number | null
           tier_from: number | null
           tier_to: number | null
           vat_rate: number
@@ -7743,16 +8854,21 @@ export type Database = {
           amount?: number | null
           basis?: Database["public"]["Enums"]["rgi_fee_basis"]
           created_at?: string
+          debtor?: Database["public"]["Enums"]["rgi_fee_debtor"]
           fee_type?: string | null
+          halved_if_supervised?: boolean
           id?: string
           is_gross?: boolean
           is_included?: boolean
           label: string
+          max_count?: number | null
+          min_amount?: number | null
           note?: string | null
           offer_id: string
           percent?: number | null
           position?: number
           quantity?: number | null
+          threshold?: number | null
           tier_from?: number | null
           tier_to?: number | null
           vat_rate?: number
@@ -7761,16 +8877,21 @@ export type Database = {
           amount?: number | null
           basis?: Database["public"]["Enums"]["rgi_fee_basis"]
           created_at?: string
+          debtor?: Database["public"]["Enums"]["rgi_fee_debtor"]
           fee_type?: string | null
+          halved_if_supervised?: boolean
           id?: string
           is_gross?: boolean
           is_included?: boolean
           label?: string
+          max_count?: number | null
+          min_amount?: number | null
           note?: string | null
           offer_id?: string
           percent?: number | null
           position?: number
           quantity?: number | null
+          threshold?: number | null
           tier_from?: number | null
           tier_to?: number | null
           vat_rate?: number
@@ -7827,6 +8948,7 @@ export type Database = {
           contact_email: string | null
           contact_person: string | null
           contact_phone: string | null
+          contract_defaults: Json
           created_at: string
           created_by: string | null
           decided_on: string | null
@@ -7836,12 +8958,14 @@ export type Database = {
           id: string
           inquiry_date: string | null
           inquiry_source: string | null
+          land_register_ref: string | null
           lost_reason: string | null
           management_mode: Database["public"]["Enums"]["management_mode"]
           monthly_net: number | null
           notes: string | null
           object_address: string | null
           object_city: string | null
+          object_representative: string | null
           object_zip: string | null
           offer_no: string | null
           pdf_storage_path: string | null
@@ -7854,6 +8978,8 @@ export type Database = {
           rate_parking: number | null
           sent_on: string | null
           status: Database["public"]["Enums"]["rgi_offer_status"]
+          summary_docx_storage_path: string | null
+          summary_pdf_storage_path: string | null
           template_id: string | null
           units_apartment: number | null
           units_commercial: number | null
@@ -7867,6 +8993,7 @@ export type Database = {
           contact_email?: string | null
           contact_person?: string | null
           contact_phone?: string | null
+          contract_defaults?: Json
           created_at?: string
           created_by?: string | null
           decided_on?: string | null
@@ -7876,12 +9003,14 @@ export type Database = {
           id?: string
           inquiry_date?: string | null
           inquiry_source?: string | null
+          land_register_ref?: string | null
           lost_reason?: string | null
           management_mode?: Database["public"]["Enums"]["management_mode"]
           monthly_net?: number | null
           notes?: string | null
           object_address?: string | null
           object_city?: string | null
+          object_representative?: string | null
           object_zip?: string | null
           offer_no?: string | null
           pdf_storage_path?: string | null
@@ -7894,6 +9023,8 @@ export type Database = {
           rate_parking?: number | null
           sent_on?: string | null
           status?: Database["public"]["Enums"]["rgi_offer_status"]
+          summary_docx_storage_path?: string | null
+          summary_pdf_storage_path?: string | null
           template_id?: string | null
           units_apartment?: number | null
           units_commercial?: number | null
@@ -7907,6 +9038,7 @@ export type Database = {
           contact_email?: string | null
           contact_person?: string | null
           contact_phone?: string | null
+          contract_defaults?: Json
           created_at?: string
           created_by?: string | null
           decided_on?: string | null
@@ -7916,12 +9048,14 @@ export type Database = {
           id?: string
           inquiry_date?: string | null
           inquiry_source?: string | null
+          land_register_ref?: string | null
           lost_reason?: string | null
           management_mode?: Database["public"]["Enums"]["management_mode"]
           monthly_net?: number | null
           notes?: string | null
           object_address?: string | null
           object_city?: string | null
+          object_representative?: string | null
           object_zip?: string | null
           offer_no?: string | null
           pdf_storage_path?: string | null
@@ -7934,6 +9068,8 @@ export type Database = {
           rate_parking?: number | null
           sent_on?: string | null
           status?: Database["public"]["Enums"]["rgi_offer_status"]
+          summary_docx_storage_path?: string | null
+          summary_pdf_storage_path?: string | null
           template_id?: string | null
           units_apartment?: number | null
           units_commercial?: number | null
@@ -7970,6 +9106,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "management_contracts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offers_won_contract_id_fkey"
+            columns: ["won_contract_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["contract_id"]
           },
         ]
       }
@@ -8014,6 +9157,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_activations_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: true
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -8072,6 +9222,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "onboarding_letter_log_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "onboarding_letter_log_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -8112,6 +9269,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_magic_links_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -8180,6 +9344,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_progress_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "onboarding_progress_contact_id_fkey"
@@ -8253,6 +9424,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_submissions_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "onboarding_submissions_contact_id_fkey"
@@ -8402,6 +9580,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_instances_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "process_instances_contact_id_fkey"
@@ -8586,6 +9771,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "processes_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "processes_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -8665,6 +9857,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -8864,6 +10063,13 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "report_templates_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
         ]
       }
       rgi_clients: {
@@ -8937,6 +10143,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rgi_clients_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "rgi_clients_contact_id_fkey"
@@ -9309,6 +10522,7 @@ export type Database = {
           issue_date: string
           paid_amount: number
           paid_at: string | null
+          paid_by_withdrawal: boolean
           pdf_storage_path: string | null
           project_id: string | null
           sent_at: string | null
@@ -9320,6 +10534,7 @@ export type Database = {
           total_gross: number
           updated_at: string
           vat_total: number
+          withdrawn_on: string | null
         }
         Insert: {
           building_id?: string | null
@@ -9338,6 +10553,7 @@ export type Database = {
           issue_date?: string
           paid_amount?: number
           paid_at?: string | null
+          paid_by_withdrawal?: boolean
           pdf_storage_path?: string | null
           project_id?: string | null
           sent_at?: string | null
@@ -9349,6 +10565,7 @@ export type Database = {
           total_gross?: number
           updated_at?: string
           vat_total?: number
+          withdrawn_on?: string | null
         }
         Update: {
           building_id?: string | null
@@ -9367,6 +10584,7 @@ export type Database = {
           issue_date?: string
           paid_amount?: number
           paid_at?: string | null
+          paid_by_withdrawal?: boolean
           pdf_storage_path?: string | null
           project_id?: string | null
           sent_at?: string | null
@@ -9378,6 +10596,7 @@ export type Database = {
           total_gross?: number
           updated_at?: string
           vat_total?: number
+          withdrawn_on?: string | null
         }
         Relationships: [
           {
@@ -9386,6 +10605,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rgi_invoices_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "rgi_invoices_cancels_invoice_id_fkey"
@@ -9541,6 +10767,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rgi_projects_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "rgi_projects_client_id_fkey"
@@ -10273,6 +11506,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "survey_votes_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "survey_votes_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -10367,6 +11607,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "surveys_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -10470,6 +11717,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenants_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -10586,6 +11840,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todo_buildings_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
           {
             foreignKeyName: "todo_buildings_todo_id_fkey"
@@ -10832,6 +12093,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "todos_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "todos_category_id_fkey"
             columns: ["category_id"]
             isOneToOne: false
@@ -10939,6 +12207,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "utility_contracts_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
             foreignKeyName: "utility_contracts_expense_account_id_fkey"
             columns: ["expense_account_id"]
             isOneToOne: false
@@ -10989,6 +12264,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_aliases_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -11063,6 +12345,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_weg_owner_buildings_building_id"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -11194,7 +12483,38 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "management_contracts_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
         ]
+      }
+      rgi_building_billing_overview: {
+        Row: {
+          appointed_until: string | null
+          base_monthly_net: number | null
+          billed_periods: string[] | null
+          building_code: string | null
+          building_id: string | null
+          building_name: string | null
+          city: string | null
+          contract_id: string | null
+          contract_status:
+            | Database["public"]["Enums"]["rgi_contract_status"]
+            | null
+          last_invoice_date: string | null
+          last_invoice_gross: number | null
+          last_invoice_number: string | null
+          management_mode: Database["public"]["Enums"]["management_mode"] | null
+          open_count: number | null
+          open_hours: number | null
+          open_hours_net: number | null
+          open_net: number | null
+        }
+        Relationships: []
       }
       survey_item_results: {
         Row: {
@@ -11260,6 +12580,13 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "annual_cycle_tasks_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
         ]
       }
     }
@@ -11295,6 +12622,7 @@ export type Database = {
         Args: { p_property_id: string }
         Returns: undefined
       }
+      ensure_rgi_categories: { Args: never; Returns: undefined }
       ensure_stammakte_categories: {
         Args: { p_building_id: string }
         Returns: undefined
