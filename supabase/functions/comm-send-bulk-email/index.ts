@@ -249,7 +249,7 @@ Deno.serve(async (req) => {
         });
         // Eintrag in Gesendet-Postfach (analog send-email)
         try {
-          await admin.from("emails").insert({
+          const { data: insertedEmail, error: insErr } = await admin.from("emails").insert({
             account_id: account.id,
             folder_id: sentFolder?.id ?? null,
             subject: renderedSubject || null,
@@ -262,10 +262,40 @@ Deno.serve(async (req) => {
             is_read: true,
             has_attachments: allAttachments.length > 0,
             message_id: `bulk-${campaign_id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          });
+          }).select("id").single();
+          if (insErr) throw insErr;
+
+          // Anhänge in den E-Mail-Speicher übernehmen, damit sie in "Gesendet" sichtbar sind
+          if (insertedEmail?.id && allAttachments.length > 0) {
+            for (const [idx, att] of allAttachments.entries()) {
+              try {
+                const safeName = String(att.filename || "anhang").replace(/[^\w.\-]+/g, "_");
+                const filePath = `${insertedEmail.id}/${idx}_${safeName}`;
+                const { error: upErr } = await admin.storage
+                  .from("email-attachments")
+                  .upload(filePath, att.content, {
+                    contentType: guessMime(att.filename),
+                    upsert: true,
+                  });
+                if (upErr) throw upErr;
+                const { error: attErr } = await admin.from("email_attachments").insert({
+                  email_id: insertedEmail.id,
+                  file_name: att.filename,
+                  file_path: filePath,
+                  file_size: att.content.byteLength,
+                  mime_type: guessMime(att.filename),
+                  is_inline: false,
+                });
+                if (attErr) throw attErr;
+              } catch (attE: any) {
+                console.error("[comm-send-bulk-email] attachment persist failed:", att.filename, attE?.message || attE);
+              }
+            }
+          }
         } catch (saveErr: any) {
           console.warn("[comm-send-bulk-email] save-to-sent failed:", saveErr?.message || saveErr);
         }
+
         ok++;
       } catch (e: any) {
         await admin.from("comm_recipients").insert({
