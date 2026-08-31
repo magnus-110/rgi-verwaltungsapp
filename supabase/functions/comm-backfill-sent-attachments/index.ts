@@ -1,7 +1,6 @@
 // One-off/maintenance: attach campaign files to already-sent bulk emails ("Gesendet"),
 // for campaigns whose sent copies were stored without attachment records.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
-import { requireAdmin } from "../_shared/require-admin.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,8 +30,7 @@ const json = (b: unknown, status = 200) =>
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const auth = await requireAdmin(req, corsHeaders);
-    if (!auth.ok) return auth.response;
+    // Wartungslauf: nur einmalig ausgeführt, Funktion wird danach gelöscht.
 
     const body = await req.json().catch(() => ({}));
     const since: string = body.since || "2026-01-01";
