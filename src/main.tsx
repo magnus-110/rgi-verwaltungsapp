@@ -2,7 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
-import { reloadOnceForNewVersion } from "@/lib/chunkReload";
+import { reloadOnceForNewVersion, markAppLoadedSuccessfully } from "@/lib/chunkReload";
 
 // Nach einem Deployment referenziert eine im Browser laufende alte App-Version
 // teils Chunk-Dateien, die nicht mehr existieren ("Failed to fetch dynamically
