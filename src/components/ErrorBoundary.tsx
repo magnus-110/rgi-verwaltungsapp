@@ -48,7 +48,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 Die Anwendung wurde aktualisiert. Bitte einmal neu laden.
               </p>
             </div>
-            <Button size="sm" onClick={() => window.location.reload()}>
+            <Button size="sm" onClick={forceReloadNow}>
               Jetzt neu laden
             </Button>
           </div>
