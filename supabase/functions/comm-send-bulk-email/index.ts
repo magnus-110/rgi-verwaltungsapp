@@ -7,10 +7,30 @@ import { requireAdmin } from "../_shared/require-admin.ts";
 import { looksLikeHtml, textToHtmlWithLinks } from "../_shared/text-to-html.ts";
 
 
+const MIME_BY_EXT: Record<string, string> = {
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  txt: "text/plain",
+  csv: "text/csv",
+  zip: "application/zip",
+};
+function guessMime(name?: string) {
+  const ext = (name || "").split(".").pop()?.toLowerCase() || "";
+  return MIME_BY_EXT[ext] || "application/octet-stream";
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
