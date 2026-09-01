@@ -36,6 +36,8 @@ interface Attendee {
   proxy_document_file_id: string | null;
   proxy_document?: { id: string; display_name: string | null; file_path: string } | null;
   pre_vote_instructions: any;
+  /** Ergänzende Weisungen im Wortlaut je TOP (Ziffer 5 der Vollmacht). */
+  pre_vote_instruction_notes?: Record<string, string> | null;
   self_registered_at: string | null;
   checked_in_at: string | null;
   voting_banned_items: string[] | null;
@@ -87,6 +89,20 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
         .eq("meeting_id", meetingId);
       if (error) throw error;
       return (data || []) as unknown as Attendee[];
+    },
+  });
+
+  // TOP-Titel für die Anzeige der Weisungen im Wortlaut
+  const { data: agendaItemsLite = [] } = useQuery({
+    queryKey: ["etv-agenda-items-lite", meetingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("etv_agenda_items")
+        .select("id, sort_order, title")
+        .eq("meeting_id", meetingId)
+        .order("sort_order");
+      if (error) throw error;
+      return data || [];
     },
   });
 
@@ -385,6 +401,28 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
                           </button>
                         )}
                       </p>
+                    )}
+
+                    {/* Weisungen im Wortlaut — gehen der Ankreuzung vor */}
+                    {attendee.pre_vote_instruction_notes && Object.keys(attendee.pre_vote_instruction_notes).length > 0 && (
+                      <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-2 space-y-1">
+                        <p className="text-[11px] font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          Weisung im Wortlaut — vor der Abstimmung prüfen
+                        </p>
+                        {Object.entries(attendee.pre_vote_instruction_notes).map(([topId, text]) => {
+                          const top = (agendaItemsLite as any[]).find((t) => t.id === topId);
+                          const topIdx = top ? (agendaItemsLite as any[]).indexOf(top) + 1 : null;
+                          return (
+                            <p key={topId} className="text-[11px] text-amber-900 dark:text-amber-200 whitespace-pre-line">
+                              <span className="font-medium">
+                                {topIdx ? `TOP ${topIdx}` : "TOP"}{top?.title ? ` ${top.title}` : ""}:
+                              </span>{" "}
+                              {text}
+                            </p>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                   <div className="flex items-center gap-1">
