@@ -455,7 +455,7 @@ Deno.serve(async (req) => {
           if (!contactId) return json({ error: "Kein Kontakt zugeordnet" }, 400);
           const { error: upErr, count } = await admin
             .from("contact_building_assignments")
-            .update({ role_in_building: "beirat" }, { count: "exact" })
+            .update({ is_beirat: true }, { count: "exact" })
             .eq("contact_id", contactId)
             .eq("building_id", buildingId);
           if (upErr) return json({ error: `DB-Fehler: ${upErr.message}` }, 500);
