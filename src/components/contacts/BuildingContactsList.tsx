@@ -342,6 +342,8 @@ interface ContactAssignment {
   usage_type: string | null;
   usage_since: string | null;
   role_in_building: string | null;
+  is_beirat: boolean;
+  is_beirat_vorsitz: boolean;
   bank_account_id: string | null;
   notes: string | null;
   is_active: boolean;
@@ -618,8 +620,8 @@ export function BuildingContactsList({ buildingId, managementMode = "weg" }: Pro
   const { data: assignments = [], refetch } = useQuery({
     queryKey: ["building-contact-assignments", buildingId, managementMode],
     queryFn: async () => {
-      const roleFilter: ("eigentuemer" | "beirat" | "mieter")[] =
-        managementMode === "rent" ? ["mieter"] : ["eigentuemer", "beirat"];
+      const roleFilter: ("eigentuemer" | "mieter")[] =
+        managementMode === "rent" ? ["mieter"] : ["eigentuemer"];
       const { data: assignData, error } = await supabase
         .from("contact_building_assignments")
         .select(
@@ -728,7 +730,7 @@ export function BuildingContactsList({ buildingId, managementMode = "weg" }: Pro
     return latest.amount;
   };
 
-  const isBeirat = (a: ContactAssignment) => a.role_in_building === "beirat";
+  const isBeirat = (a: ContactAssignment) => a.is_beirat === true;
   const isCashAuditor = (a: ContactAssignment) => (a as any).is_cash_auditor === true;
 
   const updateAssignment = async (id: string, field: string, value: any) => {
@@ -740,8 +742,12 @@ export function BuildingContactsList({ buildingId, managementMode = "weg" }: Pro
   };
 
   const toggleBeirat = async (a: ContactAssignment) => {
-    const newRole = a.role_in_building === "beirat" ? "eigentuemer" : "beirat";
-    await supabase.from("contact_building_assignments").update({ role_in_building: newRole }).eq("id", a.id);
+    const next = !isBeirat(a);
+    await supabase
+      .from("contact_building_assignments")
+      // Vorsitz kann es ohne Mitgliedschaft nicht geben (DB-Constraint)
+      .update({ is_beirat: next, ...(next ? {} : { is_beirat_vorsitz: false }) } as any)
+      .eq("id", a.id);
     refetch();
   };
 
