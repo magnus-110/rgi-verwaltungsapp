@@ -67,7 +67,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
         .eq("building_id", buildingId)
         .eq("is_active", true)
         .is("parent_assignment_id", null)
-        .in("role_in_building", ["eigentuemer", "beirat"]);
+        .eq("role_in_building", "eigentuemer");
       return (data ?? []) as any[];
     },
   });
