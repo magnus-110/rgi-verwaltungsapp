@@ -291,7 +291,11 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       (a: any) =>
         (a.attendance_type === "present" || (a.attendance_type === "proxy" && a.checked_in_at)) &&
         a.pre_vote_instructions &&
-        (a.pre_vote_instructions as any)[selectedTopId]
+        (a.pre_vote_instructions as any)[selectedTopId] &&
+        // Weisungen im Wortlaut gehen der Ankreuzung vor (Ziffer 5 der Vollmacht).
+        // Sie können Bedingungen oder Betragsgrenzen enthalten, die eine Maschine
+        // nicht bewerten kann — hier stimmt die Versammlungsleitung selbst ab.
+        !(a.pre_vote_instruction_notes as any)?.[selectedTopId]
     );
     if (eligible.length === 0) return;
     // Read current votes from the query cache (avoids re-running on currentVotes change)
@@ -414,9 +418,14 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       const { error } = await supabase.from("etv_agenda_items").update({ status: "voting" }).eq("id", itemId);
       if (error) throw error;
 
-      // Auto-Cast: Vorab-Stimmen (Papier-Weisungen + Admin-Vorauswahl) übernehmen
+      // Auto-Cast: Vorab-Stimmen (Papier-Weisungen + Admin-Vorauswahl) übernehmen.
+      // Ausgenommen sind TOPs mit einer Weisung im Wortlaut — die bewertet die
+      // Versammlungsleitung selbst (Ziffer 5 der Vollmacht geht der Ankreuzung vor).
       const preVotedAttendees = attendees.filter(
-        (a: any) => a.pre_vote_instructions && a.pre_vote_instructions[itemId]
+        (a: any) =>
+          a.pre_vote_instructions &&
+          a.pre_vote_instructions[itemId] &&
+          !(a.pre_vote_instruction_notes as any)?.[itemId]
       );
       let cast = 0;
       for (const att of preVotedAttendees) {
@@ -923,6 +932,44 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Weisungen im Wortlaut zu diesem TOP - vor der Stimmabgabe zu bewerten */}
+            {(() => {
+              const wortlautWeisungen = attendees
+                .map((a: any) => ({
+                  attendee: a,
+                  text: (a.pre_vote_instruction_notes as any)?.[selectedItem.id] as string | undefined,
+                }))
+                .filter((x) => !!x.text);
+              if (wortlautWeisungen.length === 0) return null;
+              return (
+                <div className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    Weisung im Wortlaut — bitte vor der Abstimmung prüfen
+                  </p>
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                    Für diese Eigentümer wird nicht automatisch abgestimmt. Der Wortlaut geht der Ankreuzung vor.
+                  </p>
+                  {wortlautWeisungen.map(({ attendee, text }) => {
+                    const cba = attendee.contact_building_assignments;
+                    const c = cba?.contacts;
+                    const name = c?.company_name || [c?.first_name, c?.last_name].filter(Boolean).join(" ") || "Eigentümer";
+                    const angekreuzt = (attendee.pre_vote_instructions as any)?.[selectedItem.id];
+                    const angekreuztLabel = angekreuzt === "yes" ? "Ja" : angekreuzt === "no" ? "Nein" : angekreuzt === "abstain" ? "Enthaltung" : null;
+                    return (
+                      <div key={attendee.id} className="text-xs text-amber-900 dark:text-amber-200 bg-amber-100/70 dark:bg-amber-900/40 rounded p-2">
+                        <span className="font-semibold">
+                          {cba?.unit_number ? `${cba.unit_number} – ` : ""}{name}
+                          {angekreuztLabel ? ` (angekreuzt: ${angekreuztLabel})` : ""}:
+                        </span>{" "}
+                        <span className="whitespace-pre-line">{text}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
             {selectedItem.description && (
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-1">Beschreibung</p>
