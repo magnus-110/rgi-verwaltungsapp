@@ -34,6 +34,27 @@ const topStatusLabels: Record<string, { label: string; variant: "default" | "sec
   deferred: { label: "Zurückgestellt", variant: "secondary" },
 };
 
+// "Frei" bedeutet: keine Weisung. Nur echte Festlegungen werden gespeichert.
+const cleanInstructions = (instructions?: Record<string, string>): Record<string, string> | null => {
+  if (!instructions) return null;
+  const filtered: Record<string, string> = {};
+  for (const [topId, value] of Object.entries(instructions)) {
+    if (value && value !== "frei") filtered[topId] = value;
+  }
+  return Object.keys(filtered).length > 0 ? filtered : null;
+};
+
+// Weisungen im Wortlaut: leere Felder werden nicht gespeichert.
+const cleanNotes = (notes?: Record<string, string>): Record<string, string> | null => {
+  if (!notes) return null;
+  const filtered: Record<string, string> = {};
+  for (const [topId, value] of Object.entries(notes)) {
+    const text = (value || "").trim();
+    if (text) filtered[topId] = text;
+  }
+  return Object.keys(filtered).length > 0 ? filtered : null;
+};
+
 export const WegOwnerMeetings = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -60,14 +81,21 @@ export const WegOwnerMeetings = () => {
   const [withdrawAttendeeId, setWithdrawAttendeeId] = useState<string | null>(null);
   const [viewReceivedProxy, setViewReceivedProxy] = useState<any>(null);
   const [showInstructionsDialog, setShowInstructionsDialog] = useState(false);
-  const [instructionsAttendeeId, setInstructionsAttendeeId] = useState<string | null>(null);
+  // Weisungen gelten immer für alle Einheiten des Eigentümers in dieser Versammlung
+  const [instructionsAttendeeIds, setInstructionsAttendeeIds] = useState<string[]>([]);
   const [votingInstructions, setVotingInstructions] = useState<Record<string, string>>({});
+  // Ergänzende Weisungen im Wortlaut je TOP (Ziffer 5 der Vollmacht)
+  const [instructionNotes, setInstructionNotes] = useState<Record<string, string>>({});
+  const [openNoteTopIds, setOpenNoteTopIds] = useState<Set<string>>(new Set());
+  // Sicherheitsabfrage, bevor "Nicht anwesend" eine bereits erteilte Vollmacht zurückzieht
+  const [absentConfirmMeetingId, setAbsentConfirmMeetingId] = useState<string | null>(null);
   const [createdProxyToken, setCreatedProxyToken] = useState<string | null>(null);
   const [proxyStep, setProxyStep] = useState(1);
   const [expandedTopIds, setExpandedTopIds] = useState<Set<string>>(new Set());
   const [redeemDialogOpen, setRedeemDialogOpen] = useState(false);
   const [redeemInput, setRedeemInput] = useState("");
   const [pendingProxyMeetingId, setPendingProxyMeetingId] = useState<string | null>(null);
+  const [pendingInstructionsMeetingId, setPendingInstructionsMeetingId] = useState<string | null>(null);
 
 
   // TOP submission form
@@ -194,7 +222,7 @@ export const WegOwnerMeetings = () => {
       const { data } = await supabase
         .from("etv_attendees")
         .select(`
-          id, proxy_type, pre_vote_instructions,
+          id, proxy_type, pre_vote_instructions, pre_vote_instruction_notes,
           contact_building_assignments!inner(
             unit_number,
             contacts!inner(first_name, last_name, company_name)
@@ -216,7 +244,7 @@ export const WegOwnerMeetings = () => {
       if (!meetingIds.length || !assignmentIds.length) return [];
       const { data, error } = await supabase
         .from("etv_attendees")
-        .select("id, meeting_id, assignment_id, attendance_type, proxy_type, self_registered_at, self_reported_type")
+        .select("id, meeting_id, assignment_id, attendance_type, proxy_type, self_registered_at, self_reported_type, pre_vote_instructions, pre_vote_instruction_notes")
         .in("meeting_id", meetingIds)
         .in("assignment_id", assignmentIds);
       if (error) throw error;
@@ -347,8 +375,14 @@ export const WegOwnerMeetings = () => {
     setProxyExternalName("");
     setCreatedProxyToken(null);
     const initial: Record<string, string> = {};
-    agendaItems.forEach((item: any) => { initial[item.id] = "frei"; });
+    const initialNotes: Record<string, string> = {};
+    agendaItems.forEach((item: any) => {
+      initial[item.id] = (attendee.pre_vote_instructions || {})[item.id] || "frei";
+      initialNotes[item.id] = (attendee.pre_vote_instruction_notes || {})[item.id] || "";
+    });
     setVotingInstructions(initial);
+    setInstructionNotes(initialNotes);
+    setOpenNoteTopIds(new Set(Object.keys(initialNotes).filter((k) => initialNotes[k])));
     setProxyStep(1);
     setExpandedTopIds(new Set());
     setShowProxyDialog(true);
@@ -375,17 +409,8 @@ export const WegOwnerMeetings = () => {
 
   // Set proxy mutation — now also saves voting instructions
   const setProxyMutation = useMutation({
-    mutationFn: async ({ attendeeId, type, contactId, externalName, instructions }: { attendeeId: string; type: string; contactId?: string; externalName?: string; instructions?: Record<string, string> }) => {
+    mutationFn: async ({ attendeeId, type, contactId, externalName, instructions, notes }: { attendeeId: string; type: string; contactId?: string; externalName?: string; instructions?: Record<string, string>; notes?: Record<string, string> }) => {
       const token = type === "external" ? crypto.randomUUID() : null;
-      // Filter instructions — only store actual votes, not "frei"
-      let filteredInstructions: Record<string, string> | null = null;
-      if (instructions) {
-        const filtered: Record<string, string> = {};
-        for (const [key, value] of Object.entries(instructions)) {
-          if (value && value !== "frei") filtered[key] = value;
-        }
-        filteredInstructions = Object.keys(filtered).length > 0 ? filtered : null;
-      }
       const { error } = await (supabase
         .from("etv_attendees") as any)
         .update({
@@ -393,7 +418,8 @@ export const WegOwnerMeetings = () => {
           proxy_contact_id: type === "owner" ? (contactId || null) : null,
           proxy_token: token,
           proxy_external_name: type === "external" ? (externalName || null) : null,
-          pre_vote_instructions: filteredInstructions,
+          pre_vote_instructions: cleanInstructions(instructions),
+          pre_vote_instruction_notes: cleanNotes(notes),
           self_registered_at: new Date().toISOString(),
           self_reported_type: "proxy",
           proxy_source: "self_service",
@@ -446,30 +472,138 @@ export const WegOwnerMeetings = () => {
     },
   });
 
-  // Save voting instructions mutation
+  // Save voting instructions mutation — gilt für alle Einheiten des Eigentümers
   const saveInstructionsMutation = useMutation({
-    mutationFn: async ({ attendeeId, instructions }: { attendeeId: string; instructions: Record<string, string> }) => {
-      // Filter out "frei" entries — only store actual instructions
-      const filtered: Record<string, string> = {};
-      for (const [key, value] of Object.entries(instructions)) {
-        if (value && value !== "frei") filtered[key] = value;
-      }
-      const { error } = await supabase
-        .from("etv_attendees")
-        .update({ pre_vote_instructions: Object.keys(filtered).length > 0 ? filtered : null })
-        .eq("id", attendeeId);
+    mutationFn: async ({ attendeeIds, instructions, notes }: { attendeeIds: string[]; instructions: Record<string, string>; notes: Record<string, string> }) => {
+      if (attendeeIds.length === 0) throw new Error("Keine Einheit zugeordnet");
+      const { error } = await (supabase
+        .from("etv_attendees") as any)
+        .update({
+          pre_vote_instructions: cleanInstructions(instructions),
+          pre_vote_instruction_notes: cleanNotes(notes),
+        })
+        .in("id", attendeeIds);
       if (error) throw error;
     },
     onSuccess: () => {
       toast({ title: "Weisungen gespeichert", description: "Ihre Abstimmungsweisungen wurden hinterlegt." });
       setShowInstructionsDialog(false);
-      setInstructionsAttendeeId(null);
+      setInstructionsAttendeeIds([]);
       refetchAttendees();
+      refetchAllAttendees();
     },
     onError: (err: any) => {
       toast({ title: "Fehler", description: err.message, variant: "destructive" });
     },
   });
+
+  // Öffnet den Weisungs-Dialog für alle Einheiten des Eigentümers in dieser Versammlung.
+  // Bewusst unabhängig von einer Vollmacht: Weisungen sind auch ohne Bevollmächtigten
+  // sinnvoll — die Verwaltung erfasst sie dann bei der Vollmachtsprüfung.
+  const openInstructionsDialog = (attendeesForMeeting: any[]) => {
+    const existingVotes = (attendeesForMeeting.find((a: any) => a?.pre_vote_instructions)?.pre_vote_instructions || {}) as Record<string, string>;
+    const existingNotes = (attendeesForMeeting.find((a: any) => a?.pre_vote_instruction_notes)?.pre_vote_instruction_notes || {}) as Record<string, string>;
+    const initialVotes: Record<string, string> = {};
+    const initialNotes: Record<string, string> = {};
+    agendaItems.forEach((item: any) => {
+      initialVotes[item.id] = existingVotes[item.id] || "frei";
+      initialNotes[item.id] = existingNotes[item.id] || "";
+    });
+    setVotingInstructions(initialVotes);
+    setInstructionNotes(initialNotes);
+    setOpenNoteTopIds(new Set(Object.keys(initialNotes).filter((k) => initialNotes[k])));
+    setInstructionsAttendeeIds(attendeesForMeeting.filter(Boolean).map((a: any) => a.id));
+    setShowInstructionsDialog(true);
+  };
+
+  // Öffnet den Weisungs-Dialog, sobald TOPs und Teilnehmerzeilen der gewählten
+  // Versammlung geladen sind — der Klick kommt aus der Versammlungsliste.
+  useEffect(() => {
+    if (!pendingInstructionsMeetingId) return;
+    if (pendingInstructionsMeetingId !== selectedMeetingId) return;
+    if (agendaItems.length === 0) return;
+    if (myAttendees.length === 0) return;
+    openInstructionsDialog(myAttendees);
+    setPendingInstructionsMeetingId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingInstructionsMeetingId, selectedMeetingId, myAttendees, agendaItems]);
+
+  // Eine TOP-Zeile im Weisungs-Dialog und im Vollmacht-Assistenten: Ja/Nein/Enthaltung/Frei
+  // plus optionale Weisung im Wortlaut (Ziffer 5 der Vollmacht).
+  const renderInstructionRow = (item: any, idx: number) => {
+    const currentValue = votingInstructions[item.id] || "frei";
+    const isExpanded = expandedTopIds.has(item.id);
+    const noteOpen = openNoteTopIds.has(item.id);
+    const noteText = instructionNotes[item.id] || "";
+    return (
+      <div key={item.id} className="rounded-lg border p-3 space-y-2">
+        <button
+          type="button"
+          className="flex items-start gap-2 w-full text-left"
+          onClick={() => {
+            setExpandedTopIds(prev => {
+              const next = new Set(prev);
+              if (next.has(item.id)) next.delete(item.id);
+              else next.add(item.id);
+              return next;
+            });
+          }}
+        >
+          <span className="text-primary font-bold text-sm shrink-0">TOP {idx + 1}</span>
+          <span className="text-sm flex-1">{item.title}</span>
+          <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+        </button>
+        {isExpanded && item.description && (
+          <p className="text-xs text-muted-foreground bg-muted/50 rounded-md p-2.5 ml-6 whitespace-pre-line">
+            {item.description}
+          </p>
+        )}
+        <div className="flex gap-1.5">
+          {[
+            { value: "yes", label: "Ja", activeClass: "bg-green-600 text-white hover:bg-green-700 border-green-600" },
+            { value: "no", label: "Nein", activeClass: "bg-red-600 text-white hover:bg-red-700 border-red-600" },
+            { value: "abstain", label: "Enthaltung", activeClass: "bg-muted-foreground text-white hover:bg-muted-foreground/90 border-muted-foreground" },
+            { value: "frei", label: "Frei", activeClass: "bg-primary text-primary-foreground hover:bg-primary/90 border-primary" },
+          ].map((option) => (
+            <Button
+              key={option.value}
+              variant="outline"
+              size="sm"
+              className={`flex-1 text-xs h-8 ${currentValue === option.value ? option.activeClass : ""}`}
+              onClick={() => setVotingInstructions(prev => ({ ...prev, [item.id]: option.value }))}
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
+
+        {noteOpen ? (
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Weisung im Wortlaut</Label>
+            <Textarea
+              value={noteText}
+              rows={3}
+              placeholder="z. B. Zustimmung nur bis 1.000,00 € netto oder nur zum Angebot der Firma X"
+              onChange={(e) => setInstructionNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Diese Eintragung geht dem Ankreuzen vor. Die Versammlungsleitung stimmt für diesen TOP nicht automatisch ab, sondern prüft Ihren Wortlaut.
+            </p>
+          </div>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground gap-1"
+            onClick={() => setOpenNoteTopIds(prev => new Set(prev).add(item.id))}
+          >
+            <Plus className="h-3 w-3" />
+            Weisung im Wortlaut ergänzen
+          </Button>
+        )}
+      </div>
+    );
+  };
 
   const getContactName = (contact: any) => {
     if (contact.company_name) return contact.company_name;
@@ -775,6 +909,17 @@ export const WegOwnerMeetings = () => {
                                   const allSame = states.every((s) => s === states[0]);
                                   const current = allSame ? states[0] : null;
                                   const isPending = setAttendanceMutation.isPending;
+                                  const hasProxy = states.some((s) => s === "proxy");
+                                  const myMeetingAttendees = myAssignments
+                                    .map((assignment: any) =>
+                                      (allMyAttendees as any[]).find(
+                                        (a) => a.meeting_id === meeting.id && a.assignment_id === assignment.id
+                                      )
+                                    )
+                                    .filter(Boolean);
+                                  const instructionCount = Object.keys(
+                                    myMeetingAttendees.find((a: any) => a?.pre_vote_instructions)?.pre_vote_instructions || {}
+                                  ).length;
                                   const setAll = (type: "present" | "absent") => {
                                     myAssignments.forEach((assignment: any) => {
                                       setAttendanceMutation.mutate({
@@ -826,11 +971,44 @@ export const WegOwnerMeetings = () => {
                                           variant={current === "absent" ? "default" : "outline"}
                                           className="h-8 gap-1.5"
                                           disabled={isPending}
-                                          onClick={() => setAll("absent")}
+                                          onClick={() => {
+                                            // Eine erteilte Vollmacht darf hier nicht stillschweigend
+                                            // verfallen — erst nachfragen.
+                                            if (hasProxy) {
+                                              setAbsentConfirmMeetingId(meeting.id);
+                                              return;
+                                            }
+                                            setAll("absent");
+                                          }}
                                         >
                                           <XCircle className="h-3.5 w-3.5" />
                                           Nicht anwesend
                                         </Button>
+                                      </div>
+
+                                      {/* Weisungen sind ohne Umweg über die Vollmacht erreichbar */}
+                                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-8 gap-1.5 px-2 text-muted-foreground hover:text-foreground"
+                                          disabled={agendaItems.length === 0 && meeting.id === selectedMeetingId}
+                                          onClick={() => {
+                                            setSelectedMeetingId(meeting.id);
+                                            setPendingInstructionsMeetingId(meeting.id);
+                                          }}
+                                        >
+                                          <Vote className="h-3.5 w-3.5" />
+                                          Weisungen
+                                          {instructionCount > 0 && (
+                                            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                                              {instructionCount}
+                                            </Badge>
+                                          )}
+                                        </Button>
+                                        <span className="text-[11px] text-muted-foreground">
+                                          Wie soll für Sie abgestimmt werden?
+                                        </span>
                                       </div>
                                     </div>
                                   );
@@ -1066,6 +1244,41 @@ export const WegOwnerMeetings = () => {
                       </Card>
                     );
                   })}
+
+                  {/* Weisungen sind auch ohne Vollmacht erreichbar */}
+                  {agendaItems.length > 0 && (() => {
+                    const instructionCount = Object.keys(
+                      myAttendees.find((a: any) => a?.pre_vote_instructions)?.pre_vote_instructions || {}
+                    ).length;
+                    const noteCount = Object.keys(
+                      myAttendees.find((a: any) => a?.pre_vote_instruction_notes)?.pre_vote_instruction_notes || {}
+                    ).length;
+                    return (
+                      <Card className="border-dashed">
+                        <CardContent className="p-4 flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium flex items-center gap-2">
+                              <Vote className="h-4 w-4 text-primary" />
+                              Abstimmungsweisungen
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {instructionCount > 0
+                                ? `${instructionCount} Weisung${instructionCount === 1 ? "" : "en"} hinterlegt${noteCount > 0 ? `, davon ${noteCount} im Wortlaut` : ""}.`
+                                : "Legen Sie fest, wie für Sie abgestimmt werden soll — auch ohne Vollmacht."}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={isProxyLocked(selectedMeeting.meeting_date)}
+                            onClick={() => openInstructionsDialog(myAttendees)}
+                          >
+                            {instructionCount > 0 ? "Bearbeiten" : "Weisungen erteilen"}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -1141,7 +1354,9 @@ export const WegOwnerMeetings = () => {
                     const cba = viewReceivedProxy.contact_building_assignments;
                     const ownerContact = cba?.contacts;
                     const ownerName = ownerContact?.company_name || [ownerContact?.first_name, ownerContact?.last_name].filter(Boolean).join(" ") || "Unbekannt";
-                    const hasInstructions = viewReceivedProxy.pre_vote_instructions && Object.keys(viewReceivedProxy.pre_vote_instructions).length > 0;
+                    const hasInstructions =
+                      (viewReceivedProxy.pre_vote_instructions && Object.keys(viewReceivedProxy.pre_vote_instructions).length > 0) ||
+                      (viewReceivedProxy.pre_vote_instruction_notes && Object.keys(viewReceivedProxy.pre_vote_instruction_notes).length > 0);
                     const shares = cba?.contact_building_shares || [];
                     const meaShare = shares.find((s: any) => s.share_type === "mea");
                     return (
@@ -1197,15 +1412,40 @@ export const WegOwnerMeetings = () => {
                                   const topIdx = topItem ? agendaItems.indexOf(topItem) + 1 : null;
                                   const voteLabel = instruction === "yes" ? "Ja" : instruction === "no" ? "Nein" : instruction === "abstain" ? "Enthaltung" : String(instruction);
                                   const voteColor = instruction === "yes" ? "text-green-700 dark:text-green-400" : instruction === "no" ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400";
+                                  const noteText = (viewReceivedProxy.pre_vote_instruction_notes || {})[topId];
                                   return (
-                                    <div key={topId} className="flex items-center justify-between text-sm">
-                                      <span className="text-amber-700 dark:text-amber-400">
-                                        {topIdx ? `TOP ${topIdx}` : "TOP"}: {topItem?.title || "Unbekannt"}
-                                      </span>
-                                      <Badge variant="outline" className={`text-xs ${voteColor}`}>{voteLabel}</Badge>
+                                    <div key={topId} className="space-y-1">
+                                      <div className="flex items-center justify-between text-sm">
+                                        <span className="text-amber-700 dark:text-amber-400">
+                                          {topIdx ? `TOP ${topIdx}` : "TOP"}: {topItem?.title || "Unbekannt"}
+                                        </span>
+                                        <Badge variant="outline" className={`text-xs ${voteColor}`}>{voteLabel}</Badge>
+                                      </div>
+                                      {noteText && (
+                                        <p className="text-xs text-amber-800 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-900/40 rounded-md p-2 whitespace-pre-line">
+                                          <span className="font-semibold">Weisung im Wortlaut (geht vor): </span>{noteText}
+                                        </p>
+                                      )}
                                     </div>
                                   );
                                 })}
+                                {/* Wortlaut-Weisungen zu TOPs ohne Ankreuzung */}
+                                {Object.entries(viewReceivedProxy.pre_vote_instruction_notes || {})
+                                  .filter(([topId]) => !(viewReceivedProxy.pre_vote_instructions || {})[topId])
+                                  .map(([topId, noteText]: [string, any]) => {
+                                    const topItem = agendaItems.find((a: any) => a.id === topId);
+                                    const topIdx = topItem ? agendaItems.indexOf(topItem) + 1 : null;
+                                    return (
+                                      <div key={`note-${topId}`} className="space-y-1">
+                                        <span className="text-sm text-amber-700 dark:text-amber-400">
+                                          {topIdx ? `TOP ${topIdx}` : "TOP"}: {topItem?.title || "Unbekannt"}
+                                        </span>
+                                        <p className="text-xs text-amber-800 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-900/40 rounded-md p-2 whitespace-pre-line">
+                                          <span className="font-semibold">Weisung im Wortlaut: </span>{noteText}
+                                        </p>
+                                      </div>
+                                    );
+                                  })}
                               </div>
                             </div>
                           )}
@@ -1837,53 +2077,7 @@ export const WegOwnerMeetings = () => {
                         </p>
                       </div>
                       <div className="space-y-2">
-                        {agendaItems.map((item: any, idx: number) => {
-                          const currentValue = votingInstructions[item.id] || "frei";
-                          const isExpanded = expandedTopIds.has(item.id);
-                          return (
-                            <div key={item.id} className="rounded-lg border p-3 space-y-2">
-                              <button
-                                type="button"
-                                className="flex items-start gap-2 w-full text-left"
-                                onClick={() => {
-                                  setExpandedTopIds(prev => {
-                                    const next = new Set(prev);
-                                    if (next.has(item.id)) next.delete(item.id);
-                                    else next.add(item.id);
-                                    return next;
-                                  });
-                                }}
-                              >
-                                <span className="text-primary font-bold text-sm shrink-0">TOP {idx + 1}</span>
-                                <span className="text-sm flex-1">{item.title}</span>
-                                <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
-                              </button>
-                              {isExpanded && item.description && (
-                                <p className="text-xs text-muted-foreground bg-muted/50 rounded-md p-2.5 ml-6">
-                                  {item.description}
-                                </p>
-                              )}
-                              <div className="flex gap-1.5">
-                                {[
-                                  { value: "yes", label: "Ja", activeClass: "bg-green-600 text-white hover:bg-green-700 border-green-600" },
-                                  { value: "no", label: "Nein", activeClass: "bg-red-600 text-white hover:bg-red-700 border-red-600" },
-                                  { value: "abstain", label: "Enthaltung", activeClass: "bg-muted-foreground text-white hover:bg-muted-foreground/90 border-muted-foreground" },
-                                  { value: "frei", label: "Frei", activeClass: "bg-primary text-primary-foreground hover:bg-primary/90 border-primary" },
-                                ].map((option) => (
-                                  <Button
-                                    key={option.value}
-                                    variant="outline"
-                                    size="sm"
-                                    className={`flex-1 text-xs h-8 ${currentValue === option.value ? option.activeClass : ""}`}
-                                    onClick={() => setVotingInstructions(prev => ({ ...prev, [item.id]: option.value }))}
-                                  >
-                                    {option.label}
-                                  </Button>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
+                        {agendaItems.map((item: any, idx: number) => renderInstructionRow(item, idx))}
                       </div>
                     </div>
                   )}
@@ -1901,6 +2095,7 @@ export const WegOwnerMeetings = () => {
                           contactId: proxyContactId || undefined,
                           externalName: proxyExternalName || undefined,
                           instructions: votingInstructions,
+                          notes: instructionNotes,
                         });
                       }}
                       disabled={setProxyMutation.isPending || (proxyType === "owner" && !proxyContactId) || (proxyType === "external" && !proxyExternalName.trim())}
@@ -2006,14 +2201,8 @@ export const WegOwnerMeetings = () => {
                       variant="outline"
                       className="w-full gap-2"
                       onClick={() => {
-                        const existing = attendee.pre_vote_instructions || {};
-                        const initial: Record<string, string> = {};
-                        agendaItems.forEach((item: any) => {
-                          initial[item.id] = existing[item.id] || "frei";
-                        });
-                        setVotingInstructions(initial);
-                        setInstructionsAttendeeId(attendee.id);
-                        setShowInstructionsDialog(true);
+                        setProxyDetailAttendeeId(null);
+                        openInstructionsDialog([attendee]);
                       }}
                       disabled={isProxyLocked(selectedMeeting.meeting_date)}
                     >
@@ -2074,7 +2263,7 @@ export const WegOwnerMeetings = () => {
       </AlertDialog>
 
       {/* Voting Instructions Dialog */}
-      <Dialog open={showInstructionsDialog} onOpenChange={(open) => { if (!open) { setShowInstructionsDialog(false); setInstructionsAttendeeId(null); } }}>
+      <Dialog open={showInstructionsDialog} onOpenChange={(open) => { if (!open) { setShowInstructionsDialog(false); setInstructionsAttendeeIds([]); } }}>
         <DialogContent className="max-w-lg max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -2084,39 +2273,12 @@ export const WegOwnerMeetings = () => {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Legen Sie fest, wie Ihr Bevollmächtigter bei den einzelnen Tagesordnungspunkten abstimmen soll. Bei „Frei" kann der Bevollmächtigte nach eigenem Ermessen abstimmen.
+              Legen Sie fest, wie bei den einzelnen Tagesordnungspunkten für Sie abgestimmt werden soll. Bei „Frei" entscheidet der Bevollmächtigte nach eigenem Ermessen.
+              {instructionsAttendeeIds.length > 1 && ` Die Weisungen gelten für alle ${instructionsAttendeeIds.length} Einheiten.`}
             </p>
 
             <div className="space-y-3">
-              {agendaItems.map((item: any, idx: number) => {
-                const currentValue = votingInstructions[item.id] || "frei";
-                return (
-                  <div key={item.id} className="rounded-lg border p-3 space-y-2">
-                    <div className="flex items-start gap-2">
-                      <span className="text-primary font-bold text-sm shrink-0">TOP {idx + 1}</span>
-                      <span className="text-sm font-medium">{item.title}</span>
-                    </div>
-                    <div className="flex gap-1.5">
-                      {[
-                        { value: "yes", label: "Ja", activeClass: "bg-green-600 text-white hover:bg-green-700 border-green-600" },
-                        { value: "no", label: "Nein", activeClass: "bg-red-600 text-white hover:bg-red-700 border-red-600" },
-                        { value: "abstain", label: "Enthaltung", activeClass: "bg-muted-foreground text-white hover:bg-muted-foreground/90 border-muted-foreground" },
-                        { value: "frei", label: "Frei", activeClass: "bg-primary text-primary-foreground hover:bg-primary/90 border-primary" },
-                      ].map((option) => (
-                        <Button
-                          key={option.value}
-                          variant="outline"
-                          size="sm"
-                          className={`flex-1 text-xs h-8 ${currentValue === option.value ? option.activeClass : ""}`}
-                          onClick={() => setVotingInstructions(prev => ({ ...prev, [item.id]: option.value }))}
-                        >
-                          {option.label}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
+              {agendaItems.map((item: any, idx: number) => renderInstructionRow(item, idx))}
             </div>
 
             {agendaItems.length === 0 && (
@@ -2126,16 +2288,20 @@ export const WegOwnerMeetings = () => {
             )}
 
             <div className="flex justify-end gap-3 border-t pt-4">
-              <Button variant="outline" onClick={() => { setShowInstructionsDialog(false); setInstructionsAttendeeId(null); }}>
+              <Button variant="outline" onClick={() => { setShowInstructionsDialog(false); setInstructionsAttendeeIds([]); }}>
                 Abbrechen
               </Button>
               <Button
                 onClick={() => {
-                  if (instructionsAttendeeId) {
-                    saveInstructionsMutation.mutate({ attendeeId: instructionsAttendeeId, instructions: votingInstructions });
+                  if (instructionsAttendeeIds.length > 0) {
+                    saveInstructionsMutation.mutate({
+                      attendeeIds: instructionsAttendeeIds,
+                      instructions: votingInstructions,
+                      notes: instructionNotes,
+                    });
                   }
                 }}
-                disabled={saveInstructionsMutation.isPending || !instructionsAttendeeId}
+                disabled={saveInstructionsMutation.isPending || instructionsAttendeeIds.length === 0}
               >
                 {saveInstructionsMutation.isPending ? "Wird gespeichert..." : "Weisungen speichern"}
               </Button>
@@ -2143,6 +2309,36 @@ export const WegOwnerMeetings = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Rückfrage, bevor "Nicht anwesend" eine erteilte Vollmacht zurückzieht */}
+      <AlertDialog open={!!absentConfirmMeetingId} onOpenChange={(open) => { if (!open) setAbsentConfirmMeetingId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Vollmacht zurückziehen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sie haben für diese Versammlung bereits eine Vollmacht erteilt. Wenn Sie sich jetzt als „nicht anwesend" melden, wird die Vollmacht zurückgezogen — dann stimmt niemand für Sie ab. Ihre Weisungen bleiben gespeichert.
+              <br /><br />
+              Möchten Sie stattdessen nur eine Weisung hinterlegen, brechen Sie hier ab und nutzen Sie „Weisungen".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                const meetingId = absentConfirmMeetingId;
+                setAbsentConfirmMeetingId(null);
+                if (!meetingId) return;
+                myAssignments.forEach((assignment: any) => {
+                  setAttendanceMutation.mutate({ meetingId, assignmentId: assignment.id, type: "absent" });
+                });
+              }}
+            >
+              Vollmacht zurückziehen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
