@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { FileSignature, Check, X, Minus, RotateCcw } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { FileSignature, Check, X, Minus, RotateCcw, MessageSquareText } from "lucide-react";
 
 type Vote = "yes" | "no" | "abstain";
 
@@ -25,6 +28,8 @@ interface AttendeeLite {
   proxy_type: string | null;
   proxy_external_name?: string | null;
   pre_vote_instructions: Record<string, Vote> | null;
+  /** Ergänzende Weisungen im Wortlaut je TOP (Ziffer 5 der Vollmacht). */
+  pre_vote_instruction_notes?: Record<string, string> | null;
   contact_building_assignments?: {
     unit_number?: string | null;
     contacts?: { first_name?: string | null; last_name?: string | null; company_name?: string | null } | null;
@@ -117,6 +122,41 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
     });
   };
 
+  // Weisungen im Wortlaut je Eigentümer (Ziffer 5 der Vollmacht)
+  const [notesAttendee, setNotesAttendee] = useState<AttendeeLite | null>(null);
+  const [notesDraft, setNotesDraft] = useState<Record<string, string>>({});
+
+  const openNotes = (a: AttendeeLite) => {
+    const existing = a.pre_vote_instruction_notes || {};
+    const initial: Record<string, string> = {};
+    votableTops.forEach((t) => { initial[t.id] = existing[t.id] || ""; });
+    setNotesDraft(initial);
+    setNotesAttendee(a);
+  };
+
+  const saveNotesMutation = useMutation({
+    mutationFn: async ({ attendeeId, notes }: { attendeeId: string; notes: Record<string, string> }) => {
+      const clean: Record<string, string> = {};
+      Object.entries(notes).forEach(([topId, text]) => {
+        const trimmed = (text || "").trim();
+        if (trimmed) clean[topId] = trimmed;
+      });
+      const { error } = await (supabase.from("etv_attendees") as any)
+        .update({ pre_vote_instruction_notes: Object.keys(clean).length > 0 ? clean : null })
+        .eq("id", attendeeId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etv-attendees-live", meetingId] });
+      queryClient.invalidateQueries({ queryKey: ["etv-attendees", meetingId] });
+      setNotesAttendee(null);
+      toast({ title: "Weisungen im Wortlaut gespeichert" });
+    },
+    onError: (e: any) => {
+      toast({ title: "Speichern fehlgeschlagen", description: e.message, variant: "destructive" });
+    },
+  });
+
   const setRowAll = (assignmentId: string, vote: Vote | null) => {
     const next: Record<string, Vote | null> = {};
     votableTops.forEach((t) => (next[t.id] = vote));
@@ -204,6 +244,9 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
                           </Tooltip>
                         </th>
                       ))}
+                      <th className="p-2 font-semibold text-center min-w-[110px] border-l border-border">
+                        Wortlaut
+                      </th>
                       <th className="p-2 font-semibold text-center min-w-[150px] border-l border-border">
                         Schnellauswahl
                       </th>
@@ -249,8 +292,9 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
                           </td>
                           {votableTops.map((t) => {
                             const v = row[t.id] || null;
+                            const hasNote = !!(a.pre_vote_instruction_notes || {})[t.id];
                             return (
-                              <td key={t.id} className="p-2 border-l border-border">
+                              <td key={t.id} className={`p-2 border-l border-border ${hasNote ? "bg-amber-50 dark:bg-amber-950/30" : ""}`}>
                                 <div className="flex items-center justify-center gap-1">
                                   {cellBtn(v === "yes", "green",
                                     () => setCell(a.assignment_id, t.id, v === "yes" ? null : "yes"),
@@ -265,6 +309,25 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
                               </td>
                             );
                           })}
+                          <td className="p-2 border-l border-border">
+                            {(() => {
+                              const noteCount = Object.keys(a.pre_vote_instruction_notes || {}).length;
+                              return (
+                                <div className="flex items-center justify-center">
+                                  <Button
+                                    size="sm"
+                                    variant={noteCount > 0 ? "secondary" : "ghost"}
+                                    className="h-7 px-2 text-xs gap-1"
+                                    onClick={() => openNotes(a)}
+                                    title="Ergänzende Weisungen im Wortlaut (Ziffer 5 der Vollmacht)"
+                                  >
+                                    <MessageSquareText className="h-3.5 w-3.5" />
+                                    {noteCount > 0 ? noteCount : "+"}
+                                  </Button>
+                                </div>
+                              );
+                            })()}
+                          </td>
                           <td className="p-2 border-l border-border">
                             <div className="flex items-center justify-center gap-1">
                               <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-green-600"
@@ -284,15 +347,58 @@ export const ProxyInstructionsMatrix = ({ meetingId, agendaItems, attendees, tri
                   </tbody>
                 </table>
               </div>
-              <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
+              <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                 <span className="flex items-center gap-1"><Check className="h-3 w-3 text-green-600" /> Ja</span>
                 <span className="flex items-center gap-1"><X className="h-3 w-3 text-red-600" /> Nein</span>
                 <span className="flex items-center gap-1"><Minus className="h-3 w-3" /> Enthaltung</span>
+                <span className="flex items-center gap-1"><MessageSquareText className="h-3 w-3 text-amber-600" /> Wortlaut hinterlegt — keine automatische Stimmabgabe</span>
                 <span className="ml-auto">Änderungen werden automatisch gespeichert.</span>
               </div>
             </TooltipProvider>
           )}
         </div>
+
+        {/* Weisungen im Wortlaut je Eigentümer */}
+        <Dialog open={!!notesAttendee} onOpenChange={(o) => { if (!o) setNotesAttendee(null); }}>
+          <DialogContent className="max-w-lg max-h-[85dvh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <MessageSquareText className="h-5 w-5 text-primary" />
+                Weisungen im Wortlaut
+              </DialogTitle>
+              <DialogDescription>
+                {notesAttendee ? getContactName(notesAttendee.contact_building_assignments?.contacts) : ""} — Ziffer 5 der Vollmacht.
+                Diese Eintragungen gehen den Ankreuzungen vor. Für betroffene TOPs wird die Stimme nicht automatisch übernommen.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              {votableTops.map((t, idx) => (
+                <div key={t.id} className="space-y-1.5">
+                  <Label className="text-xs">
+                    <span className="text-primary font-semibold">TOP {idx + 1}</span> — {t.title}
+                  </Label>
+                  <Textarea
+                    rows={2}
+                    value={notesDraft[t.id] || ""}
+                    placeholder="Leer lassen, wenn keine Weisung im Wortlaut vorliegt"
+                    onChange={(e) => setNotesDraft((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setNotesAttendee(null)}>Abbrechen</Button>
+              <Button
+                disabled={saveNotesMutation.isPending || !notesAttendee}
+                onClick={() => {
+                  if (notesAttendee) saveNotesMutation.mutate({ attendeeId: notesAttendee.id, notes: notesDraft });
+                }}
+              >
+                {saveNotesMutation.isPending ? "Wird gespeichert..." : "Speichern"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </SheetContent>
     </Sheet>
   );
