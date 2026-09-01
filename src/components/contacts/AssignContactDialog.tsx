@@ -121,7 +121,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
   const loadAssignmentForEdit = async (assignmentId: string) => {
     const { data: a, error } = await supabase
       .from("contact_building_assignments")
-      .select("contact_id, unit_number, floor_location, unit_kind, role_in_building")
+      .select("*")
       .eq("id", assignmentId)
       .maybeSingle();
     if (error || !a) return;
@@ -130,7 +130,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     setUnitNumber(a.unit_number || "");
     setFloorLocation(a.floor_location || "");
     setUnitKind(((a as any).unit_kind || "apartment") as UnitKind);
-    setIsBeirat((a as any).role_in_building === "beirat");
+    setIsBeirat((a as any).is_beirat === true);
     await loadContactDetails(a.contact_id);
     setStep("details");
   };
@@ -282,7 +282,8 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
       }
     }
 
-    const roleValue = isBeirat ? 'beirat' : (managementMode === 'weg' ? 'eigentuemer' : 'mieter');
+    // Der Verwaltungsbeirat ist eine Funktion des Eigentümers, keine eigene Rolle.
+    const roleValue = managementMode === 'weg' ? 'eigentuemer' : 'mieter';
 
     let error: any = null;
     if (editAssignmentId) {
@@ -292,6 +293,8 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
         unit_number: unitNumber || null,
         floor_location: floorLocation || null,
         unit_kind: unitKind as any,
+        is_beirat: isBeirat,
+        ...(isBeirat ? {} : { is_beirat_vorsitz: false }),
       };
       if (ownerChanged) {
         patch.contact_id = selectedId;
@@ -315,6 +318,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
         unit_number: unitNumber || null,
         floor_location: floorLocation || null,
         unit_kind: unitKind as any,
+        is_beirat: isBeirat,
         billing_mode: 'own_billing' as any,
         parent_assignment_id: null,
       } as any);

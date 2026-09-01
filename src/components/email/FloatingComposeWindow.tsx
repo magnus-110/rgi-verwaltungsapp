@@ -277,8 +277,9 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           .from("contact_building_assignments")
           .select("building_id, contact_id, role_in_building")
           .eq("is_active", true)
-          // Nur Eigentümer und Beiräte anzeigen – keine Dienstleister, Mieter oder Verwalter
-          .in("role_in_building", ["eigentuemer", "beirat"]),
+          // Nur Eigentümer anzeigen – keine Dienstleister, Mieter oder Verwalter.
+          // Beiräte sind Eigentümer mit gesetztem is_beirat und damit enthalten.
+          .eq("role_in_building", "eigentuemer"),
       ]);
       if (bRes.error) throw bRes.error;
       if (aRes.error) throw aRes.error;

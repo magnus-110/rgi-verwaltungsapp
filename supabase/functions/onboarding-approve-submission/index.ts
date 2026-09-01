@@ -248,12 +248,12 @@ Deno.serve(async (req) => {
               .eq("contact_id", contactId)
               .eq("building_id", buildingId);
           }
-          // Beirat-Mitgliedschaft (gewählt) → role_in_building = 'beirat'
+          // Beirat-Mitgliedschaft (gewählt) → Funktionskennzeichen auf der Eigentümerzuordnung
           const beiratMember = payload.is_beirat_member ?? payload.willing_beirat;
           if (beiratMember === true && contactId) {
             await admin
               .from("contact_building_assignments")
-              .update({ role_in_building: "beirat" })
+              .update({ is_beirat: true })
               .eq("contact_id", contactId)
               .eq("building_id", buildingId);
           }
