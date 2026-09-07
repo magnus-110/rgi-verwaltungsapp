@@ -15,7 +15,10 @@
  * später nachvollziehbar bleibt.
  */
 
-import { ENGINE_VERSION, co2Aufteilung, eur, round, trenneHeizungWarmwasser, verteile } from './kern';
+import {
+  ENGINE_VERSION, co2Aufteilung, eur, round, summenerhaltendRunden,
+  trenneHeizungWarmwasser, verteile,
+} from './kern';
 import { teileVerbrauchskosten } from './erfassung';
 import { pruefeSchluessel, pruefeSumme } from './pruefungen';
 import type {
@@ -178,6 +181,72 @@ export function rechneAbrechnung(eingang: AbrechnungEingang): AbrechnungErgebnis
     }
   }
 
+  // ── 4b: Gemeinschaftseigentum umlegen ─────────────────────────────────
+  // Hausmeisterwohnung und Gemeinschaftsräume verbrauchen Wärme, haben aber
+  // keinen Empfänger. Ihr Anteil wird deshalb ganz normal gerechnet — sonst
+  // fehlte er in der Bezugsgröße und alle anderen zahlten zu viel — und
+  // danach nach Wohnfläche auf die übrigen Einheiten verteilt. Die Zeile der
+  // Gemeinschaft bleibt mit ihrem Rechenweg stehen und geht auf null.
+  const istGemeinschaft = new Set(
+    eingang.einheiten.filter((e) => e.gemeinschaft).map((e) => e.id),
+  );
+  let umlageGemeinschaft: AbrechnungErgebnis['umlageGemeinschaft'];
+
+  if (istGemeinschaft.size > 0) {
+    const traeger = jeEinheit.filter((z) => !istGemeinschaft.has(z.einheitId));
+    const betrag = eur(
+      jeEinheit.filter((z) => istGemeinschaft.has(z.einheitId))
+        .reduce((s, z) => s + z.gesamt, 0),
+    );
+    const flaeche = traeger.reduce((s, z) => s + z.flaecheM2, 0);
+
+    if (betrag !== 0 && traeger.length > 0 && flaeche > 0) {
+      const roh: Posten[] = traeger.map((z) => ({
+        einheitId: z.einheitId,
+        zeitraum: z.zeitraum,
+        bezeichnung: 'Umlage Gemeinschaftseigentum',
+        kategorie: 'sonstiges' as Kostenkategorie,
+        anteile: z.flaecheM2,
+        betragJeEinheit: betrag / flaeche,
+        betrag: eur((betrag * z.flaecheM2) / flaeche),
+      }));
+      const verteiltUmlage = summenerhaltendRunden(roh, betrag, []);
+
+      // Gegenbuchung: die Zeile der Gemeinschaft geht auf null.
+      for (const z of jeEinheit) {
+        if (!istGemeinschaft.has(z.einheitId) || z.gesamt === 0) continue;
+        const gegen: Posten = {
+          einheitId: z.einheitId,
+          zeitraum: z.zeitraum,
+          bezeichnung: 'Umlage auf alle Einheiten',
+          kategorie: 'sonstiges',
+          anteile: 0,
+          betragJeEinheit: 0,
+          betrag: eur(-z.gesamt),
+        };
+        posten.push(gegen);
+        z.posten.push(gegen);
+        z.sonstiges = eur(z.sonstiges + gegen.betrag);
+        z.gesamt = 0;
+      }
+
+      for (const p of verteiltUmlage) {
+        posten.push(p);
+        const z = jeEinheit.find((x) => x.einheitId === p.einheitId && x.zeitraum === p.zeitraum);
+        if (!z) continue;
+        z.posten.push(p);
+        z.sonstiges = eur(z.sonstiges + p.betrag);
+        z.gesamt = eur(z.gesamt + p.betrag);
+      }
+
+      umlageGemeinschaft = {
+        betrag,
+        flaeche: round(flaeche, 2),
+        einheiten: eingang.einheiten.filter((e) => e.gemeinschaft).map((e) => e.bezeichnung),
+      };
+    }
+  }
+
   // ── 5: Prüfen ───────────────────────────────────────────────────
   const kostenSonstige = eur((eingang.sonstige ?? []).reduce((s, v) => s + v.betrag, 0));
   const zuVerteilen = eur(kostenHeizung + kostenWarmwasser + kostenSonstige);
@@ -197,6 +266,7 @@ export function rechneAbrechnung(eingang: AbrechnungEingang): AbrechnungErgebnis
     wwAnteil,
     rechenwegTrennung: trennung.rechenweg,
     erfassungAufteilung,
+    umlageGemeinschaft,
     posten,
     summeJeSchluessel,
     jeEinheit,

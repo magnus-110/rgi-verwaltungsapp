@@ -81,6 +81,13 @@ export interface Nutzeinheit {
   flaecheM2: number;
   /** Zuordnung zu Nutzergruppen je Kostenbereich, z. B. { kaltwasser: 'NG1' } */
   nutzergruppen?: Record<string, string>;
+  /**
+   * Gemeinschaftseigentum — Hausmeisterwohnung, Gemeinschaftsräume, Waschküche.
+   * Die Einheit verbraucht und hat Fläche, aber es gibt keinen Empfänger: ihr
+   * Anteil wird ganz normal gerechnet und danach auf alle übrigen Einheiten
+   * nach Wohnfläche umgelegt.
+   */
+  gemeinschaft?: boolean;
   zeitraeume: Nutzerzeitraum[];
   unitNumber?: string | null;
   assignmentId?: string | null;
@@ -262,6 +269,13 @@ export interface AbrechnungErgebnis {
   rechenwegTrennung: string;
   /** Preis je Bezugseinheit, wenn mehrere Erfassungssysteme im Spiel sind */
   erfassungAufteilung?: VerbrauchsAufteilung;
+  /** Anteil des Gemeinschaftseigentums, der auf alle Einheiten umgelegt wurde */
+  umlageGemeinschaft?: {
+    betrag: number;
+    /** Wohnfläche der Einheiten, die die Umlage tragen */
+    flaeche: number;
+    einheiten: string[];
+  };
   posten: Posten[];
   summeJeSchluessel: Record<string, number>;
   jeEinheit: EinheitErgebnis[];
