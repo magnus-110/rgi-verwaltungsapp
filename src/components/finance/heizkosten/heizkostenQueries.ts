@@ -308,18 +308,29 @@ export function useRechenlaeufe(anlageId: string | null) {
 // Schreiben
 // ──────────────────────────────────────────────────────
 
-/** Eine Zuordnung setzen oder bestätigen. */
+/**
+ * Eine Zuordnung setzen oder bestätigen.
+ *
+ * `istGemeinschaft` kennzeichnet Hausmeisterwohnung, Waschküche und
+ * Gemeinschaftsräume. Sie bekommen bewusst keine Einheit der App: es gibt
+ * niemanden, dem man diese Abrechnung schicken könnte. Ihr Anteil wird
+ * gerechnet und danach auf alle übrigen Einheiten umgelegt.
+ */
 export async function speichereZuordnung(
   mappingId: string,
   assignmentId: string | null,
   unitNumber: string | null,
   bestaetigt: boolean,
+  istGemeinschaft = false,
 ) {
   const { error } = await hk('heating_user_mapping')
     .update({
-      assignment_id: assignmentId,
-      unit_number: unitNumber,
-      confidence: bestaetigt ? 'bestaetigt' : (assignmentId ? 'vorschlag' : 'unbestaetigt'),
+      assignment_id: istGemeinschaft ? null : assignmentId,
+      unit_number: istGemeinschaft ? null : unitNumber,
+      is_common_area: istGemeinschaft,
+      confidence: bestaetigt
+        ? 'bestaetigt'
+        : ((assignmentId || istGemeinschaft) ? 'vorschlag' : 'unbestaetigt'),
       matched_by: bestaetigt ? 'manuell' : undefined,
     })
     .eq('id', mappingId);

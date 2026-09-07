@@ -94,14 +94,30 @@ export function HeizkostenAnlage({
     return m;
   }, [zuord]);
 
+  /** Nutzernummer je Zuordnung — sie gibt die Reihenfolge der Ablesewerte vor. */
+  const nummerJeZuordnung = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const z of zuord?.zuordnungen ?? []) m.set(z.id, z.provider_user_no);
+    return m;
+  }, [zuord]);
+
   const geraeteJeEinheit = useMemo(() => {
     const gruppen = new Map<string, typeof geraete>();
     for (const g of geraete) {
       const key = g.mapping_id ?? '__anlage__';
       gruppen.set(key, [...(gruppen.get(key) ?? []), g]);
     }
-    return Array.from(gruppen.entries());
-  }, [geraete]);
+    // Nach Nutzernummer sortieren, so wie auch der Ableseschein aufgebaut ist —
+    // sonst steht 0004 vor 0001 und man sucht beim Eintragen jede Wohnung
+    // einzeln. Die Geräte des Heizungsraums gehören ans Ende, sie haben keine
+    // Nutzernummer. Verglichen wird numerisch, damit 0010 nach 0009 kommt.
+    const rang = (key: string) => (key === '__anlage__' ? 1 : 0);
+    const nummer = (key: string) => nummerJeZuordnung.get(key) ?? '';
+    return Array.from(gruppen.entries()).sort((a, b) =>
+      rang(a[0]) - rang(b[0])
+      || nummer(a[0]).localeCompare(nummer(b[0]), 'de', { numeric: true }),
+    );
+  }, [geraete, nummerJeZuordnung]);
 
   // ── Prüfungen, die schon vor dem Rechnen möglich sind ────────────────────────
   const stammHinweise: Pruefhinweis[] = useMemo(() => {
@@ -379,9 +395,14 @@ export function HeizkostenAnlage({
               ) : (
                 <p className="text-sm text-muted-foreground">
                   In dieser Anlage ist bisher keine Nutzernummer als Gemeinschaftseigentum
-                  gekennzeichnet — die Einstellung bleibt dann ohne Wirkung.
+                  gekennzeichnet. Sie setzen das in der Zuordnung: dort steht bei jeder
+                  Nutzernummer „Gemeinschaftseigentum“ zur Wahl.
                 </p>
               )}
+              <Button size="sm" variant="outline" onClick={() => setZuordnungOffen(true)}>
+                <Users className="mr-1.5 h-3.5 w-3.5" />
+                Gemeinschaftseigentum in der Zuordnung festlegen
+              </Button>
             </CardContent>
           </Card>
 

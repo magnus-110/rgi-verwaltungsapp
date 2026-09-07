@@ -31,6 +31,12 @@ interface Props {
 }
 
 const KEINE = '__keine__';
+/**
+ * Gemeinschaftseigentum statt einer Einheit: Hausmeisterwohnung, Waschküche,
+ * Gemeinschaftsräume. Diese Nutzernummern haben keinen Empfänger — ihr Anteil
+ * wird gerechnet und danach auf alle übrigen Einheiten umgelegt.
+ */
+const GEMEINSCHAFT = '__gemeinschaft__';
 
 export function HeizkostenZuordnungDialog({ anlage, open, onOpenChange }: Props) {
   const { data, isLoading } = useZuordnungen(open ? anlage : null);
@@ -44,14 +50,17 @@ export function HeizkostenZuordnungDialog({ anlage, open, onOpenChange }: Props)
   const einheiten = data?.einheiten ?? [];
 
   /** Welche Einheit ist gerade gewählt — Entwurf schlägt Gespeichertes. */
-  const gewaehlt = (z: ZuordnungZeile) => entwurf[z.id] ?? z.assignment_id ?? KEINE;
+  const gewaehlt = (z: ZuordnungZeile) =>
+    entwurf[z.id] ?? (z.is_common_area ? GEMEINSCHAFT : (z.assignment_id ?? KEINE));
 
   /** Eine Einheit darf nur einmal vergeben werden. */
   const doppelt = useMemo(() => {
     const zaehler = new Map<string, number>();
     for (const z of zuordnungen) {
       const w = gewaehlt(z);
-      if (w !== KEINE) zaehler.set(w, (zaehler.get(w) ?? 0) + 1);
+      // Gemeinschaftseigentum darf es mehrfach geben — Hausmeisterwohnung und
+      // Gemeinschaftsräume sind zwei eigene Nutzernummern.
+      if (w !== KEINE && w !== GEMEINSCHAFT) zaehler.set(w, (zaehler.get(w) ?? 0) + 1);
     }
     return new Set(Array.from(zaehler.entries()).filter(([, n]) => n > 1).map(([id]) => id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -71,6 +80,14 @@ export function HeizkostenZuordnungDialog({ anlage, open, onOpenChange }: Props)
     }
     setSpeichert(true);
     try {
+      if (wahl === GEMEINSCHAFT) {
+        await speichereZuordnung(z.id, null, null, true, true);
+        aktualisieren();
+        toast.success(
+          `Nutzernummer ${z.provider_user_no} ist Gemeinschaftseigentum und wird umgelegt.`,
+        );
+        return;
+      }
       const e = einheitZu(wahl);
       await speichereZuordnung(z.id, wahl, e?.unit_number ?? null, true);
       aktualisieren();
@@ -112,6 +129,9 @@ export function HeizkostenZuordnungDialog({ anlage, open, onOpenChange }: Props)
             Links steht, wie der Messdienstleister die Wohnungen nummeriert, rechts die Einheit
             in der App. Die Nummern stimmen häufig nicht überein. Bestätigen Sie jede Zeile
             einzeln — geprüft wird über Name, Lage und Fläche, nicht über die Nummer.
+            Hausmeisterwohnung, Waschküche und Gemeinschaftsräume wählen Sie als
+            „Gemeinschaftseigentum“: sie bekommen keine eigene Abrechnung, ihr Anteil wird auf
+            alle übrigen Einheiten umgelegt.
           </DialogDescription>
         </DialogHeader>
 
@@ -164,6 +184,9 @@ export function HeizkostenZuordnungDialog({ anlage, open, onOpenChange }: Props)
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value={KEINE}>— keine Zuordnung —</SelectItem>
+                              <SelectItem value={GEMEINSCHAFT}>
+                                Gemeinschaftseigentum — wird auf alle umgelegt
+                              </SelectItem>
                               {einheiten.map((e) => (
                                 <SelectItem key={e.id} value={e.id}>
                                   {e.unit_number ? `${e.unit_number} · ` : ''}{e.name}
@@ -179,17 +202,22 @@ export function HeizkostenZuordnungDialog({ anlage, open, onOpenChange }: Props)
                           )}
                         </TableCell>
                         <TableCell>
-                          {z.confidence === 'bestaetigt' && (
+                          {z.is_common_area && (
+                            <Badge variant="outline" className="border-sky-300 text-sky-700">
+                              Gemeinschaft
+                            </Badge>
+                          )}
+                          {!z.is_common_area && z.confidence === 'bestaetigt' && (
                             <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
                               <Check className="mr-1 h-3 w-3" /> bestätigt
                             </Badge>
                           )}
-                          {z.confidence === 'vorschlag' && (
+                          {!z.is_common_area && z.confidence === 'vorschlag' && (
                             <Badge variant="outline" className="text-amber-700 border-amber-300">
                               <CircleAlert className="mr-1 h-3 w-3" /> Vorschlag
                             </Badge>
                           )}
-                          {z.confidence === 'unbestaetigt' && (
+                          {!z.is_common_area && z.confidence === 'unbestaetigt' && (
                             <Badge variant="outline" className="text-muted-foreground">
                               <TriangleAlert className="mr-1 h-3 w-3" /> offen
                             </Badge>
