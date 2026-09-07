@@ -18,6 +18,7 @@ import { teileVerbrauchskosten } from '../erfassung';
 import {
   adolfHaffWeg3, birkenweg6, istaHeizoel, mittelgasse1Erfassung, sorgschrofenweg2,
 } from './faelle';
+import type { AbrechnungEingang } from '../typen';
 
 /**
  * Toleranz für den Vergleich mit einer fremden Abrechnung.
@@ -248,5 +249,61 @@ describe('CO₂ nach dem Stufenmodell des CO2KostAufG', () => {
     const r = co2Aufteilung(6000, 500, 100);
     expect(r.stufe).toBe(10);
     expect(r.anteilVermieter).toBeCloseTo(0.95, 5);
+  });
+});
+
+// ────────────────────────────────────────────────────────────
+// Gemeinschaftseigentum
+// ────────────────────────────────────────────────────────────
+describe('Gemeinschaftseigentum wird auf alle umgelegt', () => {
+  const eingang: AbrechnungEingang = {
+    anlage: {
+      name: 'Testhaus',
+      energieart: 'gas',
+      abrechnungsflaecheM2: 200,
+      zeitraum: { von: '2025-01-01', bis: '2025-12-31' },
+      gkAnteilHeizung: 0.3,
+      gkAnteilWarmwasser: 0.3,
+      trennung: { art: 'keine' },
+    },
+    kosten: [{ bezeichnung: 'Heizung gesamt', betrag: 1000, art: 'heizung' }],
+    heizungVerbrauchKey: 'einheiten',
+    warmwasserVerbrauchKey: 'ww',
+    einheiten: [
+      { id: 'A', bezeichnung: 'Wohnung A', flaecheM2: 80,
+        zeitraeume: [{ name: '2025', von: '2025-01-01', bis: '2025-12-31',
+          anteilKalendertage: 1, anteilGradtage: 1, verbrauch: { einheiten: 400 } }] },
+      { id: 'B', bezeichnung: 'Wohnung B', flaecheM2: 80,
+        zeitraeume: [{ name: '2025', von: '2025-01-01', bis: '2025-12-31',
+          anteilKalendertage: 1, anteilGradtage: 1, verbrauch: { einheiten: 400 } }] },
+      { id: 'HM', bezeichnung: 'Hausmeisterwohnung', flaecheM2: 40, gemeinschaft: true,
+        zeitraeume: [{ name: '2025', von: '2025-01-01', bis: '2025-12-31',
+          anteilKalendertage: 1, anteilGradtage: 1, verbrauch: { einheiten: 200 } }] },
+    ],
+  };
+
+  const e = rechneAbrechnung(eingang);
+  const zeile = (id: string) => e.jeEinheit.find((z) => z.einheitId === id)!;
+
+  it('lässt die Zeile der Gemeinschaft auf null enden', () => {
+    expect(zeile('HM').gesamt).toBe(0);
+  });
+
+  it('verteilt genau den Anteil der Gemeinschaft weiter', () => {
+    // 1.000 € auf 200 m² und 1.000 Einheiten: die Hausmeisterwohnung trägt
+    // 40/200 der Grundkosten und 200/1.000 der Verbrauchskosten = 200 €.
+    expect(e.umlageGemeinschaft?.betrag).toBe(200);
+    expect(e.umlageGemeinschaft?.flaeche).toBe(160);
+  });
+
+  it('legt sie nach Wohnfläche auf die übrigen Einheiten um', () => {
+    expect(zeile('A').gesamt).toBe(500);
+    expect(zeile('B').gesamt).toBe(500);
+  });
+
+  it('verändert die Gesamtsumme nicht', () => {
+    const summe = e.jeEinheit.reduce((s, z) => s + z.gesamt, 0);
+    expect(Math.round(summe * 100) / 100).toBe(1000);
+    expect(e.hinweise.some((h) => h.schwere === 'fehler')).toBe(false);
   });
 });
