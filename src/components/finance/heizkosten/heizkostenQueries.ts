@@ -32,6 +32,8 @@ export interface AnlageZeile {
   heating_base_share: number;
   hotwater_base_share: number;
   ww_share_rounding: 'prozent2' | 'exakt';
+  /** Umlageschlüssel für das Gemeinschaftseigentum, z. B. 'qm' oder 'einheit' */
+  common_area_share_type: string | null;
   notes: string | null;
 }
 
@@ -44,6 +46,11 @@ export interface ZuordnungZeile {
   provider_location: string | null;
   assignment_id: string | null;
   unit_number: string | null;
+  /** Gemeinschaftseigentum — hat keinen Empfänger, wird auf alle umgelegt */
+  is_common_area: boolean | null;
+  common_area_m2: number | null;
+  /** Abrechnungsfläche laut Messdienstleister */
+  billing_area_m2: number | null;
   confidence: 'bestaetigt' | 'vorschlag' | 'unbestaetigt';
   matched_by: string | null;
 }
@@ -211,6 +218,46 @@ export function useZuordnungen(anlage: AnlageZeile | null) {
   });
 }
 
+/**
+ * Die Umlageschlüssel, die für dieses Gebäude zur Verfügung stehen.
+ *
+ * Es sind genau die Anteile, die in der App ohnehin schon je Person gepflegt
+ * werden. Aufgeführt wird nur, wozu es auch Werte gibt — ein Schlüssel ohne
+ * hinterlegte Anteile würde die Umlage stillschweigend auf die Fläche
+ * zurückfallen lassen.
+ */
+export function useUmlageSchluessel(buildingId: string | null) {
+  return useQuery({
+    queryKey: ['heizkosten-umlageschluessel', buildingId],
+    enabled: !!buildingId,
+    queryFn: async (): Promise<{ wert: string; bezeichnung: string; anzahl: number }[]> => {
+      const [{ data: arten }, { data: werte }] = await Promise.all([
+        supabase.from('building_share_types').select('value, label').eq('building_id', buildingId!),
+        supabase.from('contact_building_shares')
+          .select('share_type, contact_building_assignments!inner(building_id)')
+          .eq('contact_building_assignments.building_id', buildingId!),
+      ]);
+
+      const anzahl = new Map<string, number>();
+      for (const w of (werte ?? []) as { share_type: string }[]) {
+        anzahl.set(w.share_type, (anzahl.get(w.share_type) ?? 0) + 1);
+      }
+      const label = new Map((arten ?? []).map((a) => [a.value as string, a.label as string]));
+
+      const liste = Array.from(anzahl.entries()).map(([wert, n]) => ({
+        wert,
+        bezeichnung: UMLAGE_LABEL[wert] ?? label.get(wert) ?? wert,
+        anzahl: n,
+      }));
+      // Die Wohnfläche steht immer zur Wahl — sie ist der gesetzliche Regelfall.
+      if (!liste.some((l) => l.wert === 'qm')) {
+        liste.push({ wert: 'qm', bezeichnung: UMLAGE_LABEL.qm, anzahl: 0 });
+      }
+      return liste.sort((a, b) => a.bezeichnung.localeCompare(b.bezeichnung, 'de'));
+    },
+  });
+}
+
 /** Gerätestamm und die Ablesewerte des Zeitraums. */
 export function useGeraeteMitAblesung(
   anlageId: string | null,
@@ -279,6 +326,14 @@ export async function speichereZuordnung(
   if (error) throw new Error(error.message);
 }
 
+/** Den Umlageschlüssel für das Gemeinschaftseigentum einer Anlage setzen. */
+export async function speichereUmlageSchluessel(anlageId: string, wert: string) {
+  const { error } = await hk('heating_systems')
+    .update({ common_area_share_type: wert })
+    .eq('id', anlageId);
+  if (error) throw new Error(error.message);
+}
+
 /** Ablesewerte eines Zeitraums speichern. */
 export interface AblesungEingabe {
   deviceId: string;
@@ -332,6 +387,16 @@ export function useHeizkostenAktualisieren() {
 // ──────────────────────────────────────────────────────
 // Anzeige-Hilfen
 // ──────────────────────────────────────────────────────
+
+/** Klartext für die verbreiteten Umlageschlüssel. */
+export const UMLAGE_LABEL: Record<string, string> = {
+  qm: 'Wohnfläche',
+  einheit: 'Einheiten',
+  mea: 'Miteigentumsanteil',
+  personen: 'Personen',
+  garagen: 'Garagen',
+  stellplaetze: 'Stellplätze',
+};
 
 export const ENERGIE_LABEL: Record<string, string> = {
   oil: 'Heizöl',

@@ -293,7 +293,8 @@ describe('Gemeinschaftseigentum wird auf alle umgelegt', () => {
     // 1.000 € auf 200 m² und 1.000 Einheiten: die Hausmeisterwohnung trägt
     // 40/200 der Grundkosten und 200/1.000 der Verbrauchskosten = 200 €.
     expect(e.umlageGemeinschaft?.betrag).toBe(200);
-    expect(e.umlageGemeinschaft?.flaeche).toBe(160);
+    expect(e.umlageGemeinschaft?.anteile).toBe(160);
+    expect(e.umlageGemeinschaft?.schluessel).toBe('Wohnfläche');
   });
 
   it('legt sie nach Wohnfläche auf die übrigen Einheiten um', () => {
@@ -305,5 +306,50 @@ describe('Gemeinschaftseigentum wird auf alle umgelegt', () => {
     const summe = e.jeEinheit.reduce((s, z) => s + z.gesamt, 0);
     expect(Math.round(summe * 100) / 100).toBe(1000);
     expect(e.hinweise.some((h) => h.schwere === 'fehler')).toBe(false);
+  });
+
+  // ── Derselbe Fall, aber nach Einheiten statt nach Quadratmeter ─────────
+  // Am Achweg 3-5 hat die Gemeinschaft die Verteilung nach Einheiten
+  // beschlossen. Dann tragen alle Wohnungen gleich viel, unabhängig von
+  // ihrer Größe.
+  const nachEinheiten = rechneAbrechnung({
+    ...eingang,
+    anlage: { ...eingang.anlage, umlageSchluessel: { wert: 'einheit', bezeichnung: 'Einheiten' } },
+    einheiten: [
+      { ...eingang.einheiten[0], flaecheM2: 120, umlageAnteil: 1 },
+      { ...eingang.einheiten[1], flaecheM2: 40, umlageAnteil: 1 },
+      { ...eingang.einheiten[2] },
+    ],
+  });
+  const nEinheit = (id: string) => nachEinheiten.jeEinheit.find((z) => z.einheitId === id)!;
+
+  it('verteilt nach dem eingestellten Schlüssel statt nach Fläche', () => {
+    expect(nachEinheiten.umlageGemeinschaft?.schluessel).toBe('Einheiten');
+    expect(nachEinheiten.umlageGemeinschaft?.anteile).toBe(2);
+    // 200 € Umlage, je Einheit 100 € — obwohl A dreimal so groß ist wie B.
+    const umlage = (id: string) => nEinheit(id).posten
+      .filter((p) => p.bezeichnung.startsWith('Umlage Gemeinschaftseigentum'))
+      .reduce((s, p) => s + p.betrag, 0);
+    expect(umlage('A')).toBe(100);
+    expect(umlage('B')).toBe(100);
+  });
+
+  it('meldet einen fehlenden Anteil, statt still die Fläche zu nehmen', () => {
+    const luecke = rechneAbrechnung({
+      ...eingang,
+      anlage: { ...eingang.anlage, umlageSchluessel: { wert: 'einheit', bezeichnung: 'Einheiten' } },
+      einheiten: [
+        { ...eingang.einheiten[0], umlageAnteil: 1 },
+        { ...eingang.einheiten[1] }, // hier fehlt der Anteil
+        { ...eingang.einheiten[2] },
+      ],
+    });
+    expect(luecke.umlageGemeinschaft?.schluessel).toBe('Wohnfläche');
+    expect(luecke.hinweise.some((h) => h.text.includes('Einheiten'))).toBe(true);
+  });
+
+  it('bleibt auch mit dem anderen Schlüssel summenerhaltend', () => {
+    const summe = nachEinheiten.jeEinheit.reduce((s, z) => s + z.gesamt, 0);
+    expect(Math.round(summe * 100) / 100).toBe(1000);
   });
 });

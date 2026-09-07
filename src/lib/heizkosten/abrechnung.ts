@@ -185,8 +185,11 @@ export function rechneAbrechnung(eingang: AbrechnungEingang): AbrechnungErgebnis
   // Hausmeisterwohnung und Gemeinschaftsräume verbrauchen Wärme, haben aber
   // keinen Empfänger. Ihr Anteil wird deshalb ganz normal gerechnet — sonst
   // fehlte er in der Bezugsgröße und alle anderen zahlten zu viel — und
-  // danach nach Wohnfläche auf die übrigen Einheiten verteilt. Die Zeile der
-  // Gemeinschaft bleibt mit ihrem Rechenweg stehen und geht auf null.
+  // danach auf die übrigen Einheiten verteilt. Nach welchem Schlüssel das
+  // geschieht, steht an der Anlage: die Wohnfläche ist der Regelfall, in
+  // manchen Häusern beschließt die Gemeinschaft aber die Verteilung nach
+  // Einheiten oder nach Miteigentumsanteil. Die Zeile der Gemeinschaft bleibt
+  // mit ihrem Rechenweg stehen und geht auf null.
   const istGemeinschaft = new Set(
     eingang.einheiten.filter((e) => e.gemeinschaft).map((e) => e.id),
   );
@@ -198,17 +201,45 @@ export function rechneAbrechnung(eingang: AbrechnungEingang): AbrechnungErgebnis
       jeEinheit.filter((z) => istGemeinschaft.has(z.einheitId))
         .reduce((s, z) => s + z.gesamt, 0),
     );
-    const flaeche = traeger.reduce((s, z) => s + z.flaecheM2, 0);
+
+    // Anteil je Einheit nach dem eingestellten Schlüssel. Fehlt er — weil bei
+    // den Personen für diesen Schlüssel nichts hinterlegt ist — fällt die
+    // Umlage auf die Wohnfläche zurück, und das wird gemeldet statt still
+    // hingenommen: eine Umlage nach dem falschen Schlüssel ist ein Fehler,
+    // den später niemand mehr bemerkt.
+    const anteilJeEinheit = new Map(
+      eingang.einheiten.map((e) => [e.id, e.umlageAnteil]),
+    );
+    const gewaehlt = anlage.umlageSchluessel;
+    const traegerMitAnteil = traeger.filter(
+      (z) => (anteilJeEinheit.get(z.einheitId) ?? 0) > 0,
+    );
+    const nachSchluessel = gewaehlt != null && traegerMitAnteil.length === traeger.length;
+
+    if (gewaehlt != null && !nachSchluessel && betrag !== 0 && traeger.length > 0) {
+      hinweise.push({
+        schwere: 'warnung',
+        norm: '§ 28 WEG',
+        text: `Für den Umlageschlüssel „${gewaehlt.bezeichnung}“ ist nicht bei allen `
+          + `Einheiten ein Anteil hinterlegt (${traegerMitAnteil.length} von ${traeger.length}). `
+          + 'Das Gemeinschaftseigentum wurde ersatzweise nach Wohnfläche umgelegt.',
+      });
+    }
+
+    const anteilVon = (z: EinheitErgebnis) =>
+      nachSchluessel ? (anteilJeEinheit.get(z.einheitId) ?? 0) : z.flaecheM2;
+    const schluesselName = nachSchluessel ? gewaehlt!.bezeichnung : 'Wohnfläche';
+    const flaeche = traeger.reduce((s, z) => s + anteilVon(z), 0);
 
     if (betrag !== 0 && traeger.length > 0 && flaeche > 0) {
       const roh: Posten[] = traeger.map((z) => ({
         einheitId: z.einheitId,
         zeitraum: z.zeitraum,
-        bezeichnung: 'Umlage Gemeinschaftseigentum',
+        bezeichnung: `Umlage Gemeinschaftseigentum (nach ${schluesselName})`,
         kategorie: 'sonstiges' as Kostenkategorie,
-        anteile: z.flaecheM2,
+        anteile: anteilVon(z),
         betragJeEinheit: betrag / flaeche,
-        betrag: eur((betrag * z.flaecheM2) / flaeche),
+        betrag: eur((betrag * anteilVon(z)) / flaeche),
       }));
       const verteiltUmlage = summenerhaltendRunden(roh, betrag, []);
 
@@ -241,7 +272,8 @@ export function rechneAbrechnung(eingang: AbrechnungEingang): AbrechnungErgebnis
 
       umlageGemeinschaft = {
         betrag,
-        flaeche: round(flaeche, 2),
+        schluessel: schluesselName,
+        anteile: round(flaeche, 2),
         einheiten: eingang.einheiten.filter((e) => e.gemeinschaft).map((e) => e.bezeichnung),
       };
     }

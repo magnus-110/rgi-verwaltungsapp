@@ -85,9 +85,15 @@ export interface Nutzeinheit {
    * Gemeinschaftseigentum — Hausmeisterwohnung, Gemeinschaftsräume, Waschküche.
    * Die Einheit verbraucht und hat Fläche, aber es gibt keinen Empfänger: ihr
    * Anteil wird ganz normal gerechnet und danach auf alle übrigen Einheiten
-   * nach Wohnfläche umgelegt.
+   * umgelegt — nach dem Schlüssel, der an der Anlage eingestellt ist.
    */
   gemeinschaft?: boolean;
+  /**
+   * Anteil dieser Einheit am eingestellten Umlageschlüssel, z. B. 1 bei
+   * „nach Einheiten“ oder 72,5 bei „nach Miteigentumsanteil“. Fehlt der Wert,
+   * wird ersatzweise die Fläche verwendet.
+   */
+  umlageAnteil?: number;
   zeitraeume: Nutzerzeitraum[];
   unitNumber?: string | null;
   assignmentId?: string | null;
@@ -224,6 +230,13 @@ export interface AbrechnungEingang {
      * BRUNATA), 'exakt' rechnet ungerundet weiter (Allgäu Messpartner).
      */
     rundungWwAnteil?: 'prozent2' | 'exakt';
+    /**
+     * Nach welchem Schlüssel der Anteil des Gemeinschaftseigentums auf die
+     * übrigen Einheiten umgelegt wird — 'qm', 'einheit', 'mea' oder ein
+     * hausspezifischer Schlüssel. Der zugehörige Wert je Einheit steht in
+     * `Nutzeinheit.umlageAnteil`.
+     */
+    umlageSchluessel?: { wert: string; bezeichnung: string };
   };
   kosten: Kostenposition[];
   einheiten: Nutzeinheit[];
@@ -272,8 +285,10 @@ export interface AbrechnungErgebnis {
   /** Anteil des Gemeinschaftseigentums, der auf alle Einheiten umgelegt wurde */
   umlageGemeinschaft?: {
     betrag: number;
-    /** Wohnfläche der Einheiten, die die Umlage tragen */
-    flaeche: number;
+    /** Nach welchem Schlüssel umgelegt wurde, in Worten */
+    schluessel: string;
+    /** Summe der Anteile der Einheiten, die die Umlage tragen */
+    anteile: number;
     einheiten: string[];
   };
   posten: Posten[];

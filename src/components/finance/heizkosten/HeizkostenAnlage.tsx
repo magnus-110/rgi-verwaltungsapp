@@ -35,9 +35,13 @@ import type { AbrechnungErgebnis, Pruefhinweis } from '@/lib/heizkosten/typen';
 
 import { HeizkostenZuordnungDialog } from './HeizkostenZuordnungDialog';
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
   ENERGIE_LABEL, GERAETEART_EINHEIT, GERAETEART_LABEL, eurFormat, zahlFormat,
-  speichereAblesungen, useGeraeteMitAblesung, useHeizkostenAktualisieren,
-  useZuordnungen, type AblesungEingabe, type AnlageStatus,
+  speichereAblesungen, speichereUmlageSchluessel, useGeraeteMitAblesung,
+  useHeizkostenAktualisieren, useUmlageSchluessel, useZuordnungen,
+  type AblesungEingabe, type AnlageStatus,
 } from './heizkostenQueries';
 
 interface Props {
@@ -55,6 +59,7 @@ export function HeizkostenAnlage({
   const aktualisieren = useHeizkostenAktualisieren();
   const { data: stamm, isLoading } = useGeraeteMitAblesung(anlage.id, periodFrom, periodTo);
   const { data: zuord } = useZuordnungen(anlage);
+  const { data: schluessel } = useUmlageSchluessel(anlage.building_id);
 
   const [werte, setWerte] = useState<Record<string, { vor: string; jetzt: string }>>({});
   const [trennungWw, setTrennungWw] = useState('');
@@ -114,6 +119,22 @@ export function HeizkostenAnlage({
       ...pruefeEichung(pruef, new Date(periodTo)),
     ];
   }, [geraete, nameJeZuordnung, periodTo]);
+
+  // Gemeinschaftseigentum: Hausmeisterwohnung, Waschküche, Gemeinschaftsräume.
+  // Nur wenn es welches gibt, muss überhaupt etwas umgelegt werden.
+  const gemeinschaftsEinheiten = (zuord?.zuordnungen ?? []).filter((z) => z.is_common_area);
+  const umlageArt = anlage.common_area_share_type ?? 'qm';
+
+  async function umlageSchluesselSetzen(wert: string) {
+    try {
+      await speichereUmlageSchluessel(anlage.id, wert);
+      aktualisieren();
+      const name = schluessel?.find((s) => s.wert === wert)?.bezeichnung ?? wert;
+      toast.success(`Das Gemeinschaftseigentum wird jetzt nach ${name} umgelegt.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Speichern fehlgeschlagen.');
+    }
+  }
 
   const offeneZuordnungen = anlage.nutzeinheiten - anlage.bestaetigt;
   const alleHinweise = [...stammHinweise, ...(ergebnis?.hinweise ?? [])];
@@ -318,6 +339,53 @@ export function HeizkostenAnlage({
           </Card>
 
           <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Umlage des Gemeinschaftseigentums</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Hausmeisterwohnung, Waschküche und Gemeinschaftsräume verbrauchen Wärme, haben
+                aber keinen Empfänger. Ihr Anteil wird zuerst ganz normal gerechnet und danach
+                auf alle übrigen Einheiten verteilt. Nach welchem Schlüssel das geschieht, steht
+                in der Teilungserklärung oder im Beschluss der Gemeinschaft.
+              </p>
+              <div className="sm:max-w-xs">
+                <Select value={umlageArt} onValueChange={umlageSchluesselSetzen}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Schlüssel wählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(schluessel ?? []).map((s) => (
+                      <SelectItem key={s.wert} value={s.wert}>
+                        {s.bezeichnung}
+                        {s.anzahl > 0 && (
+                          <span className="text-muted-foreground"> · {s.anzahl} Anteile</span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {gemeinschaftsEinheiten.length > 0 ? (
+                <p className="text-sm">
+                  Umgelegt wird{' '}
+                  <span className="font-medium">
+                    {gemeinschaftsEinheiten
+                      .map((z) => `${z.provider_user_no} ${z.provider_user_name ?? ''}`.trim())
+                      .join(', ')}
+                  </span>
+                  .
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  In dieser Anlage ist bisher keine Nutzernummer als Gemeinschaftseigentum
+                  gekennzeichnet — die Einstellung bleibt dann ohne Wirkung.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
               <CardTitle className="text-base">Ablesewerte</CardTitle>
               <Button size="sm" variant="outline" disabled={laeuft} onClick={ablesungenSpeichern}>
@@ -518,6 +586,15 @@ function ErgebnisKarte({ ergebnis }: { ergebnis: AbrechnungErgebnis }) {
           <Kennzahl titel="Gesamt" wert={eurFormat(ergebnis.kostenGesamt)} betont />
         </div>
         <p className="text-xs text-muted-foreground">{ergebnis.rechenwegTrennung}</p>
+
+        {ergebnis.umlageGemeinschaft && (
+          <p className="text-xs text-muted-foreground">
+            Gemeinschaftseigentum ({ergebnis.umlageGemeinschaft.einheiten.join(', ')}):{' '}
+            {eurFormat(ergebnis.umlageGemeinschaft.betrag)} wurden nach{' '}
+            {ergebnis.umlageGemeinschaft.schluessel} auf die übrigen Einheiten umgelegt
+            ({zahlFormat(ergebnis.umlageGemeinschaft.anteile, 2)} Anteile).
+          </p>
+        )}
 
         <div className="overflow-x-auto">
           <Table>

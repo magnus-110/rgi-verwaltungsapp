@@ -75,6 +75,12 @@ export interface HeatingSystem {
   heating_base_share: number;
   hotwater_base_share: number;
   ww_share_rounding: 'prozent2' | 'exakt';
+  /**
+   * Nach welchem Anteil das Gemeinschaftseigentum umgelegt wird. Der Wert
+   * entspricht `contact_building_shares.share_type` des Gebäudes — 'qm' ist
+   * die Vorgabe, am Achweg 3-5 wird zum Beispiel nach 'einheit' verteilt.
+   */
+  common_area_share_type?: string | null;
   is_active: boolean;
   notes: string | null;
 }
@@ -89,6 +95,8 @@ export interface HeatingMapping {
   assignment_id: string | null;
   is_common_area?: boolean | null;
   common_area_m2?: number | null;
+  /** Abrechnungsfläche laut Messdienstleister, wenn sie vom qm-Anteil abweicht */
+  billing_area_m2?: number | null;
   unit_number: string | null;
   confidence: 'bestaetigt' | 'vorschlag' | 'unbestaetigt';
   matched_by: string | null;
@@ -256,10 +264,19 @@ export async function ladeEingang(args: LadeEingangArgs): Promise<GeladenerEinga
         .select('assignment_id, share_type, share_value')
         .in('assignment_id', assignmentIds)
     : { data: [] as unknown[] };
-  const flaecheJeAssignment = new Map<string, number>();
+  // Alle Anteile je Zuordnung, nicht nur die Quadratmeter: aus denselben
+  // Werten speist sich auch der frei wählbare Umlageschlüssel.
+  const anteileJeAssignment = new Map<string, Map<string, number>>();
   for (const s of (shareRows ?? []) as { assignment_id: string; share_type: string; share_value: number }[]) {
-    if (s.share_type === 'qm') flaecheJeAssignment.set(s.assignment_id, Number(s.share_value));
+    const je = anteileJeAssignment.get(s.assignment_id) ?? new Map<string, number>();
+    je.set(s.share_type, Number(s.share_value));
+    anteileJeAssignment.set(s.assignment_id, je);
   }
+  const anteil = (assignmentId: string | null, art: string): number | undefined =>
+    assignmentId ? anteileJeAssignment.get(assignmentId)?.get(art) : undefined;
+
+  const umlageArt = anlage.common_area_share_type || 'qm';
+  const umlageBezeichnung = await ladeSchluesselBezeichnung(anlage.building_id, umlageArt);
 
   // ── Nutzeinheiten bauen ─────────────────────────────────────────
   const einheiten: Nutzeinheit[] = [];
@@ -291,11 +308,17 @@ export async function ladeEingang(args: LadeEingangArgs): Promise<GeladenerEinga
     einheiten.push({
       id: m.provider_user_no,
       bezeichnung: [m.provider_location, m.provider_user_name].filter(Boolean).join(' '),
-      // Gemeinschaftseigentum hat keine Einheit in der App, deshalb steht
-      // seine Fläche direkt an der Nutzernummer.
-      flaecheM2: m.is_common_area
-        ? Number(m.common_area_m2 ?? 0)
-        : ((m.assignment_id ? flaecheJeAssignment.get(m.assignment_id) : undefined) ?? 0),
+      // Reihenfolge mit Absicht: zuerst die Abrechnungsfläche des
+      // Messdienstleisters, denn nach ihr hat er die Grundkosten verteilt und
+      // nach ihr muss unsere Abrechnung nachrechenbar bleiben. Erst danach die
+      // Wohnfläche aus der App. Gemeinschaftseigentum hat keine Einheit in der
+      // App, seine Fläche steht direkt an der Nutzernummer.
+      flaecheM2: m.billing_area_m2 != null
+        ? Number(m.billing_area_m2)
+        : m.is_common_area
+          ? Number(m.common_area_m2 ?? 0)
+          : (anteil(m.assignment_id, 'qm') ?? 0),
+      umlageAnteil: anteil(m.assignment_id, umlageArt),
       gemeinschaft: m.is_common_area === true,
       unitNumber: m.unit_number,
       assignmentId: m.assignment_id,
@@ -326,6 +349,7 @@ export async function ladeEingang(args: LadeEingangArgs): Promise<GeladenerEinga
       gkAnteilWarmwasser: Number(anlage.hotwater_base_share),
       trennung,
       rundungWwAnteil: anlage.ww_share_rounding,
+      umlageSchluessel: { wert: umlageArt, bezeichnung: umlageBezeichnung },
     },
     kosten,
     einheiten,
@@ -346,6 +370,37 @@ export async function ladeEingang(args: LadeEingangArgs): Promise<GeladenerEinga
   }));
 
   return { eingang, system: anlage, geraete, pruefGeraete, mappings, ohneZuordnung };
+}
+
+/**
+ * Klartext für die Umlageschlüssel.
+ *
+ * Die kurzen Kürzel stehen so in der Datenbank; auf der Abrechnung soll aber
+ * lesbar sein, wonach verteilt wurde. Hausspezifische Schlüssel tragen ihren
+ * Namen schon in `building_share_types`.
+ */
+export const UMLAGE_LABEL: Record<string, string> = {
+  qm: 'Wohnfläche',
+  einheit: 'Einheiten',
+  mea: 'Miteigentumsanteil',
+  personen: 'Personen',
+  garagen: 'Garagen',
+  stellplaetze: 'Stellplätze',
+};
+
+/** Bezeichnung eines Umlageschlüssels, wie sie in der Abrechnung erscheint. */
+export async function ladeSchluesselBezeichnung(
+  buildingId: string,
+  wert: string,
+): Promise<string> {
+  if (UMLAGE_LABEL[wert]) return UMLAGE_LABEL[wert];
+  const { data } = await supabase
+    .from('building_share_types')
+    .select('label')
+    .eq('building_id', buildingId)
+    .eq('value', wert)
+    .maybeSingle();
+  return (data as { label: string } | null)?.label ?? wert;
 }
 
 /**
