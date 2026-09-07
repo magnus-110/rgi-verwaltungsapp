@@ -87,6 +87,8 @@ export interface HeatingMapping {
   provider_user_name: string | null;
   provider_location: string | null;
   assignment_id: string | null;
+  is_common_area?: boolean | null;
+  common_area_m2?: number | null;
   unit_number: string | null;
   confidence: 'bestaetigt' | 'vorschlag' | 'unbestaetigt';
   matched_by: string | null;
@@ -247,7 +249,7 @@ export async function ladeEingang(args: LadeEingangArgs): Promise<GeladenerEinga
   const readings = (readingRows ?? []) as unknown as HeatingReading[];
   const readingJeGeraet = new Map(readings.map((r) => [r.device_id, r]));
 
-  // ── Flächen und Zuordnungen ───────────────────────────────────────
+  // ── Flächen und Zuordnungen ────────────────────────────────────
   const assignmentIds = mappings.map((m) => m.assignment_id).filter(Boolean) as string[];
   const { data: shareRows } = assignmentIds.length
     ? await supabase.from('contact_building_shares')
@@ -259,7 +261,7 @@ export async function ladeEingang(args: LadeEingangArgs): Promise<GeladenerEinga
     if (s.share_type === 'qm') flaecheJeAssignment.set(s.assignment_id, Number(s.share_value));
   }
 
-  // ── Nutzeinheiten bauen ───────────────────────────────────────────
+  // ── Nutzeinheiten bauen ─────────────────────────────────────────
   const einheiten: Nutzeinheit[] = [];
   const ohneZuordnung: string[] = [];
 
@@ -289,7 +291,12 @@ export async function ladeEingang(args: LadeEingangArgs): Promise<GeladenerEinga
     einheiten.push({
       id: m.provider_user_no,
       bezeichnung: [m.provider_location, m.provider_user_name].filter(Boolean).join(' '),
-      flaecheM2: (m.assignment_id ? flaecheJeAssignment.get(m.assignment_id) : undefined) ?? 0,
+      // Gemeinschaftseigentum hat keine Einheit in der App, deshalb steht
+      // seine Fläche direkt an der Nutzernummer.
+      flaecheM2: m.is_common_area
+        ? Number(m.common_area_m2 ?? 0)
+        : ((m.assignment_id ? flaecheJeAssignment.get(m.assignment_id) : undefined) ?? 0),
+      gemeinschaft: m.is_common_area === true,
       unitNumber: m.unit_number,
       assignmentId: m.assignment_id,
       mappingId: m.id,
@@ -297,13 +304,13 @@ export async function ladeEingang(args: LadeEingangArgs): Promise<GeladenerEinga
     });
   }
 
-  // ── Kosten aus der Buchhaltung ─────────────────────────────────────
+  // ── Kosten aus der Buchhaltung ────────────────────────────────────
   const kosten = await ladeKosten(anlage.building_id, fiscalYear);
 
-  // ── § 9-Trennung ─────────────────────────────────────────────────
+  // ── § 9-Trennung ──────────────────────────────────────────────
   const trennung = baueTrennung(anlage, einheiten);
 
-  // ── Erfassungssysteme ────────────────────────────────────────────
+  // ── Erfassungssysteme ─────────────────────────────────────────
   const erfassungHeizung = baueErfassungssysteme(einheiten);
 
   const abrechnungsflaeche = anlage.billing_area_m2
@@ -591,7 +598,13 @@ export async function uebergebeAnJahresabrechnung(
   let ohneZuordnung = 0;
 
   for (const i of items) {
-    if (!i.assignment_id) { ohneZuordnung += 1; continue; }
+    // Zeilen des Gemeinschaftseigentums stehen nach der Umlage auf null —
+    // ihr Betrag liegt bereits bei den übrigen Einheiten. Sie zählen deshalb
+    // nicht als fehlende Zuordnung.
+    if (!i.assignment_id) {
+      if (eur(Number(i.total)) !== 0) ohneZuordnung += 1;
+      continue;
+    }
     const bisher = jeZuordnung.get(i.assignment_id) ?? {
       amount: 0, heating_base: 0, heating_consumption: 0,
       hotwater_base: 0, hotwater_consumption: 0, water: 0,
