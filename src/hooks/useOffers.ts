@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { contractEndDate, parseTermYears, toIsoDate } from "@/types/rgiContracts";
 
 // Wie in useManagementContracts: die generierte types.ts im Repo ist
 // veraltet, deshalb ungetypter Zugriff mit eigenen Interfaces.
@@ -250,13 +251,25 @@ export function useConvertOfferToContract() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ offer, buildingId }: { offer: Offer; buildingId: string }) => {
+      // appointed_until ist eine DATE-Spalte. Das Angebot fuehrt das Ende
+      // als Datum, aeltere Angebote als Freitext — deshalb nach ISO wandeln
+      // und im Zweifel aus Beginn und Laufzeit rechnen.
+      const appointedUntil =
+        toIsoDate(offer.contract_defaults?.["bestellung.bis"]) ||
+        contractEndDate(
+          offer.desired_start,
+          parseTermYears(offer.contract_defaults?.["laufzeit.jahre_anzahl"]) ??
+            parseTermYears(offer.contract_defaults?.["laufzeit.jahre"]),
+        ) ||
+        null;
+
       const { data: contract, error: cErr } = await db
         .from("management_contracts")
         .insert({
           building_id: buildingId,
           status: "active",
           appointed_from: offer.desired_start,
-          appointed_until: offer.contract_defaults?.["bestellung.bis"] ?? null,
+          appointed_until: appointedUntil,
           parking_billed_separately: (offer.units_parking ?? 0) > 0 && offer.rate_parking != null,
           units_apartment: offer.units_apartment,
           units_commercial: offer.units_commercial,

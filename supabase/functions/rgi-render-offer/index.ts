@@ -24,7 +24,10 @@ function fmtDate(d?: string | null): string {
   if (!d) return "";
   const dt = new Date(d);
   if (isNaN(dt.getTime())) return d;
-  return dt.toLocaleDateString("de-DE");
+  // Bewusst nicht toLocaleDateString: das liefert '1.10.2026' ohne
+  // fuehrende Nullen. In einer Vertragsurkunde steht TT.MM.JJJJ.
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(dt.getUTCDate())}.${pad(dt.getUTCMonth() + 1)}.${dt.getUTCFullYear()}`;
 }
 function fmtNumber(n: number | string | null | undefined, max = 4): string {
   const v = typeof n === "string" ? parseFloat(n) : (n ?? 0);
@@ -82,6 +85,62 @@ function pct1(v: unknown): string {
   const n = toNum(v);
   if (n === null) return "";
   return `${n.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`;
+}
+
+// --- Laufzeit der Bestellung ------------------------------------------------
+// Gepflegt wird nur die Laufzeit in Jahren (contract_defaults
+// 'laufzeit.jahre_anzahl'). Daraus entstehen der Vertragstext, die Angabe
+// auf dem Uebersichtsblatt und, falls kein Enddatum hinterlegt ist, das
+// Ende der Bestellung.
+
+const TERM_YEAR_WORDS: Record<number, string> = {
+  1: "einem Jahr",
+  2: "zwei Jahren",
+  3: "drei Jahren",
+  4: "vier Jahren",
+  5: "fünf Jahren",
+};
+
+/** Datumswert nach ISO. Akzeptiert ISO und '31.12.2029'. Sonst null. */
+function toIso(value: unknown): string | null {
+  const s = String(value ?? "").trim();
+  if (!s) return null;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const de = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (de) return `${de[3]}-${de[2].padStart(2, "0")}-${de[1].padStart(2, "0")}`;
+  return null;
+}
+
+/**
+ * Laufzeit als Zahl. Nimmt eine Zahl direkt, versteht aber auch die alte
+ * Textform ('drei Jahren') aus Angeboten vor der Umstellung.
+ */
+function parseTermYears(value: unknown): number | null {
+  const s = String(value ?? "").trim();
+  if (!s) return null;
+  const n = toNum(s.replace(",", "."));
+  if (n !== null && n > 0) return n;
+  const words: Record<string, number> = {
+    "ein": 1, "einem": 1, "eins": 1, "zwei": 2, "drei": 3, "vier": 4,
+    "fünf": 5, "fuenf": 5, "sechs": 6,
+  };
+  const m = s.toLowerCase().match(/(einem|eins|ein|zwei|drei|vier|fünf|fuenf|sechs)/);
+  return m ? words[m[1]] ?? null : null;
+}
+
+/**
+ * Ende der Bestellung: Beginn plus Laufzeit minus einen Tag, damit der
+ * Zeitraum genau die Laufzeit umfasst — 01.01.2027 ueber drei Jahre endet
+ * am 31.12.2029. Rueckgabe in ISO, leer wenn Beginn oder Laufzeit fehlt.
+ */
+function termEndIso(startIso: string | null, years: number | null): string {
+  if (!startIso || years === null || years <= 0) return "";
+  const [y, m, d] = startIso.split("-").map(Number);
+  if (!y || !m || !d) return "";
+  const end = new Date(Date.UTC(y + years, m - 1, d));
+  end.setUTCDate(end.getUTCDate() - 1);
+  return end.toISOString().slice(0, 10);
 }
 
 async function convertDocxToPdf(docxBytes: Uint8Array, filename: string): Promise<Uint8Array> {
@@ -314,6 +373,26 @@ Deno.serve(async (req) => {
 
     const today = new Date().toISOString().slice(0, 10);
 
+    // --- Laufzeit und Bestellungszeitraum -----------------------------------
+    // Fehlt ein hinterlegtes Enddatum, wird es aus Beginn und Laufzeit
+    // gerechnet. Ein hinterlegter Freitext (Altbestand) bleibt unangetastet.
+    const termYears = parseTermYears(def("laufzeit.jahre_anzahl"))
+      ?? parseTermYears(def("laufzeit.jahre"));
+    const startIso = toIso(offer.desired_start);
+    const endRaw = def("bestellung.bis");
+    const endIso = toIso(endRaw);
+    // Ein hinterlegter Wert hat Vorrang, auch wenn er kein Datum ist
+    // ('Ende 2030' aus Altbestaenden bleibt so stehen).
+    const bestellungBis = endIso
+      ? fmtDate(endIso)
+      : (endRaw || fmtDate(termEndIso(startIso, termYears)));
+    const laufzeitJahre = termYears !== null
+      ? (TERM_YEAR_WORDS[termYears] ?? `${fmtNumber(termYears, 0)} Jahren`)
+      : def("laufzeit.jahre", "drei Jahren");
+    const uebersichtLaufzeit = termYears !== null
+      ? (termYears === 1 ? "1 Jahr" : `${fmtNumber(termYears, 0)} Jahre`)
+      : def("uebersicht.laufzeit", "3 Jahre");
+
     // Der Datensatz wird bewusst mit flachen Schluesseln inklusive Punkt
     // aufgebaut, weil die Vorlage Platzhalter wie {weg.name} verwendet und
     // docxtemplater den Tag unveraendert im Datensatz sucht. withDotAliases
@@ -328,7 +407,7 @@ Deno.serve(async (req) => {
       "bestellung.beschluss_vom": def("bestellung.beschluss_vom"),
       "bestellung.beschluss_top": def("bestellung.beschluss_top"),
       "bestellung.von": fmtDate(offer.desired_start),
-      "bestellung.bis": def("bestellung.bis"),
+      "bestellung.bis": bestellungBis,
 
       // Verguetungstabelle § 3 Abs. 6
       "satz.wohnung": rowApartment.satz,
@@ -369,7 +448,7 @@ Deno.serve(async (req) => {
       "bau.mindestbetrag": dec(bau1?.min_amount),
 
       // Konstanten, je Angebot ueberschreibbar
-      "laufzeit.jahre": def("laufzeit.jahre", "drei Jahren"),
+      "laufzeit.jahre": laufzeitJahre,
       "freigabe.grenze": def("freigabe.grenze", "1.500,00"),
       "freigabe.beirat_ab": def("freigabe.beirat_ab", "750,00"),
       "zuschlag.ohne_sepa": def("zuschlag.ohne_sepa", "5,00"),
@@ -389,7 +468,7 @@ Deno.serve(async (req) => {
       if (r === null || r <= 0 || c === null || c <= 0) return "–";
       return `${dec(r)} €`;
     };
-    payload["uebersicht.laufzeit"] = def("uebersicht.laufzeit", "3 Jahre");
+    payload["uebersicht.laufzeit"] = uebersichtLaufzeit;
     payload["uebersicht.kuendigung"] = def("uebersicht.kuendigung", "6 Monate");
     payload["uebersicht.wohnung"] = rateOrDash(offer.rate_apartment, offer.units_apartment);
     payload["uebersicht.garage"] = rateOrDash(offer.rate_parking, offer.units_parking);

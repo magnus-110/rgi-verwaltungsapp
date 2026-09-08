@@ -15,7 +15,9 @@ import {
   renderOffer, offerSignedUrl, type Offer, type OfferItem,
 } from "@/hooks/useOffers";
 import {
-  BASIS_SUFFIX, RGI_STANDARD_FEES, formatEur, isPercentBasis, type FeeBasis,
+  BASIS_SUFFIX, DEFAULT_TERM_YEARS, RGI_STANDARD_FEES, TERM_YEAR_CHOICES,
+  contractEndDate, formatDate, formatEur, isPercentBasis, parseTermYears,
+  termYearsShort, termYearsWord, toIsoDate, type FeeBasis,
 } from "@/types/rgiContracts";
 
 interface Props {
@@ -32,7 +34,10 @@ const STEPS = ["Anfrage", "Fragen zum Objekt", "Honorar", "Vertragsentwurf"];
  * von dort in die Platzhalter der Word-Vorlage.
  */
 const CONTRACT_DEFAULTS: Record<string, string> = {
-  "laufzeit.jahre": "drei Jahren",
+  // Laufzeit der Bestellung in Jahren. Daraus entstehen der Vertragstext
+  // ('laufzeit.jahre'), die Angabe auf dem Uebersichtsblatt
+  // ('uebersicht.laufzeit') und das Enddatum ('bestellung.bis').
+  "laufzeit.jahre_anzahl": String(DEFAULT_TERM_YEARS),
   "freigabe.grenze": "1.500,00",
   "freigabe.beirat_ab": "750,00",
   "zuschlag.ohne_sepa": "5,00",
@@ -40,8 +45,6 @@ const CONTRACT_DEFAULTS: Record<string, string> = {
   "beirat.sitzungen_inklusive": "vier",
   "index.basisjahr": "2020",
   "ort": "Pfronten",
-  // Nur fuer das Uebersichtsblatt
-  "uebersicht.laufzeit": "3 Jahre",
   "extrakosten":
     "Zusatzkosten entstehen nur bei Sonderfällen wie z. B. Eigentümerwechsel, außerordentliche " +
     "Versammlungen, aufwendige Versicherungsschäden, Bauprojekte ab 5000€ oder Rechtsangelegenheiten. " +
@@ -51,8 +54,17 @@ const CONTRACT_DEFAULTS: Record<string, string> = {
 /** Werte, die als mehrzeiliges Feld bearbeitet werden. */
 const DEFAULT_MULTILINE = new Set(["extrakosten"]);
 
+/**
+ * Werte, die nicht im Gitter der Vertragswerte erscheinen: die Laufzeit hat
+ * oben ein eigenes Feld, die beiden Textformen werden daraus berechnet.
+ */
+const DEFAULT_HIDDEN = new Set([
+  "laufzeit.jahre_anzahl",
+  "laufzeit.jahre",
+  "uebersicht.laufzeit",
+]);
+
 const DEFAULT_LABEL: Record<string, string> = {
-  "laufzeit.jahre": "Laufzeit",
   "freigabe.grenze": "Freigabegrenze je Einzelfall (€)",
   "freigabe.beirat_ab": "Beirat informieren ab (€)",
   "zuschlag.ohne_sepa": "Zuschlag ohne SEPA-Mandat (€)",
@@ -60,7 +72,6 @@ const DEFAULT_LABEL: Record<string, string> = {
   "beirat.sitzungen_inklusive": "Beiratssitzungen inklusive",
   "index.basisjahr": "Index-Basisjahr",
   "ort": "Ort der Unterschrift",
-  "uebersicht.laufzeit": "Laufzeit auf dem Übersichtsblatt",
   "extrakosten": "Übersichtsblatt: Text unter „Was kostet Extra?“",
 };
 
@@ -87,6 +98,9 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
   const [defaults, setDefaults] = useState<Record<string, string>>({});
   const [items, setItems] = useState<OfferItem[]>([]);
   const [defaultsOpen, setDefaultsOpen] = useState(false);
+  // Wurde das Bestellungsende von Hand gesetzt? Dann wird es nicht mehr
+  // aus Beginn und Laufzeit nachgezogen.
+  const [endManual, setEndManual] = useState(false);
   const [docx, setDocx] = useState<string | null>(null);
   const [pdf, setPdf] = useState<string | null>(null);
   const [summaryDocx, setSummaryDocx] = useState<string | null>(null);
@@ -99,7 +113,23 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
     if (offer) {
       setForm({ ...offer });
       setAnswers(offer.answers ?? {});
-      setDefaults({ ...CONTRACT_DEFAULTS, ...(offer.contract_defaults ?? {}) });
+      // Altbestand: die Laufzeit stand nur als Text ('drei Jahren') und
+      // 'bestellung.bis' war ein Freitextfeld. Beides wird hier in die
+      // neue Form gebracht, damit die Berechnung greift.
+      const storedDefaults = offer.contract_defaults ?? {};
+      const years =
+        parseTermYears(storedDefaults["laufzeit.jahre_anzahl"]) ??
+        parseTermYears(storedDefaults["laufzeit.jahre"]) ??
+        DEFAULT_TERM_YEARS;
+      const storedEnd = toIsoDate(storedDefaults["bestellung.bis"]);
+      const computedEnd = contractEndDate(offer.desired_start, years);
+      setDefaults({
+        ...CONTRACT_DEFAULTS,
+        ...storedDefaults,
+        "laufzeit.jahre_anzahl": String(years),
+        "bestellung.bis": storedEnd ?? computedEnd,
+      });
+      setEndManual(!!storedEnd && storedEnd !== computedEnd);
       setItems(offer.items ?? []);
       setDocx(offer.docx_storage_path ?? null);
       setPdf(offer.pdf_storage_path ?? null);
@@ -109,6 +139,7 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
       setForm({ status: "inquiry", management_mode: "weg", inquiry_date: new Date().toISOString().slice(0, 10) });
       setAnswers({});
       setDefaults({ ...CONTRACT_DEFAULTS });
+      setEndManual(false);
       // Alle Zusatzleistungen kommen vorbelegt aus unserem Vertrag.
       setItems(
         RGI_STANDARD_FEES.map((f, i) => ({
@@ -141,6 +172,30 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
+  // --- Laufzeit der Bestellung ------------------------------------------
+  // Die Laufzeit in Jahren ist der eine Wert, der gepflegt wird. Aus ihr
+  // ergeben sich die beiden Textformen fuer Vertrag und Uebersichtsblatt
+  // sowie das Enddatum.
+  const termYears = parseTermYears(defaults["laufzeit.jahre_anzahl"]) ?? 0;
+  const computedEnd = contractEndDate(form.desired_start, termYears);
+  // Solange das Ende nicht von Hand gesetzt wurde, gilt der berechnete Wert.
+  const endValue = endManual ? (defaults["bestellung.bis"] ?? "") : computedEnd;
+
+  /**
+   * Die Vertragswerte, wie sie gespeichert und an die Vorlage gehen: die
+   * aus der Laufzeit abgeleiteten Angaben werden hier eingesetzt, damit
+   * Laufzeit, Vertragstext und Enddatum nicht auseinanderlaufen koennen.
+   */
+  const effectiveDefaults = useMemo(
+    () => ({
+      ...defaults,
+      "laufzeit.jahre": termYearsWord(termYears),
+      "uebersicht.laufzeit": termYearsShort(termYears),
+      "bestellung.bis": endValue,
+    }),
+    [defaults, termYears, endValue]
+  );
+
   const monthlyNet = useMemo(() => {
     const rows: [any, any][] = [
       [form.rate_apartment, form.units_apartment],
@@ -161,7 +216,7 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
     const saved = await upsert.mutateAsync({
       ...form,
       answers,
-      contract_defaults: defaults,
+      contract_defaults: effectiveDefaults,
       monthly_net: monthlyNet || null,
     });
     await saveItems.mutateAsync({ offerId: saved.id, items });
@@ -449,6 +504,73 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
                 )}
               </div>
 
+              {/* Laufzeit der Bestellung */}
+              <div className="border rounded-md p-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-sm">Bestellung von</Label>
+                    <Input className="mt-1.5" type="date" value={form.desired_start ?? ""}
+                      onChange={(e) => set("desired_start", e.target.value || null)} />
+                  </div>
+                  <div>
+                    <Label className="text-sm">Laufzeit</Label>
+                    <Select
+                      value={termYears ? String(termYears) : String(DEFAULT_TERM_YEARS)}
+                      onValueChange={(v) => setDefaults((d) => ({ ...d, "laufzeit.jahre_anzahl": v }))}
+                    >
+                      <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {TERM_YEAR_CHOICES.map((y) => (
+                          <SelectItem key={y} value={String(y)}>{termYearsShort(y)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-sm">Bestellung bis</Label>
+                    <Input
+                      className="mt-1.5"
+                      type="date"
+                      value={endValue}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        // Ein leeres Feld oder genau das berechnete Datum
+                        // heisst: wieder automatisch rechnen.
+                        setEndManual(v !== "" && v !== computedEnd);
+                        setDefaults((d) => ({ ...d, "bestellung.bis": v }));
+                      }}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {endManual ? (
+                    <>
+                      Enddatum von Hand gesetzt.{" "}
+                      <button
+                        type="button"
+                        className="underline underline-offset-2"
+                        onClick={() => {
+                          setEndManual(false);
+                          setDefaults((d) => ({ ...d, "bestellung.bis": computedEnd }));
+                        }}
+                      >
+                        Wieder aus der Laufzeit rechnen
+                      </button>
+                    </>
+                  ) : computedEnd ? (
+                    <>Aus Beginn und Laufzeit gerechnet: bis {formatDate(computedEnd)}.</>
+                  ) : (
+                    <>Sobald ein Beginn eingetragen ist, wird das Enddatum gerechnet.</>
+                  )}
+                </p>
+                {termYears > 3 && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    § 26 Abs. 2 WEG: höchstens fünf Jahre, bei der ersten Bestellung nach
+                    Begründung der Gemeinschaft höchstens drei Jahre.
+                  </p>
+                )}
+              </div>
+
               {/* Vorbelegte Zusatzleistungen */}
               <Collapsible>
                 <CollapsibleTrigger asChild>
@@ -493,7 +615,7 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
                   </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {Object.keys(CONTRACT_DEFAULTS).map((k) => (
+                  {Object.keys(CONTRACT_DEFAULTS).filter((k) => !DEFAULT_HIDDEN.has(k)).map((k) => (
                     <div key={k} className={DEFAULT_MULTILINE.has(k) ? "sm:col-span-2" : undefined}>
                       <Label className="text-xs text-muted-foreground">{DEFAULT_LABEL[k] ?? k}</Label>
                       {DEFAULT_MULTILINE.has(k) ? (
@@ -512,15 +634,6 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
                       )}
                     </div>
                   ))}
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Bestellung bis</Label>
-                    <Input
-                      className="mt-1"
-                      value={defaults["bestellung.bis"] ?? ""}
-                      onChange={(e) => setDefaults((d) => ({ ...d, "bestellung.bis": e.target.value }))}
-                      placeholder="z. B. 31.12.2029"
-                    />
-                  </div>
                 </CollapsibleContent>
               </Collapsible>
 

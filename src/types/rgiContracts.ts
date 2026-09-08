@@ -323,6 +323,92 @@ export function formatDate(iso: string | null | undefined): string {
   return `${d}.${m}.${y}`;
 }
 
+// ---------------------------------------------------------------
+// Laufzeit der Bestellung
+//
+// § 26 Abs. 2 WEG: Die Bestellung des Verwalters ist auf höchstens
+// fünf Jahre zulässig, bei der ersten Bestellung nach Begründung
+// der Wohnungseigentümergemeinschaft auf höchstens drei Jahre.
+// ---------------------------------------------------------------
+
+/** Standardlaufzeit der Bestellung in Jahren. */
+export const DEFAULT_TERM_YEARS = 3;
+
+/** Zur Auswahl stehende Laufzeiten in Jahren. */
+export const TERM_YEAR_CHOICES = [1, 2, 3, 4, 5] as const;
+
+const TERM_YEAR_WORDS: Record<number, string> = {
+  1: "einem Jahr",
+  2: "zwei Jahren",
+  3: "drei Jahren",
+  4: "vier Jahren",
+  5: "fünf Jahren",
+};
+
+/** Laufzeit im Dativ, wie sie der Vertragstext braucht („drei Jahren“). */
+export function termYearsWord(years: number | null | undefined): string {
+  const n = Number(years);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return TERM_YEAR_WORDS[n] ?? `${n} Jahren`;
+}
+
+/**
+ * Laufzeit als Zahl. Nimmt eine Zahl direkt, versteht aber auch die alte
+ * Textform („drei Jahren“) aus Angeboten vor der Umstellung.
+ */
+export function parseTermYears(value: unknown): number | null {
+  const s = String(value ?? "").trim();
+  if (!s) return null;
+  const n = Number(s.replace(",", "."));
+  if (Number.isFinite(n) && n > 0) return n;
+  const words: Record<string, number> = {
+    einem: 1, eins: 1, ein: 1, zwei: 2, drei: 3, vier: 4,
+    "fünf": 5, fuenf: 5, sechs: 6,
+  };
+  const m = s.toLowerCase().match(/(einem|eins|ein|zwei|drei|vier|fünf|fuenf|sechs)/);
+  return m ? words[m[1]] ?? null : null;
+}
+
+/** Laufzeit kurz für das Übersichtsblatt („3 Jahre“). */
+export function termYearsShort(years: number | null | undefined): string {
+  const n = Number(years);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return n === 1 ? "1 Jahr" : `${n} Jahre`;
+}
+
+/**
+ * Wandelt einen Datumswert in ISO (YYYY-MM-DD). Akzeptiert ISO und das
+ * deutsche Format „31.12.2029“. Alles andere ergibt null.
+ */
+export function toIsoDate(value: string | null | undefined): string | null {
+  const s = String(value ?? "").trim();
+  if (!s) return null;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const de = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (de) return `${de[3]}-${de[2].padStart(2, "0")}-${de[1].padStart(2, "0")}`;
+  return null;
+}
+
+/**
+ * Ende der Bestellung: Beginn plus Laufzeit minus einen Tag, damit der
+ * Zeitraum genau die Laufzeit umfasst — 01.01.2027 über drei Jahre endet
+ * am 31.12.2029. Rückgabe in ISO, leer wenn Beginn oder Laufzeit fehlt.
+ */
+export function contractEndDate(
+  startIso: string | null | undefined,
+  years: number | null | undefined,
+): string {
+  const start = toIsoDate(startIso);
+  const n = Number(years);
+  if (!start || !Number.isFinite(n) || n <= 0) return "";
+  const [y, m, d] = start.split("-").map(Number);
+  // Bewusst in UTC gerechnet, damit keine Zeitzone den Tag verschiebt.
+  const end = new Date(Date.UTC(y + n, m - 1, d));
+  end.setUTCDate(end.getUTCDate() - 1);
+  return end.toISOString().slice(0, 10);
+}
+
 /** Monate bis zum Ende der Bestellung. null = unbefristet oder ohne Datum. */
 export function monthsUntil(iso: string | null | undefined): number | null {
   if (!iso) return null;
