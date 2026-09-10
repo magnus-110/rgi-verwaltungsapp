@@ -3907,6 +3907,8 @@ export type Database = {
           iban_override: string | null
           id: string
           is_active: boolean | null
+          is_beirat: boolean
+          is_beirat_vorsitz: boolean
           is_cash_auditor: boolean
           is_emergency_contact: boolean
           last_name_override: string | null
@@ -3950,6 +3952,8 @@ export type Database = {
           iban_override?: string | null
           id?: string
           is_active?: boolean | null
+          is_beirat?: boolean
+          is_beirat_vorsitz?: boolean
           is_cash_auditor?: boolean
           is_emergency_contact?: boolean
           last_name_override?: string | null
@@ -3993,6 +3997,8 @@ export type Database = {
           iban_override?: string | null
           id?: string
           is_active?: boolean | null
+          is_beirat?: boolean
+          is_beirat_vorsitz?: boolean
           is_cash_auditor?: boolean
           is_emergency_contact?: boolean
           last_name_override?: string | null
@@ -5672,6 +5678,7 @@ export type Database = {
           created_at: string | null
           id: string
           meeting_id: string
+          pre_vote_instruction_notes: Json | null
           pre_vote_instructions: Json | null
           proxy_contact_id: string | null
           proxy_document_file_id: string | null
@@ -5694,6 +5701,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           meeting_id: string
+          pre_vote_instruction_notes?: Json | null
           pre_vote_instructions?: Json | null
           proxy_contact_id?: string | null
           proxy_document_file_id?: string | null
@@ -5716,6 +5724,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           meeting_id?: string
+          pre_vote_instruction_notes?: Json | null
           pre_vote_instructions?: Json | null
           proxy_contact_id?: string | null
           proxy_document_file_id?: string | null
@@ -7253,6 +7262,7 @@ export type Database = {
           building_id: string
           calorific_value_kwh: number | null
           co2_owner_share: number | null
+          common_area_share_type: string
           connected_hot_water: boolean
           created_at: string
           energy_source: string
@@ -7282,6 +7292,7 @@ export type Database = {
           building_id: string
           calorific_value_kwh?: number | null
           co2_owner_share?: number | null
+          common_area_share_type?: string
           connected_hot_water?: boolean
           created_at?: string
           energy_source?: string
@@ -7311,6 +7322,7 @@ export type Database = {
           building_id?: string
           calorific_value_kwh?: number | null
           co2_owner_share?: number | null
+          common_area_share_type?: string
           connected_hot_water?: boolean
           created_at?: string
           energy_source?: string
@@ -7406,10 +7418,13 @@ export type Database = {
       heating_user_mapping: {
         Row: {
           assignment_id: string | null
+          billing_area_m2: number | null
+          common_area_m2: number | null
           confidence: string
           created_at: string
           heating_system_id: string
           id: string
+          is_common_area: boolean
           matched_by: string | null
           notes: string | null
           provider_external_no: string | null
@@ -7421,10 +7436,13 @@ export type Database = {
         }
         Insert: {
           assignment_id?: string | null
+          billing_area_m2?: number | null
+          common_area_m2?: number | null
           confidence?: string
           created_at?: string
           heating_system_id: string
           id?: string
+          is_common_area?: boolean
           matched_by?: string | null
           notes?: string | null
           provider_external_no?: string | null
@@ -7436,10 +7454,13 @@ export type Database = {
         }
         Update: {
           assignment_id?: string | null
+          billing_area_m2?: number | null
+          common_area_m2?: number | null
           confidence?: string
           created_at?: string
           heating_system_id?: string
           id?: string
+          is_common_area?: boolean
           matched_by?: string | null
           notes?: string | null
           provider_external_no?: string | null
@@ -7465,6 +7486,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      heizkosten_import_nutzer: {
+        Row: {
+          anlage: string
+          lage: string | null
+          name: string | null
+          nr: string
+          qm: number | null
+        }
+        Insert: {
+          anlage: string
+          lage?: string | null
+          name?: string | null
+          nr: string
+          qm?: number | null
+        }
+        Update: {
+          anlage?: string
+          lage?: string | null
+          name?: string | null
+          nr?: string
+          qm?: number | null
+        }
+        Relationships: []
       }
       in_app_email_subscriptions: {
         Row: {
@@ -13181,12 +13226,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -13210,11 +13255,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -13235,11 +13280,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -13260,11 +13305,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -13277,11 +13322,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
