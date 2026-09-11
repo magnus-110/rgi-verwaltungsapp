@@ -1,23 +1,19 @@
-# Mailversand an Sina Lang: Fehlermeldung war irreführend
+# Unterschriebenes Protokoll im DMS ablegen – Fehler beheben
 
-## Befund (geprüft)
+## Was tatsächlich passiert
 
-- Im Log des Versands (10.09.2026, 08:47 Uhr) hat der Strato-Postausgangsserver die Mail abgelehnt mit: „521 5.1.2 Domain does not exist: hausverwaltung-weisenbach.de".
-- Die Adresse war korrekt geschrieben: `s.lang@hausverwaltung-weisenbach.de`.
-- Die Domain existiert nachweislich: sie hat gültige Mailserver-Einträge (Microsoft/Outlook) und einen gültigen Server-Eintrag.
-- Von genau dieser Adresse liegen zahlreiche empfangene Mails im Postfach von Regina Göttinger, zuletzt am 10.09.2026 um 08:14 Uhr — also kurz vor dem fehlgeschlagenen Versand.
+Für die Versammlung Sorgschrofenweg 2 (02.09.2026) sind 4 Unterschriften gespeichert, aber es existiert **kein erzeugtes Protokoll-PDF**. Die Ablage-Funktion setzt aber voraus, dass vorher schon einmal ein PDF-Protokoll erzeugt wurde – sonst bricht sie mit einem Fehler ab, der in der App nur als „Edge Function fehlgeschlagen" ankommt.
 
-Ergebnis: Es war kein Adressfehler, sondern eine kurzzeitige Störung bei der Namensauflösung auf Seiten des Strato-Postausgangsservers. Unsere App hat diese Ablehnung nur weitergereicht und daraus fälschlich „Die Domain existiert nicht — bitte E-Mail-Adresse prüfen" gemacht.
+Die Funktion selbst läuft fehlerfrei; es fehlt schlicht die Grundlage (das PDF) und eine verständliche Rückmeldung.
 
-## Was umgesetzt wird
+## Was geändert wird
 
-1. **Automatischer zweiter Versuch**: Wird eine Mail mit dieser Art von Ablehnung (Code 521 / vorübergehende Domain- oder Empfängerablehnung) zurückgewiesen, versucht die App den Versand nach kurzer Wartezeit noch einmal (bis zu zwei Wiederholungen). In den meisten Fällen geht die Mail dann durch, ohne dass jemand etwas merkt.
-2. **Ehrliche Fehlermeldung**: Schlägt es weiterhin fehl, steht künftig sinngemäß: „Der Postausgangsserver konnte die Empfänger-Domain gerade nicht erreichen (vorübergehende Störung). Bitte in ein paar Minuten erneut senden." Nur wenn die Adresse tatsächlich dauerhaft ungültig ist (Code 550 „no such user"), wird weiterhin auf einen Adressfehler hingewiesen.
-3. **Gleiches Verhalten beim Rundmail- und beim geplanten Versand**, damit dort nicht einzelne Empfänger still ausfallen.
+1. **Protokoll automatisch erzeugen**: Fehlt ein PDF, erzeugt die Ablage-Funktion es selbst (mit der Standard-Protokollvorlage der Liegenschaft bzw. der zuletzt genutzten Vorlage) und stempelt darauf die Unterschriftenseite. Kein manueller Zwischenschritt mehr.
+2. **Klare Fehlermeldung**: Wenn gar keine Vorlage hinterlegt ist, erscheint statt „Edge Function fehlgeschlagen" der Hinweis „Kein Protokoll-PDF vorhanden und keine Vorlage hinterlegt – bitte zuerst Protokoll erzeugen."
+3. **Button-Hinweis in der Nachbereitung**: Neben „Final signieren & im DMS ablegen" wird angezeigt, ob bereits ein PDF-Protokoll vorliegt.
 
 ## Technische Details
 
-- `supabase/functions/send-email/index.ts`: `transporter.sendMail` in eine Retry-Schleife (max. 3 Versuche, 1,5 s / 4 s Backoff) kapseln. Retry nur bei `code === "EENVELOPE"` und `responseCode` 421/450/451/452/521 oder Text „Domain does not exist"; dauerhafte 5.1.1-Fehler („no such user", 550) sofort abbrechen.
-- Fehlermeldungs-Mapping am Ende der Funktion entsprechend aufteilen (temporär vs. permanent), damit das Frontend die passende Meldung zeigt.
-- Gleiche Retry-Hilfsfunktion in `supabase/functions/comm-send-bulk-email/index.ts` und im geplanten Versand (`comm-dispatch-scheduled` / `dispatch-scheduled-emails`) verwenden; dafür als kleine Helper-Datei unter `supabase/functions/_shared/` ablegen.
-- Keine Datenbank- oder UI-Änderungen nötig.
+- `supabase/functions/etv-finalize-signed-protocol/index.ts`: Wenn kein `etv_protocol_renders`-Eintrag mit `format = 'pdf'` existiert, intern `etv-render-protocol` (output_format `pdf`) aufrufen und dessen `storage_path` verwenden; Fehler mit sprechendem Text statt HTTP 400 ohne Kontext zurückgeben.
+- `src/components/meetings/ProtocolSignaturesInline.tsx`: Fehlertext aus der Antwort (`data.error`) auch bei Non-2xx-Antworten auslesen und im Toast zeigen; kleiner Statushinweis „PDF-Protokoll vorhanden / noch nicht erzeugt".
+- Keine Datenbankänderungen nötig.
