@@ -78,7 +78,7 @@ export function SaveAttachmentToBuildingDialog({
     const out: { id: string; label: string }[] = [];
     const walk = (pid: string | null, d: number) => {
       (byParent[pid || 'root'] || []).forEach(c => {
-        out.push({ id: c.id, label: `${'  '.repeat(d)}${c.name}` });
+        out.push({ id: c.id, label: `${String.fromCharCode(160, 160).repeat(d)}${c.name}` });
         walk(c.id, d + 1);
       });
     };
