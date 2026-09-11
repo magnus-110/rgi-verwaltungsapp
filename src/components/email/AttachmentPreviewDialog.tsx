@@ -1,6 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Download, ExternalLink } from "lucide-react";
+import { useInlineFileUrl } from "@/lib/inlineFile";
 
 interface AttachmentPreviewDialogProps {
   open: boolean;
@@ -28,7 +29,11 @@ export const AttachmentPreviewDialog = ({
   fileName,
   mimeType,
 }: AttachmentPreviewDialogProps) => {
-  const previewable = !!url && (isPdf(mimeType, fileName) || isImage(mimeType, fileName) || isText(mimeType, fileName));
+  // Datei als blob: mit korrektem Typ laden — sonst lädt der Browser z. B. PDFs,
+  // die der Absender als „application/octet-stream“ geschickt hat, herunter.
+  const inline = useInlineFileUrl(open ? url : null, { fileName, mimeType });
+  const effectiveMime = inline.type || mimeType;
+  const viewUrl = inline.url;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -36,15 +41,15 @@ export const AttachmentPreviewDialog = ({
         <DialogHeader className="px-6 py-3 border-b flex-row items-center justify-between space-y-0">
           <DialogTitle className="truncate pr-4">{fileName}</DialogTitle>
           <div className="flex items-center gap-2 mr-6">
-            {url && (
+            {viewUrl && (
               <>
                 <Button asChild variant="outline" size="sm">
-                  <a href={url} target="_blank" rel="noopener noreferrer">
+                  <a href={viewUrl} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4 mr-1.5" /> Neuer Tab
                   </a>
                 </Button>
                 <Button asChild variant="outline" size="sm">
-                  <a href={url} download={fileName}>
+                  <a href={viewUrl} download={fileName}>
                     <Download className="h-4 w-4 mr-1.5" /> Download
                   </a>
                 </Button>
@@ -53,21 +58,21 @@ export const AttachmentPreviewDialog = ({
           </div>
         </DialogHeader>
         <div className="flex-1 overflow-auto bg-muted/30">
-          {!url ? (
+          {!viewUrl ? (
             <div className="h-full flex items-center justify-center text-muted-foreground">
               Lade Vorschau…
             </div>
-          ) : isImage(mimeType, fileName) ? (
+          ) : isImage(effectiveMime, fileName) ? (
             <div className="h-full flex items-center justify-center p-4">
-              <img src={url} alt={fileName} className="max-h-full max-w-full object-contain" />
+              <img src={viewUrl} alt={fileName} className="max-h-full max-w-full object-contain" />
             </div>
-          ) : isPdf(mimeType, fileName) || isText(mimeType, fileName) ? (
-            <iframe src={url} title={fileName} className="w-full h-full border-0 bg-white" />
+          ) : isPdf(effectiveMime, fileName) || isText(effectiveMime, fileName) ? (
+            <iframe src={viewUrl} title={fileName} className="w-full h-full border-0 bg-white" />
           ) : (
             <div className="h-full flex flex-col items-center justify-center gap-3 text-muted-foreground">
               <p>Vorschau für diesen Dateityp nicht verfügbar.</p>
               <Button asChild>
-                <a href={url} download={fileName}>
+                <a href={viewUrl} download={fileName}>
                   <Download className="h-4 w-4 mr-1.5" /> Datei herunterladen
                 </a>
               </Button>

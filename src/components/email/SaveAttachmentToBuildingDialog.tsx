@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveInlineType } from "@/lib/inlineFile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,7 +78,7 @@ export function SaveAttachmentToBuildingDialog({
     const out: { id: string; label: string }[] = [];
     const walk = (pid: string | null, d: number) => {
       (byParent[pid || 'root'] || []).forEach(c => {
-        out.push({ id: c.id, label: `${'\u00A0\u00A0'.repeat(d)}${c.name}` });
+        out.push({ id: c.id, label: `${'  '.repeat(d)}${c.name}` });
         walk(c.id, d + 1);
       });
     };
@@ -147,12 +148,16 @@ export function SaveAttachmentToBuildingDialog({
           .from('email-attachments').createSignedUrl(att.path, 300);
         if (sErr || !signed) throw new Error("Anhang nicht lesbar");
 
-        const blob = await (await fetch(signed.signedUrl)).blob();
+        const rawBlob = await (await fetch(signed.signedUrl)).blob();
+        // Richtigen Dateityp mitgeben (sonst bleibt z. B. „octet-stream“ und der Browser lädt statt anzuzeigen)
+        const head = new Uint8Array(await rawBlob.slice(0, 8).arrayBuffer());
+        const fileType = resolveInlineType({ head, fileName: att.name, mimeType: att.mimeType || rawBlob.type });
+        const blob = new Blob([rawBlob], { type: fileType });
         const ext = att.name.split('.').pop();
         const newPath = `${buildingId}/${crypto.randomUUID()}.${ext}`;
 
         const { error: upErr } = await supabase.storage
-          .from('building-files').upload(newPath, blob, { contentType: att.mimeType || undefined });
+          .from('building-files').upload(newPath, blob, { contentType: fileType });
         if (upErr) throw upErr;
 
         const { data: inserted, error: insErr } = await (supabase
@@ -161,7 +166,7 @@ export function SaveAttachmentToBuildingDialog({
             display_name: att.name,
             file_path: newPath,
             file_size: att.size || 0,
-            mime_type: att.mimeType,
+            mime_type: fileType,
             category_id: categoryId || null,
             building_id: buildingId,
             uploaded_by: user.id,
@@ -185,7 +190,7 @@ export function SaveAttachmentToBuildingDialog({
         });
 
         const ocrTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
-        if (att.mimeType && ocrTypes.includes(att.mimeType)) {
+        if (ocrTypes.includes(fileType)) {
           supabase.functions.invoke('process-building-file', { body: { fileId: inserted.id } })
             .catch(err => console.error('OCR error:', err));
         }

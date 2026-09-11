@@ -15,6 +15,7 @@ import { BrokerModeProvider } from "@/hooks/useBrokerMode";
 import { BackendHealthProvider } from "@/hooks/useBackendHealth";
 import { BackendStatusBanner } from "@/components/system/BackendStatusBanner";
 import { BulkSendWatcher } from "@/lib/bulkSendWatch";
+import { FileTypeRepairOnce } from "@/lib/fileTypeRepair";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -111,6 +112,7 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
               <UploadProgressWidget />
               <DmsJobsTray />
               <BulkSendWatcher />
+              <FileTypeRepairOnce />
             </BrokerModeProvider>
           </ManagementModeProvider>
         </DmsJobsProvider>

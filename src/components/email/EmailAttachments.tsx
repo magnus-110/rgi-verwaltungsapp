@@ -129,9 +129,12 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
       const safeName = sanitizeStorageKey(uploadFileName);
       const invoicePath = `${folder}/${timestamp}_${safeName}`;
       const isXmlFile = uploadFileName.toLowerCase().endsWith(".xml");
+      const invoiceType = isXmlFile ? "application/xml" : "application/pdf";
+      // Typ am Blob selbst setzen: sonst übernimmt der Speicher den Typ aus dem Download
+      // (bei manchen Absendern „octet-stream“) und die Vorschau lädt die Datei nur herunter.
       const { error: uploadErr } = await supabase.storage
         .from("invoices")
-        .upload(invoicePath, blob, { contentType: isXmlFile ? "application/xml" : "application/pdf" });
+        .upload(invoicePath, new Blob([blob], { type: invoiceType }), { contentType: invoiceType });
       if (uploadErr) throw uploadErr;
 
       // 4. Create invoice record (credit_note → status credit_open, sonst open)
@@ -232,7 +235,7 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
       const invoicePath = `${folder}/${timestamp}_${baseName}`;
       const { error: upErr } = await supabase.storage
         .from("invoices")
-        .upload(invoicePath, pdfBlob, { contentType: "application/pdf" });
+        .upload(invoicePath, new Blob([pdfBlob], { type: "application/pdf" }), { contentType: "application/pdf" });
       if (upErr) throw upErr;
 
       // 4. Create invoice
