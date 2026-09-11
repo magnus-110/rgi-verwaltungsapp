@@ -22,6 +22,7 @@ import { usePlaceholderSamples } from "./usePlaceholderSamples";
 import { EmailPreviewPane } from "./EmailPreviewPane";
 import { WysiwygPlaceholderEditor, type WysiwygPlaceholderEditorHandle } from "./WysiwygPlaceholderEditor";
 import { ConfirmSendDialog } from "./ConfirmSendDialog";
+import { startBulkSend } from "@/lib/bulkSendWatch";
 
 interface Props {
   open: boolean;
@@ -40,7 +41,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const [filter, setFilter] = useState<RecipientFilterValue>({ roles: [], contact_ids: [], assignment_ids: [], require_email: true });
   const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [resultStats, setResultStats] = useState<{ ok: number; failed: number } | null>(null);
+  const [resultStats, setResultStats] = useState<{ queued: number } | null>(null);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [scheduledAt, setScheduledAt] = useState<string>("");
   const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("plain");
@@ -223,13 +224,8 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
     setBusy(true);
     try {
       const c = await createCampaign("draft");
-      const { data: result, error } = await supabase.functions.invoke("comm-send-bulk-email", {
-        body: { campaign_id: c.id },
-      });
-      if (error) throw error;
-      const r = result as any;
-      if (r?.error) throw new Error(r.error);
-      setResultStats({ ok: r.ok, failed: r.failed });
+      const r = await startBulkSend(c.id);
+      setResultStats({ queued: r.queued ?? 0 });
       setStep(3);
       qc.invalidateQueries({ queryKey: ["comm-campaigns", buildingId] });
     } catch (e: any) {
@@ -412,10 +408,11 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
             <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
               <Mail className="h-8 w-8 text-primary" />
             </div>
-            <h3 className="text-lg font-semibold">Versand abgeschlossen</h3>
+            <h3 className="text-lg font-semibold">Versand gestartet</h3>
             {resultStats && (
               <p className="text-sm text-muted-foreground">
-                {resultStats.ok} erfolgreich, {resultStats.failed} fehlgeschlagen
+                {resultStats.queued} E-Mail(s) werden im Hintergrund verschickt. Das Fenster kann geschlossen
+                werden – es erscheint eine Meldung, sobald alles raus ist.
               </p>
             )}
           </div>

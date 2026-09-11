@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileText, Mail, Download, AlertCircle, CheckCircle2, Clock, RefreshCcw, CalendarClock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { startBulkSend } from "@/lib/bulkSendWatch";
 
 interface Props { buildingId: string; }
 
@@ -29,12 +30,23 @@ export const CampaignHistoryList = ({ buildingId }: Props) => {
   };
 
   const retry = async (c: any) => {
-    if (!confirm(`Fehlgeschlagene Empfänger (${c.failed_count}) erneut anschreiben?`)) return;
-    const { error } = await supabase.functions.invoke("comm-send-bulk-email", {
-      body: { campaign_id: c.id, retry_failed_only: true },
-    });
-    if (error) { toast({ title: "Fehler", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Wiederholung gestartet" });
+    const { count: interrupted } = await supabase
+      .from("comm_recipients")
+      .select("id", { count: "exact", head: true })
+      .eq("campaign_id", c.id)
+      .eq("status", "failed")
+      .like("error", "Versand wurde unterbrochen%");
+    const warn = interrupted
+      ? `\n\nACHTUNG: Bei ${interrupted} davon wurde der Versand mitten in der Mail unterbrochen – bitte vorher im Ordner „Gesendet“ prüfen, ob sie schon angekommen ist.`
+      : "";
+    if (!confirm(`Fehlgeschlagene Empfänger (${c.failed_count}) erneut anschreiben?${warn}`)) return;
+    try {
+      await startBulkSend(c.id, { retryFailedOnly: true });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e?.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Wiederholung gestartet", description: "Läuft im Hintergrund – es erscheint eine Meldung, sobald sie fertig ist." });
     qc.invalidateQueries({ queryKey: ["comm-campaigns", buildingId] });
   };
 

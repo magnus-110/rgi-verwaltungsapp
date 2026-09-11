@@ -17,8 +17,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Mails, Plus, Trash2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Loader2, Mails, Pause, Play, Plus, Trash2 } from "lucide-react";
 import { BulkMailEditor } from "./BulkMailEditor";
+import { isBulkSendStalled, resumeBulkSend, stopBulkSend, watchBulkSend } from "@/lib/bulkSendWatch";
 
 const STATUS_LABEL: Record<string, { label: string; variant: "secondary" | "default" | "destructive" | "outline" }> = {
   draft: { label: "Entwurf", variant: "secondary" },
@@ -42,7 +44,7 @@ export const BulkMailPanel = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("comm_campaigns")
-        .select("id, name, status, building_id, recipient_count, sent_count, failed_count, scheduled_at, updated_at, buildings(name)")
+        .select("id, name, status, building_id, recipient_count, sent_count, failed_count, scheduled_at, updated_at, error_message, buildings(name)")
         .eq("type", "email")
         .in("status", ["draft", "scheduled", "sending", "failed"])
         .order("updated_at", { ascending: false })
@@ -53,7 +55,46 @@ export const BulkMailPanel = () => {
       return data || [];
     },
     enabled: !openId,
+    // Während ein Versand läuft, Fortschritt regelmäßig nachladen
+    refetchInterval: (query) =>
+      ((query.state.data as any[]) || []).some((c) => c.status === "sending") ? 5000 : false,
   });
+
+  const [actionId, setActionId] = useState<string | null>(null);
+
+  const stopSending = async (c: any) => {
+    if (!confirm(`Versand von „${c.name}“ anhalten?\n\nBereits verschickte E-Mails bleiben verschickt. Beim erneuten Senden werden nur noch die übrigen Empfänger angeschrieben.`)) return;
+    setActionId(c.id);
+    try {
+      await stopBulkSend(c.id);
+      toast({ title: "Versand angehalten" });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e?.message, variant: "destructive" });
+    } finally {
+      setActionId(null);
+      qc.invalidateQueries({ queryKey: ["bulk-campaigns"] });
+    }
+  };
+
+  const resumeSending = async (c: any) => {
+    setActionId(c.id);
+    try {
+      const res = await resumeBulkSend(c.id);
+      if (res?.continued) {
+        watchBulkSend(c.id);
+        toast({ title: "Versand wird fortgesetzt" });
+      } else if (res?.skipped === "running") {
+        toast({ title: "Versand läuft noch", description: "Es wurde gerade eben noch eine E-Mail verschickt." });
+      } else {
+        toast({ title: "Versand ist nicht mehr aktiv" });
+      }
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e?.message, variant: "destructive" });
+    } finally {
+      setActionId(null);
+      qc.invalidateQueries({ queryKey: ["bulk-campaigns"] });
+    }
+  };
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-bulk"],
@@ -127,25 +168,75 @@ export const BulkMailPanel = () => {
           )}
           {campaigns.map((c: any) => {
             const st = STATUS_LABEL[c.status] || { label: c.status, variant: "secondary" as const };
+            const sending = c.status === "sending";
+            const done = (c.sent_count || 0) + (c.failed_count || 0);
+            const stalled = isBulkSendStalled(c);
             return (
               <Card
                 key={c.id}
-                className="p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/40"
-                onClick={() => setOpenId(c.id)}
+                className={`p-3 flex items-center gap-3 ${sending ? "" : "cursor-pointer hover:bg-muted/40"}`}
+                onClick={() => {
+                  if (sending) return; // während des Versands nicht bearbeiten
+                  setOpenId(c.id);
+                }}
               >
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">{c.name}</div>
                   <div className="text-xs text-muted-foreground truncate">
                     {c.buildings?.name || "—"}
                     {c.recipient_count ? ` · ${c.recipient_count} Empfänger` : ""}
-                    {c.status === "sent" ? ` · ${c.sent_count} gesendet${c.failed_count ? `, ${c.failed_count} Fehler` : ""}` : ""}
-                    {c.scheduled_at ? ` · geplant: ${new Date(c.scheduled_at).toLocaleString("de-DE")}` : ""}
+                    {c.status === "sent" || c.status === "failed"
+                      ? done > 0
+                        ? ` · ${c.sent_count} gesendet${c.failed_count ? `, ${c.failed_count} Fehler` : ""}`
+                        : ""
+                      : ""}
+                    {c.scheduled_at && c.status === "scheduled" ? ` · geplant: ${new Date(c.scheduled_at).toLocaleString("de-DE")}` : ""}
                   </div>
+                  {sending && (
+                    <div className="mt-1.5 space-y-1">
+                      <Progress value={c.recipient_count ? (done / c.recipient_count) * 100 : 0} className="h-1.5" />
+                      <div className="text-xs text-muted-foreground">
+                        {done} von {c.recipient_count || "?"} verschickt
+                        {c.failed_count ? ` (${c.failed_count} fehlgeschlagen)` : ""}
+                        {stalled ? " · stockt – bitte „Fortsetzen“" : " · läuft im Hintergrund"}
+                      </div>
+                    </div>
+                  )}
+                  {c.status === "failed" && c.error_message && (
+                    <div className="text-xs text-destructive truncate mt-0.5">{c.error_message}</div>
+                  )}
                 </div>
+                {sending && stalled && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={actionId === c.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      resumeSending(c);
+                    }}
+                  >
+                    <Play className="h-3.5 w-3.5 mr-1" /> Fortsetzen
+                  </Button>
+                )}
+                {sending && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={actionId === c.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      stopSending(c);
+                    }}
+                  >
+                    <Pause className="h-3.5 w-3.5 mr-1" /> Anhalten
+                  </Button>
+                )}
                 <Badge variant={st.variant}>{st.label}</Badge>
                 <Button
                   variant="ghost"
                   size="icon"
+                  disabled={sending}
                   onClick={(e) => {
                     e.stopPropagation();
                     deleteCampaign(c.id);

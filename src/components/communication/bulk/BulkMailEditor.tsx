@@ -26,6 +26,7 @@ import { BulkRecipientCard, type RecipientGroup } from "./BulkRecipientCard";
 import { BulkRecipientDialog } from "./BulkRecipientDialog";
 import { BulkDropzone } from "./BulkDropzone";
 import type { PlaceholderSamples } from "../usePlaceholderSamples";
+import { startBulkSend } from "@/lib/bulkSendWatch";
 
 interface Props {
   campaignId: string;
@@ -114,6 +115,40 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     },
   });
 
+  /** Hinterlegte Signatur eines E-Mail-Kontos (leer, wenn keine). */
+  const signatureOf = (id: string) =>
+    (((accounts as any[]).find((a) => a.id === id)?.signature_html as string | null) || "").trim();
+
+  /** Entfernt eine Signatur, wenn sie am Ende des Textes steht. */
+  const stripTrailingSignature = (text: string, sig: string) => {
+    if (!sig) return text;
+    const idx = text.lastIndexOf(sig);
+    if (idx < 0 || text.slice(idx + sig.length).trim() !== "") return text;
+    return text.slice(0, idx).replace(/\s+$/, "");
+  };
+
+  /** Hängt die Signatur unten an, sofern sie noch nicht im Text steht. */
+  const appendSignature = (text: string, sig: string) => {
+    if (!sig || text.includes(sig)) return text;
+    const base = text.replace(/\s+$/, "");
+    return base ? `${base}\n\n${sig}` : `\n\n${sig}`;
+  };
+
+  /** Absender wechseln: alte Signatur raus, neue Signatur unten rein. */
+  const changeAccount = (nextId: string) => {
+    const prevSig = signatureOf(accountId);
+    const nextSig = signatureOf(nextId);
+    const swap = (text: string) => appendSignature(stripTrailingSignature(text, prevSig), nextSig);
+    setBody((b) => swap(b));
+    // Individuell bearbeitete Texte ebenfalls umstellen, sonst stünden dort zwei Signaturen
+    setTextOverrides((prev) => {
+      const next: typeof prev = {};
+      for (const [k, v] of Object.entries(prev)) next[k] = v.body ? { ...v, body: swap(v.body) } : v;
+      return next;
+    });
+    setAccountId(nextId);
+  };
+
   const { data: building } = useQuery({
     queryKey: ["bulk-building", buildingId],
     enabled: !!buildingId,
@@ -140,6 +175,17 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     if (campaign.scheduled_at) setScheduledAt(new Date(campaign.scheduled_at).toISOString().slice(0, 16));
     setLoaded(true);
   }, [campaign, loaded]);
+
+  // Entwurf mit bereits gewähltem Absender: Signatur einmalig unten ergänzen, falls sie fehlt
+  const signatureCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!loaded || signatureCheckedRef.current || accounts.length === 0) return;
+    signatureCheckedRef.current = true;
+    if (!accountId) return;
+    const sig = signatureOf(accountId);
+    if (sig) setBody((b) => appendSignature(b, sig));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, accounts.length, accountId]);
 
   useEffect(() => {
     if (overrides.length === 0) return;
@@ -397,8 +443,18 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
       scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
     };
     if (status) update.status = status;
-    const { error } = await supabase.from("comm_campaigns").update(update).eq("id", campaignId);
+    // Nie in einen laufenden Versand hineinschreiben (z. B. aus einem zweiten Tab):
+    // Status, Texte und persönliche Anhänge werden gerade vom Server gelesen.
+    const { data: updatedRows, error } = await supabase
+      .from("comm_campaigns")
+      .update(update)
+      .eq("id", campaignId)
+      .neq("status", "sending")
+      .select("id");
     if (error) throw error;
+    if (!updatedRows || updatedRows.length === 0) {
+      throw new Error("Diese Rundmail wird gerade versendet – Änderungen sind erst danach möglich.");
+    }
 
     await supabase.from("comm_recipient_overrides").delete().eq("campaign_id", campaignId);
     const rows = selectedGroups
@@ -438,8 +494,11 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
   const persistRef = useRef(persist);
   persistRef.current = persist;
   const [autoSaving, setAutoSaving] = useState(false);
+  // Während des Hintergrund-Versands nichts überschreiben (Anhänge/Texte werden gerade gelesen)
+  const isSending = campaign?.status === "sending";
+
   useEffect(() => {
-    if (!loaded || busy) return;
+    if (!loaded || busy || isSending) return;
     const t = setTimeout(async () => {
       try {
         setAutoSaving(true);
@@ -452,9 +511,10 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     }, 1500);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, selected, personal, textOverrides, generalPaths, noDuplicates]);
+  }, [loaded, selected, personal, textOverrides, generalPaths, noDuplicates, isSending]);
 
   const handleSave = async () => {
+    if (isSending) return toast({ title: "Versand läuft gerade", description: "Änderungen sind erst nach dem Versand möglich.", variant: "destructive" });
     setBusy("save");
 
     try {
@@ -467,9 +527,24 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     }
   };
 
+  const sendInProgressRef = useRef(false);
   const handleSend = async () => {
+    // Doppelklick-Schutz: der Bestätigungsdialog darf nur einmal erscheinen
+    if (sendInProgressRef.current) return;
+    sendInProgressRef.current = true;
+    try {
+      await handleSendInner();
+    } finally {
+      sendInProgressRef.current = false;
+    }
+  };
+
+  const handleSendInner = async () => {
+    if (isSending) return toast({ title: "Versand läuft bereits", variant: "destructive" });
     if (!accountId) return toast({ title: "Bitte Absender-Konto wählen", variant: "destructive" });
-    if (!subject.trim() || !body.trim()) return toast({ title: "Betreff und Text erforderlich", variant: "destructive" });
+    const textWithoutSignature = stripTrailingSignature(body, signatureOf(accountId));
+    if (!subject.trim() || !textWithoutSignature.trim())
+      return toast({ title: "Betreff und Text erforderlich", variant: "destructive" });
     if (selected.size === 0) return toast({ title: "Keine Empfänger ausgewählt", variant: "destructive" });
 
     if (scheduledAt) {
@@ -491,7 +566,27 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
 
     const withoutAttachment = selectedGroups.filter((g) => pathsForGroup(g).length === 0).length;
     const notSelected = selectableGroups.filter((g) => !isSelected(g));
+    // Wer diese Rundmail schon erhalten hat (z. B. vor einem Abbruch), wird übersprungen
+    const [{ count: alreadySentCount }, { count: interruptedCount }] = await Promise.all([
+      supabase
+        .from("comm_recipients")
+        .select("id", { count: "exact", head: true })
+        .eq("campaign_id", campaignId)
+        .eq("status", "sent"),
+      supabase
+        .from("comm_recipients")
+        .select("id", { count: "exact", head: true })
+        .eq("campaign_id", campaignId)
+        .eq("status", "failed")
+        .like("error", "Versand wurde unterbrochen%"),
+    ]);
     const lines = [`Rundmail jetzt an ${selectedGroups.length} Empfänger senden?`, ""];
+    if (alreadySentCount)
+      lines.push(`• ${alreadySentCount} haben diese Rundmail bereits erhalten und werden nicht erneut angeschrieben`);
+    if (interruptedCount)
+      lines.push(
+        `• ACHTUNG: Bei ${interruptedCount} Empfänger(n) wurde der letzte Versand mitten in der Mail unterbrochen. Sie bekommen die Rundmail erneut – bitte vorher im Ordner „Gesendet“ prüfen, ob sie schon angekommen ist.`,
+      );
     if (withoutAttachment > 0) lines.push(`• ${withoutAttachment} ohne persönlichen Anhang`);
     if (notSelected.length > 0)
       lines.push(
@@ -512,15 +607,20 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     setBusy("send");
     try {
       await persist("draft");
-      const { data, error } = await supabase.functions.invoke("comm-send-bulk-email", {
-        body: { campaign_id: campaignId },
-      });
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      toast({
-        title: "Versand abgeschlossen",
-        description: `${(data as any)?.ok ?? 0} gesendet, ${(data as any)?.failed ?? 0} fehlgeschlagen`,
-      });
+      const result = await startBulkSend(campaignId);
+      if (result.background) {
+        toast({
+          title: "Versand gestartet",
+          description: `${result.queued ?? 0} E-Mail(s) werden im Hintergrund verschickt. Sie können normal weiterarbeiten – es erscheint eine Meldung, sobald alles raus ist.${
+            result.already_sent ? ` ${result.already_sent} Empfänger hatten die Rundmail schon erhalten.` : ""
+          }`,
+        });
+      } else {
+        toast({
+          title: "Nichts mehr zu senden",
+          description: "Alle ausgewählten Empfänger haben diese Rundmail bereits erhalten.",
+        });
+      }
       qc.invalidateQueries({ queryKey: ["bulk-campaigns"] });
       onBack();
     } catch (e: any) {
@@ -568,15 +668,22 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
           </Badge>
         )}
         <div className="flex-1" />
-        <Button variant="ghost" size="sm" onClick={handleSave} disabled={busy !== null}>
+        <Button variant="ghost" size="sm" onClick={handleSave} disabled={busy !== null || isSending}>
           {busy === "save" ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
           Speichern
         </Button>
-        <Button size="sm" className="rounded-full px-4" onClick={handleSend} disabled={busy !== null}>
+        <Button size="sm" className="rounded-full px-4" onClick={handleSend} disabled={busy !== null || isSending}>
           {busy === "send" ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
           {scheduledAt ? "Planen" : `Senden (${selected.size})`}
         </Button>
       </div>
+
+      {isSending && (
+        <div className="px-4 py-2 text-sm border-b bg-primary/5 text-foreground shrink-0">
+          Diese Rundmail wird gerade im Hintergrund versendet ({campaign?.sent_count ?? 0} von{" "}
+          {campaign?.recipient_count ?? 0} verschickt). Änderungen sind erst danach möglich.
+        </div>
+      )}
 
       <div className="flex-1 min-h-0 grid lg:grid-cols-[minmax(0,1fr)_440px] divide-y lg:divide-y-0 lg:divide-x overflow-auto lg:overflow-hidden">
         {/* Links: Inhalt + Anhänge */}
@@ -587,7 +694,7 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 border-b bg-muted/20">
                 <div className="flex min-w-[240px] flex-1 items-center gap-2">
                   <span className="text-xs uppercase tracking-wide text-muted-foreground">Von</span>
-                  <Select value={accountId} onValueChange={setAccountId}>
+                  <Select value={accountId} onValueChange={changeAccount}>
                     <SelectTrigger className="h-8 flex-1 border-0 bg-transparent px-1 text-sm shadow-none focus:ring-0">
                       <SelectValue placeholder="E-Mail-Konto wählen" />
                     </SelectTrigger>
