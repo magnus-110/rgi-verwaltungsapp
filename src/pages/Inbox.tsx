@@ -70,7 +70,7 @@ import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { EmailAttachments } from "@/components/email/EmailAttachments";
 import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
 import { AssignBrokerLeadDialog } from "@/components/email/AssignBrokerLeadDialog";
-import { AiEmailSearchDialog } from "@/components/email/AiEmailSearchDialog";
+import { SearchableFilterSelect } from "@/components/email/SearchableFilterSelect";
 
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
 import { PrintEmailDialog } from "@/components/email/PrintEmailDialog";
@@ -102,6 +102,17 @@ export const Inbox = () => {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  // Suchbegriff erst nach kurzer Tipp-Pause abschicken (nicht bei jedem Buchstaben)
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 350);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+  // false = nur im gewählten Ordner suchen, true = in allen Ordnern
+  const [searchAllFolders, setSearchAllFolders] = useState(false);
+  useEffect(() => {
+    setSearchAllFolders(false);
+  }, [selectedFolderId]);
   const [isSyncing, setIsSyncing] = useState(false);
   const { openCompose } = useComposeEmail();
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[] | null>(() => {
@@ -122,7 +133,6 @@ export const Inbox = () => {
     return true;
   });
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
-  const [aiSearchOpen, setAiSearchOpen] = useState(false);
   const [showEmailDetails, setShowEmailDetails] = useState(false);
   const [archiveEmailId, setArchiveEmailId] = useState<string | null>(null);
   const [brokerLeadEmailId, setBrokerLeadEmailId] = useState<string | null>(null);
@@ -268,12 +278,20 @@ export const Inbox = () => {
   const { data: contacts = [] } = useQuery({
     queryKey: ["contacts-list"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("contacts")
-        .select("id, first_name, last_name, company_name")
-        .order("last_name");
-      if (error) throw error;
-      return data;
+      // Seitenweise laden: die Datenbank liefert pro Abfrage höchstens 1000 Zeilen
+      const all: { id: string; first_name: string | null; last_name: string | null; company_name: string | null }[] = [];
+      for (let from = 0; from < 20000; from += 1000) {
+        const { data, error } = await supabase
+          .from("contacts")
+          .select("id, first_name, last_name, company_name")
+          .order("last_name")
+          .order("id")
+          .range(from, from + 999);
+        if (error) throw error;
+        all.push(...((data || []) as any[]));
+        if (!data || data.length < 1000) break;
+      }
+      return all;
     },
   });
 
@@ -451,7 +469,7 @@ export const Inbox = () => {
 
 
   // Fetch emails for selected folder — slim columns; body wird lazy für Detail geladen
-  const isSearching = searchTerm.trim().length >= 2;
+  const isSearching = debouncedSearch.length >= 2;
   const [pageLimit, setPageLimit] = useState<number>(100);
   // Reset Pagination wenn sich Ordner / Filter / Suche ändern
   useEffect(() => {
@@ -459,7 +477,8 @@ export const Inbox = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     selectedFolderId,
-    searchTerm,
+    debouncedSearch,
+    searchAllFolders,
     selectedAccountIds,
     isArchiveFolder,
     filterBuildingId,
@@ -478,7 +497,8 @@ export const Inbox = () => {
     queryKey: [
       "emails",
       selectedFolderId,
-      searchTerm,
+      debouncedSearch,
+      searchAllFolders,
       selectedAccountIds,
       isArchiveFolder,
       filterBuildingId,
@@ -487,22 +507,75 @@ export const Inbox = () => {
       pageLimit,
     ],
     queryFn: async () => {
-      // Suchmodus: serverseitige RPC (ordnerübergreifend, sucht zuverlässig auch in JSONB-Empfängern)
+      // Suchmodus: serverseitig im gewählten Ordner (bzw. Archiv mit Filtern) oder in allen Ordnern.
+      // Sucht in Betreff, Absender, Empfängern, CC und Text; mehrere Wörter müssen alle vorkommen.
       if (isSearching) {
         const accountIds = selectedAccountIds === null ? null : selectedAccountIds;
         if (accountIds && accountIds.length === 0) return [] as any[];
         const assignedFilter =
           filterAssignedTo === "all" ? "all" : filterAssignedTo === "unassigned" ? "unassigned" : "user";
-        const { data, error } = await supabase.rpc("search_emails" as any, {
-          p_search: searchTerm.trim(),
+        const scopeAll = searchAllFolders || !selectedFolderId;
+        const buildingFilter = isArchiveFolder && !scopeAll ? filterBuildingId : "all";
+        const contactFilter = isArchiveFolder && !scopeAll ? filterContactId : "all";
+
+        const byDateDesc = (a: any, b: any) =>
+          (b.date ? new Date(b.date).getTime() : 0) - (a.date ? new Date(a.date).getTime() : 0);
+
+        const { data: ids, error: v2Error } = await supabase.rpc("search_emails_v2" as any, {
+          p_search: debouncedSearch,
+          p_folder_id: scopeAll || isArchiveFolder ? null : selectedFolderId,
+          p_archived: scopeAll ? null : isArchiveFolder,
+          p_building_id: buildingFilter !== "all" && buildingFilter !== "none" ? buildingFilter : null,
+          p_without_building: buildingFilter === "none",
+          p_contact_id: contactFilter !== "all" && contactFilter !== "none" ? contactFilter : null,
+          p_without_contact: contactFilter === "none",
           p_account_ids: accountIds,
           p_assigned_to: assignedFilter === "user" ? filterAssignedTo : null,
           p_assigned_filter: assignedFilter,
           p_limit: pageLimit,
           p_offset: 0,
         });
+
+        if (!v2Error) {
+          const idList = ((ids || []) as any[])
+            .map((r) => (typeof r === "string" ? r : r?.search_emails_v2 ?? r?.id))
+            .filter(Boolean) as string[];
+          if (idList.length === 0) return [] as any[];
+          const rows: any[] = [];
+          for (let i = 0; i < idList.length; i += 150) {
+            const { data: part, error: partErr } = await supabase
+              .from("emails")
+              .select(EMAIL_COLUMNS)
+              .in("id", idList.slice(i, i + 150));
+            if (partErr) throw partErr;
+            rows.push(...(part || []));
+          }
+          return rows.sort(byDateDesc);
+        }
+
+        // Rückfall, solange die neue Datenbank-Funktion noch nicht eingespielt ist:
+        // alte Suche (alle Ordner) und danach im Browser auf Ordner/Filter eingrenzen.
+        console.warn("[Inbox] search_emails_v2 nicht verfügbar, nutze alte Suche:", v2Error.message);
+        const { data, error } = await supabase.rpc("search_emails" as any, {
+          p_search: debouncedSearch,
+          p_account_ids: accountIds,
+          p_assigned_to: assignedFilter === "user" ? filterAssignedTo : null,
+          p_assigned_filter: assignedFilter,
+          p_limit: scopeAll ? pageLimit : Math.max(pageLimit, 500),
+          p_offset: 0,
+        });
         if (error) throw error;
-        return (data || []) as any[];
+        let list = (data || []) as any[];
+        if (!scopeAll) {
+          list = isArchiveFolder
+            ? list.filter((e) => e.is_archived)
+            : list.filter((e) => !e.is_archived && e.folder_id === selectedFolderId);
+          if (buildingFilter === "none") list = list.filter((e) => !e.building_id);
+          else if (buildingFilter !== "all") list = list.filter((e) => e.building_id === buildingFilter);
+          if (contactFilter === "none") list = list.filter((e) => !e.contact_id);
+          else if (contactFilter !== "all") list = list.filter((e) => e.contact_id === contactFilter);
+        }
+        return list.sort(byDateDesc);
       }
 
       let query = supabase.from("emails").select(EMAIL_COLUMNS).order("date", { ascending: false }).limit(pageLimit);
@@ -1458,59 +1531,70 @@ export const Inbox = () => {
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
                           placeholder={
-                            filterCategory !== "all" ? `In "${filterCategory}" suchen...` : "E-Mails durchsuchen..."
+                            searchAllFolders
+                              ? "In allen Ordnern suchen..."
+                              : filterCategory !== "all"
+                                ? `In "${filterCategory}" suchen...`
+                                : `In ${folders.find((f) => f.id === selectedFolderId)?.name || "diesem Ordner"} suchen...`
                           }
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
                           className="pl-9 h-9"
                         />
                       </div>
-                      {isArchiveFolder && (
+                    </div>
+                    {searchTerm.trim().length >= 2 && (
+                      <div className="flex items-center gap-1 text-xs">
+                        <span className="text-muted-foreground">Suchen in:</span>
                         <Button
                           type="button"
-                          variant="outline"
-                          size="icon"
-                          className="h-9 w-9 shrink-0"
-                          title="KI-Suche im Archiv"
-                          onClick={() => setAiSearchOpen(true)}
+                          size="sm"
+                          variant={searchAllFolders ? "ghost" : "secondary"}
+                          className="h-6 px-2 text-xs"
+                          onClick={() => setSearchAllFolders(false)}
                         >
-                          <Sparkles className="h-4 w-4 text-primary" />
+                          {folders.find((f) => f.id === selectedFolderId)?.name || "Diesem Ordner"}
                         </Button>
-                      )}
-                    </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={searchAllFolders ? "secondary" : "ghost"}
+                          className="h-6 px-2 text-xs"
+                          onClick={() => setSearchAllFolders(true)}
+                        >
+                          Allen Ordnern
+                        </Button>
+                      </div>
+                    )}
                     {/* Archive filters */}
                     {isArchiveFolder && (
                       <div className="flex gap-2">
-                        <Select value={filterBuildingId} onValueChange={setFilterBuildingId}>
-                          <SelectTrigger className="h-8 text-xs flex-1">
-                            <Building2 className="h-3 w-3 mr-1 shrink-0" />
-                            <SelectValue placeholder="Liegenschaft" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Alle Liegenschaften</SelectItem>
-                            <SelectItem value="none">Ohne Liegenschaft</SelectItem>
-                            {buildings.map((b) => (
-                              <SelectItem key={b.id} value={b.id}>
-                                {b.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Select value={filterContactId} onValueChange={setFilterContactId}>
-                          <SelectTrigger className="h-8 text-xs flex-1">
-                            <User className="h-3 w-3 mr-1 shrink-0" />
-                            <SelectValue placeholder="Kontakt" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Alle Kontakte</SelectItem>
-                            <SelectItem value="none">Ohne Kontakt</SelectItem>
-                            {contacts.map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
-                                {getContactName(c)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <SearchableFilterSelect
+                          value={filterBuildingId}
+                          onChange={setFilterBuildingId}
+                          icon={<Building2 className="h-3 w-3 shrink-0" />}
+                          fixedOptions={[
+                            { value: "all", label: "Alle Liegenschaften" },
+                            { value: "none", label: "Ohne Liegenschaft" },
+                          ]}
+                          options={buildings.map((b) => ({ value: b.id, label: b.name || "Unbenannt" }))}
+                          searchPlaceholder="Liegenschaft suchen..."
+                          emptyText="Keine Liegenschaft gefunden."
+                          className="flex-1"
+                        />
+                        <SearchableFilterSelect
+                          value={filterContactId}
+                          onChange={setFilterContactId}
+                          icon={<User className="h-3 w-3 shrink-0" />}
+                          fixedOptions={[
+                            { value: "all", label: "Alle Kontakte" },
+                            { value: "none", label: "Ohne Kontakt" },
+                          ]}
+                          options={contacts.map((c) => ({ value: c.id, label: getContactName(c) }))}
+                          searchPlaceholder="Kontakt suchen..."
+                          emptyText="Kein Kontakt gefunden."
+                          className="flex-1"
+                        />
                       </div>
                     )}
                   </div>
@@ -2313,29 +2397,6 @@ export const Inbox = () => {
       )}
 
       <PrintEmailDialog open={printDialogOpen} onOpenChange={setPrintDialogOpen} email={selectedEmail as any} />
-
-      <AiEmailSearchDialog
-        open={aiSearchOpen}
-        onOpenChange={setAiSearchOpen}
-        accountIds={selectedAccountIds}
-        onSelectEmail={async (emailId) => {
-          setAiSearchOpen(false);
-          const { data } = await supabase
-            .from("emails")
-            .select("id, folder_id, is_archived")
-            .eq("id", emailId)
-            .maybeSingle();
-          if (data) {
-            if (data.is_archived) {
-              const archive = folders.find((f) => f.name === "Archiv");
-              if (archive) setSelectedFolderId(archive.id);
-            } else if (data.folder_id) {
-              setSelectedFolderId(data.folder_id);
-            }
-            setSelectedEmailId(data.id);
-          }
-        }}
-      />
 
       <Dialog open={newContactDialogOpen} onOpenChange={setNewContactDialogOpen}>
         <DialogContent className="sm:max-w-md">
