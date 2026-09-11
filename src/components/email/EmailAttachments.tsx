@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown } from "lucide-react";
+import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown, FileArchive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -61,6 +61,7 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const [previewMeta, setPreviewMeta] = useState<{ name: string; mimeType: string | null }>({ name: "", mimeType: null });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [mergeImporting, setMergeImporting] = useState(false);
+  const [zipping, setZipping] = useState(false);
 
   const { data: attachments = [] } = useQuery({
     queryKey: ["email-attachments", emailId],
@@ -284,6 +285,75 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
     }
   };
 
+  /** Lädt alle Anhänge dieser E-Mail als eine ZIP-Datei herunter. */
+  const handleDownloadAllAsZip = async () => {
+    const files = attachments.filter((a) => !!a.file_path);
+    if (files.length === 0) return;
+    setZipping(true);
+    try {
+      const { default: JSZip } = await import("jszip");
+      const zip = new JSZip();
+      const usedNames = new Set<string>();
+      const uniqueName = (name: string) => {
+        const base = (name || "anhang").replace(/[\\/:*?"<>|]+/g, "_");
+        if (!usedNames.has(base.toLowerCase())) {
+          usedNames.add(base.toLowerCase());
+          return base;
+        }
+        const dot = base.lastIndexOf(".");
+        const stem = dot > 0 ? base.slice(0, dot) : base;
+        const ext = dot > 0 ? base.slice(dot) : "";
+        let i = 2;
+        while (usedNames.has(`${stem} (${i})${ext}`.toLowerCase())) i++;
+        const next = `${stem} (${i})${ext}`;
+        usedNames.add(next.toLowerCase());
+        return next;
+      };
+
+      const failed: string[] = [];
+      for (const att of files) {
+        try {
+          const { data: signed, error } = await supabase.storage
+            .from("email-attachments")
+            .createSignedUrl(att.file_path!, 300);
+          if (error || !signed?.signedUrl) throw new Error("nicht lesbar");
+          const res = await fetch(signed.signedUrl);
+          if (!res.ok) throw new Error("Download fehlgeschlagen");
+          zip.file(uniqueName(att.file_name), await res.blob());
+        } catch {
+          failed.push(att.file_name);
+        }
+      }
+      if (failed.length === files.length) throw new Error("Keine Datei konnte geladen werden");
+
+      // Dateiname aus dem Betreff der E-Mail, falls vorhanden
+      const { data: email } = await supabase.from("emails").select("subject").eq("id", emailId).maybeSingle();
+      const subjectPart = ((email as { subject?: string | null } | null)?.subject || "")
+        .replace(/[\\/:*?"<>|]+/g, "_")
+        .trim()
+        .slice(0, 60);
+      const zipName = `${subjectPart || "Anhaenge"}.zip`;
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = zipName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+
+      if (failed.length > 0) {
+        toast.warning(`${failed.length} Anhang/Anhänge fehlen im ZIP: ${failed.join(", ")}`);
+      }
+    } catch (err: any) {
+      toast.error("ZIP-Download fehlgeschlagen: " + (err?.message || err));
+    } finally {
+      setZipping(false);
+    }
+  };
+
   const selectableImageCount = attachments.filter((a) => isImage(a.mime_type, a.file_name)).length;
 
   return (
@@ -291,6 +361,23 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
       <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-2">
         <Paperclip className="h-4 w-4" />
         {attachments.length} Anhang{attachments.length > 1 ? "e" : ""}
+        {attachments.length > 1 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 ml-1 px-2 text-xs"
+            onClick={handleDownloadAllAsZip}
+            disabled={zipping}
+            title="Alle Anhänge als ZIP-Datei herunterladen"
+          >
+            {zipping ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+            ) : (
+              <FileArchive className="h-3.5 w-3.5 mr-1" />
+            )}
+            Alle als ZIP
+          </Button>
+        )}
       </div>
 
       {selectedIds.length >= 2 && (
