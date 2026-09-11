@@ -14,6 +14,7 @@ import { RequireMfa } from "./RequireMfa";
 import { BrokerModeProvider } from "@/hooks/useBrokerMode";
 import { BackendHealthProvider } from "@/hooks/useBackendHealth";
 import { BackendStatusBanner } from "@/components/system/BackendStatusBanner";
+import { BulkSendWatcher } from "@/lib/bulkSendWatch";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -109,6 +110,7 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
               <AdminLayoutContent>{children}</AdminLayoutContent>
               <UploadProgressWidget />
               <DmsJobsTray />
+              <BulkSendWatcher />
             </BrokerModeProvider>
           </ManagementModeProvider>
         </DmsJobsProvider>
