@@ -212,9 +212,14 @@ export function ProtocolSignaturesInline({ meetingId }: { meetingId: string }) {
         ))}
       </div>
       <div className="flex items-center justify-between pt-1">
-        <Badge variant={allSigned ? "default" : "outline"} className="text-[10px]">
-          {signatures.length} / 3 unterschrieben
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={allSigned ? "default" : "outline"} className="text-[10px]">
+            {signatures.length} / 3 unterschrieben
+          </Badge>
+          <span className="text-[10px] text-muted-foreground">
+            {pdfRenderCount > 0 ? "PDF-Protokoll vorhanden" : "PDF-Protokoll wird beim Ablegen erzeugt"}
+          </span>
+        </div>
         <Button
           size="sm" variant={allSigned ? "default" : "ghost"}
           disabled={!allSigned || finalize.isPending}
