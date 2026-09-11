@@ -54,7 +54,38 @@ Deno.serve(async (req) => {
         .maybeSingle();
       pdfPath = data?.storage_path || null;
     }
-    if (!pdfPath) return json({ error: "Kein PDF-Render gefunden. Bitte zuerst PDF generieren." }, 400);
+    if (!pdfPath) {
+      // Kein PDF vorhanden → automatisch erzeugen (inkl. Unterschriftenseite + DMS-Ablage)
+      try {
+        const renderResp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/etv-render-protocol`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: req.headers.get("Authorization") ||
+              `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({ meeting_id, output_format: "pdf", file_to_dms: true }),
+        });
+        const rendered = await renderResp.json().catch(() => ({}));
+        if (!renderResp.ok || rendered?.error) {
+          return json({
+            error: rendered?.error ||
+              "Kein Protokoll-PDF vorhanden und die automatische Erzeugung ist fehlgeschlagen. Bitte zuerst das Protokoll erzeugen.",
+          }, 400);
+        }
+        return json({
+          ok: true,
+          auto_rendered: true,
+          signed_url: rendered.signed_url,
+          dms_file_id: rendered.dms_file_id ?? null,
+          storage_path: rendered.storage_path,
+        });
+      } catch (e: any) {
+        return json({
+          error: `Kein Protokoll-PDF vorhanden und die automatische Erzeugung ist fehlgeschlagen: ${e?.message || e}`,
+        }, 400);
+      }
+    }
 
     const { data: pdfFile, error: dlErr } = await admin.storage.from("building-files").download(pdfPath);
     if (dlErr || !pdfFile) return json({ error: dlErr?.message || "PDF nicht ladbar" }, 500);
