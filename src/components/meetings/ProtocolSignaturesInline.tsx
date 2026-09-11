@@ -160,15 +160,36 @@ export function ProtocolSignaturesInline({ meetingId }: { meetingId: string }) {
 
   const allSigned = ROLES.every((r) => signatures.some((s: any) => s.role === r.key));
 
+  const { data: pdfRenderCount = 0 } = useQuery({
+    queryKey: ["etv-protocol-pdf-renders", meetingId],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("etv_protocol_renders")
+        .select("id", { count: "exact", head: true })
+        .eq("meeting_id", meetingId)
+        .eq("format", "pdf");
+      return count || 0;
+    },
+  });
+
   const finalize = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("etv-finalize-signed-protocol", { body: { meeting_id: meetingId } });
-      if (error) throw error;
+      // Bei Non-2xx liefert invoke einen FunctionsHttpError – die Server-Meldung steckt im Response-Body
+      if (error) {
+        let msg = error.message;
+        try {
+          const body = await (error as any)?.context?.json?.();
+          if (body?.error) msg = body.error;
+        } catch { /* Standardmeldung behalten */ }
+        throw new Error(msg);
+      }
       if (data?.error) throw new Error(data.error);
       return data as { signed_url: string; dms_file_id: string | null };
     },
     onSuccess: (d) => {
       toast.success(d.dms_file_id ? "Im DMS abgelegt" : "Erstellt");
+      qc.invalidateQueries({ queryKey: ["etv-protocol-pdf-renders", meetingId] });
       if (d.signed_url) window.open(d.signed_url, "_blank");
     },
     onError: (e: any) => toast.error(e.message),
