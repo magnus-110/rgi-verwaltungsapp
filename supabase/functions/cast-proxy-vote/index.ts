@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     // Validate token
     const { data: attendee, error: attErr } = await supabase
       .from("etv_attendees")
-      .select("id, assignment_id, meeting_id, proxy_token, attendance_type")
+      .select("id, assignment_id, meeting_id, proxy_token, attendance_type, head_weight")
       .eq("proxy_token", token)
       .maybeSingle();
 
@@ -84,6 +84,9 @@ Deno.serve(async (req) => {
         assignment_id: attendee.assignment_id,
         vote,
         mea_weight: share?.share_value || 0,
+        // Kopfgewicht (§ 25 Abs. 2 WEG): 0, wenn die Einheit mit einer anderen
+        // Einheit desselben Eigentuemers zu einem Kopf zusammengefasst ist.
+        head_weight: attendee.head_weight ?? 1,
         voted_at: new Date().toISOString(),
       },
       { onConflict: "agenda_item_id,assignment_id" }
