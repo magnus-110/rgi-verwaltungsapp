@@ -417,7 +417,7 @@ serve(async (req) => {
         Authorization: `Bearer ${mistralApiKey}`,
       },
       body: JSON.stringify({
-        model: "mistral-small-latest",
+        model: "mistral-large-latest",
         messages: [
           {
             role: "system",

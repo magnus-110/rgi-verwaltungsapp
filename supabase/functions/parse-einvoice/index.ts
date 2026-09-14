@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
 import { detectAndParseEInvoice } from "../_shared/einvoice.ts";
+import { requireAdmin } from "../_shared/require-admin.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +15,10 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Liest Rechnungsdateien aus dem Storage - nur fuer Verwalter.
+  const auth = await requireAdmin(req, corsHeaders);
+  if (!auth.ok) return auth.response;
 
   try {
     const { invoiceId } = await req.json();

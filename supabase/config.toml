@@ -94,10 +94,10 @@ verify_jwt = false
 
 
 [functions.suggest-templates]
-verify_jwt = false
+verify_jwt = true
 
 [functions.parse-einvoice]
-verify_jwt = false
+verify_jwt = true
 
 [functions.comm-parse-template]
 verify_jwt = false

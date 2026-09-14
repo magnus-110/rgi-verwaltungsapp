@@ -22,7 +22,16 @@ function parseGermanAmount(value: any): number | null {
   if (hasComma && hasDot) {
     if (s.lastIndexOf(",") > s.lastIndexOf(".")) s = s.replace(/\./g, "").replace(",", ".");
     else s = s.replace(/,/g, "");
-  } else if (hasComma) s = s.replace(",", ".");
+  } else if (hasComma) {
+    s = s.replace(",", ".");
+  } else if (hasDot) {
+    // Nur Punkte, kein Komma: "1.234" ist auf einem deutschen Beleg der Tausenderpunkt
+    // (= 1234,00), "1234.56" dagegen ein Dezimalpunkt. Drei Stellen hinter dem letzten
+    // Punkt sind bei Geldbetraegen nie Nachkommastellen, zwei dagegen der Normalfall.
+    const stellenNachPunkt = s.length - s.lastIndexOf(".") - 1;
+    const mehrerePunkte = (s.match(/\./g) || []).length > 1;
+    if (mehrerePunkte || stellenNachPunkt === 3) s = s.replace(/\./g, "");
+  }
   const n = parseFloat(s);
   if (isNaN(n)) return null;
   return negative ? -Math.abs(n) : n;
@@ -59,6 +68,8 @@ async function mistralOcr(base64Pdf: string, apiKey: string): Promise<string> {
   return pages.map((p) => p.markdown || "").join("\n\n---PAGE---\n\n");
 }
 
+const MAX_MARKDOWN_CHARS = 60000;
+
 async function extractStructuredStatement(markdown: string, apiKey: string): Promise<any> {
   const systemPrompt = `Du extrahierst Daten aus deutschen Bank-Kontoauszügen (PDF).
 
@@ -88,7 +99,9 @@ VOLLSTÄNDIGKEIT:
 - Liste ALLE sichtbaren Buchungen vollständig auf — auch "Abschluss"-Zeilen, Gebühren und kleine Beträge (≤1 €).
 - Prüfe am Ende: Summe(Beträge) MUSS exakt = Endsaldo - Anfangssaldo. Wenn nicht, fehlt eine Buchung oder ein Vorzeichen ist falsch — korrigiere.`;
 
-  const userPrompt = `Extrahiere die strukturierten Daten aus diesem Kontoauszug:\n\n${markdown.slice(0, 60000)}`;
+  // Der Hint muss NACH dem Kuerzen angehaengt werden - sonst faellt bei langen
+  // Auszuegen die Strukturvorgabe weg und das Modell liefert beliebiges JSON.
+  const userPrompt = `Extrahiere die strukturierten Daten aus diesem Kontoauszug:\n\n${markdown.slice(0, MAX_MARKDOWN_CHARS)}${STRUCTURE_HINT}`;
 
   const resp = await fetch("https://api.mistral.ai/v1/chat/completions", {
     method: "POST",
@@ -371,12 +384,17 @@ Deno.serve(async (req) => {
     console.log(`[pdf-import] OCR ${fileName}`);
     const markdown = await mistralOcr(pdfBase64, apiKey);
 
-    // 2) Structured extraction (mit Hint angehängt)
+    // 2) Structured extraction (Hint wird in der Funktion nach dem Kuerzen angehaengt)
     console.log(`[pdf-import] Structured extraction (md length: ${markdown.length})`);
-    const extracted = await extractStructuredStatement(markdown + STRUCTURE_HINT, apiKey);
+    const extracted = await extractStructuredStatement(markdown, apiKey);
     console.log(`[pdf-import] Extracted: iban=${extracted.account_iban}, opening=${extracted.opening_balance}, closing=${extracted.closing_balance}, txns=${extracted.transactions?.length || 0}`);
 
     const warnings: string[] = [];
+    if (markdown.length > MAX_MARKDOWN_CHARS) {
+      warnings.push(
+        `Auszug zu lang: Nur die ersten ${MAX_MARKDOWN_CHARS} von ${markdown.length} Zeichen wurden ausgewertet. Buchungen am Ende des Auszugs fehlen moeglicherweise - bitte PDF aufteilen und erneut importieren.`,
+      );
+    }
     const opening = parseGermanAmount(extracted.opening_balance);
     const closing = parseGermanAmount(extracted.closing_balance);
     const iban = normalizeIban(extracted.account_iban);
@@ -426,9 +444,14 @@ Deno.serve(async (req) => {
 
     // 5) Transaktionen normalisieren
     const txnRows = [];
+    let ohneBetrag = 0;
     for (const t of txns) {
       const amount = parseGermanAmount(t.amount);
-      if (amount == null) continue;
+      if (amount == null) {
+        ohneBetrag++;
+        console.warn("[pdf-import] Transaktion ohne lesbaren Betrag uebersprungen:", JSON.stringify(t).slice(0, 200));
+        continue;
+      }
       const bookingDate = t.booking_date || extracted.statement_date_to || new Date().toISOString().slice(0, 10);
       const purpose = (t.purpose || "").toString().trim();
       const cpIban = normalizeIban(t.counterparty_iban);
@@ -456,6 +479,13 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (ohneBetrag > 0) {
+      warnings.push(
+        `${ohneBetrag} Buchung(en) ohne lesbaren Betrag wurden uebersprungen und fehlen im Import - bitte Auszug pruefen.`,
+      );
+      await supabase.from("bank_statements").update({ parse_warnings: warnings }).eq("id", statement.id);
+    }
+
     // 6) Dedup
     let inserted = 0, duplicates = 0;
     if (txnRows.length) {
@@ -463,8 +493,13 @@ Deno.serve(async (req) => {
       const existing = new Set<string>();
       for (let i = 0; i < hashes.length; i += 100) {
         const batch = hashes.slice(i, i + 100);
-        const { data } = await supabase.from("bank_transactions")
-          .select("transaction_hash").in("transaction_hash", batch);
+        // Nur im selben Gebaeude suchen - genau wie der Unique-Index
+        // (building_id, transaction_hash). Ohne diesen Filter gilt eine echte Buchung
+        // als Dublette, sobald eine andere WEG am selben Tag denselben Betrag und
+        // Verwendungszweck hat ("Abschluss", Gebuehren, runde Betraege).
+        let q = supabase.from("bank_transactions").select("transaction_hash").in("transaction_hash", batch);
+        q = buildingId ? q.eq("building_id", buildingId) : q.is("building_id", null);
+        const { data } = await q;
         data?.forEach((r: any) => existing.add(r.transaction_hash));
       }
       const unique = txnRows.filter((t) => !existing.has(t.transaction_hash));

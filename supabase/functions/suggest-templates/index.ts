@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { requireAdmin } from "../_shared/require-admin.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,6 +9,10 @@ const corsHeaders = {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  // Gibt Kontenplan und Kontoauszugsdaten heraus - nur fuer Verwalter.
+  const auth = await requireAdmin(req, corsHeaders);
+  if (!auth.ok) return auth.response;
 
   try {
     const { buildingId } = await req.json();
