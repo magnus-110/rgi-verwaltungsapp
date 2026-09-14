@@ -57,6 +57,10 @@ Deno.serve(async (req) => {
       .select("id, title, description, category, ai_keywords")
       .eq("building_id", effectiveBuildingId)
       .in("status", ["open", "in_progress", "waiting_external", "waiting_owner"])
+      // Ohne Sortierung entscheidet der Zufall, welche 30 das Limit ueberleben.
+      // Derzeit hat kein Gebaeude mehr als 11 aktive Vorgaenge, kuenftig greift
+      // damit zuerst der zuletzt bewegte.
+      .order("updated_at", { ascending: false })
       .limit(30);
 
     if (!cases || cases.length === 0) {

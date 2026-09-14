@@ -158,14 +158,11 @@ Deno.serve(async (req) => {
         }
         await new Promise((r) => setTimeout(r, 300));
       }
-      // Klassifizierung am Ende einmal anstoßen.
-      try {
-        fetch(`${supabaseUrl}/functions/v1/classify-email`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}` },
-          body: JSON.stringify({}),
-        }).catch(() => {});
-      } catch { /* ignore */ }
+      // Hier wurde frueher classify-email angestossen. Das war zu frueh: Die
+      // Konto-Abrufe oben laufen fire-and-forget noch, wenn diese Zeile erreicht
+      // wird - die neuen Mails stehen also noch gar nicht in der Datenbank.
+      // Klassifiziert wurde dadurch immer nur der Vorlauf-Batch. Der Aufruf sitzt
+      // jetzt am Ende des Einzelkonto-Laufs, wo die Mails geschrieben sind.
 
       return new Response(
         JSON.stringify({ success: true, dispatched }),
@@ -242,7 +239,28 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true, results }), {
+    // Klassifizierung anstossen, sobald tatsaechlich neue Mails geschrieben wurden.
+    // classify-email nimmt ohnehin alle Mails ohne ai_category, holt also auch
+    // frueher Liegengebliebenes mit.
+    const neueMails = Object.values(results).reduce(
+      (summe: number, r: any) => summe + (Number(r?.fetched) || 0),
+      0,
+    );
+    if (neueMails > 0) {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      try {
+        fetch(`${supabaseUrl}/functions/v1/classify-email`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}` },
+          body: JSON.stringify({}),
+        }).catch((e) => console.error("classify-email Anstoss fehlgeschlagen:", e?.message));
+      } catch (e: any) {
+        console.error("classify-email Anstoss fehlgeschlagen:", e?.message);
+      }
+    }
+
+    return new Response(JSON.stringify({ success: true, results, neueMails }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {

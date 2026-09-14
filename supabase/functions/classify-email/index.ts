@@ -22,21 +22,38 @@ function normalizeText(s: string | null | undefined): string {
     .trim();
 }
 
-// Build search tokens from a building (name + address parts)
-function buildingTokens(b: { name: string | null; address: string | null }): string[] {
+// Suchbegriffe eines Gebaeudes (Name und Strasse).
+//
+// Der Ortsname gehoert bewusst NICHT dazu: Ein einzelner Treffer fuehrt weiter
+// unten zu einer harten Zuordnung ohne Rueckfrage beim Modell, und durchsucht wird
+// der Mailtext samt Signatur. Stand der Ort mit in den Suchbegriffen, genuegte das
+// Wort "Pfronten" in der Fusszeile eines Handwerkers, um eine Mail dem einzigen
+// dortigen Objekt zuzuschlagen. Strasse, Hausnummer und Gebaeudename sind echte
+// Kennzeichen, der Ort ist keines.
+function buildingTokens(b: { name: string | null; address: string | null; city?: string | null }): string[] {
   const tokens = new Set<string>();
   const name = normalizeText(b.name);
-  const addr = normalizeText([b.address, b.city].filter(Boolean).join(" "));
+  const stadt = normalizeText(b.city);
+
+  let strasse = normalizeText(b.address);
+  // Falls der Ort in der Adresse mitgefuehrt wird, hier ebenfalls entfernen.
+  if (stadt && stadt.length >= 4 && strasse.includes(stadt)) {
+    strasse = strasse.replace(stadt, "").replace(/\s+/g, " ").trim();
+  }
+
   if (name && name.length >= 4) tokens.add(name);
-  if (addr) {
-    tokens.add(addr);
-    // street without house number
-    const streetOnly = addr.replace(/\b\d+[a-z]?\b/g, "").replace(/\s+/g, " ").trim();
+  if (strasse) {
+    tokens.add(strasse);
+    // Strasse ohne Hausnummer
+    const streetOnly = strasse.replace(/\b\d+[a-z]?\b/g, "").replace(/\s+/g, " ").trim();
     if (streetOnly && streetOnly.length >= 5) tokens.add(streetOnly);
-    // first significant word (street name root)
-    const parts = addr.split(" ").filter((p) => p.length >= 5 && !/^\d/.test(p));
+    // Einzelne aussagekraeftige Bestandteile des Strassennamens
+    const parts = strasse.split(" ").filter((p) => p.length >= 5 && !/^\d/.test(p));
     for (const p of parts) tokens.add(p);
   }
+
+  // Ein Ortsname allein darf nie zur Zuordnung fuehren.
+  if (stadt) tokens.delete(stadt);
   return [...tokens];
 }
 

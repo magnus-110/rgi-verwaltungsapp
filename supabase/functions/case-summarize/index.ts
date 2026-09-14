@@ -73,13 +73,9 @@ Antworte auf Deutsch in Fließtext. Nur JSON, keine Erklärung.`;
     const result = await response.json();
     const raw: string = result.choices?.[0]?.message?.content || "{}";
     let summary = "";
-    let nextSteps: string[] = [];
     try {
       const parsed = JSON.parse(raw);
       summary = (parsed.summary || "").toString().slice(0, 500);
-      if (Array.isArray(parsed.next_steps)) {
-        nextSteps = parsed.next_steps.filter((s: any) => typeof s === "string").slice(0, 3);
-      }
     } catch (_) {
       summary = raw.slice(0, 500);
     }
@@ -108,17 +104,19 @@ Antworte auf Deutsch in Fließtext. Nur JSON, keine Erklärung.`;
       } catch (_) { /* ignore */ }
     }
 
+    // ai_next_steps wird bewusst nicht mehr geschrieben: Der Prompt fordert nur
+    // ein summary-Feld an, sodass hier stets eine leere Liste landete und einen
+    // vorhandenen Wert ueberschrieb. Angezeigt wird das Feld nirgends.
     await supabase
       .from("cases")
       .update({
         ai_summary: summary,
         ai_summary_updated_at: new Date().toISOString(),
         ai_keywords: keywords,
-        ai_next_steps: nextSteps,
       })
       .eq("id", case_id);
 
-    return new Response(JSON.stringify({ success: true, summary, next_steps: nextSteps, keywords }), {
+    return new Response(JSON.stringify({ success: true, summary, keywords }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
