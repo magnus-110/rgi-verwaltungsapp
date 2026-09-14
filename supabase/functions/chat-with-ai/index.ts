@@ -46,6 +46,14 @@ serve(async (req) => {
       'https://eebphowrbarzawwixqcc.supabase.co',
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
+    // Zweiter Client, der die Rechte des Fragenden traegt. Alles, was der Nutzer
+    // inhaltlich sehen darf (Beschluesse, Dokumente), wird ueber ihn geladen, damit
+    // die RLS entscheidet - nicht der Service-Role-Key weiter unten.
+    const userClient = createClient(
+      'https://eebphowrbarzawwixqcc.supabase.co',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    );
     const { data: authData, error: authError } = await anonClient.auth.getUser(token);
     if (authError || !authData?.user) {
       return new Response(
@@ -398,6 +406,34 @@ serve(async (req) => {
       }
     }
 
+    // ===== BESCHLUESSE DER EIGENTUEMERVERSAMMLUNG =====
+    // Ueber den userClient, damit die vorhandene Policy greift: nur veroeffentlichte
+    // Beschluesse der Gebaeude, denen der Nutzer als Kontakt zugeordnet ist.
+    let beschlussContext = "";
+    const suchbegriffe = messageWords.filter((w: string) => w.length > 3).slice(0, 8);
+    if (suchbegriffe.length > 0) {
+      const orFilter = suchbegriffe.map((w: string) => `resolution_text.ilike.%${w}%`).join(',');
+      const { data: beschluesse, error: beschlussErr } = await userClient
+        .from('etv_resolutions')
+        .select('resolution_number, resolution_text, result, resolved_at, building_id')
+        .or(orFilter)
+        .order('resolved_at', { ascending: false })
+        .limit(6);
+
+      if (beschlussErr) {
+        console.error('Beschluss-Suche fehlgeschlagen:', beschlussErr.message);
+      } else if (beschluesse && beschluesse.length > 0) {
+        beschlussContext = "\n\n=== BESCHLUESSE DER EIGENTUEMERVERSAMMLUNG (zur Frage passend) ===\n";
+        beschluesse.forEach((b: any) => {
+          const datum = b.resolved_at ? new Date(b.resolved_at).toLocaleDateString('de-DE') : 'Datum unbekannt';
+          const ergebnis = b.result === 'passed' || b.result === 'angenommen' ? 'angenommen' : b.result || 'unbekannt';
+          beschlussContext += `\n--- Beschluss Nr. ${b.resolution_number || '?'} vom ${datum} (${ergebnis}) ---\n${b.resolution_text || ''}\n`;
+        });
+        beschlussContext += "\n=== ENDE BESCHLUESSE ===\n";
+        console.log(`Beschluss-Kontext: ${beschluesse.length} Treffer`);
+      }
+    }
+
     // Intelligent knowledge document search based on user message
     let knowledgeContext = "";
     
@@ -502,24 +538,41 @@ ${isFirstMessage
      - "Lassen Sie mich wissen, wenn Sie weitere Informationen benötigen."
    Jede Antwort sollte einen ANDEREN oder gar keinen Abschluss haben.
 
-4. FORMATIERUNG:
+3. FORMATIERUNG:
    ✗ Verwende KEINE Markdown-Zeichen wie **, ##, ###, oder * für Aufzählungen
    ✓ Verwende Fließtext mit klaren Absätzen
    ✓ Verwende einfache Spiegelstriche (–) für Aufzählungen
    ✓ Verwende Zeilenumbrüche für Struktur
    ✓ Schreibe Überschriften als normalen fettgedruckten Text ohne # Zeichen
 
-3. WAHRHEIT & EHRLICHKEIT (EXTREM WICHTIG - ANTI-HALLUZINATION):
+4. WAHRHEIT & EHRLICHKEIT (EXTREM WICHTIG - ANTI-HALLUZINATION):
    ✗ Erfinden Sie NIEMALS Namen, Telefonnummern, E-Mail-Adressen oder andere Fakten
    ✗ Nennen Sie KEINE Verwalter, Kontaktpersonen oder Details, die nicht explizit in den Kontextdaten stehen
    ✓ Wenn Information NICHT verfügbar: "Diese Information liegt mir leider nicht vor."
    ✓ Bei Fragen nach unbekannten Kontaktdaten: "Bitte kontaktieren Sie die Hausverwaltung direkt unter info@rgi-immobilien.de oder 08363 960656."
    ✓ Sagen Sie lieber "Das weiß ich leider nicht" als etwas zu erfinden
 
+5. NIEMALS VERNEINEN, WAS SIE NICHT GEPRÜFT HABEN (WICHTIGSTE REGEL):
+   Sie sehen ausschließlich das, was Ihnen oben unter BESCHLUESSE, RELEVANTE DOKUMENTE
+   und WISSENSDOKUMENTE mitgegeben wurde. Sie können NICHT in die gesamte Verwaltung
+   hineinsehen und wissen daher NIE, ob es etwas gibt oder nicht gibt.
+   ✗ VERBOTEN sind Aussagen wie: "Es gibt keinen Beschluss dazu", "Dazu ist nichts
+     dokumentiert", "Die App bietet diese Funktion nicht", "Für Ihr Gebäude liegt
+     nichts vor." Solche Sätze sind schon mehrfach falsch gewesen und haben Eigentümer
+     in die Irre geführt.
+   ✓ RICHTIG, wenn im Kontext nichts Passendes steht: "Dazu finde ich hier nichts.
+     Das bedeutet nicht, dass es nichts gibt — bitte wenden Sie sich an die
+     Hausverwaltung, dort wird das geprüft."
+   ✓ RICHTIG, wenn etwas vorliegt: Antworten Sie daraus und nennen Sie die Quelle,
+     also den Dokumentnamen oder die Beschlussnummer mit Datum.
+   ✓ Fragt jemand nach einem Menüpunkt, den er nicht findet: Viele Menüpunkte werden
+     nur unter bestimmten Bedingungen eingeblendet (siehe Wissensdokument zur App).
+     Erklären Sie die Bedingung, statt die Funktion zu verneinen.
+
 === ENDE VERHALTENSREGELN ===`;
 
     // Construct system prompt using admin-configured prompt + behavioral rules
-    const systemPrompt = `${settings.system_prompt}${conversationBehavior}\n\nWissensdatenbank (allgemein):\n${knowledgeString}${knowledgeContext}${fileDocContext}\n\nAktuelle Kontextdaten:${contextData}\n\nNutzerinformationen (nur für Kontext): ${profile?.first_name} ${profile?.last_name} (${profile?.email})${managementMode === 'weg' ? ' - WEG-Eigentümer' : ' - Mieter'}${buildingId ? `. Gebäude-ID: ${buildingId}` : managementMode === 'weg' ? '. Keine spezifische Gebäude-ID angegeben.' : ''}`;
+    const systemPrompt = `${settings.system_prompt}${conversationBehavior}\n\nWissensdatenbank (allgemein):\n${knowledgeString}${knowledgeContext}${beschlussContext}${fileDocContext}\n\nAktuelle Kontextdaten:${contextData}\n\nNutzerinformationen (nur für Kontext): ${profile?.first_name} ${profile?.last_name} (${profile?.email})${managementMode === 'weg' ? ' - WEG-Eigentümer' : ' - Mieter'}${buildingId ? `. Gebäude-ID: ${buildingId}` : managementMode === 'weg' ? '. Keine spezifische Gebäude-ID angegeben.' : ''}`;
 
     // Construct messages for OpenAI with conversation history
     const messages = [
@@ -546,7 +599,19 @@ ${isFirstMessage
       content: message
     });
 
-    console.log('Sending request to Mistral with model: mistral-small-latest,', messages.length, 'messages, isFirstMessage:', isFirstMessage);
+    // Modell aus den Einstellungen verwenden. Bisher stand hier fest mistral-small-latest,
+    // waehrend in chatbot_settings noch "gpt-4o" aus der OpenAI-Zeit hinterlegt war - die
+    // Einstellung in der Oberflaeche war damit wirkungslos und die Protokolle nannten ein
+    // Modell, das nie geantwortet hat. Fremde Modellnamen werden hier abgefangen.
+    const gewaehltesModell = typeof settings.model === 'string' && settings.model.startsWith('mistral')
+      ? settings.model
+      : 'mistral-large-latest';
+    const maxTokens = Number(settings.max_tokens) > 0 ? Number(settings.max_tokens) : 2000;
+    // Bewusst ?? statt ||: Eine eingestellte 0 ist ein gueltiger Wert und darf nicht
+    // stillschweigend zu 0.7 werden.
+    const temperatur = settings.temperature ?? 0.3;
+
+    console.log(`Sending request to Mistral with model: ${gewaehltesModell},`, messages.length, 'messages, isFirstMessage:', isFirstMessage);
 
     // Save user message
     const { error: userMsgError } = await supabase
@@ -566,6 +631,29 @@ ${isFirstMessage
       // Continue - don't fail the request for logging issues
     }
 
+    // Werkzeug fuer Meldungen. Das Modell legt NICHTS an - es bereitet nur einen
+    // Vorschlag vor, den der Nutzer in der Oberflaeche bestaetigen muss. So kann
+    // aus einem missverstandenen Satz keine Meldung an die Verwaltung entstehen.
+    const tools = [{
+      type: 'function',
+      function: {
+        name: 'meldung_vorschlagen',
+        description:
+          'Bereitet eine Meldung an die Hausverwaltung vor. Aufrufen, wenn der Nutzer einen Schaden, Mangel oder ein Anliegen schildert, um das sich die Verwaltung kuemmern muss (defekte Heizung, Wasserschaden, kaputtes Licht, Verschmutzung, Laermbelaestigung). NICHT aufrufen bei reinen Informationsfragen und NICHT bei akuter Gefahr - dort zuerst auf den Notruf 112 hinweisen.',
+        parameters: {
+          type: 'object',
+          properties: {
+            titel: { type: 'string', description: 'Kurzer Betreff, hoechstens 80 Zeichen' },
+            beschreibung: {
+              type: 'string',
+              description: 'Sachliche Beschreibung des Anliegens in vollstaendigen Saetzen, aus Sicht des Melders formuliert',
+            },
+          },
+          required: ['titel', 'beschreibung'],
+        },
+      },
+    }];
+
     // Call Mistral API
     const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
       method: 'POST',
@@ -574,10 +662,12 @@ ${isFirstMessage
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'mistral-small-latest',
+        model: gewaehltesModell,
         messages: messages,
-        max_tokens: settings.max_tokens || 4096,
-        temperature: settings.temperature || 0.7
+        max_tokens: maxTokens,
+        temperature: temperatur,
+        tools,
+        tool_choice: 'auto'
       }),
     });
 
@@ -594,7 +684,32 @@ ${isFirstMessage
     }
 
     const data = await response.json();
-    const assistantMessage = data.choices[0]?.message?.content || 'Entschuldigung, ich konnte keine Antwort generieren.';
+    const antwort = data.choices[0]?.message;
+
+    // Meldungsvorschlag auslesen. Er wird nur zurueckgegeben, nicht gespeichert -
+    // angelegt wird die Meldung erst, wenn der Nutzer sie in der Oberflaeche bestaetigt.
+    let reportDraft: { title: string; description: string } | null = null;
+    const toolCall = antwort?.tool_calls?.[0];
+    if (toolCall?.function?.name === 'meldung_vorschlagen') {
+      try {
+        const args = JSON.parse(toolCall.function.arguments || '{}');
+        if (args.titel && args.beschreibung) {
+          reportDraft = {
+            title: String(args.titel).slice(0, 120),
+            description: String(args.beschreibung).slice(0, 4000),
+          };
+        }
+      } catch (err) {
+        console.error('Meldungsvorschlag konnte nicht gelesen werden:', err);
+      }
+    }
+
+    let assistantMessage = antwort?.content || '';
+    if (!assistantMessage) {
+      assistantMessage = reportDraft
+        ? 'Ich habe daraus eine Meldung an die Hausverwaltung vorbereitet. Bitte prüfen Sie den Text und senden Sie ihn ab, wenn er passt.'
+        : 'Entschuldigung, ich konnte keine Antwort generieren.';
+    }
 
     // Save assistant message
     const { error: assistantMsgError } = await supabase
@@ -606,8 +721,8 @@ ${isFirstMessage
         management_mode: managementMode,
         role: 'assistant',
         content: assistantMessage,
-        metadata: { 
-          model: settings.model,
+        metadata: {
+          model: gewaehltesModell,
           usage: data.usage,
           timestamp: new Date().toISOString()
         }
@@ -618,9 +733,10 @@ ${isFirstMessage
       // Continue - don't fail the request for logging issues
     }
 
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       response: assistantMessage,
       sources: ragSources,
+      reportDraft,
       usage: data.usage,
       sessionId: currentSessionId
     }), {
@@ -631,7 +747,7 @@ ${isFirstMessage
     console.error('Error in chat-with-ai function:', error);
     return new Response(
       JSON.stringify({ 
-        error: 'Entschuldigung, es gab einen Fehler bei der Verarbeitung Ihrer Anfrage. Bitte wenden Sie sich direkt an die Hausverwaltung unter info@rgi-immobilien.de oder Tel: 08362-123456.' 
+        error: 'Entschuldigung, es gab einen Fehler bei der Verarbeitung Ihrer Anfrage. Bitte wenden Sie sich direkt an die Hausverwaltung unter info@rgi-immobilien.de oder Tel: 08363 960656.'
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

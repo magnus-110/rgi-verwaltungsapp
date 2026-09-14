@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { ChatMessage } from "@/components/chat/ChatMessage";
+import { ChatMessage, type ChatSource, type ReportDraft } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
@@ -14,6 +14,9 @@ interface Message {
   content: string;
   isBot: boolean;
   timestamp: Date;
+  sources?: ChatSource[];
+  reportDraft?: ReportDraft | null;
+  reportStatus?: 'gesendet' | 'fehler';
 }
 
 interface WegOwnerBuilding {
@@ -32,6 +35,7 @@ export const WegOwnerChatbot = () => {
   const [buildingAssignments, setBuildingAssignments] = useState<WegOwnerBuilding[]>([]);
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>("");
   const [currentSessionId, setCurrentSessionId] = useState<string>();
+  const [sendendeMeldung, setSendendeMeldung] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile?.user_id) {
@@ -101,9 +105,11 @@ export const WegOwnerChatbot = () => {
       const response = await getBotResponse(message);
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
-        content: response,
+        content: response.text,
         isBot: true,
-        timestamp: new Date()
+        timestamp: new Date(),
+        sources: response.sources,
+        reportDraft: response.reportDraft
       };
       setMessages(prev => [...prev, aiResponse]);
     } catch (error) {
@@ -119,10 +125,12 @@ export const WegOwnerChatbot = () => {
     }
   };
 
-  const getBotResponse = async (input: string): Promise<string> => {
+  const getBotResponse = async (
+    input: string
+  ): Promise<{ text: string; sources?: ChatSource[]; reportDraft?: ReportDraft | null }> => {
     try {
       if (!profile?.user_id) {
-        return "Benutzeranmeldung erforderlich.";
+        return { text: "Benutzeranmeldung erforderlich." };
       }
 
       // Call the Edge Function instead of OpenAI directly
@@ -146,10 +154,43 @@ export const WegOwnerChatbot = () => {
         throw new Error(error.message);
       }
 
-      return data.response || "Entschuldigung, ich konnte keine Antwort generieren.";
+      return {
+        text: data.response || "Entschuldigung, ich konnte keine Antwort generieren.",
+        sources: Array.isArray(data.sources) ? data.sources : undefined,
+        reportDraft: data.reportDraft ?? null,
+      };
     } catch (error) {
       console.error('Error generating response:', error);
-      return "Entschuldigung, es gab einen Fehler bei der Verarbeitung Ihrer Anfrage. Bitte wenden Sie sich direkt an die Hausverwaltung unter info@rgi-immobilien.de oder Tel: 08362-123456.";
+      return {
+        text: "Entschuldigung, es gab einen Fehler bei der Verarbeitung Ihrer Anfrage. Bitte wenden Sie sich direkt an die Hausverwaltung unter info@rgi-immobilien.de oder Tel: 08363 960656.",
+      };
+    }
+  };
+
+  // Die Meldung wird bewusst hier angelegt und nicht in der Edge Function: So greift
+  // die RLS beim Schreiben, und es entsteht nie eine Meldung ohne Klick des Nutzers.
+  const meldungAbsenden = async (messageId: string, draft: ReportDraft) => {
+    if (!profile?.user_id) return;
+    setSendendeMeldung(messageId);
+    const gebaeudeId = selectedBuildingId || buildingAssignments[0]?.building_id || null;
+    try {
+      const { error } = await supabase.from("weg_reports").insert([{
+        title: draft.title,
+        description: draft.description,
+        reported_by: profile.user_id,
+        weg_owner_id: profile.user_id,
+        building_id: gebaeudeId,
+        contact_name: [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.email,
+        contact_email: profile.email,
+        status: "open",
+      }]);
+      if (error) throw error;
+      setMessages(prev => prev.map(m => (m.id === messageId ? { ...m, reportStatus: "gesendet" as const } : m)));
+    } catch (error) {
+      console.error("Meldung aus Chat fehlgeschlagen:", error);
+      setMessages(prev => prev.map(m => (m.id === messageId ? { ...m, reportStatus: "fehler" as const } : m)));
+    } finally {
+      setSendendeMeldung(null);
     }
   };
 
@@ -169,7 +210,12 @@ export const WegOwnerChatbot = () => {
           <ScrollArea className="h-full">
             <div className="py-4">
               {messages.map((message) => (
-                <ChatMessage key={message.id} message={message} />
+                <ChatMessage
+                  key={message.id}
+                  message={message}
+                  onSubmitReport={meldungAbsenden}
+                  isSubmittingReport={sendendeMeldung === message.id}
+                />
               ))}
               
               {isTyping && <TypingIndicator />}
