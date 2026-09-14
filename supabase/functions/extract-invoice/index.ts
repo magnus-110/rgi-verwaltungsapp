@@ -15,6 +15,18 @@ const corsHeaders = {
 // Bonus: gleiche PLZ. Bestes Score gewinnt; Schwelle gegen Zufallstreffer.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// IBAN-Pruefsumme nach ISO 13616 (Mod 97). Die Ziffernfolge ist zu lang fuer
+// Number, deshalb wird der Rest stellenweise fortgeschrieben.
+function istPlausibleIban(iban: string): boolean {
+  const s = String(iban).replace(/\s+/g, "").toUpperCase();
+  if (!/^[A-Z]{2}[0-9A-Z]{13,32}$/.test(s)) return false;
+  const umgestellt = s.slice(4) + s.slice(0, 4);
+  const ziffern = umgestellt.replace(/[A-Z]/g, (c) => String(c.charCodeAt(0) - 55));
+  let rest = 0;
+  for (const z of ziffern) rest = (rest * 10 + Number(z)) % 97;
+  return rest === 1;
+}
+
 function normalizeForMatch(s: string): string {
   if (!s) return "";
   let n = s.toLowerCase();
@@ -437,6 +449,15 @@ Prüfe ob es sich um einen Abschlagsplan oder eine Jahresabrechnung handelt:
 - JAHRESABRECHNUNG / ENDABRECHNUNG: Schlüsselwörter sind "Jahresabrechnung", "Verbrauchsabrechnung", "Endabrechnung", "Schlussrechnung", "Abrechnungszeitraum". Setze invoice_type="annual_settlement" und extrahiere billing_period_from, billing_period_to, total_consumption, paid_installments_total (Summe aller bereits gezahlten Abschläge), settlement_difference (Nachzahlung positiv, Gutschrift negativ).
 - Bei einer normalen Rechnung setze invoice_type="standard".
 
+LEISTUNGSZEITRAUM (bei JEDER Rechnung, nicht nur bei Jahresabrechnungen):
+Nennt die Rechnung einen Zeitraum, in dem die Leistung erbracht wurde, dann setze
+billing_period_from und billing_period_to. Schlüsselwörter sind "Leistungszeitraum",
+"Wartungszeitraum", "Vertragslaufzeit", "Versicherungsjahr", "für den Zeitraum",
+"Zeitraum vom ... bis ...", "Wartung 01/2026 - 12/2026". Das gilt ausdrücklich auch
+für Wartungsverträge, Versicherungen, Reinigungs- und Dienstleistungsverträge — dort
+wird der Zeitraum für die periodengerechte Abgrenzung in der Abrechnung gebraucht.
+Nur wenn wirklich kein Zeitraum genannt ist: null.
+
 Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärme handelt.`
           },
           {
@@ -596,16 +617,62 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
 
 
 
-    // Look up suggested account by number
+    // Kontonummer nachschlagen. Bisher wurde ausschliesslich mit building_id IS NULL
+    // gesucht, wodurch gebaeudespezifische Konten nie getroffen wurden.
+    const kontoIdZuNummer = async (nummer: string): Promise<string | null> => {
+      let q = supabase.from("chart_of_accounts").select("id").eq("account_number", nummer);
+      q = invoice.building_id
+        ? q.or(`building_id.is.null,building_id.eq.${invoice.building_id}`)
+        : q.is("building_id", null);
+      const { data } = await q.limit(1).maybeSingle();
+      return data?.id ?? null;
+    };
+
+    // Kontierungsvorschlag: Was bei diesem Lieferanten bisher tatsaechlich gebucht
+    // wurde, schlaegt das Rateergebnis des Modells. vendor_memory wird bei jeder
+    // bestaetigten Buchung fortgeschrieben, wurde bisher aber nirgends abgefragt.
     let suggestedAccountId: string | null = null;
-    if (extracted.suggested_account_number) {
-      const { data: account } = await supabase
-        .from("chart_of_accounts")
-        .select("id")
-        .eq("account_number", extracted.suggested_account_number)
-        .is("building_id", null)
-        .maybeSingle();
-      if (account) suggestedAccountId = account.id;
+    let kontoHerkunft: string | null = null;
+
+    if (extracted.vendor_iban || extracted.vendor_name) {
+      let modus = "weg";
+      if (invoice.building_id) {
+        const { data: geb } = await supabase
+          .from("buildings")
+          .select("management_mode")
+          .eq("id", invoice.building_id)
+          .maybeSingle();
+        if (geb?.management_mode) modus = geb.management_mode;
+      }
+
+      const { data: memory, error: memErr } = await supabase.rpc("find_vendor_memory", {
+        p_vendor_iban: extracted.vendor_iban || null,
+        p_vendor_name: extracted.vendor_name || null,
+        p_management_mode: modus,
+      });
+      if (memErr) {
+        console.error("find_vendor_memory:", memErr.message);
+      } else {
+        const treffer = Array.isArray(memory) ? memory[0] : null;
+        if (treffer?.account_number) {
+          const id = await kontoIdZuNummer(treffer.account_number);
+          if (id) {
+            suggestedAccountId = id;
+            kontoHerkunft = "vendor_memory";
+            console.log(
+              `Kontierung aus vendor_memory: ${treffer.account_number} (${treffer.usage_count}x verwendet, 35a=${treffer.is_35a_relevant})`,
+            );
+          }
+        }
+      }
+    }
+
+    if (!suggestedAccountId && extracted.suggested_account_number) {
+      suggestedAccountId = await kontoIdZuNummer(extracted.suggested_account_number);
+      if (suggestedAccountId) {
+        kontoHerkunft = "modell";
+        console.log(`Kontierung aus Modellvorschlag: ${extracted.suggested_account_number}`);
+      }
     }
 
     // Auto-match building from recipient_address if no building_id is set yet
@@ -663,6 +730,37 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+    }
+
+    // Rechnerische Plausibilitaet pruefen. Bisher wurde die Ausgabe des Modells
+    // ungeprueft uebernommen - ein verlesener Betrag faellt dann erst in der
+    // Abrechnung auf, wenn er laengst verbucht ist.
+    const pruefhinweise: string[] = [];
+    const netto = Number(extracted.net_amount);
+    const ust = Number(extracted.vat_amount);
+    const brutto = Number(extracted.gross_amount);
+    if (Number.isFinite(netto) && Number.isFinite(ust) && Number.isFinite(brutto)) {
+      const abweichung = Math.abs(netto + ust - brutto);
+      if (abweichung > 0.02) {
+        pruefhinweise.push(
+          `Summenpruefung: Netto ${netto.toFixed(2)} + USt ${ust.toFixed(2)} ergibt ${(netto + ust).toFixed(2)}, auf der Rechnung stehen ${brutto.toFixed(2)} (Abweichung ${abweichung.toFixed(2)} EUR).`,
+        );
+      }
+    }
+    if (extracted.vendor_iban && !istPlausibleIban(extracted.vendor_iban)) {
+      pruefhinweise.push(`IBAN ${extracted.vendor_iban} ist nicht pruefsummenkonform - bitte kontrollieren.`);
+    }
+    if (extracted.invoice_date) {
+      const datum = new Date(extracted.invoice_date);
+      const inEinemJahr = new Date();
+      inEinemJahr.setFullYear(inEinemJahr.getFullYear() + 1);
+      if (!Number.isNaN(datum.getTime()) && (datum > inEinemJahr || datum.getFullYear() < 2000)) {
+        pruefhinweise.push(`Rechnungsdatum ${extracted.invoice_date} ist unplausibel.`);
+      }
+    }
+    if (pruefhinweise.length > 0) {
+      extracted._pruefhinweise = pruefhinweise;
+      console.warn(`[extract-invoice] ${invoiceId}: ${pruefhinweise.join(" | ")}`);
     }
 
     // Update invoice with extracted data
