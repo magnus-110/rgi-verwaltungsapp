@@ -17,6 +17,8 @@ import { MeetingDatePollPanel } from "./MeetingDatePollPanel";
 import { MeetingInvitationPdf } from "./MeetingInvitationPdf";
 import { MeetingLiveSession } from "./MeetingLiveSession";
 import { MeetingProtocol } from "./MeetingProtocol";
+import { VotingHeadsPanel } from "./VotingHeadsPanel";
+import { applyHeadGrouping } from "@/lib/etvHeadcount";
 
 import { Save, ChevronDown, ChevronUp, CheckCircle2, Globe } from "lucide-react";
 
@@ -273,6 +275,32 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
             </Card>
           </Collapsible>
 
+          {/* Stimmrecht / Köpfe */}
+          <Collapsible open={openSteps[3]} onOpenChange={() => toggleStep(3)}>
+            <Card className={!savedMeetingId ? "opacity-50 pointer-events-none" : ""}>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base">3. Stimmrecht (Kopfprinzip)</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Einheiten desselben Eigentümers zu einem Kopf zusammenfassen
+                      </p>
+                    </div>
+                    {openSteps[3] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </div>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent>
+                  {savedMeetingId && buildingId && (
+                    <VotingHeadsPanel meetingId={savedMeetingId} buildingId={buildingId} />
+                  )}
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+
           {/* Einladung */}
           <Collapsible open={openSteps[2]} onOpenChange={() => toggleStep(2)}>
             <Card className={!savedMeetingId ? "opacity-50 pointer-events-none" : ""}>
@@ -280,7 +308,7 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
                 <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-base">3. Einladung</CardTitle>
+                      <CardTitle className="text-base">4. Einladung</CardTitle>
                       <p className="text-sm text-muted-foreground">Vorschau und PDF generieren</p>
                     </div>
                     {openSteps[2] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -300,7 +328,7 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
                         <Button className="gap-2" onClick={async () => {
                           const { error } = await supabase.from("etv_meetings").update({ status: "published" }).eq("id", savedMeetingId);
                           if (error) { toast({ title: "Fehler", description: error.message, variant: "destructive" }); return; }
-                          
+
                           // Auto-create attendee records for all owners in this building
                           if (existingMeeting?.building_id) {
                             const { data: owners } = await supabase
@@ -309,13 +337,13 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
                               .eq("building_id", existingMeeting.building_id)
                               .eq("role_in_building", "eigentuemer")
                               .eq("is_active", true);
-                            
+
                             if (owners && owners.length > 0) {
                               const { data: existingAttendees } = await supabase
                                 .from("etv_attendees")
                                 .select("assignment_id")
                                 .eq("meeting_id", savedMeetingId);
-                              
+
                               const existingIds = (existingAttendees || []).map((a: any) => a.assignment_id);
                               const newAttendees = owners
                                 .filter(o => !existingIds.includes(o.id))
@@ -324,13 +352,16 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
                                   assignment_id: o.id,
                                   attendance_type: "absent" as const,
                                 }));
-                              
+
                               if (newAttendees.length > 0) {
                                 await supabase.from("etv_attendees").insert(newAttendees);
+                                // Kopfprinzip: Einheiten desselben Eigentümers zu einem Kopf
+                                // zusammenfassen (§ 25 Abs. 2 WEG) — in der Vorbereitung änderbar.
+                                await applyHeadGrouping(savedMeetingId);
                               }
                             }
                           }
-                          
+
                           toast({ title: "Versammlung freigeschaltet" });
                           queryClient.invalidateQueries({ queryKey: ["etv-meeting", savedMeetingId] });
                           queryClient.invalidateQueries({ queryKey: ["etv-meetings"] });
