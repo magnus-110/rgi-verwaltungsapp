@@ -18,12 +18,13 @@ import {
 import {
   Play, Square, CheckCircle2, XCircle, Users, BarChart3, UserCheck, UserX,
   ArrowLeft, ArrowRight, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Save, Shield, Copy, Lock, AlertTriangle,
-  RefreshCw, StickyNote, FileText, Plus, Gavel, ArrowUp, ArrowDown, X
+  RefreshCw, StickyNote, FileText, Plus, Gavel, ArrowUp, ArrowDown, X, Trash2, ListPlus
 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { AgendaItemEmailsSection } from "./AgendaItemEmailsSection";
 import { ProxyInstructionsMatrix } from "./ProxyInstructionsMatrix";
+import { applyHeadGrouping, getHeadWeight, sumHeads, formatHeads, normalizeVotingPrinciple } from "@/lib/etvHeadcount";
 
 interface MeetingLiveSessionProps {
   meetingId: string;
@@ -59,6 +60,9 @@ const votingPrincipleLabels: Record<string, string> = {
   sqm: "Quadratmeter",
 };
 
+const principleLabel = (principle: string) =>
+  votingPrincipleLabels[normalizeVotingPrinciple(principle)] || principle;
+
 export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSessionProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -67,6 +71,17 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   const [resultDialog, setResultDialog] = useState<AgendaItem | null>(null);
   const [editResolution, setEditResolution] = useState<Record<string, string>>({});
   const [editNotes, setEditNotes] = useState<Record<string, string>>({});
+  const [editDescription, setEditDescription] = useState<Record<string, string>>({});
+
+  // TOP während der Versammlung löschen / einfügen
+  const [deleteTopId, setDeleteTopId] = useState<string | null>(null);
+  const [showAddTopDialog, setShowAddTopDialog] = useState(false);
+  const [newTopTitle, setNewTopTitle] = useState("");
+  const [newTopDescription, setNewTopDescription] = useState("");
+  const [newTopResolution, setNewTopResolution] = useState("");
+  const [newTopPrinciple, setNewTopPrinciple] = useState("mea");
+  const [newTopRequiresResolution, setNewTopRequiresResolution] = useState(true);
+  const [newTopPosition, setNewTopPosition] = useState("end");
   const [proxyDialog, setProxyDialog] = useState<string | null>(null);
   const [proxyType, setProxyType] = useState<string>("manager");
   const [proxyContactId, setProxyContactId] = useState<string>("");
@@ -223,12 +238,15 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   useEffect(() => {
     const res: Record<string, string> = {};
     const notes: Record<string, string> = {};
+    const desc: Record<string, string> = {};
     agendaItems.forEach((item) => {
       if (item.resolution_text && !(item.id in editResolution)) res[item.id] = item.resolution_text;
       if (item.admin_notes && !(item.id in editNotes)) notes[item.id] = item.admin_notes;
+      if (item.description && !(item.id in editDescription)) desc[item.id] = item.description;
     });
     if (Object.keys(res).length) setEditResolution(prev => ({ ...res, ...prev }));
     if (Object.keys(notes).length) setEditNotes(prev => ({ ...notes, ...prev }));
+    if (Object.keys(desc).length) setEditDescription(prev => ({ ...desc, ...prev }));
   }, [agendaItems]);
 
   // Quorum calculation — only count explicitly checked-in attendees
@@ -274,6 +292,13 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     const sqmShare = shares.find((s: any) => s.share_type === "sqm");
     return sqmShare?.share_value || 0;
   };
+
+  // Kopfprinzip: Einheiten desselben Eigentümers können zu einem Kopf zusammengefasst
+  // sein (§ 25 Abs. 2 WEG). head_weight = 0 -> die Einheit zählt nicht als eigener Kopf.
+  const getHeadWeightOf = (attendee: any) => getHeadWeight(attendee);
+
+  const totalHeads = sumHeads(attendees as any[]);
+  const presentHeads = sumHeads(presentOrRepresented as any[]);
 
   // Track which (itemId:assignmentId) pairs have been handled in this mount.
   // NOT cleared on TOP change so that manual resets/overrides
@@ -328,6 +353,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
           vote,
           mea_weight: getMeaWeight(att),
           sqm_weight: getSqmWeight(att),
+          head_weight: getHeadWeightOf(att),
           is_manual_override: false,
           voted_at: new Date().toISOString(),
         } as any, { onConflict: "agenda_item_id,assignment_id" });
@@ -338,7 +364,8 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
 
   // Compute result for a given voting principle
   // Einfache Mehrheit: Ja > Nein (Enthaltungen zählen NICHT als Nein-Stimmen)
-  const computeResult = (principle: string, votes: any[], item?: AgendaItem) => {
+  const computeResult = (rawPrinciple: string, votes: any[], item?: AgendaItem) => {
+    const principle = normalizeVotingPrinciple(rawPrinciple);
     const yesVotes = votes.filter((v: any) => v.vote === "yes");
     const noVotes = votes.filter((v: any) => v.vote === "no");
 
@@ -348,8 +375,11 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       if (yesMea === 0 && noMea === 0) return "failed";
       return yesMea > noMea ? "passed" : "failed";
     } else if (principle === "headcount") {
-      if (yesVotes.length === 0 && noVotes.length === 0) return "failed";
-      return yesVotes.length > noVotes.length ? "passed" : "failed";
+      // Köpfe statt Einheiten: zusammengefasste Einheiten zählen nur einmal
+      const yesHeads = sumHeads(yesVotes);
+      const noHeads = sumHeads(noVotes);
+      if (yesHeads === 0 && noHeads === 0) return "failed";
+      return yesHeads > noHeads ? "passed" : "failed";
     } else if (principle === "sqm") {
       const yesSqm = yesVotes.reduce((s: number, v: any) => s + (v.sqm_weight || 0), 0);
       const noSqm = noVotes.reduce((s: number, v: any) => s + (v.sqm_weight || 0), 0);
@@ -363,7 +393,8 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   const checkDoubleQualified = (votes: any[]) => {
     const yesVotes = votes.filter((v: any) => v.vote === "yes");
     const yesMea = yesVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
-    const twoThirdsVotes = yesVotes.length >= (votes.length * 2) / 3;
+    // 2/3-Mehrheit nach Köpfen (zusammengefasste Einheiten zählen einmal)
+    const twoThirdsVotes = sumHeads(yesVotes) >= (sumHeads(votes) * 2) / 3;
     const fiftyPercentMea = totalMea > 0 && yesMea > totalMea / 2;
     return twoThirdsVotes && fiftyPercentMea;
   };
@@ -378,6 +409,9 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       if (newAttendees.length === 0) return;
       const { error } = await supabase.from("etv_attendees").insert(newAttendees);
       if (error) throw error;
+      // Kopfprinzip: Einheiten desselben Eigentümers zu einem Kopf zusammenfassen
+      // (§ 25 Abs. 2 WEG) — in der Vorbereitung händisch änderbar.
+      await applyHeadGrouping(meetingId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["etv-attendees-live", meetingId] });
@@ -439,6 +473,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
           vote,
           mea_weight: meaW,
           sqm_weight: sqmW,
+          head_weight: getHeadWeightOf(att),
           is_manual_override: false,
           voted_at: new Date().toISOString(),
         } as any, { onConflict: "agenda_item_id,assignment_id" });
@@ -473,24 +508,25 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     retry: (failureCount, err: any) =>
       failureCount < 2 && /timeout|statement|timed out/i.test(err?.message || ""),
     retryDelay: (attempt) => attempt * 500,
-    mutationFn: async ({ itemId, assignmentId, vote, meaWeight, sqmWeight }: { itemId: string; assignmentId: string; vote: string; meaWeight: number; sqmWeight?: number }) => {
+    mutationFn: async ({ itemId, assignmentId, vote, meaWeight, sqmWeight, headWeight }: { itemId: string; assignmentId: string; vote: string; meaWeight: number; sqmWeight?: number; headWeight?: number }) => {
       // Mark as handled so auto-cast does not overwrite this manual choice
       autoCastAttempted.current.add(`${itemId}:${assignmentId}`);
       const { error } = await supabase.from("etv_votes").upsert({
         agenda_item_id: itemId, assignment_id: assignmentId, vote, mea_weight: meaWeight,
         sqm_weight: sqmWeight || 0,
+        head_weight: headWeight ?? 1,
         is_manual_override: true, voted_at: new Date().toISOString(),
       } as any, { onConflict: "agenda_item_id,assignment_id" });
       if (error) throw error;
     },
-    onMutate: async ({ itemId, assignmentId, vote, meaWeight, sqmWeight }) => {
+    onMutate: async ({ itemId, assignmentId, vote, meaWeight, sqmWeight, headWeight }) => {
       const key = ["etv-votes-live", itemId];
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key) || [];
       const next = previous.filter((v: any) => v.assignment_id !== assignmentId);
       next.push({
         agenda_item_id: itemId, assignment_id: assignmentId, vote,
-        mea_weight: meaWeight, sqm_weight: sqmWeight || 0,
+        mea_weight: meaWeight, sqm_weight: sqmWeight || 0, head_weight: headWeight ?? 1,
         is_manual_override: true, voted_at: new Date().toISOString(),
       });
       queryClient.setQueryData(key, next);
@@ -555,15 +591,21 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
 
       const result = computeResult(item?.voting_principle || "mea", votes, item);
 
+      // Köpfe statt Einheiten zählen: zusammengefasste Einheiten eines Eigentümers
+      // ergeben einen Kopf (§ 25 Abs. 2 WEG, in der Vorbereitung einstellbar).
+      const headYes = sumHeads(yesVotes);
+      const headNo = sumHeads(noVotes);
+      const headAbstain = sumHeads(abstainVotes);
+
       const { error } = await supabase.from("etv_agenda_items").update({
         status: "closed", result,
-        yes_count: yesVotes.length, no_count: noVotes.length, abstain_count: abstainVotes.length,
+        yes_count: headYes, no_count: headNo, abstain_count: headAbstain,
         total_mea_voted: totalMea,
         total_mea_yes: meaYes, total_mea_no: meaNo, total_mea_abstain: meaAbstain,
       } as any).eq("id", itemId);
       if (error) throw error;
       return { ...item, result,
-        yes_count: yesVotes.length, no_count: noVotes.length, abstain_count: abstainVotes.length,
+        yes_count: headYes, no_count: headNo, abstain_count: headAbstain,
         total_mea_yes: meaYes, total_mea_no: meaNo, total_mea_abstain: meaAbstain,
       } as AgendaItem;
     },
@@ -597,6 +639,95 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     onError: (err: any) => {
       toast({ title: "Fehler", description: err.message, variant: "destructive" });
     },
+  });
+
+  // Beschreibung eines TOPs während der Versammlung ändern
+  const saveDescriptionMutation = useMutation({
+    mutationFn: async ({ itemId, text }: { itemId: string; text: string }) => {
+      const { error } = await supabase
+        .from("etv_agenda_items")
+        .update({ description: text.trim() ? text : null })
+        .eq("id", itemId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
+      toast({ title: "Beschreibung gespeichert" });
+    },
+    onError: (err: any) => toast({ title: "Fehler", description: err.message, variant: "destructive" }),
+  });
+
+  // TOP während der Versammlung löschen (Stimmen des TOPs werden mitgelöscht)
+  const deleteTopMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      const { error } = await supabase.from("etv_agenda_items").delete().eq("id", itemId);
+      if (error) throw error;
+      // Nummerierung lückenlos halten
+      const remaining = agendaItems.filter((i) => i.id !== itemId);
+      for (let i = 0; i < remaining.length; i++) {
+        const target = i + 1;
+        if (remaining[i].sort_order !== target) {
+          await supabase.from("etv_agenda_items").update({ sort_order: target }).eq("id", remaining[i].id);
+        }
+      }
+    },
+    onSuccess: (_data, itemId) => {
+      queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
+      setDeleteTopId(null);
+      if (selectedTopId === itemId) setSelectedTopId(null);
+      toast({ title: "TOP gelöscht" });
+    },
+    onError: (err: any) => toast({ title: "Fehler", description: err.message, variant: "destructive" }),
+  });
+
+  // Weiteren TOP während der Versammlung einfügen
+  const addTopMutation = useMutation({
+    mutationFn: async () => {
+      // Zielposition bestimmen: ans Ende oder direkt hinter einen bestehenden TOP
+      let position = agendaItems.length + 1;
+      if (newTopPosition !== "end") {
+        const after = agendaItems.find((i) => i.id === newTopPosition);
+        if (after) position = after.sort_order + 1;
+      }
+      // Nachfolgende TOPs nach hinten schieben (absteigend, wegen Unique-Constraint)
+      const toShift = agendaItems
+        .filter((i) => i.sort_order >= position)
+        .sort((a, b) => b.sort_order - a.sort_order);
+      for (const item of toShift) {
+        const { error } = await supabase
+          .from("etv_agenda_items")
+          .update({ sort_order: item.sort_order + 1 })
+          .eq("id", item.id);
+        if (error) throw error;
+      }
+      const { error } = await supabase.from("etv_agenda_items").insert({
+        meeting_id: meetingId,
+        sort_order: position,
+        title: newTopTitle,
+        description: newTopDescription || null,
+        resolution_text: newTopRequiresResolution ? (newTopResolution || null) : null,
+        voting_principle: newTopRequiresResolution ? newTopPrinciple : "headcount",
+        category: "sonstiges",
+        status: "pending",
+        requires_resolution: newTopRequiresResolution,
+        requires_double_qualified: false,
+        double_qualified_relevant: false,
+        include_description_in_invitation: false,
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
+      setShowAddTopDialog(false);
+      setNewTopTitle("");
+      setNewTopDescription("");
+      setNewTopResolution("");
+      setNewTopPrinciple("mea");
+      setNewTopRequiresResolution(true);
+      setNewTopPosition("end");
+      toast({ title: "TOP eingefügt" });
+    },
+    onError: (err: any) => toast({ title: "Fehler", description: err.message, variant: "destructive" }),
   });
 
   const saveNotesMutation = useMutation({
@@ -833,28 +964,36 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     const totalVotedMea = currentVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
     const yesSqm = yesVotes.reduce((s: number, v: any) => s + (v.sqm_weight || 0), 0);
     const noSqm = noVotes.reduce((s: number, v: any) => s + (v.sqm_weight || 0), 0);
+    const yesHeads = sumHeads(yesVotes);
+    const noHeads = sumHeads(noVotes);
+    const abstainHeads = sumHeads(abstainVotes);
 
     const currentResult = computeResult(item.voting_principle, currentVotes, item);
     const dqResult = (item.requires_double_qualified || item.double_qualified_relevant) ? checkDoubleQualified(currentVotes) : null;
     const resultLabel = currentResult === "passed" ? "Angenommen" : "Abgelehnt";
 
-    const showMea = item.voting_principle === "mea";
-    const showSqm = item.voting_principle === "sqm";
+    const principle = normalizeVotingPrinciple(item.voting_principle);
+    const showMea = principle === "mea";
+    const showSqm = principle === "sqm";
+    // Abweichung zwischen Einheiten und Köpfen nur anzeigen, wenn zusammengefasst wurde
+    const headsDiffer = sumHeads(currentVotes) !== currentVotes.length;
 
     return (
       <div className="space-y-2">
         <div className="flex items-center gap-4 p-2 rounded bg-muted/50 text-sm flex-wrap">
           <span className="text-green-600 font-medium">
-            Ja: {yesVotes.length}
+            Ja: {formatHeads(yesHeads)}
+            {headsDiffer && ` (${yesVotes.length} Einh.)`}
             {showMea && ` (${yesMea.toFixed(2)} MEA)`}
             {showSqm && ` (${yesSqm.toFixed(1)} m²)`}
           </span>
           <span className="text-red-600 font-medium">
-            Nein: {noVotes.length}
+            Nein: {formatHeads(noHeads)}
+            {headsDiffer && ` (${noVotes.length} Einh.)`}
             {showMea && ` (${noMea.toFixed(2)} MEA)`}
             {showSqm && ` (${noSqm.toFixed(1)} m²)`}
           </span>
-          <span className="text-muted-foreground font-medium">Enth.: {abstainVotes.length}</span>
+          <span className="text-muted-foreground font-medium">Enth.: {formatHeads(abstainHeads)}</span>
           <span className="ml-auto font-semibold">
             Zwischenstand: <span className={currentResult === "passed" ? "text-green-600" : "text-red-600"}>{resultLabel}</span>
           </span>
@@ -867,6 +1006,42 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       </div>
     );
   };
+
+  // Löschdialog — in Übersicht und TOP-Detail verfügbar
+  const deleteTopItem = deleteTopId ? agendaItems.find((i) => i.id === deleteTopId) : null;
+  const deleteTopDialog = (
+    <Dialog open={!!deleteTopId} onOpenChange={(open) => { if (!open) setDeleteTopId(null); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+            TOP löschen
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2 text-sm">
+          <p>
+            Soll <span className="font-medium">{deleteTopItem?.title}</span> wirklich aus der Tagesordnung
+            gelöscht werden?
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Bereits abgegebene Stimmen und der Beschlusstext dieses TOPs werden mitgelöscht. Die folgenden
+            TOPs werden neu nummeriert. Das Löschen eines geladenen TOPs sollte im Protokoll vermerkt werden.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setDeleteTopId(null)}>Abbrechen</Button>
+          <Button
+            variant="destructive"
+            className="gap-1"
+            disabled={deleteTopMutation.isPending}
+            onClick={() => deleteTopId && deleteTopMutation.mutate(deleteTopId)}
+          >
+            <Trash2 className="h-4 w-4" /> Löschen
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 
   // ============ TOP DETAIL VIEW ============
   if (selectedItem) {
@@ -901,7 +1076,18 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">TOP {selectedIdx + 1}: {selectedItem.title}</CardTitle>
-              {getStatusBadge(selectedItem)}
+              <div className="flex items-center gap-1">
+                {getStatusBadge(selectedItem)}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-destructive"
+                  title="TOP löschen"
+                  onClick={() => setDeleteTopId(selectedItem.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             {/* Show voting method / status */}
             <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -911,7 +1097,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                 </Badge>
               ) : (
                 <Badge variant="outline" className="text-xs">
-                  {votingPrincipleLabels[selectedItem.voting_principle] || selectedItem.voting_principle}
+                  {principleLabel(selectedItem.voting_principle)}
                 </Badge>
               )}
               {selectedItem.requires_resolution !== false && selectedItem.requires_double_qualified && (
@@ -970,12 +1156,26 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
               );
             })()}
 
-            {selectedItem.description && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">Beschreibung</p>
-                <p className="text-sm whitespace-pre-wrap">{selectedItem.description}</p>
+            {/* Beschreibung — auch während der Versammlung änderbar */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-medium text-muted-foreground">Beschreibung</p>
+                <Button
+                  size="sm" variant="ghost" className="h-7 gap-1 text-xs"
+                  onClick={() => saveDescriptionMutation.mutate({ itemId: selectedItem.id, text: editDescription[selectedItem.id] || "" })}
+                  disabled={saveDescriptionMutation.isPending}
+                >
+                  <Save className="h-3 w-3" /> Speichern
+                </Button>
               </div>
-            )}
+              <Textarea
+                value={editDescription[selectedItem.id] || ""}
+                onChange={(e) => setEditDescription(prev => ({ ...prev, [selectedItem.id]: e.target.value }))}
+                placeholder="Beschreibung des TOPs…"
+                rows={3}
+                className="text-sm"
+              />
+            </div>
 
             {/* Zugeordnete E-Mails (kompakt, aufklappbar) */}
             <AgendaItemEmailsSection agendaItemId={selectedItem.id} />
@@ -1107,6 +1307,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                       const existingVote = currentVotes.find((v: any) => v.assignment_id === a.assignment_id);
                       const meaW = getMeaWeight(a);
                       const sqmW = getSqmWeight(a);
+                      const headW = getHeadWeightOf(a);
                       const rowBg = existingVote
                         ? existingVote.vote === "yes" ? "bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800"
                         : existingVote.vote === "no" ? "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800"
@@ -1117,6 +1318,15 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                           <div className="flex items-center gap-1.5 min-w-0">
                             {cba?.unit_number && <Badge variant="outline" className="text-[10px] shrink-0 px-1 py-0">E{cba.unit_number}</Badge>}
                             <span className="text-xs truncate">{getContactName(contact)}</span>
+                            {headW === 0 && (
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] shrink-0 px-1 py-0 border-muted-foreground/40 text-muted-foreground"
+                                title="Diese Einheit ist beim Kopfprinzip mit einer anderen Einheit desselben Eigentümers zusammengefasst."
+                              >
+                                kein eigener Kopf
+                              </Badge>
+                            )}
                             {a.proxy_type && (
                               <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-[9px] shrink-0 px-1 py-0">
                                 v.d. {a.proxy_type === "manager" ? "Verw." : a.proxy_type === "owner" ? (() => {
@@ -1142,11 +1352,11 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                           </div>
                           <div className="flex gap-1">
                             <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-green-600"
-                              onClick={() => castVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id, vote: "yes", meaWeight: meaW, sqmWeight: sqmW })}>Ja</Button>
+                              onClick={() => castVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id, vote: "yes", meaWeight: meaW, sqmWeight: sqmW, headWeight: headW })}>Ja</Button>
                             <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-red-600"
-                              onClick={() => castVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id, vote: "no", meaWeight: meaW, sqmWeight: sqmW })}>Nein</Button>
+                              onClick={() => castVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id, vote: "no", meaWeight: meaW, sqmWeight: sqmW, headWeight: headW })}>Nein</Button>
                             <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-muted-foreground"
-                              onClick={() => castVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id, vote: "abstain", meaWeight: meaW, sqmWeight: sqmW })}>Enth.</Button>
+                              onClick={() => castVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id, vote: "abstain", meaWeight: meaW, sqmWeight: sqmW, headWeight: headW })}>Enth.</Button>
                             {existingVote && (
                               <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-orange-500"
                                 onClick={() => resetVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id })}>↩</Button>
@@ -1160,7 +1370,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
               )}
 
               {(isVoted || isClosed) && (() => {
-                const isMea = selectedItem.voting_principle === "mea";
+                const isMea = normalizeVotingPrinciple(selectedItem.voting_principle) === "mea";
                 const fmt = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
                 // Berechnung aus den Stimmen des ausgewählten TOPs (auch nach Bestätigung/Refresh)
                 const resultVotes = currentVotes;
@@ -1255,7 +1465,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                 <h3 className="text-xl font-bold">{resultDialog.result === "passed" ? "Beschluss angenommen" : "Beschluss abgelehnt"}</h3>
                 <p className="text-sm text-muted-foreground">{resultDialog.title}</p>
                 {(() => {
-                  const isMea = resultDialog.voting_principle === "mea";
+                  const isMea = normalizeVotingPrinciple(resultDialog.voting_principle) === "mea";
                   const fmt = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
                   const yesVal = isMea ? fmt(Number(resultDialog.total_mea_yes || 0)) : resultDialog.yes_count;
                   const noVal = isMea ? fmt(Number(resultDialog.total_mea_no || 0)) : resultDialog.no_count;
@@ -1285,6 +1495,8 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
             )}
           </DialogContent>
         </Dialog>
+
+        {deleteTopDialog}
       </div>
     );
   }
@@ -1341,6 +1553,11 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
               <span className="text-sm font-semibold text-foreground">{quorumReached ? "Beschlussfähig" : "Nicht beschlussfähig"}</span>
             </div>
             <p className="text-[11px] text-muted-foreground">{presentCount} von {totalOwners} anw./vertr.</p>
+            {totalHeads !== totalOwners && (
+              <p className="text-[11px] text-muted-foreground">
+                Köpfe: {formatHeads(presentHeads)} von {formatHeads(totalHeads)}
+              </p>
+            )}
           </div>
         </div>
 
@@ -1432,6 +1649,15 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                       <div className="flex items-center gap-1.5 flex-1 min-w-0">
                         <span className="text-xs font-medium truncate">{getContactName(contact)}</span>
                         {cba?.unit_number && <Badge variant="outline" className="text-[9px] shrink-0 px-1 py-0">{cba.unit_number}</Badge>}
+                        {getHeadWeightOf(a) === 0 && (
+                          <Badge
+                            variant="outline"
+                            className="text-[9px] shrink-0 px-1 py-0 border-muted-foreground/40 text-muted-foreground"
+                            title="Beim Kopfprinzip mit einer anderen Einheit desselben Eigentümers zusammengefasst."
+                          >
+                            kein eigener Kopf
+                          </Badge>
+                        )}
                         {selfBadge && (
                           <Badge
                             className={`${selfBadge.cls} text-[9px] shrink-0 px-1 py-0`}
@@ -1493,10 +1719,16 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
         <div className="px-5 py-3">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-foreground">Tagesordnung</h3>
-            <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs" onClick={() => setShowProceduralDialog(true)}>
-              <Gavel className="h-3 w-3" />
-              Geschäftsbeschluss
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs" onClick={() => setShowAddTopDialog(true)}>
+                <ListPlus className="h-3 w-3" />
+                TOP einfügen
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs" onClick={() => setShowProceduralDialog(true)}>
+                <Gavel className="h-3 w-3" />
+                Geschäftsbeschluss
+              </Button>
+            </div>
           </div>
 
           {agendaItems.length === 0 && (
@@ -1546,6 +1778,15 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     title="Nach unten"
                   >
                     <ArrowDown className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 opacity-50 group-hover:opacity-100 text-destructive"
+                    onClick={() => setDeleteTopId(item.id)}
+                    title="TOP löschen"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                   {getStatusBadge(item)}
                   <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -1721,6 +1962,95 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Weiteren TOP einfügen */}
+      <Dialog open={showAddTopDialog} onOpenChange={setShowAddTopDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ListPlus className="h-5 w-5" />
+              TOP einfügen
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Titel *</Label>
+              <Input
+                placeholder="z.B. Reparatur der Tiefgaragentür"
+                value={newTopTitle}
+                onChange={(e) => setNewTopTitle(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Beschreibung</Label>
+              <Textarea
+                placeholder="Worum geht es?"
+                value={newTopDescription}
+                onChange={(e) => setNewTopDescription(e.target.value)}
+                rows={3}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Position</Label>
+              <Select value={newTopPosition} onValueChange={setNewTopPosition}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="end">Am Ende der Tagesordnung</SelectItem>
+                  {agendaItems.map((item, idx) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      Nach TOP {idx + 1}: {item.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-xs">Beschluss erforderlich</Label>
+                <p className="text-[11px] text-muted-foreground">Aus = rein informativer TOP.</p>
+              </div>
+              <Switch checked={newTopRequiresResolution} onCheckedChange={setNewTopRequiresResolution} />
+            </div>
+            {newTopRequiresResolution && (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Beschlusstext</Label>
+                  <Textarea
+                    placeholder="Die Eigentümergemeinschaft beschließt..."
+                    value={newTopResolution}
+                    onChange={(e) => setNewTopResolution(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Abstimmungsmethode</Label>
+                  <Select value={newTopPrinciple} onValueChange={setNewTopPrinciple}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(votingPrincipleLabels).map(([k, l]) => (
+                        <SelectItem key={k} value={k}>{l}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Hinweis: Über einen nicht geladenen Gegenstand kann in der Versammlung nur dann wirksam
+              beschlossen werden, wenn er von der Tagesordnung gedeckt ist (§ 23 Abs. 2 WEG). Andernfalls
+              bleibt der TOP zur Besprechung ohne Beschluss.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddTopDialog(false)}>Abbrechen</Button>
+            <Button onClick={() => addTopMutation.mutate()} disabled={!newTopTitle || addTopMutation.isPending} className="gap-1">
+              <Plus className="h-4 w-4" /> Einfügen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {deleteTopDialog}
     </div>
   );
 };
