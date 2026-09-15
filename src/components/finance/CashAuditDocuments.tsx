@@ -49,7 +49,7 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
       }
       const { data } = await supabase
         .from("bank_statements")
-        .select("id, file_name, file_path, created_at, statement_date_from, statement_date_to")
+        .select("id, file_name, file_path, created_at, statement_date_from, statement_date_to, exclude_from_audit")
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
         .eq("source_format", "pdf")
@@ -58,6 +58,19 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
       return (data || []).map((s: any) => ({ ...s, uploaded_at: s.created_at, _source: "bank" as const }));
     },
   });
+
+  const toggleBankPdfHidden = async (id: string, hide: boolean) => {
+    const { error } = await supabase
+      .from("bank_statements")
+      .update({ exclude_from_audit: hide })
+      .eq("id", id);
+    if (error) {
+      toast.error("Konnte Sichtbarkeit nicht ändern");
+      return;
+    }
+    toast.success(hide ? "Kontoauszug aus der Prüfung ausgeblendet" : "Kontoauszug wieder eingeblendet");
+    queryClient.invalidateQueries({ queryKey: ["audit-bank-pdfs", buildingId, fiscalYear, "auth"] });
+  };
 
   const { data: invoices = [] } = useQuery({
     queryKey: ["audit-invoices", buildingId, fiscalYear, tokenMode ? token : "auth"],
