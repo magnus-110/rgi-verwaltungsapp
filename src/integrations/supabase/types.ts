@@ -418,6 +418,7 @@ export type Database = {
           closing_balance: number | null
           created_at: string
           created_by: string | null
+          exclude_from_audit: boolean
           file_name: string
           file_path: string | null
           fiscal_year: number
@@ -436,6 +437,7 @@ export type Database = {
           closing_balance?: number | null
           created_at?: string
           created_by?: string | null
+          exclude_from_audit?: boolean
           file_name: string
           file_path?: string | null
           fiscal_year?: number
@@ -454,6 +456,7 @@ export type Database = {
           closing_balance?: number | null
           created_at?: string
           created_by?: string | null
+          exclude_from_audit?: boolean
           file_name?: string
           file_path?: string | null
           fiscal_year?: number
