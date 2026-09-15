@@ -161,12 +161,27 @@ Deno.serve(async (req) => {
     // Der Zeitplaner hat den Status bereits selbst auf 'sending' gesetzt.
     const isScheduler = from_scheduler === true && auth.role === "service";
     if (!isScheduler) {
-      const staleIso = new Date(Date.now() - STALE_HEARTBEAT_MS).toISOString();
+      // Hinweis: kein .or()-Filter auf UPDATE (PostgREST qualifiziert dort Spalten falsch).
+      // Stattdessen Status lesen und gezielt auf genau diesen Status updaten (atomar).
+      const { data: current, error: curErr } = await admin
+        .from("comm_campaigns")
+        .select("status, updated_at")
+        .eq("id", campaign_id)
+        .maybeSingle();
+      if (curErr) throw curErr;
+      if (!current) return json({ error: "Rundmail nicht gefunden" }, 404);
+
+      const isStale =
+        !!current.updated_at && Date.now() - new Date(current.updated_at).getTime() > STALE_HEARTBEAT_MS;
+      if (current.status === "sending" && !isStale) {
+        return json({ error: "Diese Rundmail wird gerade schon versendet." }, 409);
+      }
+
       const { data: locked, error: lockErr } = await admin
         .from("comm_campaigns")
         .update({ status: "sending", completed_at: null })
         .eq("id", campaign_id)
-        .or(`status.neq.sending,updated_at.lt.${staleIso}`)
+        .eq("status", current.status as string)
         .select("id");
       if (lockErr) throw lockErr;
       if (!locked || locked.length === 0) {
