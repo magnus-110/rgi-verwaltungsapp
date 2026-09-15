@@ -907,6 +907,57 @@ export type Database = {
           },
         ]
       }
+      booking_change_log: {
+        Row: {
+          account_id_after: string | null
+          account_id_before: string | null
+          amount_after: number | null
+          amount_before: number | null
+          booking_id: string
+          building_id: string | null
+          change_type: string
+          changed_at: string
+          changed_by: string | null
+          changed_fields: string[]
+          changed_via: string | null
+          id: string
+          new_values: Json | null
+          old_values: Json | null
+        }
+        Insert: {
+          account_id_after?: string | null
+          account_id_before?: string | null
+          amount_after?: number | null
+          amount_before?: number | null
+          booking_id: string
+          building_id?: string | null
+          change_type: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_fields?: string[]
+          changed_via?: string | null
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+        }
+        Update: {
+          account_id_after?: string | null
+          account_id_before?: string | null
+          amount_after?: number | null
+          amount_before?: number | null
+          booking_id?: string
+          building_id?: string | null
+          change_type?: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_fields?: string[]
+          changed_via?: string | null
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+        }
+        Relationships: []
+      }
       booking_embeddings: {
         Row: {
           account_name: string | null
@@ -5676,6 +5727,7 @@ export type Database = {
           attendance_type: string
           checked_in_at: string | null
           created_at: string | null
+          head_weight: number
           id: string
           meeting_id: string
           pre_vote_instruction_notes: Json | null
@@ -5699,6 +5751,7 @@ export type Database = {
           attendance_type?: string
           checked_in_at?: string | null
           created_at?: string | null
+          head_weight?: number
           id?: string
           meeting_id: string
           pre_vote_instruction_notes?: Json | null
@@ -5722,6 +5775,7 @@ export type Database = {
           attendance_type?: string
           checked_in_at?: string | null
           created_at?: string | null
+          head_weight?: number
           id?: string
           meeting_id?: string
           pre_vote_instruction_notes?: Json | null
@@ -6546,6 +6600,7 @@ export type Database = {
         Row: {
           agenda_item_id: string
           assignment_id: string
+          head_weight: number
           id: string
           ip_address: string | null
           is_manual_override: boolean | null
@@ -6559,6 +6614,7 @@ export type Database = {
         Insert: {
           agenda_item_id: string
           assignment_id: string
+          head_weight?: number
           id?: string
           ip_address?: string | null
           is_manual_override?: boolean | null
@@ -6572,6 +6628,7 @@ export type Database = {
         Update: {
           agenda_item_id?: string
           assignment_id?: string
+          head_weight?: number
           id?: string
           ip_address?: string | null
           is_manual_override?: boolean | null
@@ -12672,6 +12729,10 @@ export type Database = {
         Args: { p_building_id: string }
         Returns: undefined
       }
+      ensure_stammakte_categories_raw: {
+        Args: { p_building_id: string }
+        Returns: undefined
+      }
       find_contact_by_phone: {
         Args: { p_num: string }
         Returns: {
@@ -12963,6 +13024,24 @@ export type Database = {
               similarity: number
             }[]
           }
+      search_document_chunks_for_user: {
+        Args: {
+          filter_building_id?: string
+          match_count?: number
+          query_embedding: string
+        }
+        Returns: {
+          building_id: string
+          category_path: string[]
+          chunk_id: string
+          content: string
+          file_id: string
+          file_name: string
+          page_end: number
+          page_start: number
+          similarity: number
+        }[]
+      }
       search_document_chunks_with_metadata: {
         Args: {
           filter_building_id?: string
