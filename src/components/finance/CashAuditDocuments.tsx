@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, FileText, Receipt, Landmark, BarChart3 } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Receipt, Landmark, BarChart3, EyeOff, Eye } from "lucide-react";
 import { toast } from "sonner";
 
 interface CashAuditDocumentsProps {
