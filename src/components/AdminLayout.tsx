@@ -10,6 +10,7 @@ import { ErrorBoundary } from "./ErrorBoundary";
 import { DmsJobsProvider } from "@/contexts/DmsJobsProvider";
 import { DmsJobsTray } from "./finance/DmsJobsTray";
 import { PasskeyPromptDialog } from "./PasskeyPromptDialog";
+import { TimeClockReminderDialog } from "./timeclock/TimeClockReminderDialog";
 import { RequireMfa } from "./RequireMfa";
 import { BrokerModeProvider } from "@/hooks/useBrokerMode";
 import { BackendHealthProvider } from "@/hooks/useBackendHealth";
@@ -95,7 +96,10 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
         </div>
       </SidebarProvider>
       {profile?.user_id && (
-        <PasskeyPromptDialog userId={profile.user_id} enabled={true} />
+        <>
+          <PasskeyPromptDialog userId={profile.user_id} enabled={true} />
+          <TimeClockReminderDialog userId={profile.user_id} />
+        </>
       )}
     </>
   );
