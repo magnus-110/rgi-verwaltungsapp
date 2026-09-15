@@ -54,7 +54,7 @@ export function BuildingDocumentsTab({ buildingId, managementMode }: BuildingDoc
     if (isMobile) setMobileView('detail');
   };
 
-  // Mobile drill-down
+  // Tablet/mobile drill-down (unter 1024 px)
   if (isMobile) {
     return (
       <div className="h-[calc(100vh-280px)] flex flex-col">
