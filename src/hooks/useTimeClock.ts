@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -34,21 +34,40 @@ export function useActiveTimeEntry() {
   const uid = user?.id ?? "";
   const qc = useQueryClient();
 
+  const instanceId = useRef<string>("");
+  if (!instanceId.current) {
+    instanceId.current =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2);
+  }
+
   useEffect(() => {
     if (!uid) return;
-    const ch = supabase
-      .channel(`timeclock-${uid}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "time_clock_entries", filter: `user_id=eq.${uid}` },
-        () => {
-          qc.invalidateQueries({ queryKey: K.active(uid) });
-          qc.invalidateQueries({ queryKey: K.mine(uid) });
-        }
-      )
-      .subscribe();
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      ch = supabase
+        .channel(`timeclock-${uid}-${instanceId.current}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "time_clock_entries", filter: `user_id=eq.${uid}` },
+          () => {
+            qc.invalidateQueries({ queryKey: K.active(uid) });
+            qc.invalidateQueries({ queryKey: K.mine(uid) });
+          }
+        )
+        .subscribe();
+    } catch (e) {
+      console.warn("[useActiveTimeEntry] Realtime-Abo fehlgeschlagen:", e);
+    }
     return () => {
-      supabase.removeChannel(ch);
+      if (ch) {
+        try {
+          supabase.removeChannel(ch);
+        } catch (e) {
+          console.warn("[useActiveTimeEntry] Channel-Cleanup fehlgeschlagen:", e);
+        }
+      }
     };
   }, [uid, qc]);
 
