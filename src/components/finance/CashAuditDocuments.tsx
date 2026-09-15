@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, FileText, Receipt, Landmark, BarChart3 } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Receipt, Landmark, BarChart3, EyeOff, Eye } from "lucide-react";
 import { toast } from "sonner";
 
 interface CashAuditDocumentsProps {
@@ -17,6 +18,8 @@ interface CashAuditDocumentsProps {
 
 export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, auditId, tokenMode, token }: CashAuditDocumentsProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [showHidden, setShowHidden] = useState(false);
+  const queryClient = useQueryClient();
 
   // PDF-Kontoauszüge (vom Admin hochgeladen)
   const { data: statements = [] } = useQuery({
@@ -46,7 +49,7 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
       }
       const { data } = await supabase
         .from("bank_statements")
-        .select("id, file_name, file_path, created_at, statement_date_from, statement_date_to")
+        .select("id, file_name, file_path, created_at, statement_date_from, statement_date_to, exclude_from_audit")
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
         .eq("source_format", "pdf")
@@ -55,6 +58,19 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
       return (data || []).map((s: any) => ({ ...s, uploaded_at: s.created_at, _source: "bank" as const }));
     },
   });
+
+  const toggleBankPdfHidden = async (id: string, hide: boolean) => {
+    const { error } = await supabase
+      .from("bank_statements")
+      .update({ exclude_from_audit: hide })
+      .eq("id", id);
+    if (error) {
+      toast.error("Konnte Sichtbarkeit nicht ändern");
+      return;
+    }
+    toast.success(hide ? "Kontoauszug aus der Prüfung ausgeblendet" : "Kontoauszug wieder eingeblendet");
+    queryClient.invalidateQueries({ queryKey: ["audit-bank-pdfs", buildingId, fiscalYear, "auth"] });
+  };
 
   const { data: invoices = [] } = useQuery({
     queryKey: ["audit-invoices", buildingId, fiscalYear, tokenMode ? token : "auth"],
@@ -159,28 +175,46 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
   const isPlanRow = (s: any) => s.category === "plan" || (!s.category && dmsRegex.test(s.file_name || ""));
   const planDocs = (statements as any[]).filter(isPlanRow);
   const auditBankStatements = (statements as any[]).filter((s) => !isPlanRow(s));
+  const allBankPdfs = bankPdfs as any[];
+  const hiddenCount = allBankPdfs.filter((s) => s.exclude_from_audit).length;
+  const visibleBankPdfs = allBankPdfs.filter((s) => showHidden || !s.exclude_from_audit);
   const bankStatements = [
-    ...(bankPdfs as any[]),
+    ...visibleBankPdfs,
     ...auditBankStatements,
   ];
 
   const renderDocList = (list: any[], emptyText: string) => (
     <div className="space-y-1">
       {list.map((s: any) => (
-        <button
+        <div
           key={`${s._source || "audit"}-${s.id}`}
-          onClick={() => openStatement(s)}
-          className="w-full flex items-center gap-3 p-2 rounded hover:bg-muted/50 text-left text-sm"
+          className={`w-full flex items-center gap-2 rounded hover:bg-muted/50 ${s.exclude_from_audit ? "opacity-50" : ""}`}
         >
-          <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-          <span className="flex-1 truncate">{s.file_name}</span>
-          {s._source === "bank" && (
-            <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-primary/10 text-primary">Auto</span>
+          <button
+            onClick={() => openStatement(s)}
+            className="flex-1 min-w-0 flex items-center gap-3 p-2 text-left text-sm"
+          >
+            <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <span className="flex-1 truncate">{s.file_name}</span>
+            {s._source === "bank" && (
+              <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-primary/10 text-primary">Auto</span>
+            )}
+            <span className="text-xs text-muted-foreground">
+              {s.uploaded_at && new Date(s.uploaded_at).toLocaleDateString("de-DE")}
+            </span>
+          </button>
+          {!tokenMode && s._source === "bank" && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 mr-1 flex-shrink-0"
+              title={s.exclude_from_audit ? "Wieder in der Prüfung anzeigen" : "In der Prüfung ausblenden"}
+              onClick={() => toggleBankPdfHidden(s.id, !s.exclude_from_audit)}
+            >
+              {s.exclude_from_audit ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+            </Button>
           )}
-          <span className="text-xs text-muted-foreground">
-            {s.uploaded_at && new Date(s.uploaded_at).toLocaleDateString("de-DE")}
-          </span>
-        </button>
+        </div>
       ))}
       {list.length === 0 && <p className="text-sm text-muted-foreground py-4 text-center">{emptyText}</p>}
     </div>
@@ -193,7 +227,19 @@ export function CashAuditDocuments({ buildingId, fiscalYear, billingPeriodId, au
       label: "Kontoauszüge",
       icon: Landmark,
       count: bankStatements.length,
-      content: renderDocList(bankStatements, "Keine Kontoauszüge hochgeladen"),
+      content: (
+        <>
+          {renderDocList(bankStatements, "Keine Kontoauszüge hochgeladen")}
+          {!tokenMode && hiddenCount > 0 && (
+            <button
+              onClick={() => setShowHidden((v) => !v)}
+              className="mt-2 text-xs text-muted-foreground hover:text-foreground underline"
+            >
+              {showHidden ? "Ausgeblendete verbergen" : `${hiddenCount} ausgeblendete anzeigen`}
+            </button>
+          )}
+        </>
+      ),
     },
     {
       id: "invoices",
