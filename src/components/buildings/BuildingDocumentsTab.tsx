@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Upload, ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsTabletOrBelow } from "@/hooks/use-mobile";
 import { FolderTree } from "./documents/FolderTree";
 import { DocumentFileList } from "./documents/DocumentFileList";
 import { DocumentDetailPanel } from "./documents/DocumentDetailPanel";
@@ -19,7 +19,7 @@ interface BuildingDocumentsTabProps {
 
 export function BuildingDocumentsTab({ buildingId, managementMode }: BuildingDocumentsTabProps) {
   const queryClient = useQueryClient();
-  const isMobile = useIsMobile();
+  const isMobile = useIsTabletOrBelow();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<DocFile | null>(null);
   const [search, setSearch] = useState("");
@@ -54,7 +54,7 @@ export function BuildingDocumentsTab({ buildingId, managementMode }: BuildingDoc
     if (isMobile) setMobileView('detail');
   };
 
-  // Mobile drill-down
+  // Tablet/mobile drill-down (unter 1024 px)
   if (isMobile) {
     return (
       <div className="h-[calc(100vh-280px)] flex flex-col">
