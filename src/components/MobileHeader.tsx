@@ -26,6 +26,7 @@ import {
   Workflow,
   FolderKanban,
   Briefcase,
+  ListChecks,
 } from "lucide-react";
 
 interface MobileHeaderProps {
@@ -54,6 +55,7 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
         { icon: ClipboardList, label: "Meldungen", path: '/tickets', active: (location.pathname === '/tickets' || location.pathname.startsWith('/reports')) },
         { icon: FolderKanban, label: "Vorgänge", path: '/tickets/vorgaenge', active: location.pathname.startsWith('/tickets/vorgaenge') },
         { icon: Users, label: "Versammlungen", path: '/versammlungen', active: location.pathname.startsWith('/versammlungen') },
+        { icon: ListChecks, label: "Umfragen", path: '/umfragen', active: location.pathname.startsWith('/umfragen') },
         { icon: Workflow, label: "Prozesse", path: '/prozesse', active: location.pathname.startsWith('/prozesse') },
         { icon: Briefcase, label: "RGI Intern", path: '/rgi-intern', active: location.pathname.startsWith('/rgi-intern'), adminOnly: true },
         { icon: Settings, label: "Einstellungen", path: '/settings', active: location.pathname.startsWith('/settings'), adminOnly: true },
