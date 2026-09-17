@@ -265,6 +265,12 @@ export const Inbox = () => {
     return accountUsers.filter((au) => au.user_id === profile.user_id).map((au) => au.account_id);
   }, [accountUsers, profile?.user_id]);
 
+  // Eigene Postfach-Adressen – werden beim Antworten an alle herausgefiltert
+  const ownEmailAddresses = useMemo(
+    () => accounts.map((a) => a.email_address).filter(Boolean) as string[],
+    [accounts],
+  );
+
   // Buildings for archive filter
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list"],
@@ -2280,6 +2286,10 @@ export const Inbox = () => {
                                 body_text: selectedEmail.body_text,
                                 date: selectedEmail.date,
                                 account_id: selectedEmail.account_id,
+                                // Allen Beteiligten antworten (An + CC der Original-Mail)
+                                to_addresses: (selectedEmail as any).to_addresses,
+                                cc_addresses: (selectedEmail as any).cc_addresses,
+                                self_addresses: ownEmailAddresses,
                               },
                             });
                           }}
