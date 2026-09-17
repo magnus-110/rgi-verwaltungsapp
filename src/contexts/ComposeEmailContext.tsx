@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
+import { buildReplyAllRecipients } from "@/lib/emailRecipients";
 
 export type ComposeMode = "minimized" | "docked" | "fullscreen";
 
@@ -29,6 +30,11 @@ export interface ComposeState {
     body_text: string;
     date: string;
     account_id: string;
+    /** Empfänger der Original-Mail – damit beim Antworten allen geantwortet wird */
+    to_addresses?: unknown;
+    cc_addresses?: unknown;
+    /** Eigene Konto-Adressen, die nicht mit angeschrieben werden sollen */
+    self_addresses?: string[];
   } | null;
   forward?: {
     email_id?: string;
@@ -150,12 +156,22 @@ const buildInitial = (id: string, opts?: OpenOpts): ComposeState => {
       forward: null,
     };
   }
+  // Antworten geht an alle Beteiligten der Original-Mail (An + CC), ohne die eigenen Adressen
+  const replyRecipients = replyTo
+    ? buildReplyAllRecipients({
+        fromAddress: replyTo.from_address,
+        toAddresses: replyTo.to_addresses,
+        ccAddresses: replyTo.cc_addresses,
+        selfAddresses: replyTo.self_addresses,
+      })
+    : null;
+
   return {
     id,
     mode: "docked",
     accountId: prefill?.accountId || replyTo?.account_id || forward?.account_id || "",
-    to: prefill?.to ?? (replyTo?.from_address || ""),
-    cc: prefill?.cc ?? "",
+    to: prefill?.to ?? replyRecipients?.to.join(", ") ?? "",
+    cc: prefill?.cc ?? replyRecipients?.cc.join(", ") ?? "",
     bcc: prefill?.bcc ?? "",
     subject:
       prefill?.subject ?? (replyTo ? `Re: ${replyTo.subject}` : forward ? `Fwd: ${forward.subject}` : ""),
