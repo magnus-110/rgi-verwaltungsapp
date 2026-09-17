@@ -83,6 +83,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { CallLogList } from "@/components/calls/CallLogList";
 import { Phone as PhoneIcon, Mails as MailsIcon } from "lucide-react";
 import { BulkMailPanel } from "@/components/communication/bulk/BulkMailPanel";
+import { CreateContactDialog, type CreateContactPrefill } from "@/components/contacts/CreateContactDialog";
 
 
 const folderIcons: Record<string, any> = {
@@ -143,7 +144,7 @@ export const Inbox = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileFoldersOpen, setMobileFoldersOpen] = useState(false);
   const [newContactDialogOpen, setNewContactDialogOpen] = useState(false);
-  const [newContactData, setNewContactData] = useState({ first_name: "", last_name: "", company_name: "", email: "" });
+  const [newContactPrefill, setNewContactPrefill] = useState<CreateContactPrefill>({});
   const [contactSearchTerm, setContactSearchTerm] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedEmailIds, setSelectedEmailIds] = useState<Set<string>>(new Set());
@@ -1065,61 +1066,30 @@ export const Inbox = () => {
 
   const openNewContactFromEmail = () => {
     if (!selectedEmail) return;
-    const fromName = selectedEmail.from_name || "";
-    const parts = fromName.split(" ");
-    setNewContactData({
-      first_name: parts.length > 1 ? parts.slice(0, -1).join(" ") : fromName,
-      last_name: parts.length > 1 ? parts[parts.length - 1] : "",
-      company_name: "",
+    const fromName = (selectedEmail.from_name || "").trim();
+    const parts = fromName.split(/\s+/).filter(Boolean);
+    // Enthält der Absendername einen Firmenhinweis, gleich als Firma vorbelegen
+    const companyHint = /\b(gmbh|ag|kg|ohg|mbh|ug|e\.?k\.?|gbr|se|ltd|inc|e\.?v\.?|gmbh & co)\b/i.test(fromName);
+    setNewContactPrefill({
+      contactType: companyHint ? "company" : "person",
+      companyName: companyHint ? fromName : "",
+      shortName: fromName || undefined,
+      firstName: companyHint ? "" : parts.length > 1 ? parts.slice(0, -1).join(" ") : fromName,
+      lastName: companyHint ? "" : parts.length > 1 ? parts[parts.length - 1] : "",
       email: selectedEmail.from_address || "",
+      emailLabel: "Geschäftlich",
     });
     setNewContactDialogOpen(true);
   };
 
-  const handleCreateContact = async () => {
+  /** Nach dem Anlegen im vollständigen Kontaktformular: E-Mail mit dem neuen Kontakt verknüpfen. */
+  const handleContactCreatedFromEmail = async (contactId?: string) => {
     try {
-      const contactType = newContactData.company_name ? "company" : "person";
-      const { data: contact, error } = await supabase
-        .from("contacts")
-        .insert({
-          first_name: newContactData.first_name || null,
-          last_name: newContactData.last_name || null,
-          company_name: newContactData.company_name || null,
-          contact_type: contactType as any,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-
-      // Create a contact_person
-      const { data: person } = await supabase
-        .from("contact_persons")
-        .insert({
-          contact_id: contact.id,
-          first_name: newContactData.first_name || null,
-          last_name: newContactData.last_name || null,
-          is_primary: true,
-        })
-        .select("id")
-        .single();
-
-      if (newContactData.email) {
-        await supabase.from("contact_emails").insert({
-          contact_id: contact.id,
-          person_id: person?.id || null,
-          email: newContactData.email,
-          is_primary: true,
-        });
+      if (contactId && selectedEmail) {
+        await supabase.from("emails").update({ contact_id: contactId }).eq("id", selectedEmail.id);
       }
-
-      // Link email to new contact
-      if (selectedEmail) {
-        await supabase.from("emails").update({ contact_id: contact.id }).eq("id", selectedEmail.id);
-      }
-
       queryClient.invalidateQueries({ queryKey: ["contacts-list"] });
       queryClient.invalidateQueries({ queryKey: ["emails"] });
-      setNewContactDialogOpen(false);
       toast.success("Kontakt erstellt und verknüpft");
     } catch (err: any) {
       toast.error("Fehler: " + err.message);
@@ -2398,48 +2368,12 @@ export const Inbox = () => {
 
       <PrintEmailDialog open={printDialogOpen} onOpenChange={setPrintDialogOpen} email={selectedEmail as any} />
 
-      <Dialog open={newContactDialogOpen} onOpenChange={setNewContactDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Neuen Kontakt anlegen</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Vorname</Label>
-                <Input
-                  value={newContactData.first_name}
-                  onChange={(e) => setNewContactData((prev) => ({ ...prev, first_name: e.target.value }))}
-                />
-              </div>
-              <div>
-                <Label className="text-xs">Nachname</Label>
-                <Input
-                  value={newContactData.last_name}
-                  onChange={(e) => setNewContactData((prev) => ({ ...prev, last_name: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div>
-              <Label className="text-xs">Firma</Label>
-              <Input
-                value={newContactData.company_name}
-                onChange={(e) => setNewContactData((prev) => ({ ...prev, company_name: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label className="text-xs">E-Mail</Label>
-              <Input value={newContactData.email} disabled className="bg-muted" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewContactDialogOpen(false)}>
-              Abbrechen
-            </Button>
-            <Button onClick={handleCreateContact}>Kontakt erstellen</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CreateContactDialog
+        open={newContactDialogOpen}
+        onOpenChange={setNewContactDialogOpen}
+        prefill={newContactPrefill}
+        onCreated={handleContactCreatedFromEmail}
+      />
 
       {isAdmin && (
         <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
