@@ -444,6 +444,8 @@ function AddProviderDialog({
       <CreateContactDialog
         open={showCreate}
         onOpenChange={setShowCreate}
+        title="Neuer Dienstleister"
+        prefill={{ contactType: "company", isServiceProvider: true }}
         onCreated={() => { refetch(); }}
       />
     </>
