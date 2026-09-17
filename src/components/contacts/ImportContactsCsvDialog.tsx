@@ -15,6 +15,7 @@ interface ParsedContact {
   short_name: string | null;
   salutation: string | null;
   contact_type: string;
+  is_service_provider_pool?: boolean;
   first_name: string | null;
   last_name: string | null;
   company_name: string | null;
@@ -92,7 +93,8 @@ const isValidEmail = (val: string) => /@/.test(val);
 function parseStructuredRow(row: Record<string, string>): ParsedContact {
   const isCompany = (row.typ || "").toLowerCase() === "company" || (row.anrede || "").toLowerCase() === "firma";
   const isService = (row.typ || "").toLowerCase() === "service_provider";
-  const contactType = isCompany ? "company" : isService ? "service_provider" : "person";
+  // Adress-Typ = nur Rechtsform (Person/Firma); Dienstleister ist ein Kennzeichen
+  const contactType = isCompany || isService ? "company" : "person";
 
   // Build persons
   const persons: ParsedContact["persons"] = [];
@@ -137,6 +139,7 @@ function parseStructuredRow(row: Record<string, string>): ParsedContact {
     short_name: row.stichwort || null,
     salutation: row.anrede || null,
     contact_type: contactType,
+    is_service_provider_pool: isService,
     first_name: isCompany ? null : (row.vorname || null),
     last_name: isCompany ? null : (row.nachname || null),
     company_name: isCompany ? (row.firma || row.nachname || null) : (row.firma || null),
@@ -234,7 +237,6 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
               )
             );
           } catch {}
-
           setProgress(50);
 
           const parsed: ParsedContact[] = rawRows.slice(1).map(row => {
@@ -413,10 +415,9 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
     return [c.last_name, c.first_name].filter(Boolean).join(", ") || c.short_name || "—";
   };
 
-  const getTypeLabel = (t: string) => {
-    if (t === "company") return "Firma";
-    if (t === "service_provider") return "Dienstleister";
-    return "Person";
+  const getTypeLabel = (c: ParsedContact) => {
+    if (c.is_service_provider_pool) return c.contact_type === "person" ? "Person · Dienstleister" : "Firma · Dienstleister";
+    return c.contact_type === "company" ? "Firma" : "Person";
   };
 
   return (
@@ -533,7 +534,7 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
                           </TableCell>
                           <TableCell>
                             <Badge variant={c.contact_type === "company" ? "default" : "secondary"} className="text-xs">
-                              {getTypeLabel(c.contact_type)}
+                              {getTypeLabel(c)}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground truncate max-w-[180px]">
