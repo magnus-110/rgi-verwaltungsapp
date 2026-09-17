@@ -34,7 +34,6 @@ import {
   CalendarIcon,
   CheckCircle2,
 } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -43,40 +42,22 @@ import { ContactBuildingAssignments } from "./ContactBuildingAssignments";
 import { ContactDocumentsSection } from "./ContactDocumentsSection";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { ServiceProviderCategoryPicker } from "./ServiceProviderCategoryPicker";
 import {
-  SERVICE_PROVIDER_CATEGORIES,
-  SERVICE_PROVIDER_GROUPS,
-  type ServiceProviderGroup,
-} from "@/lib/serviceProviderCategories";
+  CONTACT_TYPES,
+  SALUTATIONS,
+  PHONE_LABELS,
+  EMAIL_LABELS,
+  normalizeContactType,
+  isCompanyContactType,
+} from "@/lib/contactTypes";
 import { Star, Siren, MapPin, Loader2 } from "lucide-react";
 import type { Contact } from "@/pages/Contacts";
 import { toTelHref } from "@/lib/phone";
 import { logOutgoingCall } from "@/components/calls/callLogUtils";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 
-const SALUTATIONS = [
-  "Herr",
-  "Frau",
-  "Eheleute",
-  "Firma",
-  "Familie",
-  "Herr Dr.",
-  "Frau Dr.",
-  "Herr Prof.",
-  "Frau Prof.",
-  "Herr Prof. Dr.",
-  "Frau Prof. Dr.",
-  "Herr/Frau",
-];
 
-const CONTACT_TYPES = [
-  { value: "person", label: "Person" },
-  { value: "company", label: "Firma" },
-  { value: "service_provider", label: "Dienstleister" },
-];
-
-const PHONE_LABELS = ["Mobil", "Festnetz", "Büro", "Fax"];
-const EMAIL_LABELS = ["Privat", "Geschäftlich", "Sonstige"];
 
 interface LocalPhone {
   _localId: string;
@@ -387,7 +368,7 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
           address_zip: form.address_zip,
           address_city: form.address_city,
           notes: form.notes,
-          contact_type: form.contact_type as any,
+          contact_type: normalizeContactType(form.contact_type) as any,
           is_service_provider_pool: !!form.is_service_provider_pool,
           service_provider_categories: form.is_service_provider_pool ? (form.service_provider_categories ?? []) : [],
           trade_notes: (form as any).trade_notes ?? null,
@@ -539,7 +520,7 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
     form.company_name || form.short_name || [form.first_name, form.last_name].filter(Boolean).join(" ") || "Unbenannt";
   const visiblePersons = persons.filter((p) => !p._deleted);
   const hasIbanErrors = Object.keys(ibanErrors).length > 0;
-  const isCompanyType = form.contact_type === "company" || form.contact_type === "service_provider";
+  const isCompanyType = isCompanyContactType(form.contact_type);
 
   const togglePersonOpen = (localId: string) => {
     setOpenPersons((prev) => ({ ...prev, [localId]: !prev[localId] }));
@@ -617,7 +598,7 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
               <div>
                 <Label>Adress-Typ</Label>
                 <Select
-                  value={form.contact_type || "person"}
+                  value={normalizeContactType(form.contact_type)}
                   onValueChange={(v) => {
                     setForm({ ...form, contact_type: v });
                     markDirty();
@@ -658,6 +639,8 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
                 </div>
               )}
             </div>
+
+            <ServiceProviderSection form={form} setForm={setForm} markDirty={markDirty} toast={toast} />
 
             <div className="border-t border-border pt-4 mt-4">
               <div className="flex items-center gap-2 mb-3">
@@ -726,8 +709,6 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
                 rows={4}
               />
             </div>
-
-            <ServiceProviderSection form={form} setForm={setForm} markDirty={markDirty} toast={toast} />
           </TabsContent>
 
           {/* Personen Tab */}
@@ -1234,25 +1215,7 @@ function ServiceProviderSection({
   markDirty: () => void;
   toast: ReturnType<typeof useToast>["toast"];
 }) {
-  const [catSearch, setCatSearch] = useState("");
   const [geocoding, setGeocoding] = useState(false);
-
-  const grouped = (() => {
-    const term = catSearch.trim().toLowerCase();
-    const out: Record<ServiceProviderGroup, typeof SERVICE_PROVIDER_CATEGORIES> = {} as any;
-    SERVICE_PROVIDER_CATEGORIES.forEach((c) => {
-      if (term && !c.label.toLowerCase().includes(term)) return;
-      (out[c.group] ||= []).push(c);
-    });
-    return out;
-  })();
-
-  const toggleCat = (id: string) => {
-    const current: string[] = form.service_provider_categories ?? [];
-    const next = current.includes(id) ? current.filter((c) => c !== id) : [...current, id];
-    setForm({ ...form, service_provider_categories: next });
-    markDirty();
-  };
 
   const geocode = async () => {
     const parts = [form.address_street, form.address_zip, form.address_city, "Germany"].filter(Boolean).join(", ");
@@ -1287,8 +1250,18 @@ function ServiceProviderSection({
 
   return (
     <div className="border-t border-border pt-4 mt-4 space-y-4">
-      <div className="flex items-start gap-3">
-        <Checkbox
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1">
+          <Label htmlFor="sp-pool" className="flex items-center gap-2 cursor-pointer">
+            <Wrench className="h-4 w-4 text-primary" />
+            Dienstleister / Handwerker
+          </Label>
+          <p className="text-xs text-muted-foreground mt-1">
+            Aktivieren, um Gewerke zuzuordnen und den Kontakt im Dienstleister-Pool zu finden. Unabhängig vom
+            Adress-Typ – auch eine Eigentümer-Firma kann Dienstleister sein.
+          </p>
+        </div>
+        <Switch
           id="sp-pool"
           checked={!!form.is_service_provider_pool}
           onCheckedChange={(v) => {
@@ -1296,60 +1269,17 @@ function ServiceProviderSection({
             markDirty();
           }}
         />
-        <div className="flex-1">
-          <Label htmlFor="sp-pool" className="flex items-center gap-2 cursor-pointer">
-            <Wrench className="h-4 w-4 text-primary" />
-            Firma / Dienstleister
-          </Label>
-          <p className="text-xs text-muted-foreground mt-1">
-            Aktivieren, um Gewerke zuzuordnen und in der Adresssuche zu finden.
-          </p>
-        </div>
       </div>
 
       {form.is_service_provider_pool && (
-        <div className="ml-7 space-y-4">
-          <div>
-            <Label className="text-xs text-muted-foreground">Gewerke (Mehrfachauswahl)</Label>
-            <Input
-              placeholder="Gewerk suchen…"
-              value={catSearch}
-              onChange={(e) => setCatSearch(e.target.value)}
-              className="h-8 text-xs mt-1 mb-2"
-            />
-            <div className="space-y-2">
-              {(Object.keys(SERVICE_PROVIDER_GROUPS) as ServiceProviderGroup[]).map((g) => {
-                const items = grouped[g];
-                if (!items || items.length === 0) return null;
-                return (
-                  <div key={g}>
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
-                      {SERVICE_PROVIDER_GROUPS[g]}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {items.map((cat) => {
-                        const selected = (form.service_provider_categories ?? []).includes(cat.id);
-                        return (
-                          <button
-                            key={cat.id}
-                            type="button"
-                            onClick={() => toggleCat(cat.id)}
-                            className={`px-2.5 py-1 rounded-full border text-xs transition ${
-                              selected
-                                ? "border-primary bg-primary/10 text-primary"
-                                : "border-border text-muted-foreground hover:border-primary/50"
-                            }`}
-                          >
-                            {cat.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+        <div className="space-y-4">
+          <ServiceProviderCategoryPicker
+            value={form.service_provider_categories ?? []}
+            onChange={(next) => {
+              setForm({ ...form, service_provider_categories: next });
+              markDirty();
+            }}
+          />
 
           <div>
             <Label>Notizen zu Gewerken / Spezialitäten</Label>
