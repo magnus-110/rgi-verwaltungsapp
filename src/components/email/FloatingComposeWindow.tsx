@@ -171,7 +171,8 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   const [ccContactPickerOpen, setCcContactPickerOpen] = useState(false);
   const [bccContactPickerOpen, setBccContactPickerOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
-  const [showCcBcc, setShowCcBcc] = useState(false);
+  // CC/BCC direkt aufklappen, wenn beim Öffnen schon Empfänger drinstehen (z. B. beim Antworten an alle)
+  const [showCcBcc, setShowCcBcc] = useState(() => !!(compose.cc?.trim() || compose.bcc?.trim()));
 
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [dmsPickerOpen, setDmsPickerOpen] = useState(false);
