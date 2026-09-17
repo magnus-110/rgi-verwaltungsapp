@@ -237,6 +237,7 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
               )
             );
           } catch {}
+
           setProgress(50);
 
           const parsed: ParsedContact[] = rawRows.slice(1).map(row => {
