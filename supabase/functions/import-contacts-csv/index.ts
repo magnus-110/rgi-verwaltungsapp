@@ -30,6 +30,7 @@ interface ParsedContact {
   short_name: string | null;
   salutation: string | null;
   contact_type: string;
+  is_service_provider_pool?: boolean;
   first_name: string | null;
   last_name: string | null;
   company_name: string | null;
@@ -73,7 +74,7 @@ Regeln:
 2. Wenn "Anrede" = "Firma" ist, setze contact_type auf "company" und den Nachname-Wert als company_name.
 3. Extrahiere aus Telefonnummern eingebettete Notizen (z.B. "0157/58081955 Andrea" → phone: "0157/58081955", note: "Andrea").
 4. Wenn Name2 oder Name3 vorhanden sind, erstelle zusätzliche Personen.
-5. Erkenne "Dienstleister" wenn Stichwort Begriffe wie "Handwerker", "Wartung", "Service", "Reinigung", "Garten" enthält → contact_type = "service_provider".
+5. Erkenne "Dienstleister" wenn Stichwort Begriffe wie "Handwerker", "Wartung", "Service", "Reinigung", "Garten" enthält → contact_type = "service_provider" (wird beim Import als Firma mit Dienstleister-Kennzeichen gespeichert).
 
 Für jede Zeile gib ein JSON-Objekt zurück mit:
 - contact_type: "person" | "company" | "service_provider"
@@ -184,9 +185,8 @@ serve(async (req) => {
         const isCompany = anrede.toLowerCase() === "firma" || (aiResult?.contact_type === "company");
         const isServiceProvider = aiResult?.contact_type === "service_provider";
 
-        let contactType = "person";
-        if (isCompany) contactType = "company";
-        else if (isServiceProvider) contactType = "service_provider";
+        // Adress-Typ = nur Rechtsform (Person/Firma); Dienstleister ist ein Kennzeichen
+        const contactType = isCompany || isServiceProvider ? "company" : "person";
 
         const firstName = aiResult?.first_name || null;
         const lastName = aiResult?.last_name || row.nachname || null;
@@ -261,6 +261,7 @@ serve(async (req) => {
           short_name: row.stichwort || null,
           salutation: anrede || null,
           contact_type: contactType,
+          is_service_provider_pool: isServiceProvider,
           first_name: isCompany ? null : firstName,
           last_name: isCompany ? null : lastName,
           company_name: companyName,
@@ -306,7 +307,8 @@ serve(async (req) => {
               .insert({
                 short_name: c.short_name || null,
                 salutation: c.salutation || null,
-                contact_type: c.contact_type || "person",
+                contact_type: c.contact_type === "person" ? "person" : "company",
+                is_service_provider_pool: !!(c as any).is_service_provider_pool,
                 first_name: c.first_name || null,
                 last_name: c.last_name || null,
                 company_name: c.company_name || null,
