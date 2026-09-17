@@ -9,13 +9,19 @@ import {
 } from "@/hooks/useBookingLearning";
 
 /**
- * Fragt nach jeder Handkorrektur an einer Buchung, ob die KI daraus lernen soll.
+ * Lernt aus Handkorrekturen UND aus Bestaetigungen an Buchungen.
  *
  * Warum global statt im Buchungsdialog: Buchungen werden an mehreren Stellen
  * geaendert (EditBookingDialog, Review-Modus, Inline-Bearbeitung). Der Trigger
  * `trg_log_booking_change` schreibt jede dieser Aenderungen nach
  * `booking_change_log`. Wir hoeren einmal zentral darauf und decken damit alle
  * Stellen ab, ohne jede einzeln zu verdrahten.
+ *
+ * Zwei Faelle:
+ * 1. Ein lernbares Feld wurde geaendert  -> Lern-Dialog fragt nach der Absicht.
+ * 2. Das Pruefkennzeichen wurde entfernt -> stille Bestaetigung ("Passt so").
+ *    Das ist genau der vorhandene Flaggen-Schalter im Buchungsdialog. Ohne
+ *    diesen Fall saehe die KI nur ihre Fehlgriffe und nie ihre Treffer.
  *
  * Es wird nur auf eigene Aenderungen reagiert (`changed_by = eigene User-ID`).
  * Massenlaeufe ueber die Service-Rolle haben `changed_by = NULL` und loesen
@@ -68,12 +74,19 @@ export function BookingLearningWatcher() {
           if (!zeile || zeile.change_type !== "update") return;
 
           const geaendert: string[] = zeile.changed_fields ?? [];
+          const alt = (zeile.old_values ?? {}) as Record<string, unknown>;
+          const neu = (zeile.new_values ?? {}) as Record<string, unknown>;
+
+          // Fall 2 zuerst: Pruefkennzeichen entfernt = "Passt so".
+          // Laeuft still im Hintergrund, ohne Dialog.
+          if (geaendert.includes("needs_review") && alt.needs_review === true && neu.needs_review === false) {
+            await bestaetigungMerken(zeile.booking_id, zeile.building_id ?? null);
+          }
+
+          // Fall 1: lernbares Feld geaendert -> nachfragen.
           if (!geaendert.some((f) => (LERNBARE_FELDER as readonly string[]).includes(f))) return;
           if (schonGefragt.current.has(zeile.booking_id)) return;
           schonGefragt.current.add(zeile.booking_id);
-
-          const alt = (zeile.old_values ?? {}) as Record<string, unknown>;
-          const neu = (zeile.new_values ?? {}) as Record<string, unknown>;
 
           // Nur die tatsaechlich geaenderten Felder stehen in old_values/new_values.
           const vorher: BookingSnapshot = {};
@@ -133,6 +146,46 @@ export function BookingLearningWatcher() {
       vendorName={aktuell.vendorName}
     />
   );
+}
+
+/**
+ * Speichert die Bestaetigung einer Buchung als Lernsignal. Kein Dialog, keine
+ * Meldung — der Buchungsdialog meldet bereits "Pruefung erledigt".
+ */
+async function bestaetigungMerken(bookingId: string, buildingId: string | null) {
+  if (!bookingId) return;
+  try {
+    const { data: buchung } = await supabase
+      .from("bookings")
+      .select("account_id, counter_account_id, booking_type, description, booking_reference, is_35a_relevant, bank_transaction_id")
+      .eq("id", bookingId)
+      .maybeSingle();
+    if (!buchung) return;
+
+    const b: any = buchung;
+    const kontext = await ladeKontext(bookingId);
+    const { data: userData } = await supabase.auth.getUser();
+
+    await supabase.from("ai_booking_feedback").insert({
+      building_id: buildingId,
+      booking_id: bookingId,
+      bank_transaction_id: b.bank_transaction_id ?? null,
+      vendor_name: kontext.vendorName,
+      ai_suggested_account_id: b.account_id ?? null,
+      ai_suggested_counter_account_id: b.counter_account_id ?? null,
+      ai_suggested_booking_type: b.booking_type ?? null,
+      ai_suggested_description: b.description ?? null,
+      ai_suggested_reference: b.booking_reference ?? null,
+      ai_suggested_35a: b.is_35a_relevant ?? null,
+      user_accepted: true,
+      learn_scope: "einmalig",
+      changed_via: "authenticated",
+      created_by: userData.user?.id ?? null,
+    } as never);
+  } catch (e) {
+    // Eine verlorene Bestaetigung darf den Arbeitsfluss nicht stoeren.
+    console.warn("Bestaetigung nicht als Lernsignal gespeichert:", e);
+  }
 }
 
 async function ladeKontoNamen(ids: unknown[]): Promise<Map<string, string>> {
