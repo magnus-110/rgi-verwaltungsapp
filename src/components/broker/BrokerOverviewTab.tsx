@@ -203,11 +203,9 @@ export const BrokerOverviewTab = ({ property, onUpdated }: { property: any; onUp
       <CreateContactDialog
         open={contactDialogOpen}
         onOpenChange={setContactDialogOpen}
-        onCreated={async () => {
+        onCreated={async (contactId) => {
           await qc.invalidateQueries({ queryKey: ['broker-contacts-picker'] });
-          const { data } = await supabase.from('contacts')
-            .select('id').order('created_at', { ascending: false }).limit(1).maybeSingle();
-          if (data?.id) upd('owner_contact_id', data.id);
+          if (contactId) upd('owner_contact_id', contactId);
         }}
       />
 

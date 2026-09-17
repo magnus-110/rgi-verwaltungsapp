@@ -186,11 +186,9 @@ const CreateLeadDialog = ({ open, onOpenChange, propertyId, onCreated }: {
       <CreateContactDialog
         open={contactDialogOpen}
         onOpenChange={setContactDialogOpen}
-        onCreated={async () => {
+        onCreated={async (contactId) => {
           await qc.invalidateQueries({ queryKey: ['broker-contacts-picker'] });
-          const { data } = await supabase.from('contacts')
-            .select('id').order('created_at', { ascending: false }).limit(1).maybeSingle();
-          if (data?.id) await pickContact(data.id);
+          if (contactId) await pickContact(contactId);
         }}
       />
     </>
