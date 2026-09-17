@@ -24,11 +24,11 @@ import {
 } from "@/lib/serviceProviderCategories";
 import type { Contact, ContactFilters } from "@/pages/Contacts";
 import { toTelHref } from "@/lib/phone";
+import { normalizeContactType } from "@/lib/contactTypes";
 
 const TYPE_CONFIG: Record<string, { label: string; icon: any; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   person: { label: "Person", icon: User, variant: "secondary" },
   company: { label: "Firma", icon: Building2, variant: "default" },
-  service_provider: { label: "Dienstleister", icon: Wrench, variant: "secondary" },
 };
 
 interface ContactListProps {
@@ -71,7 +71,9 @@ const ContactRow = memo(function ContactRow({
   onSelect: (id: string) => void;
   comm?: PrimaryComm;
 }) {
-  const typeConfig = TYPE_CONFIG[contact.contact_type || "person"];
+  const normalizedType = normalizeContactType(contact.contact_type);
+  const typeConfig = TYPE_CONFIG[normalizedType];
+  const isServiceProvider = !!contact.is_service_provider_pool;
   const cats = (contact.service_provider_categories ?? []).slice(0, 3);
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
@@ -89,14 +91,25 @@ const ContactRow = memo(function ContactRow({
       }`}
     >
       <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
-        {typeConfig ? <typeConfig.icon className="h-4 w-4 text-muted-foreground" /> : <User className="h-4 w-4 text-muted-foreground" />}
+        {isServiceProvider ? (
+          <Wrench className="h-4 w-4 text-muted-foreground" />
+        ) : typeConfig ? (
+          <typeConfig.icon className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <User className="h-4 w-4 text-muted-foreground" />
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 flex-wrap">
           <p className="text-sm font-medium truncate">{getDisplayName(contact)}</p>
-          {typeConfig && contact.contact_type && contact.contact_type !== "person" && (
+          {normalizedType === "company" && (
             <Badge variant={typeConfig.variant} className="text-[9px] px-1 py-0 shrink-0">
               {typeConfig.label}
+            </Badge>
+          )}
+          {isServiceProvider && (
+            <Badge variant="secondary" className="text-[9px] px-1 py-0 shrink-0 gap-0.5">
+              <Wrench className="h-2.5 w-2.5" /> Dienstleister
             </Badge>
           )}
           {contact.is_emergency_service && (
@@ -111,7 +124,7 @@ const ContactRow = memo(function ContactRow({
           ) : null}
         </div>
 
-        {comm?.name && (contact.contact_type === "company" || contact.contact_type === "service_provider") && (
+        {comm?.name && normalizedType === "company" && (
           <p className="text-xs text-muted-foreground truncate">{comm.name}</p>
         )}
 
