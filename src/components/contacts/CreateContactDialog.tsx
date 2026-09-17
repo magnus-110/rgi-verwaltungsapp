@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,41 +6,63 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2 } from "lucide-react";
-
-const SALUTATIONS = [
-  "Herr", "Frau", "Eheleute", "Firma", "Familie",
-  "Herr Dr.", "Frau Dr.", "Herr Prof.", "Frau Prof.",
-  "Herr Prof. Dr.", "Frau Prof. Dr.", "Herr/Frau"
-];
-
-const CONTACT_TYPES = [
-  { value: "person", label: "Person" },
-  { value: "company", label: "Firma" },
-  { value: "service_provider", label: "Dienstleister" },
-];
-
-const PHONE_LABELS = ["Mobil", "Privat", "Geschäftlich", "Fax"];
-const EMAIL_LABELS = ["Privat", "Geschäftlich"];
-
-interface Props {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onCreated: () => void;
-}
+import { Plus, Trash2, Wrench } from "lucide-react";
+import { ServiceProviderCategoryPicker } from "./ServiceProviderCategoryPicker";
+import {
+  CONTACT_TYPES,
+  SALUTATIONS,
+  PHONE_LABELS,
+  EMAIL_LABELS,
+  normalizeContactType,
+  isCompanyContactType,
+} from "@/lib/contactTypes";
 
 interface PhoneEntry { phone_number: string; label: string }
 interface EmailEntry { email: string; label: string }
 interface BankEntry { iban: string; bic: string; bank_name: string; account_holder: string }
 
+/** Vorbelegung, z.B. aus einer E-Mail im Postfach. */
+export interface CreateContactPrefill {
+  contactType?: string | null;
+  salutation?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  companyName?: string | null;
+  shortName?: string | null;
+  position?: string | null;
+  email?: string | null;
+  emailLabel?: string | null;
+  phone?: string | null;
+  phoneLabel?: string | null;
+  addressStreet?: string | null;
+  addressZip?: string | null;
+  addressCity?: string | null;
+  notes?: string | null;
+  isServiceProvider?: boolean;
+  serviceProviderCategories?: string[];
+}
+
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Wird nach dem Anlegen mit der neuen Kontakt-ID aufgerufen. */
+  onCreated: (contactId?: string) => void | Promise<void>;
+  /** Vorbelegte Felder (werden bei jedem Öffnen neu übernommen). */
+  prefill?: CreateContactPrefill;
+  title?: string;
+}
+
 function formatIban(raw: string): string {
   return raw.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim();
 }
 
-export function CreateContactDialog({ open, onOpenChange, onCreated }: Props) {
+export function CreateContactDialog({ open, onOpenChange, onCreated, prefill, title }: Props) {
   const [contactType, setContactType] = useState("person");
+  const [isServiceProvider, setIsServiceProvider] = useState(false);
+  const [categories, setCategories] = useState<string[]>([]);
   const [companyName, setCompanyName] = useState("");
   const [shortName, setShortName] = useState("");
   const [addressStreet, setAddressStreet] = useState("");
@@ -60,19 +82,42 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: Props) {
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
-  const isCompanyType = contactType === "company" || contactType === "service_provider";
+  const isCompanyType = isCompanyContactType(contactType);
 
-  const resetForm = () => {
-    setContactType("person"); setCompanyName(""); setShortName("");
-    setAddressStreet(""); setAddressZip(""); setAddressCity(""); setNotes("");
-    setSalutation(""); setFirstName(""); setLastName(""); setPosition("");
-    setPhones([{ phone_number: "", label: "Mobil" }]);
-    setEmails([{ email: "", label: "Privat" }]);
+  const applyPrefill = (p?: CreateContactPrefill) => {
+    setContactType(normalizeContactType(p?.contactType ?? (p?.companyName ? "company" : "person")));
+    setIsServiceProvider(!!p?.isServiceProvider);
+    setCategories(p?.serviceProviderCategories ?? []);
+    setCompanyName(p?.companyName ?? "");
+    setShortName(p?.shortName ?? "");
+    setAddressStreet(p?.addressStreet ?? "");
+    setAddressZip(p?.addressZip ?? "");
+    setAddressCity(p?.addressCity ?? "");
+    setNotes(p?.notes ?? "");
+    setSalutation(p?.salutation ?? "");
+    setFirstName(p?.firstName ?? "");
+    setLastName(p?.lastName ?? "");
+    setPosition(p?.position ?? "");
+    setPhones([{ phone_number: p?.phone ?? "", label: p?.phoneLabel ?? "Mobil" }]);
+    setEmails([{ email: p?.email ?? "", label: p?.emailLabel ?? "Geschäftlich" }]);
     setBanks([]);
   };
 
+  // Beim Öffnen Formular zurücksetzen bzw. mit den Vorgaben füllen
+  useEffect(() => {
+    if (open) applyPrefill(prefill);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const derivedShortName = () => {
+    if (shortName.trim()) return shortName.trim();
+    if (isCompanyType && companyName.trim()) return companyName.trim();
+    const name = [lastName.trim(), firstName.trim()].filter(Boolean).join(", ");
+    return name || companyName.trim() || null;
+  };
+
   const handleSave = async () => {
-    if (!lastName && !companyName) {
+    if (!lastName.trim() && !companyName.trim()) {
       toast({ title: "Fehler", description: "Name oder Firma ist erforderlich", variant: "destructive" });
       return;
     }
@@ -80,9 +125,11 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: Props) {
 
     // Create contact
     const { data: contact, error } = await supabase.from("contacts").insert({
-      contact_type: contactType as any,
+      contact_type: normalizeContactType(contactType) as any,
+      is_service_provider_pool: isServiceProvider,
+      service_provider_categories: isServiceProvider ? categories : [],
       company_name: companyName || null,
-      short_name: shortName || null,
+      short_name: derivedShortName(),
       address_street: addressStreet || null,
       address_zip: addressZip || null,
       address_city: addressCity || null,
@@ -135,16 +182,16 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: Props) {
 
     setSaving(false);
     toast({ title: "Kontakt erstellt" });
-    resetForm();
+    applyPrefill(undefined);
     onOpenChange(false);
-    onCreated();
+    await onCreated(contact.id);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Neuer Kontakt</DialogTitle>
+          <DialogTitle>{title || "Neuer Kontakt"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-5">
           {/* Typ-Auswahl */}
@@ -156,6 +203,25 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: Props) {
                 {CONTACT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Dienstleister-Kennzeichen */}
+          <div className="rounded-md border border-border p-3 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label htmlFor="create-sp" className="flex items-center gap-2 cursor-pointer text-sm">
+                  <Wrench className="h-4 w-4 text-primary" />
+                  Dienstleister / Handwerker
+                </Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Aktivieren, um Gewerke zuzuordnen und den Kontakt im Dienstleister-Pool zu finden.
+                </p>
+              </div>
+              <Switch id="create-sp" checked={isServiceProvider} onCheckedChange={(v) => setIsServiceProvider(!!v)} />
+            </div>
+            {isServiceProvider && (
+              <ServiceProviderCategoryPicker value={categories} onChange={setCategories} />
+            )}
           </div>
 
           {/* Stammdaten */}
