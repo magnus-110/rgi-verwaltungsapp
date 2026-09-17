@@ -11,6 +11,7 @@ import { FloatingComposeWindow } from "@/components/email/FloatingComposeWindow"
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { InAppNotificationsProvider } from "@/contexts/InAppNotificationsProvider";
 import { FiscalYearProvider } from "@/contexts/FiscalYearContext";
+import { BookingLearningWatcher } from "@/components/finance/BookingLearningWatcher";
 
 // Eager: Entry, Auth, Layouts, Dashboard (häufigster Einstieg)
 import Index from "./pages/Index";
@@ -39,6 +40,7 @@ const Processes = lazy(() => import("./pages/Processes").then(m => ({ default: m
 const Jahreszyklus = lazy(() => import("./pages/Jahreszyklus"));
 const RgiIntern = lazy(() => import("./pages/RgiIntern"));
 const IncomingCall = lazy(() => import("./pages/IncomingCall"));
+const Lernsignale = lazy(() => import("./pages/Lernsignale"));
 
 const Inbox = lazy(() => import("./pages/Inbox").then(m => ({ default: m.Inbox })));
 const Meetings = lazy(() => import("./pages/Meetings").then(m => ({ default: m.Meetings })));
@@ -106,6 +108,7 @@ const App = () => (
               <Toaster />
               <Sonner />
               <FloatingComposeWindow />
+              <BookingLearningWatcher />
             <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<Index />} />
@@ -134,6 +137,7 @@ const App = () => (
               <Route path="/contacts" element={<AdminLayout><Contacts /></AdminLayout>} />
               <Route path="/finanzen" element={<AdminLayout><Finance /></AdminLayout>} />
               <Route path="/finanzen/abrechnung" element={<AdminLayout><Billing /></AdminLayout>} />
+              <Route path="/finanzen/lernsignale" element={<AdminLayout><Lernsignale /></AdminLayout>} />
               <Route path="/finanzen/wirtschaftsplan" element={<Navigate to="/finanzen" replace />} />
               <Route path="/postfach" element={<AdminLayout><Inbox /></AdminLayout>} />
               <Route path="/versammlungen" element={<AdminLayout><Meetings /></AdminLayout>} />
