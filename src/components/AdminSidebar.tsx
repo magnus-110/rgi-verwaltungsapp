@@ -19,6 +19,7 @@ import {
   FolderKanban,
   Briefcase,
   Home,
+  KeyRound,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
@@ -41,6 +42,7 @@ const adminMenu = [
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
   { title: "Postfach", url: "/postfach", icon: Mail },
   { title: "Gebäude", url: "/buildings", icon: Castle },
+  { title: "Schlüssel", url: "/schluessel", icon: KeyRound },
   { title: "Buchhaltung", url: "/finanzen", icon: Landmark },
   { title: "Zahlungen", url: "/zahlungen", icon: CreditCard },
   { title: "Adressen", url: "/contacts", icon: BookUser },
@@ -238,6 +240,8 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                     aliasActive = currentPath.startsWith("/tickets/vorgaenge");
                   } else if (item.url === "/makler/objekte") {
                     aliasActive = currentPath.startsWith("/makler");
+                  } else if (item.url === "/schluessel") {
+                    aliasActive = currentPath.startsWith("/schluessel");
                   }
                   return (
                     <SidebarMenuItem key={item.title}>
