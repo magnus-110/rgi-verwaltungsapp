@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -21,9 +22,25 @@ interface Props {
   onClose: () => void;
   buildingId: string;
   tag?: KeyTag;
+  /**
+   * Nur für die gebäudeübergreifende Schlüsselseite: Liste zur Auswahl des
+   * Gebäudes. Im Gebäude-Tab weggelassen, dort steht es ohnehin fest.
+   */
+  buildingOptions?: { id: string; name: string }[];
+  onBuildingChange?: (buildingId: string) => void;
+  /** Anzeigename des Gebäudes, wenn es nicht mehr geändert werden kann. */
+  buildingName?: string;
 }
 
-export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
+export const KeyTagDialog = ({
+  open,
+  onClose,
+  buildingId,
+  tag,
+  buildingOptions,
+  onBuildingChange,
+  buildingName,
+}: Props) => {
   const qc = useQueryClient();
   const { user } = useAuth();
   const [storageLocationId, setStorageLocationId] = useState<string | undefined>();
@@ -55,6 +72,21 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
       return data?.signedUrl ?? null;
     },
     enabled: !!currentPhotoPath && open,
+  });
+
+  // Liegenschaftsnummer für die Vorschau der Anhängernummer
+  const { data: propertySettings } = useQuery({
+    queryKey: ["key-settings", buildingId],
+    queryFn: async () => {
+      if (!buildingId) return null;
+      const { data } = await supabase
+        .from("key_property_settings")
+        .select("*")
+        .eq("building_id", buildingId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: open && !!buildingId,
   });
 
 
@@ -110,12 +142,13 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
 
   const previewNumber = () => {
     const loc = locations.find(l => l.id === storageLocationId);
-    const t = types.find(x => x.id === keyTypeId);
-    if (!loc || !t) return "—";
-    return `${loc.code}/XXX-NN`;
+    if (!loc) return "—";
+    const prop = (propertySettings as any)?.property_number ?? "XXX";
+    return `${loc.code}/${prop}-NN`;
   };
 
   const save = async () => {
+    if (!buildingId) { toast.error("Bitte ein Gebäude wählen"); return; }
     if (!storageLocationId || !keyTypeId) { toast.error("Bitte alle Pflichtfelder wählen"); return; }
     setSaving(true);
     try {
@@ -137,6 +170,17 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
         }).eq("id", tag.id);
         if (error) throw error;
       } else {
+        // Ohne Liegenschaftsnummer erzeugt der Trigger keine Anhängernummer.
+        // Der Eintrag entsteht sonst erst beim Öffnen des Gebäude-Tabs.
+        if (!propertySettings) {
+          const { error: settingsErr } = await supabase
+            .from("key_property_settings")
+            .insert({ building_id: buildingId } as any);
+          if (settingsErr && settingsErr.code !== "23505") throw settingsErr;
+          qc.invalidateQueries({ queryKey: ["key-settings", buildingId] });
+          qc.invalidateQueries({ queryKey: ["keys-global-property-settings"] });
+        }
+
         const { data: inserted, error } = await supabase.from("key_tags").insert({
           building_id: buildingId,
           storage_location_id: storageLocationId,
@@ -188,6 +232,26 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
       <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{tag ? "Anhänger bearbeiten" : "Neuer Anhänger"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
+          {buildingOptions && !tag && (
+            <div>
+              <Label>Gebäude *</Label>
+              <Select value={buildingId || undefined} onValueChange={(v) => onBuildingChange?.(v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Gebäude wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {buildingOptions.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {buildingName && (!buildingOptions || tag) && (
+            <div className="text-xs text-muted-foreground">
+              Gebäude: <span className="font-medium text-foreground">{buildingName}</span>
+            </div>
+          )}
           <div>
             <Label>Aufbewahrungsort *</Label>
             <DropdownWithAdd
@@ -196,7 +260,7 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
               options={locations}
               table="key_storage_locations"
               label="Aufbewahrungsort"
-              extraFields={[{ label: "Code (1 Zeichen)", key: "code", required: true, placeholder: "z.B. 1 oder K" }]}
+              extraFields={[{ label: "Kürzel", key: "code", required: true, placeholder: "z.B. 1, 10 oder K" }]}
               queryKey={["key-storage-locations"]}
               renderOption={(o: any) => <span>{o.name} <span className="text-muted-foreground">({o.code})</span></span>}
             />
@@ -315,7 +379,7 @@ export const KeyTagDialog = ({ open, onClose, buildingId, tag }: Props) => {
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>Abbrechen</Button>
-          <Button onClick={save} disabled={saving}>Speichern</Button>
+          <Button onClick={save} disabled={saving || !buildingId}>Speichern</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
