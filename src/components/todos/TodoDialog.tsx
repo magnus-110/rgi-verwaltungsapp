@@ -19,6 +19,7 @@ import { RecurrenceSettings } from "./RecurrenceSettings";
 import { InlineSubtasksCreator } from "./TodoSubtasks";
 import { InlineAttachmentCreator } from "./TodoAttachments";
 import { supabase } from "@/integrations/supabase/client";
+import { applyChecklistTemplate } from "@/hooks/useChecklistTemplates";
 
 
 const STORAGE_KEY = 'todo_dialog_draft';
@@ -28,6 +29,9 @@ interface TodoDialogProps {
   onOpenChange: (open: boolean) => void;
   todo?: Todo | null;
   mode: 'create' | 'edit';
+  /** Wird nach dem Anlegen mit der neuen Aufgaben-ID gerufen — die Pinnwand
+   *  haengt den Zettel damit gleich an die eigene Wand. */
+  onCreated?: (todoId: string) => void;
 }
 
 interface DraftData {
@@ -45,7 +49,7 @@ interface DraftData {
   subtasks: string[];
 }
 
-export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) {
+export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDialogProps) {
   const { user, profile } = useAuth();
   const { data: categories = [] } = useCategories();
   const { data: users = [] } = useAssignableUsers();
@@ -70,6 +74,22 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<string | null>(null);
   const [subtasks, setSubtasks] = useState<string[]>([]);
   const [files, setFiles] = useState<File[]>([]);
+  // Drei Daten mit drei verschiedenen Bedeutungen, deshalb getrennt:
+  // due_date = harte Frist, show_in_list_date = ab wann im Vorrat sichtbar,
+  // follow_up_at = Wiedervorlage (verschwindet bis dahin, kommt dann zurueck).
+  const [showFrom, setShowFrom] = useState<string | null>(null);
+  const [followUpAt, setFollowUpAt] = useState<string | null>(null);
+  const [checklistTemplateId, setChecklistTemplateId] = useState<string | null>(null);
+
+  // Anleitungen (Prozessvorlagen) fuer die Checkliste
+  const [templates, setTemplates] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    supabase
+      .from('process_templates')
+      .select('id, name')
+      .order('name')
+      .then(({ data }) => setTemplates(data || []));
+  }, []);
 
   // Fetch buildings
   const [buildings, setBuildings] = useState<{ id: string; name: string }[]>([]);
@@ -163,6 +183,9 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
         setRecurrencePattern(todo.recurrence_pattern || 'weekly');
         setRecurrenceInterval(todo.recurrence_interval || 1);
         setRecurrenceEndDate(todo.recurrence_end_date);
+        setShowFrom((todo as any).show_in_list_date || null);
+        setFollowUpAt((todo as any).follow_up_at || null);
+        setChecklistTemplateId((todo as any).checklist_template_id || null);
         setSubtasks([]);
         setFiles([]);
       } else if (mode === 'create') {
@@ -187,6 +210,9 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
     setRecurrenceEndDate(null);
     setSubtasks([]);
     setFiles([]);
+    setShowFrom(null);
+    setFollowUpAt(null);
+    setChecklistTemplateId(null);
     localStorage.removeItem(STORAGE_KEY);
   };
 
@@ -213,6 +239,9 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
           recurrence_end_date: isRecurring ? recurrenceEndDate || undefined : undefined,
           subtasks: subtasks.length > 0 ? subtasks : undefined,
         };
+        (input as any).show_in_list_date = showFrom || undefined;
+        (input as any).follow_up_at = followUpAt || undefined;
+        (input as any).checklist_template_id = checklistTemplateId || undefined;
 
         const newTodo = await createTodo.mutateAsync(input);
 
@@ -246,8 +275,12 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
             setUploading(false);
           }
         }
+        if (newTodo && checklistTemplateId) {
+          await applyChecklistTemplate(newTodo.id, checklistTemplateId, user!.id);
+        }
         clearForm();
         onOpenChange(false);
+        if (newTodo && onCreated) onCreated(newTodo.id);
       } else if (mode === 'edit' && todo) {
         const updatePayload: any = {
           id: todo.id,
@@ -263,6 +296,9 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
           recurrence_pattern: isRecurring ? recurrencePattern : null,
           recurrence_interval: isRecurring ? recurrenceInterval : null,
           recurrence_end_date: isRecurring ? recurrenceEndDate : null,
+          show_in_list_date: showFrom,
+          follow_up_at: followUpAt,
+          checklist_template_id: checklistTemplateId,
         };
         updatePayload.assignees = assignees;
         updatePayload.building_ids = buildingIds;
@@ -451,6 +487,109 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
                     />
                   </PopoverContent>
                 </Popover>
+                <p className="text-xs text-muted-foreground">
+                  Nur setzen, wenn das Datum eine echte Konsequenz hat. Die meisten Aufgaben brauchen keins.
+                </p>
+              </div>
+
+              {/* Ab wann sichtbar */}
+              <div className="space-y-2">
+                <Label>Ab wann im Vorrat sichtbar</Label>
+                <div className="flex gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={cn(
+                          "flex-1 justify-start text-left font-normal",
+                          !showFrom && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {showFrom ? format(new Date(showFrom), "dd.MM.yyyy", { locale: de }) : "Sofort"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={showFrom ? new Date(showFrom) : undefined}
+                        onSelect={(date) => setShowFrom(date ? format(date, 'yyyy-MM-dd') : null)}
+                        initialFocus
+                        locale={de}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {showFrom && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowFrom(null)}>
+                      Zurücksetzen
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Vorher taucht die Aufgabe gar nicht erst im Vorrat auf.
+                </p>
+              </div>
+
+              {/* Wiedervorlage */}
+              <div className="space-y-2">
+                <Label>Wiedervorlage</Label>
+                <div className="flex gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={cn(
+                          "flex-1 justify-start text-left font-normal",
+                          !followUpAt && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {followUpAt ? format(new Date(followUpAt), "dd.MM.yyyy", { locale: de }) : "Keine"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={followUpAt ? new Date(followUpAt) : undefined}
+                        onSelect={(date) => setFollowUpAt(date ? format(date, 'yyyy-MM-dd') : null)}
+                        initialFocus
+                        locale={de}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {followUpAt && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setFollowUpAt(null)}>
+                      Zurücksetzen
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Die Aufgabe verschwindet bis zu diesem Tag und kommt dann von selbst zurück.
+                </p>
+              </div>
+
+              {/* Anleitung als Checkliste */}
+              <div className="space-y-2">
+                <Label>Anleitung</Label>
+                <Select
+                  value={checklistTemplateId ?? 'none'}
+                  onValueChange={(v) => setChecklistTemplateId(v === 'none' ? null : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Keine" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Keine</SelectItem>
+                    {templates.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Übernimmt die Schritte der Anleitung als Checkliste — mit Erklärtext zum Aufklappen.
+                </p>
               </div>
 
               {/* Buildings - Multi-select */}
