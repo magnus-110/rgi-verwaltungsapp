@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import { BoardCard } from '@/components/board/BoardCard';
 import { BoardSupply } from '@/components/board/BoardSupply';
 import { TodoDialog } from '@/components/todos/TodoDialog';
 import { WaitingDialog } from '@/components/board/WaitingDialog';
+import { BoardTeam } from '@/components/board/BoardTeam';
 
 /**
  * Die Pinnwand.
@@ -30,6 +31,8 @@ import { WaitingDialog } from '@/components/board/WaitingDialog';
 export default function Pinnwand() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const ansicht = searchParams.get('ansicht') === 'team' ? 'team' : 'meine';
   const { data: allItems = [], isLoading } = useBoardPins();
   const { data: supplyColumns = [], isLoading: supplyLoading } = useBoardSupply();
 
@@ -77,10 +80,47 @@ export default function Pinnwand() {
 
   const tooMany = wall.length >= 12;
 
+  const umschalter = (
+    <div className="inline-flex rounded-lg bg-muted p-1">
+      <button
+        type="button"
+        onClick={() => setSearchParams({})}
+        className={`rounded-md px-3 py-1.5 text-[13px] transition-colors ${
+          ansicht === 'meine'
+            ? 'bg-background font-medium text-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground'
+        }`}
+      >
+        Meine Wand
+      </button>
+      <button
+        type="button"
+        onClick={() => setSearchParams({ ansicht: 'team' })}
+        className={`rounded-md px-3 py-1.5 text-[13px] transition-colors ${
+          ansicht === 'team'
+            ? 'bg-background font-medium text-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground'
+        }`}
+      >
+        Team
+      </button>
+    </div>
+  );
+
+  if (ansicht === 'team') {
+    return (
+      <div>
+        <div className="mb-4">{umschalter}</div>
+        <BoardTeam />
+      </div>
+    );
+  }
+
   return (
     <div className="-m-3 flex min-h-[calc(100vh-8rem)] flex-col lg:-m-6 lg:flex-row">
       {/* Wand */}
       <section className="min-w-0 flex-1 p-4 lg:p-6">
+        <div className="mb-3">{umschalter}</div>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-[17px] font-semibold text-foreground">Meine Wand</h1>
