@@ -321,43 +321,42 @@ export const Keys = () => {
             const type = typeById[t.key_type_id];
             const loan = loanByTag[t.id];
             return (
-              <button
+              <div
                 key={t.id}
-                type="button"
-                onClick={() => setSelectedId(t.id)}
-                className={`flex w-full flex-wrap items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/60 ${
+                className={`flex flex-wrap items-center gap-3 px-3 py-2.5 hover:bg-muted/50 ${
                   selectedId === t.id ? "bg-muted/70" : ""
                 }`}
               >
-                <span
-                  className="h-8 w-1.5 shrink-0 rounded-full"
-                  style={{ background: type?.color_hex ?? "#999" }}
-                />
-                <span className="w-[110px] shrink-0 font-mono text-sm font-semibold">{t.tag_number}</span>
-                <span className="min-w-[150px] flex-1 truncate text-sm">{t.buildings?.name ?? "—"}</span>
-                <span className="w-[150px] shrink-0 truncate text-sm text-muted-foreground">
-                  {locationById[t.storage_location_id]?.name ?? "—"}
-                </span>
-                <span className="w-[80px] shrink-0 text-sm text-muted-foreground">
-                  {(t.keys ?? []).length} Schl.
-                </span>
-                <span className="w-[170px] shrink-0">{statusCell(t)}</span>
-                <span
-                  className="ml-auto shrink-0"
-                  onClick={(e) => e.stopPropagation()}
-                  role="presentation"
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(t.id)}
+                  className="flex min-w-0 flex-1 flex-wrap items-center gap-3 text-left"
+                  title="Details anzeigen"
                 >
-                  {loan ? (
-                    <Button size="sm" variant="outline" onClick={() => markReturned(loan.id)}>
-                      <RotateCcw className="h-3 w-3 mr-1" /> Zurück
-                    </Button>
-                  ) : (
-                    <Button size="sm" variant="outline" onClick={() => issue(t)}>
-                      <Send className="h-3 w-3 mr-1" /> Ausgeben
-                    </Button>
-                  )}
-                </span>
-              </button>
+                  <span
+                    className="h-8 w-1.5 shrink-0 rounded-full"
+                    style={{ background: type?.color_hex ?? "#999" }}
+                  />
+                  <span className="w-[110px] shrink-0 font-mono text-sm font-semibold">{t.tag_number}</span>
+                  <span className="min-w-[150px] flex-1 truncate text-sm">{t.buildings?.name ?? "—"}</span>
+                  <span className="w-[150px] shrink-0 truncate text-sm text-muted-foreground">
+                    {locationById[t.storage_location_id]?.name ?? "—"}
+                  </span>
+                  <span className="w-[80px] shrink-0 text-sm text-muted-foreground">
+                    {(t.keys ?? []).length} Schl.
+                  </span>
+                </button>
+                <div className="w-[170px] shrink-0">{statusCell(t)}</div>
+                {loan ? (
+                  <Button size="sm" variant="outline" onClick={() => markReturned(loan.id)}>
+                    <RotateCcw className="h-3 w-3 mr-1" /> Zurück
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={() => issue(t)}>
+                    <Send className="h-3 w-3 mr-1" /> Ausgeben
+                  </Button>
+                )}
+              </div>
             );
           })}
         </div>
@@ -370,7 +369,7 @@ export const Keys = () => {
   );
 
   const detailPanel = selected && (
-    <Card className="sticky top-4 self-start">
+    <Card className="self-start xl:sticky xl:top-4">
       <CardHeader className="flex flex-row items-start gap-3 space-y-0 pb-3">
         <div
           className="h-12 w-2 shrink-0 rounded-full"
