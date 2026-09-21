@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ import {
 } from '@/hooks/useBoardPins';
 import { BoardCard } from '@/components/board/BoardCard';
 import { BoardSupply } from '@/components/board/BoardSupply';
-import { NoteDialog } from '@/components/board/NoteDialog';
+import { TodoDialog } from '@/components/todos/TodoDialog';
 import { WaitingDialog } from '@/components/board/WaitingDialog';
 
 /**
@@ -28,6 +29,7 @@ import { WaitingDialog } from '@/components/board/WaitingDialog';
  */
 export default function Pinnwand() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { data: allItems = [], isLoading } = useBoardPins();
   const { data: supplyColumns = [], isLoading: supplyLoading } = useBoardSupply();
 
@@ -127,6 +129,11 @@ export default function Pinnwand() {
                           <BoardCard
                             item={item}
                             dragging={snapshot.isDragging}
+                            onOpen={i => {
+                              if (i.refType === 'todo' || i.refType === 'maintenance') {
+                                navigate(`/pinnwand/${i.refId}`);
+                              }
+                            }}
                             onComplete={i => complete.mutate(i)}
                             onRemove={i => i.pin && unpin.mutate(i.pin.id)}
                             onWaiting={i => setWaitingItem(i)}
@@ -179,7 +186,12 @@ export default function Pinnwand() {
         isLoading={supplyLoading}
       />
 
-      <NoteDialog open={noteOpen} onOpenChange={setNoteOpen} />
+      <TodoDialog
+        open={noteOpen}
+        onOpenChange={setNoteOpen}
+        mode="create"
+        onCreated={todoId => pinToWall.mutate({ refType: 'todo', refId: todoId })}
+      />
       <WaitingDialog
         item={waitingItem}
         onOpenChange={open => !open && setWaitingItem(null)}

@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 
 interface BoardCardProps {
   item: BoardItem;
+  onOpen?: (item: BoardItem) => void;
   onComplete?: (item: BoardItem) => void;
   onRemove?: (item: BoardItem) => void;
   onWaiting?: (item: BoardItem) => void;
@@ -58,7 +59,7 @@ function StatusChip({ item }: { item: BoardItem }) {
   return null;
 }
 
-export function BoardCard({ item, onComplete, onRemove, onWaiting, compact, dragging }: BoardCardProps) {
+export function BoardCard({ item, onOpen, onComplete, onRemove, onWaiting, compact, dragging }: BoardCardProps) {
   if (compact) {
     return (
       <div className="rounded-lg border border-[#EBE4D6] bg-[#FFFDF7] px-3 py-2.5">
@@ -118,7 +119,17 @@ export function BoardCard({ item, onComplete, onRemove, onWaiting, compact, drag
         </DropdownMenu>
       </div>
 
-      <div className="text-[14.5px] font-semibold leading-snug text-foreground">{item.title}</div>
+      {onOpen ? (
+        <button
+          type="button"
+          onClick={() => onOpen(item)}
+          className="text-left text-[14.5px] font-semibold leading-snug text-foreground hover:underline"
+        >
+          {item.title}
+        </button>
+      ) : (
+        <div className="text-[14.5px] font-semibold leading-snug text-foreground">{item.title}</div>
+      )}
 
       {item.context && (
         <div className="mt-1 text-[12px] text-muted-foreground">{item.context}</div>
