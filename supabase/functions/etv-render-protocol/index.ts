@@ -103,7 +103,15 @@ function fmtMea(n: number): string {
   return n.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 }
 function sanitize(s: string): string {
-  return (s || "").replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 80);
+  return (s || "")
+    .replace(/Ä/g, "Ae").replace(/Ö/g, "Oe").replace(/Ü/g, "Ue")
+    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^A-Za-z0-9._-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80) || "Datei";
 }
 function json(b: unknown, status = 200) {
   return new Response(JSON.stringify(b), {
