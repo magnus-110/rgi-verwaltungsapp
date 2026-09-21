@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   Edit,
   FileDown,
+  FileText,
   History,
   KeyRound,
   Plus,
@@ -42,6 +43,7 @@ import { KeyQuickFind } from "@/components/keys/KeyQuickFind";
 import { KeysSettingsTab } from "@/components/keys/KeysSettingsTab";
 import {
   GlobalKeyTag,
+  useGlobalClosingPlanFiles,
   useGlobalKeyEvents,
   useGlobalKeyTags,
   useGlobalOpenLoans,
@@ -78,6 +80,7 @@ export const Keys = () => {
   const { data: loans = [] } = useGlobalOpenLoans();
   const { data: events = [] } = useGlobalKeyEvents();
   const { data: propertySettings = [] } = useGlobalPropertySettings();
+  const { data: closingPlanFiles = [] } = useGlobalClosingPlanFiles();
   const { data: buildings = [] } = useKeyBuildings();
   const { data: types = [] } = useKeyTypes();
   const { data: locations = [] } = useKeyStorageLocations();
@@ -147,11 +150,40 @@ export const Keys = () => {
 
   const selected = useMemo(() => tags.find((t) => t.id === selectedId) ?? null, [tags, selectedId]);
   const selectedLoan = selected ? loanByTag[selected.id] : null;
+  const selectedSettings = selected ? settingsByBuilding[selected.building_id] : null;
+
+  /** Schließpläne der Liegenschaft – neue Mehrfachdateien plus die alte Einzeldatei. */
+  const selectedPlans = useMemo(() => {
+    if (!selected) return [] as { key: string; name: string; path: string }[];
+    const list = closingPlanFiles
+      .filter((f: any) => f.building_id === selected.building_id)
+      .map((f: any) => ({ key: f.id, name: f.file_name ?? "Schließplan", path: f.file_path }));
+    if (selectedSettings?.closing_plan_path) {
+      list.push({
+        key: "legacy",
+        name: selectedSettings.closing_plan_name ?? "Schließplan",
+        path: selectedSettings.closing_plan_path,
+      });
+    }
+    return list;
+  }, [selected, closingPlanFiles, selectedSettings]);
 
   const overdueCount = loans.filter((l: any) => l.due_at && isPast(new Date(l.due_at))).length;
   const buildingsWithTags = new Set(tags.map((t) => t.building_id)).size;
 
   // ───── Aktionen ─────
+
+  const openPlanFile = async (path: string) => {
+    // Tab vor dem await öffnen, sonst blockt der Popupblocker.
+    const tabRef = window.open("", "_blank");
+    const { data } = await supabase.storage.from("key-files").createSignedUrl(path, 600);
+    if (data?.signedUrl && tabRef) {
+      tabRef.location.href = data.signedUrl;
+    } else {
+      tabRef?.close();
+      toast.error("Datei konnte nicht geöffnet werden");
+    }
+  };
 
   const markReturned = async (loanId: string) => {
     const { data: loan } = await supabase
@@ -419,7 +451,7 @@ export const Keys = () => {
             {selected.buildings?.name ?? "—"}
           </button>
           <div className="text-xs text-muted-foreground">
-            Liegenschaft {settingsByBuilding[selected.building_id]?.property_number ?? "—"}
+            Liegenschaft {selectedSettings?.property_number ?? "—"}
           </div>
         </div>
 
@@ -440,6 +472,46 @@ export const Keys = () => {
             </>
           ) : (
             <div className="font-medium">Im Haus</div>
+          )}
+        </div>
+
+        {/* Schließplan der Liegenschaft */}
+        <div>
+          <div className="mb-1.5 flex items-baseline gap-2">
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">Schließplan</span>
+            {selectedSettings?.closing_plan_number && (
+              <span className="font-mono text-xs text-muted-foreground">
+                Nr. {selectedSettings.closing_plan_number}
+              </span>
+            )}
+          </div>
+          {selectedPlans.length > 0 ? (
+            <div className="space-y-1">
+              {selectedPlans.map((p) => (
+                <Button
+                  key={p.key}
+                  variant="outline"
+                  className="h-auto w-full justify-start gap-2 whitespace-normal break-words py-2 text-left text-sm font-normal"
+                  onClick={() => openPlanFile(p.path)}
+                >
+                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  {p.name}
+                </Button>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+              {selectedSettings?.has_closing_plan
+                ? "Zentralschließanlage vorhanden, aber keine Datei hinterlegt."
+                : "Kein Schließplan hinterlegt."}{" "}
+              <button
+                type="button"
+                className="underline hover:no-underline"
+                onClick={() => navigate(`/buildings/${selected.building_id}`)}
+              >
+                Im Gebäude hinterlegen
+              </button>
+            </div>
           )}
         </div>
 
