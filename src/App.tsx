@@ -32,6 +32,7 @@ const Buildings = lazy(() => import("./pages/Buildings").then(m => ({ default: m
 const Settings = lazy(() => import("./pages/Settings").then(m => ({ default: m.Settings })));
 const WebhookSettings = lazy(() => import("./pages/WebhookSettings").then(m => ({ default: m.WebhookSettings })));
 const Todos = lazy(() => import("./pages/Todos").then(m => ({ default: m.Todos })));
+const Pinnwand = lazy(() => import("./pages/Pinnwand"));
 const Calendar = lazy(() => import("./pages/Calendar").then(m => ({ default: m.Calendar })));
 const Contacts = lazy(() => import("./pages/Contacts").then(m => ({ default: m.Contacts })));
 const Keys = lazy(() => import("./pages/Keys").then(m => ({ default: m.Keys })));
@@ -134,6 +135,7 @@ const App = () => (
               <Route path="/chatbot" element={<Navigate to="/settings?tab=chatbot" replace />} />
               <Route path="/webhooks" element={<AdminLayout><WebhookSettings /></AdminLayout>} />
               <Route path="/settings" element={<AdminLayout><Settings /></AdminLayout>} />
+              <Route path="/pinnwand" element={<AdminLayout><Pinnwand /></AdminLayout>} />
               <Route path="/todos" element={<AdminLayout><Todos /></AdminLayout>} />
               <Route path="/calendar" element={<AdminLayout><Calendar /></AdminLayout>} />
               <Route path="/files" element={<Navigate to="/buildings" replace />} />

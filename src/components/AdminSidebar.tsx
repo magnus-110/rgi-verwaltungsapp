@@ -20,6 +20,7 @@ import {
   Briefcase,
   Home,
   KeyRound,
+  StickyNote,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
@@ -39,6 +40,7 @@ import { useBrokerMode } from "@/hooks/useBrokerMode";
 import { useOpenReportsCount } from "@/hooks/useOpenReportsCount";
 
 const adminMenu = [
+  { title: "Pinnwand", url: "/pinnwand", icon: StickyNote },
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
   { title: "Postfach", url: "/postfach", icon: Mail },
   { title: "Gebäude", url: "/buildings", icon: Castle },
