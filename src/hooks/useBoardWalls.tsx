@@ -1,7 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
-import { toast } from '@/hooks/use-toast';
 import { BoardRefType, initialsOf } from '@/hooks/useBoardPins';
 
 /**
@@ -77,51 +75,5 @@ export function usePinsForRef(refType: BoardRefType, refId: string | null) {
         };
       });
     },
-  });
-}
-
-/**
- * Eine Karte zusätzlich an der Wand einer anderen Person aufhängen.
- * Die Benachrichtigung dazu kommt in Etappe 2 mit dem Übergabe-Dialog —
- * hier wird sie ohne Meldung angeheftet ("still").
- */
-export function usePinToOtherWall() {
-  const qc = useQueryClient();
-  const { user } = useAuth();
-
-  return useMutation({
-    mutationFn: async (input: { refType: BoardRefType; refId: string; targetUserId: string }) => {
-      const { data: top } = await supabase
-        .from('board_pins')
-        .select('sort_order')
-        .eq('user_id', input.targetUserId)
-        .eq('column_key', 'wall')
-        .order('sort_order', { ascending: true })
-        .limit(1);
-      const nextSort = top && top.length ? Number((top[0] as any).sort_order) - 1 : 0;
-
-      const { error } = await supabase.from('board_pins').insert({
-        user_id: input.targetUserId,
-        ref_type: input.refType,
-        ref_id: input.refId,
-        column_key: 'wall',
-        sort_order: nextSort,
-        pinned_by: user?.id ?? null,
-      });
-      if (error) {
-        if ((error as any).code === '23505') {
-          throw new Error('Dort hängt der Zettel schon.');
-        }
-        throw error;
-      }
-    },
-    onSuccess: (_d, input) => {
-      qc.invalidateQueries({ queryKey: ['pins-for-ref', input.refType, input.refId] });
-      qc.invalidateQueries({ queryKey: ['board-pins'] });
-      qc.invalidateQueries({ queryKey: ['board-supply'] });
-      toast({ title: 'Aufgehängt' });
-    },
-    onError: (e: any) =>
-      toast({ title: 'Nicht aufgehängt', description: e.message, variant: 'destructive' }),
   });
 }
