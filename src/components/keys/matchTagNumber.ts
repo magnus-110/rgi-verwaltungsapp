@@ -13,10 +13,12 @@ export type MatchableTag = Pick<KeyTag, "tag_number" | "key_type_id">;
  *   "36 2"      → "036-2"
  *   "03602"     → "036-02"
  *   "k36 2"     → "K/036-2"
+ *   "1/"        → "1/"        (getippter Schrägstrich bleibt stehen)
  *   "K/036-02"  → "K/036-02"
  *
  * Die Funktion ist auf ihrem eigenen Ergebnis stabil, lässt sich also bei
- * jedem Tastendruck erneut auf den Feldinhalt anwenden.
+ * jedem Tastendruck erneut auf den Feldinhalt anwenden, und fügt beim
+ * Löschen nie ein Zeichen wieder hinzu.
  */
 export function formatTagInput(value: string): string {
   const up = (value ?? "").toUpperCase();
@@ -24,7 +26,8 @@ export function formatTagInput(value: string): string {
   let prefix = "";
   let rest = up;
   const slash = up.indexOf("/");
-  if (slash >= 0) {
+  const hadSlash = slash >= 0;
+  if (hadSlash) {
     prefix = up.slice(0, slash).replace(/[^0-9A-Z]/g, "");
     rest = up.slice(slash + 1);
   } else {
@@ -41,7 +44,9 @@ export function formatTagInput(value: string): string {
   let body = "";
   if (groups.length === 1) {
     const g = groups[0];
-    if (g.length > 3) body = `${g.slice(0, 3)}-${g.slice(3, 5)}`;
+    // Erst ab fünf Stellen trennen – sonst würde "0360" auf dem Weg zu
+    // "03602" vorschnell zu "036-0" und die Trefferliste kurz leer laufen.
+    if (g.length > 4) body = `${g.slice(0, 3)}-${g.slice(3, 5)}`;
     else if (endsWithSeparator) body = `${pad(g, 3)}-`;
     else body = g;
   } else if (groups.length > 1) {
@@ -49,7 +54,10 @@ export function formatTagInput(value: string): string {
   }
 
   if (!prefix) return body;
-  return body ? `${prefix}/${body}` : prefix;
+  if (body) return `${prefix}/${body}`;
+  // Ohne Rest den Slash nur halten, wenn er wirklich getippt wurde – sonst
+  // käme man beim Löschen nicht mehr aus dem Feld heraus.
+  return hadSlash ? `${prefix}/` : prefix;
 }
 
 /**
