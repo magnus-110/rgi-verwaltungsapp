@@ -104,25 +104,46 @@ export const Keys = () => {
   };
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    // Wortsuche: jedes eingegebene Wort muss irgendwo vorkommen, nicht die
+    // ganze Eingabe am Stück. "Achweg Keller" findet damit etwas.
+    const terms = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
     return tags.filter((t) => {
       if (tab === "verliehen" && !loanByTag[t.id]) return false;
       if (buildingFilter !== "all" && t.building_id !== buildingFilter) return false;
       if (locationFilter !== "all" && t.storage_location_id !== locationFilter) return false;
       if (typeFilter && t.key_type_id !== typeFilter) return false;
-      if (!q) return true;
+      if (!terms.length) return true;
+      const loan = loanByTag[t.id];
       const hay = [
         t.tag_number,
         t.buildings?.name ?? "",
         t.notes ?? "",
         locationById[t.storage_location_id]?.name ?? "",
-        ...(t.keys ?? []).map((k) => `${k.key_number ?? ""} ${k.notes ?? ""}`),
+        typeById[t.key_type_id]?.name ?? "",
+        loan?.borrower_name ?? "",
+        ...(t.keys ?? []).map((k) => {
+          const st = subjectTypes.find((s) => s.id === k.subject_type_id);
+          const mf = manufacturers.find((m) => m.id === k.manufacturer_id);
+          return `${st?.name ?? ""} ${k.key_number ?? ""} ${mf?.name ?? ""} ${k.notes ?? ""}`;
+        }),
       ]
         .join(" ")
         .toLowerCase();
-      return hay.includes(q);
+      return terms.every((term) => hay.includes(term));
     });
-  }, [tags, tab, search, buildingFilter, locationFilter, typeFilter, loanByTag, locationById]);
+  }, [
+    tags,
+    tab,
+    search,
+    buildingFilter,
+    locationFilter,
+    typeFilter,
+    loanByTag,
+    locationById,
+    typeById,
+    subjectTypes,
+    manufacturers,
+  ]);
 
   const selected = useMemo(() => tags.find((t) => t.id === selectedId) ?? null, [tags, selectedId]);
   const selectedLoan = selected ? loanByTag[selected.id] : null;
@@ -181,6 +202,7 @@ export const Keys = () => {
     invalidateGlobal();
     qc.invalidateQueries({ queryKey: ["key-tags"] });
     qc.invalidateQueries({ queryKey: ["key-loans-active"] });
+    toast.success("Als verloren markiert");
     if (loan?.send_confirmation_email) {
       supabase.functions
         .invoke("send-key-email", { body: { loan_id: loanId, event: "lost" } })
@@ -259,7 +281,7 @@ export const Keys = () => {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Suche: Nummer, Gebäude, Schlüsselnummer, Notiz …"
+            placeholder="Suche – mehrere Wörter möglich: Nummer, Gebäude, Schlüsselnummer, Notiz …"
             className="h-9 min-w-[220px] flex-1"
           />
           <Select value={buildingFilter} onValueChange={setBuildingFilter}>
@@ -433,14 +455,19 @@ export const Keys = () => {
               const st = subjectTypes.find((s) => s.id === k.subject_type_id);
               const mf = manufacturers.find((m) => m.id === k.manufacturer_id);
               return (
-                <div key={k.id} className="flex items-center gap-2 rounded border border-border/60 px-2 py-1.5">
-                  <HouseIcon name={(st as any)?.icon} className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <div key={k.id} className="flex items-start gap-2 rounded border border-border/60 px-2 py-1.5">
+                  <HouseIcon name={(st as any)?.icon} className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm">
                       {st?.name ?? "Schlüssel"}
                       {k.key_number && <span className="font-mono text-muted-foreground"> · {k.key_number}</span>}
                     </div>
-                    <div className="truncate text-xs text-muted-foreground">{mf?.name ?? "—"}</div>
+                    {mf?.name && <div className="text-xs text-muted-foreground">{mf.name}</div>}
+                    {k.notes && (
+                      <div className="mt-1 whitespace-pre-line break-words border-l-2 border-border pl-2 text-xs text-muted-foreground">
+                        {k.notes}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -450,8 +477,8 @@ export const Keys = () => {
 
         {selected.notes && (
           <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">Notiz</div>
-            <div className="whitespace-pre-line text-sm text-muted-foreground">{selected.notes}</div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">Notiz zum Anhänger</div>
+            <div className="whitespace-pre-line break-words text-sm text-muted-foreground">{selected.notes}</div>
           </div>
         )}
 
