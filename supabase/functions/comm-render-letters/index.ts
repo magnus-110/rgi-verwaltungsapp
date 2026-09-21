@@ -88,8 +88,16 @@ function unitPrefixFromVars(vars: Record<string, any>): string {
   return `${uniq.map((n) => String(n).padStart(4, "0")).join("-")}_`;
 }
 
-function sanitize(name: string): string {
-  return name.replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 80);
+function sanitize(s: string): string {
+  return (s || "")
+    .replace(/Ä/g, "Ae").replace(/Ö/g, "Oe").replace(/Ü/g, "Ue")
+    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^A-Za-z0-9._-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80) || "Datei";
 }
 
 async function convertDocxToPdf(docxBytes: Uint8Array, filename: string, apiKey: string): Promise<Uint8Array> {
@@ -255,7 +263,7 @@ Deno.serve(async (req) => {
 
     const zipBytes = bundle.generate({ type: "uint8array" });
     const formatSuffix = outputFormat === "pdf" ? "_PDF" : "";
-    const zipFileName = `Serienbrief_${(campaign.name || "Kampagne").replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 60)}${formatSuffix}_${new Date().toISOString().slice(0, 10)}.zip`;
+    const zipFileName = `Serienbrief_${sanitize(campaign.name || "Kampagne").slice(0, 60)}${formatSuffix}_${new Date().toISOString().slice(0, 10)}.zip`;
     const zipPath = `campaigns/${campaign_id}/${zipFileName}`;
     const { error: upErr } = await admin.storage.from("comm-assets").upload(zipPath, zipBytes, {
       contentType: "application/zip",
