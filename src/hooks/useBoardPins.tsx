@@ -277,9 +277,7 @@ export interface SupplyColumn {
 }
 
 /**
- * Der Vorrat. In Etappe 1 nur die beiden Todo-Spalten aus dem Plan:
- * "Frist läuft" und "Ohne Termin". Vorgänge, Jahreszyklus und Wartung
- * kommen in Etappe 3 und 4 dazu.
+ * Der Vorrat.
  *
  * Ausgeblendet wird, was auf der eigenen Wand schon hängt, was noch nicht
  * sichtbar sein soll (show_in_list_date) und was auf Wiedervorlage liegt.
@@ -293,7 +291,7 @@ export function useBoardSupply() {
     queryFn: async (): Promise<SupplyColumn[]> => {
       const today = todayIso();
 
-      const [{ data: todoRows, error }, { data: myPins }] = await Promise.all([
+      const [{ data: todoRows, error }, { data: myPins }, { data: caseRows }] = await Promise.all([
         supabase
           .from('todos')
           .select('id, title, due_date, follow_up_at, source_type, created_at, status, deleted_at, is_internal, show_in_list_date, building:buildings(name)' as '*')
@@ -304,6 +302,15 @@ export function useBoardSupply() {
           .from('board_pins')
           .select('ref_type, ref_id')
           .eq('user_id', user!.id),
+        // Vorgaenge, die laenger als zwei Wochen still sind und an keiner
+        // Wand haengen - genau die Arbeitsliste aus der Durchsicht.
+        (supabase as any)
+          .from('case_overview')
+          .select('id, title, building_name, unit_number, silent_days, on_a_wall, status, snooze_until, created_at')
+          .in('status', ['open', 'in_progress', 'waiting_external', 'waiting_owner'])
+          .gt('silent_days', 14)
+          .eq('on_a_wall', false)
+          .order('silent_days', { ascending: false }),
       ]);
       if (error) throw error;
 
@@ -344,10 +351,30 @@ export function useBoardSupply() {
         .filter(t => t.due_date && t.due_date > horizon)
         .map(toItem);
 
+      const vorgaenge: BoardItem[] = ((caseRows || []) as any[])
+        .filter(c => !mine.has(`case:${c.id}`))
+        .filter(c => !c.snooze_until || c.snooze_until <= today)
+        .map(c => ({
+          refType: 'case' as const,
+          refId: c.id,
+          title: c.title,
+          context:
+            [c.building_name, c.unit_number ? `Whg. ${c.unit_number}` : null]
+              .filter(Boolean)
+              .join(' · ') || `seit ${c.silent_days} Tagen still`,
+          origin: 'vorgang' as const,
+          dueDate: null,
+          followUpAt: null,
+          createdAt: c.created_at ?? null,
+          progress: null,
+          alsoOn: [],
+        }));
+
       return [
         { key: 'frist', label: 'Frist läuft', items: fristLaeuft },
         { key: 'demnaechst', label: 'Demnächst', items: demnaechst },
         { key: 'ohne_termin', label: 'Ohne Termin', items: ohneTermin },
+        { key: 'vorgaenge', label: 'Vorgänge', items: vorgaenge },
       ];
     },
   });
@@ -482,6 +509,7 @@ export function useCompleteBoardItem() {
     onSuccess: () => {
       invalidateBoard(qc);
       qc.invalidateQueries({ queryKey: ['todos'] });
+      qc.invalidateQueries({ queryKey: ['case-review'] });
     },
     onError: (e: any) =>
       toast({ title: 'Konnte nicht erledigt werden', description: e.message, variant: 'destructive' }),
