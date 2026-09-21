@@ -956,6 +956,48 @@ export type Database = {
           },
         ]
       }
+      board_pins: {
+        Row: {
+          column_key: string
+          done_at: string | null
+          id: string
+          note: string | null
+          pinned_at: string
+          pinned_by: string | null
+          ref_id: string
+          ref_type: Database["public"]["Enums"]["board_ref_type"]
+          sort_order: number
+          user_id: string
+          waiting_for: string | null
+        }
+        Insert: {
+          column_key?: string
+          done_at?: string | null
+          id?: string
+          note?: string | null
+          pinned_at?: string
+          pinned_by?: string | null
+          ref_id: string
+          ref_type: Database["public"]["Enums"]["board_ref_type"]
+          sort_order?: number
+          user_id: string
+          waiting_for?: string | null
+        }
+        Update: {
+          column_key?: string
+          done_at?: string | null
+          id?: string
+          note?: string | null
+          pinned_at?: string
+          pinned_by?: string | null
+          ref_id?: string
+          ref_type?: Database["public"]["Enums"]["board_ref_type"]
+          sort_order?: number
+          user_id?: string
+          waiting_for?: string | null
+        }
+        Relationships: []
+      }
       booking_change_log: {
         Row: {
           account_id_after: string | null
@@ -3133,8 +3175,10 @@ export type Database = {
           due_at: string | null
           external_refs: Json
           id: string
+          long_runner: boolean
           management_mode: Database["public"]["Enums"]["management_mode"]
           priority: Database["public"]["Enums"]["case_priority"]
+          snooze_until: string | null
           status: Database["public"]["Enums"]["case_status"]
           title: string
           unit_number: string | null
@@ -3155,8 +3199,10 @@ export type Database = {
           due_at?: string | null
           external_refs?: Json
           id?: string
+          long_runner?: boolean
           management_mode: Database["public"]["Enums"]["management_mode"]
           priority?: Database["public"]["Enums"]["case_priority"]
+          snooze_until?: string | null
           status?: Database["public"]["Enums"]["case_status"]
           title: string
           unit_number?: string | null
@@ -3177,8 +3223,10 @@ export type Database = {
           due_at?: string | null
           external_refs?: Json
           id?: string
+          long_runner?: boolean
           management_mode?: Database["public"]["Enums"]["management_mode"]
           priority?: Database["public"]["Enums"]["case_priority"]
+          snooze_until?: string | null
           status?: Database["public"]["Enums"]["case_status"]
           title?: string
           unit_number?: string | null
@@ -8947,6 +8995,13 @@ export type Database = {
           in_app_email_enabled: boolean
           in_app_report_enabled: boolean
           in_app_todo_enabled: boolean
+          notify_case_email: boolean
+          notify_comment: boolean
+          notify_pin_assigned: boolean
+          notify_pin_returned: boolean
+          notify_reminder: boolean
+          notify_review_due: boolean
+          notify_subtask_done: boolean
           quiet_hours_end: string | null
           quiet_hours_start: string | null
           todo_enabled: boolean
@@ -8962,6 +9017,13 @@ export type Database = {
           in_app_email_enabled?: boolean
           in_app_report_enabled?: boolean
           in_app_todo_enabled?: boolean
+          notify_case_email?: boolean
+          notify_comment?: boolean
+          notify_pin_assigned?: boolean
+          notify_pin_returned?: boolean
+          notify_reminder?: boolean
+          notify_review_due?: boolean
+          notify_subtask_done?: boolean
           quiet_hours_end?: string | null
           quiet_hours_start?: string | null
           todo_enabled?: boolean
@@ -8977,11 +9039,60 @@ export type Database = {
           in_app_email_enabled?: boolean
           in_app_report_enabled?: boolean
           in_app_todo_enabled?: boolean
+          notify_case_email?: boolean
+          notify_comment?: boolean
+          notify_pin_assigned?: boolean
+          notify_pin_returned?: boolean
+          notify_reminder?: boolean
+          notify_review_due?: boolean
+          notify_subtask_done?: boolean
           quiet_hours_end?: string | null
           quiet_hours_start?: string | null
           todo_enabled?: boolean
           todo_lead_minutes?: number
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          actor_user_id: string | null
+          body: string | null
+          created_at: string
+          id: string
+          read_at: string | null
+          ref_id: string | null
+          ref_type: string | null
+          title: string
+          type: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          body?: string | null
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          ref_id?: string | null
+          ref_type?: string | null
+          title: string
+          type: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          body?: string | null
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          ref_id?: string | null
+          ref_type?: string | null
+          title?: string
+          type?: string
+          url?: string | null
           user_id?: string
         }
         Relationships: []
@@ -12094,9 +12205,11 @@ export type Database = {
           completed_by: string | null
           created_at: string | null
           created_by: string
+          description: string | null
           id: string
           is_completed: boolean | null
           sort_order: number | null
+          template_step_id: string | null
           title: string
           todo_id: string
         }
@@ -12105,9 +12218,11 @@ export type Database = {
           completed_by?: string | null
           created_at?: string | null
           created_by: string
+          description?: string | null
           id?: string
           is_completed?: boolean | null
           sort_order?: number | null
+          template_step_id?: string | null
           title: string
           todo_id: string
         }
@@ -12116,9 +12231,11 @@ export type Database = {
           completed_by?: string | null
           created_at?: string | null
           created_by?: string
+          description?: string | null
           id?: string
           is_completed?: boolean | null
           sort_order?: number | null
+          template_step_id?: string | null
           title?: string
           todo_id?: string
         }
@@ -12138,6 +12255,13 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
           {
+            foreignKeyName: "todo_subtasks_template_step_id_fkey"
+            columns: ["template_step_id"]
+            isOneToOne: false
+            referencedRelation: "process_template_steps"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "todo_subtasks_todo_id_fkey"
             columns: ["todo_id"]
             isOneToOne: false
@@ -12154,12 +12278,14 @@ export type Database = {
           calendar_end_time: string | null
           calendar_start_time: string | null
           category_id: string | null
+          checklist_template_id: string | null
           completed_at: string | null
           created_at: string | null
           created_by: string
           deleted_at: string | null
           description: string | null
           due_date: string | null
+          follow_up_at: string | null
           id: string
           is_internal: boolean
           is_maintenance_task: boolean
@@ -12172,6 +12298,8 @@ export type Database = {
           recurrence_pattern: string | null
           show_in_calendar: boolean | null
           show_in_list_date: string | null
+          source_id: string | null
+          source_type: string
           status: string
           task_number: number
           title: string
@@ -12184,12 +12312,14 @@ export type Database = {
           calendar_end_time?: string | null
           calendar_start_time?: string | null
           category_id?: string | null
+          checklist_template_id?: string | null
           completed_at?: string | null
           created_at?: string | null
           created_by: string
           deleted_at?: string | null
           description?: string | null
           due_date?: string | null
+          follow_up_at?: string | null
           id?: string
           is_internal?: boolean
           is_maintenance_task?: boolean
@@ -12202,6 +12332,8 @@ export type Database = {
           recurrence_pattern?: string | null
           show_in_calendar?: boolean | null
           show_in_list_date?: string | null
+          source_id?: string | null
+          source_type?: string
           status?: string
           task_number?: number
           title: string
@@ -12214,12 +12346,14 @@ export type Database = {
           calendar_end_time?: string | null
           calendar_start_time?: string | null
           category_id?: string | null
+          checklist_template_id?: string | null
           completed_at?: string | null
           created_at?: string | null
           created_by?: string
           deleted_at?: string | null
           description?: string | null
           due_date?: string | null
+          follow_up_at?: string | null
           id?: string
           is_internal?: boolean
           is_maintenance_task?: boolean
@@ -12232,6 +12366,8 @@ export type Database = {
           recurrence_pattern?: string | null
           show_in_calendar?: boolean | null
           show_in_list_date?: string | null
+          source_id?: string | null
+          source_type?: string
           status?: string
           task_number?: number
           title?: string
@@ -12264,6 +12400,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "todo_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_checklist_template_id_fkey"
+            columns: ["checklist_template_id"]
+            isOneToOne: false
+            referencedRelation: "process_templates"
             referencedColumns: ["id"]
           },
           {
@@ -13224,6 +13367,7 @@ export type Database = {
       annual_cycle_status: "open" | "in_progress" | "done"
       app_role: "admin" | "weg_owner" | "tenant" | "employee"
       billing_mode: "own_billing" | "distribution_only"
+      board_ref_type: "todo" | "case" | "annual_cycle_task" | "maintenance"
       case_category:
         | "schaden"
         | "versicherung"
@@ -13478,6 +13622,7 @@ export const Constants = {
       annual_cycle_status: ["open", "in_progress", "done"],
       app_role: ["admin", "weg_owner", "tenant", "employee"],
       billing_mode: ["own_billing", "distribution_only"],
+      board_ref_type: ["todo", "case", "annual_cycle_task", "maintenance"],
       case_category: [
         "schaden",
         "versicherung",
