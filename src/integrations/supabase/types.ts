@@ -130,58 +130,97 @@ export type Database = {
       ai_booking_feedback: {
         Row: {
           ai_confidence_score: number | null
+          ai_suggested_35a: boolean | null
           ai_suggested_account_id: string | null
           ai_suggested_booking_type: string | null
           ai_suggested_counter_account_id: string | null
+          ai_suggested_description: string | null
+          ai_suggested_reference: string | null
+          applied_as: string | null
+          applied_at: string | null
           bank_transaction_id: string | null
+          booking_id: string | null
           building_id: string | null
+          changed_via: string | null
           created_at: string
           created_by: string | null
           id: string
+          learn_reason: string | null
+          learn_scope: string
           management_mode: Database["public"]["Enums"]["management_mode"] | null
           rag_example_ids: string[] | null
           user_accepted: boolean | null
+          user_corrected_35a: boolean | null
           user_corrected_account_id: string | null
           user_corrected_booking_type: string | null
           user_corrected_counter_account_id: string | null
+          user_corrected_description: string | null
+          user_corrected_reference: string | null
+          vendor_name: string | null
         }
         Insert: {
           ai_confidence_score?: number | null
+          ai_suggested_35a?: boolean | null
           ai_suggested_account_id?: string | null
           ai_suggested_booking_type?: string | null
           ai_suggested_counter_account_id?: string | null
+          ai_suggested_description?: string | null
+          ai_suggested_reference?: string | null
+          applied_as?: string | null
+          applied_at?: string | null
           bank_transaction_id?: string | null
+          booking_id?: string | null
           building_id?: string | null
+          changed_via?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
+          learn_reason?: string | null
+          learn_scope?: string
           management_mode?:
             | Database["public"]["Enums"]["management_mode"]
             | null
           rag_example_ids?: string[] | null
           user_accepted?: boolean | null
+          user_corrected_35a?: boolean | null
           user_corrected_account_id?: string | null
           user_corrected_booking_type?: string | null
           user_corrected_counter_account_id?: string | null
+          user_corrected_description?: string | null
+          user_corrected_reference?: string | null
+          vendor_name?: string | null
         }
         Update: {
           ai_confidence_score?: number | null
+          ai_suggested_35a?: boolean | null
           ai_suggested_account_id?: string | null
           ai_suggested_booking_type?: string | null
           ai_suggested_counter_account_id?: string | null
+          ai_suggested_description?: string | null
+          ai_suggested_reference?: string | null
+          applied_as?: string | null
+          applied_at?: string | null
           bank_transaction_id?: string | null
+          booking_id?: string | null
           building_id?: string | null
+          changed_via?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
+          learn_reason?: string | null
+          learn_scope?: string
           management_mode?:
             | Database["public"]["Enums"]["management_mode"]
             | null
           rag_example_ids?: string[] | null
           user_accepted?: boolean | null
+          user_corrected_35a?: boolean | null
           user_corrected_account_id?: string | null
           user_corrected_booking_type?: string | null
           user_corrected_counter_account_id?: string | null
+          user_corrected_description?: string | null
+          user_corrected_reference?: string | null
+          vendor_name?: string | null
         }
         Relationships: [
           {
@@ -189,6 +228,13 @@ export type Database = {
             columns: ["bank_transaction_id"]
             isOneToOne: false
             referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_booking_feedback_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
           {
@@ -978,9 +1024,11 @@ export type Database = {
           id: string
           input_text: string
           is_35a_relevant: boolean | null
+          is_uncertain: boolean
           management_mode: Database["public"]["Enums"]["management_mode"]
           purpose_text: string | null
           source: string
+          was_corrected: boolean
         }
         Insert: {
           account_name?: string | null
@@ -998,9 +1046,11 @@ export type Database = {
           id?: string
           input_text: string
           is_35a_relevant?: boolean | null
+          is_uncertain?: boolean
           management_mode: Database["public"]["Enums"]["management_mode"]
           purpose_text?: string | null
           source?: string
+          was_corrected?: boolean
         }
         Update: {
           account_name?: string | null
@@ -1018,9 +1068,11 @@ export type Database = {
           id?: string
           input_text?: string
           is_35a_relevant?: boolean | null
+          is_uncertain?: boolean
           management_mode?: Database["public"]["Enums"]["management_mode"]
           purpose_text?: string | null
           source?: string
+          was_corrected?: boolean
         }
         Relationships: [
           {
@@ -1125,6 +1177,7 @@ export type Database = {
         Row: {
           account_id: string | null
           amount_tolerance: number | null
+          billing_cycle: string | null
           building_id: string | null
           category: string | null
           created_at: string
@@ -1146,6 +1199,7 @@ export type Database = {
         Insert: {
           account_id?: string | null
           amount_tolerance?: number | null
+          billing_cycle?: string | null
           building_id?: string | null
           category?: string | null
           created_at?: string
@@ -1167,6 +1221,7 @@ export type Database = {
         Update: {
           account_id?: string | null
           amount_tolerance?: number | null
+          billing_cycle?: string | null
           building_id?: string | null
           category?: string | null
           created_at?: string
