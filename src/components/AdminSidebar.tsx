@@ -51,7 +51,7 @@ const adminMenu = [
   { title: "Kalender", url: "/calendar", icon: CalendarDays },
   { title: "Aufgaben", url: "/todos", icon: CheckSquare },
   { title: "Meldungen", url: "/tickets", icon: ClipboardList },
-  { title: "Vorgänge", url: "/tickets/vorgaenge", icon: FolderKanban },
+  { title: "Vorgänge", url: "/vorgaenge", icon: FolderKanban },
   { title: "Versammlungen", url: "/versammlungen", icon: Users },
   { title: "Umfragen", url: "/umfragen", icon: ListChecks },
   { title: "Prozesse", url: "/prozesse", icon: Workflow },
@@ -238,8 +238,8 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                       currentPath === "/tickets" ||
                       currentPath === "/reports" ||
                       currentPath === "/admin/reports";
-                  } else if (item.url === "/tickets/vorgaenge") {
-                    aliasActive = currentPath.startsWith("/tickets/vorgaenge");
+                  } else if (item.url === "/vorgaenge") {
+                    aliasActive = currentPath.startsWith("/vorgaenge") || currentPath.startsWith("/tickets/vorgaenge");
                   } else if (item.url === "/makler/objekte") {
                     aliasActive = currentPath.startsWith("/makler");
                   } else if (item.url === "/schluessel") {
