@@ -6,16 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   AlertTriangle,
   Edit,
@@ -70,11 +62,9 @@ export const Keys = () => {
   const [locationFilter, setLocationFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
 
-  const [tagDialog, setTagDialog] = useState<{ open: boolean; tag?: any; buildingId?: string }>({ open: false });
+  const [tagDialog, setTagDialog] = useState<{ open: boolean; tag?: any; buildingId: string }>({ open: false, buildingId: "" });
   const [loanDialog, setLoanDialog] = useState<{ open: boolean; tag?: any; buildingId?: string }>({ open: false });
   const [editLoanDialog, setEditLoanDialog] = useState<{ open: boolean; loan?: any; buildingId?: string; tagNumber?: string }>({ open: false });
-  const [buildingChooser, setBuildingChooser] = useState(false);
-  const [chosenBuilding, setChosenBuilding] = useState<string>("");
 
   const { data: tags = [], isLoading } = useGlobalKeyTags();
   const { data: loans = [] } = useGlobalOpenLoans();
@@ -98,9 +88,13 @@ export const Keys = () => {
   );
   const typeById = useMemo(() => Object.fromEntries(types.map((t) => [t.id, t])), [types]);
   const locationById = useMemo(() => Object.fromEntries(locations.map((l) => [l.id, l])), [locations]);
+  const buildingOptions = useMemo(
+    () => buildings.map((b: any) => ({ id: b.id as string, name: b.name as string })),
+    [buildings],
+  );
 
   const closeAndRefresh = () => {
-    setTagDialog({ open: false });
+    setTagDialog({ open: false, buildingId: "" });
     setLoanDialog({ open: false });
     setEditLoanDialog({ open: false });
     invalidateGlobal();
@@ -158,11 +152,12 @@ export const Keys = () => {
     const list = closingPlanFiles
       .filter((f: any) => f.building_id === selected.building_id)
       .map((f: any) => ({ key: f.id, name: f.file_name ?? "Schließplan", path: f.file_path }));
-    if (selectedSettings?.closing_plan_path) {
+    const legacy = selectedSettings?.closing_plan_path;
+    if (legacy && !list.some((p) => p.path === legacy)) {
       list.push({
         key: "legacy",
-        name: selectedSettings.closing_plan_name ?? "Schließplan",
-        path: selectedSettings.closing_plan_path,
+        name: selectedSettings?.closing_plan_name ?? "Schließplan",
+        path: legacy,
       });
     }
     return list;
@@ -176,13 +171,15 @@ export const Keys = () => {
   const openPlanFile = async (path: string) => {
     // Tab vor dem await öffnen, sonst blockt der Popupblocker.
     const tabRef = window.open("", "_blank");
-    const { data } = await supabase.storage.from("key-files").createSignedUrl(path, 600);
+    const { data, error } = await supabase.storage.from("key-files").createSignedUrl(path, 600);
     if (data?.signedUrl && tabRef) {
       tabRef.location.href = data.signedUrl;
-    } else {
-      tabRef?.close();
-      toast.error("Datei konnte nicht geöffnet werden");
+      return;
     }
+    tabRef?.close();
+    if (error) toast.error("Datei konnte nicht geladen werden: " + error.message);
+    else if (!tabRef) toast.error("Der Browser hat das neue Fenster blockiert.");
+    else toast.error("Datei konnte nicht geöffnet werden");
   };
 
   const markReturned = async (loanId: string) => {
@@ -322,7 +319,7 @@ export const Keys = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Alle Gebäude</SelectItem>
-              {buildings.map((b: any) => (
+              {buildingOptions.map((b) => (
                 <SelectItem key={b.id} value={b.id}>
                   {b.name}
                 </SelectItem>
@@ -585,7 +582,9 @@ export const Keys = () => {
             </Button>
             <Button
               variant="outline"
-              onClick={() => setTagDialog({ open: true, tag: selected as any, buildingId: selected.building_id })}
+              onClick={() =>
+                setTagDialog({ open: true, tag: selected as any, buildingId: selected.building_id })
+              }
             >
               <Edit className="h-4 w-4 mr-1" /> Bearbeiten
             </Button>
@@ -637,13 +636,13 @@ export const Keys = () => {
         </div>
         <Button
           className="ml-auto"
-          onClick={() => {
-            if (buildingFilter !== "all") setTagDialog({ open: true, buildingId: buildingFilter });
-            else {
-              setChosenBuilding("");
-              setBuildingChooser(true);
-            }
-          }}
+          onClick={() =>
+            setTagDialog({
+              open: true,
+              tag: undefined,
+              buildingId: buildingFilter !== "all" ? buildingFilter : "",
+            })
+          }
         >
           <Plus className="h-4 w-4 mr-1" /> Neuer Anhänger
         </Button>
@@ -756,50 +755,15 @@ export const Keys = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Gebäudeauswahl für einen neuen Anhänger */}
-      <Dialog open={buildingChooser} onOpenChange={setBuildingChooser}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Für welches Gebäude?</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label>Gebäude</Label>
-            <Select value={chosenBuilding} onValueChange={setChosenBuilding}>
-              <SelectTrigger>
-                <SelectValue placeholder="Gebäude wählen …" />
-              </SelectTrigger>
-              <SelectContent>
-                {buildings.map((b: any) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setBuildingChooser(false)}>
-              Abbrechen
-            </Button>
-            <Button
-              disabled={!chosenBuilding}
-              onClick={() => {
-                setBuildingChooser(false);
-                setTagDialog({ open: true, buildingId: chosenBuilding });
-              }}
-            >
-              Weiter
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {tagDialog.buildingId && (
+      {tagDialog.open && (
         <KeyTagDialog
           open={tagDialog.open}
           onClose={closeAndRefresh}
           buildingId={tagDialog.buildingId}
           tag={tagDialog.tag}
+          buildingOptions={tagDialog.tag ? undefined : buildingOptions}
+          onBuildingChange={(id) => setTagDialog((d) => ({ ...d, buildingId: id }))}
+          buildingName={buildingOptions.find((b) => b.id === tagDialog.buildingId)?.name}
         />
       )}
       {loanDialog.tag && loanDialog.buildingId && (
