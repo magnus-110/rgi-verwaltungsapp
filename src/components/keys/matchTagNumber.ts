@@ -5,6 +5,54 @@ const pad = (v: string, len: number) => v.padStart(len, "0");
 export type MatchableTag = Pick<KeyTag, "tag_number" | "key_type_id">;
 
 /**
+ * Formatiert eine Eingabe live in die Form der Anhängernummer
+ * <Aufbewahrungsort>/<Objekt 3-stellig>-<lfd. Nr.>.
+ *
+ *   "36"        → "36"        (noch offen, wird nicht vorschnell aufgefüllt)
+ *   "36 "       → "036-"      (Trennzeichen = Objektnummer ist fertig)
+ *   "36 2"      → "036-2"
+ *   "03602"     → "036-02"
+ *   "k36 2"     → "K/036-2"
+ *   "K/036-02"  → "K/036-02"
+ *
+ * Die Funktion ist auf ihrem eigenen Ergebnis stabil, lässt sich also bei
+ * jedem Tastendruck erneut auf den Feldinhalt anwenden.
+ */
+export function formatTagInput(value: string): string {
+  const up = (value ?? "").toUpperCase();
+
+  let prefix = "";
+  let rest = up;
+  const slash = up.indexOf("/");
+  if (slash >= 0) {
+    prefix = up.slice(0, slash).replace(/[^0-9A-Z]/g, "");
+    rest = up.slice(slash + 1);
+  } else {
+    const leading = up.match(/^([A-Z]+)(.*)$/);
+    if (leading) {
+      prefix = leading[1];
+      rest = leading[2];
+    }
+  }
+
+  const endsWithSeparator = /[^0-9A-Z]$/.test(rest);
+  const groups = rest.split(/[^0-9]+/).filter(Boolean);
+
+  let body = "";
+  if (groups.length === 1) {
+    const g = groups[0];
+    if (g.length > 3) body = `${g.slice(0, 3)}-${g.slice(3, 5)}`;
+    else if (endsWithSeparator) body = `${pad(g, 3)}-`;
+    else body = g;
+  } else if (groups.length > 1) {
+    body = `${pad(groups[groups.length - 2], 3)}-${groups[groups.length - 1].slice(0, 2)}`;
+  }
+
+  if (!prefix) return body;
+  return body ? `${prefix}/${body}` : prefix;
+}
+
+/**
  * Findet Anhänger anhand einer toleranten Eingabe.
  *
  * Erkannt werden u.a.:

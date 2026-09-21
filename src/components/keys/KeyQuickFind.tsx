@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { KeyRound, RotateCcw, Send, X } from "lucide-react";
 import type { KeyType } from "@/components/buildings/keys/types";
 import type { GlobalKeyTag } from "./useGlobalKeys";
-import { matchTagNumber } from "./matchTagNumber";
+import { formatTagInput, matchTagNumber } from "./matchTagNumber";
 
 interface Props {
   tags: GlobalKeyTag[];
@@ -95,8 +95,9 @@ export const KeyQuickFind = ({ tags, types, loanByTag, onOpen, onIssue, onReturn
               ref={inputRef}
               value={num}
               autoComplete="off"
-              placeholder="z.B. 036-02"
-              onChange={(e) => setNum(e.target.value)}
+              inputMode="text"
+              placeholder="036-02"
+              onChange={(e) => setNum(formatTagInput(e.target.value))}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && hit) onOpen(hit);
                 if (e.key === "Escape") reset();
@@ -112,8 +113,9 @@ export const KeyQuickFind = ({ tags, types, loanByTag, onOpen, onIssue, onReturn
           )}
 
           <p className="ml-auto hidden max-w-[260px] text-right text-xs text-muted-foreground lg:block">
-            Erkennt <span className="font-mono">036-02</span>, <span className="font-mono">36 2</span> und{" "}
-            <span className="font-mono">K/036-02</span>. Objekt- und lfd. Nummer werden aufgefüllt.
+            Tippe <span className="font-mono">36 2</span> oder <span className="font-mono">03602</span> – das Feld
+            formatiert auf <span className="font-mono">036-02</span>. Ein vorangestelltes{" "}
+            <span className="font-mono">K</span> grenzt auf den Aufbewahrungsort ein.
           </p>
         </div>
 
