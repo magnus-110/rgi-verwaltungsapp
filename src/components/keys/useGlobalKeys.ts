@@ -21,6 +21,14 @@ export const GLOBAL_EVENTS_KEY = ["keys-global-events"] as const;
 export const GLOBAL_SETTINGS_KEY = ["keys-global-property-settings"] as const;
 export const GLOBAL_BUILDINGS_KEY = ["keys-global-buildings"] as const;
 
+/**
+ * Die App setzt global staleTime = 2 Minuten. Die Gebäude-Dialoge invalidieren
+ * nur ihre eigenen, gebäudebezogenen Keys – ohne diese Option würde die globale
+ * Seite nach einer Ausgabe im Gebäude-Tab bis zu zwei Minuten veraltete Daten
+ * zeigen. Die Datenmenge ist klein genug, um beim Mount immer neu zu laden.
+ */
+const freshOnMount = { staleTime: 0, refetchOnMount: "always" } as const;
+
 export const useInvalidateGlobalKeys = () => {
   const qc = useQueryClient();
   return () => {
@@ -28,15 +36,15 @@ export const useInvalidateGlobalKeys = () => {
     qc.invalidateQueries({ queryKey: GLOBAL_LOANS_KEY });
     qc.invalidateQueries({ queryKey: GLOBAL_EVENTS_KEY });
     qc.invalidateQueries({ queryKey: GLOBAL_SETTINGS_KEY });
-    // Dashboard-Widget und die Keys der Gebäude-Tabs mitziehen
+    // Dashboard-Widget und die Gebäude-Tabs mitziehen
     qc.invalidateQueries({ queryKey: ["outstanding-key-loans"] });
-    qc.invalidateQueries({ queryKey: ["outstanding-keys"] });
   };
 };
 
 export const useGlobalKeyTags = () =>
   useQuery<GlobalKeyTag[]>({
     queryKey: GLOBAL_TAGS_KEY,
+    ...freshOnMount,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("key_tags")
@@ -50,6 +58,7 @@ export const useGlobalKeyTags = () =>
 export const useGlobalOpenLoans = () =>
   useQuery<any[]>({
     queryKey: GLOBAL_LOANS_KEY,
+    ...freshOnMount,
     queryFn: async () =>
       ((await supabase.from("key_loans").select("*").eq("status", "open")).data as any[]) ?? [],
   });
@@ -57,6 +66,7 @@ export const useGlobalOpenLoans = () =>
 export const useGlobalKeyEvents = () =>
   useQuery<any[]>({
     queryKey: GLOBAL_EVENTS_KEY,
+    ...freshOnMount,
     queryFn: async () =>
       ((
         await supabase
@@ -70,6 +80,7 @@ export const useGlobalKeyEvents = () =>
 export const useGlobalPropertySettings = () =>
   useQuery<any[]>({
     queryKey: GLOBAL_SETTINGS_KEY,
+    ...freshOnMount,
     queryFn: async () =>
       ((await supabase.from("key_property_settings").select("*")).data as any[]) ?? [],
   });
