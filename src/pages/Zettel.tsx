@@ -18,7 +18,9 @@ import { TodoAttachments } from '@/components/todos/TodoAttachments';
 import { TodoDialog } from '@/components/todos/TodoDialog';
 import { ZettelChecklist } from '@/components/board/ZettelChecklist';
 import { useChecklistTemplates, useApplyChecklistTemplate } from '@/hooks/useChecklistTemplates';
-import { useWallPeople, usePinsForRef, usePinToOtherWall } from '@/hooks/useBoardWalls';
+import { useWallPeople, usePinsForRef } from '@/hooks/useBoardWalls';
+import { useAlsoPinToWall } from '@/hooks/useBoardHandover';
+import { HandoverDialog, HandoverTarget } from '@/components/board/HandoverDialog';
 import { useTaskReminders, useCreateReminder, useDeleteReminder } from '@/hooks/useTaskReminders';
 import { usePinToWall, useUnpin, formatDateDe, daysSince } from '@/hooks/useBoardPins';
 
@@ -42,7 +44,7 @@ export default function Zettel() {
 
   const updateTodo = useUpdateTodo();
   const applyTemplate = useApplyChecklistTemplate();
-  const pinToOther = usePinToOtherWall();
+  const alsoPin = useAlsoPinToWall();
   const pinToWall = usePinToWall();
   const unpin = useUnpin();
   const createReminder = useCreateReminder();
@@ -52,6 +54,7 @@ export default function Zettel() {
   const [neueErinnerung, setNeueErinnerung] = useState('');
   const [erinnerungText, setErinnerungText] = useState('');
   const [erinnerungOffen, setErinnerungOffen] = useState(false);
+  const [handoverTarget, setHandoverTarget] = useState<HandoverTarget | null>(null);
 
   if (isLoading) {
     return (
@@ -209,9 +212,26 @@ export default function Zettel() {
               <div className="mt-3">
                 <Select
                   value=""
-                  onValueChange={v =>
-                    pinToOther.mutate({ refType: 'todo', refId: t.id, targetUserId: v })
-                  }
+                  onValueChange={v => {
+                    const person = nochNichtAufgehaengt.find(p => p.userId === v);
+                    if (!person) return;
+                    setHandoverTarget({
+                      item: {
+                        refType: 'todo',
+                        refId: t.id,
+                        title: t.title,
+                        context: gebaeude,
+                        origin: 'ohne_termin',
+                        dueDate: t.due_date ?? null,
+                        followUpAt: t.follow_up_at ?? null,
+                        createdAt: t.created_at ?? null,
+                        progress: null,
+                        alsoOn: [],
+                      },
+                      targetUserId: person.userId,
+                      targetName: person.name,
+                    });
+                  }}
                 >
                   <SelectTrigger className="h-9 text-[13px]">
                     <SelectValue placeholder="Auch bei … aufhängen" />
@@ -342,6 +362,24 @@ export default function Zettel() {
       </div>
 
       <TodoDialog open={editOpen} onOpenChange={setEditOpen} todo={todo} mode="edit" />
+
+      <HandoverDialog
+        target={handoverTarget}
+        modus="zusaetzlich"
+        onCancel={() => setHandoverTarget(null)}
+        onConfirm={(note, silent) => {
+          if (handoverTarget) {
+            alsoPin.mutate({
+              item: handoverTarget.item,
+              targetUserId: handoverTarget.targetUserId,
+              targetName: handoverTarget.targetName,
+              note,
+              silent,
+            });
+          }
+          setHandoverTarget(null);
+        }}
+      />
     </div>
   );
 }
