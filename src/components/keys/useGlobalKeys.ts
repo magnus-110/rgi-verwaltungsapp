@@ -14,13 +14,9 @@ export interface GlobalKeyTag extends KeyTag {
   keys: KeyItem[];
 }
 
-/**
- * Query-Keys der gebäudeübergreifenden Sicht.
- * "outstanding-key-loans" wird von den bestehenden Dialogen bereits invalidiert –
- * deshalb nutzen wir hier bewusst denselben Key für die offenen Leihen.
- */
+/** Query-Keys der gebäudeübergreifenden Sicht. */
 export const GLOBAL_TAGS_KEY = ["keys-global-tags"] as const;
-export const GLOBAL_LOANS_KEY = ["outstanding-key-loans"] as const;
+export const GLOBAL_LOANS_KEY = ["keys-global-open-loans"] as const;
 export const GLOBAL_EVENTS_KEY = ["keys-global-events"] as const;
 export const GLOBAL_SETTINGS_KEY = ["keys-global-property-settings"] as const;
 export const GLOBAL_BUILDINGS_KEY = ["keys-global-buildings"] as const;
@@ -32,6 +28,9 @@ export const useInvalidateGlobalKeys = () => {
     qc.invalidateQueries({ queryKey: GLOBAL_LOANS_KEY });
     qc.invalidateQueries({ queryKey: GLOBAL_EVENTS_KEY });
     qc.invalidateQueries({ queryKey: GLOBAL_SETTINGS_KEY });
+    // Dashboard-Widget und die Keys der Gebäude-Tabs mitziehen
+    qc.invalidateQueries({ queryKey: ["outstanding-key-loans"] });
+    qc.invalidateQueries({ queryKey: ["outstanding-keys"] });
   };
 };
 

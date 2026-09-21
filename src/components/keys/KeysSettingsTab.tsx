@@ -33,8 +33,10 @@ const SimpleList = ({ title, hint, table, queryKey, items, withCode, codeOf }: S
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
 
+  const canAdd = !!name.trim() && (!withCode || !!code.trim());
+
   const add = async () => {
-    if (!name.trim()) return;
+    if (!canAdd) return;
     const payload: any = { name: name.trim(), created_by: user?.id };
     if (withCode) payload.code = code.trim();
     const { error } = await supabase.from(table as any).insert(payload as any);
@@ -67,7 +69,7 @@ const SimpleList = ({ title, hint, table, queryKey, items, withCode, codeOf }: S
           {items.map((i) => (
             <div key={i.id} className="flex items-center gap-2 rounded border border-border/60 px-2 py-1.5 text-sm">
               {withCode && (
-                <span className="font-mono text-xs text-muted-foreground w-10 shrink-0">{codeOf?.(i) ?? "—"}</span>
+                <span className="w-10 shrink-0 font-mono text-xs text-muted-foreground">{codeOf?.(i) ?? "—"}</span>
               )}
               <span className="flex-1 truncate">{i.name}</span>
               <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deactivate(i.id, i.name)}>
@@ -79,7 +81,7 @@ const SimpleList = ({ title, hint, table, queryKey, items, withCode, codeOf }: S
         <div className="flex items-end gap-2 border-t border-border/60 pt-3">
           {withCode && (
             <div className="w-20">
-              <Label className="text-xs">Kürzel</Label>
+              <Label className="text-xs">Kürzel *</Label>
               <Input value={code} onChange={(e) => setCode(e.target.value)} className="font-mono" />
             </div>
           )}
@@ -87,7 +89,7 @@ const SimpleList = ({ title, hint, table, queryKey, items, withCode, codeOf }: S
             <Label className="text-xs">Name</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          <Button onClick={add} disabled={!name.trim()}>
+          <Button onClick={add} disabled={!canAdd}>
             Hinzufügen
           </Button>
         </div>
@@ -134,7 +136,7 @@ export const KeysSettingsTab = () => {
     <div className="grid gap-4 lg:grid-cols-2">
       <SimpleList
         title="Aufbewahrungsorte"
-        hint="Das Kürzel wird zum Präfix der Anhängernummer, z.B. K/036-02."
+        hint="Das Kürzel wird zum Präfix der Anhängernummer, z.B. K/036-02 – deshalb Pflicht."
         table="key_storage_locations"
         queryKey="key-storage-locations"
         items={locations as any}

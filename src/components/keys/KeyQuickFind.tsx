@@ -22,8 +22,12 @@ export const KeyQuickFind = ({ tags, types, loanByTag, onOpen, onIssue, onReturn
   const [num, setNum] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Nur am Desktop automatisch fokussieren – auf dem Handy würde sonst
+  // beim Seitenaufruf die Tastatur aufspringen.
   useEffect(() => {
-    inputRef.current?.focus();
+    if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) {
+      inputRef.current?.focus();
+    }
   }, []);
 
   const hits = useMemo(() => matchTagNumber(tags, typeId, num), [tags, typeId, num]);
@@ -39,7 +43,7 @@ export const KeyQuickFind = ({ tags, types, loanByTag, onOpen, onIssue, onReturn
   const keyContent = (tag: GlobalKeyTag) => {
     const list = tag.keys ?? [];
     if (!list.length) return "kein Schlüssel erfasst";
-    const first = [list[0].key_number].filter(Boolean).join(" ") || "Schlüssel";
+    const first = list[0].key_number || "Schlüssel";
     return list.length > 1 ? `${first} + ${list.length - 1} weitere` : first;
   };
 
