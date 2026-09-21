@@ -19,6 +19,7 @@ export const GLOBAL_TAGS_KEY = ["keys-global-tags"] as const;
 export const GLOBAL_LOANS_KEY = ["keys-global-open-loans"] as const;
 export const GLOBAL_EVENTS_KEY = ["keys-global-events"] as const;
 export const GLOBAL_SETTINGS_KEY = ["keys-global-property-settings"] as const;
+export const GLOBAL_PLANS_KEY = ["keys-global-closing-plans"] as const;
 export const GLOBAL_BUILDINGS_KEY = ["keys-global-buildings"] as const;
 
 /**
@@ -36,6 +37,7 @@ export const useInvalidateGlobalKeys = () => {
     qc.invalidateQueries({ queryKey: GLOBAL_LOANS_KEY });
     qc.invalidateQueries({ queryKey: GLOBAL_EVENTS_KEY });
     qc.invalidateQueries({ queryKey: GLOBAL_SETTINGS_KEY });
+    qc.invalidateQueries({ queryKey: GLOBAL_PLANS_KEY });
     // Dashboard-Widget und die Gebäude-Tabs mitziehen
     qc.invalidateQueries({ queryKey: ["outstanding-key-loans"] });
   };
@@ -83,6 +85,20 @@ export const useGlobalPropertySettings = () =>
     ...freshOnMount,
     queryFn: async () =>
       ((await supabase.from("key_property_settings").select("*")).data as any[]) ?? [],
+  });
+
+/** Schließplan-Dateien aller Liegenschaften, im Detailpanel nach building_id gefiltert. */
+export const useGlobalClosingPlanFiles = () =>
+  useQuery<any[]>({
+    queryKey: GLOBAL_PLANS_KEY,
+    ...freshOnMount,
+    queryFn: async () =>
+      ((
+        await supabase
+          .from("key_closing_plan_files" as any)
+          .select("*")
+          .order("created_at", { ascending: false })
+      ).data as any[]) ?? [],
   });
 
 export const useKeyBuildings = () =>
