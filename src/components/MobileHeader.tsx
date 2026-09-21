@@ -26,6 +26,7 @@ import {
   Workflow,
   FolderKanban,
   Briefcase,
+  KeyRound,
   ListChecks,
 } from "lucide-react";
 
@@ -47,6 +48,7 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
         { icon: BarChart3, label: "Dashboard", path: '/dashboard', active: location.pathname === '/dashboard' },
         { icon: Mail, label: "Postfach", path: '/postfach', active: location.pathname.startsWith('/postfach') },
         { icon: Castle, label: "Gebäude", path: '/buildings', active: location.pathname.startsWith('/buildings') },
+        { icon: KeyRound, label: "Schlüssel", path: '/schluessel', active: location.pathname.startsWith('/schluessel') },
         { icon: Landmark, label: "Buchhaltung", path: '/finanzen', active: location.pathname.startsWith('/finanzen') },
         { icon: CreditCard, label: "Zahlungen", path: '/zahlungen', active: location.pathname.startsWith('/zahlungen') || location.pathname.startsWith('/ueberweisungen') },
         { icon: BookUser, label: "Adressen", path: '/contacts', active: location.pathname.startsWith('/contacts') },
