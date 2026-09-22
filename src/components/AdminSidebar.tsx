@@ -54,7 +54,7 @@ const adminMenu = [
   { title: "Vorgänge", url: "/vorgaenge", icon: FolderKanban },
   { title: "Versammlungen", url: "/versammlungen", icon: Users },
   { title: "Umfragen", url: "/umfragen", icon: ListChecks },
-  { title: "Prozesse", url: "/prozesse", icon: Workflow },
+  { title: "Anleitungen", url: "/checklisten", icon: Workflow },
   { title: "RGI Intern", url: "/rgi-intern", icon: Briefcase, adminOnly: true },
   { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
 ];
@@ -238,6 +238,8 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                       currentPath === "/tickets" ||
                       currentPath === "/reports" ||
                       currentPath === "/admin/reports";
+                  } else if (item.url === "/checklisten") {
+                    aliasActive = currentPath.startsWith("/checklisten") || currentPath.startsWith("/prozesse");
                   } else if (item.url === "/vorgaenge") {
                     aliasActive = currentPath.startsWith("/vorgaenge") || currentPath.startsWith("/tickets/vorgaenge");
                   } else if (item.url === "/makler/objekte") {
