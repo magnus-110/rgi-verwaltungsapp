@@ -42,6 +42,7 @@ const Keys = lazy(() => import("./pages/Keys").then(m => ({ default: m.Keys })))
 const Finance = lazy(() => import("./pages/Finance").then(m => ({ default: m.Finance })));
 const Billing = lazy(() => import("./pages/Billing").then(m => ({ default: m.Billing })));
 const Processes = lazy(() => import("./pages/Processes").then(m => ({ default: m.Processes })));
+const Checklisten = lazy(() => import("./pages/Checklisten"));
 const Jahreszyklus = lazy(() => import("./pages/JahreszyklusNeu"));
 const JahreszyklusAlt = lazy(() => import("./pages/Jahreszyklus"));
 const RgiIntern = lazy(() => import("./pages/RgiIntern"));
@@ -156,6 +157,7 @@ const App = () => (
               <Route path="/umfragen" element={<AdminLayout><UmfragenPage /></AdminLayout>} />
               <Route path="/zahlungen" element={<AdminLayout><Transfers /></AdminLayout>} />
               <Route path="/ueberweisungen" element={<Navigate to="/zahlungen" replace />} />
+              <Route path="/checklisten" element={<AdminLayout><Checklisten /></AdminLayout>} />
               <Route path="/prozesse" element={<AdminLayout><Processes /></AdminLayout>} />
               <Route path="/jahreszyklus" element={<AdminLayout><Jahreszyklus /></AdminLayout>} />
               <Route path="/jahreszyklus/klassisch" element={<AdminLayout><JahreszyklusAlt /></AdminLayout>} />
