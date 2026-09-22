@@ -1,20 +1,25 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   BUCKET_DOT,
   BUCKET_LABEL,
   BUCKET_ORDER,
   CaseOverview,
+  OFFENE_STATUS,
+  STATUS_LABEL,
   SilenceBucket,
+  istInDurchsicht,
   useActivityWeeks,
   useCaseReview,
   useCaseReviewStats,
   useResolveCase,
   useSnoozeCase,
 } from '@/hooks/useCaseReview';
+import { CASE_CATEGORY_LABEL, CaseCategory } from '@/hooks/useCases';
 import { ActivitySparkline } from '@/components/cases/ActivitySparkline';
 import { CaseDirectionIcon, beschreibeHerkunft } from '@/components/cases/CaseDirectionIcon';
 import { SnoozePopover } from '@/components/cases/SnoozePopover';
@@ -24,7 +29,26 @@ import { formatDateDe } from '@/hooks/useBoardPins';
 /** Wie viele Zeilen je Gruppe zunächst sichtbar sind. */
 const ERSTE_ZEILEN = 4;
 
-type Filter = 'alle' | 'eingang' | 'ohne_wand';
+type Lage = 'alle' | 'eingang' | 'ohne_wand';
+type StatusWahl = 'durchsicht' | 'offen' | 'ruhend' | 'erledigt' | 'alle';
+
+const STATUS_WAHL: [StatusWahl, string][] = [
+  ['durchsicht', 'In der Durchsicht'],
+  ['offen', 'Alle offenen'],
+  ['ruhend', 'Ruhend'],
+  ['erledigt', 'Erledigt'],
+  ['alle', 'Alle'],
+];
+
+/** Umlaute und Groß-/Kleinschreibung beim Suchen ignorieren. */
+function normal(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/ä/g, 'ae')
+    .replace(/ö/g, 'oe')
+    .replace(/ü/g, 'ue')
+    .replace(/ß/g, 'ss');
+}
 
 /**
  * Die Durchsicht (Screen 4 des Entwurfs).
@@ -32,6 +56,9 @@ type Filter = 'alle' | 'eingang' | 'ohne_wand';
  * Sortiert nicht nach Datum, sondern danach, wie lange nichts passiert ist.
  * Und gruppiert statt zu sortieren — dadurch muss niemand einen Schwellenwert
  * festlegen, ab dem ein Vorgang „alt" ist.
+ *
+ * Darüber liegt die Suche: gut hundert Vorgänge sind einmal geladen, also
+ * findet man auch einen längst erledigten sofort wieder.
  */
 export default function Vorgaenge() {
   const navigate = useNavigate();
@@ -41,18 +68,71 @@ export default function Vorgaenge() {
   const resolve = useResolveCase();
   const pinToWall = usePinToWall();
 
-  const [filter, setFilter] = useState<Filter>('alle');
+  const [suche, setSuche] = useState('');
+  const [lage, setLage] = useState<Lage>('alle');
+  const [statusWahl, setStatusWahl] = useState<StatusWahl>('durchsicht');
+  const [gebaeude, setGebaeude] = useState('');
+  const [kategorie, setKategorie] = useState('');
+
   const [offeneGruppen, setOffeneGruppen] = useState<Record<string, boolean>>({
     ueber_3_monate: true,
     zwei_bis_drei_monate: true,
   });
   const [alleZeilen, setAlleZeilen] = useState<Record<string, boolean>>({});
 
+  const heute = new Date().toISOString().slice(0, 10);
+
+  /** Die Auswahllisten ergeben sich aus dem Bestand, nicht aus einer festen Liste. */
+  const gebaeudeListe = useMemo(() => {
+    const namen = new Set<string>();
+    faelle.forEach(c => c.building_name && namen.add(c.building_name));
+    return Array.from(namen).sort((a, b) => a.localeCompare(b, 'de'));
+  }, [faelle]);
+
+  const kategorieListe = useMemo(() => {
+    const keys = new Set<string>();
+    faelle.forEach(c => c.category && keys.add(c.category));
+    return Array.from(keys).sort();
+  }, [faelle]);
+
   const gefiltert = useMemo(() => {
-    if (filter === 'eingang') return faelle.filter(c => c.last_kind === 'in');
-    if (filter === 'ohne_wand') return faelle.filter(c => !c.on_a_wall);
-    return faelle;
-  }, [faelle, filter]);
+    const suchbegriffe = normal(suche.trim())
+      .split(/\s+/)
+      .filter(Boolean);
+
+    return faelle.filter(c => {
+      // Status
+      if (statusWahl === 'durchsicht' && !istInDurchsicht(c, heute)) return false;
+      if (statusWahl === 'offen' && !OFFENE_STATUS.includes(c.status)) return false;
+      if (statusWahl === 'ruhend' && !(c.snooze_until && c.snooze_until > heute)) return false;
+      if (statusWahl === 'erledigt' && !['resolved', 'archived'].includes(c.status)) return false;
+
+      if (gebaeude && c.building_name !== gebaeude) return false;
+      if (kategorie && c.category !== kategorie) return false;
+
+      if (lage === 'eingang' && c.last_kind !== 'in') return false;
+      if (lage === 'ohne_wand' && c.on_a_wall) return false;
+
+      if (suchbegriffe.length) {
+        const heuhaufen = normal(
+          [
+            c.title,
+            c.building_name,
+            c.unit_number,
+            c.last_subject,
+            c.last_who,
+            c.category ? CASE_CATEGORY_LABEL[c.category as CaseCategory] ?? c.category : null,
+          ]
+            .filter(Boolean)
+            .join(' ')
+        );
+        // Alle Wörter müssen vorkommen, in beliebiger Reihenfolge.
+        if (!suchbegriffe.every(w => heuhaufen.includes(w))) return false;
+      }
+
+      return true;
+    });
+  }, [faelle, suche, lage, statusWahl, gebaeude, kategorie, heute]);
 
   const gruppen = useMemo(() => {
     const map = new Map<SilenceBucket, CaseOverview[]>();
@@ -75,6 +155,17 @@ export default function Vorgaenge() {
 
   const { data: streifen } = useActivityWeeks(sichtbareIds);
 
+  const filterAktiv =
+    !!suche.trim() || lage !== 'alle' || statusWahl !== 'durchsicht' || !!gebaeude || !!kategorie;
+
+  const zuruecksetzen = () => {
+    setSuche('');
+    setLage('alle');
+    setStatusWahl('durchsicht');
+    setGebaeude('');
+    setKategorie('');
+  };
+
   const kachel = (zahl: number | undefined, text: string, betont = false) => (
     <div
       className={`rounded-[11px] border p-4 ${
@@ -89,6 +180,9 @@ export default function Vorgaenge() {
       </div>
     </div>
   );
+
+  const auswahlKlasse =
+    'h-9 rounded-md border border-border bg-background px-2.5 text-[12.5px] text-foreground';
 
   return (
     <div className="space-y-4">
@@ -106,25 +200,106 @@ export default function Vorgaenge() {
         {kachel(stats?.ruhend, 'ruhen bis später')}
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
-        {([
-          ['alle', 'Alle'],
-          ['eingang', 'Zuletzt kam etwas rein'],
-          ['ohne_wand', 'Auf keiner Wand'],
-        ] as [Filter, string][]).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setFilter(key)}
-            className={`rounded-full px-3 py-1.5 text-[12.5px] transition-colors ${
-              filter === key
-                ? 'bg-[#2B2B2B] text-white'
-                : 'border border-border bg-background text-foreground hover:bg-muted'
-            }`}
+      {/* Suche und Filter */}
+      <div className="space-y-2.5 rounded-[11px] border border-border bg-card p-3.5">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={suche}
+            onChange={e => setSuche(e.target.value)}
+            placeholder="Suchen — Titel, Gebäude, Wohnung, letzter Betreff …"
+            className="h-9 pl-9 pr-9 text-[13px]"
+            aria-label="Vorgänge durchsuchen"
+          />
+          {suche && (
+            <button
+              type="button"
+              onClick={() => setSuche('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label="Suche leeren"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={statusWahl}
+            onChange={e => setStatusWahl(e.target.value as StatusWahl)}
+            className={auswahlKlasse}
+            aria-label="Status"
           >
-            {label}
-          </button>
-        ))}
+            {STATUS_WAHL.map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={gebaeude}
+            onChange={e => setGebaeude(e.target.value)}
+            className={auswahlKlasse}
+            aria-label="Gebäude"
+          >
+            <option value="">Alle Gebäude</option>
+            {gebaeudeListe.map(n => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={kategorie}
+            onChange={e => setKategorie(e.target.value)}
+            className={auswahlKlasse}
+            aria-label="Kategorie"
+          >
+            <option value="">Alle Kategorien</option>
+            {kategorieListe.map(k => (
+              <option key={k} value={k}>
+                {CASE_CATEGORY_LABEL[k as CaseCategory] ?? k}
+              </option>
+            ))}
+          </select>
+
+          {([
+            ['alle', 'Alle'],
+            ['eingang', 'Zuletzt kam etwas rein'],
+            ['ohne_wand', 'Auf keiner Wand'],
+          ] as [Lage, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setLage(key)}
+              className={`rounded-full px-3 py-1.5 text-[12.5px] transition-colors ${
+                lage === key
+                  ? 'bg-[#2B2B2B] text-white'
+                  : 'border border-border bg-background text-foreground hover:bg-muted'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+
+          {filterAktiv && (
+            <button
+              type="button"
+              onClick={zuruecksetzen}
+              className="ml-auto text-[12.5px] text-primary hover:underline"
+            >
+              Filter zurücksetzen
+            </button>
+          )}
+        </div>
+
+        {filterAktiv && (
+          <p className="text-[12px] text-muted-foreground">
+            {gefiltert.length} von {faelle.length} Vorgängen
+          </p>
+        )}
       </div>
 
       {isLoading && (
@@ -175,81 +350,107 @@ export default function Vorgaenge() {
 
               {offen && (
                 <div className="space-y-2">
-                  {sichtbar.map(c => (
-                    <article
-                      key={c.id}
-                      className="flex flex-col gap-3 rounded-[11px] border border-border bg-card p-3.5 lg:flex-row lg:items-center"
-                    >
-                      <div className="min-w-0 lg:w-[320px] lg:shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/vorgaenge/${c.id}`)}
-                          className="block text-left text-[13.5px] font-semibold leading-snug text-foreground hover:underline"
-                        >
-                          {c.title}
-                        </button>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11.5px] text-muted-foreground">
-                          {c.building_name && <span>{c.building_name}</span>}
-                          {c.unit_number && <span>· Whg. {c.unit_number}</span>}
-                          {c.category && (
-                            <span className="rounded bg-muted px-1.5 py-0.5">{c.category}</span>
+                  {sichtbar.map(c => {
+                    const erledigt = ['resolved', 'archived'].includes(c.status);
+                    return (
+                      <article
+                        key={c.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => navigate(`/vorgaenge/${c.id}`)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            navigate(`/vorgaenge/${c.id}`);
+                          }
+                        }}
+                        aria-label={`Vorgang „${c.title}" öffnen`}
+                        className="flex cursor-pointer flex-col gap-3 rounded-[11px] border border-border bg-card p-3.5 transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:flex-row lg:items-center"
+                      >
+                        <div className="min-w-0 lg:w-[320px] lg:shrink-0">
+                          <span className="block text-[13.5px] font-semibold leading-snug text-foreground">
+                            {c.title}
+                          </span>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                            {c.building_name && <span>{c.building_name}</span>}
+                            {c.unit_number && <span>· Whg. {c.unit_number}</span>}
+                            {c.category && (
+                              <span className="rounded bg-muted px-1.5 py-0.5">
+                                {CASE_CATEGORY_LABEL[c.category as CaseCategory] ?? c.category}
+                              </span>
+                            )}
+                            {erledigt && (
+                              <span className="rounded bg-[#EDF2E6] px-1.5 py-0.5 text-[#4e6b3c]">
+                                {STATUS_LABEL[c.status] ?? c.status}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="min-w-0 lg:w-[250px] lg:shrink-0">
+                          <div className="flex items-start gap-1.5">
+                            <span className="mt-[2px] shrink-0">
+                              <CaseDirectionIcon kind={c.last_kind} />
+                            </span>
+                            <span className="min-w-0 text-[12.5px] text-foreground">
+                              <span className="block truncate">
+                                {beschreibeHerkunft(c.last_kind, c.last_who)}
+                              </span>
+                              <span className="block text-[11.5px] text-muted-foreground">
+                                {formatDateDe(c.last_movement_at)} · vor {c.silent_days} Tagen
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="hidden lg:block lg:w-[110px] lg:shrink-0">
+                          <ActivitySparkline weeks={streifen?.get(c.id) ?? new Array(12).fill(0)} />
+                        </div>
+
+                        <div className="lg:w-[138px] lg:shrink-0">
+                          {c.on_a_wall ? (
+                            <span className="text-[12.5px] text-muted-foreground">hängt an einer Wand</span>
+                          ) : erledigt ? (
+                            <span className="text-[12.5px] text-muted-foreground">abgeschlossen</span>
+                          ) : (
+                            <span className="text-[12.5px] font-semibold text-[#9C3D24]">
+                              auf keiner Wand
+                            </span>
                           )}
                         </div>
-                      </div>
 
-                      <div className="min-w-0 lg:w-[250px] lg:shrink-0">
-                        <div className="flex items-start gap-1.5">
-                          <span className="mt-[2px] shrink-0">
-                            <CaseDirectionIcon kind={c.last_kind} />
-                          </span>
-                          <span className="min-w-0 text-[12.5px] text-foreground">
-                            <span className="block truncate">
-                              {beschreibeHerkunft(c.last_kind, c.last_who)}
-                            </span>
-                            <span className="block text-[11.5px] text-muted-foreground">
-                              {formatDateDe(c.last_movement_at)} · vor {c.silent_days} Tagen
-                            </span>
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="hidden lg:block lg:w-[110px] lg:shrink-0">
-                        <ActivitySparkline weeks={streifen?.get(c.id) ?? new Array(12).fill(0)} />
-                      </div>
-
-                      <div className="lg:w-[138px] lg:shrink-0">
-                        {c.on_a_wall ? (
-                          <span className="text-[12.5px] text-muted-foreground">hängt an einer Wand</span>
-                        ) : (
-                          <span className="text-[12.5px] font-semibold text-[#9C3D24]">
-                            auf keiner Wand
-                          </span>
+                        {!erledigt && (
+                          // Eigener Klickbereich: die Knöpfe sollen nicht die
+                          // Akte öffnen.
+                          <div
+                            className="flex flex-wrap gap-2 lg:ml-auto"
+                            onClick={e => e.stopPropagation()}
+                            onKeyDown={e => e.stopPropagation()}
+                          >
+                            <SnoozePopover
+                              snoozeUntil={c.snooze_until}
+                              onSnooze={bis => snooze.mutate({ caseId: c.id, bis })}
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 whitespace-nowrap border-primary text-[12.5px] text-primary hover:bg-primary hover:text-primary-foreground"
+                              onClick={() => pinToWall.mutate({ refType: 'case', refId: c.id })}
+                            >
+                              Auf die Wand
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="h-8 bg-[#6B8A55] text-[12.5px] text-white hover:bg-[#5c7849]"
+                              onClick={() => resolve.mutate(c.id)}
+                            >
+                              Erledigt
+                            </Button>
+                          </div>
                         )}
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 lg:ml-auto">
-                        <SnoozePopover
-                          snoozeUntil={c.snooze_until}
-                          onSnooze={bis => snooze.mutate({ caseId: c.id, bis })}
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 whitespace-nowrap border-primary text-[12.5px] text-primary hover:bg-primary hover:text-primary-foreground"
-                          onClick={() => pinToWall.mutate({ refType: 'case', refId: c.id })}
-                        >
-                          Auf die Wand
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="h-8 bg-[#6B8A55] text-[12.5px] text-white hover:bg-[#5c7849]"
-                          onClick={() => resolve.mutate(c.id)}
-                        >
-                          Erledigt
-                        </Button>
-                      </div>
-                    </article>
-                  ))}
+                      </article>
+                    );
+                  })}
 
                   {liste.length > ERSTE_ZEILEN && (
                     <button
@@ -269,9 +470,22 @@ export default function Vorgaenge() {
         })}
 
       {!isLoading && gefiltert.length === 0 && (
-        <p className="py-12 text-center text-[13px] text-muted-foreground">
-          Kein Vorgang passt zu diesem Filter.
-        </p>
+        <div className="py-12 text-center">
+          <p className="text-[13px] text-muted-foreground">
+            {suche.trim()
+              ? `Nichts gefunden zu „${suche.trim()}".`
+              : 'Kein Vorgang passt zu dieser Auswahl.'}
+          </p>
+          {filterAktiv && (
+            <button
+              type="button"
+              onClick={zuruecksetzen}
+              className="mt-2 text-[12.5px] text-primary hover:underline"
+            >
+              Filter zurücksetzen
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
