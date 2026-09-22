@@ -69,24 +69,43 @@ export interface CaseOverview {
   silence_bucket: SilenceBucket;
 }
 
-const OFFENE_STATUS = ['open', 'in_progress', 'waiting_external', 'waiting_owner'];
+export const OFFENE_STATUS = ['open', 'in_progress', 'waiting_external', 'waiting_owner'];
 
-/** Offene Vorgänge, die nicht bis später ruhen. */
+export const STATUS_LABEL: Record<string, string> = {
+  open: 'Offen',
+  in_progress: 'In Arbeit',
+  waiting_external: 'Wartet auf extern',
+  waiting_owner: 'Wartet auf Eigentümer',
+  resolved: 'Erledigt',
+  archived: 'Archiviert',
+};
+
+/**
+ * Alle Vorgänge — auch erledigte und ruhende.
+ *
+ * Es sind gut hundert Zeilen; die holt man einmal und filtert danach im
+ * Browser. Das macht die Suche sofort und erlaubt, auch einen längst
+ * abgeschlossenen Vorgang wiederzufinden, ohne dafür neu zu laden.
+ */
 export function useCaseReview() {
   return useQuery({
     queryKey: ['case-review'],
     queryFn: async (): Promise<CaseOverview[]> => {
-      const heute = new Date().toISOString().slice(0, 10);
       const { data, error } = await reviewDb
         .from('case_overview')
         .select('*')
-        .in('status', OFFENE_STATUS)
-        .or(`snooze_until.is.null,snooze_until.lte.${heute}`)
         .order('silent_days', { ascending: false });
       if (error) throw error;
       return (data || []) as CaseOverview[];
     },
   });
+}
+
+/** Der Normalfall der Durchsicht: offen und nicht ruhend. */
+export function istInDurchsicht(c: CaseOverview, heute: string): boolean {
+  if (!OFFENE_STATUS.includes(c.status)) return false;
+  if (c.snooze_until && c.snooze_until > heute) return false;
+  return true;
 }
 
 /** Die vier Kennzahlen über der Liste. */
