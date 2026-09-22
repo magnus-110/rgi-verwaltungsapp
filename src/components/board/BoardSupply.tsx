@@ -1,4 +1,5 @@
-import { Plus } from 'lucide-react';
+import { Plus, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { BoardItem, SupplyColumn, formatDateDe } from '@/hooks/useBoardPins';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -72,15 +73,29 @@ export function BoardSupply({ columns, activeKey, onSelectColumn, onPin, isLoadi
                     .join(' · ') || 'ohne Termin'}
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-7 w-7 shrink-0 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                onClick={() => onPin(item)}
-                aria-label={`"${item.title}" auf meine Wand heften`}
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </Button>
+              {item.linkTo ? (
+                <Button
+                  asChild
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  aria-label={`"${item.title}" im Jahreszyklus öffnen`}
+                >
+                  <Link to={item.linkTo}>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                  onClick={() => onPin(item)}
+                  aria-label={`"${item.title}" auf meine Wand heften`}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
           ))}
       </div>
