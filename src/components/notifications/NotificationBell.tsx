@@ -10,6 +10,7 @@ import {
   useMarkNotificationRead,
   useNotifications,
 } from '@/hooks/useNotifications';
+import { NotificationSettings } from './NotificationSettings';
 
 const ICONS: Record<NotificationType, typeof Bell> = {
   pin_assigned: StickyNote,
@@ -49,6 +50,8 @@ function relativeTime(iso: string) {
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'unread' | 'all'>('unread');
+  // Die Einstellungen liegen in derselben Klappe, eine Ebene dahinter.
+  const [zeigeEinstellungen, setZeigeEinstellungen] = useState(false);
   const navigate = useNavigate();
 
   const { data: notifications = [] } = useNotifications();
@@ -67,7 +70,13 @@ export function NotificationBell() {
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={o => {
+        setOpen(o);
+        if (!o) setZeigeEinstellungen(false);
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
@@ -85,6 +94,10 @@ export function NotificationBell() {
       </PopoverTrigger>
 
       <PopoverContent align="end" className="w-[404px] p-0">
+        {zeigeEinstellungen ? (
+          <NotificationSettings onBack={() => setZeigeEinstellungen(false)} />
+        ) : (
+        <>
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <span className="text-[14.5px] font-semibold">Benachrichtigungen</span>
           {unread.length > 0 && (
@@ -160,15 +173,14 @@ export function NotificationBell() {
         <div className="border-t border-border px-4 py-2.5 text-center">
           <button
             type="button"
-            onClick={() => {
-              setOpen(false);
-              navigate('/settings?tab=notifications');
-            }}
+            onClick={() => setZeigeEinstellungen(true)}
             className="text-[12.5px] text-muted-foreground hover:text-foreground hover:underline"
           >
             Einstellungen für Benachrichtigungen
           </button>
         </div>
+        </>
+        )}
       </PopoverContent>
     </Popover>
   );
