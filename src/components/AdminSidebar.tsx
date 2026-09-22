@@ -54,6 +54,9 @@ interface MenuItem {
  * Anleitungen. Vorher standen sie einzeln und weit auseinander in der Liste.
  */
 const adminMenu: MenuItem[] = [
+  { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
+  { title: "Postfach", url: "/postfach", icon: Mail },
+  { title: "Gebäude", url: "/buildings", icon: Castle },
   {
     title: "Aufgaben",
     url: "/pinnwand",
@@ -65,16 +68,13 @@ const adminMenu: MenuItem[] = [
       { title: "Anleitungen", url: "/checklisten", icon: Workflow },
     ],
   },
-  { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
-  { title: "Postfach", url: "/postfach", icon: Mail },
-  { title: "Gebäude", url: "/buildings", icon: Castle },
-  { title: "Schlüssel", url: "/schluessel", icon: KeyRound },
   { title: "Buchhaltung", url: "/finanzen", icon: Landmark },
   { title: "Zahlungen", url: "/zahlungen", icon: CreditCard },
   { title: "Adressen", url: "/contacts", icon: BookUser },
   { title: "Kalender", url: "/calendar", icon: CalendarDays },
   { title: "Meldungen", url: "/tickets", icon: ClipboardList },
   { title: "Versammlungen", url: "/versammlungen", icon: Users },
+  { title: "Schlüssel", url: "/schluessel", icon: KeyRound },
   { title: "Umfragen", url: "/umfragen", icon: ListChecks },
   { title: "RGI Intern", url: "/rgi-intern", icon: Briefcase, adminOnly: true },
   { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
