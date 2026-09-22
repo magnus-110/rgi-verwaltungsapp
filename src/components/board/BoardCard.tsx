@@ -1,3 +1,4 @@
+import React from 'react';
 import { Check, MoreHorizontal, X, Clock } from 'lucide-react';
 import {
   BoardItem,
@@ -77,7 +78,25 @@ export function BoardCard({ item, onOpen, onComplete, onRemove, onWaiting, compa
 
   return (
     <div
+      // Der ganze Zettel oeffnet ihn, nicht nur die Ueberschrift. Das Menue
+      // und alles darin stoppt den Klick selbst.
+      {...(onOpen
+        ? {
+            role: 'button' as const,
+            tabIndex: 0,
+            onClick: () => onOpen(item),
+            onKeyDown: (e: React.KeyboardEvent) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onOpen(item);
+              }
+            },
+            'aria-label': `Zettel „${item.title}" öffnen`,
+          }
+        : {})}
       className={`group relative flex flex-col rounded-[10px] border border-[#EBE4D6] bg-[#FFFDF7] p-3.5 transition-shadow ${
+        onOpen ? 'cursor-pointer hover:border-[#D9CEB6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary' : ''
+      } ${
         dragging ? 'shadow-[0_14px_28px_rgba(43,43,43,.22)] rotate-[-2deg]' : 'shadow-[0_1px_2px_rgba(43,43,43,.06)]'
       }`}
     >
@@ -88,48 +107,44 @@ export function BoardCard({ item, onOpen, onComplete, onRemove, onWaiting, compa
           {item.progress && item.progress.total > 0 ? ' · Checkliste' : ''}
         </span>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="ml-auto h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-              aria-label="Aktionen für diesen Zettel"
-            >
-              <MoreHorizontal className="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
-            {onComplete && (
-              <DropdownMenuItem onClick={() => onComplete(item)}>
-                <Check className="mr-2 h-4 w-4" /> Erledigt
-              </DropdownMenuItem>
-            )}
-            {onWaiting && (
-              <DropdownMenuItem onClick={() => onWaiting(item)}>
-                <Clock className="mr-2 h-4 w-4" /> Wartet auf …
-              </DropdownMenuItem>
-            )}
-            {onRemove && (
-              <DropdownMenuItem onClick={() => onRemove(item)}>
-                <X className="mr-2 h-4 w-4" /> Von der Wand nehmen
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div
+          className="ml-auto"
+          onClick={e => e.stopPropagation()}
+          onKeyDown={e => e.stopPropagation()}
+        >
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                aria-label="Aktionen für diesen Zettel"
+              >
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              {onComplete && (
+                <DropdownMenuItem onClick={() => onComplete(item)}>
+                  <Check className="mr-2 h-4 w-4" /> Erledigt
+                </DropdownMenuItem>
+              )}
+              {onWaiting && (
+                <DropdownMenuItem onClick={() => onWaiting(item)}>
+                  <Clock className="mr-2 h-4 w-4" /> Wartet auf …
+                </DropdownMenuItem>
+              )}
+              {onRemove && (
+                <DropdownMenuItem onClick={() => onRemove(item)}>
+                  <X className="mr-2 h-4 w-4" /> Von der Wand nehmen
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
-      {onOpen ? (
-        <button
-          type="button"
-          onClick={() => onOpen(item)}
-          className="text-left text-[14.5px] font-semibold leading-snug text-foreground hover:underline"
-        >
-          {item.title}
-        </button>
-      ) : (
-        <div className="text-[14.5px] font-semibold leading-snug text-foreground">{item.title}</div>
-      )}
+      <div className="text-[14.5px] font-semibold leading-snug text-foreground">{item.title}</div>
 
       {item.context && (
         <div className="mt-1 text-[12px] text-muted-foreground">{item.context}</div>
