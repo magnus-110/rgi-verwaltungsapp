@@ -1,5 +1,19 @@
-// Cron-driven notifier: scans for new emails / due todos / upcoming events
-// and dispatches push notifications via send-push. Dedup via notification_log.
+// Cron-driven notifier: sucht neue E-Mails, faellige Aufgaben und anstehende
+// Termine und schreibt daraus Eintraege in public.notifications - die Glocke
+// in der App.
+//
+// Entscheidung 12 des Umsetzungsplans: nur In-App. Kein Push, keine E-Mail
+// nach aussen. send-push wird von hier nicht mehr gerufen.
+//
+// Fehler, die hier lange drinsteckten und jetzt behoben sind:
+//   - der Statusfilter prueft "completed"; die App kennt nur open,
+//     in_progress und done, der Filter griff also nie
+//   - die Links zeigten auf /aufgaben und /kalender; diese Routen gibt es
+//     nicht, jeder Klick landete auf NotFound
+//   - Empfaenger waren nur todo_assignees, das Feld todos.assigned_to wurde
+//     ignoriert
+//   - der Rollen-Fallback las aus user_roles; diese Tabelle existiert nicht,
+//     die Rollen stehen in profiles
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -12,27 +26,63 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+/** Spalte in notification_preferences, die diesen Typ abschaltet. */
+const PREF_SPALTE: Record<string, string> = {
+  case_email: "notify_case_email",
+  deadline: "notify_reminder",
+};
 
-async function dispatch(args: {
+/**
+ * Schreibt je Empfaenger eine Zeile in public.notifications.
+ * (user_id, type, ref_id) verhindert, dass derselbe Anlass mehrfach meldet.
+ */
+async function melden(args: {
   user_ids: string[];
-  dedup_key: string;
-  type: "email" | "todo" | "calendar";
+  type: "case_email" | "deadline";
   title: string;
   body?: string;
   url?: string;
-  tag?: string;
+  ref_type?: string;
+  ref_id?: string;
 }) {
   if (!args.user_ids.length) return;
-  await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${SERVICE_KEY}`,
-    },
-    body: JSON.stringify(args),
-  });
+
+  const spalte = PREF_SPALTE[args.type];
+
+  for (const uid of args.user_ids) {
+    if (spalte) {
+      const { data: prefs } = await supabase
+        .from("notification_preferences")
+        .select(spalte)
+        .eq("user_id", uid)
+        .maybeSingle();
+      // Keine Zeile = Standardwert der Tabelle gilt, also melden.
+      if (prefs && (prefs as any)[spalte] === false) continue;
+    }
+
+    // Schon einmal gemeldet? Dann nichts tun. Ohne ref_id greift der
+    // Vergleich auf den Titel zurueck, sonst meldete jeder Lauf erneut.
+    let frage = supabase
+      .from("notifications")
+      .select("id")
+      .eq("user_id", uid)
+      .eq("type", args.type);
+    frage = args.ref_id
+      ? frage.eq("ref_id", args.ref_id)
+      : frage.is("ref_id", null).eq("title", args.title);
+    const { data: schon } = await frage.limit(1);
+    if (schon && schon.length > 0) continue;
+
+    await supabase.from("notifications").insert({
+      user_id: uid,
+      type: args.type,
+      title: args.title,
+      body: args.body ?? null,
+      url: args.url ?? null,
+      ref_type: args.ref_type ?? null,
+      ref_id: args.ref_id ?? null,
+    });
+  }
 }
 
 async function getInboxFolderId(): Promise<string | null> {
@@ -46,9 +96,10 @@ async function getInboxFolderId(): Promise<string | null> {
 }
 
 async function getFallbackInternalUserIds(): Promise<string[]> {
-  // All admins + employees with email_enabled (or no preference row -> default true)
+  // Alle Admins und Mitarbeiter. Die Rollen stehen in profiles - eine
+  // Tabelle user_roles gibt es in diesem Projekt nicht.
   const { data: roles } = await supabase
-    .from("user_roles")
+    .from("profiles")
     .select("user_id, role")
     .in("role", ["admin", "employee"]);
   const ids = Array.from(new Set((roles ?? []).map((r: any) => r.user_id).filter(Boolean)));
@@ -99,14 +150,14 @@ async function notifyEmails() {
     if (!user_ids.length) continue;
 
     const sender = mail.from_name || mail.from_address || "Unbekannt";
-    await dispatch({
+    await melden({
       user_ids,
-      dedup_key: `email:${mail.id}`,
-      type: "email",
-      title: `📧 ${sender}`,
+      type: "case_email",
+      title: `Neue E-Mail von ${sender}`,
       body: mail.subject || "(kein Betreff)",
       url: `/postfach?email=${mail.id}`,
-      tag: `email-${mail.account_id}`,
+      ref_type: "email",
+      ref_id: mail.id,
     });
   }
 }
@@ -117,8 +168,8 @@ async function notifyTodos() {
   const horizon = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   const { data: todos } = await supabase
     .from("todos")
-    .select("id,title,due_date,calendar_start_time,status,show_in_calendar")
-    .neq("status", "completed")
+    .select("id,title,due_date,calendar_start_time,status,show_in_calendar,assigned_to")
+    .neq("status", "done")
     .is("deleted_at", null)
     .not("due_date", "is", null)
     .gte("due_date", now.toISOString().slice(0, 10))
@@ -134,12 +185,17 @@ async function notifyTodos() {
     const due = new Date(`${dueDateStr}T${timeStr}`);
     const minutesUntil = Math.round((due.getTime() - now.getTime()) / 60000);
 
-    // Get assignees
+    // Empfaenger: die Mehrfachzuweisung UND das alte Einzelfeld.
     const { data: assignees } = await supabase
       .from("todo_assignees")
       .select("user_id")
       .eq("todo_id", todo.id);
-    const user_ids = assignees?.map((a) => a.user_id).filter(Boolean) ?? [];
+    const user_ids = Array.from(
+      new Set([
+        ...(assignees?.map((a) => a.user_id) ?? []),
+        (todo as any).assigned_to,
+      ].filter(Boolean) as string[]),
+    );
     if (!user_ids.length) continue;
 
     // Per-user lead time check
@@ -152,16 +208,14 @@ async function notifyTodos() {
       const lead = prefs?.todo_lead_minutes ?? 60;
       if (minutesUntil > lead || minutesUntil < -5) continue;
 
-      // Dedup uses todo id + due slot — calendar events linked via todo_id share same key
-      const dedup = `todo:${todo.id}:due`;
-      await dispatch({
+      await melden({
         user_ids: [uid],
-        dedup_key: dedup,
-        type: "todo",
-        title: "✅ Aufgabe fällig",
+        type: "deadline",
+        title: "Aufgabe fällig",
         body: todo.title,
-        url: `/aufgaben?todo=${todo.id}`,
-        tag: `todo-${todo.id}`,
+        url: `/pinnwand/${todo.id}`,
+        ref_type: "todo",
+        ref_id: todo.id,
       });
     }
   }
@@ -183,10 +237,10 @@ async function notifyCalendar() {
     const start = new Date(ev.start_datetime as string);
     const minutesUntil = Math.round((start.getTime() - now.getTime()) / 60000);
 
-    // If linked to todo, the todo notification already covers it -> use SAME dedup key
-    const dedup = ev.todo_id
-      ? `todo:${ev.todo_id}:due`
-      : `calendar:${ev.id}:start`;
+    // Haengt der Termin an einer Aufgabe, meldet die Aufgabe bereits. Dann
+    // dieselbe Kennung verwenden, damit die Dublettenpruefung greift.
+    const refType = ev.todo_id ? "todo" : "calendar_event";
+    const refId = (ev.todo_id as string | null) ?? (ev.id as string);
 
     // Recipient: creator (calendar events have no assignee table here)
     const uid = ev.created_by as string | null;
@@ -200,14 +254,14 @@ async function notifyCalendar() {
     const lead = prefs?.calendar_lead_minutes ?? 30;
     if (minutesUntil > lead || minutesUntil < -5) continue;
 
-    await dispatch({
+    await melden({
       user_ids: [uid],
-      dedup_key: dedup,
-      type: "calendar",
-      title: "📅 Termin steht an",
+      type: "deadline",
+      title: "Termin steht an",
       body: `${ev.title} – ${start.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`,
-      url: `/kalender`,
-      tag: `cal-${ev.id}`,
+      url: `/calendar`,
+      ref_type: refType,
+      ref_id: refId,
     });
   }
 }
