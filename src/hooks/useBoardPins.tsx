@@ -316,11 +316,11 @@ export function useBoardSupply() {
           .gt('silent_days', 14)
           .eq('on_a_wall', false)
           .order('silent_days', { ascending: false }),
-        // Jahreszyklus: nur was gerade im Zeitfenster liegt.
+        // Jahreszyklus: alle offenen Pflichten. Kein Zeitfenster entscheidet
+        // mehr, was hier auftaucht — man sucht sich selbst aus, was dran ist.
         (supabase as any)
           .from('annual_cycle_open')
-          .select('id, task_key, label, sort_order, building_name, fenster_bis, im_fenster, on_a_wall')
-          .eq('im_fenster', true)
+          .select('id, task_key, label, sort_order, building_name, on_a_wall')
           .eq('on_a_wall', false),
       ]);
       if (error) throw error;
@@ -547,7 +547,6 @@ export function useCompleteBoardItem() {
       invalidateBoard(qc);
       qc.invalidateQueries({ queryKey: ['todos'] });
       qc.invalidateQueries({ queryKey: ['case-review'] });
-      qc.invalidateQueries({ queryKey: ['cycle-open'] });
     },
     onError: (e: any) =>
       toast({ title: 'Konnte nicht erledigt werden', description: e.message, variant: 'destructive' }),
