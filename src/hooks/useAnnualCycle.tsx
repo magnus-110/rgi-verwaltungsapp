@@ -6,9 +6,12 @@ import { toast } from '@/hooks/use-toast';
 /**
  * Jahreszyklus.
  *
- * Entscheidung 9 des Umsetzungsplans: Die Matrix erzeugt keine Aufgaben von
- * selbst. Sie bleibt Übersicht; was ansteht, landet als Vorrat-Eintrag daneben
- * und kommt nur auf die Wand, wenn jemand es herüberholt.
+ * Die Matrix erzeugt keine Aufgaben von selbst. Sie bleibt Übersicht; daneben
+ * stehen alle offenen Pflichten, und auf die Wand kommt nur, was jemand
+ * herüberholt.
+ *
+ * Ohne Zeitfenster: kein Monat entscheidet, was angezeigt wird. Wann eine
+ * Pflicht drankommt, entscheidet der Mensch.
  *
  * annual_cycle_definitions und annual_cycle_open stehen noch nicht in der
  * generierten types.ts; bis zum nächsten `npm run db:types` reicht das hier.
@@ -18,8 +21,6 @@ const cycleDb = supabase as any;
 export interface CycleDefinition {
   task_key: string;
   label: string;
-  relevant_from_month: number;
-  relevant_to_month: number | null;
   sort_order: number;
 }
 
@@ -34,9 +35,6 @@ export interface CycleOpenRow {
   note: string | null;
   label: string;
   sort_order: number;
-  fenster_von: string;
-  fenster_bis: string | null;
-  im_fenster: boolean;
   on_a_wall: boolean;
 }
 
@@ -54,35 +52,7 @@ export function useCycleDefinitions() {
   });
 }
 
-export function useSaveCycleDefinition() {
-  const qc = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: {
-      task_key: string;
-      relevant_from_month: number;
-      relevant_to_month: number | null;
-    }) => {
-      const { error } = await cycleDb
-        .from('annual_cycle_definitions')
-        .update({
-          relevant_from_month: input.relevant_from_month,
-          relevant_to_month: input.relevant_to_month,
-        })
-        .eq('task_key', input.task_key);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['cycle-definitions'] });
-      qc.invalidateQueries({ queryKey: ['cycle-open'] });
-      qc.invalidateQueries({ queryKey: ['board-supply'] });
-    },
-    onError: (e: any) =>
-      toast({ title: 'Zeitfenster nicht gespeichert', description: e.message, variant: 'destructive' }),
-  });
-}
-
-/** Alle offenen Zeilen mit Zeitfenster. */
+/** Alle offenen Zeilen. */
 export function useCycleOpen() {
   return useQuery({
     queryKey: ['cycle-open'],
@@ -125,33 +95,29 @@ export interface BundledDuty {
   sortOrder: number;
   /** Eine Zeile je Gebäude — wird zu einem Unterpunkt der einen Karte. */
   zeilen: CycleOpenRow[];
-  fensterBis: string | null;
 }
 
 /**
- * „Jetzt dran" — die offenen Zeilen im Zeitfenster, gebündelt nach Pflicht.
+ * Die offenen Pflichten, gebündelt.
  *
  * Der wichtigste Punkt dieses Bildschirms: Eine Pflicht über 23 Gebäude wird
  * zu EINER Karte mit 23 Unterpunkten, nicht zu 23 Karten.
+ *
+ * Es wird nichts nach Datum vorsortiert. Alles Offene steht da; was dran ist,
+ * sucht man sich aus.
  */
-export function useDutiesDueNow() {
+export function useOpenDuties() {
   const { data: rows = [], isLoading } = useCycleOpen();
 
   const buendel: BundledDuty[] = [];
   const map = new Map<string, BundledDuty>();
 
   rows
-    .filter(r => r.im_fenster && !r.on_a_wall)
+    .filter(r => !r.on_a_wall)
     .forEach(r => {
       let b = map.get(r.task_key);
       if (!b) {
-        b = {
-          taskKey: r.task_key,
-          label: r.label,
-          sortOrder: r.sort_order,
-          zeilen: [],
-          fensterBis: r.fenster_bis,
-        };
+        b = { taskKey: r.task_key, label: r.label, sortOrder: r.sort_order, zeilen: [] };
         map.set(r.task_key, b);
         buendel.push(b);
       }
@@ -200,7 +166,6 @@ export function usePinDutyAsNote() {
             priority: 'medium',
             source_type: 'annual_cycle',
             source_id: sourceId,
-            due_date: duty.fensterBis,
             created_by: user!.id,
           } as any)
           .select('id')
