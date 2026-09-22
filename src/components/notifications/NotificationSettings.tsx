@@ -5,6 +5,7 @@ import {
   MeldungSchalter,
   SCHALTER_REIHENFOLGE,
   SCHALTER_TEXT,
+  SCHALTER_ZUSATZ,
   useNotificationPrefs,
   useSetNotificationPref,
 } from '@/hooks/useNotifications';
@@ -58,24 +59,33 @@ export function NotificationSettings({ onBack }: NotificationSettingsProps) {
           <div className="space-y-3.5">
             {SCHALTER_REIHENFOLGE.map((schalter: MeldungSchalter) => {
               const an = prefs[schalter];
+              const zusatz = SCHALTER_ZUSATZ[schalter];
               return (
                 <label
                   key={schalter}
-                  className="flex cursor-pointer items-center gap-3"
+                  className="flex cursor-pointer items-start gap-3"
                   htmlFor={`meldung-${schalter}`}
                 >
                   <Switch
                     id={`meldung-${schalter}`}
+                    className="mt-[1px] shrink-0"
                     checked={an}
                     disabled={setzen.isPending}
                     onCheckedChange={wert => setzen.mutate({ schalter, an: wert })}
                   />
-                  <span
-                    className={`text-[13px] leading-snug ${
-                      an ? 'text-foreground' : 'text-muted-foreground'
-                    }`}
-                  >
-                    {SCHALTER_TEXT[schalter]}
+                  <span className="min-w-0">
+                    <span
+                      className={`block text-[13px] leading-snug ${
+                        an ? 'text-foreground' : 'text-muted-foreground'
+                      }`}
+                    >
+                      {SCHALTER_TEXT[schalter]}
+                    </span>
+                    {zusatz && (
+                      <span className="mt-0.5 block text-[11.5px] leading-snug text-muted-foreground">
+                        {zusatz}
+                      </span>
+                    )}
                   </span>
                 </label>
               );

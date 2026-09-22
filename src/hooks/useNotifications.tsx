@@ -120,34 +120,39 @@ export function useMarkAllRead() {
  * Zettel zusammen — für den, der es einstellt, ist das eine Sache.
  */
 export type MeldungSchalter =
-  | 'zettel_hingelegt'
+  | 'neue_emails'
+  | 'neue_zettel'
   | 'rueckmeldungen'
   | 'erinnerungen'
-  | 'vorgang_email'
   | 'durchsicht';
 
 /** Welche Spalten hinter einem Schalter stehen. */
 export const SCHALTER_SPALTEN: Record<MeldungSchalter, string[]> = {
-  zettel_hingelegt: ['notify_pin_assigned'],
+  neue_emails: ['notify_case_email'],
+  neue_zettel: ['notify_pin_assigned'],
   rueckmeldungen: ['notify_comment', 'notify_subtask_done', 'notify_pin_returned'],
   erinnerungen: ['notify_reminder'],
-  vorgang_email: ['notify_case_email'],
   durchsicht: ['notify_review_due'],
 };
 
 export const SCHALTER_TEXT: Record<MeldungSchalter, string> = {
-  zettel_hingelegt: 'Zettel, die mir jemand hinlegt',
+  neue_emails: 'Neue E-Mails',
+  neue_zettel: 'Neue Aufgaben (Zettel)',
   rueckmeldungen: 'Rückmeldungen auf meine Zettel',
-  erinnerungen: 'Eigene Erinnerungen und Wiedervorlagen',
-  vorgang_email: 'Jede neue E-Mail in meinen Vorgängen',
+  erinnerungen: 'Erinnerungen vom Kalender',
   durchsicht: 'Wöchentliche Durchsicht der Vorgänge',
 };
 
+/** Kleingedrucktes unter einem Schalter, wo der Name allein zu knapp ist. */
+export const SCHALTER_ZUSATZ: Partial<Record<MeldungSchalter, string>> = {
+  neue_zettel: 'nur die, die dir jemand anderes hinlegt',
+};
+
 export const SCHALTER_REIHENFOLGE: MeldungSchalter[] = [
-  'zettel_hingelegt',
+  'neue_emails',
+  'neue_zettel',
   'rueckmeldungen',
   'erinnerungen',
-  'vorgang_email',
   'durchsicht',
 ];
 
@@ -155,10 +160,10 @@ export type MeldungsEinstellungen = Record<MeldungSchalter, boolean>;
 
 /** Standard, solange niemand etwas eingestellt hat — wie in der Tabelle. */
 const STANDARD: MeldungsEinstellungen = {
-  zettel_hingelegt: true,
+  neue_emails: false,
+  neue_zettel: true,
   rueckmeldungen: true,
   erinnerungen: true,
-  vorgang_email: false,
   durchsicht: true,
 };
 
@@ -185,10 +190,12 @@ export function useNotificationPrefs() {
       };
 
       return {
-        zettel_hingelegt: wert('zettel_hingelegt'),
+        // E-Mails sind der einzige Schalter, der standardmaessig aus ist —
+        // sonst meldet sich die Glocke bei jeder eingehenden Nachricht.
+        neue_emails: zeile.notify_case_email === true,
+        neue_zettel: wert('neue_zettel'),
         rueckmeldungen: wert('rueckmeldungen'),
         erinnerungen: wert('erinnerungen'),
-        vorgang_email: zeile.notify_case_email === true,
         durchsicht: wert('durchsicht'),
       };
     },
