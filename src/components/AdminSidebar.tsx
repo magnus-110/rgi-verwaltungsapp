@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   BarChart3,
   ClipboardList,
@@ -21,6 +21,7 @@ import {
   Home,
   KeyRound,
   StickyNote,
+  CalendarRange,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
@@ -39,8 +40,31 @@ import { Button } from "@/components/ui/button";
 import { useBrokerMode } from "@/hooks/useBrokerMode";
 import { useOpenReportsCount } from "@/hooks/useOpenReportsCount";
 
-const adminMenu = [
-  { title: "Pinnwand", url: "/pinnwand", icon: StickyNote },
+interface MenuItem {
+  title: string;
+  url: string;
+  icon: React.ComponentType<{ className?: string }>;
+  adminOnly?: boolean;
+  children?: MenuItem[];
+}
+
+/**
+ * "Aufgaben" fasst die vier Bereiche zusammen, die zusammengehören: die
+ * Pinnwand mit den Zetteln, die Vorgänge, der Jahreszyklus und die
+ * Anleitungen. Vorher standen sie einzeln und weit auseinander in der Liste.
+ */
+const adminMenu: MenuItem[] = [
+  {
+    title: "Aufgaben",
+    url: "/pinnwand",
+    icon: CheckSquare,
+    children: [
+      { title: "Pinnwand", url: "/pinnwand", icon: StickyNote },
+      { title: "Vorgänge", url: "/vorgaenge", icon: FolderKanban },
+      { title: "Jahreszyklus", url: "/jahreszyklus", icon: CalendarRange },
+      { title: "Anleitungen", url: "/checklisten", icon: Workflow },
+    ],
+  },
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
   { title: "Postfach", url: "/postfach", icon: Mail },
   { title: "Gebäude", url: "/buildings", icon: Castle },
@@ -49,17 +73,26 @@ const adminMenu = [
   { title: "Zahlungen", url: "/zahlungen", icon: CreditCard },
   { title: "Adressen", url: "/contacts", icon: BookUser },
   { title: "Kalender", url: "/calendar", icon: CalendarDays },
-  { title: "Aufgaben", url: "/todos", icon: CheckSquare },
   { title: "Meldungen", url: "/tickets", icon: ClipboardList },
-  { title: "Vorgänge", url: "/vorgaenge", icon: FolderKanban },
   { title: "Versammlungen", url: "/versammlungen", icon: Users },
   { title: "Umfragen", url: "/umfragen", icon: ListChecks },
-  { title: "Anleitungen", url: "/checklisten", icon: Workflow },
   { title: "RGI Intern", url: "/rgi-intern", icon: Briefcase, adminOnly: true },
   { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
 ];
 
-const brokerMenu = [
+/** Gehört dieser Pfad zu einem der Unterpunkte von "Aufgaben"? */
+function istAufgabenPfad(pfad: string) {
+  return (
+    pfad.startsWith("/pinnwand") ||
+    pfad.startsWith("/vorgaenge") ||
+    pfad.startsWith("/jahreszyklus") ||
+    pfad.startsWith("/checklisten") ||
+    pfad.startsWith("/prozesse") ||
+    pfad.startsWith("/tickets/vorgaenge")
+  );
+}
+
+const brokerMenu: MenuItem[] = [
   { title: "Objekte", url: "/makler/objekte", icon: Home },
   { title: "Postfach", url: "/postfach", icon: Mail },
   { title: "Adressen", url: "/contacts", icon: BookUser },
@@ -86,6 +119,10 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
 
   const menuItems = isBrokerActive ? brokerMenu : adminMenu;
   const openReportsCount = useOpenReportsCount(!isBrokerActive);
+
+  // Aufgeklappt, sobald man in einem der Unterpunkte steht. Danach darf man
+  // es zuklappen, ohne dass es beim nächsten Klick wieder aufspringt.
+  const [aufgabenOffen, setAufgabenOffen] = useState(() => istAufgabenPfad(currentPath));
 
   const handleSignOut = async () => { await signOut(); };
 
@@ -232,6 +269,77 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                   return true;
                 })
                 .map((item) => {
+                  // Gruppe mit Unterpunkten ("Aufgaben").
+                  if (item.children) {
+                    const gruppeAktiv = istAufgabenPfad(currentPath);
+                    return (
+                      <SidebarMenuItem key={item.title}>
+                        {collapsed ? (
+                          <NavLink
+                            to={item.url}
+                            className={
+                              gruppeAktiv
+                                ? "bg-primary text-white flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
+                                : "text-foreground hover:bg-muted flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
+                            }
+                            title={item.title}
+                          >
+                            <item.icon className="h-4 w-4" />
+                          </NavLink>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setAufgabenOffen((o) => !o)}
+                              aria-expanded={aufgabenOffen}
+                              className={
+                                gruppeAktiv && !aufgabenOffen
+                                  ? "bg-primary text-white w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
+                                  : "text-foreground hover:bg-muted w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
+                              }
+                            >
+                              <div className="relative flex-shrink-0 mr-3">
+                                <item.icon className="h-4 w-4" />
+                              </div>
+                              <span className="label-text flex-1 text-left">{item.title}</span>
+                              {aufgabenOffen ? (
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              ) : (
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+
+                            {aufgabenOffen && (
+                              <div className="mt-1 ml-4 space-y-1 border-l border-border pl-3">
+                                {item.children.map((kind) => {
+                                  const kindAktiv =
+                                    kind.url === "/checklisten"
+                                      ? currentPath.startsWith("/checklisten") ||
+                                        currentPath.startsWith("/prozesse")
+                                      : currentPath.startsWith(kind.url);
+                                  return (
+                                    <NavLink
+                                      key={kind.url}
+                                      to={kind.url}
+                                      className={
+                                        kindAktiv
+                                          ? "bg-primary text-white flex items-center px-3 py-2 text-sm rounded-md transition-colors"
+                                          : "text-foreground hover:bg-muted flex items-center px-3 py-2 text-sm rounded-md transition-colors"
+                                      }
+                                    >
+                                      <kind.icon className="h-4 w-4 flex-shrink-0 mr-3" />
+                                      <span className="label-text flex-1">{kind.title}</span>
+                                    </NavLink>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </SidebarMenuItem>
+                    );
+                  }
+
                   let aliasActive = false;
                   if (item.url === "/tickets") {
                     aliasActive =
