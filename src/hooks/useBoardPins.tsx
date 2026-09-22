@@ -553,6 +553,48 @@ export function useCompleteBoardItem() {
   });
 }
 
+/**
+ * Erledigt von der Zettel-Seite aus.
+ *
+ * Drei Dinge auf einmal, weil sie zusammengehören: die Aufgabe wird auf
+ * erledigt gesetzt, der Zettel verschwindet von allen Wänden, an denen er
+ * hängt, und die Seite schließt sich. Sonst bliebe eine abgehakte Aufgabe
+ * bei Kollegen hängen, die nie erfahren, dass sie erledigt ist.
+ *
+ * Die Anheftungen werden nicht gelöscht, sondern in die Spalte "done"
+ * gesetzt — die Wand zeigt sie nicht mehr, aber es bleibt nachvollziehbar,
+ * wer den Zettel hatte.
+ */
+export function useCompleteNote() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (todoId: string) => {
+      const { error } = await supabase
+        .from('todos')
+        .update({ status: 'done', completed_at: new Date().toISOString() } as any)
+        .eq('id', todoId);
+      if (error) throw error;
+
+      const { error: pinError } = await boardDb
+        .from('board_pins')
+        .update({ column_key: 'done', done_at: new Date().toISOString() })
+        .eq('ref_type', 'todo')
+        .eq('ref_id', todoId)
+        .neq('column_key', 'done');
+      if (pinError) throw pinError;
+    },
+    onSuccess: (_d, todoId) => {
+      invalidateBoard(qc);
+      qc.invalidateQueries({ queryKey: ['todos'] });
+      qc.invalidateQueries({ queryKey: ['todo', todoId] });
+      toast({ title: 'Erledigt', description: 'Der Zettel ist von der Wand.' });
+    },
+    onError: (e: any) =>
+      toast({ title: 'Konnte nicht erledigt werden', description: e.message, variant: 'destructive' }),
+  });
+}
+
 /** "Wartet auf" — der Zettel bleibt, rutscht aber in die Leiste unten. */
 export function useSetWaiting() {
   const qc = useQueryClient();
