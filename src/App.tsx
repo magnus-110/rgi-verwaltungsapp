@@ -42,7 +42,8 @@ const Keys = lazy(() => import("./pages/Keys").then(m => ({ default: m.Keys })))
 const Finance = lazy(() => import("./pages/Finance").then(m => ({ default: m.Finance })));
 const Billing = lazy(() => import("./pages/Billing").then(m => ({ default: m.Billing })));
 const Processes = lazy(() => import("./pages/Processes").then(m => ({ default: m.Processes })));
-const Jahreszyklus = lazy(() => import("./pages/Jahreszyklus"));
+const Jahreszyklus = lazy(() => import("./pages/JahreszyklusNeu"));
+const JahreszyklusAlt = lazy(() => import("./pages/Jahreszyklus"));
 const RgiIntern = lazy(() => import("./pages/RgiIntern"));
 const IncomingCall = lazy(() => import("./pages/IncomingCall"));
 const Lernsignale = lazy(() => import("./pages/Lernsignale"));
@@ -157,6 +158,7 @@ const App = () => (
               <Route path="/ueberweisungen" element={<Navigate to="/zahlungen" replace />} />
               <Route path="/prozesse" element={<AdminLayout><Processes /></AdminLayout>} />
               <Route path="/jahreszyklus" element={<AdminLayout><Jahreszyklus /></AdminLayout>} />
+              <Route path="/jahreszyklus/klassisch" element={<AdminLayout><JahreszyklusAlt /></AdminLayout>} />
               <Route path="/rgi-intern" element={<AdminLayout><RgiIntern /></AdminLayout>} />
               <Route path="/anruf" element={<IncomingCall />} />
               <Route path="/makler/objekte" element={<AdminLayout><BrokerProperties /></AdminLayout>} />

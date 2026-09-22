@@ -72,6 +72,11 @@ export interface BoardItem {
   pin?: BoardPin;
   /** Andere Personen, an deren Wand dieselbe Karte hängt. */
   alsoOn: { userId: string; name: string; initials: string }[];
+  /**
+   * Gesetzt, wenn der Eintrag nicht direkt angeheftet werden kann, sondern
+   * auf einer eigenen Seite bearbeitet wird (Jahreszyklus-Buendel).
+   */
+  linkTo?: string;
 }
 
 export function initialsOf(firstName?: string | null, lastName?: string | null, fallback = '??') {
@@ -291,7 +296,7 @@ export function useBoardSupply() {
     queryFn: async (): Promise<SupplyColumn[]> => {
       const today = todayIso();
 
-      const [{ data: todoRows, error }, { data: myPins }, { data: caseRows }] = await Promise.all([
+      const [{ data: todoRows, error }, { data: myPins }, { data: caseRows }, { data: cycleRows }] = await Promise.all([
         supabase
           .from('todos')
           .select('id, title, due_date, follow_up_at, source_type, created_at, status, deleted_at, is_internal, show_in_list_date, building:buildings(name)' as '*')
@@ -311,6 +316,12 @@ export function useBoardSupply() {
           .gt('silent_days', 14)
           .eq('on_a_wall', false)
           .order('silent_days', { ascending: false }),
+        // Jahreszyklus: nur was gerade im Zeitfenster liegt.
+        (supabase as any)
+          .from('annual_cycle_open')
+          .select('id, task_key, label, sort_order, building_name, fenster_bis, im_fenster, on_a_wall')
+          .eq('im_fenster', true)
+          .eq('on_a_wall', false),
       ]);
       if (error) throw error;
 
@@ -370,11 +381,37 @@ export function useBoardSupply() {
           alsoOn: [],
         }));
 
+      // Jahreszyklus gebuendelt: eine Pflicht ueber viele Gebaeude ist EIN
+      // Eintrag, nicht 23. Angeheftet wird er ueber die Jahreszyklus-Seite.
+      const jeTaskKey = new Map<string, { label: string; sortOrder: number; anzahl: number }>();
+      ((cycleRows || []) as any[]).forEach(r => {
+        const vorhanden = jeTaskKey.get(r.task_key);
+        if (vorhanden) vorhanden.anzahl += 1;
+        else jeTaskKey.set(r.task_key, { label: r.label, sortOrder: r.sort_order, anzahl: 1 });
+      });
+
+      const jahreszyklus: BoardItem[] = Array.from(jeTaskKey.entries())
+        .sort((a, b) => a[1].sortOrder - b[1].sortOrder)
+        .map(([taskKey, v]) => ({
+          refType: 'annual_cycle_task' as const,
+          refId: taskKey,
+          title: v.label,
+          context: `${v.anzahl} ${v.anzahl === 1 ? 'Gebäude' : 'Gebäude'} · als ein Zettel`,
+          origin: 'jahreszyklus' as const,
+          dueDate: null,
+          followUpAt: null,
+          createdAt: null,
+          progress: null,
+          alsoOn: [],
+          linkTo: '/jahreszyklus',
+        }));
+
       return [
         { key: 'frist', label: 'Frist läuft', items: fristLaeuft },
         { key: 'demnaechst', label: 'Demnächst', items: demnaechst },
         { key: 'ohne_termin', label: 'Ohne Termin', items: ohneTermin },
         { key: 'vorgaenge', label: 'Vorgänge', items: vorgaenge },
+        { key: 'jahreszyklus', label: 'Jahreszyklus', items: jahreszyklus },
       ];
     },
   });
@@ -510,6 +547,7 @@ export function useCompleteBoardItem() {
       invalidateBoard(qc);
       qc.invalidateQueries({ queryKey: ['todos'] });
       qc.invalidateQueries({ queryKey: ['case-review'] });
+      qc.invalidateQueries({ queryKey: ['cycle-open'] });
     },
     onError: (e: any) =>
       toast({ title: 'Konnte nicht erledigt werden', description: e.message, variant: 'destructive' }),
