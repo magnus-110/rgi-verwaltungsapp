@@ -122,38 +122,64 @@ async function erinnerungen(): Promise<number> {
 /**
  * 2. Wiederholungen.
  *
- * Für jede erledigte wiederkehrende Aufgabe ohne bereits erzeugte
- * Folgeaufgabe wird genau eine neue angelegt.
+ * Je Reihe entsteht hoechstens eine Folgeaufgabe pro Nacht.
+ *
+ * Eine "Reihe" ist dieselbe wiederkehrende Aufgabe ueber die Zeit: gleicher
+ * Titel, gleiches Gebaeude. Entscheidend ist, nur die LETZTE erledigte
+ * Ausgabe einer Reihe fortzuschreiben. Waere jede erledigte Ausgabe fuer
+ * sich betrachtet worden, haette eine Reihe mit fuenf bereits erledigten
+ * Ausgaben in einer Nacht fuenf neue Aufgaben erzeugt — und zwar auf
+ * Termine, die in der Reihe laengst vergeben sind.
  */
 async function wiederholungen(): Promise<number> {
-  const { data: erledigt } = await supabase
+  const { data: alle } = await supabase
     .from("todos")
     .select(
       "id, title, description, category_id, assigned_to, building_id, priority, due_date, " +
-        "is_recurring, recurrence_pattern, recurrence_interval, recurrence_end_date, " +
-        "completed_at, created_by, is_internal, source_type",
+        "status, is_recurring, recurrence_pattern, recurrence_interval, recurrence_end_date, " +
+        "completed_at, created_by, is_internal, source_type, parent_todo_id",
     )
     .eq("is_recurring", true)
-    .eq("status", "done")
     .is("deleted_at", null)
-    .limit(500);
+    .limit(2000);
 
-  if (!erledigt?.length) return 0;
+  if (!alle?.length) return 0;
+
+  const reihe = (t: any) => `${t.title}\u0000${t.building_id ?? ""}`;
+  const datumVon = (t: any) =>
+    t.due_date || (t.completed_at ? String(t.completed_at).slice(0, 10) : "");
+
+  // Welche Termine sind in einer Reihe schon vergeben?
+  const vergeben = new Map<string, Set<string>>();
+  // Welche Aufgabe ist in ihrer Reihe die letzte erledigte?
+  const spitze = new Map<string, any>();
+
+  for (const t of alle as any[]) {
+    const k = reihe(t);
+    if (t.due_date) {
+      if (!vergeben.has(k)) vergeben.set(k, new Set());
+      vergeben.get(k)!.add(t.due_date);
+    }
+    if (t.status !== "done") continue;
+    const bisher = spitze.get(k);
+    if (!bisher || datumVon(t) > datumVon(bisher)) spitze.set(k, t);
+  }
+
+  const hatKind = new Set(
+    (alle as any[]).map((t) => t.parent_todo_id).filter(Boolean) as string[],
+  );
 
   let n = 0;
-  for (const t of erledigt as any[]) {
-    // Gibt es schon eine Folgeaufgabe?
-    const { data: folge } = await supabase
-      .from("todos")
-      .select("id")
-      .eq("parent_todo_id", t.id)
-      .limit(1);
-    if (folge && folge.length > 0) continue;
+  for (const [k, t] of spitze) {
+    if (hatKind.has(t.id)) continue;
 
-    const basis = t.due_date || (t.completed_at ? t.completed_at.slice(0, 10) : heute());
+    const basis = datumVon(t) || heute();
     const naechste = naechstesDatum(basis, t.recurrence_pattern, t.recurrence_interval ?? 1);
     if (!naechste) continue;
     if (t.recurrence_end_date && naechste > t.recurrence_end_date) continue;
+
+    // Steht dieser Termin in der Reihe schon, ist nichts zu tun.
+    if (vergeben.get(k)?.has(naechste)) continue;
 
     const { data: neu, error } = await supabase
       .from("todos")
@@ -182,6 +208,9 @@ async function wiederholungen(): Promise<number> {
       console.error("nightly-tick: Folgeaufgabe fehlgeschlagen", t.id, error.message);
       continue;
     }
+
+    if (!vergeben.has(k)) vergeben.set(k, new Set());
+    vergeben.get(k)!.add(naechste);
 
     // Zuweisungen mitnehmen.
     const { data: zuweisungen } = await supabase
