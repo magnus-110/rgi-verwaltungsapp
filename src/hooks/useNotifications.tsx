@@ -113,6 +113,109 @@ export function useMarkAllRead() {
 }
 
 /**
+ * Was meldet sich bei mir?
+ *
+ * Fünf Schalter, hinter denen sieben Spalten stecken: „Rückmeldungen auf
+ * meine Zettel" fasst Kommentar, abgehakter Unterpunkt und zurückgegebener
+ * Zettel zusammen — für den, der es einstellt, ist das eine Sache.
+ */
+export type MeldungSchalter =
+  | 'zettel_hingelegt'
+  | 'rueckmeldungen'
+  | 'erinnerungen'
+  | 'vorgang_email'
+  | 'durchsicht';
+
+/** Welche Spalten hinter einem Schalter stehen. */
+export const SCHALTER_SPALTEN: Record<MeldungSchalter, string[]> = {
+  zettel_hingelegt: ['notify_pin_assigned'],
+  rueckmeldungen: ['notify_comment', 'notify_subtask_done', 'notify_pin_returned'],
+  erinnerungen: ['notify_reminder'],
+  vorgang_email: ['notify_case_email'],
+  durchsicht: ['notify_review_due'],
+};
+
+export const SCHALTER_TEXT: Record<MeldungSchalter, string> = {
+  zettel_hingelegt: 'Zettel, die mir jemand hinlegt',
+  rueckmeldungen: 'Rückmeldungen auf meine Zettel',
+  erinnerungen: 'Eigene Erinnerungen und Wiedervorlagen',
+  vorgang_email: 'Jede neue E-Mail in meinen Vorgängen',
+  durchsicht: 'Wöchentliche Durchsicht der Vorgänge',
+};
+
+export const SCHALTER_REIHENFOLGE: MeldungSchalter[] = [
+  'zettel_hingelegt',
+  'rueckmeldungen',
+  'erinnerungen',
+  'vorgang_email',
+  'durchsicht',
+];
+
+export type MeldungsEinstellungen = Record<MeldungSchalter, boolean>;
+
+/** Standard, solange niemand etwas eingestellt hat — wie in der Tabelle. */
+const STANDARD: MeldungsEinstellungen = {
+  zettel_hingelegt: true,
+  rueckmeldungen: true,
+  erinnerungen: true,
+  vorgang_email: false,
+  durchsicht: true,
+};
+
+export function useNotificationPrefs() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ['notification-prefs', user?.id],
+    enabled: !!user?.id,
+    queryFn: async (): Promise<MeldungsEinstellungen> => {
+      const { data } = await supabase
+        .from('notification_preferences')
+        .select('*')
+        .eq('user_id', user!.id)
+        .maybeSingle();
+
+      if (!data) return STANDARD;
+
+      const zeile = data as any;
+      const wert = (schalter: MeldungSchalter) => {
+        const spalten = SCHALTER_SPALTEN[schalter];
+        // An, sobald eine der dahinterliegenden Spalten an ist.
+        return spalten.some(s => zeile[s] !== false);
+      };
+
+      return {
+        zettel_hingelegt: wert('zettel_hingelegt'),
+        rueckmeldungen: wert('rueckmeldungen'),
+        erinnerungen: wert('erinnerungen'),
+        vorgang_email: zeile.notify_case_email === true,
+        durchsicht: wert('durchsicht'),
+      };
+    },
+  });
+}
+
+export function useSetNotificationPref() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (input: { schalter: MeldungSchalter; an: boolean }) => {
+      const felder: Record<string, boolean> = {};
+      SCHALTER_SPALTEN[input.schalter].forEach(s => {
+        felder[s] = input.an;
+      });
+
+      const { error } = await supabase
+        .from('notification_preferences')
+        .upsert({ user_id: user!.id, ...felder } as any, { onConflict: 'user_id' });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notification-prefs', user?.id] }),
+  });
+}
+
+/**
  * Eine Benachrichtigung schreiben. Nie an den Auslöser selbst, und nie,
  * wenn der Empfänger diesen Typ abgeschaltet hat.
  */
