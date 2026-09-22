@@ -1,14 +1,13 @@
 import { useMemo } from 'react';
 import { CycleDefinition } from '@/hooks/useAnnualCycle';
 
-type Zellzustand = 'erledigt' | 'jetzt_dran' | 'offen' | 'nicht_im_fenster';
+type Zellzustand = 'erledigt' | 'offen' | 'keine';
 
 interface TaskZeile {
   id: string;
   building_id: string;
   task_key: string;
   status: string;
-  fiscal_year_end: string;
 }
 
 interface CycleMatrixProps {
@@ -23,45 +22,23 @@ function kuerze(name: string, max = 11) {
   return erstes.length > max ? erstes.slice(0, max - 1) + '.' : erstes;
 }
 
-function zustand(t: TaskZeile | undefined, d: CycleDefinition): Zellzustand {
-  if (!t) return 'nicht_im_fenster';
-  if (t.status === 'done') return 'erledigt';
-
-  const ende = new Date(t.fiscal_year_end);
-  if (Number.isNaN(ende.getTime())) return 'offen';
-
-  const von = new Date(ende);
-  von.setMonth(von.getMonth() + d.relevant_from_month);
-  const heute = new Date();
-
-  if (heute < von) return 'nicht_im_fenster';
-
-  if (d.relevant_to_month !== null) {
-    const bis = new Date(ende);
-    bis.setMonth(bis.getMonth() + d.relevant_to_month);
-    if (heute > bis) return 'offen';
-  }
-  return 'jetzt_dran';
+function zustand(t: TaskZeile | undefined): Zellzustand {
+  if (!t) return 'keine';
+  return t.status === 'done' ? 'erledigt' : 'offen';
 }
 
 const ZUSTAND_TITEL: Record<Zellzustand, string> = {
   erledigt: 'erledigt',
-  jetzt_dran: 'jetzt dran',
   offen: 'offen',
-  nicht_im_fenster: 'noch nicht im Fenster',
+  keine: 'nicht angelegt',
 };
 
 function Zelle({ art }: { art: Zellzustand }) {
-  if (art === 'nicht_im_fenster') {
+  if (art === 'keine') {
     return <span className="block h-[3px] w-[14px] rounded-sm bg-[#E0DCD4]" />;
   }
   if (art === 'erledigt') {
     return <span className="block h-[15px] w-[15px] rounded-full bg-[#6B8A55]" />;
-  }
-  if (art === 'jetzt_dran') {
-    return (
-      <span className="block h-[15px] w-[15px] rounded-full border-2 border-[#ee7202] bg-[#FFF7ED]" />
-    );
   }
   return <span className="block h-[15px] w-[15px] rounded-full border-2 border-[#C2BBAE]" />;
 }
@@ -107,7 +84,7 @@ export function CycleMatrix({ definitionen, buildings, tasks, onCellClick }: Cyc
                 </th>
                 {buildings.map(b => {
                   const t = nachSchluessel.get(`${d.task_key}:${b.id}`);
-                  const art = zustand(t, d);
+                  const art = zustand(t);
                   return (
                     <td key={b.id} className="px-1 py-2">
                       <button
@@ -134,13 +111,10 @@ export function CycleMatrix({ definitionen, buildings, tasks, onCellClick }: Cyc
           <Zelle art="erledigt" /> erledigt
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <Zelle art="jetzt_dran" /> jetzt dran
-        </span>
-        <span className="inline-flex items-center gap-1.5">
           <Zelle art="offen" /> offen
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <Zelle art="nicht_im_fenster" /> noch nicht im Fenster
+          <Zelle art="keine" /> nicht angelegt
         </span>
       </div>
     </div>

@@ -2,21 +2,16 @@ import { useMemo, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { buildFiscalYears } from '@/lib/annualCycle';
 import { useFiscalYearContext } from '@/contexts/FiscalYearContext';
-import {
-  useCycleDefinitions,
-  useCycleMatrix,
-  useDutiesDueNow,
-} from '@/hooks/useAnnualCycle';
+import { useCycleDefinitions, useCycleMatrix, useOpenDuties } from '@/hooks/useAnnualCycle';
 import { CycleMatrix } from '@/components/cycle/CycleMatrix';
-import { JetztDran } from '@/components/cycle/JetztDran';
-import { ZeitfensterDialog } from '@/components/cycle/ZeitfensterDialog';
+import { Pflichtenliste } from '@/components/cycle/Pflichtenliste';
 
 /**
  * Der Jahreszyklus (Screen 7 des Entwurfs).
  *
  * Die Matrix bleibt Übersicht. Aufgaben entstehen hier nicht von selbst —
- * rechts steht, was im Zeitfenster liegt, und nur von dort holt man sich
- * etwas auf die Wand.
+ * rechts stehen alle offenen Pflichten, und nur von dort holt man sich etwas
+ * auf die Wand. Wann etwas dran ist, entscheidet kein Zeitfenster.
  */
 export default function JahreszyklusNeu() {
   const fyCtx = useFiscalYearContext();
@@ -28,11 +23,10 @@ export default function JahreszyklusNeu() {
     fiscalYears[2];
 
   const [gewaehlt, setGewaehlt] = useState(start);
-  const [zeitfensterOffen, setZeitfensterOffen] = useState(false);
 
   const { data: definitionen = [], isLoading: defLoading } = useCycleDefinitions();
   const { data: matrix, isLoading: matrixLoading } = useCycleMatrix(gewaehlt.start);
-  const { buendel, isLoading: dutiesLoading, alleOffen } = useDutiesDueNow();
+  const { buendel, isLoading: dutiesLoading, alleOffen } = useOpenDuties();
 
   const buildings = matrix?.buildings ?? [];
   const tasks = matrix?.tasks ?? [];
@@ -81,19 +75,8 @@ export default function JahreszyklusNeu() {
           )}
         </div>
 
-        <JetztDran
-          buendel={buendel}
-          alleOffen={alleOffen}
-          isLoading={dutiesLoading}
-          onZeitfenster={() => setZeitfensterOffen(true)}
-        />
+        <Pflichtenliste buendel={buendel} alleOffen={alleOffen} isLoading={dutiesLoading} />
       </div>
-
-      <ZeitfensterDialog
-        open={zeitfensterOffen}
-        onOpenChange={setZeitfensterOffen}
-        definitionen={definitionen}
-      />
     </div>
   );
 }
