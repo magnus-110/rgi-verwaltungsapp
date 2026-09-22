@@ -22,7 +22,8 @@ export interface ChecklistTemplateStep {
   template_id: string;
   title: string;
   description: string | null;
-  sort_order: number | null;
+  /** Die Spalte heisst in process_template_steps "position", nicht sort_order. */
+  position: number;
   suggested_offset_days: number | null;
 }
 
@@ -32,13 +33,13 @@ export function useChecklistTemplates() {
     queryFn: async (): Promise<ChecklistTemplate[]> => {
       const { data, error } = await supabase
         .from('process_templates')
-        .select('id, name, description, steps:process_template_steps(id, template_id, title, description, sort_order, suggested_offset_days)')
+        .select('id, name, description, steps:process_template_steps(id, template_id, title, description, position, suggested_offset_days)')
         .order('name');
       if (error) throw error;
       return ((data || []) as any[]).map(t => ({
         ...t,
         steps: (t.steps || []).sort(
-          (a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
+          (a: any, b: any) => (a.position ?? 0) - (b.position ?? 0)
         ),
       }));
     },
@@ -63,9 +64,9 @@ export async function applyChecklistTemplate(
 ): Promise<number> {
   const { data: steps, error } = await supabase
     .from('process_template_steps')
-    .select('id, title, description, sort_order')
+    .select('id, title, description, position')
     .eq('template_id', templateId)
-    .order('sort_order', { ascending: true });
+    .order('position', { ascending: true });
   if (error) throw error;
   if (!steps || steps.length === 0) return 0;
 
