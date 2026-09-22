@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/hooks/useAuth';
-import { useTodo, useUpdateTodo } from '@/hooks/useTodos';
+import { useTodo } from '@/hooks/useTodos';
 import { TodoComments } from '@/components/todos/TodoComments';
 import { TodoAttachments } from '@/components/todos/TodoAttachments';
 import { TodoDialog } from '@/components/todos/TodoDialog';
@@ -22,7 +22,7 @@ import { useWallPeople, usePinsForRef } from '@/hooks/useBoardWalls';
 import { useAlsoPinToWall } from '@/hooks/useBoardHandover';
 import { HandoverDialog, HandoverTarget } from '@/components/board/HandoverDialog';
 import { useTaskReminders, useCreateReminder, useDeleteReminder } from '@/hooks/useTaskReminders';
-import { usePinToWall, useUnpin, formatDateDe, daysSince } from '@/hooks/useBoardPins';
+import { usePinToWall, useUnpin, useCompleteNote, formatDateDe, daysSince } from '@/hooks/useBoardPins';
 
 /**
  * Der einzelne Zettel (Screen 3 des Entwurfs).
@@ -42,11 +42,11 @@ export default function Zettel() {
   const { data: pins = [] } = usePinsForRef('todo', id ?? null);
   const { data: reminders = [] } = useTaskReminders(id ?? null);
 
-  const updateTodo = useUpdateTodo();
   const applyTemplate = useApplyChecklistTemplate();
   const alsoPin = useAlsoPinToWall();
   const pinToWall = usePinToWall();
   const unpin = useUnpin();
+  const erledigen = useCompleteNote();
   const createReminder = useCreateReminder();
   const deleteReminder = useDeleteReminder();
 
@@ -120,10 +120,15 @@ export default function Zettel() {
           <Button
             size="sm"
             className="bg-[#6B8A55] text-white hover:bg-[#5c7849]"
-            disabled={t.status === 'done'}
-            onClick={() => updateTodo.mutate({ id: t.id, status: 'done' } as any)}
+            disabled={t.status === 'done' || erledigen.isPending}
+            onClick={() =>
+              erledigen.mutate(t.id, {
+                // Erledigt heisst: weg von der Wand und zurueck zur Pinnwand.
+                onSuccess: () => navigate('/pinnwand'),
+              })
+            }
           >
-            {t.status === 'done' ? 'Erledigt' : 'Erledigt'}
+            {t.status === 'done' ? 'Ist erledigt' : 'Erledigt'}
           </Button>
         </div>
       </div>
