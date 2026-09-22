@@ -52,6 +52,19 @@ function formatDate(d: Date): string {
   return d.toISOString().split("T")[0];
 }
 
+/** Aus einem Text eine feste UUID bilden (SHA-256, auf UUID-Form gebracht). */
+async function uuidAusText(text: string): Promise<string> {
+  const bytes = new TextEncoder().encode(text);
+  const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  const hex = Array.from(hash.slice(0, 16))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return [
+    hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16),
+    hex.slice(16, 20), hex.slice(20, 32),
+  ].join("-");
+}
+
 function adjustForSeason(date: Date, seasonal: MaintenanceTypeDef["seasonal"]): Date {
   if (!seasonal) return date;
   const month = date.getMonth() + 1; // 1-based
@@ -224,6 +237,12 @@ Deno.serve(async (req) => {
                 created_by: createdBy,
                 priority: "medium",
                 status: "open",
+                // Herkunft fuer die Pinnwand, und eine feste Kennung je
+                // Konfiguration und Faelligkeit: mehrfaches Laufen kann
+                // dadurch keine Dubletten erzeugen (Unique-Index
+                // todos_source_unique).
+                source_type: "maintenance",
+                source_id: await uuidAusText(`${config.id}:${dueDateStr}`),
               });
               existingSet.add(key);
               openTypeSet.add(config.maintenance_type);
@@ -231,9 +250,8 @@ Deno.serve(async (req) => {
             }
           }
 
-          cursor = addMonths(cursor, intervalMonths);
-
-
+          // Genau EIN Intervallschritt. Hier stand der Aufruf zweimal, dadurch
+          // wurde jeder zweite Termin uebersprungen.
           cursor = addMonths(cursor, intervalMonths);
           iterations++;
         }
