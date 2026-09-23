@@ -116,12 +116,12 @@ export function useMarkAllRead() {
  * Was meldet sich bei mir?
  *
  * Fünf Schalter, hinter denen sieben Spalten stecken: „Rückmeldungen auf
- * meine Zettel" fasst Kommentar, abgehakter Unterpunkt und zurückgegebener
- * Zettel zusammen — für den, der es einstellt, ist das eine Sache.
+ * meine Aufgaben" fasst Kommentar, abgehakter Unterpunkt und zurückgegebene
+ * Aufgabe zusammen — für den, der es einstellt, ist das eine Sache.
  */
 export type MeldungSchalter =
   | 'neue_emails'
-  | 'neue_zettel'
+  | 'neue_aufgaben'
   | 'rueckmeldungen'
   | 'erinnerungen'
   | 'durchsicht';
@@ -129,7 +129,7 @@ export type MeldungSchalter =
 /** Welche Spalten hinter einem Schalter stehen. */
 export const SCHALTER_SPALTEN: Record<MeldungSchalter, string[]> = {
   neue_emails: ['notify_case_email'],
-  neue_zettel: ['notify_pin_assigned'],
+  neue_aufgaben: ['notify_pin_assigned'],
   rueckmeldungen: ['notify_comment', 'notify_subtask_done', 'notify_pin_returned'],
   erinnerungen: ['notify_reminder'],
   durchsicht: ['notify_review_due'],
@@ -137,20 +137,20 @@ export const SCHALTER_SPALTEN: Record<MeldungSchalter, string[]> = {
 
 export const SCHALTER_TEXT: Record<MeldungSchalter, string> = {
   neue_emails: 'Neue E-Mails',
-  neue_zettel: 'Neue Aufgaben (Zettel)',
-  rueckmeldungen: 'Rückmeldungen auf meine Zettel',
+  neue_aufgaben: 'Neue Aufgaben',
+  rueckmeldungen: 'Rückmeldungen auf meine Aufgaben',
   erinnerungen: 'Erinnerungen vom Kalender',
   durchsicht: 'Wöchentliche Durchsicht der Vorgänge',
 };
 
 /** Kleingedrucktes unter einem Schalter, wo der Name allein zu knapp ist. */
 export const SCHALTER_ZUSATZ: Partial<Record<MeldungSchalter, string>> = {
-  neue_zettel: 'nur die, die dir jemand anderes hinlegt',
+  neue_aufgaben: 'nur die, die dir jemand anderes hinlegt',
 };
 
 export const SCHALTER_REIHENFOLGE: MeldungSchalter[] = [
   'neue_emails',
-  'neue_zettel',
+  'neue_aufgaben',
   'rueckmeldungen',
   'erinnerungen',
   'durchsicht',
@@ -161,7 +161,7 @@ export type MeldungsEinstellungen = Record<MeldungSchalter, boolean>;
 /** Standard, solange niemand etwas eingestellt hat — wie in der Tabelle. */
 const STANDARD: MeldungsEinstellungen = {
   neue_emails: false,
-  neue_zettel: true,
+  neue_aufgaben: true,
   rueckmeldungen: true,
   erinnerungen: true,
   durchsicht: true,
@@ -193,7 +193,7 @@ export function useNotificationPrefs() {
         // E-Mails sind der einzige Schalter, der standardmaessig aus ist —
         // sonst meldet sich die Glocke bei jeder eingehenden Nachricht.
         neue_emails: zeile.notify_case_email === true,
-        neue_zettel: wert('neue_zettel'),
+        neue_aufgaben: wert('neue_aufgaben'),
         rueckmeldungen: wert('rueckmeldungen'),
         erinnerungen: wert('erinnerungen'),
         durchsicht: wert('durchsicht'),

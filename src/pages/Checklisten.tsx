@@ -20,7 +20,7 @@ import {
  *
  * Entscheidung 10 des Umsetzungsplans: Prozesse sind Anleitungen, keine
  * eigene Aufgabenquelle. Hier wird gepflegt, was später als Checkliste auf
- * einem Zettel landet — mit Erklärtext je Schritt, damit niemand nachschlagen
+ * einer Aufgabe landet — mit Erklärtext je Schritt, damit niemand nachschlagen
  * muss.
  */
 export default function Checklisten() {
@@ -102,7 +102,7 @@ export default function Checklisten() {
       <div>
         <h1 className="text-[17px] font-semibold text-foreground">Anleitungen</h1>
         <p className="mt-0.5 text-[12.5px] text-muted-foreground">
-          Was hier steht, lässt sich auf jedem Zettel als Checkliste übernehmen — mit Erklärtext zum
+          Was hier steht, lässt sich auf jeder Aufgabe als Checkliste übernehmen — mit Erklärtext zum
           Aufklappen. Aufgaben entstehen hier nicht.
         </p>
       </div>
@@ -181,7 +181,7 @@ export default function Checklisten() {
                                   value={text}
                                   onChange={e => setText(e.target.value)}
                                   rows={4}
-                                  placeholder="Was muss man hier wissen? Dieser Text steht später aufklappbar auf dem Zettel."
+                                  placeholder="Was muss man hier wissen? Dieser Text steht später aufklappbar auf der Aufgabe."
                                   className="text-[12.5px]"
                                 />
                                 <div className="flex gap-2">
@@ -277,7 +277,7 @@ export default function Checklisten() {
       </div>
 
       <p className="pt-2 text-[12px] text-muted-foreground">
-        Eine Anleitung übernimmst du auf einem Zettel unter „Anleitung" — die Schritte werden dort
+        Eine Anleitung übernimmst du auf einer Aufgabe unter „Anleitung" — die Schritte werden dort
         zu Unterpunkten dieser einen Karte.{' '}
         <button
           type="button"
