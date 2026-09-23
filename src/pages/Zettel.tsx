@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ChevronLeft, Plus, Trash2, Pencil } from 'lucide-react';
+import { ChevronLeft, FolderKanban, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -144,6 +144,22 @@ export default function Zettel() {
         )}
         <span>·</span>
         <span>{t.due_date ? `fällig ${formatDateDe(t.due_date)}` : 'kein Fälligkeitsdatum'}</span>
+        {/*
+          Gehört die Aufgabe zu einem Vorgang, steht das hier — und zwar
+          anklickbar. Beim Erledigen landet sie von selbst in dessen Verlauf.
+        */}
+        {(t as any).case_id && (
+          <>
+            <span>·</span>
+            <Link
+              to={`/vorgaenge/${(t as any).case_id}`}
+              className="inline-flex items-center gap-1 text-primary hover:underline"
+            >
+              <FolderKanban className="h-3.5 w-3.5" />
+              zum Vorgang
+            </Link>
+          </>
+        )}
         {t.follow_up_at && (
           <>
             <span>·</span>
