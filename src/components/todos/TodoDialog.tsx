@@ -12,15 +12,19 @@ import {
   CalendarIcon,
   ChevronDown,
   ChevronRight,
+  FolderKanban,
   Loader2,
   Plus,
+  Search,
   Users,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Todo, CreateTodoInput, useCreateTodo, useUpdateTodo, useCategories, useAssignableUsers } from "@/hooks/useTodos";
 import { useAuth } from "@/hooks/useAuth";
+import { useCasesForPicker } from "@/hooks/useCaseReview";
 import { CategoryDialog } from "./CategoryDialog";
 import { InlineSubtasksCreator } from "./TodoSubtasks";
 import { InlineAttachmentCreator } from "./TodoAttachments";
@@ -38,6 +42,8 @@ interface TodoDialogProps {
   /** Wird nach dem Anlegen mit der neuen Aufgaben-ID gerufen — die Pinnwand
    *  haengt die Aufgabe damit gleich an die eigene Wand. */
   onCreated?: (todoId: string) => void;
+  /** Vorbelegung beim Anlegen, z. B. aus einem Vorgang heraus. */
+  vorbelegung?: { caseId?: string | null; buildingId?: string | null };
 }
 
 interface DraftData {
@@ -53,6 +59,7 @@ interface DraftData {
   recurrenceInterval: number;
   recurrenceEndDate: string | null;
   subtasks: string[];
+  caseId?: string | null;
 }
 
 const PRIO_TEXT: Record<string, string> = {
@@ -137,7 +144,7 @@ function Zeile({ label, children }: { label: string; children: ReactNode }) {
  * standen alle elf Felder untereinander und sahen gleich wichtig aus; bei den
  * allermeisten Aufgaben bleiben neun davon leer.
  */
-export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDialogProps) {
+export function TodoDialog({ open, onOpenChange, todo, mode, onCreated, vorbelegung }: TodoDialogProps) {
   const { user, profile } = useAuth();
   const { data: categories = [] } = useCategories();
   const { data: users = [] } = useAssignableUsers();
@@ -169,6 +176,10 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDi
   const [showFrom, setShowFrom] = useState<string | null>(null);
   const [followUpAt, setFollowUpAt] = useState<string | null>(null);
   const [checklistTemplateId, setChecklistTemplateId] = useState<string | null>(null);
+  const [caseId, setCaseId] = useState<string | null>(null);
+  const [vorgangSuche, setVorgangSuche] = useState('');
+
+  const { data: vorgaenge = [] } = useCasesForPicker();
 
   // Anleitungen (Prozessvorlagen) fuer die Checkliste
   const [templates, setTemplates] = useState<{ id: string; name: string }[]>([]);
@@ -209,6 +220,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDi
           setRecurrenceInterval(draft.recurrenceInterval || 1);
           setRecurrenceEndDate(draft.recurrenceEndDate);
           setSubtasks(draft.subtasks || []);
+          setCaseId(draft.caseId ?? null);
         } catch (e) {
           // Invalid draft, ignore
         }
@@ -232,10 +244,11 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDi
         recurrenceInterval,
         recurrenceEndDate,
         subtasks,
+        caseId,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
     }
-  }, [mode, title, description, categoryId, assignees, priority, dueDate, buildingIds, isRecurring, recurrencePattern, recurrenceInterval, recurrenceEndDate, subtasks]);
+  }, [mode, title, description, categoryId, assignees, priority, dueDate, buildingIds, isRecurring, recurrencePattern, recurrenceInterval, recurrenceEndDate, subtasks, caseId]);
 
   useEffect(() => {
     if (mode === 'create' && open) {
@@ -275,6 +288,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDi
         setShowFrom((todo as any).show_in_list_date || null);
         setFollowUpAt((todo as any).follow_up_at || null);
         setChecklistTemplateId((todo as any).checklist_template_id || null);
+        setCaseId((todo as any).case_id || null);
         setSubtasks([]);
         setFiles([]);
         // Beim Bearbeiten aufgeklappt, sobald unten etwas drinsteht — sonst
@@ -290,11 +304,14 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDi
         );
       } else if (mode === 'create') {
         setMehr(false);
-        // Don't reset if we're loading from draft
-        // The useEffect above will handle loading the draft
+        // Der Entwurf aus dem Zwischenspeicher wird oben geladen; eine
+        // Vorbelegung von aussen (etwa aus einem Vorgang heraus) sticht sie,
+        // denn sie beschreibt, wozu diese Aufgabe gerade angelegt wird.
+        if (vorbelegung?.caseId) setCaseId(vorbelegung.caseId);
+        if (vorbelegung?.buildingId) setBuildingIds([vorbelegung.buildingId]);
       }
     }
-  }, [open, mode, todo]);
+  }, [open, mode, todo, vorbelegung?.caseId, vorbelegung?.buildingId]);
 
   const clearForm = () => {
     setTitle("");
@@ -314,6 +331,8 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDi
     setShowFrom(null);
     setFollowUpAt(null);
     setChecklistTemplateId(null);
+    setCaseId(null);
+    setVorgangSuche('');
     setMehr(false);
     localStorage.removeItem(STORAGE_KEY);
   };
@@ -344,6 +363,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDi
         (input as any).show_in_list_date = showFrom || undefined;
         (input as any).follow_up_at = followUpAt || undefined;
         (input as any).checklist_template_id = checklistTemplateId || undefined;
+        input.case_id = caseId;
 
         const newTodo = await createTodo.mutateAsync(input);
 
@@ -401,6 +421,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDi
           show_in_list_date: showFrom,
           follow_up_at: followUpAt,
           checklist_template_id: checklistTemplateId,
+          case_id: caseId,
         };
         updatePayload.assignees = assignees;
         updatePayload.building_ids = buildingIds;
@@ -447,6 +468,24 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDi
       return assignees[0] === user?.id ? 'ich' : u.first_name || u.last_name || '1 Person';
     }
     return `${assignees.length} Personen`;
+  })();
+
+  const gewaehlterVorgang = vorgaenge.find(v => v.id === caseId);
+  const vorgangText = gewaehlterVorgang ? gewaehlterVorgang.title : 'kein Vorgang';
+
+  /** Umlaute und Gross-/Kleinschreibung beim Suchen ignorieren. */
+  const normal = (t: string) =>
+    t.toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss');
+
+  const gefundeneVorgaenge = (() => {
+    const woerter = normal(vorgangSuche.trim()).split(/\s+/).filter(Boolean);
+    if (!woerter.length) return vorgaenge.slice(0, 40);
+    return vorgaenge
+      .filter(v => {
+        const heuhaufen = normal([v.title, v.building_name, v.unit_number].filter(Boolean).join(' '));
+        return woerter.every(w => heuhaufen.includes(w));
+      })
+      .slice(0, 40);
   })();
 
   const terminText = dueDate
@@ -611,6 +650,69 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDi
                           </Button>
                         )}
                       </div>
+                    </PopoverContent>
+                  </Popover>
+
+                  {/* Vorgang */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Chip aria-label="Vorgang wählen" aktiv={!!caseId} icon={<FolderKanban className="h-3.5 w-3.5" />}>
+                        <span className="max-w-[190px] truncate">{vorgangText}</span>
+                      </Chip>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[340px] p-2" align="start">
+                      <div className="relative mb-2">
+                        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          value={vorgangSuche}
+                          onChange={e => setVorgangSuche(e.target.value)}
+                          placeholder="Vorgang suchen …"
+                          className="h-8 pl-8 text-[12.5px]"
+                          aria-label="Vorgang suchen"
+                        />
+                      </div>
+
+                      {caseId && (
+                        <button
+                          type="button"
+                          onClick={() => setCaseId(null)}
+                          className="mb-1 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12.5px] text-muted-foreground hover:bg-muted"
+                        >
+                          <X className="h-3.5 w-3.5" /> Verknüpfung lösen
+                        </button>
+                      )}
+
+                      <div className="max-h-[220px] space-y-0.5 overflow-y-auto">
+                        {gefundeneVorgaenge.length === 0 && (
+                          <p className="px-2 py-3 text-center text-[12.5px] text-muted-foreground">
+                            Kein offener Vorgang gefunden.
+                          </p>
+                        )}
+                        {gefundeneVorgaenge.map(v => (
+                          <button
+                            key={v.id}
+                            type="button"
+                            onClick={() => setCaseId(v.id)}
+                            className={`flex w-full flex-col items-start rounded px-2 py-1.5 text-left hover:bg-muted ${
+                              v.id === caseId ? 'bg-muted' : ''
+                            }`}
+                          >
+                            <span className="text-[13px] leading-snug text-foreground">{v.title}</span>
+                            {(v.building_name || v.unit_number) && (
+                              <span className="text-[11.5px] text-muted-foreground">
+                                {[v.building_name, v.unit_number ? `Whg. ${v.unit_number}` : null]
+                                  .filter(Boolean)
+                                  .join(' · ')}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+
+                      <p className="mt-2 border-t border-border pt-2 text-[11.5px] leading-snug text-muted-foreground">
+                        Wird die Aufgabe erledigt, steht das im Verlauf des Vorgangs — und
+                        Eigentümer sehen beim zugehörigen Beschluss eine neue Änderung.
+                      </p>
                     </PopoverContent>
                   </Popover>
                 </div>
