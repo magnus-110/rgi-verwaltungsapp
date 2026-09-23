@@ -258,3 +258,33 @@ export function useCaseOverviewOne(caseId: string | null) {
     },
   });
 }
+
+/** Ein Vorgang, wie er in der Auswahl einer Aufgabe erscheint. */
+export interface CasePickerItem {
+  id: string;
+  title: string;
+  building_name: string | null;
+  unit_number: string | null;
+  status: string;
+}
+
+/**
+ * Die Vorgaenge zum Verknuepfen einer Aufgabe.
+ *
+ * Nur die offenen — eine neue Aufgabe zu einem abgeschlossenen Vorgang zu
+ * haengen ergibt selten Sinn, und die Liste bliebe sonst unuebersichtlich.
+ */
+export function useCasesForPicker() {
+  return useQuery({
+    queryKey: ['cases-for-picker'],
+    queryFn: async (): Promise<CasePickerItem[]> => {
+      const { data, error } = await reviewDb
+        .from('case_overview')
+        .select('id, title, building_name, unit_number, status')
+        .in('status', OFFENE_STATUS)
+        .order('title');
+      if (error) throw error;
+      return (data || []) as CasePickerItem[];
+    },
+  });
+}
