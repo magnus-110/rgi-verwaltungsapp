@@ -32,7 +32,7 @@ function kurzDatum(iso: string | null | undefined) {
 }
 
 /**
- * Die Checkliste auf dem Zettel (Screen 3 des Entwurfs).
+ * Die Checkliste auf der Aufgabe (Screen 3 des Entwurfs).
  *
  * Der erste noch offene Punkt steht aufgeklappt da, samt Anleitungstext —
  * sonst schlägt niemand nach, und die Anleitung nützt nichts.

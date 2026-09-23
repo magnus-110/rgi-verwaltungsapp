@@ -1,30 +1,47 @@
 import { useMemo, useState } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Eye, EyeOff, Plus } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { BoardItem, useBoardPins, formatDateDe } from '@/hooks/useBoardPins';
-import { useWallPeople } from '@/hooks/useBoardWalls';
+import { useWallPeople, useHiddenWalls, useToggleHiddenWall } from '@/hooks/useBoardWalls';
 import { useHandoverPin } from '@/hooks/useBoardHandover';
 import { HandoverDialog, HandoverTarget } from '@/components/board/HandoverDialog';
 
 /**
  * Die Team-Ansicht (Screen 2 des Entwurfs).
  *
- * Eine Wand pro Person, nebeneinander. Zuweisen heißt hier: den Zettel
+ * Eine Wand pro Person, nebeneinander. Zuweisen heißt hier: die Aufgabe
  * auf die Wand des anderen ziehen. Kein Formular, kein Statusfeld.
+ *
+ * Wessen Wand einen nichts angeht, blendet man aus. Das ist nur die eigene
+ * Ansicht — die Person merkt davon nichts, und man holt sie unten jederzeit
+ * mit einem Klick zurück.
  */
 export function BoardTeam() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { data: allItems = [], isLoading } = useBoardPins();
-  const { data: people = [], isLoading: peopleLoading } = useWallPeople();
+  const { data: alle = [], isLoading: peopleLoading } = useWallPeople();
+  const { data: versteckt = new Set<string>() } = useHiddenWalls(user?.id);
   const handover = useHandoverPin();
+  const toggleWand = useToggleHiddenWall();
 
   const [target, setTarget] = useState<HandoverTarget | null>(null);
 
-  /** Zettel je Person, in ihrer Sortierung. */
+  /** Sichtbare Wände — die eigene lässt sich nicht ausblenden. */
+  const people = useMemo(
+    () => alle.filter(p => p.userId === user?.id || !versteckt.has(p.userId)),
+    [alle, versteckt, user?.id]
+  );
+
+  const ausgeblendet = useMemo(
+    () => alle.filter(p => p.userId !== user?.id && versteckt.has(p.userId)),
+    [alle, versteckt, user?.id]
+  );
+
+  /** Aufgaben je Person, in ihrer Sortierung. */
   const byPerson = useMemo(() => {
     const map = new Map<string, BoardItem[]>();
     people.forEach(p => map.set(p.userId, []));
@@ -69,14 +86,18 @@ export function BoardTeam() {
           {people.length} {people.length === 1 ? 'Wand' : 'Wände'}
         </h1>
         <p className="mt-0.5 text-[12.5px] text-muted-foreground">
-          Zettel von einer Wand auf die andere ziehen — das ist das Zuweisen.
+          Aufgaben von einer Wand auf die andere ziehen — das ist das Zuweisen.
+          {ausgeblendet.length > 0 &&
+            ` · ${ausgeblendet.length} ${
+              ausgeblendet.length === 1 ? 'Wand ist' : 'Wände sind'
+            } ausgeblendet`}
         </p>
       </div>
 
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {people.map(person => {
-            const zettel = byPerson.get(person.userId) || [];
+            const aufgaben = byPerson.get(person.userId) || [];
             const istIch = person.userId === user?.id;
 
             return (
@@ -100,8 +121,26 @@ export function BoardTeam() {
                         {istIch && <span className="ml-1 text-muted-foreground">(du)</span>}
                       </span>
                       <span className="ml-auto text-[12px] text-muted-foreground">
-                        {zettel.length} {zettel.length === 1 ? 'Zettel' : 'Zettel'}
+                        {aufgaben.length} {aufgaben.length === 1 ? 'Aufgabe' : 'Aufgaben'}
                       </span>
+                      {!istIch && user && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            toggleWand.mutate({
+                              userId: user.id,
+                              hiddenUserId: person.userId,
+                              ausblenden: true,
+                              name: person.name,
+                            })
+                          }
+                          title={`${person.name} ausblenden`}
+                          aria-label={`Wand von ${person.name} ausblenden`}
+                          className="-mr-1 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          <EyeOff className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
 
                     {snapshot.isDraggingOver && (
@@ -111,13 +150,13 @@ export function BoardTeam() {
                     )}
 
                     <div className="space-y-2">
-                      {zettel.length === 0 && !snapshot.isDraggingOver && (
+                      {aufgaben.length === 0 && !snapshot.isDraggingOver && (
                         <p className="py-6 text-center text-[12.5px] text-muted-foreground">
                           Leere Wand.
                         </p>
                       )}
 
-                      {zettel.map((item, index) => (
+                      {aufgaben.map((item, index) => (
                         <Draggable key={item.pin!.id} draggableId={item.pin!.id} index={index}>
                           {(dragProvided, dragSnapshot) => (
                             <div
@@ -165,6 +204,31 @@ export function BoardTeam() {
           })}
         </div>
       </DragDropContext>
+
+      {ausgeblendet.length > 0 && user && (
+        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          <span className="text-[12px] text-muted-foreground">Ausgeblendet:</span>
+          {ausgeblendet.map(p => (
+            <button
+              key={p.userId}
+              type="button"
+              onClick={() =>
+                toggleWand.mutate({
+                  userId: user.id,
+                  hiddenUserId: p.userId,
+                  ausblenden: false,
+                  name: p.name,
+                })
+              }
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-[12px] text-foreground transition-colors hover:bg-muted"
+              title={`${p.name} wieder einblenden`}
+            >
+              <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       <HandoverDialog
         target={target}
