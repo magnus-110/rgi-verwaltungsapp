@@ -1,27 +1,30 @@
 import { useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Pencil, Trash2, Plus, ShieldAlert, ArrowUp, ArrowDown, Loader2, Copy, X } from "lucide-react";
+import { Pencil, Trash2, Plus, ShieldAlert, ChevronUp, ChevronDown, Loader2, Copy, X, FileInput } from "lucide-react";
 import {
   ARTEN_MIT_LOGIK, ART_LABEL, FRAGENARTEN, JA_NEUTRAL_NEIN,
   SurveyKind, costTierSymbol,
 } from "@/hooks/useSurvey";
+import { useAdminSurveys } from "@/hooks/useSurveysAdmin";
+import SurveyItemImages from "@/components/survey/SurveyItemImages";
 
 /**
- * Editor für die Punkte einer Umfrage (nur Verwaltung).
+ * Die Fragen einer Umfrage (nur Verwaltung).
  *
- * Links im Dialog wird die Art der Frage gewählt, rechts erscheinen nur die
- * Felder, die zu dieser Art gehören. Kosten und Pflicht-Kennzeichen gibt es
- * deshalb nur noch bei der Art „Maßnahme".
+ * Eine Zeile je Frage: Reihenfolge, Art, Text — und rechts daneben die Fotos
+ * dieser Frage. Einen eigenen Reiter „Bilder" gibt es deshalb nicht mehr.
+ *
+ * Im Dialog wird links die Art gewählt, rechts erscheinen nur die Felder, die
+ * zu dieser Art gehören. Kosten und Pflicht-Kennzeichen gibt es nur bei der
+ * Art „Maßnahme".
  */
 
 const COST_OPTIONS = [
@@ -33,6 +36,25 @@ const COST_OPTIONS = [
 ];
 
 const SKALA_OPTIONS = [3, 4, 5, 7, 10];
+
+/** Ruhige, aber unterscheidbare Farben je Art. */
+export const ART_FARBE: Record<SurveyKind, string> = {
+  massnahme: "bg-orange-100 text-orange-800",
+  einfachauswahl: "bg-sky-100 text-sky-800",
+  mehrfachauswahl: "bg-indigo-100 text-indigo-800",
+  skala: "bg-violet-100 text-violet-800",
+  freitext: "bg-emerald-100 text-emerald-800",
+  datum: "bg-amber-100 text-amber-800",
+  info: "bg-muted text-muted-foreground",
+};
+
+export function ArtKennzeichen({ kind }: { kind: SurveyKind }) {
+  return (
+    <span className={`inline-block shrink-0 rounded px-2 py-0.5 text-[11px] font-semibold ${ART_FARBE[kind] ?? "bg-muted text-muted-foreground"}`}>
+      {ART_LABEL[kind] ?? kind}
+    </span>
+  );
+}
 
 interface Item {
   id: string;
@@ -86,15 +108,15 @@ const emptyForm = (position: number, kind: SurveyKind): FormState => ({
   depends_on_item_id: "", depends_on_value: "",
 });
 
-/** Kurzer Hinweis unter der Überschrift des Dialogs. */
 const ART_HINWEIS: Record<SurveyKind, string> = FRAGENARTEN.reduce(
   (acc, a) => ({ ...acc, [a.kind]: a.hint }),
   {} as Record<SurveyKind, string>,
 );
 
-export default function SurveyItemsEditor({ surveyId }: { surveyId: string }) {
+export default function SurveyItemsEditor({ surveyId, buildingId }: { surveyId: string; buildingId: string }) {
   const qc = useQueryClient();
   const [form, setForm] = useState<FormState | null>(null);
+  const [uebernahmeOffen, setUebernahmeOffen] = useState(false);
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["survey-items-editor", surveyId],
@@ -116,7 +138,7 @@ export default function SurveyItemsEditor({ surveyId }: { surveyId: string }) {
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["survey-items-editor", surveyId] });
     qc.invalidateQueries({ queryKey: ["survey-items", surveyId] });
-    qc.invalidateQueries({ queryKey: ["survey-images-manager", surveyId] });
+    qc.invalidateQueries({ queryKey: ["survey-item-images", surveyId] });
     qc.invalidateQueries({ queryKey: ["survey-auswertung", surveyId] });
     qc.invalidateQueries({ queryKey: ["owner-survey"] });
     qc.invalidateQueries({ queryKey: ["admin-surveys"] });
@@ -201,6 +223,48 @@ export default function SurveyItemsEditor({ surveyId }: { surveyId: string }) {
     onSuccess: refresh,
   });
 
+  /** Alle Fragen einer anderen Umfrage hierher kopieren (ohne Antworten). */
+  const uebernehmen = useMutation({
+    mutationFn: async (quelleId: string) => {
+      const { data: quelle } = await (supabase as any)
+        .from("survey_items").select("*").eq("survey_id", quelleId).order("position");
+      let pos = items[items.length - 1]?.position ?? 0;
+      const idMap = new Map<string, string>();
+      for (const it of (quelle || []) as any[]) {
+        pos += 1;
+        const { data: neu, error } = await (supabase as any).from("survey_items").insert({
+          survey_id: surveyId,
+          position: pos,
+          kind: it.kind ?? (it.item_type === "info" ? "info" : "massnahme"),
+          group_label: it.group_label,
+          title: it.title,
+          explanation: it.explanation,
+          answer_options: it.answer_options,
+          scale_max: it.scale_max,
+          scale_min_label: it.scale_min_label,
+          scale_max_label: it.scale_max_label,
+          is_required: it.is_required ?? true,
+          cost_tier: it.cost_tier,
+          is_safety: it.is_safety,
+          followup_question: it.followup_question,
+          followup_options: it.followup_options,
+        }).select("id").single();
+        if (error) throw error;
+        idMap.set(it.id, neu.id);
+      }
+      for (const it of (quelle || []) as any[]) {
+        if (it.depends_on_item_id && idMap.has(it.depends_on_item_id)) {
+          await (supabase as any).from("survey_items").update({
+            depends_on_item_id: idMap.get(it.depends_on_item_id),
+            depends_on_value: it.depends_on_value ?? it.depends_on_choice,
+          }).eq("id", idMap.get(it.id));
+        }
+      }
+    },
+    onSuccess: () => { setUebernahmeOffen(false); refresh(); },
+    onError: (e: any) => alert("Übernehmen fehlgeschlagen: " + (e?.message ?? e)),
+  });
+
   const openEdit = (it: Item) =>
     setForm({
       id: it.id,
@@ -222,7 +286,8 @@ export default function SurveyItemsEditor({ surveyId }: { surveyId: string }) {
       depends_on_value: it.depends_on_value ?? "",
     });
 
-  const openNew = () => setForm(emptyForm((items[items.length - 1]?.position ?? 0) + 1, "einfachauswahl"));
+  const openNew = (kind: SurveyKind = "einfachauswahl") =>
+    setForm(emptyForm((items[items.length - 1]?.position ?? 0) + 1, kind));
 
   /** Art wechseln, ohne das Geschriebene zu verlieren. */
   const setKind = (kind: SurveyKind) =>
@@ -237,8 +302,6 @@ export default function SurveyItemsEditor({ surveyId }: { surveyId: string }) {
         is_required: kind === "freitext" ? false : f.is_required,
       },
     );
-
-  if (isLoading) return <div className="p-4 text-muted-foreground">Lädt …</div>;
 
   const logikPunkte = items.filter((i) => ARTEN_MIT_LOGIK.includes(i.kind));
   const logikAuswahl = form?.id ? logikPunkte.filter((i) => i.id !== form.id) : logikPunkte;
@@ -259,73 +322,161 @@ export default function SurveyItemsEditor({ surveyId }: { surveyId: string }) {
   const beschreibeLogik = (it: Item) => {
     const eltern = items.find((x) => x.id === it.depends_on_item_id);
     if (!eltern) return "";
-    const werte = werteFuerLogik(eltern);
-    const treffer = werte.find((w) => w.value === it.depends_on_value);
-    return `↳ nur wenn „${eltern.title}" ${treffer ? treffer.label.replace("Antwort = ", "= ") : "beantwortet"}`;
+    const treffer = werteFuerLogik(eltern).find((w) => w.value === it.depends_on_value);
+    return `nur wenn „${eltern.title}" ${treffer ? treffer.label.replace("Antwort = ", "= ") : "beantwortet"}`;
   };
 
   const auswahlArt = form?.kind === "einfachauswahl" || form?.kind === "mehrfachauswahl";
 
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">{items.length} Punkt(e)</p>
-        <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Punkt hinzufügen</Button>
-      </div>
+  if (isLoading) return <div className="p-4 text-sm text-muted-foreground">Lädt …</div>;
 
-      {items.map((it, idx) => (
-        <Card key={it.id}><CardContent className="p-4 flex items-start gap-3">
-          <div className="flex flex-col items-center pt-1">
-            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={idx === 0}
-              onClick={() => swap.mutate({ a: it, b: items[idx - 1] })}><ArrowUp className="h-4 w-4" /></Button>
-            <span className="text-xs text-muted-foreground">{it.position}</span>
-            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={idx === items.length - 1}
-              onClick={() => swap.mutate({ a: it, b: items[idx + 1] })}><ArrowDown className="h-4 w-4" /></Button>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">{it.title}</span>
-              <Badge variant="secondary">{ART_LABEL[it.kind] ?? it.kind}</Badge>
-              {it.group_label && <Badge variant="secondary">{it.group_label}</Badge>}
-              {it.kind === "massnahme" && it.cost_tier && <Badge variant="outline">{costTierSymbol(it.cost_tier)}</Badge>}
-              {it.is_safety && <Badge className="bg-red-100 text-red-700 hover:bg-red-100"><ShieldAlert className="h-3 w-3 mr-1" />ohne Abstimmung</Badge>}
-              {it.depends_on_item_id && <Badge variant="outline" className="text-xs">{beschreibeLogik(it)}</Badge>}
-            </div>
-            {it.explanation && <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{it.explanation}</p>}
-            {(it.kind === "einfachauswahl" || it.kind === "mehrfachauswahl") && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Antworten: {(it.answer_options ?? []).join(" · ") || "— noch keine —"}
-              </p>
-            )}
-            {it.kind === "skala" && (
-              <p className="text-xs text-muted-foreground mt-1">
-                1 bis {it.scale_max ?? 5}
-                {it.scale_min_label || it.scale_max_label ? ` (${it.scale_min_label || "1"} … ${it.scale_max_label || String(it.scale_max ?? 5)})` : ""}
-              </p>
-            )}
-            {it.followup_question && (
-              <p className="text-xs text-muted-foreground mt-1">
-                ↳ Folgefrage: {it.followup_question} ({(it.followup_options ?? []).join(", ")})
-              </p>
-            )}
-          </div>
-          <div className="flex gap-1">
-            <Button variant="ghost" size="icon" onClick={() => duplicate.mutate(it)} title="Duplizieren"><Copy className="h-4 w-4" /></Button>
-            <Button variant="ghost" size="icon" onClick={() => openEdit(it)} title="Bearbeiten"><Pencil className="h-4 w-4" /></Button>
-            <Button variant="ghost" size="icon" onClick={() => { if (confirm(`Punkt "${it.title}" löschen? Zugehörige Antworten/Bilder werden mit entfernt.`)) del.mutate(it.id); }}>
-              <Trash2 className="h-4 w-4 text-red-600" />
+  return (
+    <div className="space-y-4">
+      {items.length > 0 && (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">
+            {items.length} Frage{items.length === 1 ? "" : "n"}
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setUebernahmeOffen(true)}>
+              <FileInput className="mr-1 h-4 w-4" /> Übernehmen
+            </Button>
+            <Button size="sm" onClick={() => openNew()}>
+              <Plus className="mr-1 h-4 w-4" /> Frage hinzufügen
             </Button>
           </div>
-        </CardContent></Card>
-      ))}
+        </div>
+      )}
 
+      {/* ---------- Noch keine Frage ---------- */}
+      {items.length === 0 && (
+        <div className="rounded-xl border border-dashed bg-card p-7">
+          <h3 className="text-base font-semibold">Noch keine Frage — womit soll es losgehen?</h3>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            Wählen Sie eine Art, dann öffnet sich gleich das Formular. Die Art lässt sich später jederzeit ändern.
+          </p>
+          <div className="mt-5 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+            {FRAGENARTEN.map((a) => (
+              <button key={a.kind} type="button" onClick={() => openNew(a.kind)}
+                className={`rounded-lg border p-3 text-left transition hover:border-primary ${
+                  a.kind === "massnahme" ? "border-orange-200 bg-orange-50/60" : "bg-background"
+                }`}>
+                <span className="block text-sm font-semibold">{a.label}</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">{a.hint}</span>
+              </button>
+            ))}
+          </div>
+          <div className="mt-5">
+            <Button variant="outline" size="sm" onClick={() => setUebernahmeOffen(true)}>
+              <FileInput className="mr-1 h-4 w-4" /> Fragen aus einer anderen Umfrage übernehmen
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- Die Fragen ---------- */}
+      <div className="space-y-2">
+        {items.map((it, idx) => (
+          <div key={it.id} className={`flex items-start gap-3 rounded-xl border p-4 ${it.kind === "info" ? "bg-muted/30" : "bg-card"}`}>
+            <div className="flex w-6 shrink-0 flex-col items-center pt-0.5">
+              <button type="button" disabled={idx === 0} onClick={() => swap.mutate({ a: it, b: items[idx - 1] })}
+                className="text-muted-foreground/60 transition hover:text-foreground disabled:opacity-30" title="Nach oben">
+                <ChevronUp className="h-4 w-4" />
+              </button>
+              <span className="text-xs font-semibold text-muted-foreground">{it.position}</span>
+              <button type="button" disabled={idx === items.length - 1} onClick={() => swap.mutate({ a: it, b: items[idx + 1] })}
+                className="text-muted-foreground/60 transition hover:text-foreground disabled:opacity-30" title="Nach unten">
+                <ChevronDown className="h-4 w-4" />
+              </button>
+            </div>
+
+            <button type="button" onClick={() => openEdit(it)} className="min-w-0 flex-1 text-left">
+              <div className="flex flex-wrap items-center gap-2">
+                <ArtKennzeichen kind={it.kind} />
+                <span className="text-sm font-semibold">{it.title}</span>
+                {it.is_safety && (
+                  <span className="inline-flex items-center rounded bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                    <ShieldAlert className="mr-1 h-3 w-3" />Pflicht
+                  </span>
+                )}
+                {it.kind === "massnahme" && it.cost_tier && (
+                  <span className="text-xs text-muted-foreground">{costTierSymbol(it.cost_tier)}</span>
+                )}
+                {!it.is_required && it.kind !== "info" && (
+                  <span className="rounded bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">Antwort freiwillig</span>
+                )}
+              </div>
+
+              {it.explanation && (
+                <p className="mt-1.5 line-clamp-1 text-[13px] text-muted-foreground">{it.explanation}</p>
+              )}
+
+              {(it.kind === "einfachauswahl" || it.kind === "mehrfachauswahl") && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {(it.answer_options ?? []).map((o, i) => (
+                    <span key={i} className="rounded-full border bg-background px-2.5 py-0.5 text-[11px] text-muted-foreground">{o}</span>
+                  ))}
+                  {!(it.answer_options ?? []).length && (
+                    <span className="text-[11px] text-destructive">noch keine Antworten hinterlegt</span>
+                  )}
+                </div>
+              )}
+
+              {it.kind === "skala" && (
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  1 bis {it.scale_max ?? 5}
+                  {(it.scale_min_label || it.scale_max_label) && ` · ${it.scale_min_label || "1"} … ${it.scale_max_label || String(it.scale_max ?? 5)}`}
+                </p>
+              )}
+
+              {(it.group_label || it.depends_on_item_id || it.followup_question) && (
+                <p className="mt-1.5 flex flex-wrap gap-x-3 text-[11px] text-muted-foreground">
+                  {it.group_label && <span>{it.group_label}</span>}
+                  {it.depends_on_item_id && <span>↳ {beschreibeLogik(it)}</span>}
+                  {it.followup_question && <span>↳ Folgefrage: {it.followup_question}</span>}
+                </p>
+              )}
+            </button>
+
+            {it.kind !== "info" && (
+              <div className="hidden shrink-0 md:block">
+                <SurveyItemImages surveyId={surveyId} itemId={it.id} />
+              </div>
+            )}
+
+            <div className="flex shrink-0 gap-0.5">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(it)} title="Bearbeiten">
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => duplicate.mutate(it)} title="Duplizieren">
+                <Copy className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8"
+                onClick={() => { if (confirm(`Frage "${it.title}" löschen? Zugehörige Antworten und Fotos werden mit entfernt.`)) del.mutate(it.id); }}
+                title="Löschen">
+                <Trash2 className="h-4 w-4 text-red-600" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ---------- Fragen übernehmen ---------- */}
+      <UebernahmeDialog
+        offen={uebernahmeOffen} setOffen={setUebernahmeOffen}
+        buildingId={buildingId} surveyId={surveyId}
+        laeuft={uebernehmen.isPending}
+        onWaehlen={(id) => uebernehmen.mutate(id)}
+      />
+
+      {/* ---------- Frage anlegen / bearbeiten ---------- */}
       <Dialog open={!!form} onOpenChange={(o) => !o && setForm(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{form?.id ? "Punkt bearbeiten" : "Punkt hinzufügen"}</DialogTitle>
+            <DialogTitle>{form?.id ? "Frage bearbeiten" : "Frage hinzufügen"}</DialogTitle>
           </DialogHeader>
           {form && (
-            <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-[220px_1fr]">
               {/* Art der Frage */}
               <div className="space-y-1">
                 <Label className="text-xs uppercase tracking-wide text-muted-foreground">Art der Frage</Label>
@@ -369,7 +520,7 @@ export default function SurveyItemsEditor({ surveyId }: { surveyId: string }) {
 
                 {/* Antworten (Einfach-/Mehrfachauswahl) */}
                 {auswahlArt && (
-                  <div className="rounded-md border p-3 space-y-2">
+                  <div className="space-y-2 rounded-md border p-3">
                     <div className="flex items-center justify-between">
                       <Label>Antworten</Label>
                       <Button type="button" variant="ghost" size="sm"
@@ -379,7 +530,7 @@ export default function SurveyItemsEditor({ surveyId }: { surveyId: string }) {
                     </div>
                     {form.answer_options.map((opt, i) => (
                       <div key={i} className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground w-4 text-right">{i + 1}.</span>
+                        <span className="w-4 text-right text-xs text-muted-foreground">{i + 1}.</span>
                         <Input value={opt} placeholder={`Antwort ${i + 1}`}
                           onChange={(e) => {
                             const next = [...form.answer_options];
@@ -395,14 +546,14 @@ export default function SurveyItemsEditor({ surveyId }: { surveyId: string }) {
                     ))}
                     <Button type="button" variant="secondary" size="sm"
                       onClick={() => setForm({ ...form, answer_options: [...form.answer_options, ""] })}>
-                      <Plus className="h-4 w-4 mr-1" /> Antwort hinzufügen
+                      <Plus className="mr-1 h-4 w-4" /> Antwort hinzufügen
                     </Button>
                   </div>
                 )}
 
                 {/* Skala */}
                 {form.kind === "skala" && (
-                  <div className="rounded-md border p-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 gap-3 rounded-md border p-3 sm:grid-cols-3">
                     <div><Label>Von 1 bis</Label>
                       <Select value={String(form.scale_max)} onValueChange={(v) => setForm({ ...form, scale_max: parseInt(v, 10) })}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
@@ -419,7 +570,7 @@ export default function SurveyItemsEditor({ surveyId }: { surveyId: string }) {
 
                 {/* Maßnahme: Kosten, Pflicht, Folgefrage */}
                 {form.kind === "massnahme" && (
-                  <div className="rounded-md border p-3 space-y-3">
+                  <div className="space-y-3 rounded-md border p-3">
                     <div><Label>Kostenrahmen</Label>
                       <Select value={form.cost_tier} onValueChange={(v) => setForm({ ...form, cost_tier: v })}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
@@ -451,7 +602,7 @@ export default function SurveyItemsEditor({ surveyId }: { surveyId: string }) {
                 )}
 
                 {/* Logik */}
-                <div className="rounded-md border p-3 space-y-2">
+                <div className="space-y-2 rounded-md border p-3">
                   <Label>Nur anzeigen, wenn ein anderer Punkt bestimmt beantwortet wurde</Label>
                   <div className="grid grid-cols-2 gap-2">
                     <Select value={form.depends_on_item_id || "none"}
@@ -490,11 +641,53 @@ export default function SurveyItemsEditor({ surveyId }: { surveyId: string }) {
                 (auswahlArt && form!.answer_options.filter((o) => o.trim()).length < 2)
               }
               onClick={() => form && save.mutate(form)}>
-              {save.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Speichern
+              {save.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Speichern
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/** Fragen einer anderen Umfrage desselben Gebäudes übernehmen. */
+function UebernahmeDialog({ offen, setOffen, buildingId, surveyId, laeuft, onWaehlen }: {
+  offen: boolean;
+  setOffen: (o: boolean) => void;
+  buildingId: string;
+  surveyId: string;
+  laeuft: boolean;
+  onWaehlen: (id: string) => void;
+}) {
+  const { data: alle = [] } = useAdminSurveys(buildingId, true);
+  const quellen = alle.filter((s) => s.id !== surveyId && (s.item_count ?? 0) > 0);
+
+  return (
+    <Dialog open={offen} onOpenChange={setOffen}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>Fragen übernehmen</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Alle Fragen der gewählten Umfrage werden hier angehängt — ohne die abgegebenen Antworten.
+          Fotos bleiben bei der Ursprungsumfrage.
+        </p>
+        <div className="max-h-[50vh] space-y-2 overflow-y-auto">
+          {quellen.length === 0 && (
+            <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              In diesem Gebäude gibt es keine andere Umfrage mit Fragen.
+            </p>
+          )}
+          {quellen.map((s) => (
+            <button key={s.id} type="button" disabled={laeuft} onClick={() => onWaehlen(s.id)}
+              className="flex w-full items-center justify-between gap-3 rounded-lg border p-3 text-left transition hover:border-primary disabled:opacity-50">
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium">{s.title}</span>
+                <span className="block text-xs text-muted-foreground">{s.item_count} Frage(n)</span>
+              </span>
+              {laeuft ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />}
+            </button>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
