@@ -110,7 +110,7 @@ export default function UmfragenPage() {
                     <SurveyImageManager surveyId={survey.id} />
                   </TabsContent>
                   <TabsContent value="ergebnisse" className="mt-4">
-                    <SurveyDashboard surveyId={survey.id} buildingId={buildingId} agendaMap={agendaMap} />
+                    <SurveyDashboard survey={survey} agendaMap={agendaMap} />
                   </TabsContent>
                 </Tabs>
               </div>

@@ -50,7 +50,7 @@ export default function SurveySettingsTab({ survey, onDeleted }: { survey: Admin
         description: form.description,
         opens_at: form.opens_at,
         closes_at: form.closes_at,
-        quorum_pct: form.quorum_pct,
+        weight_by_mea: form.weight_by_mea,
         is_visible_to_owners: form.is_visible_to_owners,
         welcome_title: form.welcome_title,
         welcome_message: form.welcome_message,
@@ -165,7 +165,7 @@ export default function SurveySettingsTab({ survey, onDeleted }: { survey: Admin
             <Label>Kurzbeschreibung (intern)</Label>
             <Textarea value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label>Startet am</Label>
               <Input type="datetime-local" value={toLocalInput(form.opens_at)}
@@ -176,11 +176,19 @@ export default function SurveySettingsTab({ survey, onDeleted }: { survey: Admin
               <Input type="datetime-local" value={toLocalInput(form.closes_at)}
                 onChange={(e) => setForm({ ...form, closes_at: fromLocalInput(e.target.value) })} />
             </div>
+          </div>
+          <div className="flex items-center justify-between rounded-md border p-3">
             <div>
-              <Label>Quorum-Warnschwelle (%)</Label>
-              <Input type="number" min={0} max={100} value={form.quorum_pct ?? 40}
-                onChange={(e) => setForm({ ...form, quorum_pct: parseInt(e.target.value || "0", 10) })} />
+              <Label>Nach Miteigentumsanteilen gewichten</Label>
+              <p className="text-xs text-muted-foreground">
+                Bei „aus" zählt jede Stimme gleich viel — passend für allgemeine Umfragen.
+                Bei „an" zählen große Einheiten mehr — passend für Maßnahmen.
+              </p>
             </div>
+            <Switch
+              checked={form.weight_by_mea !== false}
+              onCheckedChange={(v) => setForm({ ...form, weight_by_mea: v })}
+            />
           </div>
         </CardContent>
       </Card>
