@@ -51,15 +51,41 @@ const STATUS_TEXT: Record<AnnualCycleStatus, string> = {
 };
 
 export const OwnerAnnualCycleWidget = ({ buildings }: Props) => {
-  const fiscalYears = useMemo(() => buildFiscalYears(), []);
-  const [selectedYear, setSelectedYear] = useState(fiscalYears[2]);
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
+  // Nicht das Jahr selbst merken, sondern die Stelle in der Liste: beim
+  // Wechsel des Gebaeudes aendern sich die Jahre mit, das laufende bleibt
+  // aber das laufende.
+  const [yearIndex, setYearIndex] = useState(2);
   const [collapsed, setCollapsed] = useState(true);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (!selectedBuildingId && buildings.length > 0) setSelectedBuildingId(buildings[0].id);
   }, [buildings, selectedBuildingId]);
+
+  // Nicht jedes Haus rechnet nach dem Kalenderjahr ab. Wer hier stur das
+  // Kalenderjahr abfragt, sieht bei den verschobenen Haeusern Zeilen, die
+  // mit deren Wirtschaftsjahr nichts zu tun haben — und damit dauerhaft
+  // lauter offene Punkte.
+  const { data: wj } = useQuery({
+    queryKey: ["owner-annual-cycle-wj", selectedBuildingId],
+    enabled: !!selectedBuildingId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("buildings")
+        .select("fiscal_year_start_month, fiscal_year_start_day")
+        .eq("id", selectedBuildingId!)
+        .maybeSingle();
+      const row = (data || {}) as { fiscal_year_start_month?: number; fiscal_year_start_day?: number };
+      return { startMonth: row.fiscal_year_start_month ?? 1, startDay: row.fiscal_year_start_day ?? 1 };
+    },
+  });
+
+  const fiscalYears = useMemo(
+    () => buildFiscalYears(undefined, { startMonth: wj?.startMonth ?? 1, startDay: wj?.startDay ?? 1 }),
+    [wj?.startMonth, wj?.startDay]
+  );
+  const selectedYear = fiscalYears[yearIndex] ?? fiscalYears[2];
 
   const { data: tasks = [] } = useQuery({
     queryKey: ["owner-annual-cycle", selectedBuildingId, selectedYear.start],
@@ -72,7 +98,7 @@ export const OwnerAnnualCycleWidget = ({ buildings }: Props) => {
         .eq("fiscal_year_start", selectedYear.start);
       return (data || []) as { task_key: string; status: AnnualCycleStatus; completed_at: string | null }[];
     },
-    enabled: !!selectedBuildingId,
+    enabled: !!selectedBuildingId && !!wj,
   });
 
   const byKey = useMemo(() => {
@@ -112,13 +138,13 @@ export const OwnerAnnualCycleWidget = ({ buildings }: Props) => {
             </Select>
           )}
           <Select
-            value={selectedYear.start}
-            onValueChange={(v) => setSelectedYear(fiscalYears.find((f) => f.start === v) ?? fiscalYears[2])}
+            value={String(yearIndex)}
+            onValueChange={(v) => setYearIndex(Number(v))}
           >
-            <SelectTrigger className="h-8 w-[84px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 w-[96px] text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {fiscalYears.map((fy) => (
-                <SelectItem key={fy.start} value={fy.start}>{fy.label}</SelectItem>
+              {fiscalYears.map((fy, i) => (
+                <SelectItem key={fy.start} value={String(i)}>{fy.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>

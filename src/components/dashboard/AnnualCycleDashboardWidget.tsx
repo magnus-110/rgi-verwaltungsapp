@@ -25,6 +25,10 @@ import { toast } from "sonner";
 interface BuildingRow {
   id: string;
   name: string;
+  /** 1-12, Standard 1. Sieben der WEGs rechnen nicht nach dem Kalenderjahr ab. */
+  startMonth: number;
+  /** 1-28, Standard 1. */
+  startDay: number;
 }
 
 interface TaskRow {
@@ -45,8 +49,10 @@ const STATUS_DOT: Record<AnnualCycleStatus, string> = {
 export const AnnualCycleDashboardWidget = () => {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const fiscalYears = useMemo(() => buildFiscalYears(), []);
-  const [selected, setSelected] = useState(fiscalYears[2]);
+  // Gemerkt wird die Stelle in der Jahresliste, nicht ein festes Datum: jedes
+  // Haus hat sein eigenes Wirtschaftsjahr, "das laufende" ist deshalb je Haus
+  // ein anderer Zeitraum.
+  const [yearIndex, setYearIndex] = useState(2);
   const [open, setOpen] = useState(false);
 
   const { data: buildings = [] } = useQuery({
@@ -54,41 +60,70 @@ export const AnnualCycleDashboardWidget = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("buildings")
-        .select("id, name")
+        .select("id, name, fiscal_year_start_month, fiscal_year_start_day")
         .eq("management_mode", "weg")
         .order("name");
       if (error) throw error;
-      return (data || []) as BuildingRow[];
+      return ((data || []) as any[]).map(b => ({
+        id: b.id as string,
+        name: b.name as string,
+        startMonth: (b.fiscal_year_start_month as number) ?? 1,
+        startDay: (b.fiscal_year_start_day as number) ?? 1,
+      })) as BuildingRow[];
     },
     enabled: open,
   });
 
-  // Seed pro Building beim Aufklappen
+  /** Das Wirtschaftsjahr an der gewaehlten Stelle — je Haus ein eigenes. */
+  const wjFuer = (b: BuildingRow) => {
+    const jahre = buildFiscalYears(undefined, { startMonth: b.startMonth, startDay: b.startDay });
+    return jahre[yearIndex] ?? jahre[2];
+  };
+
+  // Die Beschriftung des Umschalters richtet sich nach dem Kalenderjahr; bei
+  // verschobenen Haeusern ist damit das Wirtschaftsjahr gemeint, das in
+  // diesem Jahr beginnt.
+  const jahresLabels = useMemo(() => buildFiscalYears(), []);
+
+  const wjSchluessel = useMemo(
+    () => buildings.map(b => `${b.id}:${wjFuer(b).start}`).join(','),
+    [buildings, yearIndex] // eslint-disable-line
+  );
+
+  // Seed pro Building beim Aufklappen — jedes Haus mit SEINEM Wirtschaftsjahr.
+  // Vorher wurde hier fuer alle Haeuser das Kalenderjahr angelegt; bei den
+  // verschobenen Haeusern entstanden dadurch Zeilen, die zu keinem ihrer
+  // Wirtschaftsjahre gehoeren.
   useEffect(() => {
     if (!open || !buildings.length) return;
     Promise.all(
-      buildings.map(b =>
-        supabase.rpc("seed_annual_cycle_tasks", {
+      buildings.map(b => {
+        const wj = wjFuer(b);
+        return supabase.rpc("seed_annual_cycle_tasks", {
           p_building_id: b.id,
-          p_fiscal_year_start: selected.start,
-          p_fiscal_year_end: selected.end,
-        })
-      )
+          p_fiscal_year_start: wj.start,
+          p_fiscal_year_end: wj.end,
+        });
+      })
     ).then(() => qc.invalidateQueries({ queryKey: ["jz-widget-tasks"] }));
-  }, [open, buildings, selected.start]); // eslint-disable-line
+  }, [open, wjSchluessel]); // eslint-disable-line
 
   const { data: tasks = [] } = useQuery({
-    queryKey: ["jz-widget-tasks", selected.start, buildings.length],
+    queryKey: ["jz-widget-tasks", wjSchluessel],
     queryFn: async () => {
-      const ids = buildings.map(b => b.id);
-      if (!ids.length) return [];
+      if (!buildings.length) return [];
+      const passend = new Set(buildings.map(b => `${b.id}:${wjFuer(b).start}`));
+      const starts = Array.from(new Set(buildings.map(b => wjFuer(b).start)));
       const { data, error } = await supabase
         .from("annual_cycle_tasks")
-        .select("id, building_id, task_key, status, completed_at, note")
-        .eq("fiscal_year_start", selected.start)
-        .in("building_id", ids);
+        .select("id, building_id, task_key, status, completed_at, note, fiscal_year_start")
+        .in("fiscal_year_start", starts)
+        .in("building_id", buildings.map(b => b.id));
       if (error) throw error;
-      return (data || []) as TaskRow[];
+      // Nur die Paarung Haus + sein eigenes Wirtschaftsjahr behalten.
+      return ((data || []) as any[]).filter(
+        r => passend.has(`${r.building_id}:${r.fiscal_year_start}`)
+      ) as TaskRow[];
     },
     enabled: open && buildings.length > 0,
   });
@@ -124,15 +159,17 @@ export const AnnualCycleDashboardWidget = () => {
               <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                 {open && (
                   <Select
-                    value={selected.start}
-                    onValueChange={(v) => setSelected(fiscalYears.find(f => f.start === v)!)}
+                    value={String(yearIndex)}
+                    onValueChange={(v) => setYearIndex(Number(v))}
                   >
                     <SelectTrigger className="h-8 w-[160px] text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {fiscalYears.map(fy => (
-                        <SelectItem key={fy.start} value={fy.start}>{fy.label}</SelectItem>
+                      {jahresLabels.map((fy, i) => (
+                        <SelectItem key={fy.start} value={String(i)}>
+                          Wirtschaftsjahr {fy.label}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
