@@ -392,12 +392,16 @@ export function useUpdateTodo() {
   return useMutation({
     mutationFn: async (input: Partial<Todo> & { id: string; assignees?: string[]; building_ids?: string[] }) => {
       const { id, assignees, building_ids, ...updates } = input;
+      // completed_at nur anfassen, wenn der Status Teil der Aenderung ist.
+      // Vorher loeschte jede Teil-Aenderung (etwa nur der Titel) das
+      // Erledigt-Datum einer schon erledigten Aufgabe.
+      const patch: any = { ...updates };
+      if (updates.status !== undefined) {
+        patch.completed_at = updates.status === 'done' ? new Date().toISOString() : null;
+      }
       const { data, error } = await supabase
         .from('todos')
-        .update({
-          ...updates,
-          completed_at: updates.status === 'done' ? new Date().toISOString() : null,
-        } as any)
+        .update(patch)
         .eq('id', id)
         .select()
         .single();
@@ -774,3 +778,65 @@ export const statusLabels: Record<string, string> = {
   in_progress: 'In Bearbeitung',
   done: 'Erledigt',
 };
+
+
+/**
+ * Ein einzelnes Feld aendern, dort wo es steht.
+ *
+ * Bewusst schmaler als useUpdateTodo: kein Status, keine Zuweisungen, keine
+ * Gebaeudeverknuepfungen — nur genau die uebergebenen Felder. So kann das
+ * Aendern einer Ueberschrift nichts anderes umwerfen.
+ */
+export function usePatchTodo() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { id: string; patch: Record<string, unknown> }) => {
+      const { error } = await supabase
+        .from('todos')
+        .update(input.patch as any)
+        .eq('id', input.id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, input) => {
+      queryClient.invalidateQueries({ queryKey: ['todo', input.id] });
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: ['todo-verlauf', input.id] });
+      queryClient.invalidateQueries({ queryKey: ['board-pins'] });
+      queryClient.invalidateQueries({ queryKey: ['board-supply'] });
+      queryClient.invalidateQueries({ queryKey: ['case-todos'] });
+    },
+    onError: (error: Error) =>
+      toast({ title: 'Nicht gespeichert', description: error.message, variant: 'destructive' }),
+  });
+}
+
+/** Die Gebaeude einer Aufgabe setzen (Mehrfachauswahl). */
+export function useSetTodoBuildings() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { id: string; buildingIds: string[] }) => {
+      await supabase.from('todo_buildings').delete().eq('todo_id', input.id);
+      if (input.buildingIds.length > 0) {
+        const { error } = await supabase.from('todo_buildings').insert(
+          input.buildingIds.map(buildingId => ({ todo_id: input.id, building_id: buildingId }))
+        );
+        if (error) throw error;
+      }
+      const { error: e2 } = await supabase
+        .from('todos')
+        .update({ building_id: input.buildingIds[0] ?? null } as any)
+        .eq('id', input.id);
+      if (e2) throw e2;
+    },
+    onSuccess: (_d, input) => {
+      queryClient.invalidateQueries({ queryKey: ['todo', input.id] });
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: ['board-pins'] });
+      queryClient.invalidateQueries({ queryKey: ['board-supply'] });
+    },
+    onError: (error: Error) =>
+      toast({ title: 'Nicht gespeichert', description: error.message, variant: 'destructive' }),
+  });
+}
