@@ -12,8 +12,10 @@
 //     nicht, jeder Klick landete auf NotFound
 //   - Empfaenger waren nur todo_assignees, das Feld todos.assigned_to wurde
 //     ignoriert
-//   - der Rollen-Fallback las aus user_roles; diese Tabelle existiert nicht,
-//     die Rollen stehen in profiles
+//   - bei E-Mails gab es einen Rollen-Fallback: hatte ein Postfach keine
+//     Abonnenten, meldete es an alle Admins und Mitarbeiter. Damit klingelte
+//     die Glocke bei Postfaechern, die niemand abonniert hatte. E-Mails gehen
+//     jetzt ausschliesslich an die Abonnenten des jeweiligen Postfachs.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -95,25 +97,6 @@ async function getInboxFolderId(): Promise<string | null> {
   return data?.id ?? null;
 }
 
-async function getFallbackInternalUserIds(): Promise<string[]> {
-  // Alle Admins und Mitarbeiter. Die Rollen stehen in profiles - eine
-  // Tabelle user_roles gibt es in diesem Projekt nicht.
-  const { data: roles } = await supabase
-    .from("profiles")
-    .select("user_id, role")
-    .in("role", ["admin", "employee"]);
-  const ids = Array.from(new Set((roles ?? []).map((r: any) => r.user_id).filter(Boolean)));
-  if (!ids.length) return [];
-  const { data: prefs } = await supabase
-    .from("notification_preferences")
-    .select("user_id, email_enabled")
-    .in("user_id", ids);
-  const disabled = new Set(
-    (prefs ?? []).filter((p: any) => p.email_enabled === false).map((p: any) => p.user_id),
-  );
-  return ids.filter((id) => !disabled.has(id));
-}
-
 async function notifyEmails() {
   const inboxId = await getInboxFolderId();
   if (!inboxId) {
@@ -133,20 +116,31 @@ async function notifyEmails() {
 
   if (!emails?.length) return;
 
-  // Cache fallback users once per run
-  let fallbackUsers: string[] | null = null;
+  // Wer welches Postfach abonniert hat - einmal je Lauf, nicht je Mail.
+  const abonnenten = new Map<string, string[]>();
+  const konten = Array.from(
+    new Set(emails.map((m: any) => m.account_id).filter(Boolean)),
+  ) as string[];
+  if (konten.length) {
+    const { data: subs } = await supabase
+      .from("email_account_subscriptions")
+      .select("account_id, user_id")
+      .in("account_id", konten);
+    (subs ?? []).forEach((s: any) => {
+      if (!s.account_id || !s.user_id) return;
+      const liste = abonnenten.get(s.account_id) ?? [];
+      liste.push(s.user_id);
+      abonnenten.set(s.account_id, liste);
+    });
+  }
 
   for (const mail of emails) {
     if (!mail.account_id) continue;
-    const { data: subs } = await supabase
-      .from("email_account_subscriptions")
-      .select("user_id")
-      .eq("account_id", mail.account_id);
-    let user_ids = subs?.map((s) => s.user_id).filter(Boolean) ?? [];
-    if (!user_ids.length) {
-      if (fallbackUsers === null) fallbackUsers = await getFallbackInternalUserIds();
-      user_ids = fallbackUsers;
-    }
+    // Nur Abonnenten. Frueher bekamen bei einem Postfach ohne Abonnenten
+    // ALLE Admins und Mitarbeiter die Meldung - damit klingelte die Glocke
+    // bei Postfaechern, die man nie abonniert hatte. Ein Abonnement, das
+    // auch ohne Abonnement meldet, ist keines.
+    const user_ids = abonnenten.get(mail.account_id) ?? [];
     if (!user_ids.length) continue;
 
     const sender = mail.from_name || mail.from_address || "Unbekannt";
