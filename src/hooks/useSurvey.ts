@@ -529,6 +529,15 @@ export function useSurveyAuswertung(surveyId?: string, buildingId?: string) {
       const { data: totalRow } = await (supabase as any).rpc("building_total_mea", { _building: buildingId });
       const totalMea = Number(totalRow ?? 0);
 
+      // Wie viele Eigentümer hat das Gebäude überhaupt? (Ein Eigentümer mit
+      // mehreren Einheiten zählt einmal.)
+      const { data: eig } = await (supabase as any)
+        .from("contact_building_assignments")
+        .select("contact_id")
+        .eq("building_id", buildingId)
+        .eq("role_in_building", "eigentuemer");
+      const eigentuemerGesamt = new Set(((eig || []) as any[]).map((r) => r.contact_id)).size;
+
       // Beteiligung: die meisten Teilnehmer an einem einzelnen Punkt.
       let teilnehmendeMea = 0;
       let teilnehmendeKoepfe = 0;
@@ -541,6 +550,7 @@ export function useSurveyAuswertung(surveyId?: string, buildingId?: string) {
         items,
         proPunkt,
         totalMea,
+        eigentuemerGesamt,
         teilnehmendeMea,
         teilnehmendeKoepfe,
         beteiligungPct: prozent(teilnehmendeMea, totalMea),
