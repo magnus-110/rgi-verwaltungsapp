@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,6 +25,7 @@ import { CaseDirectionIcon, beschreibeHerkunft } from '@/components/cases/CaseDi
 import { SnoozePopover } from '@/components/cases/SnoozePopover';
 import { usePinToWall } from '@/hooks/useBoardPins';
 import { formatDateDe } from '@/hooks/useBoardPins';
+import { TodoDialog } from '@/components/todos/TodoDialog';
 
 /** Wie viele Zeilen je Gruppe zunächst sichtbar sind. */
 const ERSTE_ZEILEN = 4;
@@ -73,6 +74,7 @@ export default function Vorgaenge() {
   const [statusWahl, setStatusWahl] = useState<StatusWahl>('durchsicht');
   const [gebaeude, setGebaeude] = useState('');
   const [kategorie, setKategorie] = useState('');
+  const [neueAufgabe, setNeueAufgabe] = useState(false);
 
   const [offeneGruppen, setOffeneGruppen] = useState<Record<string, boolean>>({
     ueber_3_monate: true,
@@ -82,12 +84,36 @@ export default function Vorgaenge() {
 
   const heute = new Date().toISOString().slice(0, 10);
 
-  /** Die Auswahllisten ergeben sich aus dem Bestand, nicht aus einer festen Liste. */
+  /**
+   * Die Gebaeude — mit der Zahl der Vorgaenge, die beim aktuellen Status
+   * uebrig bleiben. Erst das Haus waehlen, dann hinsehen: so arbeitet man
+   * eine Liegenschaft ab, statt zwischen dreiundzwanzig zu springen.
+   */
   const gebaeudeListe = useMemo(() => {
-    const namen = new Set<string>();
-    faelle.forEach(c => c.building_name && namen.add(c.building_name));
-    return Array.from(namen).sort((a, b) => a.localeCompare(b, 'de'));
-  }, [faelle]);
+    const zaehler = new Map<string, number>();
+    faelle.forEach(c => {
+      if (!c.building_name) return;
+      if (statusWahl === 'durchsicht' && !istInDurchsicht(c, heute)) return;
+      if (statusWahl === 'offen' && !OFFENE_STATUS.includes(c.status)) return;
+      if (statusWahl === 'ruhend' && !(c.snooze_until && c.snooze_until > heute)) return;
+      if (statusWahl === 'erledigt' && !['resolved', 'archived'].includes(c.status)) return;
+      zaehler.set(c.building_name, (zaehler.get(c.building_name) ?? 0) + 1);
+    });
+    return Array.from(zaehler.entries())
+      .map(([name, anzahl]) => ({ name, anzahl }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  }, [faelle, statusWahl, heute]);
+
+  const gesamtImStatus = useMemo(
+    () => gebaeudeListe.reduce((n, g) => n + g.anzahl, 0),
+    [gebaeudeListe]
+  );
+
+  /** Zum gewaehlten Gebaeudenamen die Kennung — die braucht eine neue Aufgabe. */
+  const gebaeudeId = useMemo(
+    () => (gebaeude ? faelle.find(c => c.building_name === gebaeude)?.building_id ?? null : null),
+    [faelle, gebaeude]
+  );
 
   const kategorieListe = useMemo(() => {
     const keys = new Set<string>();
@@ -186,11 +212,26 @@ export default function Vorgaenge() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-[17px] font-semibold text-foreground">Vorgänge</h1>
-        <p className="mt-0.5 text-[12.5px] text-muted-foreground">
-          Sortiert nach Stille · letzte Bewegung aus Mail, Notiz oder Telefon
-        </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <div>
+          <h1 className="text-[17px] font-semibold text-foreground">Vorgänge</h1>
+          <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+            Sortiert nach Stille · letzte Bewegung aus Mail, Notiz oder Telefon
+          </p>
+        </div>
+        {/*
+          Aufgabe zum gewaehlten Haus: das Gebaeude oben ist ohnehin schon
+          gewaehlt, also wird es gleich uebernommen.
+        */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+          onClick={() => setNeueAufgabe(true)}
+        >
+          <Plus className="mr-1.5 h-4 w-4" />
+          {gebaeude ? `Aufgabe für ${gebaeude}` : 'Aufgabe schreiben'}
+        </Button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -202,6 +243,47 @@ export default function Vorgaenge() {
 
       {/* Suche und Filter */}
       <div className="space-y-2.5 rounded-[11px] border border-border bg-card p-3.5">
+        {/*
+          Das Gebaeude steht ganz oben und nicht in einer Auswahlliste: man
+          arbeitet eine Liegenschaft ab, nicht einen Querschnitt.
+        */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setGebaeude('')}
+            className={`h-8 rounded-full border px-3 text-[12px] font-medium transition-colors ${
+              gebaeude === ''
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-background text-foreground hover:bg-muted'
+            }`}
+          >
+            Alle Gebäude
+            <span className={gebaeude === '' ? 'ml-1.5 opacity-80' : 'ml-1.5 text-muted-foreground'}>
+              {gesamtImStatus}
+            </span>
+          </button>
+          {gebaeudeListe.map(g => {
+            const aktiv = gebaeude === g.name;
+            return (
+              <button
+                key={g.name}
+                type="button"
+                onClick={() => setGebaeude(aktiv ? '' : g.name)}
+                className={`h-8 rounded-full border px-3 text-[12px] font-medium transition-colors ${
+                  aktiv
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-background text-foreground hover:bg-muted'
+                }`}
+              >
+                {g.name}
+                <span className={aktiv ? 'ml-1.5 opacity-80' : 'ml-1.5 text-muted-foreground'}>
+                  {g.anzahl}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -233,20 +315,6 @@ export default function Vorgaenge() {
             {STATUS_WAHL.map(([key, label]) => (
               <option key={key} value={key}>
                 {label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={gebaeude}
-            onChange={e => setGebaeude(e.target.value)}
-            className={auswahlKlasse}
-            aria-label="Gebäude"
-          >
-            <option value="">Alle Gebäude</option>
-            {gebaeudeListe.map(n => (
-              <option key={n} value={n}>
-                {n}
               </option>
             ))}
           </select>
@@ -487,6 +555,14 @@ export default function Vorgaenge() {
           )}
         </div>
       )}
+
+      <TodoDialog
+        open={neueAufgabe}
+        onOpenChange={setNeueAufgabe}
+        mode="create"
+        vorbelegung={{ buildingId: gebaeudeId }}
+      />
+
     </div>
   );
 }
