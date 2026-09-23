@@ -325,7 +325,7 @@ export function AufgabeBlatt({
               initialFocus
               locale={de}
             />
-            <div className="border-t border-border p-2">
+            <div className="w-0 min-w-full border-t border-border p-2">
               <p className="px-1 pb-2 text-[11.5px] leading-snug text-muted-foreground">
                 Nur setzen, wenn das Datum eine echte Konsequenz hat.
               </p>
