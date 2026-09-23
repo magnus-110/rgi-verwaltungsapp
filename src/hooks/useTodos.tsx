@@ -25,6 +25,9 @@ export interface Todo {
   recurrence_interval: number | null;
   recurrence_end_date: string | null;
   parent_todo_id: string | null;
+  /** Vorgang, zu dem die Aufgabe gehoert. Beim Erledigen entsteht daraus ein
+   *  Eintrag im Verlauf des Vorgangs (Ausloeser in der Datenbank). */
+  case_id: string | null;
   // Joined fields
   category?: TodoCategory;
   assigned_user?: { first_name: string; last_name: string; email: string };
@@ -96,6 +99,7 @@ export interface CreateTodoInput {
   recurrence_end_date?: string;
   subtasks?: string[];
   attachments?: any[];
+  case_id?: string | null;
 }
 
 // Fetch all todos with filters
@@ -372,6 +376,7 @@ export function useCreateTodo() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: ['case-todos'] });
       toast({ title: 'Aufgabe erstellt', description: 'Die Aufgabe wurde erfolgreich erstellt.' });
     },
     onError: (error: Error) => {
@@ -433,6 +438,7 @@ export function useUpdateTodo() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: ['case-todos'] });
       queryClient.invalidateQueries({ queryKey: ['todo'] });
       toast({ title: 'Aufgabe aktualisiert', description: 'Die Aufgabe wurde erfolgreich aktualisiert.' });
     },
@@ -456,6 +462,7 @@ export function useSoftDeleteTodo() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: ['case-todos'] });
       queryClient.invalidateQueries({ queryKey: ['deleted-todos'] });
       toast({ title: 'Aufgabe gelöscht', description: 'Die Aufgabe wurde in den Papierkorb verschoben.' });
     },
@@ -479,6 +486,7 @@ export function useRestoreTodo() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: ['case-todos'] });
       queryClient.invalidateQueries({ queryKey: ['deleted-todos'] });
       toast({ title: 'Wiederhergestellt', description: 'Die Aufgabe wurde wiederhergestellt.' });
     },
@@ -499,6 +507,7 @@ export function useDeleteTodo() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: ['case-todos'] });
       queryClient.invalidateQueries({ queryKey: ['deleted-todos'] });
       toast({ title: 'Endgültig gelöscht', description: 'Die Aufgabe wurde endgültig gelöscht.' });
     },
