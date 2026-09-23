@@ -14,7 +14,7 @@ export interface AdminSurvey {
   status: SurveyStatus;
   opens_at: string | null;
   closes_at: string | null;
-  quorum_pct: number | null;
+  weight_by_mea: boolean;
   is_visible_to_owners: boolean;
   welcome_title: string | null;
   welcome_message: string | null;
@@ -80,7 +80,7 @@ export function useCreateSurvey() {
           is_visible_to_owners: true,
           welcome_title: "Ihre Meinung zählt",
           welcome_message:
-            "Wir möchten wissen, welche Verbesserungen Ihnen am wichtigsten sind. Sie sehen mehrere Themen – bei jedem tippen Sie einfach auf Ja, Neutral oder Nein.",
+            "Wir möchten Ihre Rückmeldung zu einigen Punkten. Das dauert nur wenige Minuten — Sie können jederzeit unterbrechen und später weitermachen.",
           end_title: "Vielen Dank für Ihre Teilnahme!",
           end_message:
             "Ihre Rückmeldung hilft uns, die nächste Eigentümerversammlung vorzubereiten. Wir werten alle Antworten aus und senden Ihnen vor der Versammlung eine Übersicht.",
@@ -151,7 +151,7 @@ export function useDuplicateSurvey() {
           title: src.title + " (Kopie)",
           description: src.description,
           status: "draft",
-          quorum_pct: src.quorum_pct,
+          weight_by_mea: src.weight_by_mea,
           is_visible_to_owners: src.is_visible_to_owners,
           welcome_title: src.welcome_title,
           welcome_message: src.welcome_message,
@@ -174,12 +174,17 @@ export function useDuplicateSurvey() {
           .insert({
             survey_id: newSurvey.id,
             position: it.position,
+            kind: it.kind,
             group_label: it.group_label,
             title: it.title,
             explanation: it.explanation,
+            answer_options: it.answer_options,
+            scale_max: it.scale_max,
+            scale_min_label: it.scale_min_label,
+            scale_max_label: it.scale_max_label,
+            is_required: it.is_required,
             cost_tier: it.cost_tier,
             is_safety: it.is_safety,
-            item_type: it.item_type,
             followup_question: it.followup_question,
             followup_options: it.followup_options,
           })
@@ -195,7 +200,7 @@ export function useDuplicateSurvey() {
             .from("survey_items")
             .update({
               depends_on_item_id: idMap.get(it.depends_on_item_id),
-              depends_on_choice: it.depends_on_choice,
+              depends_on_value: it.depends_on_value ?? it.depends_on_choice,
             })
             .eq("id", idMap.get(it.id));
         }
