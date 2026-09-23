@@ -2,6 +2,15 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  adminMenu,
+  brokerMenu,
+  istAktiv,
+  istAufgabenPfad,
+  menueFuer,
+  type MenuItem,
+} from "@/lib/adminNavigation";
+import { useBrokerModeOptional } from "@/hooks/useBrokerMode";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
@@ -13,21 +22,8 @@ import {
   LogOut,
   UserRound,
   Menu,
-  Castle,
-  BarChart3,
-  MessageCircle,
-  CheckSquare,
-  CalendarDays,
-  BookUser,
-  Landmark,
-  Mail,
-  Users,
-  CreditCard,
-  Workflow,
-  FolderKanban,
-  Briefcase,
-  KeyRound,
-  ListChecks,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 interface MobileHeaderProps {
@@ -41,36 +37,15 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
   const location = useLocation();
   const { signOut, profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const brokerMode = useBrokerModeOptional();
+
+  const istVerwaltung = userRole === 'admin' || userRole === 'employee';
+  const istMakler = !!profile?.broker_mode_enabled && brokerMode !== null;
+  /** Dieselbe Liste wie in der Seitenleiste — es gibt nur eine. */
+  const verwaltungsMenue = menueFuer(profile?.role, istMakler ? brokerMenu : adminMenu);
+  const [aufgabenOffen, setAufgabenOffen] = useState(() => istAufgabenPfad(location.pathname));
 
   const getNavigationItems = () => {
-    if (userRole === 'admin' || userRole === 'employee') {
-      const items = [
-        { icon: BarChart3, label: "Dashboard", path: '/dashboard', active: location.pathname === '/dashboard' },
-        { icon: Mail, label: "Postfach", path: '/postfach', active: location.pathname.startsWith('/postfach') },
-        { icon: Castle, label: "Gebäude", path: '/buildings', active: location.pathname.startsWith('/buildings') },
-        { icon: KeyRound, label: "Schlüssel", path: '/schluessel', active: location.pathname.startsWith('/schluessel') },
-        { icon: Landmark, label: "Buchhaltung", path: '/finanzen', active: location.pathname.startsWith('/finanzen') },
-        { icon: CreditCard, label: "Zahlungen", path: '/zahlungen', active: location.pathname.startsWith('/zahlungen') || location.pathname.startsWith('/ueberweisungen') },
-        { icon: BookUser, label: "Adressen", path: '/contacts', active: location.pathname.startsWith('/contacts') },
-        { icon: CalendarDays, label: "Kalender", path: '/calendar', active: location.pathname.startsWith('/calendar') },
-        { icon: CheckSquare, label: "Aufgaben", path: '/todos', active: location.pathname.startsWith('/todos') },
-        { icon: ClipboardList, label: "Meldungen", path: '/tickets', active: (location.pathname === '/tickets' || location.pathname.startsWith('/reports')) },
-        { icon: FolderKanban, label: "Vorgänge", path: '/tickets/vorgaenge', active: location.pathname.startsWith('/tickets/vorgaenge') },
-        { icon: Users, label: "Versammlungen", path: '/versammlungen', active: location.pathname.startsWith('/versammlungen') },
-        { icon: ListChecks, label: "Umfragen", path: '/umfragen', active: location.pathname.startsWith('/umfragen') },
-        { icon: Workflow, label: "Prozesse", path: '/prozesse', active: location.pathname.startsWith('/prozesse') },
-        { icon: Briefcase, label: "RGI Intern", path: '/rgi-intern', active: location.pathname.startsWith('/rgi-intern'), adminOnly: true },
-        { icon: Settings, label: "Einstellungen", path: '/settings', active: location.pathname.startsWith('/settings'), adminOnly: true },
-      ];
-
-      // Filter für Mitarbeiter: keine Einstellungen
-      if (userRole === 'employee') {
-        return items.filter(item => !item.adminOnly);
-      }
-      
-      return items;
-    }
-
     const baseItems = [
       { 
         icon: House, 
@@ -127,7 +102,7 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
     }
   };
 
-  const navigationItems = getNavigationItems();
+  const navigationItems = istVerwaltung ? [] : getNavigationItems();
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -221,21 +196,92 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
               <ScrollArea className="flex-1">
                 <nav className="p-4">
                   <div className="space-y-2">
-                    {navigationItems.map((item) => (
-                      <Button
-                        key={item.path}
-                        variant={item.active ? "default" : "ghost"}
-                        className={`w-full justify-start gap-3 h-12 ${
-                          item.active 
-                            ? 'bg-primary text-primary-foreground' 
-                            : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                        }`}
-                        onClick={() => handleNavigation(item.path)}
-                      >
-                        <item.icon className="w-5 h-5" />
-                        {item.label}
-                      </Button>
-                    ))}
+                    {istVerwaltung
+                      ? verwaltungsMenue.map((item: MenuItem) => {
+                          const aktiv = istAktiv(item, location.pathname);
+
+                          // „Aufgaben" hat vier Unterpunkte — wie in der
+                          // Seitenleiste, nur hier gleich aufgeklappt, sobald
+                          // man in einem davon steht.
+                          if (item.children) {
+                            return (
+                              <div key={item.title}>
+                                <Button
+                                  variant={aktiv && !aufgabenOffen ? "default" : "ghost"}
+                                  className={`w-full justify-start gap-3 h-12 ${
+                                    aktiv && !aufgabenOffen
+                                      ? 'bg-primary text-primary-foreground'
+                                      : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                                  }`}
+                                  onClick={() => setAufgabenOffen(o => !o)}
+                                  aria-expanded={aufgabenOffen}
+                                >
+                                  <item.icon className="w-5 h-5" />
+                                  <span className="flex-1 text-left">{item.title}</span>
+                                  {aufgabenOffen ? (
+                                    <ChevronDown className="w-4 h-4" />
+                                  ) : (
+                                    <ChevronRight className="w-4 h-4" />
+                                  )}
+                                </Button>
+
+                                {aufgabenOffen && (
+                                  <div className="mt-1 ml-4 space-y-1 border-l border-border pl-3">
+                                    {item.children.map((kind) => {
+                                      const kindAktiv = istAktiv(kind, location.pathname);
+                                      return (
+                                        <Button
+                                          key={kind.url}
+                                          variant={kindAktiv ? "default" : "ghost"}
+                                          className={`w-full justify-start gap-3 h-11 ${
+                                            kindAktiv
+                                              ? 'bg-primary text-primary-foreground'
+                                              : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                                          }`}
+                                          onClick={() => handleNavigation(kind.url)}
+                                        >
+                                          <kind.icon className="w-5 h-5" />
+                                          {kind.title}
+                                        </Button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <Button
+                              key={item.url}
+                              variant={aktiv ? "default" : "ghost"}
+                              className={`w-full justify-start gap-3 h-12 ${
+                                aktiv
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                              }`}
+                              onClick={() => handleNavigation(item.url)}
+                            >
+                              <item.icon className="w-5 h-5" />
+                              {item.title}
+                            </Button>
+                          );
+                        })
+                      : navigationItems.map((item) => (
+                          <Button
+                            key={item.path}
+                            variant={item.active ? "default" : "ghost"}
+                            className={`w-full justify-start gap-3 h-12 ${
+                              item.active
+                                ? 'bg-primary text-primary-foreground'
+                                : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                            }`}
+                            onClick={() => handleNavigation(item.path)}
+                          >
+                            <item.icon className="w-5 h-5" />
+                            {item.label}
+                          </Button>
+                        ))}
                   </div>
                 </nav>
               </ScrollArea>
