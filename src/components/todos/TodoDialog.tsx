@@ -30,7 +30,7 @@ interface TodoDialogProps {
   todo?: Todo | null;
   mode: 'create' | 'edit';
   /** Wird nach dem Anlegen mit der neuen Aufgaben-ID gerufen — die Pinnwand
-   *  haengt den Zettel damit gleich an die eigene Wand. */
+   *  haengt die Aufgabe damit gleich an die eigene Wand. */
   onCreated?: (todoId: string) => void;
 }
 

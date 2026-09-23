@@ -50,7 +50,7 @@ interface MenuItem {
 
 /**
  * "Aufgaben" fasst die vier Bereiche zusammen, die zusammengehören: die
- * Pinnwand mit den Zetteln, die Vorgänge, der Jahreszyklus und die
+ * Pinnwand mit den Aufgaben, die Vorgänge, der Jahreszyklus und die
  * Anleitungen. Vorher standen sie einzeln und weit auseinander in der Liste.
  */
 const adminMenu: MenuItem[] = [
@@ -301,7 +301,19 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                               <div className="relative flex-shrink-0 mr-3">
                                 <item.icon className="h-4 w-4" />
                               </div>
-                              <span className="label-text flex-1 text-left">{item.title}</span>
+                              {/*
+                                label-text setzt selbst text-foreground und
+                                ueberschreibt damit das geerbte Weiss. Auf dem
+                                orangen Grund muss die Schrift hier also noch
+                                einmal ausdruecklich weiss gesetzt werden.
+                              */}
+                              <span
+                                className={`label-text flex-1 text-left ${
+                                  gruppeAktiv && !aufgabenOffen ? "text-white" : ""
+                                }`}
+                              >
+                                {item.title}
+                              </span>
                               {aufgabenOffen ? (
                                 <ChevronDown className="h-3.5 w-3.5" />
                               ) : (
@@ -328,7 +340,13 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                                       }
                                     >
                                       <kind.icon className="h-4 w-4 flex-shrink-0 mr-3" />
-                                      <span className="label-text flex-1">{kind.title}</span>
+                                      <span
+                                        className={`label-text flex-1 ${
+                                          kindAktiv ? "text-white" : ""
+                                        }`}
+                                      >
+                                        {kind.title}
+                                      </span>
                                     </NavLink>
                                   );
                                 })}
