@@ -56,11 +56,17 @@ export function useAdminSurvey(surveyId?: string) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("surveys")
-        .select("*")
+        .select("*, survey_items(count), survey_votes(count)")
         .eq("id", surveyId)
         .maybeSingle();
       if (error) throw error;
-      return data as AdminSurvey | null;
+      if (!data) return null;
+      // Ohne diese Zahlen blieb „Veröffentlichen" immer ausgegraut.
+      return {
+        ...data,
+        item_count: data.survey_items?.[0]?.count ?? 0,
+        vote_count: data.survey_votes?.[0]?.count ?? 0,
+      } as AdminSurvey;
     },
   });
 }
