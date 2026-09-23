@@ -25,6 +25,8 @@ import { cn } from "@/lib/utils";
 import { Todo, CreateTodoInput, useCreateTodo, useUpdateTodo, useCategories, useAssignableUsers } from "@/hooks/useTodos";
 import { useAuth } from "@/hooks/useAuth";
 import { useCasesForPicker } from "@/hooks/useCaseReview";
+import { useWallPeople } from "@/hooks/useBoardWalls";
+import { usePinToWalls } from "@/hooks/useBoardPins";
 import { CategoryDialog } from "./CategoryDialog";
 import { InlineSubtasksCreator } from "./TodoSubtasks";
 import { InlineAttachmentCreator } from "./TodoAttachments";
@@ -180,6 +182,8 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated, vorbeleg
   const [vorgangSuche, setVorgangSuche] = useState('');
 
   const { data: vorgaenge = [] } = useCasesForPicker();
+  const { data: wandLeute = [] } = useWallPeople();
+  const anWaende = usePinToWalls();
 
   // Anleitungen (Prozessvorlagen) fuer die Checkliste
   const [templates, setTemplates] = useState<{ id: string; name: string }[]>([]);
@@ -304,6 +308,9 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated, vorbeleg
         );
       } else if (mode === 'create') {
         setMehr(false);
+        // Wer eine Aufgabe schreibt, macht sie meistens selbst. Wer sie
+        // jemand anderem hinlegt, tauscht die Wand in einem Klick.
+        if (user?.id) setAssignees(prev => (prev.length ? prev : [user.id]));
         // Der Entwurf aus dem Zwischenspeicher wird oben geladen; eine
         // Vorbelegung von aussen (etwa aus einem Vorgang heraus) sticht sie,
         // denn sie beschreibt, wozu diese Aufgabe gerade angelegt wird.
@@ -311,7 +318,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated, vorbeleg
         if (vorbelegung?.buildingId) setBuildingIds([vorbelegung.buildingId]);
       }
     }
-  }, [open, mode, todo, vorbelegung?.caseId, vorbelegung?.buildingId]);
+  }, [open, mode, todo, user?.id, vorbelegung?.caseId, vorbelegung?.buildingId]);
 
   const clearForm = () => {
     setTitle("");
@@ -400,6 +407,16 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated, vorbeleg
         if (newTodo && checklistTemplateId) {
           await applyChecklistTemplate(newTodo.id, checklistTemplateId, user!.id);
         }
+        // An die gewaehlten Waende haengen — auch an fremde. Die Pinnwand
+        // haengt nichts mehr selbst auf, sonst haette man zwei Quellen dafuer.
+        if (newTodo && assignees.length > 0) {
+          await anWaende.mutateAsync({
+            todoId: newTodo.id,
+            titel: title.trim(),
+            userIds: assignees,
+          });
+        }
+
         clearForm();
         onOpenChange(false);
         if (newTodo && onCreated) onCreated(newTodo.id);
@@ -461,13 +478,13 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated, vorbeleg
         : `${buildingIds.length} Gebäude`;
 
   const werText = (() => {
-    if (assignees.length === 0) return 'niemand zugewiesen';
+    if (assignees.length === 0) return 'in den Vorrat';
     if (assignees.length === 1) {
-      const u = users.find(x => x.user_id === assignees[0]);
-      if (!u) return '1 Person';
-      return assignees[0] === user?.id ? 'ich' : u.first_name || u.last_name || '1 Person';
+      if (assignees[0] === user?.id) return 'meine Wand';
+      const p = wandLeute.find(x => x.userId === assignees[0]);
+      return p ? `Wand von ${p.name.split(' ')[0]}` : '1 Wand';
     }
-    return `${assignees.length} Personen`;
+    return `${assignees.length} Wände`;
   })();
 
   const gewaehlterVorgang = vorgaenge.find(v => v.id === caseId);
@@ -586,21 +603,31 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated, vorbeleg
                   {/* Verantwortliche */}
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Chip aria-label="Verantwortliche wählen" aktiv={assignees.length > 0} icon={<Users className="h-3.5 w-3.5" />}>
+                      <Chip aria-label="Wand wählen" aktiv={assignees.length > 0} icon={<Users className="h-3.5 w-3.5" />}>
                         {werText}
                       </Chip>
                     </PopoverTrigger>
                     <PopoverContent className="w-[300px] p-2" align="start">
+                      <p className="px-2 pb-1.5 pt-1 text-[11.5px] leading-snug text-muted-foreground">
+                        An wessen Wand soll sie hängen?
+                      </p>
                       <div className="max-h-[220px] space-y-1 overflow-y-auto">
-                        {users.map((u) => (
+                        {wandLeute.map((p) => (
                           <div
-                            key={u.user_id}
+                            key={p.userId}
                             className="flex cursor-pointer items-center gap-2 rounded p-2 hover:bg-muted"
-                            onClick={() => toggleAssignee(u.user_id)}
+                            onClick={() => toggleAssignee(p.userId)}
                           >
-                            <Checkbox checked={assignees.includes(u.user_id)} />
-                            <span className="text-sm">{u.first_name} {u.last_name}</span>
-                            <span className="text-xs text-muted-foreground">({u.role})</span>
+                            <Checkbox checked={assignees.includes(p.userId)} />
+                            <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#2B2B2B] text-[9.5px] font-semibold text-white">
+                              {p.initials}
+                            </span>
+                            <span className="text-sm">
+                              {p.name}
+                              {p.userId === user?.id && (
+                                <span className="text-muted-foreground"> (du)</span>
+                              )}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -612,9 +639,13 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated, vorbeleg
                           className="mt-2 w-full"
                           onClick={() => setAssignees([])}
                         >
-                          Auswahl aufheben
+                          An keine Wand — in den Vorrat
                         </Button>
                       )}
+                      <p className="mt-2 border-t border-border pt-2 text-[11.5px] leading-snug text-muted-foreground">
+                        Wer nicht du selbst ist, bekommt eine Meldung. Ohne Wand landet die
+                        Aufgabe im Vorrat.
+                      </p>
                     </PopoverContent>
                   </Popover>
 
@@ -692,7 +723,14 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated, vorbeleg
                           <button
                             key={v.id}
                             type="button"
-                            onClick={() => setCaseId(v.id)}
+                            onClick={() => {
+                              setCaseId(v.id);
+                              // Der Vorgang weiss, um welches Haus es geht —
+                              // das muss man nicht zweimal angeben.
+                              if (v.building_id && buildingIds.length === 0) {
+                                setBuildingIds([v.building_id]);
+                              }
+                            }}
                             className={`flex w-full flex-col items-start rounded px-2 py-1.5 text-left hover:bg-muted ${
                               v.id === caseId ? 'bg-muted' : ''
                             }`}
@@ -982,14 +1020,20 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated, vorbeleg
 
           <div className="flex shrink-0 items-center gap-2.5 px-5 py-4">
             <span className="min-w-0 flex-1 text-[11.5px] text-muted-foreground">
-              {mode === 'create' && onCreated ? 'Landet sofort an deiner Wand.' : ''}
+              {mode === 'create'
+                ? assignees.length === 0
+                  ? 'Landet im Vorrat.'
+                  : assignees.length === 1 && assignees[0] === user?.id
+                    ? 'Landet sofort an deiner Wand.'
+                    : `Landet an ${werText}.`
+                : ''}
             </span>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
               Abbrechen
             </Button>
             <Button type="button" onClick={handleSubmit} disabled={!title.trim() || isPending}>
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {mode === 'create' ? (onCreated ? 'Aufhängen' : 'Anlegen') : 'Speichern'}
+              {mode === 'create' ? (assignees.length > 0 ? 'Aufhängen' : 'Anlegen') : 'Speichern'}
             </Button>
           </div>
         </DialogContent>
