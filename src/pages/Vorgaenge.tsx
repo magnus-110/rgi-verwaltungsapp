@@ -244,44 +244,37 @@ export default function Vorgaenge() {
       {/* Suche und Filter */}
       <div className="space-y-2.5 rounded-[11px] border border-border bg-card p-3.5">
         {/*
-          Das Gebaeude steht ganz oben und nicht in einer Auswahlliste: man
-          arbeitet eine Liegenschaft ab, nicht einen Querschnitt.
+          Das Gebaeude steht ganz oben und ist der erste Griff: man arbeitet
+          eine Liegenschaft ab, nicht einen Querschnitt. Als Knopfreihe waren
+          es aber dreissig Kacheln — die Zahl dahinter ist das Nuetzliche
+          daran, nicht die Flaeche. Also eine Auswahlliste, die sie mitnimmt.
         */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setGebaeude('')}
-            className={`h-8 rounded-full border px-3 text-[12px] font-medium transition-colors ${
-              gebaeude === ''
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-border bg-background text-foreground hover:bg-muted'
-            }`}
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="gebaeude-filter" className="text-[12.5px] text-muted-foreground">
+            Gebäude
+          </label>
+          <select
+            id="gebaeude-filter"
+            value={gebaeude}
+            onChange={e => setGebaeude(e.target.value)}
+            className="h-9 min-w-[240px] rounded-md border border-border bg-background px-2.5 text-[13px] font-medium text-foreground"
           >
-            Alle Gebäude
-            <span className={gebaeude === '' ? 'ml-1.5 opacity-80' : 'ml-1.5 text-muted-foreground'}>
-              {gesamtImStatus}
-            </span>
-          </button>
-          {gebaeudeListe.map(g => {
-            const aktiv = gebaeude === g.name;
-            return (
-              <button
-                key={g.name}
-                type="button"
-                onClick={() => setGebaeude(aktiv ? '' : g.name)}
-                className={`h-8 rounded-full border px-3 text-[12px] font-medium transition-colors ${
-                  aktiv
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border bg-background text-foreground hover:bg-muted'
-                }`}
-              >
-                {g.name}
-                <span className={aktiv ? 'ml-1.5 opacity-80' : 'ml-1.5 text-muted-foreground'}>
-                  {g.anzahl}
-                </span>
-              </button>
-            );
-          })}
+            <option value="">Alle Gebäude ({gesamtImStatus})</option>
+            {gebaeudeListe.map(g => (
+              <option key={g.name} value={g.name}>
+                {g.name} ({g.anzahl})
+              </option>
+            ))}
+          </select>
+          {gebaeude && (
+            <button
+              type="button"
+              onClick={() => setGebaeude('')}
+              className="text-[12.5px] text-muted-foreground hover:text-foreground hover:underline"
+            >
+              Alle zeigen
+            </button>
+          )}
         </div>
 
         <div className="relative">
