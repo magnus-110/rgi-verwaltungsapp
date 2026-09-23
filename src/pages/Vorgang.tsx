@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ChevronLeft, Clock, Paperclip } from 'lucide-react';
+import { ChevronLeft, Clock, Paperclip, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -22,9 +23,18 @@ import { CaseDirectionIcon } from '@/components/cases/CaseDirectionIcon';
 import { SnoozePopover } from '@/components/cases/SnoozePopover';
 import { usePinsForRef } from '@/hooks/useBoardWalls';
 import { usePinToWall, useUnpin, formatDateDe } from '@/hooks/useBoardPins';
-import { useCaseEmails } from '@/hooks/useCaseEmails';
+import { useCaseEmails, mailText } from '@/hooks/useCaseEmails';
 import { EmailEintrag } from '@/components/cases/EmailEintrag';
-import { TelefonatDialog } from '@/components/cases/TelefonatDialog';
+
+/** Umlaute und Gross-/Kleinschreibung beim Suchen ignorieren. */
+function normal(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/ä/g, 'ae')
+    .replace(/ö/g, 'oe')
+    .replace(/ü/g, 'ue')
+    .replace(/ß/g, 'ss');
+}
 
 function zeitpunkt(iso: string) {
   const d = new Date(iso);
@@ -67,6 +77,10 @@ export default function Vorgang() {
   const unpin = useUnpin();
 
   const [notiz, setNotiz] = useState('');
+  // Notiz oder Telefonat — dieselbe Eingabe, nur eine andere Art Eintrag.
+  const [art, setArt] = useState<'note' | 'phone'>('note');
+  const [mitWem, setMitWem] = useState('');
+  const [suche, setSuche] = useState('');
 
   /**
    * Der Verlauf, vollständig.
@@ -108,6 +122,27 @@ export default function Vorgang() {
     );
   }, [events, mails]);
 
+  /**
+   * Die Suche im Vorgang.
+   *
+   * Sie greift auch in den Wortlaut der Mails, nicht nur in Titel und Notiz —
+   * sonst fände man genau das nicht wieder, wofür man sucht.
+   */
+  const gefiltert = useMemo(() => {
+    const woerter = normal(suche.trim()).split(/\s+/).filter(Boolean);
+    if (!woerter.length) return verlauf;
+
+    return verlauf.filter(e => {
+      const mail = e.mailId ? mails?.get(e.mailId) : undefined;
+      const heuhaufen = normal(
+        [e.title, e.body, mail ? mailText(mail) : null, mail?.from_name, mail?.from_address]
+          .filter(Boolean)
+          .join(' ')
+      );
+      return woerter.every(w => heuhaufen.includes(w));
+    });
+  }, [verlauf, suche, mails]);
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -144,21 +179,6 @@ export default function Vorgang() {
         <h1 className="text-[17px] font-semibold text-foreground">{vorgang.title}</h1>
 
         <div className="ml-auto flex flex-wrap gap-2">
-          <TelefonatDialog
-            isPending={addEvent.isPending}
-            onSpeichern={t =>
-              addEvent.mutate({
-                case_id: vorgang.id,
-                event_type: 'phone',
-                title:
-                  t.richtung === 'eingehend'
-                    ? `Anruf von ${t.mitWem}`
-                    : `Telefonat mit ${t.mitWem}`,
-                body: t.worum || undefined,
-                occurred_at: new Date(t.wann).toISOString(),
-              })
-            }
-          />
           <SnoozePopover
             variant="leiste"
             snoozeUntil={vorgang.snooze_until}
@@ -219,7 +239,35 @@ export default function Vorgang() {
           )}
 
           <div className="rounded-[11px] border border-border bg-card p-4 lg:p-5">
-            <h2 className="mb-4 text-[15px] font-semibold text-foreground">Verlauf</h2>
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <h2 className="text-[15px] font-semibold text-foreground">Verlauf</h2>
+              <div className="relative ml-auto w-full sm:w-[260px]">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={suche}
+                  onChange={e => setSuche(e.target.value)}
+                  placeholder="Im Vorgang suchen …"
+                  className="h-8 pl-8 pr-8 text-[12.5px]"
+                  aria-label="Im Verlauf dieses Vorgangs suchen"
+                />
+                {suche && (
+                  <button
+                    type="button"
+                    onClick={() => setSuche('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label="Suche leeren"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {suche.trim() && (
+              <p className="mb-3 text-[12px] text-muted-foreground">
+                {gefiltert.length} von {verlauf.length} Einträgen
+              </p>
+            )}
 
             {verlauf.length === 0 && (
               <p className="text-[13px] text-muted-foreground">
@@ -227,8 +275,14 @@ export default function Vorgang() {
               </p>
             )}
 
+            {verlauf.length > 0 && gefiltert.length === 0 && (
+              <p className="text-[13px] text-muted-foreground">
+                Nichts gefunden zu „{suche.trim()}".
+              </p>
+            )}
+
             <div className="space-y-4">
-              {verlauf.map((e, i) => {
+              {gefiltert.map((e, i) => {
                 const mail = e.mailId ? mails?.get(e.mailId) : undefined;
                 return (
                   <div key={e.key} className="flex gap-3">
@@ -236,7 +290,7 @@ export default function Vorgang() {
                       <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full border border-border bg-background">
                         <CaseDirectionIcon kind={iconArt(e.eventType)} />
                       </span>
-                      {i < verlauf.length - 1 && <span className="mt-1 w-px flex-1 bg-border" />}
+                      {i < gefiltert.length - 1 && <span className="mt-1 w-px flex-1 bg-border" />}
                     </div>
 
                     <div className="min-w-0 flex-1 pb-1">
@@ -276,29 +330,83 @@ export default function Vorgang() {
               })}
             </div>
 
+            {/*
+              Notiz und Telefonat teilen sich dieselbe Eingabe. Ein Anruf ist
+              die häufigste Bewegung, die sonst nirgends landet — und ihn
+              festzuhalten soll nicht mehr Aufwand sein als eine Notiz.
+            */}
             <div className="mt-4 border-t border-border pt-4">
+              <div className="mb-2 flex gap-1.5">
+                {([
+                  ['note', 'Notiz'],
+                  ['phone', 'Telefonat'],
+                ] as ['note' | 'phone', string][]).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setArt(key)}
+                    className={`rounded-full px-3 py-1 text-[12.5px] transition-colors ${
+                      art === key
+                        ? 'bg-[#2B2B2B] text-white'
+                        : 'border border-border bg-background text-foreground hover:bg-muted'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {art === 'phone' && (
+                <Input
+                  value={mitWem}
+                  onChange={e => setMitWem(e.target.value)}
+                  placeholder="Mit wem? Name, Firma oder Nummer"
+                  className="mb-2 h-9 text-[13px]"
+                  aria-label="Gesprächspartner"
+                />
+              )}
+
               <Textarea
-                placeholder="Notiz hinzufügen …"
+                placeholder={
+                  art === 'phone'
+                    ? 'Was besprochen wurde, was vereinbart ist …'
+                    : 'Notiz hinzufügen …'
+                }
                 value={notiz}
                 onChange={e => setNotiz(e.target.value)}
                 rows={2}
                 className="text-[13px]"
               />
-              <div className="mt-2 flex justify-end">
+
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <span className="text-[11.5px] text-muted-foreground">
+                  {art === 'phone'
+                    ? 'Zählt als Bewegung — der Vorgang gilt danach nicht mehr als still.'
+                    : ''}
+                </span>
                 <Button
                   size="sm"
-                  disabled={!notiz.trim() || addEvent.isPending}
+                  disabled={
+                    addEvent.isPending ||
+                    (art === 'phone' ? !mitWem.trim() && !notiz.trim() : !notiz.trim())
+                  }
                   onClick={() => {
                     addEvent.mutate({
                       case_id: vorgang.id,
-                      event_type: 'note',
-                      title: 'Notiz',
-                      body: notiz.trim(),
+                      event_type: art,
+                      title:
+                        art === 'phone'
+                          ? mitWem.trim()
+                            ? `Telefonat mit ${mitWem.trim()}`
+                            : 'Telefonat'
+                          : 'Notiz',
+                      body: notiz.trim() || undefined,
                     });
                     setNotiz('');
+                    setMitWem('');
                   }}
                 >
-                  Notiz speichern
+                  {art === 'phone' ? 'Telefonat eintragen' : 'Notiz speichern'}
                 </Button>
               </div>
             </div>

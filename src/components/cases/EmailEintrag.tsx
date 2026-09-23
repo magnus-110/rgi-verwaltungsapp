@@ -8,9 +8,6 @@ interface EmailEintragProps {
   zusammenfassung?: string | null;
 }
 
-/** Wie viele Zeichen im zugeklappten Zustand stehen bleiben. */
-const VORSCHAU = 320;
-
 function empfaenger(mail: CaseEmail): string {
   const namen = mail.to_names?.filter(Boolean) ?? [];
   if (namen.length) return namen.join(', ');
@@ -19,18 +16,18 @@ function empfaenger(mail: CaseEmail): string {
 }
 
 /**
- * Eine E-Mail im Verlauf eines Vorgangs — mit echtem Text.
+ * Eine E-Mail im Verlauf eines Vorgangs.
  *
- * Vorher stand hier nur, was die KI daraus gemacht hat, und ein Verweis.
- * Wer den Wortlaut brauchte, musste ins Postfach wechseln und suchen. Jetzt
- * klappt man sie hier auf; der Verweis öffnet sie zusätzlich in einem neuen
- * Browsertab, damit die Akte offen bleibt.
+ * Zugeklappt: wer geschrieben hat und die Kurzfassung. Der Wortlaut kommt
+ * erst auf Klick — bei zwanzig Mails am Vorgang wäre der Verlauf sonst eine
+ * endlose Textwand, durch die man scrollen muss.
+ *
+ * Der Verweis öffnet sie zusätzlich in einem neuen Browsertab, damit die
+ * Akte offen bleibt.
  */
 export function EmailEintrag({ mail, zusammenfassung }: EmailEintragProps) {
   const [offen, setOffen] = useState(false);
   const text = mailText(mail);
-  const lang = text.length > VORSCHAU;
-  const sichtbar = offen || !lang ? text : text.slice(0, VORSCHAU).trimEnd() + ' …';
 
   return (
     <div className="mt-1.5 rounded-lg border border-border bg-muted/30 p-3">
@@ -52,30 +49,29 @@ export function EmailEintrag({ mail, zusammenfassung }: EmailEintragProps) {
         </p>
       )}
 
-      {text ? (
-        <p className="mt-2 whitespace-pre-wrap text-[12.5px] leading-relaxed text-foreground">
-          {sichtbar}
-        </p>
-      ) : (
-        <p className="mt-2 text-[12.5px] italic text-muted-foreground">
-          Zu dieser Mail ist kein Text gespeichert.
-        </p>
-      )}
+      {offen &&
+        (text ? (
+          <p className="mt-2 whitespace-pre-wrap text-[12.5px] leading-relaxed text-foreground">
+            {text}
+          </p>
+        ) : (
+          <p className="mt-2 text-[12.5px] italic text-muted-foreground">
+            Zu dieser Mail ist kein Text gespeichert.
+          </p>
+        ))}
 
       <div className="mt-2 flex flex-wrap items-center gap-3">
-        {lang && (
-          <button
-            type="button"
-            onClick={() => setOffen(o => !o)}
-            className="inline-flex items-center gap-1 text-[12px] text-primary hover:underline"
-          >
-            {offen ? (
-              <>weniger <ChevronUp className="h-3.5 w-3.5" /></>
-            ) : (
-              <>ganze E-Mail lesen <ChevronDown className="h-3.5 w-3.5" /></>
-            )}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setOffen(o => !o)}
+          className="inline-flex items-center gap-1 text-[12px] text-primary hover:underline"
+        >
+          {offen ? (
+            <>zuklappen <ChevronUp className="h-3.5 w-3.5" /></>
+          ) : (
+            <>E-Mail lesen <ChevronDown className="h-3.5 w-3.5" /></>
+          )}
+        </button>
         <a
           href={`/postfach?email=${mail.id}`}
           target="_blank"
