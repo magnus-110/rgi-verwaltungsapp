@@ -263,6 +263,7 @@ export function useCaseOverviewOne(caseId: string | null) {
 export interface CasePickerItem {
   id: string;
   title: string;
+  building_id: string | null;
   building_name: string | null;
   unit_number: string | null;
   status: string;
@@ -280,7 +281,7 @@ export function useCasesForPicker() {
     queryFn: async (): Promise<CasePickerItem[]> => {
       const { data, error } = await reviewDb
         .from('case_overview')
-        .select('id, title, building_name, unit_number, status')
+        .select('id, title, building_id, building_name, unit_number, status')
         .in('status', OFFENE_STATUS)
         .order('title');
       if (error) throw error;
