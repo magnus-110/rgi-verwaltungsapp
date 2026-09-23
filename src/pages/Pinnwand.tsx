@@ -25,7 +25,7 @@ import { BoardTeam } from '@/components/board/BoardTeam';
 /**
  * Die Pinnwand.
  *
- * Dauerhaft, nicht tagesbezogen: kein Reset über Nacht. Zettel bleiben hängen,
+ * Dauerhaft, nicht tagesbezogen: kein Reset über Nacht. Aufgaben bleiben hängen,
  * bis jemand sie abnimmt. Was hier liegt, hat ein Mensch hierher gezogen.
  */
 export default function Pinnwand() {
@@ -125,7 +125,7 @@ export default function Pinnwand() {
           <div>
             <h1 className="text-[17px] font-semibold text-foreground">Meine Wand</h1>
             <p className="mt-0.5 text-[12.5px] text-muted-foreground">
-              {wall.length} {wall.length === 1 ? 'Zettel' : 'Zettel'} · bleiben hängen, bis du sie abnimmst
+              {wall.length} {wall.length === 1 ? 'Aufgabe · bleibt' : 'Aufgaben · bleiben'} hängen, bis du sie abnimmst
             </p>
           </div>
           <Button
@@ -133,13 +133,13 @@ export default function Pinnwand() {
             className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
             onClick={() => setNoteOpen(true)}
           >
-            <Plus className="mr-1.5 h-4 w-4" /> Zettel schreiben
+            <Plus className="mr-1.5 h-4 w-4" /> Aufgabe schreiben
           </Button>
         </div>
 
         {tooMany && (
           <div className="mb-4 rounded-lg border border-[#F3CBA0] bg-[#FFF7ED] px-3.5 py-2.5 text-[12.5px] text-[#8a5417]">
-            {wall.length} Zettel an der Wand. Das ist keine Pinnwand mehr — vielleicht kann etwas zurück in den Vorrat.
+            {wall.length} Aufgaben an der Wand. Das ist keine Pinnwand mehr — vielleicht kann etwas zurück in den Vorrat.
           </div>
         )}
 

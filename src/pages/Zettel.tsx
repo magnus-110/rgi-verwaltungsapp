@@ -25,7 +25,7 @@ import { useTaskReminders, useCreateReminder, useDeleteReminder } from '@/hooks/
 import { usePinToWall, useUnpin, useCompleteNote, formatDateDe, daysSince } from '@/hooks/useBoardPins';
 
 /**
- * Der einzelne Zettel (Screen 3 des Entwurfs).
+ * Die einzelne Aufgabe (Screen 3 des Entwurfs).
  *
  * Links die Arbeit: Checkliste, Beschreibung, Anhänge, Zuruf.
  * Rechts der Zusammenhang: an welchen Wänden er hängt, wozu er gehört,
@@ -68,7 +68,7 @@ export default function Zettel() {
   if (!todo) {
     return (
       <div className="py-16 text-center">
-        <p className="text-[15px] font-medium text-foreground">Diesen Zettel gibt es nicht mehr.</p>
+        <p className="text-[15px] font-medium text-foreground">Diese Aufgabe gibt es nicht mehr.</p>
         <Button variant="outline" className="mt-4" onClick={() => navigate('/pinnwand')}>
           Zurück zur Pinnwand
         </Button>
@@ -209,7 +209,7 @@ export default function Zettel() {
 
             {andere.length > 0 && (
               <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
-                Ein Zettel, mehrere Wände. Abhaken sieht der andere sofort.
+                Eine Aufgabe, mehrere Wände. Abhaken sieht der andere sofort.
               </p>
             )}
 
