@@ -38,6 +38,17 @@ Deno.serve(async (req) => {
       })
       .join("\n");
 
+    // Die letzten fuenf Ereignisse noch einmal gesondert. Ohne das schreibt das
+    // Modell brav den ganzen Verlauf nach und der letzte Schritt geht darin
+    // unter — und genau der ist es, weswegen man die Akte aufmacht.
+    const letzte = (events || []).slice(-5);
+    const letzteText = letzte
+      .map((e) => {
+        const date = new Date(e.occurred_at).toLocaleDateString("de-DE");
+        return `[${date}] ${e.event_type}: ${e.title || ""}${e.body ? " — " + e.body.substring(0, 400) : ""}`;
+      })
+      .join("\n");
+
     const MISTRAL_API_KEY = Deno.env.get("MISTRAL_API_KEY");
     if (!MISTRAL_API_KEY) throw new Error("MISTRAL_API_KEY missing");
 
@@ -47,9 +58,17 @@ Beschreibung: ${caseRow.description || "(keine)"}
 Ereignisse chronologisch:
 ${eventsText || "(noch keine Ereignisse)"}
 
+Die juengsten Ereignisse noch einmal:
+${letzteText || "(noch keine Ereignisse)"}
+
 Antworte AUSSCHLIESSLICH als JSON-Objekt im Format:
-{ "summary": "1-2 prägnante Sätze zum aktuellen Stand (max. 280 Zeichen, KEIN Markdown, KEINE Überschriften, KEINE Sternchen)." }
-Antworte auf Deutsch in Fließtext. Nur JSON, keine Erklärung.`;
+{
+  "summary": "Worum geht es? 1-2 Saetze zur Sache selbst — wer will was, worum dreht sich der Vorgang. Max. 280 Zeichen.",
+  "last_step": "Was ist zuletzt passiert und woran haengt es jetzt? 1-2 Saetze, mit Datum, wenn eines bekannt ist. Max. 280 Zeichen."
+}
+Kein Markdown, keine Ueberschriften, keine Sternchen. Deutsch, Fliesstext.
+Wenn es noch keine Ereignisse gibt, schreibe bei last_step: "Seit dem Anlegen ist nichts passiert."
+Nur JSON, keine Erklaerung.`;
 
     const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
@@ -61,7 +80,7 @@ Antworte auf Deutsch in Fließtext. Nur JSON, keine Erklärung.`;
           { role: "user", content: prompt },
         ],
         temperature: 0.2,
-        max_tokens: 400,
+        max_tokens: 500,
         response_format: { type: "json_object" },
       }),
     });
@@ -73,9 +92,11 @@ Antworte auf Deutsch in Fließtext. Nur JSON, keine Erklärung.`;
     const result = await response.json();
     const raw: string = result.choices?.[0]?.message?.content || "{}";
     let summary = "";
+    let lastStep = "";
     try {
       const parsed = JSON.parse(raw);
       summary = (parsed.summary || "").toString().slice(0, 500);
+      lastStep = (parsed.last_step || "").toString().slice(0, 500);
     } catch (_) {
       summary = raw.slice(0, 500);
     }
@@ -105,18 +126,20 @@ Antworte auf Deutsch in Fließtext. Nur JSON, keine Erklärung.`;
     }
 
     // ai_next_steps wird bewusst nicht mehr geschrieben: Der Prompt fordert nur
-    // ein summary-Feld an, sodass hier stets eine leere Liste landete und einen
-    // vorhandenen Wert ueberschrieb. Angezeigt wird das Feld nirgends.
-    await supabase
-      .from("cases")
-      .update({
-        ai_summary: summary,
-        ai_summary_updated_at: new Date().toISOString(),
-        ai_keywords: keywords,
-      })
-      .eq("id", case_id);
+    // summary und last_step an, sodass hier stets eine leere Liste landete und
+    // einen vorhandenen Wert ueberschrieb. Angezeigt wird das Feld nirgends.
+    const update: Record<string, unknown> = {
+      ai_summary: summary,
+      ai_summary_updated_at: new Date().toISOString(),
+      ai_keywords: keywords,
+    };
+    // Nur schreiben, wenn wirklich etwas kam — sonst wuerde ein
+    // missglueckter Lauf den letzten brauchbaren Stand ausradieren.
+    if (lastStep) update.ai_last_step = lastStep;
 
-    return new Response(JSON.stringify({ success: true, summary, keywords }), {
+    await supabase.from("cases").update(update).eq("id", case_id);
+
+    return new Response(JSON.stringify({ success: true, summary, last_step: lastStep, keywords }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {

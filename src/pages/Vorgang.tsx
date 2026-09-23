@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ChevronLeft, Clock, Paperclip, Search, X } from 'lucide-react';
+import { ChevronLeft, Clock, Paperclip, RefreshCw, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   useCaseEvents,
   useAddCaseEvent,
+  useSummarizeCase,
   CASE_CATEGORY_LABEL,
   CaseCategory,
 } from '@/hooks/useCases';
@@ -73,6 +74,7 @@ export default function Vorgang() {
   const snooze = useSnoozeCase();
   const resolve = useResolveCase();
   const addEvent = useAddCaseEvent();
+  const summarize = useSummarizeCase();
   const pinToWall = usePinToWall();
   const unpin = useUnpin();
 
@@ -415,6 +417,65 @@ export default function Vorgang() {
 
         {/* Rechts */}
         <aside className="w-full space-y-4 lg:w-[340px] lg:shrink-0">
+          {/*
+            Die Kurzfassung. Ein paar Sätze zur Sache und ein paar zum letzten
+            Schritt — damit man nicht erst den ganzen Verlauf lesen muss, um zu
+            wissen, woran man ist. Sie wird auf Knopfdruck neu gebildet.
+          */}
+          <div className="rounded-[11px] border border-border bg-card p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Kurzfassung
+              </h3>
+              <button
+                type="button"
+                onClick={() => summarize.mutate(vorgang.id)}
+                disabled={summarize.isPending}
+                className="ml-auto inline-flex items-center gap-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60"
+                title="Kurzfassung neu bilden"
+              >
+                <RefreshCw className={`h-3 w-3 ${summarize.isPending ? 'animate-spin' : ''}`} />
+                {summarize.isPending ? 'liest …' : 'neu lesen'}
+              </button>
+            </div>
+
+            {vorgang.ai_summary || vorgang.ai_last_step ? (
+              <div className="space-y-3">
+                {vorgang.ai_summary && (
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Worum es geht
+                    </p>
+                    <p className="mt-0.5 text-[12.5px] leading-relaxed text-foreground">
+                      {vorgang.ai_summary}
+                    </p>
+                  </div>
+                )}
+                {vorgang.ai_last_step && (
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Zuletzt passiert
+                    </p>
+                    <p className="mt-0.5 text-[12.5px] leading-relaxed text-foreground">
+                      {vorgang.ai_last_step}
+                    </p>
+                  </div>
+                )}
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Von der KI gelesen
+                  {vorgang.ai_summary_updated_at &&
+                    `, Stand ${formatDateDe(vorgang.ai_summary_updated_at)}`}
+                  . Im Zweifel gilt der Verlauf darunter.
+                </p>
+              </div>
+            ) : (
+              <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+                Noch keine Kurzfassung. Über „neu lesen" geht die KI den Verlauf durch und fasst
+                ihn zusammen.
+              </p>
+            )}
+          </div>
+
           <div className="rounded-[11px] border border-border bg-card p-4">
             <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Aktivität, 12 Wochen
