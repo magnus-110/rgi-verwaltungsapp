@@ -1,22 +1,30 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 
 /**
  * Jahreszyklus.
  *
- * Die Matrix erzeugt keine Aufgaben von selbst. Sie bleibt Übersicht; daneben
- * stehen alle offenen Pflichten, und auf die Wand kommt nur, was jemand
- * herüberholt.
+ * Alle fünfzehn Pflichten sind Gebäudepflichten: Bankabgleich, Jahresabrechnung,
+ * TOPs abfragen, §35a — das macht man für ein Haus, nicht für dreiundzwanzig
+ * auf einmal. Die Matrix bleibt die Übersicht; gearbeitet wird je Zelle.
  *
- * Ohne Zeitfenster: kein Monat entscheidet, was angezeigt wird. Wann eine
- * Pflicht drankommt, entscheidet der Mensch.
+ * Und nicht jedes Haus rechnet nach dem Kalenderjahr ab. Sieben der
+ * dreiundzwanzig haben ein verschobenes Wirtschaftsjahr, in vier Varianten.
+ * Ein Umschalter für alle wäre also schlicht falsch.
  *
- * annual_cycle_definitions und annual_cycle_open stehen noch nicht in der
- * generierten types.ts; bis zum nächsten `npm run db:types` reicht das hier.
+ * annual_cycle_definitions steht noch nicht in der generierten types.ts; bis
+ * zum nächsten `npm run db:types` reicht das hier.
  */
 const cycleDb = supabase as any;
+
+export type CycleStatus = 'open' | 'in_progress' | 'done';
+
+export const CYCLE_STATUS_LABEL: Record<CycleStatus, string> = {
+  open: 'Offen',
+  in_progress: 'In Arbeit',
+  done: 'Erledigt',
+};
 
 export interface CycleDefinition {
   task_key: string;
@@ -24,18 +32,24 @@ export interface CycleDefinition {
   sort_order: number;
 }
 
-export interface CycleOpenRow {
+/** Ein Gebäude mit seinem Wirtschaftsjahr. */
+export interface CycleBuilding {
+  id: string;
+  name: string;
+  /** 1–12, Standard 1 (Januar). */
+  startMonth: number;
+  /** 1–28, Standard 1. */
+  startDay: number;
+}
+
+export interface CycleTask {
   id: string;
   building_id: string;
-  building_name: string | null;
   task_key: string;
-  status: string;
+  status: CycleStatus;
   fiscal_year_start: string;
   fiscal_year_end: string;
   note: string | null;
-  label: string;
-  sort_order: number;
-  on_a_wall: boolean;
 }
 
 export function useCycleDefinitions() {
@@ -52,188 +66,130 @@ export function useCycleDefinitions() {
   });
 }
 
-/** Alle offenen Zeilen. */
-export function useCycleOpen() {
+/** Die WEG-Gebäude mit ihrem Wirtschaftsjahr aus den Gebäudeinfos. */
+export function useCycleBuildings() {
   return useQuery({
-    queryKey: ['cycle-open'],
-    queryFn: async (): Promise<CycleOpenRow[]> => {
-      const { data, error } = await cycleDb.from('annual_cycle_open').select('*');
+    queryKey: ['cycle-buildings'],
+    queryFn: async (): Promise<CycleBuilding[]> => {
+      const { data, error } = await supabase
+        .from('buildings')
+        .select('id, name, fiscal_year_start_month, fiscal_year_start_day')
+        .eq('management_mode', 'weg')
+        .order('name');
       if (error) throw error;
-      return (data || []) as CycleOpenRow[];
+      return ((data || []) as any[]).map(b => ({
+        id: b.id,
+        name: b.name,
+        startMonth: b.fiscal_year_start_month ?? 1,
+        startDay: b.fiscal_year_start_day ?? 1,
+      }));
     },
   });
 }
 
-/** Der volle Stand eines Wirtschaftsjahres für die Matrix, inklusive erledigter Zeilen. */
-export function useCycleMatrix(fiscalYearStart: string) {
+/**
+ * Alle Zeilen auf einmal.
+ *
+ * Es sind gut siebenhundert; die holt man einmal und teilt sie danach im
+ * Browser auf die Blöcke auf. Sonst bräuchte jede Wirtschaftsjahr-Variante
+ * eine eigene Abfrage.
+ */
+export function useCycleTasks() {
   return useQuery({
-    queryKey: ['cycle-matrix', fiscalYearStart],
-    queryFn: async () => {
-      const [{ data: tasks, error }, { data: buildings }] = await Promise.all([
-        supabase
-          .from('annual_cycle_tasks')
-          .select('id, building_id, task_key, status, fiscal_year_end, note')
-          .eq('fiscal_year_start', fiscalYearStart),
-        supabase
-          .from('buildings')
-          .select('id, name')
-          .eq('management_mode', 'weg')
-          .order('name'),
-      ]);
+    queryKey: ['cycle-tasks'],
+    queryFn: async (): Promise<CycleTask[]> => {
+      const { data, error } = await supabase
+        .from('annual_cycle_tasks')
+        .select('id, building_id, task_key, status, fiscal_year_start, fiscal_year_end, note');
       if (error) throw error;
-      return {
-        tasks: (tasks || []) as any[],
-        buildings: (buildings || []) as { id: string; name: string }[],
-      };
+      return (data || []) as unknown as CycleTask[];
     },
   });
 }
 
-export interface BundledDuty {
-  taskKey: string;
-  label: string;
-  sortOrder: number;
-  /** Eine Zeile je Gebäude — wird zu einem Unterpunkt der einen Karte. */
-  zeilen: CycleOpenRow[];
-}
-
-/**
- * Die offenen Pflichten, gebündelt.
- *
- * Der wichtigste Punkt dieses Bildschirms: Eine Pflicht über 23 Gebäude wird
- * zu EINER Karte mit 23 Unterpunkten, nicht zu 23 Karten.
- *
- * Es wird nichts nach Datum vorsortiert. Alles Offene steht da; was dran ist,
- * sucht man sich aus.
- */
-export function useOpenDuties() {
-  const { data: rows = [], isLoading } = useCycleOpen();
-
-  const buendel: BundledDuty[] = [];
-  const map = new Map<string, BundledDuty>();
-
-  rows
-    .filter(r => !r.on_a_wall)
-    .forEach(r => {
-      let b = map.get(r.task_key);
-      if (!b) {
-        b = { taskKey: r.task_key, label: r.label, sortOrder: r.sort_order, zeilen: [] };
-        map.set(r.task_key, b);
-        buendel.push(b);
-      }
-      b.zeilen.push(r);
-    });
-
-  buendel.sort((a, b) => a.sortOrder - b.sortOrder);
-  return { buendel, isLoading, alleOffen: rows.length };
-}
-
-/**
- * Eine Pflicht als einen Zettel aufhängen: eine Aufgabe, ein Unterpunkt
- * je Gebäude. Der Unique-Index auf (source_type, source_id) sorgt dafür,
- * dass dieselbe Pflicht im selben Wirtschaftsjahr nicht zweimal entsteht.
- */
-export function usePinDutyAsNote() {
+/** Den Stand einer einzelnen Zelle setzen. */
+export function useSetCycleStatus() {
   const qc = useQueryClient();
-  const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (duty: BundledDuty) => {
-      const jahr = duty.zeilen[0]?.fiscal_year_start?.slice(0, 4) ?? '';
-      const titel = `${duty.label}${jahr ? ` ${jahr}` : ''}`;
+    mutationFn: async (input: { taskId: string; status: CycleStatus }) => {
+      const { error } = await supabase
+        .from('annual_cycle_tasks')
+        .update({
+          status: input.status,
+          completed_at: input.status === 'done' ? new Date().toISOString() : null,
+        } as any)
+        .eq('id', input.taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['cycle-tasks'] });
+      qc.invalidateQueries({ queryKey: ['board-supply'] });
+      qc.invalidateQueries({ queryKey: ['board-pins'] });
+    },
+    onError: (e: any) =>
+      toast({ title: 'Nicht geändert', description: e.message, variant: 'destructive' }),
+  });
+}
 
-      // Deterministische Quelle: dieselbe Pflicht im selben Jahr ergibt
-      // immer dieselbe Kennung.
-      const quelle = `${duty.taskKey}:${duty.zeilen[0]?.fiscal_year_start ?? ''}`;
-      const sourceId = await uuidAusText(quelle);
+/**
+ * Eine einzelne Pflicht eines Gebäudes auf die Wand heften.
+ *
+ * Angeheftet wird die Zeile selbst, keine Kopie — wer sie auf der Wand
+ * abhakt, setzt damit auch die Zelle in der Matrix auf erledigt.
+ */
+export function usePinCycleTask() {
+  const qc = useQueryClient();
 
-      const { data: vorhanden } = await supabase
-        .from('todos')
-        .select('id')
-        .eq('source_type', 'annual_cycle')
-        .eq('source_id', sourceId)
-        .maybeSingle();
-
-      let todoId = (vorhanden as any)?.id as string | undefined;
-
-      if (!todoId) {
-        const { data: todo, error } = await supabase
-          .from('todos')
-          .insert({
-            title: titel,
-            description: `${duty.zeilen.length} Gebäude · aus dem Jahreszyklus`,
-            status: 'open',
-            priority: 'medium',
-            source_type: 'annual_cycle',
-            source_id: sourceId,
-            created_by: user!.id,
-          } as any)
-          .select('id')
-          .single();
-        if (error) throw error;
-        todoId = (todo as any).id;
-
-        const punkte = duty.zeilen.map((z, i) => ({
-          todo_id: todoId,
-          title: z.building_name || 'Gebäude',
-          created_by: user!.id,
-          sort_order: i,
-        }));
-        const { error: subError } = await supabase.from('todo_subtasks').insert(punkte as any);
-        if (subError) throw subError;
-      }
-
-      // Auf die eigene Wand heften.
+  return useMutation({
+    mutationFn: async (input: { taskId: string; userId: string; titel: string }) => {
       const { data: top } = await (supabase as any)
         .from('board_pins')
         .select('sort_order')
-        .eq('user_id', user!.id)
+        .eq('user_id', input.userId)
         .eq('column_key', 'wall')
         .order('sort_order', { ascending: true })
         .limit(1);
       const nextSort = top && top.length ? Number(top[0].sort_order) - 1 : 0;
 
-      const { error: pinError } = await (supabase as any).from('board_pins').insert({
-        user_id: user!.id,
-        ref_type: 'todo',
-        ref_id: todoId,
+      const { error } = await (supabase as any).from('board_pins').insert({
+        user_id: input.userId,
+        ref_type: 'annual_cycle_task',
+        ref_id: input.taskId,
         column_key: 'wall',
         sort_order: nextSort,
-        pinned_by: user!.id,
+        pinned_by: input.userId,
       });
-      if (pinError && (pinError as any).code !== '23505') throw pinError;
-
-      return { anzahl: duty.zeilen.length, titel };
+      if (error) {
+        if ((error as any).code === '23505') throw new Error('Hängt schon an deiner Wand.');
+        throw error;
+      }
     },
-    onSuccess: res => {
+    onSuccess: (_d, input) => {
       qc.invalidateQueries({ queryKey: ['board-pins'] });
       qc.invalidateQueries({ queryKey: ['board-supply'] });
-      qc.invalidateQueries({ queryKey: ['todos'] });
-      toast({
-        title: 'Aufgehängt',
-        description: `„${res.titel}" liegt als ein Zettel mit ${res.anzahl} Punkten an deiner Wand.`,
-      });
+      qc.invalidateQueries({ queryKey: ['cycle-pins'] });
+      toast({ title: 'Aufgehängt', description: `„${input.titel}" liegt an deiner Wand.` });
     },
     onError: (e: any) =>
       toast({ title: 'Nicht aufgehängt', description: e.message, variant: 'destructive' }),
   });
 }
 
-/**
- * Aus einem Text eine feste UUID bilden, damit derselbe Ursprung immer
- * dieselbe Kennung ergibt (SHA-256, auf UUID-Form gebracht).
- */
-async function uuidAusText(text: string): Promise<string> {
-  const bytes = new TextEncoder().encode(text);
-  const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
-  const hex = Array.from(hash.slice(0, 16))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    hex.slice(12, 16),
-    hex.slice(16, 20),
-    hex.slice(20, 32),
-  ].join('-');
+/** Welche Zeilen hängen an der eigenen Wand? */
+export function useMyCyclePins(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['cycle-pins', userId],
+    enabled: !!userId,
+    queryFn: async (): Promise<Set<string>> => {
+      const { data, error } = await (supabase as any)
+        .from('board_pins')
+        .select('ref_id')
+        .eq('user_id', userId!)
+        .eq('ref_type', 'annual_cycle_task')
+        .neq('column_key', 'done');
+      if (error) throw error;
+      return new Set(((data || []) as any[]).map(p => p.ref_id as string));
+    },
+  });
 }
