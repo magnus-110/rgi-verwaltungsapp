@@ -456,6 +456,20 @@ function invalidateBoard(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ['board-supply'] });
 }
 
+/**
+ * Was sich am Vorgang aendert, wenn eine verknuepfte Aufgabe erledigt wird.
+ *
+ * Den Eintrag im Verlauf schreibt die Datenbank selbst; hier wird nur dafuer
+ * gesorgt, dass die offenen Ansichten ihn auch sehen.
+ */
+function invalidateCases(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ['case-todos'] });
+  qc.invalidateQueries({ queryKey: ['case-events'] });
+  qc.invalidateQueries({ queryKey: ['case-overview-one'] });
+  qc.invalidateQueries({ queryKey: ['case-review'] });
+  qc.invalidateQueries({ queryKey: ['case-review-stats'] });
+}
+
 /** Eine Aufgabe an die eigene (oder eine fremde) Wand heften. */
 export function usePinToWall() {
   const qc = useQueryClient();
@@ -580,9 +594,9 @@ export function useCompleteBoardItem() {
     onSuccess: () => {
       invalidateBoard(qc);
       qc.invalidateQueries({ queryKey: ['todos'] });
-      qc.invalidateQueries({ queryKey: ['case-review'] });
       qc.invalidateQueries({ queryKey: ['cycle-tasks'] });
       qc.invalidateQueries({ queryKey: ['cycle-pins'] });
+      invalidateCases(qc);
     },
     onError: (e: any) =>
       toast({ title: 'Konnte nicht erledigt werden', description: e.message, variant: 'destructive' }),
@@ -624,6 +638,7 @@ export function useCompleteNote() {
       invalidateBoard(qc);
       qc.invalidateQueries({ queryKey: ['todos'] });
       qc.invalidateQueries({ queryKey: ['todo', todoId] });
+      invalidateCases(qc);
       toast({ title: 'Erledigt', description: 'Die Aufgabe ist von der Wand.' });
     },
     onError: (e: any) =>
