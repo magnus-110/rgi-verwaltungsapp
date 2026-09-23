@@ -6,11 +6,11 @@ import { BoardItem } from '@/hooks/useBoardPins';
 import { createNotification } from '@/hooks/useNotifications';
 
 /**
- * Übergeben = den Zettel auf die Wand einer anderen Person ziehen.
+ * Übergeben = die Aufgabe auf die Wand einer anderen Person ziehen.
  *
  * Entscheidung 5 des Umsetzungsplans: Das ist das Zuweisen. Es gibt kein
  * Feld "Verantwortlicher", das jemand pflegen müsste — Zuständigkeit
- * entsteht dadurch, dass der Zettel an einer Wand hängt.
+ * entsteht dadurch, dass die Aufgabe an einer Wand hängt.
  *
  * Die Benachrichtigung schreibt die App, nicht die Datenbank: nur hier ist
  * bekannt, ob "still hinlegen" angehakt war.
@@ -21,7 +21,7 @@ export interface HandoverInput {
   targetUserId: string;
   targetName: string;
   note?: string | null;
-  /** true = ohne Meldung. Der Zettel liegt da, aber es klingelt nichts. */
+  /** true = ohne Meldung. Die Aufgabe liegt da, aber es klingelt nichts. */
   silent?: boolean;
 }
 
@@ -32,7 +32,7 @@ export function useHandoverPin() {
   return useMutation({
     mutationFn: async (input: HandoverInput) => {
       const pin = input.item.pin;
-      if (!pin) throw new Error('Dieser Zettel hängt an keiner Wand.');
+      if (!pin) throw new Error('Diese Aufgabe hängt an keiner Wand.');
       if (pin.user_id === input.targetUserId) return { zurueckgegeben: false };
 
       // Ganz nach oben auf die Zielwand.
@@ -60,7 +60,7 @@ export function useHandoverPin() {
 
       if (error) {
         if ((error as any).code === '23505') {
-          throw new Error(`Bei ${input.targetName} hängt dieser Zettel schon.`);
+          throw new Error(`Bei ${input.targetName} hängt diese Aufgabe schon.`);
         }
         throw error;
       }
@@ -76,7 +76,7 @@ export function useHandoverPin() {
         type: zurueckgegeben ? 'pin_returned' : 'pin_assigned',
         title: zurueckgegeben
           ? `${absender} hat dir zurückgelegt: ${input.item.title}`
-          : `${absender} hat dir einen Zettel hingelegt: ${input.item.title}`,
+          : `${absender} hat dir eine Aufgabe hingelegt: ${input.item.title}`,
         body: input.note?.trim() || null,
         url:
           input.item.refType === 'todo' || input.item.refType === 'maintenance'
@@ -95,7 +95,7 @@ export function useHandoverPin() {
       qc.invalidateQueries({ queryKey: ['pins-for-ref'] });
       toast({
         title: res?.zurueckgegeben ? 'Zurückgelegt' : `Bei ${input.targetName} hingelegt`,
-        description: input.silent ? 'Ohne Meldung — der Zettel liegt einfach da.' : undefined,
+        description: input.silent ? 'Ohne Meldung — die Aufgabe liegt einfach da.' : undefined,
       });
     },
     onError: (e: any) =>
@@ -104,7 +104,7 @@ export function useHandoverPin() {
 }
 
 /**
- * Zusätzlich aufhängen, ohne wegzunehmen — der Zettel hängt dann an zwei
+ * Zusätzlich aufhängen, ohne wegzunehmen — die Aufgabe hängt dann an zwei
  * Wänden. Anders als beim Übergeben behält der Absender ihn.
  */
 export function useAlsoPinToWall() {
@@ -134,7 +134,7 @@ export function useAlsoPinToWall() {
 
       if (error) {
         if ((error as any).code === '23505') {
-          throw new Error(`Bei ${input.targetName} hängt dieser Zettel schon.`);
+          throw new Error(`Bei ${input.targetName} hängt diese Aufgabe schon.`);
         }
         throw error;
       }
@@ -145,7 +145,7 @@ export function useAlsoPinToWall() {
         userId: input.targetUserId,
         actorUserId: user?.id ?? null,
         type: 'pin_assigned',
-        title: `${absender} hat dir einen Zettel hingelegt: ${input.item.title}`,
+        title: `${absender} hat dir eine Aufgabe hingelegt: ${input.item.title}`,
         body: input.note?.trim() || null,
         url:
           input.item.refType === 'todo' || input.item.refType === 'maintenance'

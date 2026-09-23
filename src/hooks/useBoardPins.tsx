@@ -29,7 +29,7 @@ export interface BoardPin {
   done_at: string | null;
 }
 
-/** Herkunft einer Karte — bestimmt Punktfarbe und Kleinschrift auf dem Zettel. */
+/** Herkunft einer Karte — bestimmt Punktfarbe und Kleinschrift auf der Aufgabe. */
 export type BoardOrigin =
   | 'vorgang'
   | 'jahreszyklus'
@@ -188,7 +188,7 @@ export function useBoardPins() {
       const cycles = (cycleRes.data || []) as any[];
       const profiles = (profilesRes.data || []) as ProfileLite[];
 
-      // Die Klarnamen der Pflichten, damit auf dem Zettel nicht
+      // Die Klarnamen der Pflichten, damit auf der Aufgabe nicht
       // "heizkostenabrechnung_beantragt" steht.
       const pflichtLabel = new Map<string, string>();
       if (cycles.length) {
@@ -455,7 +455,7 @@ function invalidateBoard(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ['board-supply'] });
 }
 
-/** Zettel an die eigene (oder eine fremde) Wand heften. */
+/** Eine Aufgabe an die eigene (oder eine fremde) Wand heften. */
 export function usePinToWall() {
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -493,7 +493,7 @@ export function usePinToWall() {
       if (error) {
         // Unique-Constraint: hängt dort schon.
         if ((error as any).code === '23505') {
-          throw new Error('Dieser Zettel hängt dort bereits.');
+          throw new Error('Diese Aufgabe hängt dort bereits.');
         }
         throw error;
       }
@@ -504,7 +504,7 @@ export function usePinToWall() {
   });
 }
 
-/** Zettel abnehmen. Die Aufgabe selbst bleibt bestehen. */
+/** Von der Wand abnehmen. Die Aufgabe selbst bleibt bestehen. */
 export function useUnpin() {
   const qc = useQueryClient();
   return useMutation({
@@ -544,7 +544,7 @@ export function useReorderPin() {
   });
 }
 
-/** Erledigt: die Quelle wird geschlossen, der Zettel rutscht in die Spalte "done". */
+/** Erledigt: die Quelle wird geschlossen, die Aufgabe rutscht in die Spalte "done". */
 export function useCompleteBoardItem() {
   const qc = useQueryClient();
   return useMutation({
@@ -589,16 +589,16 @@ export function useCompleteBoardItem() {
 }
 
 /**
- * Erledigt von der Zettel-Seite aus.
+ * Erledigt von der Aufgabenseite aus.
  *
  * Drei Dinge auf einmal, weil sie zusammengehören: die Aufgabe wird auf
- * erledigt gesetzt, der Zettel verschwindet von allen Wänden, an denen er
+ * erledigt gesetzt, die Aufgabe verschwindet von allen Wänden, an denen sie
  * hängt, und die Seite schließt sich. Sonst bliebe eine abgehakte Aufgabe
  * bei Kollegen hängen, die nie erfahren, dass sie erledigt ist.
  *
  * Die Anheftungen werden nicht gelöscht, sondern in die Spalte "done"
  * gesetzt — die Wand zeigt sie nicht mehr, aber es bleibt nachvollziehbar,
- * wer den Zettel hatte.
+ * wer die Aufgabe hatte.
  */
 export function useCompleteNote() {
   const qc = useQueryClient();
@@ -623,14 +623,14 @@ export function useCompleteNote() {
       invalidateBoard(qc);
       qc.invalidateQueries({ queryKey: ['todos'] });
       qc.invalidateQueries({ queryKey: ['todo', todoId] });
-      toast({ title: 'Erledigt', description: 'Der Zettel ist von der Wand.' });
+      toast({ title: 'Erledigt', description: 'Die Aufgabe ist von der Wand.' });
     },
     onError: (e: any) =>
       toast({ title: 'Konnte nicht erledigt werden', description: e.message, variant: 'destructive' }),
   });
 }
 
-/** "Wartet auf" — der Zettel bleibt, rutscht aber in die Leiste unten. */
+/** "Wartet auf" — die Aufgabe bleibt, rutscht aber in die Leiste unten. */
 export function useSetWaiting() {
   const qc = useQueryClient();
   return useMutation({
@@ -648,7 +648,7 @@ export function useSetWaiting() {
   });
 }
 
-/** "+ Zettel schreiben" — legt eine Aufgabe an und hängt sie sofort auf. */
+/** "+ Aufgabe schreiben" — legt eine Aufgabe an und hängt sie sofort auf. */
 export function useCreateNote() {
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -695,6 +695,6 @@ export function useCreateNote() {
       qc.invalidateQueries({ queryKey: ['todos'] });
     },
     onError: (e: any) =>
-      toast({ title: 'Zettel nicht angelegt', description: e.message, variant: 'destructive' }),
+      toast({ title: 'Aufgabe nicht angelegt', description: e.message, variant: 'destructive' }),
   });
 }
