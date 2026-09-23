@@ -4,6 +4,7 @@ import { boardDb } from '@/integrations/supabase/board';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
+import { createNotification } from '@/hooks/useNotifications';
 
 /**
  * Pinnwand-Datenschicht.
@@ -769,5 +770,75 @@ export function useDeleteSupplyTodo() {
     },
     onError: (e: any) =>
       toast({ title: 'Nicht gelöscht', description: e.message, variant: 'destructive' }),
+  });
+}
+
+
+/**
+ * Eine frisch angelegte Aufgabe direkt an eine oder mehrere Waende haengen.
+ *
+ * Bisher ging das nur ueber den Umweg: erst bei sich selbst aufhaengen, dann
+ * in der Team-Ansicht hinueberziehen. Wer weiss, wer es machen soll, soll das
+ * gleich beim Schreiben sagen koennen.
+ *
+ * Fremde Waende bekommen eine Meldung, die eigene nicht — man muss sich nicht
+ * selbst benachrichtigen.
+ */
+export function usePinToWalls() {
+  const qc = useQueryClient();
+  const { user, profile } = useAuth();
+
+  return useMutation({
+    mutationFn: async (input: { todoId: string; titel: string; userIds: string[] }) => {
+      if (input.userIds.length === 0) return;
+
+      // Je Wand ganz nach oben: was gerade hingelegt wurde, will man sehen.
+      const { data: oben } = await boardDb
+        .from('board_pins')
+        .select('user_id, sort_order')
+        .in('user_id', input.userIds)
+        .eq('column_key', 'wall');
+
+      const kleinstes = new Map<string, number>();
+      ((oben || []) as any[]).forEach(p => {
+        const bisher = kleinstes.get(p.user_id);
+        const wert = Number(p.sort_order);
+        if (bisher === undefined || wert < bisher) kleinstes.set(p.user_id, wert);
+      });
+
+      const zeilen = input.userIds.map(uid => ({
+        user_id: uid,
+        ref_type: 'todo',
+        ref_id: input.todoId,
+        column_key: 'wall',
+        sort_order: (kleinstes.get(uid) ?? 1) - 1,
+        pinned_by: user!.id,
+      }));
+
+      const { error } = await boardDb.from('board_pins').insert(zeilen);
+      if (error && (error as any).code !== '23505') throw error;
+
+      const absender =
+        [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Jemand';
+
+      for (const uid of input.userIds) {
+        if (uid === user?.id) continue;
+        await createNotification({
+          userId: uid,
+          actorUserId: user?.id ?? null,
+          type: 'pin_assigned',
+          title: `${absender} hat dir eine Aufgabe hingelegt: ${input.titel}`,
+          url: `/pinnwand/${input.todoId}`,
+          refType: 'todo',
+          refId: input.todoId,
+        });
+      }
+    },
+    onSuccess: () => {
+      invalidateBoard(qc);
+      qc.invalidateQueries({ queryKey: ['pins-for-ref'] });
+    },
+    onError: (e: any) =>
+      toast({ title: 'Nicht aufgehaengt', description: e.message, variant: 'destructive' }),
   });
 }
