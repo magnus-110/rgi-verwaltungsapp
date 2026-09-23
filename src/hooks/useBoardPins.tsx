@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { boardDb } from '@/integrations/supabase/board';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 
 /**
  * Pinnwand-Datenschicht.
@@ -696,5 +697,62 @@ export function useCreateNote() {
     },
     onError: (e: any) =>
       toast({ title: 'Aufgabe nicht angelegt', description: e.message, variant: 'destructive' }),
+  });
+}
+
+/**
+ * Eine Aufgabe aus dem Vorrat wegräumen.
+ *
+ * Sie wandert in den Papierkorb, nicht ins Nichts — und die Meldung bietet
+ * gleich das Zurückholen an. Ein Fehlklick neben dem Plus darf nichts kosten.
+ *
+ * Nur Aufgaben lassen sich so wegräumen. Vorgänge und der Jahresabschluss
+ * stehen im Vorrat, weil sie an anderer Stelle offen sind; sie hier zu
+ * löschen hiesse, an der falschen Stelle aufzuräumen.
+ */
+export function useDeleteSupplyTodo() {
+  const qc = useQueryClient();
+
+  const auffrischen = () => {
+    invalidateBoard(qc);
+    qc.invalidateQueries({ queryKey: ['todos'] });
+    qc.invalidateQueries({ queryKey: ['deleted-todos'] });
+  };
+
+  const zurueckholen = async (todoId: string) => {
+    const { error } = await supabase
+      .from('todos')
+      .update({ deleted_at: null } as any)
+      .eq('id', todoId);
+    if (error) {
+      toast({ title: 'Nicht zurückgeholt', description: error.message, variant: 'destructive' });
+      return;
+    }
+    auffrischen();
+    toast({ title: 'Wieder da', description: 'Die Aufgabe liegt zurück im Vorrat.' });
+  };
+
+  return useMutation({
+    mutationFn: async (input: { todoId: string; titel: string }) => {
+      const { error } = await supabase
+        .from('todos')
+        .update({ deleted_at: new Date().toISOString() } as any)
+        .eq('id', input.todoId);
+      if (error) throw error;
+    },
+    onSuccess: (_d, input) => {
+      auffrischen();
+      toast({
+        title: 'In den Papierkorb',
+        description: `„${input.titel}" ist aus dem Vorrat verschwunden.`,
+        action: (
+          <ToastAction altText="Aufgabe zurückholen" onClick={() => zurueckholen(input.todoId)}>
+            Rückgängig
+          </ToastAction>
+        ),
+      });
+    },
+    onError: (e: any) =>
+      toast({ title: 'Nicht gelöscht', description: e.message, variant: 'destructive' }),
   });
 }

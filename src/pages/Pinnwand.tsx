@@ -11,6 +11,7 @@ import {
   useBoardPins,
   useBoardSupply,
   useCompleteBoardItem,
+  useDeleteSupplyTodo,
   usePinToWall,
   useReorderPin,
   useSetWaiting,
@@ -45,6 +46,7 @@ export default function Pinnwand() {
   const reorder = useReorderPin();
   const complete = useCompleteBoardItem();
   const setWaiting = useSetWaiting();
+  const deleteSupplyTodo = useDeleteSupplyTodo();
 
   const mine = useMemo(
     () => allItems.filter(i => i.pin?.user_id === user?.id),
@@ -223,6 +225,7 @@ export default function Pinnwand() {
         activeKey={supplyKey}
         onSelectColumn={setSupplyKey}
         onPin={item => pinToWall.mutate({ refType: item.refType, refId: item.refId })}
+        onDelete={item => deleteSupplyTodo.mutate({ todoId: item.refId, titel: item.title })}
         isLoading={supplyLoading}
       />
 

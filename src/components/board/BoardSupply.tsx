@@ -1,4 +1,4 @@
-import { Plus, ArrowRight } from 'lucide-react';
+import { Plus, ArrowRight, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BoardItem, SupplyColumn, formatDateDe } from '@/hooks/useBoardPins';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,8 @@ interface BoardSupplyProps {
   activeKey: string;
   onSelectColumn: (key: string) => void;
   onPin: (item: BoardItem) => void;
+  /** Nur für Aufgaben — Vorgänge und Jahresabschluss lassen sich hier nicht wegräumen. */
+  onDelete?: (item: BoardItem) => void;
   isLoading?: boolean;
 }
 
@@ -16,7 +18,7 @@ interface BoardSupplyProps {
  * Der Vorrat. Er füllt sich von selbst — die Wand nicht.
  * Deshalb steht hier nur ein "+"-Knopf und kein Automatismus.
  */
-export function BoardSupply({ columns, activeKey, onSelectColumn, onPin, isLoading }: BoardSupplyProps) {
+export function BoardSupply({ columns, activeKey, onSelectColumn, onPin, onDelete, isLoading }: BoardSupplyProps) {
   const active = columns.find(c => c.key === activeKey) || columns[0];
 
   return (
@@ -63,7 +65,7 @@ export function BoardSupply({ columns, activeKey, onSelectColumn, onPin, isLoadi
           active?.items.map(item => (
             <div
               key={`${item.refType}:${item.refId}`}
-              className="flex items-start gap-2 rounded-lg border border-border bg-background px-3 py-2.5"
+              className="group flex items-start gap-2 rounded-lg border border-border bg-background px-3 py-2.5"
             >
               <div className="min-w-0 flex-1">
                 <div className="text-[13.5px] font-medium leading-snug text-foreground">{item.title}</div>
@@ -73,6 +75,18 @@ export function BoardSupply({ columns, activeKey, onSelectColumn, onPin, isLoadi
                     .join(' · ') || 'ohne Termin'}
                 </div>
               </div>
+              {onDelete && item.refType === 'todo' && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 text-muted-foreground opacity-45 transition-opacity hover:text-[#B4472B] hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
+                  onClick={() => onDelete(item)}
+                  aria-label={`"${item.title}" in den Papierkorb legen`}
+                  title="In den Papierkorb"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
               {item.linkTo ? (
                 <Button
                   asChild
