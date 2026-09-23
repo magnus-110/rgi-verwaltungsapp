@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ChevronLeft, Clock, Paperclip, RefreshCw, Search, X } from 'lucide-react';
+import { Check, ChevronLeft, Circle, Clock, Paperclip, Plus, RefreshCw, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,8 @@ import { usePinsForRef } from '@/hooks/useBoardWalls';
 import { usePinToWall, useUnpin, formatDateDe } from '@/hooks/useBoardPins';
 import { useCaseEmails, mailText } from '@/hooks/useCaseEmails';
 import { EmailEintrag } from '@/components/cases/EmailEintrag';
+import { useCaseTodos } from '@/hooks/useCaseTodos';
+import { TodoDialog } from '@/components/todos/TodoDialog';
 
 /** Umlaute und Gross-/Kleinschreibung beim Suchen ignorieren. */
 function normal(text: string): string {
@@ -70,6 +72,7 @@ export default function Vorgang() {
   const { data: wochen = [] } = useCaseActivityWeeks(id ?? null);
   const { data: pins = [] } = usePinsForRef('case', id ?? null);
   const { data: mails } = useCaseEmails(id ?? null);
+  const { data: aufgaben = [] } = useCaseTodos(id ?? null);
 
   const snooze = useSnoozeCase();
   const resolve = useResolveCase();
@@ -83,6 +86,7 @@ export default function Vorgang() {
   const [art, setArt] = useState<'note' | 'phone'>('note');
   const [mitWem, setMitWem] = useState('');
   const [suche, setSuche] = useState('');
+  const [neueAufgabe, setNeueAufgabe] = useState(false);
 
   /**
    * Der Verlauf, vollständig.
@@ -476,6 +480,75 @@ export default function Vorgang() {
             )}
           </div>
 
+          {/*
+            Die Aufgaben zu diesem Vorgang. Der Verlauf zeigt, was erledigt
+            wurde; hier steht auch, was noch aussteht — sonst sieht ein
+            Vorgang still aus, obwohl jemand längst daran sitzt.
+          */}
+          <div className="rounded-[11px] border border-border bg-card p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Aufgaben
+              </h3>
+              <button
+                type="button"
+                onClick={() => setNeueAufgabe(true)}
+                className="ml-auto inline-flex items-center gap-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <Plus className="h-3 w-3" /> neue Aufgabe
+              </button>
+            </div>
+
+            {aufgaben.length === 0 ? (
+              <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+                Keine Aufgabe zu diesem Vorgang. Was hier angelegt wird, steht beim Erledigen
+                von selbst im Verlauf.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {aufgaben.map(a => {
+                  const erledigt = a.status === 'done';
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => navigate(`/pinnwand/${a.id}`)}
+                      className="flex w-full items-start gap-2 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-muted"
+                    >
+                      <span className="mt-[3px] shrink-0">
+                        {erledigt ? (
+                          <Check className="h-3.5 w-3.5 text-[#6B8A55]" />
+                        ) : (
+                          <Circle className="h-3.5 w-3.5 text-muted-foreground" />
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span
+                          className={`block text-[13px] leading-snug ${
+                            erledigt ? 'text-muted-foreground line-through' : 'text-foreground'
+                          }`}
+                        >
+                          {a.title}
+                        </span>
+                        <span className="block text-[11.5px] text-muted-foreground">
+                          {erledigt
+                            ? a.completed_at
+                              ? `erledigt ${formatDateDe(a.completed_at)}`
+                              : 'erledigt'
+                            : a.waende.length > 0
+                              ? `bei ${a.waende.map(w => w.name.split(' ')[0]).join(', ')}`
+                              : a.due_date
+                                ? `fällig ${formatDateDe(a.due_date)}`
+                                : 'an keiner Wand'}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           <div className="rounded-[11px] border border-border bg-card p-4">
             <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Aktivität, 12 Wochen
@@ -530,6 +603,13 @@ export default function Vorgang() {
           </div>
         </aside>
       </div>
+
+      <TodoDialog
+        open={neueAufgabe}
+        onOpenChange={setNeueAufgabe}
+        mode="create"
+        vorbelegung={{ caseId: vorgang.id, buildingId: vorgang.building_id }}
+      />
     </div>
   );
 }
