@@ -292,7 +292,8 @@ Deno.serve(async (req) => {
       const ja = isMea ? fmtMea(meaJa) : String(koepfeJa);
       const nein = isMea ? fmtMea(meaNein) : String(koepfeNein);
       const enthaltung = isMea ? fmtMea(meaEnth) : String(koepfeEnth);
-      const hatBeschluss = !!(it.resolution_text && it.resolution_text.trim().length > 0);
+      const keinBeschluss = it.requires_resolution === false;
+      const hatBeschluss = !keinBeschluss && !!(it.resolution_text && it.resolution_text.trim().length > 0);
       const hatNotizen = !!(it.admin_notes && it.admin_notes.trim().length > 0);
       return {
         nummer: String(idx + 1),
@@ -301,17 +302,20 @@ Deno.serve(async (req) => {
         kategorie: it.category || "",
         status: it.status || "",
         hat_beschluss: hatBeschluss,
-        beschluss_text: it.resolution_text || "",
-        abstimmung_methode: buildAbstimmungsMethode(it.voting_principle),
-        ja, nein, enthaltung,
-        ja_koepfe: String(koepfeJa),
-        nein_koepfe: String(koepfeNein),
-        enth_koepfe: String(koepfeEnth),
-        ja_mea: fmtMea(meaJa),
-        nein_mea: fmtMea(meaNein),
-        enth_mea: fmtMea(meaEnth),
-        gesamt_mea: fmtMea(meaGesamt),
-        ergebnis_satz: buildErgebnisSatz(koepfeJa, koepfeNein, koepfeEnth, it.result),
+        kein_beschluss: keinBeschluss,
+        beschluss_text: hatBeschluss ? (it.resolution_text || "") : "",
+        abstimmung_methode: keinBeschluss ? "" : buildAbstimmungsMethode(it.voting_principle),
+        ja: keinBeschluss ? "" : ja,
+        nein: keinBeschluss ? "" : nein,
+        enthaltung: keinBeschluss ? "" : enthaltung,
+        ja_koepfe: keinBeschluss ? "" : String(koepfeJa),
+        nein_koepfe: keinBeschluss ? "" : String(koepfeNein),
+        enth_koepfe: keinBeschluss ? "" : String(koepfeEnth),
+        ja_mea: keinBeschluss ? "" : fmtMea(meaJa),
+        nein_mea: keinBeschluss ? "" : fmtMea(meaNein),
+        enth_mea: keinBeschluss ? "" : fmtMea(meaEnth),
+        gesamt_mea: keinBeschluss ? "" : fmtMea(meaGesamt),
+        ergebnis_satz: keinBeschluss ? "" : buildErgebnisSatz(koepfeJa, koepfeNein, koepfeEnth, it.result),
         hat_notizen: hatNotizen,
         notizen: it.admin_notes || "",
       };
