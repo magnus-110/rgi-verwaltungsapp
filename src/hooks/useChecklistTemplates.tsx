@@ -101,7 +101,7 @@ export async function applyChecklistTemplate(
   return neu.length;
 }
 
-/** Eine Anleitung nachträglich auf einen bestehenden Zettel anwenden. */
+/** Eine Anleitung nachträglich auf eine bestehende Aufgabe anwenden. */
 export function useApplyChecklistTemplate() {
   const qc = useQueryClient();
 
@@ -123,7 +123,7 @@ export function useApplyChecklistTemplate() {
         description:
           anzahl > 0
             ? `${anzahl} ${anzahl === 1 ? 'Punkt' : 'Punkte'} zur Checkliste hinzugefügt.`
-            : 'Alle Punkte dieser Anleitung stehen schon auf dem Zettel.',
+            : 'Alle Punkte dieser Anleitung stehen schon auf der Aufgabe.',
       });
     },
     onError: (e: any) =>

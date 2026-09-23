@@ -22,7 +22,7 @@ interface HandoverDialogProps {
   target: HandoverTarget | null;
   onCancel: () => void;
   onConfirm: (note: string | null, silent: boolean) => void;
-  /** Bei "auch aufhängen" bleibt der Zettel zusätzlich beim Absender. */
+  /** Bei "auch aufhängen" bleibt die Aufgabe zusätzlich beim Absender. */
   modus?: 'uebergeben' | 'zusaetzlich';
 }
 
@@ -86,7 +86,7 @@ export function HandoverDialog({ target, onCancel, onConfirm, modus = 'uebergebe
                 Still hinlegen — keine Benachrichtigung
               </Label>
               <p className="mt-0.5 text-[12px] text-muted-foreground">
-                {vorname} findet den Zettel beim nächsten Blick auf die eigene Wand.
+                {vorname} findet die Aufgabe beim nächsten Blick auf die eigene Wand.
               </p>
             </div>
           </div>

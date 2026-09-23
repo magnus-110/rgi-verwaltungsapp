@@ -22,7 +22,7 @@ export function BoardSupply({ columns, activeKey, onSelectColumn, onPin, isLoadi
   return (
     <aside className="flex w-full flex-col border-t border-border bg-card p-4 lg:w-[368px] lg:shrink-0 lg:border-l lg:border-t-0 lg:p-5">
       <h2 className="text-[15px] font-semibold text-foreground">Vorrat</h2>
-      <p className="mt-0.5 text-[12.5px] text-muted-foreground">Spalte wählen, Zettel rüberholen</p>
+      <p className="mt-0.5 text-[12.5px] text-muted-foreground">Spalte wählen, Aufgabe rüberholen</p>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
         {columns.map(col => {

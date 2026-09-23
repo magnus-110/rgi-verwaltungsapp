@@ -94,9 +94,9 @@ export function NotificationSettings({ onBack }: NotificationSettingsProps) {
         )}
 
         <p className="mt-4 border-t border-border pt-3 text-[11.5px] leading-relaxed text-muted-foreground">
-          Beim Hinlegen eines Zettels kannst du einzeln{' '}
+          Beim Hinlegen einer Aufgabe kannst du einzeln{' '}
           <span className="font-medium text-foreground">„still hinlegen"</span> wählen — dann
-          bekommt der andere ihn ohne Meldung auf die Wand.
+          bekommt der andere sie ohne Meldung auf die Wand.
         </p>
       </div>
     </div>

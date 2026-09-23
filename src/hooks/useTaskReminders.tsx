@@ -8,7 +8,7 @@ import { toast } from '@/hooks/use-toast';
  *
  * Der Mahnungsfall aus dem Plan: Mahnung geht raus, in 14 Tagen soll jemand
  * den Zahlungseingang prüfen. Eine Frist wäre falsch — die Aufgabe läge
- * 14 Tage sichtbar im Weg. Mehrere Erinnerungen pro Zettel sind möglich.
+ * 14 Tage sichtbar im Weg. Mehrere Erinnerungen pro Aufgabe sind möglich.
  */
 
 export interface TaskReminder {

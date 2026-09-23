@@ -19,7 +19,7 @@ interface WaitingDialogProps {
 }
 
 /**
- * "Wartet auf …" — der Zettel verschwindet nicht, er rutscht nur in die
+ * "Wartet auf …" — die Aufgabe verschwindet nicht, sie rutscht nur in die
  * Leiste unten. Sonst vergisst man, worauf man eigentlich wartet.
  */
 export function WaitingDialog({ item, onOpenChange, onConfirm }: WaitingDialogProps) {
