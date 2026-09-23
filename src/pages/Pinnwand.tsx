@@ -233,7 +233,7 @@ export default function Pinnwand() {
         open={noteOpen}
         onOpenChange={setNoteOpen}
         mode="create"
-        onCreated={todoId => pinToWall.mutate({ refType: 'todo', refId: todoId })}
+        /* Aufgehaengt wird im Dialog selbst — dort steht, an welche Wand. */
       />
       <WaitingDialog
         item={waitingItem}
