@@ -14,6 +14,7 @@ import {
   FileDown,
   FileText,
   History,
+  ImageIcon,
   KeyRound,
   Plus,
   RotateCcw,
@@ -33,6 +34,7 @@ import { HouseIcon } from "@/components/buildings/keys/IconPicker";
 import { downloadFilledTagTemplate } from "@/components/buildings/keys/tagTemplate";
 import { KeyQuickFind } from "@/components/keys/KeyQuickFind";
 import { KeysSettingsTab } from "@/components/keys/KeysSettingsTab";
+import { KeyFotoDialog } from "@/components/keys/KeyFotoDialog";
 import {
   GlobalKeyTag,
   useGlobalClosingPlanFiles,
@@ -65,6 +67,8 @@ export const Keys = () => {
   const [tagDialog, setTagDialog] = useState<{ open: boolean; tag?: any; buildingId: string }>({ open: false, buildingId: "" });
   const [loanDialog, setLoanDialog] = useState<{ open: boolean; tag?: any; buildingId?: string }>({ open: false });
   const [editLoanDialog, setEditLoanDialog] = useState<{ open: boolean; loan?: any; buildingId?: string; tagNumber?: string }>({ open: false });
+  // Welcher Schluessel wurde angeklickt? Das Foto haengt am Anhaenger.
+  const [fotoFuer, setFotoFuer] = useState<string | null>(null);
 
   const { data: tags = [], isLoading } = useGlobalKeyTags();
   const { data: loans = [] } = useGlobalOpenLoans();
@@ -523,12 +527,15 @@ export const Keys = () => {
             {(selected.keys ?? []).map((k) => {
               const st = subjectTypes.find((s) => s.id === k.subject_type_id);
               const mf = manufacturers.find((m) => m.id === k.manufacturer_id);
-              return (
-                <div key={k.id} className="flex items-start gap-2 rounded border border-border/60 px-2 py-1.5">
+              const hatFoto = !!selected.photo_path;
+              const name = st?.name ?? "Schlüssel";
+
+              const inhalt = (
+                <>
                   <HouseIcon name={(st as any)?.icon} className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm">
-                      {st?.name ?? "Schlüssel"}
+                      {name}
                       {k.key_number && <span className="font-mono text-muted-foreground"> · {k.key_number}</span>}
                     </div>
                     {mf?.name && <div className="text-xs text-muted-foreground">{mf.name}</div>}
@@ -538,7 +545,33 @@ export const Keys = () => {
                       </div>
                     )}
                   </div>
-                </div>
+                  {hatFoto && (
+                    <ImageIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  )}
+                </>
+              );
+
+              // Nur anklickbar, wenn zu diesem Anhaenger ein Foto hinterlegt
+              // ist — sonst oeffnet sich ein leeres Fenster.
+              if (!hatFoto) {
+                return (
+                  <div key={k.id} className="flex items-start gap-2 rounded border border-border/60 px-2 py-1.5">
+                    {inhalt}
+                  </div>
+                );
+              }
+
+              return (
+                <button
+                  key={k.id}
+                  type="button"
+                  onClick={() => setFotoFuer(name)}
+                  title="Foto des Anhängers anzeigen"
+                  aria-label={`Foto zu „${name}" anzeigen`}
+                  className="flex w-full cursor-pointer items-start gap-2 rounded border border-border/60 px-2 py-1.5 text-left transition-colors hover:border-primary/40 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  {inhalt}
+                </button>
               );
             })}
           </div>
@@ -783,6 +816,14 @@ export const Keys = () => {
           tagNumber={editLoanDialog.tagNumber}
         />
       )}
+
+      <KeyFotoDialog
+        open={!!fotoFuer}
+        onOpenChange={(o) => !o && setFotoFuer(null)}
+        photoPath={selected?.photo_path ?? null}
+        tagNumber={selected?.tag_number ?? null}
+        schluesselName={fotoFuer}
+      />
     </div>
   );
 };
