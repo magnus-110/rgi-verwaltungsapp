@@ -17,6 +17,18 @@ export const useBrokerMode = () => {
   return ctx;
 };
 
+/**
+ * Wie useBrokerMode, nur ohne Absturz ausserhalb des Providers.
+ *
+ * Die mobile Kopfleiste steht auch auf Seiten, die nicht im AdminLayout
+ * haengen (etwa dem Chat der Mieter). Dort gibt es keinen Makler-Modus — und
+ * das ist kein Fehler, sondern der Normalfall.
+ */
+export const useBrokerModeOptional = (): BrokerMode => {
+  const ctx = useContext(BrokerModeContext);
+  return ctx?.brokerMode ?? null;
+};
+
 export const BrokerModeProvider = ({ children }: { children: ReactNode }) => {
   const [brokerMode, setBrokerModeState] = useState<BrokerMode>(() => {
     try {
