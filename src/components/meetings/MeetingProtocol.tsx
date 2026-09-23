@@ -39,7 +39,7 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
     queryFn: async () => {
       const { data, error } = await supabase
         .from("etv_agenda_items")
-        .select("id, status, resolution_text, result, yes_count, no_count, abstain_count, voting_principle, is_actionable")
+        .select("id, status, resolution_text, result, yes_count, no_count, abstain_count, voting_principle, is_actionable, requires_resolution")
         .eq("meeting_id", meetingId)
         .order("sort_order");
       if (error) throw error;
@@ -68,7 +68,7 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
 
   const saveResolutionsMutation = useMutation({
     mutationFn: async () => {
-      const items = agendaItems.filter((i: any) => i.status === "voted" && i.resolution_text);
+      const items = agendaItems.filter((i: any) => i.status === "voted" && i.resolution_text && i.requires_resolution !== false);
       const resolutions = items.map((item: any, idx: number) => ({
         meeting_id: meetingId,
         agenda_item_id: item.id,
