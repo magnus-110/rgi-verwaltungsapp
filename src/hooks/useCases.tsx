@@ -256,8 +256,13 @@ export const useSummarizeCase = () => {
     },
     onSuccess: (_d, case_id) => {
       qc.invalidateQueries({ queryKey: ["case", case_id] });
+      // Die Akte liest die Zusammenfassung aus case_overview, nicht aus cases.
+      qc.invalidateQueries({ queryKey: ["case-overview-one", case_id] });
+      qc.invalidateQueries({ queryKey: ["case-review"] });
       toast({ title: "Zusammenfassung aktualisiert" });
     },
+    onError: (e: any) =>
+      toast({ title: "Nicht aktualisiert", description: e.message, variant: "destructive" }),
   });
 };
 

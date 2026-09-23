@@ -67,6 +67,11 @@ export interface CaseOverview {
   last_subject: string | null;
   on_a_wall: boolean;
   silence_bucket: SilenceBucket;
+  /** Worum es geht — von der KI aus Titel, Beschreibung und Verlauf. */
+  ai_summary: string | null;
+  /** Was zuletzt passiert ist und woran es hängt. */
+  ai_last_step: string | null;
+  ai_summary_updated_at: string | null;
 }
 
 export const OFFENE_STATUS = ['open', 'in_progress', 'waiting_external', 'waiting_owner'];
