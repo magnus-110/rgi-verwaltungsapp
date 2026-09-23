@@ -74,7 +74,7 @@ export interface BoardItem {
   alsoOn: { userId: string; name: string; initials: string }[];
   /**
    * Gesetzt, wenn der Eintrag nicht direkt angeheftet werden kann, sondern
-   * auf einer eigenen Seite bearbeitet wird (Jahreszyklus-Buendel).
+   * auf einer eigenen Seite bearbeitet wird (Jahreszyklus).
    */
   linkTo?: string;
 }
@@ -110,6 +110,18 @@ export function formatDateDe(iso: string | null): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+/** "WJ 2025" beim Kalenderjahr, sonst "WJ 2025/26". */
+export function wirtschaftsjahr(start: string | null, ende: string | null): string {
+  if (!start) return '';
+  const a = new Date(start);
+  if (Number.isNaN(a.getTime())) return '';
+  const kalenderjahr = a.getMonth() === 0 && a.getDate() === 1;
+  if (kalenderjahr) return `WJ ${a.getFullYear()}`;
+  const b = ende ? new Date(ende) : null;
+  const zweites = b && !Number.isNaN(b.getTime()) ? b.getFullYear() : a.getFullYear() + 1;
+  return `WJ ${a.getFullYear()}/${String(zweites).slice(2)}`;
 }
 
 /** Herkunft eines Todos ableiten — es gibt kein Feld dafür, nur die Datenlage. */
@@ -162,7 +174,7 @@ export function useBoardPins() {
         cycleIds.length
           ? supabase
               .from('annual_cycle_tasks')
-              .select('id, task_key, status, fiscal_year_start, building:buildings(name)')
+              .select('id, task_key, status, fiscal_year_start, fiscal_year_end, building:buildings(name)')
               .in('id', cycleIds)
           : Promise.resolve({ data: [], error: null } as any),
         supabase
@@ -175,6 +187,16 @@ export function useBoardPins() {
       const cases = (casesRes.data || []) as any[];
       const cycles = (cycleRes.data || []) as any[];
       const profiles = (profilesRes.data || []) as ProfileLite[];
+
+      // Die Klarnamen der Pflichten, damit auf dem Zettel nicht
+      // "heizkostenabrechnung_beantragt" steht.
+      const pflichtLabel = new Map<string, string>();
+      if (cycles.length) {
+        const { data: defs } = await (supabase as any)
+          .from('annual_cycle_definitions')
+          .select('task_key, label');
+        ((defs || []) as any[]).forEach(d => pflichtLabel.set(d.task_key, d.label));
+      }
 
       // Fortschritt der Checklisten in einem Rutsch
       let subtaskByTodo = new Map<string, { done: number; total: number }>();
@@ -236,8 +258,11 @@ export function useBoardPins() {
         } else if (pin.ref_type === 'annual_cycle_task') {
           const c = cycleById.get(pin.ref_id);
           if (!c) continue;
-          title = c.task_key;
-          context = c.building?.name || null;
+          // Der Klarname der Pflicht, nicht ihr technischer Schluessel.
+          title = pflichtLabel.get(c.task_key) || c.task_key;
+          context = [c.building?.name, wirtschaftsjahr(c.fiscal_year_start, c.fiscal_year_end)]
+            .filter(Boolean)
+            .join(' · ') || null;
           origin = 'jahreszyklus';
         }
 
@@ -316,12 +341,18 @@ export function useBoardSupply() {
           .gt('silent_days', 14)
           .eq('on_a_wall', false)
           .order('silent_days', { ascending: false }),
-        // Jahreszyklus: alle offenen Pflichten. Kein Zeitfenster entscheidet
-        // mehr, was hier auftaucht — man sucht sich selbst aus, was dran ist.
+        // Jahreszyklus: je Gebaeude ein Eintrag mit der Zahl der offenen
+        // Pflichten — aber nur aus Wirtschaftsjahren, die schon vorbei sind.
+        // Einen Jahresabschluss kann man nicht fertigstellen, solange das
+        // Jahr noch laeuft; alles andere waere hier nur Rauschen.
+        //
+        // Angeheftet wird nicht hier, sondern in der Matrix: dort sieht man,
+        // welche Pflicht in welchem Jahr gemeint ist.
         (supabase as any)
           .from('annual_cycle_open')
-          .select('id, task_key, label, sort_order, building_name, on_a_wall')
-          .eq('on_a_wall', false),
+          .select('id, task_key, building_id, building_name, fiscal_year_end, on_a_wall')
+          .eq('on_a_wall', false)
+          .lt('fiscal_year_end', today),
       ]);
       if (error) throw error;
 
@@ -381,22 +412,24 @@ export function useBoardSupply() {
           alsoOn: [],
         }));
 
-      // Jahreszyklus gebuendelt: eine Pflicht ueber viele Gebaeude ist EIN
-      // Eintrag, nicht 23. Angeheftet wird er ueber die Jahreszyklus-Seite.
-      const jeTaskKey = new Map<string, { label: string; sortOrder: number; anzahl: number }>();
+      // Jahreszyklus je Gebaeude: alle fuenfzehn Pflichten sind
+      // Gebaeudepflichten. Ein Haus mit sieben offenen Punkten ist EIN
+      // Eintrag; welche Pflicht gemeint ist, entscheidet man in der Matrix.
+      const jeGebaeude = new Map<string, { name: string; anzahl: number }>();
       ((cycleRows || []) as any[]).forEach(r => {
-        const vorhanden = jeTaskKey.get(r.task_key);
+        if (!r.building_id) return;
+        const vorhanden = jeGebaeude.get(r.building_id);
         if (vorhanden) vorhanden.anzahl += 1;
-        else jeTaskKey.set(r.task_key, { label: r.label, sortOrder: r.sort_order, anzahl: 1 });
+        else jeGebaeude.set(r.building_id, { name: r.building_name || 'Gebäude', anzahl: 1 });
       });
 
-      const jahreszyklus: BoardItem[] = Array.from(jeTaskKey.entries())
-        .sort((a, b) => a[1].sortOrder - b[1].sortOrder)
-        .map(([taskKey, v]) => ({
+      const jahreszyklus: BoardItem[] = Array.from(jeGebaeude.entries())
+        .sort((a, b) => a[1].name.localeCompare(b[1].name, 'de'))
+        .map(([buildingId, v]) => ({
           refType: 'annual_cycle_task' as const,
-          refId: taskKey,
-          title: v.label,
-          context: `${v.anzahl} ${v.anzahl === 1 ? 'Gebäude' : 'Gebäude'} · als ein Zettel`,
+          refId: buildingId,
+          title: v.name,
+          context: `${v.anzahl} ${v.anzahl === 1 ? 'Pflicht offen' : 'Pflichten offen'}`,
           origin: 'jahreszyklus' as const,
           dueDate: null,
           followUpAt: null,
@@ -411,7 +444,7 @@ export function useBoardSupply() {
         { key: 'demnaechst', label: 'Demnächst', items: demnaechst },
         { key: 'ohne_termin', label: 'Ohne Termin', items: ohneTermin },
         { key: 'vorgaenge', label: 'Vorgänge', items: vorgaenge },
-        { key: 'jahreszyklus', label: 'Jahreszyklus', items: jahreszyklus },
+        { key: 'jahreszyklus', label: 'Jahresabschluss', items: jahreszyklus },
       ];
     },
   });
@@ -547,6 +580,8 @@ export function useCompleteBoardItem() {
       invalidateBoard(qc);
       qc.invalidateQueries({ queryKey: ['todos'] });
       qc.invalidateQueries({ queryKey: ['case-review'] });
+      qc.invalidateQueries({ queryKey: ['cycle-tasks'] });
+      qc.invalidateQueries({ queryKey: ['cycle-pins'] });
     },
     onError: (e: any) =>
       toast({ title: 'Konnte nicht erledigt werden', description: e.message, variant: 'destructive' }),
