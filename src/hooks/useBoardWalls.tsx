@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 import { BoardRefType, initialsOf } from '@/hooks/useBoardPins';
 
 /**
@@ -37,6 +38,69 @@ export function useWallPeople() {
         initials: initialsOf(p.first_name, p.last_name),
       }));
     },
+  });
+}
+
+/**
+ * Wessen Wand will ich nicht sehen?
+ *
+ * Rein persönlich und rein eine Frage der Ansicht: die Wand der Person bleibt,
+ * wie sie ist, sie taucht nur in der eigenen Team-Übersicht nicht mehr auf.
+ * Niemand sonst sieht, wen man ausgeblendet hat.
+ */
+export function useHiddenWalls(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['hidden-walls', userId],
+    enabled: !!userId,
+    queryFn: async (): Promise<Set<string>> => {
+      const { data, error } = await (supabase as any)
+        .from('board_hidden_walls')
+        .select('hidden_user_id')
+        .eq('user_id', userId!);
+      if (error) throw error;
+      return new Set(((data || []) as any[]).map(r => r.hidden_user_id as string));
+    },
+  });
+}
+
+/** Eine Wand ausblenden oder wieder einblenden. */
+export function useToggleHiddenWall() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: {
+      userId: string;
+      hiddenUserId: string;
+      /** true = ausblenden, false = wieder einblenden. */
+      ausblenden: boolean;
+      name: string;
+    }) => {
+      if (input.ausblenden) {
+        const { error } = await (supabase as any)
+          .from('board_hidden_walls')
+          .insert({ user_id: input.userId, hidden_user_id: input.hiddenUserId });
+        // 23505 = haengt schon drin; dann ist das Ziel ja bereits erreicht.
+        if (error && (error as any).code !== '23505') throw error;
+      } else {
+        const { error } = await (supabase as any)
+          .from('board_hidden_walls')
+          .delete()
+          .eq('user_id', input.userId)
+          .eq('hidden_user_id', input.hiddenUserId);
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_d, input) => {
+      qc.invalidateQueries({ queryKey: ['hidden-walls'] });
+      toast({
+        title: input.ausblenden ? 'Ausgeblendet' : 'Wieder da',
+        description: input.ausblenden
+          ? `${input.name} siehst du in der Team-Ansicht nicht mehr.`
+          : `${input.name} ist wieder in der Team-Ansicht.`,
+      });
+    },
+    onError: (e: any) =>
+      toast({ title: 'Nicht geändert', description: e.message, variant: 'destructive' }),
   });
 }
 

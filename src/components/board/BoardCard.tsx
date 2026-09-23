@@ -30,7 +30,7 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** Der kleine Chip unten links auf dem Zettel. */
+/** Der kleine Chip unten links auf der Aufgabe. */
 function StatusChip({ item }: { item: BoardItem }) {
   const today = todayIso();
 
@@ -78,7 +78,7 @@ export function BoardCard({ item, onOpen, onComplete, onRemove, onWaiting, compa
 
   return (
     <div
-      // Der ganze Zettel oeffnet ihn, nicht nur die Ueberschrift. Das Menue
+      // Die ganze Karte oeffnet die Aufgabe, nicht nur die Ueberschrift. Das Menue
       // und alles darin stoppt den Klick selbst.
       {...(onOpen
         ? {
@@ -91,7 +91,7 @@ export function BoardCard({ item, onOpen, onComplete, onRemove, onWaiting, compa
                 onOpen(item);
               }
             },
-            'aria-label': `Zettel „${item.title}" öffnen`,
+            'aria-label': `Aufgabe „${item.title}" öffnen`,
           }
         : {})}
       className={`group relative flex flex-col rounded-[10px] border border-[#EBE4D6] bg-[#FFFDF7] p-3.5 transition-shadow ${
@@ -118,7 +118,7 @@ export function BoardCard({ item, onOpen, onComplete, onRemove, onWaiting, compa
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                aria-label="Aktionen für diesen Zettel"
+                aria-label="Aktionen für diese Aufgabe"
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </Button>
