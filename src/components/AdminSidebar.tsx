@@ -1,30 +1,5 @@
 import React, { useState } from "react";
-import {
-  BarChart3,
-  ClipboardList,
-  ListChecks,
-  Castle,
-  Settings,
-  LogOut,
-  ToggleLeft,
-  ToggleRight,
-  CheckSquare,
-  CalendarDays,
-  BookUser,
-  Landmark,
-  Mail,
-  Users,
-  CreditCard,
-  Workflow,
-  FolderKanban,
-  Briefcase,
-  Home,
-  KeyRound,
-  StickyNote,
-  CalendarRange,
-  ChevronDown,
-  ChevronRight,
-} from "lucide-react";
+import { LogOut, ToggleLeft, ToggleRight, ChevronDown, ChevronRight } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -38,67 +13,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useBrokerMode } from "@/hooks/useBrokerMode";
+import { adminMenu, brokerMenu, istAktiv, istAufgabenPfad, menueFuer } from "@/lib/adminNavigation";
 import { useOpenReportsCount } from "@/hooks/useOpenReportsCount";
-
-interface MenuItem {
-  title: string;
-  url: string;
-  icon: React.ComponentType<{ className?: string }>;
-  adminOnly?: boolean;
-  children?: MenuItem[];
-}
-
-/**
- * "Aufgaben" fasst die vier Bereiche zusammen, die zusammengehören: die
- * Pinnwand mit den Aufgaben, die Vorgänge, der Jahreszyklus und die
- * Anleitungen. Vorher standen sie einzeln und weit auseinander in der Liste.
- */
-const adminMenu: MenuItem[] = [
-  { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
-  { title: "Postfach", url: "/postfach", icon: Mail },
-  { title: "Gebäude", url: "/buildings", icon: Castle },
-  {
-    title: "Aufgaben",
-    url: "/pinnwand",
-    icon: CheckSquare,
-    children: [
-      { title: "Pinnwand", url: "/pinnwand", icon: StickyNote },
-      { title: "Vorgänge", url: "/vorgaenge", icon: FolderKanban },
-      { title: "Jahreszyklus", url: "/jahreszyklus", icon: CalendarRange },
-      { title: "Anleitungen", url: "/checklisten", icon: Workflow },
-    ],
-  },
-  { title: "Buchhaltung", url: "/finanzen", icon: Landmark },
-  { title: "Zahlungen", url: "/zahlungen", icon: CreditCard },
-  { title: "Adressen", url: "/contacts", icon: BookUser },
-  { title: "Kalender", url: "/calendar", icon: CalendarDays },
-  { title: "Meldungen", url: "/tickets", icon: ClipboardList },
-  { title: "Versammlungen", url: "/versammlungen", icon: Users },
-  { title: "Schlüssel", url: "/schluessel", icon: KeyRound },
-  { title: "Umfragen", url: "/umfragen", icon: ListChecks },
-  { title: "RGI Intern", url: "/rgi-intern", icon: Briefcase, adminOnly: true },
-  { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
-];
-
-/** Gehört dieser Pfad zu einem der Unterpunkte von "Aufgaben"? */
-function istAufgabenPfad(pfad: string) {
-  return (
-    pfad.startsWith("/pinnwand") ||
-    pfad.startsWith("/vorgaenge") ||
-    pfad.startsWith("/jahreszyklus") ||
-    pfad.startsWith("/checklisten") ||
-    pfad.startsWith("/prozesse") ||
-    pfad.startsWith("/tickets/vorgaenge")
-  );
-}
-
-const brokerMenu: MenuItem[] = [
-  { title: "Objekte", url: "/makler/objekte", icon: Home },
-  { title: "Postfach", url: "/postfach", icon: Mail },
-  { title: "Adressen", url: "/contacts", icon: BookUser },
-  { title: "Kalender", url: "/calendar", icon: CalendarDays },
-  { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
-];
 
 interface AdminSidebarProps {
   managementMode: 'weg' | 'rent';
@@ -260,14 +176,7 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
         <SidebarGroup className="px-4 flex-1">
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
-              {menuItems
-                .filter((item) => {
-                  if ((item as any).adminOnly && profile?.role !== 'admin') return false;
-                  if (profile?.role === 'employee') {
-                    return !['Chatbot', 'Einstellungen'].includes(item.title);
-                  }
-                  return true;
-                })
+              {menueFuer(profile?.role, menuItems)
                 .map((item) => {
                   // Gruppe mit Unterpunkten ("Aufgaben").
                   if (item.children) {
@@ -358,21 +267,10 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                     );
                   }
 
-                  let aliasActive = false;
-                  if (item.url === "/tickets") {
-                    aliasActive =
-                      currentPath === "/tickets" ||
-                      currentPath === "/reports" ||
-                      currentPath === "/admin/reports";
-                  } else if (item.url === "/checklisten") {
-                    aliasActive = currentPath.startsWith("/checklisten") || currentPath.startsWith("/prozesse");
-                  } else if (item.url === "/vorgaenge") {
-                    aliasActive = currentPath.startsWith("/vorgaenge") || currentPath.startsWith("/tickets/vorgaenge");
-                  } else if (item.url === "/makler/objekte") {
-                    aliasActive = currentPath.startsWith("/makler");
-                  } else if (item.url === "/schluessel") {
-                    aliasActive = currentPath.startsWith("/schluessel");
-                  }
+                  // Welche Pfade zu welchem Punkt gehoeren, steht in
+                  // adminNavigation — damit die mobile Ansicht dasselbe
+                  // hervorhebt wie die Seitenleiste.
+                  const aliasActive = istAktiv(item, currentPath);
                   return (
                     <SidebarMenuItem key={item.title}>
                       <NavLink
