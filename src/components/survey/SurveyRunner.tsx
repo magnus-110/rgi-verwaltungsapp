@@ -1,15 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useOwnerSurvey, useSaveVote, SurveyChoice, OwnerVote, SurveyItem, costTierSymbol } from "@/hooks/useSurvey";
+import {
+  useOwnerSurvey, useSaveVote, SurveyChoice, OwnerVote, SurveyItem,
+  costTierSymbol, istBeantwortet, leereAntwort, logikWert, willAntwort,
+} from "@/hooks/useSurvey";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ShieldAlert, ThumbsUp, Minus, ThumbsDown, CheckCircle2, ChevronDown, ArrowLeft, Info, X } from "lucide-react";
+import { ShieldAlert, ThumbsUp, Minus, ThumbsDown, CheckCircle2, ArrowLeft, Info, X, Check } from "lucide-react";
+
+/**
+ * Die Umfrage aus Sicht der Eigentümer — und zugleich die Vorschau in der
+ * Verwaltung. Was gefragt wird, hängt an der Art des Punktes.
+ */
 
 const AMPEL: { key: SurveyChoice; label: string; sub: string; Icon: any; cls: string }[] = [
   { key: "ja", label: "Ja", sub: "finde ich sinnvoll", Icon: ThumbsUp, cls: "data-[on=true]:border-emerald-500 data-[on=true]:bg-emerald-50" },
@@ -33,7 +40,7 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
   useMemo(() => {
     if (!data) return;
     const map: Record<string, OwnerVote> = {};
-    data.votes.forEach((v) => (map[v.item_id] = v));
+    data.votes.forEach((v) => (map[v.item_id] = { ...leereAntwort(v.item_id), ...v }));
     setLocal((prev) => ({ ...map, ...prev }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.survey?.id]);
@@ -52,45 +59,29 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
     </div>
   );
 
-  // Sichtbare Items ermitteln (Abhängigkeiten auswerten)
+  // Sichtbare Punkte ermitteln (Logik auswerten)
   const visibleItems = data.items.filter((it) => {
     if (!it.depends_on_item_id) return true;
-    const dep = local[it.depends_on_item_id];
-    return dep?.choice === it.depends_on_choice;
+    const eltern = data.items.find((x) => x.id === it.depends_on_item_id);
+    if (!eltern) return true;
+    return logikWert(eltern, local[eltern.id]) === it.depends_on_value;
   });
   const total = visibleItems.length;
 
-  const setAnswer = (itemId: string, patch: Partial<OwnerVote>) =>
-    setLocal((p) => ({
-      ...p,
-      [itemId]: {
-        ...(p[itemId] ?? { item_id: itemId, choice: null, followup_choice: null, urgent: false, comment: null }),
-        ...patch,
-        item_id: itemId,
-      },
-    }));
+  const antwortVon = (itemId: string) => local[itemId] ?? leereAntwort(itemId);
+
+  const setAnswer = (itemId: string, patch: Partial<OwnerVote>, sofortSpeichern = false) => {
+    const next: OwnerVote = { ...antwortVon(itemId), ...patch, item_id: itemId };
+    setLocal((p) => ({ ...p, [itemId]: next }));
+    if (sofortSpeichern) save.mutate({ ...next, survey_id: data.survey.id });
+  };
 
   const persist = (itemId: string) => {
     const it = data.items.find((x) => x.id === itemId);
-    if (!it || it.item_type === "info") return;
+    if (!it || !willAntwort(it)) return;
     const a = local[itemId];
     if (!a) return;
     save.mutate({ ...a, survey_id: data.survey.id });
-  };
-
-  /** Erneuter Klick auf die aktive Antwort hebt die Auswahl wieder auf. */
-  const toggleChoice = (itemId: string, key: SurveyChoice) => {
-    const cur = local[itemId]?.choice ?? null;
-    const isOff = cur === key;
-    const next: OwnerVote = {
-      item_id: itemId,
-      choice: isOff ? null : key,
-      followup_choice: isOff || key !== "ja" ? null : (local[itemId]?.followup_choice ?? null),
-      urgent: local[itemId]?.urgent ?? false,
-      comment: local[itemId]?.comment ?? null,
-    };
-    setLocal((p) => ({ ...p, [itemId]: next }));
-    if (isOff) save.mutate({ ...next, survey_id: data.survey.id });
   };
 
   const goNext = (fromItemId?: string) => { if (fromItemId) persist(fromItemId); setStep((s) => s + 1); window.scrollTo(0, 0); };
@@ -107,7 +98,7 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
         <Card><CardContent className="p-6 space-y-4">
           <h2 className="text-2xl font-bold">{s.welcome_title || "Ihre Meinung zählt"}</h2>
           <p className="text-lg whitespace-pre-line">
-            {s.welcome_message || `Wir möchten wissen, welche Verbesserungen Ihnen am wichtigsten sind. Sie sehen ${total} Themen – bei jedem tippen Sie einfach auf Ja, Neutral oder Nein.`}
+            {s.welcome_message || `Wir möchten Ihre Rückmeldung zu ${total} Punkten.`}
           </p>
           <div className="rounded-lg border bg-amber-50 p-4 text-sm text-amber-900">
             Diese Umfrage ist ein <b>Stimmungsbild</b> zur Vorbereitung der Eigentümerversammlung – sie ersetzt keinen Beschluss.
@@ -124,22 +115,15 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
       <Shell survey={s} ownerMea={data.ownerMea} pct={100} label="Übersicht">
         <Card><CardContent className="p-6 space-y-2">
           <h2 className="text-2xl font-bold mb-2">Ihre Antworten</h2>
-          {visibleItems.map((it, i) => {
-            const a = local[it.id];
-            const lbl = it.item_type === "info"
-              ? "gelesen"
-              : it.is_safety ? "wird umgesetzt"
-              : a?.choice === "ja" ? "Ja" : a?.choice === "neutral" ? "Neutral" : a?.choice === "nein" ? "Nein" : "—";
-            return (
-              <div key={it.id} className="flex items-center justify-between border-b py-3">
-                <span className="font-medium">{i + 1}. {it.title}</span>
-                <div className="flex items-center gap-3">
-                  <Badge variant="secondary">{lbl}</Badge>
-                  <Button variant="link" className="h-auto p-0" onClick={() => jumpTo(i + 1)}>ändern</Button>
-                </div>
+          {visibleItems.map((it, i) => (
+            <div key={it.id} className="flex items-center justify-between border-b py-3 gap-3">
+              <span className="font-medium min-w-0">{i + 1}. {it.title}</span>
+              <div className="flex items-center gap-3 shrink-0">
+                <Badge variant="secondary" className="max-w-[220px] truncate">{antwortText(it, local[it.id])}</Badge>
+                <Button variant="link" className="h-auto p-0" onClick={() => jumpTo(i + 1)}>ändern</Button>
               </div>
-            );
-          })}
+            </div>
+          ))}
           <div className="flex gap-3 pt-4">
             <Button variant="secondary" size="lg" className="flex-1" onClick={() => jumpTo(total)}>← Zurück</Button>
             <Button size="lg" className="flex-1" onClick={() => goNext()}>Absenden ✓</Button>
@@ -169,9 +153,11 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
     );
   }
 
-  // -------- Themenkarte / Info --------
+  // -------- Ein Punkt --------
   const it = visibleItems[step - 1];
-  const a = local[it.id] ?? { item_id: it.id, choice: null, followup_choice: null, urgent: false, comment: null };
+  const a = antwortVon(it.id);
+  const gewaehlt = (i: number) => (a.option_indexes ?? []).includes(i);
+  const weiterGesperrt = it.is_required && willAntwort(it) && !istBeantwortet(it, a);
 
   return (
     <Shell survey={s} ownerMea={data.ownerMea} pct={pct} label={`Punkt ${step} von ${total}`}>
@@ -179,41 +165,53 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
         {it.group_label && <div className="text-sm font-semibold uppercase tracking-wide text-primary">{it.group_label}</div>}
         <h2 className="text-2xl font-bold leading-tight">{it.title}</h2>
 
-        {it.images.filter((im) => im.url).length > 0
-          ? <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
-              {it.images.filter((im) => im.url).map((im, k) => (
-                <img key={k} src={im.url!} alt={it.title} onClick={() => setLightbox(im.url!)} className="h-56 w-auto flex-shrink-0 snap-start object-cover rounded-xl border cursor-zoom-in" />
-              ))}
-            </div>
-          : it.item_type === "question"
-            ? <div className="flex h-40 items-center justify-center rounded-xl border border-dashed bg-muted text-muted-foreground text-sm">Foto: {it.title}</div>
-            : null}
+        {it.images.filter((im) => im.url).length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
+            {it.images.filter((im) => im.url).map((im, k) => (
+              <img key={k} src={im.url!} alt={it.title} onClick={() => setLightbox(im.url!)}
+                className="h-56 w-auto flex-shrink-0 snap-start object-cover rounded-xl border cursor-zoom-in" />
+            ))}
+          </div>
+        )}
 
-        {it.item_type === "question" && (
+        {it.kind === "massnahme" && (
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline" className="text-amber-800 border-amber-300 bg-amber-50">{costTierSymbol(it.cost_tier)}</Badge>
             {it.is_safety && <Badge className="bg-red-100 text-red-700 hover:bg-red-100"><ShieldAlert className="mr-1 h-3.5 w-3.5" />Sicherheit</Badge>}
           </div>
         )}
 
-        <p className="text-lg whitespace-pre-line">{it.explanation}</p>
+        {it.explanation && <p className="text-lg whitespace-pre-line">{it.explanation}</p>}
 
-        {it.item_type === "info" ? (
+        {/* ---- Info ---- */}
+        {it.kind === "info" && (
           <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground flex items-start gap-2">
             <Info className="h-4 w-4 mt-0.5" />
             <span>Diese Seite dient nur der Information — bitte weiterblättern.</span>
           </div>
-        ) : it.is_safety ? (
+        )}
+
+        {/* ---- Maßnahme ohne Abstimmung ---- */}
+        {it.kind === "massnahme" && it.is_safety && (
           <div className="rounded-lg border bg-red-50 p-4 text-red-900 whitespace-pre-line">
             {s.safety_notice || "Diese Maßnahme wird aus Gründen der Verkehrssicherungspflicht ohnehin umgesetzt und steht daher nicht zur Abstimmung."}
           </div>
-        ) : (
+        )}
+
+        {/* ---- Maßnahme mit Abstimmung ---- */}
+        {it.kind === "massnahme" && !it.is_safety && (
           <>
             <p className="text-xl font-semibold">{it.cost_tier === "offen" ? "Soll die Verwaltung das weiter verfolgen?" : "Wie wichtig ist Ihnen das?"}</p>
             <div className="grid gap-3">
               {AMPEL.map(({ key, label, sub, Icon, cls }) => (
                 <button key={key} data-on={a.choice === key}
-                  onClick={() => toggleChoice(it.id, key)}
+                  onClick={() => {
+                    const aus = a.choice === key;
+                    setAnswer(it.id, {
+                      choice: aus ? null : key,
+                      followup_choice: aus || key !== "ja" ? null : a.followup_choice,
+                    }, aus);
+                  }}
                   className={`flex items-center gap-4 rounded-xl border-2 p-4 text-left text-lg font-medium transition ${cls}`}>
                   <Icon className="h-7 w-7 shrink-0" />
                   <span>{label}<span className="block text-sm font-normal text-muted-foreground">{sub}</span></span>
@@ -238,15 +236,87 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
               Kein Beschluss — nur ein Meinungsbild zur Priorisierung. Eine Umsetzung ist damit nicht zugesagt.
             </p>
           </>
-
         )}
 
+        {/* ---- Einfachauswahl ---- */}
+        {it.kind === "einfachauswahl" && (
+          <div className="grid gap-3">
+            {(it.answer_options ?? []).map((opt, k) => (
+              <button key={k}
+                onClick={() => setAnswer(it.id, { option_indexes: gewaehlt(k) ? [] : [k] }, gewaehlt(k))}
+                className={`flex items-center gap-4 rounded-xl border-2 p-4 text-left text-lg font-medium transition ${
+                  gewaehlt(k) ? "border-primary bg-primary/5" : ""
+                }`}>
+                <span className={`h-5 w-5 shrink-0 rounded-full border-2 ${gewaehlt(k) ? "border-primary bg-primary" : "border-muted-foreground"}`} />
+                {opt}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ---- Mehrfachauswahl ---- */}
+        {it.kind === "mehrfachauswahl" && (
+          <>
+            <p className="text-sm text-muted-foreground">Mehrere Antworten möglich.</p>
+            <div className="grid gap-3">
+              {(it.answer_options ?? []).map((opt, k) => (
+                <button key={k}
+                  onClick={() => {
+                    const cur = a.option_indexes ?? [];
+                    const next = gewaehlt(k) ? cur.filter((x) => x !== k) : [...cur, k].sort((x, y) => x - y);
+                    setAnswer(it.id, { option_indexes: next });
+                  }}
+                  className={`flex items-center gap-4 rounded-xl border-2 p-4 text-left text-lg font-medium transition ${
+                    gewaehlt(k) ? "border-primary bg-primary/5" : ""
+                  }`}>
+                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 ${gewaehlt(k) ? "border-primary bg-primary text-white" : "border-muted-foreground"}`}>
+                    {gewaehlt(k) && <Check className="h-3.5 w-3.5" />}
+                  </span>
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* ---- Skala ---- */}
+        {it.kind === "skala" && (
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: it.scale_max ?? 5 }, (_, k) => k + 1).map((w) => (
+                <button key={w}
+                  onClick={() => setAnswer(it.id, { scale_value: a.scale_value === w ? null : w }, a.scale_value === w)}
+                  className={`h-14 flex-1 min-w-[3rem] rounded-xl border-2 text-lg font-semibold transition ${
+                    a.scale_value === w ? "border-primary bg-primary/5 text-primary" : ""
+                  }`}>
+                  {w}
+                </button>
+              ))}
+            </div>
+            {(it.scale_min_label || it.scale_max_label) && (
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{it.scale_min_label}</span><span>{it.scale_max_label}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ---- Freitext ---- */}
+        {it.kind === "freitext" && (
+          <Textarea rows={5} value={a.text_answer ?? ""} placeholder="Ihre Antwort …"
+            onChange={(e) => setAnswer(it.id, { text_answer: e.target.value })}
+            onBlur={() => persist(it.id)} />
+        )}
+
+        {/* ---- Datum ---- */}
+        {it.kind === "datum" && (
+          <Input type="date" className="h-12 text-lg" value={a.date_answer ?? ""}
+            onChange={(e) => setAnswer(it.id, { date_answer: e.target.value || null }, true)} />
+        )}
 
         <div className="flex gap-3 pt-2">
           <Button variant="secondary" size="lg" className="flex-1" onClick={goPrev}>← Zurück</Button>
-          <Button size="lg" className="flex-1"
-            disabled={it.item_type === "question" && !it.is_safety && !a.choice}
-            onClick={() => goNext(it.id)}>Weiter →</Button>
+          <Button size="lg" className="flex-1" disabled={weiterGesperrt} onClick={() => goNext(it.id)}>Weiter →</Button>
         </div>
 
         {lightbox && (
@@ -258,6 +328,31 @@ export default function SurveyRunner({ surveyId: propId }: { surveyId?: string }
       </CardContent></Card>
     </Shell>
   );
+}
+
+/** Kurzfassung der eigenen Antwort für die Übersichtsseite. */
+function antwortText(it: SurveyItem, v?: OwnerVote | null): string {
+  if (it.kind === "info") return "gelesen";
+  if (it.kind === "massnahme" && it.is_safety) return "wird umgesetzt";
+  if (!v) return "—";
+  switch (it.kind) {
+    case "massnahme":
+      return v.choice === "ja" ? "Ja" : v.choice === "neutral" ? "Neutral" : v.choice === "nein" ? "Nein" : "—";
+    case "einfachauswahl":
+    case "mehrfachauswahl": {
+      const opts = it.answer_options ?? [];
+      const gewaehlt = (v.option_indexes ?? []).map((i) => opts[i]).filter(Boolean);
+      return gewaehlt.length ? gewaehlt.join(", ") : "—";
+    }
+    case "skala":
+      return v.scale_value ? `${v.scale_value} von ${it.scale_max ?? 5}` : "—";
+    case "freitext":
+      return v.text_answer?.trim() ? v.text_answer.trim() : "—";
+    case "datum":
+      return v.date_answer ? new Date(v.date_answer).toLocaleDateString("de-DE") : "—";
+    default:
+      return "—";
+  }
 }
 
 function Shell({ survey, ownerMea, pct, label, children }: { survey: any; ownerMea: number; pct: number; label: string; children: any }) {
