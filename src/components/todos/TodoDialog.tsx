@@ -1,21 +1,27 @@
-import { useState, useEffect, useCallback } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import React, { useState, useEffect, useCallback, forwardRef, ReactNode } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarIcon, Plus, Loader2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import {
+  Building2,
+  CalendarIcon,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  Plus,
+  Users,
+} from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Todo, CreateTodoInput, useCreateTodo, useUpdateTodo, useCategories, useAssignableUsers } from "@/hooks/useTodos";
 import { useAuth } from "@/hooks/useAuth";
 import { CategoryDialog } from "./CategoryDialog";
-import { RecurrenceSettings } from "./RecurrenceSettings";
 import { InlineSubtasksCreator } from "./TodoSubtasks";
 import { InlineAttachmentCreator } from "./TodoAttachments";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,6 +55,88 @@ interface DraftData {
   subtasks: string[];
 }
 
+const PRIO_TEXT: Record<string, string> = {
+  low: 'niedrig',
+  medium: 'mittel',
+  high: 'hoch',
+  urgent: 'dringend',
+};
+
+const WDH_TEXT: Record<string, string> = {
+  daily: 'Tage',
+  weekly: 'Wochen',
+  monthly: 'Monate',
+  yearly: 'Jahre',
+};
+
+/**
+ * Ein Knopf am Fuss des Blattes.
+ *
+ * Gestrichelt, solange nichts drinsteht — dann sieht man auf einen Blick,
+ * was noch leer ist, ohne dass ein leeres Feld wie ein Versäumnis wirkt.
+ */
+interface ChipProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  aktiv: boolean;
+  icon: ReactNode;
+}
+
+const Chip = forwardRef<HTMLButtonElement, ChipProps>(
+  ({ aktiv, icon, children, className, ...rest }, ref) => (
+    <button
+      ref={ref}
+      type="button"
+      {...rest}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+        aktiv
+          ? "border border-border bg-background text-foreground hover:bg-muted"
+          : "border border-dashed border-[#D5CCBA] bg-transparent text-muted-foreground hover:border-[#C2B79F] hover:text-foreground",
+        className
+      )}
+    >
+      {icon}
+      {children}
+    </button>
+  )
+);
+Chip.displayName = 'Chip';
+
+/** Eine Gruppe unter „Mehr einstellen". */
+function Gruppe({ titel, children }: { titel: string; children: ReactNode }) {
+  return (
+    <div className="space-y-2.5 rounded-[10px] border border-border/70 p-3.5">
+      <span className="block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {titel}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+/** Eine Zeile in einer Gruppe: links die Frage, rechts die Antwort. */
+function Zeile({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="min-w-0 flex-1 text-[13px] text-foreground">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Der Dialog zum Schreiben einer Aufgabe.
+ *
+ * Oben steht nur, was später auch auf der Aufgabe zu sehen ist: Überschrift,
+ * Text, Gebäude, Verantwortliche, Termin. Wer nichts weiter einstellt, tippt
+ * zwei Zeilen und hängt auf.
+ *
+ * Alles andere — Kategorie, Priorität, Wiedervorlage, Anleitung, Unterpunkte,
+ * Anhänge — liegt unter „Mehr einstellen", dort nach drei Fragen sortiert:
+ * wann taucht sie auf, wie wird sie abgearbeitet, wo gehört sie hin. Vorher
+ * standen alle elf Felder untereinander und sahen gleich wichtig aus; bei den
+ * allermeisten Aufgaben bleiben neun davon leer.
+ */
 export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDialogProps) {
   const { user, profile } = useAuth();
   const { data: categories = [] } = useCategories();
@@ -58,6 +146,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDi
 
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [mehr, setMehr] = useState(false);
 
   // Form state
   const [title, setTitle] = useState("");
@@ -188,7 +277,19 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDi
         setChecklistTemplateId((todo as any).checklist_template_id || null);
         setSubtasks([]);
         setFiles([]);
+        // Beim Bearbeiten aufgeklappt, sobald unten etwas drinsteht — sonst
+        // waere es versteckt, und man wuesste nicht, dass es da ist.
+        setMehr(
+          !!todo.category_id ||
+            todo.priority !== 'medium' ||
+            todo.is_recurring ||
+            !!(todo as any).is_internal ||
+            !!(todo as any).show_in_list_date ||
+            !!(todo as any).follow_up_at ||
+            !!(todo as any).checklist_template_id
+        );
       } else if (mode === 'create') {
+        setMehr(false);
         // Don't reset if we're loading from draft
         // The useEffect above will handle loading the draft
       }
@@ -213,6 +314,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDi
     setShowFrom(null);
     setFollowUpAt(null);
     setChecklistTemplateId(null);
+    setMehr(false);
     localStorage.removeItem(STORAGE_KEY);
   };
 
@@ -313,16 +415,16 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDi
   };
 
   const toggleAssignee = (userId: string) => {
-    setAssignees(prev => 
-      prev.includes(userId) 
+    setAssignees(prev =>
+      prev.includes(userId)
         ? prev.filter(id => id !== userId)
         : [...prev, userId]
     );
   };
 
   const toggleBuilding = (buildingId: string) => {
-    setBuildingIds(prev => 
-      prev.includes(buildingId) 
+    setBuildingIds(prev =>
+      prev.includes(buildingId)
         ? prev.filter(id => id !== buildingId)
         : [...prev, buildingId]
     );
@@ -330,358 +432,464 @@ export function TodoDialog({ open, onOpenChange, todo, mode, onCreated }: TodoDi
 
   const isPending = createTodo.isPending || updateTodo.isPending || uploading;
 
+  const gebaeudeText =
+    buildingIds.length === 0
+      ? 'Gebäude'
+      : buildingIds.length === 1
+        ? buildings.find(b => b.id === buildingIds[0])?.name ?? '1 Gebäude'
+        : `${buildingIds.length} Gebäude`;
+
+  const werText = (() => {
+    if (assignees.length === 0) return 'niemand zugewiesen';
+    if (assignees.length === 1) {
+      const u = users.find(x => x.user_id === assignees[0]);
+      if (!u) return '1 Person';
+      return assignees[0] === user?.id ? 'ich' : u.first_name || u.last_name || '1 Person';
+    }
+    return `${assignees.length} Personen`;
+  })();
+
+  const terminText = dueDate
+    ? format(new Date(dueDate), 'dd.MM.yyyy', { locale: de })
+    : 'ohne Termin';
+
+  /** Was unter „Mehr" tatsächlich gesetzt ist — für die Zeile im zugeklappten Zustand. */
+  const gesetzt: string[] = [];
+  if (categoryId) gesetzt.push(categories.find(c => c.id === categoryId)?.name ?? 'Kategorie');
+  if (priority !== 'medium') gesetzt.push(`Priorität ${PRIO_TEXT[priority]}`);
+  if (showFrom) gesetzt.push(`ab ${format(new Date(showFrom), 'dd.MM.', { locale: de })} im Vorrat`);
+  if (followUpAt) gesetzt.push(`Wiedervorlage ${format(new Date(followUpAt), 'dd.MM.', { locale: de })}`);
+  if (isRecurring) gesetzt.push('wiederholt sich');
+  if (checklistTemplateId) gesetzt.push(templates.find(t => t.id === checklistTemplateId)?.name ?? 'Anleitung');
+  if (subtasks.length > 0) gesetzt.push(`${subtasks.length} Unterpunkte`);
+  if (files.length > 0) gesetzt.push(`${files.length} ${files.length === 1 ? 'Anhang' : 'Anhänge'}`);
+  if (isInternal) gesetzt.push('nur für Admins');
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col overflow-hidden">
-          <DialogHeader className="shrink-0">
-            <DialogTitle>
-              {mode === 'create' ? 'Neue Aufgabe erstellen' : 'Aufgabe bearbeiten'}
+        <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden p-0 sm:max-w-[560px]">
+          <DialogHeader className="shrink-0 px-5 pb-1 pt-5">
+            <DialogTitle className="text-[15px] font-semibold">
+              {mode === 'create' ? 'Aufgabe schreiben' : 'Aufgabe bearbeiten'}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto min-h-0 pr-2">
-            <form onSubmit={handleSubmit} className="space-y-4 pr-2">
-              {/* Title */}
-              <div className="space-y-2">
-                <Label htmlFor="title">Titel *</Label>
-                <Input
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-1">
+            <form onSubmit={handleSubmit}>
+              {/*
+                Das Blatt. Dieselbe Fläche wie die fertige Aufgabe an der Wand —
+                man schreibt, was man nachher sieht.
+              */}
+              <div className="rounded-[10px] border border-[#EBE4D6] bg-[#FFFDF7] p-4 shadow-[0_1px_2px_rgba(43,43,43,.05)]">
+                <label htmlFor="title" className="sr-only">
+                  Überschrift der Aufgabe
+                </label>
+                <input
                   id="title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Aufgabentitel eingeben..."
+                  placeholder="Worum geht's?"
                   required
+                  autoFocus
+                  className="w-full border-none bg-transparent p-0 text-[20px] font-semibold leading-snug text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground"
                 />
-              </div>
 
-              {/* Description */}
-              <div className="space-y-2">
-                <Label htmlFor="description">Beschreibung</Label>
-                <Textarea
+                <label htmlFor="description" className="sr-only">
+                  Beschreibung
+                </label>
+                <textarea
                   id="description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Detaillierte Beschreibung..."
+                  placeholder="Ein, zwei Sätze dazu – wenn nötig."
                   rows={3}
+                  className="mt-2 w-full resize-none border-none bg-transparent p-0 text-[13.5px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground"
                 />
-              </div>
 
-              {/* Category */}
-              <div className="space-y-2">
-                <Label>Kategorie</Label>
-                <div className="flex gap-2">
-                  <Select 
-                    value={categoryId || 'none'} 
-                    onValueChange={(v) => setCategoryId(v === 'none' ? null : v)}
-                  >
-                    <SelectTrigger className="flex-1">
-                      <SelectValue placeholder="Auswählen..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Keine Kategorie</SelectItem>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          <div className="flex items-center gap-2">
-                            <div 
-                              className="w-2 h-2 rounded-full" 
-                              style={{ backgroundColor: cat.color }}
-                            />
-                            {cat.name}
+                <div className="my-3 h-px bg-[#EBE4D6]" />
+
+                <div className="flex flex-wrap gap-2">
+                  {/* Gebäude */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Chip aria-label="Gebäude wählen" aktiv={buildingIds.length > 0} icon={<Building2 className="h-3.5 w-3.5" />}>
+                        {gebaeudeText}
+                      </Chip>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-2" align="start">
+                      <div className="max-h-[220px] space-y-1 overflow-y-auto">
+                        {buildings.map((b) => (
+                          <div
+                            key={b.id}
+                            className="flex cursor-pointer items-center gap-2 rounded p-2 hover:bg-muted"
+                            onClick={() => toggleBuilding(b.id)}
+                          >
+                            <Checkbox checked={buildingIds.includes(b.id)} />
+                            <span className="text-sm">{b.name}</span>
                           </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setCategoryDialogOpen(true)}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Assignees - Multi-select */}
-              <div className="space-y-2">
-                <Label>Verantwortliche</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start font-normal">
-                      {assignees.length > 0 
-                        ? `${assignees.length} Person${assignees.length > 1 ? 'en' : ''} ausgewählt`
-                        : 'Optional - Nicht zugewiesen'
-                      }
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[300px] p-2" align="start">
-                    <div className="space-y-1 max-h-[200px] overflow-y-auto">
-                      {users.map((u) => (
-                        <div 
-                          key={u.user_id} 
-                          className="flex items-center gap-2 p-2 hover:bg-muted rounded cursor-pointer"
-                          onClick={() => toggleAssignee(u.user_id)}
+                        ))}
+                      </div>
+                      {buildingIds.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="mt-2 w-full"
+                          onClick={() => setBuildingIds([])}
                         >
-                          <Checkbox checked={assignees.includes(u.user_id)} />
-                          <span className="text-sm">{u.first_name} {u.last_name}</span>
-                          <span className="text-xs text-muted-foreground">({u.role})</span>
-                        </div>
-                      ))}
-                    </div>
-                    {assignees.length > 0 && (
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm" 
-                        className="w-full mt-2"
-                        onClick={() => setAssignees([])}
-                      >
-                        Auswahl aufheben
-                      </Button>
-                    )}
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              {/* Priority */}
-              <div className="space-y-2">
-                <Label>Priorität</Label>
-                <Select value={priority} onValueChange={(v) => setPriority(v as typeof priority)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Niedrig</SelectItem>
-                    <SelectItem value="medium">Mittel</SelectItem>
-                    <SelectItem value="high">Hoch</SelectItem>
-                    <SelectItem value="urgent">Dringend</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Due date */}
-              <div className="space-y-2">
-                <Label>Fälligkeitsdatum</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !dueDate && "text-muted-foreground"
+                          Auswahl aufheben
+                        </Button>
                       )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dueDate ? format(new Date(dueDate), "dd.MM.yyyy", { locale: de }) : "Optional"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={dueDate ? new Date(dueDate) : undefined}
-                      onSelect={(date) => setDueDate(date ? format(date, 'yyyy-MM-dd') : null)}
-                      initialFocus
-                      locale={de}
-                    />
-                  </PopoverContent>
-                </Popover>
-                <p className="text-xs text-muted-foreground">
-                  Nur setzen, wenn das Datum eine echte Konsequenz hat. Die meisten Aufgaben brauchen keins.
-                </p>
-              </div>
-
-              {/* Ab wann sichtbar */}
-              <div className="space-y-2">
-                <Label>Ab wann im Vorrat sichtbar</Label>
-                <div className="flex gap-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className={cn(
-                          "flex-1 justify-start text-left font-normal",
-                          !showFrom && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {showFrom ? format(new Date(showFrom), "dd.MM.yyyy", { locale: de }) : "Sofort"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={showFrom ? new Date(showFrom) : undefined}
-                        onSelect={(date) => setShowFrom(date ? format(date, 'yyyy-MM-dd') : null)}
-                        initialFocus
-                        locale={de}
-                      />
                     </PopoverContent>
                   </Popover>
-                  {showFrom && (
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowFrom(null)}>
-                      Zurücksetzen
-                    </Button>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Vorher taucht die Aufgabe gar nicht erst im Vorrat auf.
-                </p>
-              </div>
 
-              {/* Wiedervorlage */}
-              <div className="space-y-2">
-                <Label>Wiedervorlage</Label>
-                <div className="flex gap-2">
+                  {/* Verantwortliche */}
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className={cn(
-                          "flex-1 justify-start text-left font-normal",
-                          !followUpAt && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {followUpAt ? format(new Date(followUpAt), "dd.MM.yyyy", { locale: de }) : "Keine"}
-                      </Button>
+                      <Chip aria-label="Verantwortliche wählen" aktiv={assignees.length > 0} icon={<Users className="h-3.5 w-3.5" />}>
+                        {werText}
+                      </Chip>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={followUpAt ? new Date(followUpAt) : undefined}
-                        onSelect={(date) => setFollowUpAt(date ? format(date, 'yyyy-MM-dd') : null)}
-                        initialFocus
-                        locale={de}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  {followUpAt && (
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setFollowUpAt(null)}>
-                      Zurücksetzen
-                    </Button>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Die Aufgabe verschwindet bis zu diesem Tag und kommt dann von selbst zurück.
-                </p>
-              </div>
-
-              {/* Anleitung als Checkliste */}
-              <div className="space-y-2">
-                <Label>Anleitung</Label>
-                <Select
-                  value={checklistTemplateId ?? 'none'}
-                  onValueChange={(v) => setChecklistTemplateId(v === 'none' ? null : v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Keine" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Keine</SelectItem>
-                    {templates.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Übernimmt die Schritte der Anleitung als Checkliste — mit Erklärtext zum Aufklappen.
-                </p>
-              </div>
-
-              {/* Buildings - Multi-select */}
-              <div className="space-y-2">
-                <Label>Gebäude</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start font-normal">
-                      {buildingIds.length > 0 
-                        ? `${buildingIds.length} Gebäude ausgewählt`
-                        : 'Optional...'
-                      }
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[300px] p-2" align="start">
-                    <div className="space-y-1 max-h-[200px] overflow-y-auto">
-                      {buildings.map((b) => (
-                        <div 
-                          key={b.id} 
-                          className="flex items-center gap-2 p-2 hover:bg-muted rounded cursor-pointer"
-                          onClick={() => toggleBuilding(b.id)}
+                    <PopoverContent className="w-[300px] p-2" align="start">
+                      <div className="max-h-[220px] space-y-1 overflow-y-auto">
+                        {users.map((u) => (
+                          <div
+                            key={u.user_id}
+                            className="flex cursor-pointer items-center gap-2 rounded p-2 hover:bg-muted"
+                            onClick={() => toggleAssignee(u.user_id)}
+                          >
+                            <Checkbox checked={assignees.includes(u.user_id)} />
+                            <span className="text-sm">{u.first_name} {u.last_name}</span>
+                            <span className="text-xs text-muted-foreground">({u.role})</span>
+                          </div>
+                        ))}
+                      </div>
+                      {assignees.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="mt-2 w-full"
+                          onClick={() => setAssignees([])}
                         >
-                          <Checkbox checked={buildingIds.includes(b.id)} />
-                          <span className="text-sm">{b.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {buildingIds.length > 0 && (
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm" 
-                        className="w-full mt-2"
-                        onClick={() => setBuildingIds([])}
-                      >
-                        Auswahl aufheben
-                      </Button>
-                    )}
-                  </PopoverContent>
-                </Popover>
+                          Auswahl aufheben
+                        </Button>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+
+                  {/* Termin */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Chip aria-label="Termin wählen" aktiv={!!dueDate} icon={<CalendarIcon className="h-3.5 w-3.5" />}>
+                        {terminText}
+                      </Chip>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={dueDate ? new Date(dueDate) : undefined}
+                        onSelect={(date) => setDueDate(date ? format(date, 'yyyy-MM-dd') : null)}
+                        initialFocus
+                        locale={de}
+                      />
+                      <div className="border-t border-border p-2">
+                        <p className="px-1 pb-2 text-[11.5px] leading-snug text-muted-foreground">
+                          Nur setzen, wenn das Datum eine echte Konsequenz hat. Die meisten
+                          Aufgaben brauchen keins.
+                        </p>
+                        {dueDate && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => setDueDate(null)}
+                          >
+                            Termin entfernen
+                          </Button>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
 
-              {/* Internal flag - only for admins */}
-              {profile?.role === 'admin' && (
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border/50">
-                  <Checkbox
-                    id="is_internal"
-                    checked={isInternal}
-                    onCheckedChange={(checked) => setIsInternal(checked === true)}
-                  />
-                  <div>
-                    <Label htmlFor="is_internal" className="cursor-pointer font-medium text-sm">
-                      Interne Aufgabe
-                    </Label>
-                    <p className="text-xs text-muted-foreground">Nur für Admins sichtbar, nicht für Mitarbeiter</p>
-                  </div>
+              {/* Mehr einstellen */}
+              <button
+                type="button"
+                onClick={() => setMehr(o => !o)}
+                aria-expanded={mehr}
+                className="mt-3.5 flex w-full items-center gap-2 py-1.5 text-left text-[13px] text-foreground"
+              >
+                {mehr ? (
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                )}
+                <span className="font-medium">Mehr einstellen</span>
+                {!mehr && (
+                  <span className="min-w-0 truncate text-muted-foreground">
+                    {gesetzt.length > 0
+                      ? `– ${gesetzt.join(' · ')}`
+                      : '– Kategorie, Wiedervorlage, Anleitung, Unterpunkte, Anhänge'}
+                  </span>
+                )}
+              </button>
+
+              {mehr && (
+                <div className="mt-1.5 space-y-3.5 pb-1">
+                  <Gruppe titel="Wann sie auftaucht">
+                    <Zeile label="Erst ab einem Tag im Vorrat">
+                      <div className="flex items-center gap-1">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className={cn("font-normal", !showFrom && "text-muted-foreground")}
+                            >
+                              {showFrom
+                                ? format(new Date(showFrom), 'dd.MM.yyyy', { locale: de })
+                                : 'sofort'}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="end">
+                            <Calendar
+                              mode="single"
+                              selected={showFrom ? new Date(showFrom) : undefined}
+                              onSelect={(date) => setShowFrom(date ? format(date, 'yyyy-MM-dd') : null)}
+                              initialFocus
+                              locale={de}
+                            />
+                            <p className="border-t border-border p-2 text-[11.5px] leading-snug text-muted-foreground">
+                              Vorher taucht die Aufgabe gar nicht erst im Vorrat auf.
+                            </p>
+                          </PopoverContent>
+                        </Popover>
+                        {showFrom && (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setShowFrom(null)}>
+                            zurücksetzen
+                          </Button>
+                        )}
+                      </div>
+                    </Zeile>
+
+                    <Zeile label="Wiedervorlage">
+                      <div className="flex items-center gap-1">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className={cn("font-normal", !followUpAt && "text-muted-foreground")}
+                            >
+                              {followUpAt
+                                ? format(new Date(followUpAt), 'dd.MM.yyyy', { locale: de })
+                                : 'keine'}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="end">
+                            <Calendar
+                              mode="single"
+                              selected={followUpAt ? new Date(followUpAt) : undefined}
+                              onSelect={(date) => setFollowUpAt(date ? format(date, 'yyyy-MM-dd') : null)}
+                              initialFocus
+                              locale={de}
+                            />
+                            <p className="border-t border-border p-2 text-[11.5px] leading-snug text-muted-foreground">
+                              Die Aufgabe verschwindet bis zu diesem Tag und kommt dann von
+                              selbst zurück.
+                            </p>
+                          </PopoverContent>
+                        </Popover>
+                        {followUpAt && (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setFollowUpAt(null)}>
+                            zurücksetzen
+                          </Button>
+                        )}
+                      </div>
+                    </Zeile>
+
+                    <Zeile label="Wiederholt sich">
+                      <Switch checked={isRecurring} onCheckedChange={setIsRecurring} aria-label="Wiederholt sich" />
+                    </Zeile>
+
+                    {isRecurring && (
+                      <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/40 p-2.5">
+                        <span className="text-[12.5px] text-muted-foreground">alle</span>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={recurrenceInterval}
+                          onChange={(e) => setRecurrenceInterval(Math.max(1, Number(e.target.value) || 1))}
+                          className="h-8 w-[62px] text-[13px]"
+                          aria-label="Abstand der Wiederholung"
+                        />
+                        <Select
+                          value={recurrencePattern}
+                          onValueChange={(v) => setRecurrencePattern(v as typeof recurrencePattern)}
+                        >
+                          <SelectTrigger className="h-8 w-[118px] text-[13px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(['daily', 'weekly', 'monthly', 'yearly'] as const).map(p => (
+                              <SelectItem key={p} value={p}>{WDH_TEXT[p]}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <span className="text-[12.5px] text-muted-foreground">bis</span>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className={cn("h-8 font-normal", !recurrenceEndDate && "text-muted-foreground")}
+                            >
+                              {recurrenceEndDate
+                                ? format(new Date(recurrenceEndDate), 'dd.MM.yyyy', { locale: de })
+                                : 'ohne Ende'}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="end">
+                            <Calendar
+                              mode="single"
+                              selected={recurrenceEndDate ? new Date(recurrenceEndDate) : undefined}
+                              onSelect={(date) =>
+                                setRecurrenceEndDate(date ? format(date, 'yyyy-MM-dd') : null)
+                              }
+                              initialFocus
+                              locale={de}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    )}
+                  </Gruppe>
+
+                  <Gruppe titel="Wie sie abgearbeitet wird">
+                    <Zeile label="Anleitung als Checkliste">
+                      <Select
+                        value={checklistTemplateId ?? 'none'}
+                        onValueChange={(v) => setChecklistTemplateId(v === 'none' ? null : v)}
+                      >
+                        <SelectTrigger className="h-9 w-[180px] text-[13px]">
+                          <SelectValue placeholder="keine" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">keine</SelectItem>
+                          {templates.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Zeile>
+                    {checklistTemplateId && (
+                      <p className="text-[11.5px] leading-snug text-muted-foreground">
+                        Übernimmt die Schritte der Anleitung als Checkliste — mit Erklärtext zum
+                        Aufklappen.
+                      </p>
+                    )}
+
+                    {mode === 'create' && (
+                      <>
+                        <InlineSubtasksCreator subtasks={subtasks} onChange={setSubtasks} />
+                        <InlineAttachmentCreator files={files} onChange={setFiles} />
+                      </>
+                    )}
+                  </Gruppe>
+
+                  <Gruppe titel="Einsortierung">
+                    <Zeile label="Kategorie">
+                      <div className="flex items-center gap-1.5">
+                        <Select
+                          value={categoryId || 'none'}
+                          onValueChange={(v) => setCategoryId(v === 'none' ? null : v)}
+                        >
+                          <SelectTrigger className="h-9 w-[160px] text-[13px]">
+                            <SelectValue placeholder="keine" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">keine</SelectItem>
+                            {categories.map((cat) => (
+                              <SelectItem key={cat.id} value={cat.id}>
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className="h-2 w-2 rounded-full"
+                                    style={{ backgroundColor: cat.color }}
+                                  />
+                                  {cat.name}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 shrink-0"
+                          onClick={() => setCategoryDialogOpen(true)}
+                          aria-label="Neue Kategorie anlegen"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </Zeile>
+
+                    <Zeile label="Priorität">
+                      <Select value={priority} onValueChange={(v) => setPriority(v as typeof priority)}>
+                        <SelectTrigger className="h-9 w-[160px] text-[13px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">niedrig</SelectItem>
+                          <SelectItem value="medium">mittel</SelectItem>
+                          <SelectItem value="high">hoch</SelectItem>
+                          <SelectItem value="urgent">dringend</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Zeile>
+
+                    {profile?.role === 'admin' && (
+                      <>
+                        <Zeile label="Nur für Admins sichtbar">
+                          <Switch
+                            checked={isInternal}
+                            onCheckedChange={(checked) => setIsInternal(checked === true)}
+                            aria-label="Nur für Admins sichtbar"
+                          />
+                        </Zeile>
+                        {isInternal && (
+                          <p className="text-[11.5px] leading-snug text-muted-foreground">
+                            Mitarbeiter sehen diese Aufgabe nicht.
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </Gruppe>
                 </div>
-              )}
-
-              {/* Recurrence settings (discreet) */}
-              <RecurrenceSettings
-                isRecurring={isRecurring}
-                pattern={recurrencePattern}
-                interval={recurrenceInterval}
-                endDate={recurrenceEndDate}
-                onIsRecurringChange={setIsRecurring}
-                onPatternChange={setRecurrencePattern}
-                onIntervalChange={setRecurrenceInterval}
-                onEndDateChange={setRecurrenceEndDate}
-              />
-
-              {/* Subtasks (only for create mode) */}
-              {mode === 'create' && (
-                <InlineSubtasksCreator subtasks={subtasks} onChange={setSubtasks} />
-              )}
-
-              {/* Attachments (only for create mode) */}
-              {mode === 'create' && (
-                <InlineAttachmentCreator files={files} onChange={setFiles} />
               )}
             </form>
           </div>
 
-          <DialogFooter className="shrink-0">
+          <div className="flex shrink-0 items-center gap-2.5 px-5 py-4">
+            <span className="min-w-0 flex-1 text-[11.5px] text-muted-foreground">
+              {mode === 'create' && onCreated ? 'Landet sofort an deiner Wand.' : ''}
+            </span>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
               Abbrechen
             </Button>
             <Button type="button" onClick={handleSubmit} disabled={!title.trim() || isPending}>
-              {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {mode === 'create' ? 'Erstellen' : 'Speichern'}
+              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {mode === 'create' ? (onCreated ? 'Aufhängen' : 'Anlegen') : 'Speichern'}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
