@@ -33,6 +33,7 @@ type ProtocolAgendaItem = {
   admin_notes: string | null;
   result: string | null;
   voting_principle: string | null;
+  requires_resolution?: boolean | null;
   yes_count: number | null;
   no_count: number | null;
   abstain_count: number | null;
@@ -171,7 +172,7 @@ export function ProtocolReadableView({
           <p className="text-sm text-muted-foreground italic">Keine TOPs erfasst.</p>
         )}
         {agendaItems.map((it, idx) => {
-          const hasResolution = !!(it.resolution_text && it.resolution_text.trim());
+          const hasResolution = it.requires_resolution !== false && !!(it.resolution_text && it.resolution_text.trim());
           const hasNotes = !!(it.admin_notes && it.admin_notes.trim());
           const itemVotes = votes.filter((v) => v.agenda_item_id === it.id);
           const sumMea = (vote: string) => itemVotes
