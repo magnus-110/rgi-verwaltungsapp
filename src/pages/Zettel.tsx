@@ -417,7 +417,7 @@ export default function Zettel() {
                     initialFocus
                     locale={de}
                   />
-                  <p className="border-t border-border p-2 text-[11.5px] leading-snug text-muted-foreground">
+                  <p className="w-0 min-w-full border-t border-border p-2 text-[11.5px] leading-snug text-muted-foreground">
                     Die Aufgabe verschwindet bis dahin und kommt dann von selbst zurück.
                   </p>
                 </PopoverContent>
