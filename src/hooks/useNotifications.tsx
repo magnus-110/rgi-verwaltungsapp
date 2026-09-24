@@ -247,14 +247,13 @@ export function useNotificationPrefs() {
 /**
  * Welche Postfächer melden mir neue E-Mails?
  *
- * Das stand bisher nur tief in den Einstellungen — wer in der Glocke eine Mail
- * aus einem fremden Postfach sah, fand nicht, wo man das abstellt.
+ * Dieselbe Auswahl wie die Häkchen bei „Konten" im Postfach: ein Konto, das
+ * dort angehakt ist, wird angezeigt UND gemeldet.
  *
- * Zwei Tabellen halten dasselbe fest: email_account_subscriptions (danach
- * richtet sich die Funktion, die die Meldungen schreibt) und
- * in_app_email_subscriptions (danach richtet sich der Zähler auf dem
- * Dashboard). Ein Schalter, der nur eine der beiden trifft, wirkt halb — hier
- * werden deshalb immer beide gesetzt.
+ * Zwei Tabellen halten das fest: email_account_subscriptions (danach richtet
+ * sich die Funktion, die die Meldungen schreibt) und in_app_email_subscriptions
+ * (danach richtet sich der Zähler auf dem Dashboard). Ein Schalter, der nur
+ * eine der beiden trifft, wirkt halb — hier werden deshalb immer beide gesetzt.
  */
 export interface PostfachAbo {
   id: string;
@@ -305,6 +304,46 @@ export function useSetMailboxAbo() {
         await Promise.all([
           supabase.from('email_account_subscriptions').delete().eq('user_id', user!.id).eq('account_id', input.accountId),
           (supabase as any).from('in_app_email_subscriptions').delete().eq('user_id', user!.id).eq('account_id', input.accountId),
+        ]);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['mailbox-abos', user?.id] });
+      qc.invalidateQueries({ queryKey: ['notifications', user?.id] });
+    },
+  });
+}
+
+/**
+ * Mehrere Postfächer auf einmal setzen — für „Alle Konten" im Postfach.
+ * Geschrieben wird nur die Differenz zum jetzigen Stand.
+ */
+export function useSetMailboxAbos() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (zielIds: string[]) => {
+      const { data: jetzt } = await supabase
+        .from('email_account_subscriptions')
+        .select('account_id')
+        .eq('user_id', user!.id);
+      const vorher = new Set((jetzt ?? []).map((a: any) => a.account_id));
+      const ziel = new Set(zielIds);
+
+      const dazu = zielIds.filter(id => !vorher.has(id)).map(id => ({ user_id: user!.id, account_id: id }));
+      const weg = Array.from(vorher).filter(id => !ziel.has(id)) as string[];
+
+      if (dazu.length) {
+        await Promise.all([
+          supabase.from('email_account_subscriptions').upsert(dazu as any, { onConflict: 'user_id,account_id' }),
+          (supabase as any).from('in_app_email_subscriptions').upsert(dazu, { onConflict: 'user_id,account_id' }),
+        ]);
+      }
+      if (weg.length) {
+        await Promise.all([
+          supabase.from('email_account_subscriptions').delete().eq('user_id', user!.id).in('account_id', weg),
+          (supabase as any).from('in_app_email_subscriptions').delete().eq('user_id', user!.id).in('account_id', weg),
         ]);
       }
     },
