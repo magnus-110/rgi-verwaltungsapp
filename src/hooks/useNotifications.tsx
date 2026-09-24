@@ -39,14 +39,14 @@ export interface AppNotification {
 /**
  * E-Mail-Meldungen nur aus den Postfächern zeigen, die man abonniert hat.
  *
- * Die Meldungen schreibt eine Funktion auf dem Server. Deren alte Fassung
- * legte für ein Postfach ohne Abonnenten eine Meldung bei allen Mitarbeitern
- * an — dadurch klingelte die Glocke bei Postfächern, die man nie abonniert
- * hat. Diese Zeilen liegen noch in der Datenbank. Hier wird deshalb beim
- * Anzeigen noch einmal geprüft, zu welchem Postfach die Mail gehört.
+ * Geschrieben werden die Meldungen von einer Funktion auf dem Server. Eine
+ * ältere Fassung davon meldete Postfächer ohne Abonnenten an alle Mitarbeiter;
+ * diese Zeilen liegen noch in der Datenbank. Und wer ein Abonnement später
+ * abbestellt, hat die alten Meldungen trotzdem noch in der Liste.
  *
- * Meldungen zu einer Mail, die es nicht mehr gibt, bleiben sichtbar — lieber
- * eine zu viel als eine verschluckte.
+ * Deshalb wird beim Anzeigen noch einmal geprüft, zu welchem Postfach die Mail
+ * gehört. Meldungen zu einer Mail, die es nicht mehr gibt, bleiben sichtbar —
+ * lieber eine zu viel als eine verschluckte.
  */
 async function nurAbonniertePostfaecher(
   meldungen: AppNotification[],
@@ -240,6 +240,77 @@ export function useNotificationPrefs() {
         erinnerungen: wert('erinnerungen'),
         durchsicht: wert('durchsicht'),
       };
+    },
+  });
+}
+
+/**
+ * Welche Postfächer melden mir neue E-Mails?
+ *
+ * Das stand bisher nur tief in den Einstellungen — wer in der Glocke eine Mail
+ * aus einem fremden Postfach sah, fand nicht, wo man das abstellt.
+ *
+ * Zwei Tabellen halten dasselbe fest: email_account_subscriptions (danach
+ * richtet sich die Funktion, die die Meldungen schreibt) und
+ * in_app_email_subscriptions (danach richtet sich der Zähler auf dem
+ * Dashboard). Ein Schalter, der nur eine der beiden trifft, wirkt halb — hier
+ * werden deshalb immer beide gesetzt.
+ */
+export interface PostfachAbo {
+  id: string;
+  display_name: string | null;
+  email_address: string;
+  an: boolean;
+}
+
+export function useMailboxAbos() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ['mailbox-abos', user?.id],
+    enabled: !!user?.id,
+    queryFn: async (): Promise<PostfachAbo[]> => {
+      const [{ data: konten }, { data: abos }] = await Promise.all([
+        supabase
+          .from('email_accounts')
+          .select('id, display_name, email_address')
+          .eq('is_active', true)
+          .order('display_name'),
+        supabase.from('email_account_subscriptions').select('account_id').eq('user_id', user!.id),
+      ]);
+      const an = new Set((abos ?? []).map((a: any) => a.account_id));
+      return (konten ?? []).map((k: any) => ({
+        id: k.id,
+        display_name: k.display_name,
+        email_address: k.email_address,
+        an: an.has(k.id),
+      }));
+    },
+  });
+}
+
+export function useSetMailboxAbo() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (input: { accountId: string; an: boolean }) => {
+      const zeile = { user_id: user!.id, account_id: input.accountId };
+      if (input.an) {
+        await Promise.all([
+          supabase.from('email_account_subscriptions').upsert(zeile as any, { onConflict: 'user_id,account_id' }),
+          (supabase as any).from('in_app_email_subscriptions').upsert(zeile, { onConflict: 'user_id,account_id' }),
+        ]);
+      } else {
+        await Promise.all([
+          supabase.from('email_account_subscriptions').delete().eq('user_id', user!.id).eq('account_id', input.accountId),
+          (supabase as any).from('in_app_email_subscriptions').delete().eq('user_id', user!.id).eq('account_id', input.accountId),
+        ]);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['mailbox-abos', user?.id] });
+      qc.invalidateQueries({ queryKey: ['notifications', user?.id] });
     },
   });
 }
