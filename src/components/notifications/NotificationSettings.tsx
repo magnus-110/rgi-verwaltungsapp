@@ -6,12 +6,59 @@ import {
   SCHALTER_REIHENFOLGE,
   SCHALTER_TEXT,
   SCHALTER_ZUSATZ,
+  useMailboxAbos,
   useNotificationPrefs,
+  useSetMailboxAbo,
   useSetNotificationPref,
 } from '@/hooks/useNotifications';
 
 interface NotificationSettingsProps {
   onBack: () => void;
+}
+
+/**
+ * Aus welchen Postfächern kommen die E-Mail-Meldungen?
+ *
+ * Steht bewusst eingerückt unter dem Schalter „Neue E-Mails" — wer dort eine
+ * Mail aus einem fremden Postfach sieht, kann es genau hier abstellen, statt
+ * es in den Einstellungen zu suchen.
+ */
+function Postfaecher() {
+  const { data: konten = [], isLoading } = useMailboxAbos();
+  const setzen = useSetMailboxAbo();
+
+  if (isLoading || konten.length === 0) return null;
+
+  return (
+    <div className="ml-[52px] space-y-2 border-l border-border pl-3">
+      <span className="block text-[11.5px] text-muted-foreground">Aus diesen Postfächern:</span>
+      {konten.map(k => (
+        <label
+          key={k.id}
+          htmlFor={`postfach-${k.id}`}
+          className="flex cursor-pointer items-center justify-between gap-3"
+        >
+          <span className="min-w-0">
+            <span className={`block truncate text-[12.5px] leading-snug ${k.an ? 'text-foreground' : 'text-muted-foreground'}`}>
+              {k.display_name || k.email_address}
+            </span>
+            {k.display_name && (
+              <span className="block truncate text-[11px] leading-snug text-muted-foreground">
+                {k.email_address}
+              </span>
+            )}
+          </span>
+          <Switch
+            id={`postfach-${k.id}`}
+            className="shrink-0 scale-90"
+            checked={k.an}
+            disabled={setzen.isPending}
+            onCheckedChange={an => setzen.mutate({ accountId: k.id, an })}
+          />
+        </label>
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -90,6 +137,9 @@ export function NotificationSettings({ onBack }: NotificationSettingsProps) {
                 </label>
               );
             })}
+
+            {/* Welche Postfächer gemeint sind, stand bisher nirgends hier. */}
+            {prefs.neue_emails && <Postfaecher />}
           </div>
         )}
 
