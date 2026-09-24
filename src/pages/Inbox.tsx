@@ -67,6 +67,7 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
+import { useMailboxAbos, useSetMailboxAbos } from "@/hooks/useNotifications";
 import { EmailAttachments } from "@/components/email/EmailAttachments";
 import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
 import { AssignBrokerLeadDialog } from "@/components/email/AssignBrokerLeadDialog";
@@ -116,16 +117,29 @@ export const Inbox = () => {
   }, [selectedFolderId]);
   const [isSyncing, setIsSyncing] = useState(false);
   const { openCompose } = useComposeEmail();
-  const [selectedAccountIds, setSelectedAccountIds] = useState<string[] | null>(() => {
+  /**
+   * Welche Konten sind gewählt?
+   *
+   * Das stand früher nur im Browser dieses Rechners — und war damit etwas
+   * anderes als die Postfächer, aus denen die Glocke meldet. Wer ein Konto hier
+   * abwählte, bekam trotzdem weiter Meldungen daraus. Jetzt ist es dieselbe
+   * Sache: das Häkchen steht in der Datenbank, gilt auf allen Geräten und
+   * entscheidet zugleich, worüber benachrichtigt wird.
+   *
+   * Ist nichts gewählt, wird nicht gefiltert — sonst stünde man vor einem
+   * leeren Posteingang, ohne zu wissen, warum.
+   */
+  const { data: kontoAbos = [] } = useMailboxAbos();
+  const setzeAbos = useSetMailboxAbos();
+  const gewaehlteKonten = useMemo(() => kontoAbos.filter((k) => k.an).map((k) => k.id), [kontoAbos]);
+  const selectedAccountIds: string[] | null = gewaehlteKonten.length ? gewaehlteKonten : null;
+
+  // Die alte, nur lokal gespeicherte Auswahl wird nicht mehr gelesen.
+  useEffect(() => {
     try {
-      const raw = localStorage.getItem("inbox-selected-accounts");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
-      }
+      localStorage.removeItem("inbox-selected-accounts");
     } catch {}
-    return null; // null = all accounts
-  });
+  }, []);
   const [accountsExpanded, setAccountsExpanded] = useState<boolean>(() => {
     try {
       const raw = localStorage.getItem("inbox-accounts-expanded");
@@ -1341,30 +1355,15 @@ export const Inbox = () => {
                 ) : (
                   (() => {
                     const allIds = accounts.map((a) => a.id);
-                    const isAccountChecked = (id: string) =>
-                      selectedAccountIds === null || selectedAccountIds.includes(id);
-                    const allChecked =
-                      selectedAccountIds === null ||
-                      (selectedAccountIds.length === allIds.length &&
-                        allIds.every((id) => selectedAccountIds.includes(id)));
+                    const isAccountChecked = (id: string) => gewaehlteKonten.includes(id);
+                    const allChecked = allIds.length > 0 && allIds.every((id) => gewaehlteKonten.includes(id));
                     const toggleAccount = (id: string) => {
-                      const current = selectedAccountIds === null ? [...allIds] : [...selectedAccountIds];
-                      const idx = current.indexOf(id);
-                      if (idx >= 0) current.splice(idx, 1);
-                      else current.push(id);
-                      const next = current.length === allIds.length ? null : current;
-                      setSelectedAccountIds(next);
-                      try {
-                        localStorage.setItem("inbox-selected-accounts", JSON.stringify(next));
-                      } catch {}
+                      const next = gewaehlteKonten.includes(id)
+                        ? gewaehlteKonten.filter((x) => x !== id)
+                        : [...gewaehlteKonten, id];
+                      setzeAbos.mutate(next);
                     };
-                    const toggleAll = () => {
-                      const next = allChecked ? [] : null;
-                      setSelectedAccountIds(next);
-                      try {
-                        localStorage.setItem("inbox-selected-accounts", JSON.stringify(next));
-                      } catch {}
-                    };
+                    const toggleAll = () => setzeAbos.mutate(allChecked ? [] : allIds);
 
                     const renderAccountRow = (acc: (typeof accounts)[number]) => (
                       <label
@@ -1387,6 +1386,11 @@ export const Inbox = () => {
                           <Mail className="h-4 w-4 shrink-0" />
                           <span className="truncate text-left flex-1 font-medium">Alle Konten</span>
                         </label>
+                        <p className="px-2 pb-1 pt-0.5 text-[10.5px] leading-snug text-muted-foreground">
+                          {gewaehlteKonten.length === 0
+                            ? "Kein Konto gewählt — es werden alle angezeigt, die Glocke meldet nichts."
+                            : "Die Glocke meldet neue E-Mails aus diesen Konten."}
+                        </p>
                         {myAccountIds.length > 0 && (
                           <>
                             <p className="px-2 pt-2 pb-0.5 text-[10px] font-semibold text-muted-foreground">
@@ -2467,32 +2471,24 @@ export const Inbox = () => {
               {accounts.length === 0 ? (
                 <p className="px-2 py-2 text-xs text-muted-foreground">Noch keine E-Mail-Konten.</p>
               ) : (
-                accounts.map((acc) => {
-                  const checked = selectedAccountIds === null || selectedAccountIds.includes(acc.id);
-                  return (
-                    <label
-                      key={acc.id}
-                      className="w-full flex items-center gap-2 px-2 py-2.5 text-sm rounded-md hover:bg-muted/50 cursor-pointer"
-                    >
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={() => {
-                          const allIds = accounts.map((a) => a.id);
-                          const current = selectedAccountIds === null ? [...allIds] : [...selectedAccountIds];
-                          const idx = current.indexOf(acc.id);
-                          if (idx >= 0) current.splice(idx, 1);
-                          else current.push(acc.id);
-                          const next = current.length === allIds.length ? null : current;
-                          setSelectedAccountIds(next);
-                          try {
-                            localStorage.setItem("inbox-selected-accounts", JSON.stringify(next));
-                          } catch {}
-                        }}
-                      />
-                      <span className="truncate flex-1">{acc.display_name}</span>
-                    </label>
-                  );
-                })
+                accounts.map((acc) => (
+                  <label
+                    key={acc.id}
+                    className="w-full flex items-center gap-2 px-2 py-2.5 text-sm rounded-md hover:bg-muted/50 cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={gewaehlteKonten.includes(acc.id)}
+                      onCheckedChange={() =>
+                        setzeAbos.mutate(
+                          gewaehlteKonten.includes(acc.id)
+                            ? gewaehlteKonten.filter((x) => x !== acc.id)
+                            : [...gewaehlteKonten, acc.id],
+                        )
+                      }
+                    />
+                    <span className="truncate flex-1">{acc.display_name}</span>
+                  </label>
+                ))
               )}
             </div>
           </ScrollArea>
