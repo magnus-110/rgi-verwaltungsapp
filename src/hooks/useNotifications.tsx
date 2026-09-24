@@ -36,6 +36,48 @@ export interface AppNotification {
   created_at: string;
 }
 
+/**
+ * E-Mail-Meldungen nur aus den Postfächern zeigen, die man abonniert hat.
+ *
+ * Die Meldungen schreibt eine Funktion auf dem Server. Deren alte Fassung
+ * legte für ein Postfach ohne Abonnenten eine Meldung bei allen Mitarbeitern
+ * an — dadurch klingelte die Glocke bei Postfächern, die man nie abonniert
+ * hat. Diese Zeilen liegen noch in der Datenbank. Hier wird deshalb beim
+ * Anzeigen noch einmal geprüft, zu welchem Postfach die Mail gehört.
+ *
+ * Meldungen zu einer Mail, die es nicht mehr gibt, bleiben sichtbar — lieber
+ * eine zu viel als eine verschluckte.
+ */
+async function nurAbonniertePostfaecher(
+  meldungen: AppNotification[],
+  userId: string,
+): Promise<AppNotification[]> {
+  const mailIds = Array.from(
+    new Set(
+      meldungen
+        .filter(n => n.type === 'case_email' && n.ref_type === 'email' && n.ref_id)
+        .map(n => n.ref_id as string),
+    ),
+  );
+  if (!mailIds.length) return meldungen;
+
+  const [{ data: mails }, { data: abos }] = await Promise.all([
+    supabase.from('emails').select('id, account_id').in('id', mailIds),
+    supabase.from('email_account_subscriptions').select('account_id').eq('user_id', userId),
+  ]);
+
+  const kontoZuMail = new Map<string, string | null>();
+  (mails ?? []).forEach((m: any) => kontoZuMail.set(m.id, m.account_id ?? null));
+  const abonniert = new Set((abos ?? []).map((a: any) => a.account_id));
+
+  return meldungen.filter(n => {
+    if (n.type !== 'case_email' || n.ref_type !== 'email' || !n.ref_id) return true;
+    if (!kontoZuMail.has(n.ref_id)) return true; // Mail unbekannt: stehen lassen
+    const konto = kontoZuMail.get(n.ref_id);
+    return !!konto && abonniert.has(konto);
+  });
+}
+
 export function useNotifications(limit = 50) {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -51,7 +93,7 @@ export function useNotifications(limit = 50) {
         .order('created_at', { ascending: false })
         .limit(limit);
       if (error) throw error;
-      return (data || []) as unknown as AppNotification[];
+      return await nurAbonniertePostfaecher((data || []) as unknown as AppNotification[], user!.id);
     },
   });
 
