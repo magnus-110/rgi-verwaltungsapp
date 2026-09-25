@@ -825,12 +825,14 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   };
 
   const openAgendaAttachment = async (filePath: string) => {
-    const { data, error } = await supabase.storage.from("building-files").createSignedUrl(filePath, 600);
-    if (error || !data?.signedUrl) {
-      toast({ title: "Dokument konnte nicht geöffnet werden", description: error?.message, variant: "destructive" });
-      return;
+    for (const bucket of ["building-files", "invoices"]) {
+      const { data } = await supabase.storage.from(bucket).createSignedUrl(filePath, 600);
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+        return;
+      }
     }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    toast({ title: "Dokument konnte nicht geöffnet werden", variant: "destructive" });
   };
 
   // Geschäftsbeschluss options
