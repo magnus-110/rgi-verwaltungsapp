@@ -699,7 +699,7 @@ export function useCreateNote() {
 
       const { error: pinError } = await boardDb.from('board_pins').insert({
         user_id: user!.id,
-        ref_type: 'todo',
+        ref_type: 'todo' as const,
         ref_id: (todo as any).id,
         column_key: 'wall',
         sort_order: nextSort,
