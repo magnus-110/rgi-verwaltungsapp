@@ -253,6 +253,24 @@ export type Database = {
           },
         ]
       }
+      annual_cycle_definitions: {
+        Row: {
+          label: string
+          sort_order: number
+          task_key: string
+        }
+        Insert: {
+          label: string
+          sort_order?: number
+          task_key: string
+        }
+        Update: {
+          label?: string
+          sort_order?: number
+          task_key?: string
+        }
+        Relationships: []
+      }
       annual_cycle_tasks: {
         Row: {
           auto_managed: boolean
@@ -955,6 +973,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      board_hidden_walls: {
+        Row: {
+          created_at: string
+          hidden_user_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          hidden_user_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          hidden_user_id?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       board_pins: {
         Row: {
@@ -3022,6 +3058,13 @@ export type Database = {
             foreignKeyName: "call_logs_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: false
+            referencedRelation: "case_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_logs_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
             referencedRelation: "cases"
             referencedColumns: ["id"]
           },
@@ -3102,6 +3145,13 @@ export type Database = {
             foreignKeyName: "case_events_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: false
+            referencedRelation: "case_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_events_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
             referencedRelation: "cases"
             referencedColumns: ["id"]
           },
@@ -3147,6 +3197,13 @@ export type Database = {
             foreignKeyName: "case_participants_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: false
+            referencedRelation: "case_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_participants_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
             referencedRelation: "cases"
             referencedColumns: ["id"]
           },
@@ -3162,6 +3219,7 @@ export type Database = {
       cases: {
         Row: {
           ai_keywords: string[]
+          ai_last_step: string | null
           ai_next_steps: Json
           ai_summary: string | null
           ai_summary_updated_at: string | null
@@ -3186,6 +3244,7 @@ export type Database = {
         }
         Insert: {
           ai_keywords?: string[]
+          ai_last_step?: string | null
           ai_next_steps?: Json
           ai_summary?: string | null
           ai_summary_updated_at?: string | null
@@ -3210,6 +3269,7 @@ export type Database = {
         }
         Update: {
           ai_keywords?: string[]
+          ai_last_step?: string | null
           ai_next_steps?: Json
           ai_summary?: string | null
           ai_summary_updated_at?: string | null
@@ -5634,6 +5694,13 @@ export type Database = {
             foreignKeyName: "emails_ai_case_suggestion_id_fkey"
             columns: ["ai_case_suggestion_id"]
             isOneToOne: false
+            referencedRelation: "case_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_ai_case_suggestion_id_fkey"
+            columns: ["ai_case_suggestion_id"]
+            isOneToOne: false
             referencedRelation: "cases"
             referencedColumns: ["id"]
           },
@@ -5657,6 +5724,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rgi_building_billing_overview"
             referencedColumns: ["building_id"]
+          },
+          {
+            foreignKeyName: "emails_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "case_overview"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "emails_case_id_fkey"
@@ -6607,6 +6681,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rgi_building_billing_overview"
             referencedColumns: ["building_id"]
+          },
+          {
+            foreignKeyName: "etv_resolutions_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "case_overview"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "etv_resolutions_case_id_fkey"
@@ -8942,6 +9023,13 @@ export type Database = {
             foreignKeyName: "miete_reports_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: false
+            referencedRelation: "case_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "miete_reports_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
             referencedRelation: "cases"
             referencedColumns: ["id"]
           },
@@ -9708,210 +9796,6 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      process_instance_steps: {
-        Row: {
-          assignee_user_id: string | null
-          completed_at: string | null
-          completed_by: string | null
-          created_at: string
-          created_calendar_event_id: string | null
-          created_todo_id: string | null
-          description: string | null
-          due_date: string | null
-          id: string
-          instance_id: string
-          is_completed: boolean
-          notes: string | null
-          position: number
-          template_step_id: string | null
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          assignee_user_id?: string | null
-          completed_at?: string | null
-          completed_by?: string | null
-          created_at?: string
-          created_calendar_event_id?: string | null
-          created_todo_id?: string | null
-          description?: string | null
-          due_date?: string | null
-          id?: string
-          instance_id: string
-          is_completed?: boolean
-          notes?: string | null
-          position?: number
-          template_step_id?: string | null
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          assignee_user_id?: string | null
-          completed_at?: string | null
-          completed_by?: string | null
-          created_at?: string
-          created_calendar_event_id?: string | null
-          created_todo_id?: string | null
-          description?: string | null
-          due_date?: string | null
-          id?: string
-          instance_id?: string
-          is_completed?: boolean
-          notes?: string | null
-          position?: number
-          template_step_id?: string | null
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "process_instance_steps_created_calendar_event_id_fkey"
-            columns: ["created_calendar_event_id"]
-            isOneToOne: false
-            referencedRelation: "calendar_events"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "process_instance_steps_created_todo_id_fkey"
-            columns: ["created_todo_id"]
-            isOneToOne: false
-            referencedRelation: "todos"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "process_instance_steps_instance_id_fkey"
-            columns: ["instance_id"]
-            isOneToOne: false
-            referencedRelation: "process_instances"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "process_instance_steps_template_step_id_fkey"
-            columns: ["template_step_id"]
-            isOneToOne: false
-            referencedRelation: "process_template_steps"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      process_instances: {
-        Row: {
-          building_id: string | null
-          completed_at: string | null
-          contact_id: string | null
-          created_at: string
-          created_by: string
-          description: string | null
-          id: string
-          owner_user_id: string | null
-          started_at: string
-          status: string
-          template_id: string | null
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          building_id?: string | null
-          completed_at?: string | null
-          contact_id?: string | null
-          created_at?: string
-          created_by: string
-          description?: string | null
-          id?: string
-          owner_user_id?: string | null
-          started_at?: string
-          status?: string
-          template_id?: string | null
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          building_id?: string | null
-          completed_at?: string | null
-          contact_id?: string | null
-          created_at?: string
-          created_by?: string
-          description?: string | null
-          id?: string
-          owner_user_id?: string | null
-          started_at?: string
-          status?: string
-          template_id?: string | null
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "process_instances_building_id_fkey"
-            columns: ["building_id"]
-            isOneToOne: false
-            referencedRelation: "buildings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "process_instances_building_id_fkey"
-            columns: ["building_id"]
-            isOneToOne: false
-            referencedRelation: "rgi_building_billing_overview"
-            referencedColumns: ["building_id"]
-          },
-          {
-            foreignKeyName: "process_instances_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "process_instances_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "process_templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      process_step_attachments: {
-        Row: {
-          created_at: string
-          file_name: string
-          file_path: string
-          file_size: number | null
-          id: string
-          instance_step_id: string
-          mime_type: string | null
-          uploaded_by: string
-        }
-        Insert: {
-          created_at?: string
-          file_name: string
-          file_path: string
-          file_size?: number | null
-          id?: string
-          instance_step_id: string
-          mime_type?: string | null
-          uploaded_by: string
-        }
-        Update: {
-          created_at?: string
-          file_name?: string
-          file_path?: string
-          file_size?: number | null
-          id?: string
-          instance_step_id?: string
-          mime_type?: string | null
-          uploaded_by?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "process_step_attachments_instance_step_id_fkey"
-            columns: ["instance_step_id"]
-            isOneToOne: false
-            referencedRelation: "process_instance_steps"
             referencedColumns: ["id"]
           },
         ]
@@ -11645,59 +11529,80 @@ export type Database = {
       survey_items: {
         Row: {
           agenda_note: string | null
+          answer_options: string[] | null
           cost_tier: string | null
           created_at: string
           depends_on_choice: Database["public"]["Enums"]["survey_choice"] | null
           depends_on_item_id: string | null
+          depends_on_value: string | null
           explanation: string
           followup_options: string[] | null
           followup_question: string | null
           group_label: string | null
           id: string
+          is_required: boolean
           is_safety: boolean
           item_type: string
+          kind: string
           on_agenda: boolean | null
           position: number
+          scale_max: number | null
+          scale_max_label: string | null
+          scale_min_label: string | null
           survey_id: string
           title: string
         }
         Insert: {
           agenda_note?: string | null
+          answer_options?: string[] | null
           cost_tier?: string | null
           created_at?: string
           depends_on_choice?:
             | Database["public"]["Enums"]["survey_choice"]
             | null
           depends_on_item_id?: string | null
+          depends_on_value?: string | null
           explanation: string
           followup_options?: string[] | null
           followup_question?: string | null
           group_label?: string | null
           id?: string
+          is_required?: boolean
           is_safety?: boolean
           item_type?: string
+          kind?: string
           on_agenda?: boolean | null
           position?: number
+          scale_max?: number | null
+          scale_max_label?: string | null
+          scale_min_label?: string | null
           survey_id: string
           title: string
         }
         Update: {
           agenda_note?: string | null
+          answer_options?: string[] | null
           cost_tier?: string | null
           created_at?: string
           depends_on_choice?:
             | Database["public"]["Enums"]["survey_choice"]
             | null
           depends_on_item_id?: string | null
+          depends_on_value?: string | null
           explanation?: string
           followup_options?: string[] | null
           followup_question?: string | null
           group_label?: string | null
           id?: string
+          is_required?: boolean
           is_safety?: boolean
           item_type?: string
+          kind?: string
           on_agenda?: boolean | null
           position?: number
+          scale_max?: number | null
+          scale_max_label?: string | null
+          scale_min_label?: string | null
           survey_id?: string
           title?: string
         }
@@ -11732,11 +11637,15 @@ export type Database = {
           comment: string | null
           contact_id: string
           created_at: string
+          date_answer: string | null
           followup_choice: number | null
           id: string
           item_id: string
           mea_weight: number
+          option_indexes: number[] | null
+          scale_value: number | null
           survey_id: string
+          text_answer: string | null
           updated_at: string
           urgent: boolean
         }
@@ -11746,11 +11655,15 @@ export type Database = {
           comment?: string | null
           contact_id: string
           created_at?: string
+          date_answer?: string | null
           followup_choice?: number | null
           id?: string
           item_id: string
           mea_weight?: number
+          option_indexes?: number[] | null
+          scale_value?: number | null
           survey_id: string
+          text_answer?: string | null
           updated_at?: string
           urgent?: boolean
         }
@@ -11760,11 +11673,15 @@ export type Database = {
           comment?: string | null
           contact_id?: string
           created_at?: string
+          date_answer?: string | null
           followup_choice?: number | null
           id?: string
           item_id?: string
           mea_weight?: number
+          option_indexes?: number[] | null
+          scale_value?: number | null
           survey_id?: string
+          text_answer?: string | null
           updated_at?: string
           urgent?: boolean
         }
@@ -11825,11 +11742,11 @@ export type Database = {
           id: string
           is_visible_to_owners: boolean
           opens_at: string | null
-          quorum_pct: number
           safety_notice: string | null
           status: Database["public"]["Enums"]["survey_status"]
           title: string
           updated_at: string
+          weight_by_mea: boolean
           welcome_message: string | null
           welcome_title: string | null
         }
@@ -11844,11 +11761,11 @@ export type Database = {
           id?: string
           is_visible_to_owners?: boolean
           opens_at?: string | null
-          quorum_pct?: number
           safety_notice?: string | null
           status?: Database["public"]["Enums"]["survey_status"]
           title: string
           updated_at?: string
+          weight_by_mea?: boolean
           welcome_message?: string | null
           welcome_title?: string | null
         }
@@ -11863,11 +11780,11 @@ export type Database = {
           id?: string
           is_visible_to_owners?: boolean
           opens_at?: string | null
-          quorum_pct?: number
           safety_notice?: string | null
           status?: Database["public"]["Enums"]["survey_status"]
           title?: string
           updated_at?: string
+          weight_by_mea?: boolean
           welcome_message?: string | null
           welcome_title?: string | null
         }
@@ -11885,6 +11802,61 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rgi_building_billing_overview"
             referencedColumns: ["building_id"]
+          },
+        ]
+      }
+      task_reminders: {
+        Row: {
+          case_id: string | null
+          created_at: string
+          fired_at: string | null
+          id: string
+          note: string | null
+          remind_at: string
+          todo_id: string | null
+          user_id: string
+        }
+        Insert: {
+          case_id?: string | null
+          created_at?: string
+          fired_at?: string | null
+          id?: string
+          note?: string | null
+          remind_at: string
+          todo_id?: string | null
+          user_id: string
+        }
+        Update: {
+          case_id?: string | null
+          created_at?: string
+          fired_at?: string | null
+          id?: string
+          note?: string | null
+          remind_at?: string
+          todo_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_reminders_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "case_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_reminders_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_reminders_todo_id_fkey"
+            columns: ["todo_id"]
+            isOneToOne: false
+            referencedRelation: "todos"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -12277,6 +12249,7 @@ export type Database = {
           building_id: string | null
           calendar_end_time: string | null
           calendar_start_time: string | null
+          case_id: string | null
           category_id: string | null
           checklist_template_id: string | null
           completed_at: string | null
@@ -12311,6 +12284,7 @@ export type Database = {
           building_id?: string | null
           calendar_end_time?: string | null
           calendar_start_time?: string | null
+          case_id?: string | null
           category_id?: string | null
           checklist_template_id?: string | null
           completed_at?: string | null
@@ -12345,6 +12319,7 @@ export type Database = {
           building_id?: string | null
           calendar_end_time?: string | null
           calendar_start_time?: string | null
+          case_id?: string | null
           category_id?: string | null
           checklist_template_id?: string | null
           completed_at?: string | null
@@ -12394,6 +12369,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rgi_building_billing_overview"
             referencedColumns: ["building_id"]
+          },
+          {
+            foreignKeyName: "todos_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "case_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "todos_category_id_fkey"
@@ -12754,6 +12743,13 @@ export type Database = {
             foreignKeyName: "weg_reports_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: false
+            referencedRelation: "case_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weg_reports_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
             referencedRelation: "cases"
             referencedColumns: ["id"]
           },
@@ -12761,6 +12757,79 @@ export type Database = {
       }
     }
     Views: {
+      annual_cycle_open: {
+        Row: {
+          building_id: string | null
+          building_name: string | null
+          fiscal_year_end: string | null
+          fiscal_year_start: string | null
+          id: string | null
+          label: string | null
+          note: string | null
+          on_a_wall: boolean | null
+          sort_order: number | null
+          status: Database["public"]["Enums"]["annual_cycle_status"] | null
+          task_key: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "annual_cycle_tasks_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "annual_cycle_tasks_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+        ]
+      }
+      case_overview: {
+        Row: {
+          ai_last_step: string | null
+          ai_summary: string | null
+          ai_summary_updated_at: string | null
+          building_id: string | null
+          building_name: string | null
+          category: Database["public"]["Enums"]["case_category"] | null
+          created_at: string | null
+          id: string | null
+          last_kind: string | null
+          last_movement_at: string | null
+          last_subject: string | null
+          last_who: string | null
+          long_runner: boolean | null
+          long_runner_manuell: boolean | null
+          on_a_wall: boolean | null
+          priority: Database["public"]["Enums"]["case_priority"] | null
+          silence_bucket: string | null
+          silent_days: number | null
+          snooze_until: string | null
+          status: Database["public"]["Enums"]["case_status"] | null
+          title: string | null
+          unit_number: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cases_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cases_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+        ]
+      }
       management_contract_summary: {
         Row: {
           appointed_from: string | null
@@ -12906,6 +12975,21 @@ export type Database = {
       calculate_account_balance_at: {
         Args: { p_account_id: string; p_building_id: string; p_date: string }
         Returns: number
+      }
+      case_activity_weeks: {
+        Args: { p_case_id: string }
+        Returns: {
+          cnt: number
+          week_start: string
+        }[]
+      }
+      case_activity_weeks_bulk: {
+        Args: { p_case_ids: string[] }
+        Returns: {
+          case_id: string
+          cnt: number
+          week_start: string
+        }[]
       }
       cleanup_orphan_split_bookings: {
         Args: { p_bank_transaction_id: string }
