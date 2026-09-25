@@ -80,8 +80,6 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
     },
   });
 
-  if (attachments.length === 0) return null;
-
   useEffect(() => {
     setAttachmentsExpanded(false);
   }, [emailId]);
@@ -101,6 +99,8 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
     observer.observe(container);
     return () => observer.disconnect();
   }, [attachments]);
+
+  if (attachments.length === 0) return null;
 
 
   const handleOpenPreview = async (filePath: string, fileName: string, mimeType: string | null) => {
