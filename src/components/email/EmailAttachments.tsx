@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown, FileArchive } from "lucide-react";
@@ -62,6 +62,9 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [mergeImporting, setMergeImporting] = useState(false);
   const [zipping, setZipping] = useState(false);
+  const [attachmentsExpanded, setAttachmentsExpanded] = useState(false);
+  const [attachmentsWrap, setAttachmentsWrap] = useState(false);
+  const attachmentsRef = useRef<HTMLDivElement>(null);
 
   const { data: attachments = [] } = useQuery({
     queryKey: ["email-attachments", emailId],
@@ -78,6 +81,26 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   });
 
   if (attachments.length === 0) return null;
+
+  useEffect(() => {
+    setAttachmentsExpanded(false);
+  }, [emailId]);
+
+  useLayoutEffect(() => {
+    const container = attachmentsRef.current;
+    if (!container) return;
+
+    const measureWrap = () => {
+      const rows = Array.from(container.children) as HTMLElement[];
+      const firstTop = rows[0]?.offsetTop;
+      setAttachmentsWrap(firstTop !== undefined && rows.some((row) => row.offsetTop > firstTop));
+    };
+
+    measureWrap();
+    const observer = new ResizeObserver(measureWrap);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [attachments]);
 
 
   const handleOpenPreview = async (filePath: string, fileName: string, mimeType: string | null) => {
@@ -381,6 +404,22 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
             Alle als ZIP
           </Button>
         )}
+        {attachmentsWrap && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 ml-auto px-2 text-xs"
+            onClick={() => setAttachmentsExpanded((expanded) => !expanded)}
+            aria-expanded={attachmentsExpanded}
+          >
+            {attachmentsExpanded ? "Weniger anzeigen" : `Alle ${attachments.length} anzeigen`}
+            {attachmentsExpanded ? (
+              <ChevronDown className="h-3.5 w-3.5 ml-1 rotate-180" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5 ml-1" />
+            )}
+          </Button>
+        )}
       </div>
 
       {selectedIds.length >= 2 && (
@@ -427,7 +466,10 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
       )}
 
 
-      <div className="flex flex-wrap gap-2">
+      <div
+        ref={attachmentsRef}
+        className={`flex flex-wrap gap-2 ${attachmentsWrap && !attachmentsExpanded ? "max-h-10 overflow-hidden" : ""}`}
+      >
         {attachments.map((att) => {
           const Icon = getFileIcon(att.mime_type);
           const canImport = isImportableInvoice(att.mime_type, att.file_name);
