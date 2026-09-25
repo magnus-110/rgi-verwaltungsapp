@@ -808,9 +808,9 @@ export function usePinToWalls() {
 
       const zeilen = input.userIds.map(uid => ({
         user_id: uid,
-        ref_type: 'todo',
+        ref_type: 'todo' as const,
         ref_id: input.todoId,
-        column_key: 'wall',
+        column_key: 'wall' as const,
         sort_order: (kleinstes.get(uid) ?? 1) - 1,
         pinned_by: user!.id,
       }));
