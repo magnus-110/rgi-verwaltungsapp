@@ -52,6 +52,7 @@ interface AgendaItem {
   requires_double_qualified: boolean;
   double_qualified_relevant: boolean;
   requires_resolution: boolean;
+  attachment_paths: string[] | null;
 }
 
 const votingPrincipleLabels: Record<string, string> = {
@@ -823,6 +824,17 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     window.open(data.signedUrl, "_blank");
   };
 
+  const openAgendaAttachment = async (filePath: string) => {
+    for (const bucket of ["building-files", "invoices"]) {
+      const { data } = await supabase.storage.from(bucket).createSignedUrl(filePath, 600);
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+        return;
+      }
+    }
+    toast({ title: "Dokument konnte nicht geöffnet werden", variant: "destructive" });
+  };
+
   // Geschäftsbeschluss options
   const [proceduralAutoAccept, setProceduralAutoAccept] = useState(true);
 
@@ -1176,6 +1188,32 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                 className="text-sm"
               />
             </div>
+
+            {selectedItem.attachment_paths && selectedItem.attachment_paths.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Anhänge ({selectedItem.attachment_paths.length})
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedItem.attachment_paths.map((path, index) => {
+                    const fileName = (path.split("/").pop() || "Dokument").replace(/^\d+-/, "");
+                    return (
+                      <Button
+                        key={`${path}-${index}`}
+                        variant="outline"
+                        size="sm"
+                        className="max-w-full gap-1.5"
+                        onClick={() => openAgendaAttachment(path)}
+                        title={fileName}
+                      >
+                        <FileText className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{fileName}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Zugeordnete E-Mails (kompakt, aufklappbar) */}
             <AgendaItemEmailsSection agendaItemId={selectedItem.id} />

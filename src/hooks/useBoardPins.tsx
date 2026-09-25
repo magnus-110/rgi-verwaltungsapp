@@ -699,7 +699,7 @@ export function useCreateNote() {
 
       const { error: pinError } = await boardDb.from('board_pins').insert({
         user_id: user!.id,
-        ref_type: 'todo',
+        ref_type: 'todo' as const,
         ref_id: (todo as any).id,
         column_key: 'wall',
         sort_order: nextSort,
@@ -808,9 +808,9 @@ export function usePinToWalls() {
 
       const zeilen = input.userIds.map(uid => ({
         user_id: uid,
-        ref_type: 'todo',
+        ref_type: 'todo' as const,
         ref_id: input.todoId,
-        column_key: 'wall',
+        column_key: 'wall' as const,
         sort_order: (kleinstes.get(uid) ?? 1) - 1,
         pinned_by: user!.id,
       }));
