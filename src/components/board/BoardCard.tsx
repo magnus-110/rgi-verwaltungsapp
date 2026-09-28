@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, MoreHorizontal, X, Clock } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, MoreHorizontal, X, Clock } from 'lucide-react';
 import {
   BoardItem,
   ORIGIN_DOT,
@@ -11,6 +11,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
@@ -24,26 +25,39 @@ interface BoardCardProps {
   /** Kompakt = Team-Ansicht: nur Titel und Kontextzeile. */
   compact?: boolean;
   dragging?: boolean;
+  /** Reihenfolge ohne Maus ändern — für Touch und Tastatur. */
+  onMove?: (richtung: 'vor' | 'zurueck') => void;
+  kannVor?: boolean;
+  kannZurueck?: boolean;
 }
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** Der kleine Chip unten links auf der Aufgabe. */
+/**
+ * Der kleine Hinweis unten links auf der Aufgabe.
+ *
+ * Ein Termin ist die Ausnahme, nicht die Regel — die meisten Aufgaben haben
+ * keinen. Deshalb sticht nur noch hervor, was wirklich überfällig ist; ein
+ * Datum in der Zukunft steht ruhig daneben, wie der Kontext auch.
+ */
 function StatusChip({ item }: { item: BoardItem }) {
   const today = todayIso();
 
   if (item.dueDate) {
     const overdue = item.dueDate < today;
+    if (overdue) {
+      return (
+        <span className="inline-block rounded bg-[#FBEAE5] px-2 py-[3px] text-[11px] font-semibold text-[#B4472B]">
+          überfällig seit {formatDateDe(item.dueDate)}
+        </span>
+      );
+    }
     return (
-      <span
-        className={`inline-block rounded px-2 py-[3px] text-[11px] font-semibold ${
-          overdue ? 'bg-[#FBEAE5] text-[#B4472B]' : 'bg-[#FBEAE5] text-[#B4472B]'
-        }`}
-      >
-        {overdue ? 'überfällig seit ' : 'fällig '}
-        {formatDateDe(item.dueDate)}
+      <span className="inline-flex items-center gap-1 text-[11.5px] text-muted-foreground">
+        <Clock className="h-3 w-3" />
+        bis {formatDateDe(item.dueDate)}
       </span>
     );
   }
@@ -60,7 +74,10 @@ function StatusChip({ item }: { item: BoardItem }) {
   return null;
 }
 
-export function BoardCard({ item, onOpen, onComplete, onRemove, onWaiting, compact, dragging }: BoardCardProps) {
+export function BoardCard({
+  item, onOpen, onComplete, onRemove, onWaiting, compact, dragging,
+  onMove, kannVor, kannZurueck,
+}: BoardCardProps) {
   if (compact) {
     return (
       <div className="rounded-lg border border-[#EBE4D6] bg-[#FFFDF7] px-3 py-2.5">
@@ -124,6 +141,18 @@ export function BoardCard({ item, onOpen, onComplete, onRemove, onWaiting, compa
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
+              {/* Ohne Maus — auf dem Handy und mit der Tastatur. */}
+              {onMove && (
+                <>
+                  <DropdownMenuItem disabled={!kannVor} onClick={() => onMove('vor')}>
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Weiter nach vorne
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={!kannZurueck} onClick={() => onMove('zurueck')}>
+                    <ArrowRight className="mr-2 h-4 w-4" /> Weiter nach hinten
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               {onComplete && (
                 <DropdownMenuItem onClick={() => onComplete(item)}>
                   <Check className="mr-2 h-4 w-4" /> Erledigt
