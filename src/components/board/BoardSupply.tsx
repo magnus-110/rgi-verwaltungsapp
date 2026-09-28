@@ -12,19 +12,26 @@ interface BoardSupplyProps {
   /** Nur für Aufgaben — Vorgänge und Jahresabschluss lassen sich hier nicht wegräumen. */
   onDelete?: (item: BoardItem) => void;
   isLoading?: boolean;
+  /** Eine Aufgabe wird von hier auf die Wand gezogen. */
+  onZiehStart?: (item: BoardItem) => void;
+  onZiehEnde?: () => void;
 }
 
 /**
  * Der Vorrat. Er füllt sich von selbst — die Wand nicht.
  * Deshalb steht hier nur ein "+"-Knopf und kein Automatismus.
  */
-export function BoardSupply({ columns, activeKey, onSelectColumn, onPin, onDelete, isLoading }: BoardSupplyProps) {
+export function BoardSupply({
+  columns, activeKey, onSelectColumn, onPin, onDelete, isLoading, onZiehStart, onZiehEnde,
+}: BoardSupplyProps) {
   const active = columns.find(c => c.key === activeKey) || columns[0];
 
   return (
     <aside className="flex w-full flex-col border-t border-border bg-card p-4 lg:w-[368px] lg:shrink-0 lg:border-l lg:border-t-0 lg:p-5">
       <h2 className="text-[15px] font-semibold text-foreground">Vorrat</h2>
-      <p className="mt-0.5 text-[12.5px] text-muted-foreground">Spalte wählen, Aufgabe rüberholen</p>
+      <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+        Spalte wählen, dann eine Aufgabe nach links auf die Wand ziehen — oder auf „+" tippen.
+      </p>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
         {columns.map(col => {
@@ -65,7 +72,17 @@ export function BoardSupply({ columns, activeKey, onSelectColumn, onPin, onDelet
           active?.items.map(item => (
             <div
               key={`${item.refType}:${item.refId}`}
-              className="group flex items-start gap-2 rounded-lg border border-border bg-background px-3 py-2.5"
+              draggable={!item.linkTo}
+              onDragStart={e => {
+                if (item.linkTo) return;
+                e.dataTransfer.effectAllowed = 'copy';
+                e.dataTransfer.setData('text/plain', item.refId);
+                onZiehStart?.(item);
+              }}
+              onDragEnd={() => onZiehEnde?.()}
+              className={`group flex items-start gap-2 rounded-lg border border-border bg-background px-3 py-2.5 ${
+                item.linkTo ? '' : 'cursor-grab active:cursor-grabbing'
+              }`}
             >
               <div className="min-w-0 flex-1">
                 <div className="text-[13.5px] font-medium leading-snug text-foreground">{item.title}</div>
