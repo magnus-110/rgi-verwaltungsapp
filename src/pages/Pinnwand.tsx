@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import {
   BoardItem,
+  BoardRefType,
   daysSince,
   useBoardPins,
   useBoardSupply,
@@ -28,7 +28,23 @@ import { BoardTeam } from '@/components/board/BoardTeam';
  *
  * Dauerhaft, nicht tagesbezogen: kein Reset über Nacht. Aufgaben bleiben hängen,
  * bis jemand sie abnimmt. Was hier liegt, hat ein Mensch hierher gezogen.
+ *
+ * Gezogen wird mit den Bordmitteln des Browsers statt mit einer Bibliothek:
+ * Die Wand ist ein Raster mit unterschiedlich hohen Karten, und genau damit
+ * kommen die üblichen Listen-Bibliotheken nicht zurecht — die Vorschau sprang
+ * beim Umbruch in die nächste Zeile. So funktioniert es in jedem Layout, und
+ * dieselbe Geste holt auch eine Aufgabe aus dem Vorrat herüber.
+ *
+ * Auf dem Handy gibt es kein Ziehen; dort stehen im Menü der Karte
+ * „Weiter nach vorne / nach hinten" und im Vorrat weiterhin der „+"-Knopf.
  */
+
+/** Was gerade am Mauszeiger hängt. */
+type Zug =
+  | { art: 'wand'; index: number; pinId: string }
+  | { art: 'vorrat'; refType: BoardRefType; refId: string }
+  | null;
+
 export default function Pinnwand() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -40,6 +56,10 @@ export default function Pinnwand() {
   const [supplyKey, setSupplyKey] = useState('frist');
   const [noteOpen, setNoteOpen] = useState(false);
   const [waitingItem, setWaitingItem] = useState<BoardItem | null>(null);
+
+  const [zug, setZug] = useState<Zug>(null);
+  /** Vor welcher Karte würde losgelassen? wall.length = ganz hinten. */
+  const [ziel, setZiel] = useState<number | null>(null);
 
   const pinToWall = usePinToWall();
   const unpin = useUnpin();
@@ -63,21 +83,45 @@ export default function Pinnwand() {
 
   const waiting = useMemo(() => mine.filter(i => i.pin?.column_key === 'waiting'), [mine]);
 
-  const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
-    const from = result.source.index;
-    const to = result.destination.index;
-    if (from === to) return;
+  /**
+   * Eine Karte an Position `to` schieben (Zählung in der Liste ohne die Karte
+   * selbst). Geschrieben wird nur eine Zeile: der Mittelwert der Nachbarn.
+   */
+  const verschiebe = (von: number, to: number) => {
+    const item = wall[von];
+    if (!item?.pin || to === von) return;
+    const ohne = wall.filter((_, i) => i !== von);
+    const before = to > 0 ? ohne[to - 1]?.pin?.sort_order ?? null : null;
+    const after = to < ohne.length ? ohne[to]?.pin?.sort_order ?? null : null;
+    reorder.mutate({ pinId: item.pin.id, before, after });
+  };
 
-    const moved = wall[from];
-    if (!moved?.pin) return;
+  const zugEnde = () => {
+    setZug(null);
+    setZiel(null);
+  };
 
-    // Nachbarn in der Zielreihenfolge bestimmen, die gezogene Karte ausgenommen.
-    const without = wall.filter((_, idx) => idx !== from);
-    const before = to > 0 ? without[to - 1]?.pin?.sort_order ?? null : null;
-    const after = to < without.length ? without[to]?.pin?.sort_order ?? null : null;
+  const ablegen = () => {
+    if (!zug || ziel === null) return zugEnde();
 
-    reorder.mutate({ pinId: moved.pin.id, before, after });
+    if (zug.art === 'vorrat') {
+      // Aus dem Vorrat kommt sie oben an — wie beim „+"-Knopf.
+      pinToWall.mutate({ refType: zug.refType, refId: zug.refId });
+    } else {
+      // `ziel` zählt mit der gezogenen Karte, die Zielliste ist ohne sie.
+      const to = ziel > zug.index ? ziel - 1 : ziel;
+      verschiebe(zug.index, to);
+    }
+    zugEnde();
+  };
+
+  /** Beim Überfahren einer Karte: vor oder hinter ihr einfügen? */
+  const ueberKarte = (e: React.DragEvent, index: number) => {
+    if (!zug) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = zug.art === 'wand' ? 'move' : 'copy';
+    const box = e.currentTarget.getBoundingClientRect();
+    setZiel(index + (e.clientX > box.left + box.width / 2 ? 1 : 0));
   };
 
   const tooMany = wall.length >= 12;
@@ -152,47 +196,74 @@ export default function Pinnwand() {
             <Skeleton className="h-[130px]" />
           </div>
         ) : (
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="wall" direction="horizontal">
-              {provided => (
+          <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-3" onDragEnd={zugEnde}>
+            {wall.map((item, index) => {
+              const gezogen = zug?.art === 'wand' && zug.index === index;
+              return (
                 <div
-                  ref={provided.innerRef}
-                  {...provided.droppableProps}
-                  className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-3"
+                  key={item.pin!.id}
+                  draggable
+                  onDragStart={e => {
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', item.pin!.id);
+                    setZug({ art: 'wand', index, pinId: item.pin!.id });
+                  }}
+                  onDragEnd={zugEnde}
+                  onDragOver={e => ueberKarte(e, index)}
+                  onDrop={e => {
+                    e.preventDefault();
+                    ablegen();
+                  }}
+                  className={`cursor-grab rounded-[10px] transition-shadow active:cursor-grabbing ${
+                    gezogen ? 'opacity-40' : ''
+                  } ${
+                    zug && ziel === index
+                      ? 'shadow-[inset_3px_0_0_0_hsl(var(--primary))]'
+                      : zug && ziel === index + 1 && index === wall.length - 1
+                        ? 'shadow-[inset_-3px_0_0_0_hsl(var(--primary))]'
+                        : ''
+                  }`}
                 >
-                  {wall.map((item, index) => (
-                    <Draggable key={item.pin!.id} draggableId={item.pin!.id} index={index}>
-                      {(dragProvided, snapshot) => (
-                        <div
-                          ref={dragProvided.innerRef}
-                          {...dragProvided.draggableProps}
-                          {...dragProvided.dragHandleProps}
-                        >
-                          <BoardCard
-                            item={item}
-                            dragging={snapshot.isDragging}
-                            onOpen={i => {
-                              if (i.refType === 'todo' || i.refType === 'maintenance') {
-                                navigate(`/pinnwand/${i.refId}`);
-                              }
-                            }}
-                            onComplete={i => complete.mutate(i)}
-                            onRemove={i => i.pin && unpin.mutate(i.pin.id)}
-                            onWaiting={i => setWaitingItem(i)}
-                          />
-                        </div>
-                      )}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
-
-                  <div className="flex min-h-[120px] items-center justify-center rounded-[10px] border border-dashed border-[#D8D2C6] px-4 text-center text-[12.5px] text-muted-foreground">
-                    Aus dem Vorrat rechts hierher holen
-                  </div>
+                  <BoardCard
+                    item={item}
+                    dragging={gezogen}
+                    onOpen={i => {
+                      if (i.refType === 'todo' || i.refType === 'maintenance') {
+                        navigate(`/pinnwand/${i.refId}`);
+                      }
+                    }}
+                    onComplete={i => complete.mutate(i)}
+                    onRemove={i => i.pin && unpin.mutate(i.pin.id)}
+                    onWaiting={i => setWaitingItem(i)}
+                    onMove={richtung => verschiebe(index, richtung === 'vor' ? index - 1 : index + 1)}
+                    kannVor={index > 0}
+                    kannZurueck={index < wall.length - 1}
+                  />
                 </div>
-              )}
-            </Droppable>
-          </DragDropContext>
+              );
+            })}
+
+            {/* Ablagefläche am Ende — und der Hinweis, wenn die Wand leer ist. */}
+            <div
+              onDragOver={e => {
+                if (!zug) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = zug.art === 'wand' ? 'move' : 'copy';
+                setZiel(wall.length);
+              }}
+              onDrop={e => {
+                e.preventDefault();
+                ablegen();
+              }}
+              className={`flex min-h-[120px] items-center justify-center rounded-[10px] border border-dashed px-4 text-center text-[12.5px] transition-colors ${
+                zug && ziel === wall.length
+                  ? 'border-primary bg-primary/5 text-primary'
+                  : 'border-[#D8D2C6] text-muted-foreground'
+              }`}
+            >
+              {zug ? 'Hier ablegen' : 'Aus dem Vorrat rechts hierher ziehen'}
+            </div>
+          </div>
         )}
 
         {waiting.length > 0 && (
@@ -227,6 +298,8 @@ export default function Pinnwand() {
         onPin={item => pinToWall.mutate({ refType: item.refType, refId: item.refId })}
         onDelete={item => deleteSupplyTodo.mutate({ todoId: item.refId, titel: item.title })}
         isLoading={supplyLoading}
+        onZiehStart={item => setZug({ art: 'vorrat', refType: item.refType, refId: item.refId })}
+        onZiehEnde={zugEnde}
       />
 
       <TodoDialog
