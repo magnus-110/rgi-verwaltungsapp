@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown, FileArchive } from "lucide-react";
+import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown, FileArchive, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -52,6 +52,8 @@ const isImportableInvoice = (mimeType: string | null, fileName: string) =>
 
 export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [nachladen, setNachladen] = useState(false);
   const [importingId, setImportingId] = useState<string | null>(null);
   const [importedIds, setImportedIds] = useState<Set<string>>(new Set());
   const [saveToBuildingOpen, setSaveToBuildingOpen] = useState(false);
@@ -80,6 +82,19 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
     },
   });
 
+  /** Laut Server hing ein Anhang dran, der beim Abruf nicht mitkam. */
+  const { data: unvollstaendig = false } = useQuery({
+    queryKey: ["email-attachments-incomplete", emailId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("emails")
+        .select("attachments_incomplete")
+        .eq("id", emailId)
+        .maybeSingle();
+      return !!(data as { attachments_incomplete?: boolean } | null)?.attachments_incomplete;
+    },
+  });
+
   useEffect(() => {
     setAttachmentsExpanded(false);
   }, [emailId]);
@@ -100,7 +115,8 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
     return () => observer.disconnect();
   }, [attachments]);
 
-  if (attachments.length === 0) return null;
+  if (attachments.length === 0 && !unvollstaendig) return null;
+
 
 
   const handleOpenPreview = async (filePath: string, fileName: string, mimeType: string | null) => {
@@ -380,10 +396,71 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
     }
   };
 
+  /**
+   * Den fehlenden Anhang gezielt vom Server nachholen.
+   *
+   * Beim regulaeren Abruf holt die App fuenf Mails am Stueck und hat dafuer ein
+   * knappes Zeit- und Speicherbudget; sehr grosse Anhaenge bleiben dabei liegen,
+   * damit auf keinen Fall der ganze Lauf kippt. Hier wird nur diese eine
+   * Nachricht angefasst — deshalb sind deutlich groessere Dateien moeglich.
+   */
+  const handleNachladen = async () => {
+    setNachladen(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("fetch-emails", {
+        body: { reparse: emailId },
+      });
+      if (error) throw error;
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["email-attachments", emailId] }),
+        queryClient.invalidateQueries({ queryKey: ["email-attachments-incomplete", emailId] }),
+        queryClient.invalidateQueries({ queryKey: ["emails"] }),
+      ]);
+
+      const geholt = Number((data as { inserted?: number } | null)?.inserted ?? 0);
+      if (geholt > 0) {
+        toast.success(`${geholt} ${geholt > 1 ? "Anhänge" : "Anhang"} nachgeladen`);
+      } else {
+        toast.warning(
+          "Der Anhang konnte auch jetzt nicht geladen werden — vermutlich ist er zu groß. Bitte direkt im Postfach beim Anbieter öffnen.",
+        );
+      }
+    } catch (err: any) {
+      toast.error("Nachladen fehlgeschlagen: " + (err?.message || err));
+    } finally {
+      setNachladen(false);
+    }
+  };
+
   const selectableImageCount = attachments.filter((a) => isImage(a.mime_type, a.file_name)).length;
 
   return (
     <div className="border-t pt-3 mt-3">
+      {unvollstaendig && (
+        <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2">
+          <span className="text-sm text-amber-800">
+            {attachments.length === 0
+              ? "Ein Anhang fehlt — er war beim Abruf zu groß."
+              : "Mindestens ein Anhang fehlt — er war beim Abruf zu groß."}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 ml-auto border-amber-400 bg-white text-amber-900 hover:bg-amber-100"
+            onClick={handleNachladen}
+            disabled={nachladen}
+          >
+            {nachladen ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            {nachladen ? "Wird geholt …" : "Jetzt nachladen"}
+          </Button>
+        </div>
+      )}
+
       <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-2">
         <Paperclip className="h-4 w-4" />
         {attachments.length} Anhang{attachments.length > 1 ? "e" : ""}
