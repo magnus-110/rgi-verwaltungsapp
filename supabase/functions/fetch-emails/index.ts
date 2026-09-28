@@ -9,15 +9,24 @@ const corsHeaders = {
 
 const MAX_MESSAGES_PER_ACCOUNT_RUN = 5;
 const MAX_TEXT_PART_BYTES = 1024 * 1024;
-// Angehoben von 6/12 MB: Versicherungs-/Behoerden-PDFs sind oft groesser.
-// Bewusst < 256 MB Edge-Worker-Limit gehalten (inkl. Base64-Overhead).
-const MAX_ATTACHMENT_PART_BYTES = 20 * 1024 * 1024;
-const MAX_ATTACHMENT_TOTAL_BYTES = 40 * 1024 * 1024;
+// Angehoben von 20/40 MB: eingescannte Teilungserklaerungen und Gutachten
+// liegen regelmaessig darueber. Bewusst < 256 MB Edge-Worker-Limit gehalten
+// (inkl. Base64-Overhead beim Download).
+const MAX_ATTACHMENT_PART_BYTES = 40 * 1024 * 1024;
+const MAX_ATTACHMENT_TOTAL_BYTES = 45 * 1024 * 1024;
 // Gift-Mail-Schutz: Nachrichten oberhalb dieser Gesamtgroesse werden ohne
 // Anhaenge gespeichert, damit ein einzelnes Monster-Mail das Konto nicht blockiert.
-const MAX_MESSAGE_TOTAL_BYTES = 25 * 1024 * 1024;
+// Die Mail selbst kommt trotzdem an; die Anhaenge holt der Knopf in der App nach.
+const MAX_MESSAGE_TOTAL_BYTES = 45 * 1024 * 1024;
+// Gezieltes Nachladen einer einzelnen Mail: hier laeuft nichts anderes im
+// Worker, deshalb darf es mehr sein als im Reihen-Abruf.
+const MAX_ATTACHMENT_BYTES_SINGLE = 60 * 1024 * 1024;
 // Zeitbudget pro Konto-Lauf: sauber abbrechen, bevor "CPU Time exceeded" hart killt.
 const ACCOUNT_TIME_BUDGET_MS = 40_000;
+// So viel Zeit muss uebrig sein, damit ein Anhang ueberhaupt noch angefasst
+// wird. Reicht es nicht, wird die Mail ohne Anhang gespeichert — nachladen
+// kann man sie jederzeit.
+const ATTACHMENT_TIME_RESERVE_MS = 12_000;
 
 
 interface EmailAccount {
@@ -434,33 +443,17 @@ async function fetchAccountEmails(
           (sum, { node }: any) => sum + (Number(node?.size) || 0),
           0,
         );
-        const oversized = structureTotalBytes > MAX_MESSAGE_TOTAL_BYTES;
-        if (oversized) {
-          skippedOversized++;
-          console.warn(
-            `[${account.email_address}] UID ${uid}: Anhaenge zu gross (${(structureTotalBytes / 1024 / 1024).toFixed(1)} MB) — Mail wird ohne Anhaenge gespeichert.`,
-          );
-        }
-        let attachments: ParsedAttachment[] = [];
-        if (!oversized && structureAttachmentParts.length > 0) {
-          try {
-            attachments = await downloadAttachmentsFromStructure(client, uid, msg.bodyStructure, {
-              maxPartBytes: MAX_ATTACHMENT_PART_BYTES,
-              maxTotalBytes: MAX_ATTACHMENT_TOTAL_BYTES,
-            });
-          } catch (dlErr: any) {
-            console.error(`Attachment download failed for UID ${uid}:`, dlErr.message);
-          }
-        }
 
-
-        const realAttachments = attachments.filter((a) => !a.isInline);
-        const hasAttachments = structureHasRealAttachment || realAttachments.length > 0;
-        // Echter Anhang laut Struktur, aber nicht (vollstaendig) gespeichert
-        // (z. B. zu gross oder Download-Fehler) -> markieren fuer UI-Hinweis.
-        const attachmentsIncomplete =
-          structureRealAttachmentCount > realAttachments.length;
-
+        // ------------------------------------------------------------------
+        // Zuerst die Nachricht selbst, danach erst die Anhaenge.
+        //
+        // Oberste Regel: jede Mail kommt an. Frueher wurden erst die Anhaenge
+        // geladen und dann die Mail gespeichert — starb der Worker dabei am
+        // Speicherlimit, stand weder die Mail in der Datenbank noch der
+        // UID-Zeiger weiter: der naechste Lauf versuchte dieselbe Mail erneut,
+        // und das Konto stand still. Jetzt ist die Mail sicher, bevor
+        // irgendetwas Grosses angefasst wird.
+        // ------------------------------------------------------------------
         const { data: insertedEmail, error: insertError } = await supabase
           .from("emails")
           .insert({
@@ -478,8 +471,10 @@ async function fetchAccountEmails(
             date: envelope.date ? new Date(envelope.date).toISOString() : new Date().toISOString(),
             is_read: msg.flags?.has("\\Seen") || false,
             is_starred: msg.flags?.has("\\Flagged") || false,
-            has_attachments: hasAttachments,
-            attachments_incomplete: attachmentsIncomplete,
+            has_attachments: structureHasRealAttachment,
+            // Vorlaeufig: solange kein Anhang gespeichert ist, gilt sie als
+            // unvollstaendig. Wird unten korrigiert.
+            attachments_incomplete: structureHasRealAttachment,
             assigned_to: defaultAssignedTo,
           })
           .select("id")
@@ -487,10 +482,43 @@ async function fetchAccountEmails(
 
         if (insertError) {
           console.error("Insert error:", insertError.message);
+          // Trotzdem weiterzaehlen, sonst haengt der Lauf an dieser UID fest.
+          await bumpUid(uid);
           continue;
         }
 
+        // Ab hier ist die Mail angekommen — komme beim Anhang, was wolle.
+        await bumpUid(uid);
+        fetched++;
+
+        // ---- Jetzt die Anhaenge ------------------------------------------
+        const zeitReicht = Date.now() + ATTACHMENT_TIME_RESERVE_MS < accountDeadline;
+        const oversized = structureTotalBytes > MAX_MESSAGE_TOTAL_BYTES;
+        if (oversized) {
+          skippedOversized++;
+          console.warn(
+            `[${account.email_address}] UID ${uid}: Anhaenge zu gross (${(structureTotalBytes / 1024 / 1024).toFixed(1)} MB) — Mail ist gespeichert, Anhaenge per Nachladen holen.`,
+          );
+        } else if (!zeitReicht && structureAttachmentParts.length > 0) {
+          console.warn(
+            `[${account.email_address}] UID ${uid}: Zeitbudget zu knapp fuer Anhaenge — Mail ist gespeichert, Anhaenge per Nachladen holen.`,
+          );
+        }
+
+        let attachments: ParsedAttachment[] = [];
+        if (!oversized && zeitReicht && structureAttachmentParts.length > 0) {
+          try {
+            attachments = await downloadAttachmentsFromStructure(client, uid, msg.bodyStructure, {
+              maxPartBytes: MAX_ATTACHMENT_PART_BYTES,
+              maxTotalBytes: MAX_ATTACHMENT_TOTAL_BYTES,
+            });
+          } catch (dlErr: any) {
+            console.error(`Attachment download failed for UID ${uid}:`, dlErr.message);
+          }
+        }
+
         // Store attachments in Supabase Storage
+        let gespeicherteEchte = 0;
         if (insertedEmail && attachments.length > 0) {
           for (const [idx, att] of attachments.entries()) {
             try {
@@ -517,6 +545,7 @@ async function fetchAccountEmails(
                 is_inline: att.isInline,
                 content_id: att.contentId,
               });
+              if (!att.isInline) gespeicherteEchte++;
               (att as any).content = new Uint8Array(0);
             } catch (attErr: any) {
               console.error(`Attachment save error: ${attErr.message}`);
@@ -524,13 +553,26 @@ async function fetchAccountEmails(
           }
         }
 
-        if (account.delete_after_import) {
+        // Stand richtigstellen: fehlt ein echter Anhang, bleibt der Hinweis
+        // in der App stehen — mitsamt dem Knopf zum Nachladen.
+        const attachmentsIncomplete = structureRealAttachmentCount > gespeicherteEchte;
+        if (structureHasRealAttachment) {
+          await supabase
+            .from("emails")
+            .update({
+              has_attachments: structureHasRealAttachment || gespeicherteEchte > 0,
+              attachments_incomplete: attachmentsIncomplete,
+            })
+            .eq("id", insertedEmail.id);
+        }
+
+        // Vom Server loeschen erst, wenn wirklich alles hier liegt. Sonst waere
+        // der fehlende Anhang unwiederbringlich weg.
+        if (account.delete_after_import && !attachmentsIncomplete) {
           uidsToDelete.push(uid);
         }
 
-        await bumpUid(uid);
-        fetched++;
-        console.log(`Fetched email UID ${uid}: ${envelope.subject} (${attachments.length} attachments)`);
+        console.log(`Fetched email UID ${uid}: ${envelope.subject} (${gespeicherteEchte} attachments)`);
         // Drop attachment buffers from memory before next iteration
         attachments.length = 0;
       } catch (msgErr: any) {
@@ -1317,7 +1359,10 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
     summary.structure_has_attachments = checkHasAttachments(msg.bodyStructure);
 
     if (summary.structure_has_attachments) {
-      const downloaded = await downloadAttachmentsFromStructure(client, uid, msg.bodyStructure);
+      const downloaded = await downloadAttachmentsFromStructure(client, uid, msg.bodyStructure, {
+        maxPartBytes: MAX_ATTACHMENT_BYTES_SINGLE,
+        maxTotalBytes: MAX_ATTACHMENT_BYTES_SINGLE,
+      });
       attachments = downloaded;
       summary.fallback_downloaded = downloaded.length;
     }
