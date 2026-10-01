@@ -34,6 +34,7 @@ const WebhookSettings = lazy(() => import("./pages/WebhookSettings").then(m => (
 const Todos = lazy(() => import("./pages/Todos").then(m => ({ default: m.Todos })));
 const Pinnwand = lazy(() => import("./pages/Pinnwand"));
 const Zettel = lazy(() => import("./pages/Zettel"));
+const Ablage = lazy(() => import("./pages/Ablage"));
 const Vorgaenge = lazy(() => import("./pages/Vorgaenge"));
 const Vorgang = lazy(() => import("./pages/Vorgang"));
 const Calendar = lazy(() => import("./pages/Calendar").then(m => ({ default: m.Calendar })));
@@ -141,6 +142,7 @@ const App = () => (
               <Route path="/settings" element={<AdminLayout><Settings /></AdminLayout>} />
               <Route path="/pinnwand" element={<AdminLayout><Pinnwand /></AdminLayout>} />
               <Route path="/pinnwand/:id" element={<AdminLayout><Zettel /></AdminLayout>} />
+              <Route path="/ablage" element={<AdminLayout><Ablage /></AdminLayout>} />
               <Route path="/vorgaenge" element={<AdminLayout><Vorgaenge /></AdminLayout>} />
               <Route path="/vorgaenge/:id" element={<AdminLayout><Vorgang /></AdminLayout>} />
               <Route path="/todos" element={<AdminLayout><Todos /></AdminLayout>} />

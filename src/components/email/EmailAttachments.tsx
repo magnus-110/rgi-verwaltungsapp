@@ -1,13 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown, FileArchive, RefreshCw } from "lucide-react";
+import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown, FileArchive, RefreshCw, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { SaveAttachmentToBuildingDialog } from "./SaveAttachmentToBuildingDialog";
+import { InAblageLegenDialog } from "@/components/ablage/InAblageLegenDialog";
+import { DRAG_TYPE_MAIL_ANHANG, type MailAnhangDrag } from "@/integrations/supabase/ablage";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
 import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
 import { mergeImagesToPdf } from "./lib/mergeImagesToPdf";
@@ -57,6 +59,18 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const [importingId, setImportingId] = useState<string | null>(null);
   const [importedIds, setImportedIds] = useState<Set<string>>(new Set());
   const [saveToBuildingOpen, setSaveToBuildingOpen] = useState(false);
+  // Büro-Ablage: welche Anhänge gerade hineingelegt werden sollen.
+  const [ablageAnhaenge, setAblageAnhaenge] = useState<MailAnhangDrag[]>([]);
+  const alsAblageAnhang = (att: { file_path: string | null; file_name: string; file_size: unknown; mime_type: string | null }): MailAnhangDrag | null =>
+    att.file_path
+      ? {
+          path: att.file_path,
+          name: att.file_name,
+          mimeType: att.mime_type,
+          size: att.file_size ? Number(att.file_size) : null,
+          emailId,
+        }
+      : null;
   const [pendingAttachments, setPendingAttachments] = useState<{ name: string; path: string; size: number | null; mimeType: string | null }[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -481,6 +495,22 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
             Alle als ZIP
           </Button>
         )}
+        {attachments.length > 1 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={() =>
+              setAblageAnhaenge(
+                attachments.map((a: any) => alsAblageAnhang(a)).filter((a): a is MailAnhangDrag => !!a),
+              )
+            }
+            title="Alle Anhänge in die Büro-Ablage legen"
+          >
+            <Inbox className="h-3.5 w-3.5 mr-1" />
+            Alle in Ablage
+          </Button>
+        )}
         {attachmentsWrap && (
           <Button
             variant="ghost"
@@ -560,6 +590,15 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
             <div
               key={att.id}
               className={`flex items-center gap-1 rounded-md ${isSelected ? "ring-2 ring-primary/40 bg-primary/5 pl-1" : ""}`}
+              // Anhang lässt sich direkt in die Büro-Ablage (Leiste rechts) ziehen.
+              draggable={!!att.file_path}
+              onDragStart={(e) => {
+                const a = alsAblageAnhang(att);
+                if (!a) return;
+                e.dataTransfer.effectAllowed = "copy";
+                e.dataTransfer.setData(DRAG_TYPE_MAIL_ANHANG, JSON.stringify([a]));
+                e.dataTransfer.setData("text/plain", att.file_name);
+              }}
             >
               {canSelect && (
                 <div className="flex items-center gap-0.5">
@@ -625,6 +664,18 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
               >
                 <FolderArchive className="h-3.5 w-3.5" />
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-auto py-1.5 px-1.5"
+                title="In die Büro-Ablage legen"
+                onClick={() => {
+                  const a = alsAblageAnhang(att);
+                  if (a) setAblageAnhaenge([a]);
+                }}
+              >
+                <Inbox className="h-3.5 w-3.5" />
+              </Button>
               {canImport && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -668,6 +719,11 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
         onOpenChange={setSaveToBuildingOpen}
         attachments={pendingAttachments}
         emailId={emailId}
+      />
+      <InAblageLegenDialog
+        open={ablageAnhaenge.length > 0}
+        onOpenChange={(o) => !o && setAblageAnhaenge([])}
+        anhaenge={ablageAnhaenge}
       />
       <AttachmentPreviewDialog
         open={previewOpen}
