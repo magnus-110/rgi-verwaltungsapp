@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { DmsFilePickerDialog, type DmsPickerItem } from "@/components/meetings/DmsFilePickerDialog";
 import { AblagePickerDialog } from "@/components/ablage/AblagePickerDialog";
-import { DRAG_TYPE_ABLAGE, type AblageDragFile } from "@/integrations/supabase/ablage";
+import { DRAG_TYPE_ABLAGE, getLaufenderAblageZug, type AblageDragFile } from "@/integrations/supabase/ablage";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useComposeEmail, type ComposeState } from "@/contexts/ComposeEmailContext";
@@ -490,7 +490,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     e.preventDefault();
     e.stopPropagation();
     dragCounterRef.current++;
-    if (e.dataTransfer.types.includes("Files") || e.dataTransfer.types.includes(DRAG_TYPE_ABLAGE)) {
+    if (e.dataTransfer.types.includes("Files") || e.dataTransfer.types.includes(DRAG_TYPE_ABLAGE) || getLaufenderAblageZug()) {
       setIsDragOver(true);
     }
   };
@@ -515,13 +515,18 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     dragCounterRef.current = 0;
     setIsDragOver(false);
     // Aus der Büro-Ablage hereingezogen → wie "Aus DMS" anhängen.
-    const ausAblage = e.dataTransfer.getData(DRAG_TYPE_ABLAGE);
-    if (ausAblage) {
-      try {
-        void handleDmsSelect(JSON.parse(ausAblage) as AblageDragFile[]);
-      } catch {
-        toast.error("Datei aus der Ablage konnte nicht übernommen werden");
-      }
+    // Zur Sicherheit doppelt: über den Ziehen-Datentyp und über den
+    // gemerkten Zug (manche Browser reichen eigene Datentypen nicht weiter).
+    let ausAblage: AblageDragFile[] | null = null;
+    try {
+      const roh = e.dataTransfer.getData(DRAG_TYPE_ABLAGE);
+      if (roh) ausAblage = JSON.parse(roh) as AblageDragFile[];
+    } catch {
+      ausAblage = null;
+    }
+    ausAblage = ausAblage?.length ? ausAblage : getLaufenderAblageZug();
+    if (ausAblage?.length) {
+      void handleDmsSelect(ausAblage);
       return;
     }
     const files = Array.from(e.dataTransfer.files);
