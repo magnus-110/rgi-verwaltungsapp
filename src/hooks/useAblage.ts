@@ -11,6 +11,7 @@ import {
 } from '@/integrations/supabase/ablage';
 import { useAuth } from '@/hooks/useAuth';
 import { useWallPeople, type WallPerson } from '@/hooks/useBoardWalls';
+import { getFileBucket } from '@/components/buildings/documents/types';
 
 /**
  * Büro-Ablage — die Datenschicht.
@@ -321,7 +322,57 @@ export function useAblageHinlegen() {
     },
   });
 
-  return { dateien, notiz, mailAnhaenge };
+  /** Dokumente aus dem DMS in die Ablage kopieren (das Original im DMS bleibt). */
+  const dmsDateien = useMutation({
+    mutationFn: async (input: Hinlegen & { fileIds: string[] }) => {
+      if (!user?.id) throw new Error('Nicht angemeldet');
+      const { data: rows, error: qErr } = await (supabase.from('building_files') as any)
+        .select('id, display_name, file_path, mime_type, file_size, source, storage_bucket')
+        .in('id', input.fileIds);
+      if (qErr) throw qErr;
+      let ok = 0;
+      for (const f of (rows || []) as any[]) {
+        const name: string = f.display_name || f.file_path?.split('/').pop() || 'Dokument';
+        try {
+          if ((f.file_size ?? 0) > ABLAGE_MAX_BYTES) {
+            toast.error(`${name} ist zu groß (höchstens 50 MB)`);
+            continue;
+          }
+          const { data: blob, error: dErr } = await supabase.storage
+            .from(getFileBucket(f.source, f.storage_bucket))
+            .download(f.file_path);
+          if (dErr || !blob) throw dErr ?? new Error('Dokument nicht lesbar');
+          const typed = f.mime_type ? new Blob([blob], { type: f.mime_type }) : blob;
+          const path = await hochladen(typed, name);
+          const { error } = await ablageDb.from('office_drop_items').insert({
+            kind: 'file',
+            file_path: path,
+            file_name: name,
+            mime_type: f.mime_type || blob.type || null,
+            file_size: f.file_size ?? blob.size,
+            note: input.note?.trim() || null,
+            recipient_ids: input.recipientIds,
+            source: 'upload',
+            created_by: user.id,
+          });
+          if (error) {
+            await supabase.storage.from(ABLAGE_BUCKET).remove([path]);
+            throw error;
+          }
+          ok++;
+        } catch (e: any) {
+          toast.error(`${name}: ${e?.message ?? 'konnte nicht abgelegt werden'}`);
+        }
+      }
+      return ok;
+    },
+    onSuccess: ok => {
+      qc.invalidateQueries({ queryKey: ABLAGE_KEY });
+      if (ok) toast.success(ok === 1 ? 'Dokument in die Ablage gelegt' : `${ok} Dokumente in die Ablage gelegt`);
+    },
+  });
+
+  return { dateien, notiz, mailAnhaenge, dmsDateien };
 }
 
 // --------------------------------------------------------------- Löschen

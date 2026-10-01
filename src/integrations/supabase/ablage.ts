@@ -72,6 +72,8 @@ export const ABLAGE_BUCKET = 'office-drop';
  */
 export const DRAG_TYPE_ABLAGE = 'application/x-rgi-ablage';
 export const DRAG_TYPE_MAIL_ANHANG = 'application/x-rgi-mail-anhang';
+/** So ziehen die DMS-Listen (Objekt-Dokumente, RGI intern) ihre Dateien: eine Liste von building_files-IDs. */
+export const DRAG_TYPE_DMS = 'application/x-dms-file-ids';
 
 /** Was beim Ziehen eines Ablage-Eintrags mitgegeben wird. */
 export interface AblageDragFile {
