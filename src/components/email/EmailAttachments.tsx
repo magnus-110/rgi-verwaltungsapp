@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown, FileArchive, RefreshCw, Inbox } from "lucide-react";
+import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown, FileArchive, RefreshCw, Inbox, PenLine, Reply } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -13,6 +13,9 @@ import { DRAG_TYPE_MAIL_ANHANG, type MailAnhangDrag } from "@/integrations/supab
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
 import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
 import { mergeImagesToPdf } from "./lib/mergeImagesToPdf";
+import { SignPdfDialog } from "@/components/documents/SignPdfDialog";
+import { saveSignedEmailAttachment } from "@/lib/documentSigning";
+import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 
 interface EmailAttachmentsProps {
   emailId: string;
@@ -81,6 +84,10 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const [attachmentsExpanded, setAttachmentsExpanded] = useState(false);
   const [attachmentsWrap, setAttachmentsWrap] = useState(false);
   const attachmentsRef = useRef<HTMLDivElement>(null);
+  const { openCompose } = useComposeEmail();
+  // Unterschreiben
+  const [signTarget, setSignTarget] = useState<{ path: string; name: string; url: string } | null>(null);
+  const [lastSigned, setLastSigned] = useState<{ path: string; name: string; size: number } | null>(null);
 
   const { data: attachments = [] } = useQuery({
     queryKey: ["email-attachments", emailId],
@@ -146,6 +153,55 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
     } catch (err: any) {
       toast.error("Vorschau fehlgeschlagen: " + err.message);
       setPreviewOpen(false);
+    }
+  };
+
+  /** PDF-Anhang zum Unterschreiben öffnen. */
+  const handleOpenSign = async (filePath: string, fileName: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("email-attachments")
+        .createSignedUrl(filePath, 600);
+      if (error) throw error;
+      setPreviewOpen(false);
+      setSignTarget({ path: filePath, name: fileName, url: data.signedUrl });
+    } catch (err: any) {
+      toast.error("Dokument konnte nicht geöffnet werden: " + (err?.message || err));
+    }
+  };
+
+  /** Antwort an den Absender mit dem unterschriebenen PDF im Anhang öffnen. */
+  const handleReplyWithSigned = async (blob: Blob, fileName: string) => {
+    const file = new globalThis.File([blob], fileName, { type: "application/pdf" });
+    try {
+      const [{ data: email }, { data: accounts }] = await Promise.all([
+        supabase.from("emails").select("*").eq("id", emailId).maybeSingle(),
+        supabase.from("email_accounts").select("email_address"),
+      ]);
+      if (!email) throw new Error("E-Mail nicht gefunden");
+      const e = email as any;
+      openCompose({
+        attachments: [file],
+        replyTo: {
+          id: e.id,
+          message_id: e.message_id,
+          subject: e.subject,
+          from_address: e.from_address,
+          from_name: e.from_name,
+          body_text: e.body_text,
+          date: e.date,
+          account_id: e.account_id,
+          to_addresses: e.to_addresses,
+          cc_addresses: e.cc_addresses,
+          self_addresses: ((accounts || []) as { email_address: string | null }[])
+            .map((a) => a.email_address)
+            .filter(Boolean) as string[],
+        },
+      });
+    } catch (err: any) {
+      // Notfalls ohne Antwort-Bezug, aber mit Anhang
+      openCompose({ attachments: [file] });
+      toast.warning("Antwort-Bezug konnte nicht geladen werden: " + (err?.message || err));
     }
   };
 
@@ -651,6 +707,17 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
                 )}
                 <Download className="h-3 w-3 shrink-0" />
               </Button>
+              {isPdf(att.mime_type, att.file_name) && att.file_path && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto py-1.5 px-1.5"
+                  title="Unterschreiben"
+                  onClick={() => handleOpenSign(att.file_path!, att.file_name)}
+                >
+                  <PenLine className="h-3.5 w-3.5" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -731,6 +798,54 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
         url={previewUrl}
         fileName={previewMeta.name}
         mimeType={previewMeta.mimeType}
+        onSign={() => {
+          const att = attachments.find((a) => a.file_name === previewMeta.name && !!a.file_path);
+          if (att?.file_path) handleOpenSign(att.file_path, att.file_name);
+        }}
+      />
+      <SignPdfDialog
+        open={!!signTarget}
+        onOpenChange={(o) => !o && setSignTarget(null)}
+        sourceUrl={signTarget?.url ?? null}
+        fileName={signTarget?.name ?? ""}
+        savedHint="Die unterschriebene Fassung hängt jetzt zusätzlich an dieser E-Mail."
+        onSave={async ({ blob, fileName, items }) => {
+          if (!signTarget) return;
+          const res = await saveSignedEmailAttachment({
+            emailId,
+            sourcePath: signTarget.path,
+            sourceName: signTarget.name,
+            fileName,
+            blob,
+            items,
+          });
+          setLastSigned({ path: res.path, name: fileName, size: blob.size });
+          queryClient.invalidateQueries({ queryKey: ["email-attachments", emailId] });
+        }}
+        renderDone={({ blob, fileName, close }) => (
+          <>
+            <Button
+              onClick={() => {
+                close();
+                handleReplyWithSigned(blob, fileName);
+              }}
+            >
+              <Reply className="h-4 w-4 mr-1.5" /> Unterschrieben zurücksenden
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!lastSigned) return;
+                close();
+                setPendingAttachments([{ name: lastSigned.name, path: lastSigned.path, size: lastSigned.size, mimeType: "application/pdf" }]);
+                setSaveToBuildingOpen(true);
+              }}
+              disabled={!lastSigned}
+            >
+              <FolderArchive className="h-4 w-4 mr-1.5" /> Im Objekt ablegen
+            </Button>
+          </>
+        )}
       />
     </div>
   );

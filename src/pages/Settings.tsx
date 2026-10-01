@@ -26,6 +26,7 @@ import { ChartOfAccountsTab } from "@/components/finance/ChartOfAccountsTab";
 import { ReportTemplateSettings } from "@/components/finance/ReportTemplateSettings";
 import { NotificationSettingsSection } from "@/components/settings/NotificationSettingsSection";
 import { PasskeysSection } from "@/components/settings/PasskeysSection";
+import { MySignatureSection } from "@/components/settings/MySignatureSection";
 import { BrokerModeToggle } from "@/components/settings/BrokerModeToggle";
 
 interface AdminUser {
@@ -327,7 +328,7 @@ export const Settings = () => {
         if (msgs.length > 0) { msgs.forEach(m => csvRows.push([...base, m.role === 'user' ? 'Benutzer' : 'Assistent', `"${m.content.replace(/"/g, '""')}"`, format(new Date(m.created_at), 'dd.MM.yyyy HH:mm', { locale: de })])); }
         else csvRows.push([...base, '', '', '']);
       });
-      const blob = new Blob(['\ufeff' + csvRows.map(r => r.join(';')).join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const blob = new Blob(['﻿' + csvRows.map(r => r.join(';')).join('\n')], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `chatbot-gespraeche-${format(new Date(), 'yyyy-MM-dd')}.csv`; link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
     } catch (error) { console.error('Error exporting CSV:', error); }
   };
@@ -410,6 +411,7 @@ export const Settings = () => {
               </CardContent>
             </Card>
             <PasskeysSection />
+            {(profile.role === 'admin' || profile.role === 'employee') && <MySignatureSection />}
           </TabsContent>
 
           {/* Tab: Benutzerverwaltung */}
