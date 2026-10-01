@@ -23,9 +23,18 @@ import { loadPdfLib, signedFileName, stampPdf, TEXT_LINE_HEIGHT, type SignItem }
 import { useMySignature } from "@/lib/documentSigning";
 import { SignatureDrawDialog } from "./SignatureDrawDialog";
 
-const PdfDocument = lazy(() => import("react-pdf").then((m) => ({ default: m.Document })));
-const PdfPage = lazy(() => import("react-pdf").then((m) => ({ default: m.Page })));
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Wichtig: react-pdf setzt beim (verzögerten) Laden selbst einen Standard-Pfad
+// für den PDF-Worker, den es im fertigen Build nicht gibt. Deshalb den Pfad
+// jedes Mal NACH dem Laden setzen — sonst „Setting up fake worker failed“.
+const PDF_WORKER_SRC = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+const loadReactPdf = () =>
+  import("react-pdf").then((m) => {
+    m.pdfjs.GlobalWorkerOptions.workerSrc = PDF_WORKER_SRC;
+    return m;
+  });
+const PdfDocument = lazy(() => loadReactPdf().then((m) => ({ default: m.Document })));
+const PdfPage = lazy(() => loadReactPdf().then((m) => ({ default: m.Page })));
+pdfjs.GlobalWorkerOptions.workerSrc = PDF_WORKER_SRC;
 
 const PLACE_KEY = "rgi-sign-place";
 const FONT_FAMILY = "Helvetica, Arial, sans-serif";
