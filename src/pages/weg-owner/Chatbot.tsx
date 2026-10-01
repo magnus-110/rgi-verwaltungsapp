@@ -172,7 +172,8 @@ export const WegOwnerChatbot = () => {
   const meldungAbsenden = async (messageId: string, draft: ReportDraft) => {
     if (!profile?.user_id) return;
     setSendendeMeldung(messageId);
-    const gebaeudeId = selectedBuildingId || buildingAssignments[0]?.building_id || null;
+    // Vorrang hat das Gebaeude, das der Assistent aus dem Gespraech erkannt hat.
+    const gebaeudeId = draft.buildingId || selectedBuildingId || buildingAssignments[0]?.building_id || null;
     try {
       const { error } = await supabase.from("weg_reports").insert([{
         title: draft.title,
@@ -182,6 +183,7 @@ export const WegOwnerChatbot = () => {
         building_id: gebaeudeId,
         contact_name: [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.email,
         contact_email: profile.email,
+        contact_phone: (profile as any).phone || null,
         status: "open",
       }]);
       if (error) throw error;

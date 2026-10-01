@@ -11,6 +11,8 @@ export interface ChatSource {
 export interface ReportDraft {
   title: string;
   description: string;
+  buildingId?: string | null;
+  buildingName?: string | null;
 }
 
 interface ChatMessageProps {
@@ -49,6 +51,9 @@ export const ChatMessage = ({ message, onSubmitReport, isSubmittingReport }: Cha
                 Meldung an die Hausverwaltung
               </p>
               <p className="text-sm font-medium text-foreground">{message.reportDraft.title}</p>
+              {message.reportDraft.buildingName && (
+                <p className="text-xs text-muted-foreground">Objekt: {message.reportDraft.buildingName}</p>
+              )}
               <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">
                 {message.reportDraft.description}
               </p>

@@ -127,6 +127,7 @@ export const TenantChatbot = () => {
         building_id: (profile as any)?.building_id ?? null,
         contact_name: [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.email,
         contact_email: profile.email,
+        contact_phone: (profile as any).phone || null,
         status: "open",
       }]);
       if (error) throw error;

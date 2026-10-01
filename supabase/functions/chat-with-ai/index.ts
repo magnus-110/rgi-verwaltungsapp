@@ -141,6 +141,14 @@ serve(async (req) => {
       });
     }
 
+    // Status der Meldungen so, wie der Nutzer sie in der App sieht.
+    const statusText = (status: string) =>
+      ({ open: 'Offen', in_progress: 'In Bearbeitung', resolved: 'Erledigt' } as Record<string, string>)[status] || status;
+
+    // Gebaeude, fuer die der Nutzer eine Meldung abgeben darf. Wird unten fuer das
+    // Meldungs-Werkzeug gebraucht, damit eine Meldung beim richtigen Objekt landet.
+    const meldeGebaeude: { id: string; name: string }[] = [];
+
     // Build context data
     let contextData = "";
 
@@ -176,6 +184,7 @@ serve(async (req) => {
         .maybeSingle();
       
       if (building) {
+        meldeGebaeude.push({ id: building.id, name: building.name });
         contextData += `\n\nGebäudeinformationen:\nName: ${building.name}\nAdresse: ${[building.address, building.city].filter(Boolean).join(", ")}\nTyp: ${building.type}\nVerwaltungsmodus: ${building.management_mode}`;
         
         // Fetch building managers for tenant's building
@@ -202,7 +211,7 @@ serve(async (req) => {
       if (userReports && userReports.length > 0) {
         contextData += `\n\nIhre letzten Meldungen:\n`;
         userReports.forEach(report => {
-          contextData += `- ${report.title} (Status: ${report.status}, Priorität: ${report.priority}, Erstellt: ${new Date(report.created_at).toLocaleDateString('de-DE')})\n`;
+          contextData += `- ${report.title} (Status: ${statusText(report.status)}${report.priority ? `, Priorität: ${report.priority}` : ''}, Erstellt: ${new Date(report.created_at).toLocaleDateString('de-DE')})\n`;
           if (report.admin_notes) {
             contextData += `  Verwalter-Notiz: ${report.admin_notes}\n`;
           }
@@ -212,19 +221,10 @@ serve(async (req) => {
 
     // For WEG owners
     if (managementMode === 'weg') {
-      // Get buildings information
-      const { data: buildings } = await supabase
-        .from('buildings')
-        .select('*')
-        .eq('management_mode', 'weg')
-        .order('created_at', { ascending: false });
-
-      if (buildings && buildings.length > 0) {
-        contextData += `\n\nVerfügbare Gebäude:\n`;
-        buildings.forEach(building => {
-          contextData += `- ${building.name} (${[building.address, building.city].filter(Boolean).join(", ")})\n`;
-        });
-      }
+      // Frueher wurde hier die Liste ALLER WEG-Gebaeude der Verwaltung in den Kontext
+      // gegeben. Das hat fremde Objekte offengelegt und den Assistenten verwirrt
+      // (er hielt sie fuer Objekte des Fragenden). Relevant sind nur die eigenen
+      // Gebaeude, die weiter unten geladen werden.
 
       // Get WEG owner reports
       const { data: userReports } = await supabase
@@ -237,7 +237,7 @@ serve(async (req) => {
       if (userReports && userReports.length > 0) {
         contextData += `\n\nIhre letzten Meldungen:\n`;
         userReports.forEach(report => {
-          contextData += `- ${report.title} (Status: ${report.status}, Priorität: ${report.priority}, Erstellt: ${new Date(report.created_at).toLocaleDateString('de-DE')})\n`;
+          contextData += `- ${report.title} (Status: ${statusText(report.status)}${report.priority ? `, Priorität: ${report.priority}` : ''}, Erstellt: ${new Date(report.created_at).toLocaleDateString('de-DE')})\n`;
           if (report.admin_notes) {
             contextData += `  Verwalter-Notiz: ${report.admin_notes}\n`;
           }
@@ -298,6 +298,7 @@ serve(async (req) => {
             .single();
           
           if (building) {
+            meldeGebaeude.push({ id: ub.building_id, name: building.name });
             contextData += `\n- ${building.name} (${[building.address, building.city].filter(Boolean).join(", ")})\n`;
             const managerProfiles = await fetchBuildingManagers(ub.building_id);
             if (managerProfiles.length > 0) {
@@ -434,6 +435,34 @@ serve(async (req) => {
       }
     }
 
+    // Lange Wissensdokumente (z. B. der Verwaltervertrag mit rund 43.000 Zeichen) wurden
+    // bisher komplett eingefuegt. Das verdraengt alles andere und das Modell findet die
+    // passende Stelle schlechter. Bei langen Texten nehmen wir die Absaetze, in denen die
+    // Begriffe der Frage vorkommen, plus jeweils den Absatz davor und danach.
+    const auszugFuerFrage = (text: string, woerter: string[], maxZeichen = 6000): string => {
+      if (text.length <= maxZeichen) return text;
+      const absaetze = text.split(/\n\s*\n/);
+      const begriffe = woerter.filter((w) => w.length > 3);
+      const treffer = new Set<number>();
+      absaetze.forEach((a, i) => {
+        const klein = a.toLowerCase();
+        if (begriffe.some((b) => klein.includes(b))) {
+          treffer.add(i - 1); treffer.add(i); treffer.add(i + 1);
+        }
+      });
+      const indizes = [...treffer].filter((i) => i >= 0 && i < absaetze.length).sort((a, b) => a - b);
+      if (indizes.length === 0) return text.slice(0, maxZeichen) + '\n[... gekuerzt]';
+      let auszug = '';
+      let letzter = -2;
+      for (const i of indizes) {
+        const teil = (i !== letzter + 1 ? '\n[...]\n' : '\n') + absaetze[i];
+        if (auszug.length + teil.length > maxZeichen) break;
+        auszug += teil;
+        letzter = i;
+      }
+      return auszug.trim() + '\n[... weitere Abschnitte nicht relevant für diese Frage]';
+    };
+
     // Intelligent knowledge document search based on user message
     let knowledgeContext = "";
     
@@ -444,8 +473,10 @@ serve(async (req) => {
     const { data: knowledgeDocs, error: knowledgeError } = await supabase
       .from('chatbot_knowledge_documents')
       .select('*')
-      .or(`applies_to.eq.alle,applies_to.eq.${userType}`)
-      .eq('management_mode', managementMode)
+      // Dokumente "fuer alle" gelten unabhaengig vom Bereich. Bisher wurden sie zusaetzlich
+      // nach management_mode gefiltert - Notfall-Leitfaden und Kontaktdaten, die unter "weg"
+      // angelegt sind, kamen dadurch nie bei Mietern an.
+      .or(`applies_to.eq.alle,and(applies_to.eq.${userType},management_mode.eq.${managementMode})`)
       .order('created_at', { ascending: false });
     
     if (knowledgeError) {
@@ -484,7 +515,7 @@ serve(async (req) => {
         knowledgeContext = "\n\n=== RELEVANTE WISSENSDOKUMENTE ===\n";
         relevantDocs.forEach(doc => {
           knowledgeContext += `\n--- ${doc.title} (${doc.category}) ---\n`;
-          knowledgeContext += doc.content;
+          knowledgeContext += auszugFuerFrage(doc.content || '', messageWords);
           knowledgeContext += "\n";
         });
         knowledgeContext += "\n=== ENDE WISSENSDOKUMENTE ===\n";
@@ -506,7 +537,7 @@ serve(async (req) => {
     // Load conversation history for CURRENT SESSION only (not all user messages)
     const { data: conversationHistory, error: historyError } = await supabase
       .from('chatbot_messages')
-      .select('role, content, created_at')
+      .select('role, content, created_at, metadata')
       .eq('session_id', currentSessionId)
       .order('created_at', { ascending: true })
       .limit(20);
@@ -538,12 +569,12 @@ ${isFirstMessage
      - "Lassen Sie mich wissen, wenn Sie weitere Informationen benötigen."
    Jede Antwort sollte einen ANDEREN oder gar keinen Abschluss haben.
 
-3. FORMATIERUNG:
-   ✗ Verwende KEINE Markdown-Zeichen wie **, ##, ###, oder * für Aufzählungen
-   ✓ Verwende Fließtext mit klaren Absätzen
-   ✓ Verwende einfache Spiegelstriche (–) für Aufzählungen
-   ✓ Verwende Zeilenumbrüche für Struktur
-   ✓ Schreibe Überschriften als normalen fettgedruckten Text ohne # Zeichen
+3. FORMATIERUNG UND LÄNGE:
+   ✓ Kurz und direkt: Beantworten Sie zuerst genau die gestellte Frage, in wenigen Sätzen.
+   ✓ Einfache Sprache ohne Fachbegriffe. Ist ein Fachbegriff nötig, erklären Sie ihn kurz.
+   ✓ Erlaubt: **fett** für Wichtiges und einfache Aufzählungen mit "- ".
+   ✗ Keine Überschriften mit #, keine Tabellen, keine langen Listen mit Unterpunkten.
+   ✗ Keine allgemeinen Ratschläge, nach denen nicht gefragt wurde.
 
 4. WAHRHEIT & EHRLICHKEIT (EXTREM WICHTIG - ANTI-HALLUZINATION):
    ✗ Erfinden Sie NIEMALS Namen, Telefonnummern, E-Mail-Adressen oder andere Fakten
@@ -569,6 +600,25 @@ ${isFirstMessage
      nur unter bestimmten Bedingungen eingeblendet (siehe Wissensdokument zur App).
      Erklären Sie die Bedingung, statt die Funktion zu verneinen.
 
+6. MELDUNGEN AN DIE HAUSVERWALTUNG (Sie KÖNNEN Meldungen vorbereiten):
+   Sie haben das Werkzeug "meldung_vorschlagen". Damit erscheint unter Ihrer Antwort ein
+   fertiger Meldungsentwurf mit dem Knopf "Meldung absenden". Erst der Klick des Nutzers
+   schickt die Meldung ab - Sie selbst senden nichts.
+   ✓ Schildert der Nutzer einen Schaden, Mangel, Defekt oder ein Problem, um das sich die
+     Verwaltung kümmern muss (auch technische Probleme mit der App, z. B. Dokumente lassen
+     sich nicht öffnen), rufen Sie das Werkzeug SOFORT in derselben Antwort auf.
+   ✗ Fragen Sie NICHT vorher "Soll ich eine Meldung vorbereiten?" - der Entwurf IST bereits
+     die Rückfrage, der Nutzer entscheidet per Knopf.
+   ✓ Antwortet der Nutzer mit "Ja", "gerne", "bitte melden" o. ä. auf ein Angebot zur Meldung,
+     rufen Sie das Werkzeug ebenfalls sofort auf.
+   ✓ Fehlen wichtige Angaben (wo genau? seit wann?), bereiten Sie den Entwurf trotzdem vor und
+     schreiben Sie dazu, dass der Nutzer diese Angaben ergänzen kann.
+   ✓ Begleittext dazu: ein bis zwei Sätze, z. B. dass der Entwurf unten bereitsteht. Keine
+     Bürozeiten-Abhandlung, keine Aufzählung von Vorgehensweisen.
+   ✓ Bei akuter Gefahr (Feuer, Gasgeruch, Wasser an der Elektrik, Personen in Gefahr):
+     zuerst auf Notruf 112 bzw. den Notfall-Leitfaden hinweisen, KEINE Meldung vorschlagen.
+   ✗ Behaupten Sie nie, Sie könnten keine Meldungen erstellen.
+
 === ENDE VERHALTENSREGELN ===`;
 
     // Construct system prompt using admin-configured prompt + behavioral rules
@@ -586,9 +636,16 @@ ${isFirstMessage
     if (conversationHistory && conversationHistory.length > 0) {
       console.log(`Adding ${conversationHistory.length} messages from conversation history`);
       conversationHistory.forEach(msg => {
+        // Hat der Assistent in einer frueheren Antwort schon eine Meldung vorbereitet,
+        // muss er das wissen - sonst bietet er sie beim naechsten "Ja" erneut an oder
+        // behauptet, es gebe keine.
+        const entwurf = (msg as any).metadata?.reportDraft;
+        const zusatz = msg.role === 'assistant' && entwurf?.title
+          ? `\n\n[Hinweis fuer den Assistenten: In dieser Antwort wurde ein Meldungsvorschlag "${entwurf.title}" angezeigt. Der Nutzer sendet ihn per Knopf selbst ab.]`
+          : '';
         messages.push({
           role: msg.role as 'user' | 'assistant',
-          content: msg.content
+          content: msg.content + zusatz
         });
       });
     }
@@ -634,46 +691,84 @@ ${isFirstMessage
     // Werkzeug fuer Meldungen. Das Modell legt NICHTS an - es bereitet nur einen
     // Vorschlag vor, den der Nutzer in der Oberflaeche bestaetigen muss. So kann
     // aus einem missverstandenen Satz keine Meldung an die Verwaltung entstehen.
+    const werkzeugParameter: any = {
+      type: 'object',
+      properties: {
+        titel: { type: 'string', description: 'Kurzer Betreff, hoechstens 80 Zeichen, z. B. "Licht im Treppenhaus ausgefallen"' },
+        beschreibung: {
+          type: 'string',
+          description: 'Sachliche Beschreibung des Anliegens in vollstaendigen Saetzen, aus Sicht des Melders formuliert (Ich-Form). Nur Angaben verwenden, die der Nutzer gemacht hat.',
+        },
+      },
+      required: ['titel', 'beschreibung'],
+    };
+    // Bei mehreren Objekten soll das Modell das betroffene benennen, damit die Meldung
+    // nicht pauschal beim erstbesten Gebaeude landet.
+    if (meldeGebaeude.length > 1) {
+      werkzeugParameter.properties.gebaeude = {
+        type: 'string',
+        enum: meldeGebaeude.map((g) => g.name),
+        description: 'Betroffenes Gebaeude. Nur angeben, wenn es aus dem Gespraech eindeutig hervorgeht.',
+      };
+    }
     const tools = [{
       type: 'function',
       function: {
         name: 'meldung_vorschlagen',
         description:
-          'Bereitet eine Meldung an die Hausverwaltung vor. Aufrufen, wenn der Nutzer einen Schaden, Mangel oder ein Anliegen schildert, um das sich die Verwaltung kuemmern muss (defekte Heizung, Wasserschaden, kaputtes Licht, Verschmutzung, Laermbelaestigung). NICHT aufrufen bei reinen Informationsfragen und NICHT bei akuter Gefahr - dort zuerst auf den Notruf 112 hinweisen.',
-        parameters: {
-          type: 'object',
-          properties: {
-            titel: { type: 'string', description: 'Kurzer Betreff, hoechstens 80 Zeichen' },
-            beschreibung: {
-              type: 'string',
-              description: 'Sachliche Beschreibung des Anliegens in vollstaendigen Saetzen, aus Sicht des Melders formuliert',
-            },
-          },
-          required: ['titel', 'beschreibung'],
-        },
+          'Zeigt dem Nutzer einen fertigen Meldungsentwurf an die Hausverwaltung mit dem Knopf "Meldung absenden". Sofort aufrufen, wenn der Nutzer einen Schaden, Mangel, Defekt oder ein Problem schildert, um das sich die Verwaltung kuemmern muss (z. B. defekte Heizung, Wasserschaden, Licht im Treppenhaus ausgefallen, Verschmutzung, Laermbelaestigung, Dokumente in der App lassen sich nicht oeffnen) - oder wenn er einer angebotenen Meldung zustimmt. Nicht vorher nachfragen. NICHT aufrufen bei reinen Informationsfragen und NICHT bei akuter Gefahr - dort zuerst auf den Notruf 112 hinweisen.',
+        parameters: werkzeugParameter,
       },
     }];
 
+    const frageMistral = async (toolChoice: 'auto' | 'any', verlauf: any[]) => {
+      const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${mistralApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: gewaehltesModell,
+          messages: verlauf,
+          max_tokens: maxTokens,
+          temperature: temperatur,
+          tools,
+          tool_choice: toolChoice,
+        }),
+      });
+      return res;
+    };
+
+    const leseEntwurf = (nachricht: any): { title: string; description: string; buildingId?: string | null; buildingName?: string | null } | null => {
+      const aufruf = nachricht?.tool_calls?.find((t: any) => t?.function?.name === 'meldung_vorschlagen');
+      if (!aufruf) return null;
+      try {
+        const roh = aufruf.function.arguments;
+        const args = typeof roh === 'string' ? JSON.parse(roh || '{}') : (roh || {});
+        if (!args.titel || !args.beschreibung) return null;
+        const gewaehlt = args.gebaeude ? meldeGebaeude.find((g) => g.name === args.gebaeude) : null;
+        const ziel = gewaehlt
+          || meldeGebaeude.find((g) => g.id === buildingId)
+          || (meldeGebaeude.length === 1 ? meldeGebaeude[0] : null);
+        return {
+          title: String(args.titel).slice(0, 120),
+          description: String(args.beschreibung).slice(0, 4000),
+          buildingId: ziel?.id ?? null,
+          buildingName: ziel?.name ?? null,
+        };
+      } catch (err) {
+        console.error('Meldungsvorschlag konnte nicht gelesen werden:', err);
+        return null;
+      }
+    };
+
     // Call Mistral API
-    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${mistralApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: gewaehltesModell,
-        messages: messages,
-        max_tokens: maxTokens,
-        temperature: temperatur,
-        tools,
-        tool_choice: 'auto'
-      }),
-    });
+    const response = await frageMistral('auto', messages);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenAI API error:', errorText);
+      console.error('Mistral API error:', response.status, errorText.slice(0, 500));
       return new Response(JSON.stringify({ 
         error: 'AI service temporarily unavailable',
         details: response.status === 429 ? 'Rate limit exceeded' : 'Service error'
@@ -688,26 +783,50 @@ ${isFirstMessage
 
     // Meldungsvorschlag auslesen. Er wird nur zurueckgegeben, nicht gespeichert -
     // angelegt wird die Meldung erst, wenn der Nutzer sie in der Oberflaeche bestaetigt.
-    let reportDraft: { title: string; description: string } | null = null;
-    const toolCall = antwort?.tool_calls?.[0];
-    if (toolCall?.function?.name === 'meldung_vorschlagen') {
-      try {
-        const args = JSON.parse(toolCall.function.arguments || '{}');
-        if (args.titel && args.beschreibung) {
-          reportDraft = {
-            title: String(args.titel).slice(0, 120),
-            description: String(args.beschreibung).slice(0, 4000),
-          };
+    let reportDraft = leseEntwurf(antwort);
+
+    // Sicherheitsnetz: Das Modell hat in der Praxis oft nur GEFRAGT ("Soll ich eine
+    // Meldung vorbereiten?"), statt das Werkzeug zu benutzen - oder auf ein "Ja" hin
+    // erneut nur Text geschrieben. Erkennen wir das, holen wir den Entwurf mit einem
+    // zweiten Aufruf, der das Werkzeug erzwingt.
+    if (!reportDraft) {
+      const text = String(antwort?.content || '');
+      // Nur ein echtes ANGEBOT des Assistenten zaehlt ("Soll ich ...", "Ich kann ...
+      // Meldung vorbereiten"), nicht eine Erklaerung, wie man selbst eine Meldung anlegt.
+      const bietetMeldungAn =
+        /(soll ich|möchten sie|moechten sie|darf ich|kann ich|ich kann|ich könnte|ich koennte|ich würde|ich wuerde)[^.?!\n]{0,120}meldung/i.test(text)
+        || /meldung[^.!\n]{0,80}(vorbereit|erstell|aufnehm|anleg|weiterleit|übernehm|uebernehm)[^.!\n]{0,40}\?/i.test(text);
+      const letzteBotAntwort = [...(conversationHistory || [])].reverse().find((m: any) => m.role === 'assistant');
+      const vorherAngeboten = !!letzteBotAntwort
+        && !(letzteBotAntwort as any).metadata?.reportDraft
+        && /meldung/i.test(letzteBotAntwort.content || '')
+        && /\?/.test(letzteBotAntwort.content || '');
+      const stimmtZu = /^\s*(ja|jap|jo|gerne|gern|bitte|ok|okay|mach(en sie)? (das|bitte)|ja,? bitte|ja gerne)\b/i.test(message.trim());
+      if (bietetMeldungAn || (vorherAngeboten && stimmtZu)) {
+        try {
+          const zweiterVersuch = await frageMistral('any', messages);
+          if (zweiterVersuch.ok) {
+            const daten2 = await zweiterVersuch.json();
+            reportDraft = leseEntwurf(daten2.choices?.[0]?.message);
+            if (reportDraft) console.log('Meldungsentwurf ueber erzwungenen Werkzeugaufruf erzeugt');
+          } else {
+            console.error('Erzwungener Werkzeugaufruf fehlgeschlagen:', zweiterVersuch.status);
+          }
+        } catch (err) {
+          console.error('Erzwungener Werkzeugaufruf fehlgeschlagen:', err);
         }
-      } catch (err) {
-        console.error('Meldungsvorschlag konnte nicht gelesen werden:', err);
+        if (reportDraft) {
+          // Der erste Text fragt meist noch "Soll ich ...?" - das passt nicht mehr zum
+          // angezeigten Entwurf.
+          if (antwort) antwort.content = '';
+        }
       }
     }
 
     let assistantMessage = antwort?.content || '';
     if (!assistantMessage) {
       assistantMessage = reportDraft
-        ? 'Ich habe daraus eine Meldung an die Hausverwaltung vorbereitet. Bitte prüfen Sie den Text und senden Sie ihn ab, wenn er passt.'
+        ? 'Ich habe eine Meldung an die Hausverwaltung vorbereitet. Bitte prüfen Sie den Text unten und tippen Sie auf „Meldung absenden", wenn alles passt.'
         : 'Entschuldigung, ich konnte keine Antwort generieren.';
     }
 
@@ -724,6 +843,7 @@ ${isFirstMessage
         metadata: {
           model: gewaehltesModell,
           usage: data.usage,
+          reportDraft,
           timestamp: new Date().toISOString()
         }
       });
