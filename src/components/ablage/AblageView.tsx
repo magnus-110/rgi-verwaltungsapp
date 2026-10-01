@@ -12,6 +12,7 @@ import {
   Loader2,
   MoreHorizontal,
   Paperclip,
+  PenLine,
   Send,
   StickyNote,
   Trash2,
@@ -57,6 +58,8 @@ import {
 import { EmpfaengerWahl } from './EmpfaengerWahl';
 import { AttachmentPreviewDialog } from '@/components/email/AttachmentPreviewDialog';
 import { SaveAttachmentToBuildingDialog } from '@/components/email/SaveAttachmentToBuildingDialog';
+import { SignPdfDialog } from '@/components/documents/SignPdfDialog';
+import { currentSigner, logDocumentSignature } from '@/lib/documentSigning';
 
 /**
  * Die Büro-Ablage — dieselbe Ansicht als Seite (unter Aufgaben) und als
@@ -82,6 +85,9 @@ function dateiIcon(mime: string | null, name: string | null) {
   if (mime?.includes('sheet') || mime?.includes('excel') || /\.(xlsx?|csv)$/.test(n)) return FileSpreadsheet;
   return FileIcon;
 }
+
+const istPdf = (i: AblageItem) =>
+  i.kind === 'file' && (!!i.mime_type?.includes('pdf') || /\.pdf$/i.test(i.file_name || ''));
 
 const istBild = (i: AblageItem) =>
   i.kind === 'file' && (i.mime_type?.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(i.file_name || ''));
@@ -110,7 +116,9 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const [vorschau, setVorschau] = useState<{ url: string; name: string; mime: string | null } | null>(null);
+  const [vorschau, setVorschau] = useState<{ url: string; name: string; mime: string | null; item?: AblageItem } | null>(null);
+  // Unterschreiben: welcher Eintrag gerade unterschrieben wird
+  const [signZiel, setSignZiel] = useState<{ item: AblageItem; url: string } | null>(null);
   const [dmsItems, setDmsItems] = useState<AblageItem[]>([]);
   const [mailLaedt, setMailLaedt] = useState(false);
 
@@ -216,9 +224,33 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
     if (!item.file_path) return;
     try {
       const url = await ablageSignedUrl(item.file_path);
-      setVorschau({ url, name: item.file_name || 'Datei', mime: item.mime_type });
+      setVorschau({ url, name: item.file_name || 'Datei', mime: item.mime_type, item });
     } catch {
       toast.error('Datei konnte nicht geöffnet werden');
+    }
+  };
+
+  /** PDF aus der Ablage unterschreiben. Das Ergebnis kommt als neuer Eintrag in die Ablage. */
+  const unterschreiben = async (item: AblageItem) => {
+    if (!item.file_path) return;
+    try {
+      const url = await ablageSignedUrl(item.file_path);
+      setVorschau(null);
+      setSignZiel({ item, url });
+    } catch {
+      toast.error('Datei konnte nicht geöffnet werden');
+    }
+  };
+
+  /** Unterschriebene Datei an die offene E-Mail hängen (sonst an eine neue). */
+  const unterschriebenPerMail = (file: File) => {
+    const anhang = { file, name: file.name, size: file.size };
+    if (offeneMail) {
+      updateCompose(offeneMail.id, { attachments: [...offeneMail.attachments, anhang] });
+      setMode(offeneMail.id, 'docked');
+      toast.success('An die offene E-Mail angehängt');
+    } else {
+      openCompose({ attachments: [file] });
     }
   };
 
@@ -590,6 +622,18 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
                     >
                       {mailLaedt ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                     </Button>
+                    {istPdf(item) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => unterschreiben(item)}
+                        title="Unterschreiben"
+                        aria-label="Unterschreiben"
+                      >
+                        <PenLine className="h-4 w-4" />
+                      </Button>
+                    )}
                     {item.kind === 'file' ? (
                       <Button
                         variant="ghost"
@@ -638,6 +682,11 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
                             <FileText className="mr-2 h-4 w-4" /> Öffnen
                           </DropdownMenuItem>
                         )}
+                        {istPdf(item) && (
+                          <DropdownMenuItem onClick={() => unterschreiben(item)}>
+                            <PenLine className="mr-2 h-4 w-4" /> Unterschreiben
+                          </DropdownMenuItem>
+                        )}
                         {item.kind === 'file' && (
                           <DropdownMenuItem onClick={() => setDmsItems([item])}>
                             <FolderArchive className="mr-2 h-4 w-4" /> Im DMS ablegen
@@ -671,6 +720,44 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
         url={vorschau?.url ?? null}
         fileName={vorschau?.name ?? ''}
         mimeType={vorschau?.mime ?? null}
+        onSign={vorschau?.item && istPdf(vorschau.item) ? () => unterschreiben(vorschau.item!) : undefined}
+      />
+      <SignPdfDialog
+        open={!!signZiel}
+        onOpenChange={o => !o && setSignZiel(null)}
+        sourceUrl={signZiel?.url ?? null}
+        fileName={signZiel?.item.file_name || 'Dokument.pdf'}
+        savedHint="Die unterschriebene Fassung liegt jetzt zusätzlich in der Ablage — für dieselben Kollegen wie das Original."
+        onSave={async ({ blob, fileName, items: platzierungen }) => {
+          if (!signZiel) return;
+          const signer = await currentSigner();
+          const file = new File([blob], fileName, { type: 'application/pdf' });
+          const ok = await dateien.mutateAsync({
+            files: [file],
+            recipientIds: signZiel.item.recipient_ids || [],
+            note: `Unterschrieben von ${signer.name}`,
+            source: 'upload',
+          });
+          if (!ok) throw new Error('Konnte nicht in die Ablage gelegt werden');
+          await logDocumentSignature({
+            context: 'other',
+            signer,
+            items: platzierungen,
+            source: { bucket: ABLAGE_BUCKET, path: signZiel.item.file_path, name: signZiel.item.file_name },
+            result: { bucket: ABLAGE_BUCKET, name: fileName },
+          });
+        }}
+        renderDone={({ blob, fileName, close }) => (
+          <Button
+            onClick={() => {
+              close();
+              unterschriebenPerMail(new File([blob], fileName, { type: 'application/pdf' }));
+            }}
+          >
+            <Paperclip className="mr-1.5 h-4 w-4" />
+            {offeneMail ? 'An die offene E-Mail anhängen' : 'Per E-Mail senden'}
+          </Button>
+        )}
       />
       <SaveAttachmentToBuildingDialog
         open={dmsItems.length > 0}
