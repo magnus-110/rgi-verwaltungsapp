@@ -10,14 +10,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Download, FileText, X } from "lucide-react";
+import { Download, FileText, Mail, PenLine, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   companyFileUrl,
   useCompanyFolders,
+  useInvalidateCompanyDocuments,
   useUpdateCompanyFile,
 } from "@/hooks/useCompanyDocuments";
-import { CompanyFile, formatBytes } from "./types";
+import { CompanyFile, companyFileBucket, formatBytes } from "./types";
+import { SignPdfDialog } from "@/components/documents/SignPdfDialog";
+import { saveSignedBuildingFile } from "@/lib/documentSigning";
+import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 
 const NO_FOLDER = "__none__";
 
@@ -32,6 +36,9 @@ export function CompanyFileDetail({ file, onClose }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState<string>(NO_FOLDER);
+  const [signUrl, setSignUrl] = useState<string | null>(null);
+  const invalidate = useInvalidateCompanyDocuments();
+  const { openCompose } = useComposeEmail();
 
   useEffect(() => {
     setName(file?.display_name ?? "");
@@ -69,6 +76,17 @@ export function CompanyFileDetail({ file, onClose }: Props) {
   const open = async () => {
     try {
       window.open(await companyFileUrl(file), "_blank", "noopener,noreferrer");
+    } catch (e: any) {
+      toast.error(e.message ?? "Datei konnte nicht geöffnet werden");
+    }
+  };
+
+  const isPdfFile =
+    (file.mime_type || "").toLowerCase().includes("pdf") || /\.pdf$/i.test(file.display_name || file.file_path);
+
+  const openSign = async () => {
+    try {
+      setSignUrl(await companyFileUrl(file));
     } catch (e: any) {
       toast.error(e.message ?? "Datei konnte nicht geöffnet werden");
     }
@@ -121,6 +139,11 @@ export function CompanyFileDetail({ file, onClose }: Props) {
           {file.mime_type && <p>Typ: {file.mime_type}</p>}
         </div>
 
+        {isPdfFile && (
+          <Button className="w-full gap-2" onClick={openSign}>
+            <PenLine className="h-4 w-4" /> Unterschreiben
+          </Button>
+        )}
         <Button variant="outline" className="w-full gap-2" onClick={open}>
           <Download className="h-4 w-4" /> Öffnen
         </Button>
@@ -133,6 +156,35 @@ export function CompanyFileDetail({ file, onClose }: Props) {
           </Button>
         </div>
       )}
+
+      <SignPdfDialog
+        open={!!signUrl}
+        onOpenChange={(o) => !o && setSignUrl(null)}
+        sourceUrl={signUrl}
+        fileName={file.display_name}
+        savedHint="Die unterschriebene Fassung liegt jetzt im selben Ordner wie das Original."
+        onSave={async ({ blob, fileName, items }) => {
+          await saveSignedBuildingFile({
+            file: { ...file, building_id: null, is_company: true },
+            sourceBucket: companyFileBucket(file.source, file.storage_bucket),
+            fileName,
+            blob,
+            items,
+            context: "company_file",
+          });
+          invalidate();
+        }}
+        renderDone={({ blob, fileName, close }) => (
+          <Button
+            onClick={() => {
+              close();
+              openCompose({ attachments: [new File([blob], fileName, { type: "application/pdf" })] });
+            }}
+          >
+            <Mail className="h-4 w-4 mr-1.5" /> Per E-Mail senden
+          </Button>
+        )}
+      />
     </div>
   );
 }

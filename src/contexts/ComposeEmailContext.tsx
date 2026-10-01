@@ -47,6 +47,8 @@ export interface ComposeState {
 }
 
 interface OpenOpts {
+  /** Dateien, die direkt als Anhang im neuen Fenster liegen (z. B. unterschriebenes PDF). */
+  attachments?: File[];
   replyTo?: ComposeState["replyTo"];
   forward?: ComposeState["forward"];
   prefill?: { to?: string; cc?: string; bcc?: string; subject?: string; bodyText?: string; accountId?: string };
@@ -183,7 +185,7 @@ const buildInitial = (id: string, opts?: OpenOpts): ComposeState => {
           ? `\n\n--- Weitergeleitete Nachricht ---\n${forward.body_text || stripHtml(forward.body_html || "")}`
           : ""),
     forwardHtml: forward?.body_html || undefined,
-    attachments: [],
+    attachments: (opts?.attachments || []).map((file) => ({ file, name: file.name, size: file.size })),
     scheduledAt: null,
     editingScheduledId: null,
     editingDraftId: null,

@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Download, ExternalLink } from "lucide-react";
+import { Download, ExternalLink, PenLine } from "lucide-react";
 import { useInlineFileUrl } from "@/lib/inlineFile";
 
 interface AttachmentPreviewDialogProps {
@@ -9,6 +9,8 @@ interface AttachmentPreviewDialogProps {
   url: string | null;
   fileName: string;
   mimeType: string | null;
+  /** Wenn gesetzt, erscheint bei PDFs der Knopf „Unterschreiben“. */
+  onSign?: () => void;
 }
 
 const isImage = (mime: string | null, name: string) =>
@@ -28,6 +30,7 @@ export const AttachmentPreviewDialog = ({
   url,
   fileName,
   mimeType,
+  onSign,
 }: AttachmentPreviewDialogProps) => {
   // Datei als blob: mit korrektem Typ laden — sonst lädt der Browser z. B. PDFs,
   // die der Absender als „application/octet-stream“ geschickt hat, herunter.
@@ -41,6 +44,11 @@ export const AttachmentPreviewDialog = ({
         <DialogHeader className="px-6 py-3 border-b flex-row items-center justify-between space-y-0">
           <DialogTitle className="truncate pr-4">{fileName}</DialogTitle>
           <div className="flex items-center gap-2 mr-6">
+            {onSign && isPdf(mimeType, fileName) && (
+              <Button size="sm" onClick={onSign}>
+                <PenLine className="h-4 w-4 mr-1.5" /> Unterschreiben
+              </Button>
+            )}
             {viewUrl && (
               <>
                 <Button asChild variant="outline" size="sm">
