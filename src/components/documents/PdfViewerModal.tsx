@@ -9,8 +9,14 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Download, Loader2, ZoomIn, ZoomOut, AlertCircle } from "lucide-react";
 
 // Lazy load react-pdf components
-const Document = lazy(() => import("react-pdf").then(mod => ({ default: mod.Document })));
-const Page = lazy(() => import("react-pdf").then(mod => ({ default: mod.Page })));
+// Worker-Pfad erst NACH dem verzögerten Laden setzen: react-pdf überschreibt
+// ihn dabei sonst mit einem Pfad, den es im fertigen Build nicht gibt.
+const setWorker = <T extends { pdfjs: typeof import("react-pdf").pdfjs }>(mod: T) => {
+  mod.pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${mod.pdfjs.version}/build/pdf.worker.min.mjs`;
+  return mod;
+};
+const Document = lazy(() => import("react-pdf").then(setWorker).then(mod => ({ default: mod.Document })));
+const Page = lazy(() => import("react-pdf").then(setWorker).then(mod => ({ default: mod.Page })));
 
 // Set up worker for react-pdf - use CDN to avoid bundler resolution issues
 import { pdfjs } from "react-pdf";
