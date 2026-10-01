@@ -10,7 +10,6 @@ import {
   Image as ImageIcon,
   Inbox,
   Loader2,
-  Mail,
   MoreHorizontal,
   Paperclip,
   Send,
@@ -51,6 +50,7 @@ import {
   ABLAGE_BUCKET,
   DRAG_TYPE_ABLAGE,
   DRAG_TYPE_MAIL_ANHANG,
+  setLaufenderAblageZug,
   type AblageDragFile,
   type MailAnhangDrag,
 } from '@/integrations/supabase/ablage';
@@ -244,6 +244,13 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
     }
   };
 
+  /**
+   * Ein Knopf für alles: Ist gerade eine E-Mail offen, kommen die Dateien
+   * dorthin. Sonst öffnet sich eine neue E-Mail mit den Dateien.
+   */
+  const anEmail = (liste: AblageItem[]) =>
+    offeneMail && liste.some(i => i.kind === 'file') ? anOffeneMail(liste) : perMail(liste);
+
   /** Dateien an die gerade offene E-Mail hängen (die Dateien bleiben in der Ablage). */
   const anOffeneMail = async (liste: AblageItem[]) => {
     if (!offeneMail) return;
@@ -303,6 +310,7 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
       e.dataTransfer.setData('text/plain', item.note || '');
       return;
     }
+    setLaufenderAblageZug(payload);
     e.dataTransfer.effectAllowed = 'copy';
     e.dataTransfer.setData(DRAG_TYPE_ABLAGE, JSON.stringify(payload));
     e.dataTransfer.setData('text/plain', payload.map(p => p.name).join(', '));
@@ -416,14 +424,9 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
         {ausgewaehlt.length > 0 ? (
           <div className="flex w-full flex-wrap items-center gap-1.5 rounded-lg bg-muted px-2 py-1.5 text-[12.5px]">
             <span className="px-1 font-medium">{ausgewaehlt.length} ausgewählt</span>
-            <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[12.5px]" onClick={() => perMail(ausgewaehlt)} disabled={mailLaedt}>
-              <Mail className="h-3.5 w-3.5" /> Per E-Mail
+            <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[12.5px]" onClick={() => anEmail(ausgewaehlt)} disabled={mailLaedt}>
+              <Paperclip className="h-3.5 w-3.5" /> An E-Mail anhängen
             </Button>
-            {offeneMail && ausgewaehlt.some(i => i.kind === 'file') && (
-              <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[12.5px]" onClick={() => anOffeneMail(ausgewaehlt)} disabled={mailLaedt}>
-                <Paperclip className="h-3.5 w-3.5" /> An offene E-Mail
-              </Button>
-            )}
             {ausgewaehlt.some(i => i.kind === 'file') && (
               <Button
                 size="sm"
@@ -490,6 +493,7 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
                   key={item.id}
                   draggable
                   onDragStart={e => onDragStartItem(e, item)}
+                  onDragEnd={() => setLaufenderAblageZug(null)}
                   className={cn(
                     'group relative flex gap-2.5 rounded-xl border bg-background p-2.5 transition-shadow hover:shadow-sm',
                     item.kind === 'file' && 'cursor-grab active:cursor-grabbing',
@@ -575,19 +579,17 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
                   </div>
 
                   <div className="flex shrink-0 items-start gap-0.5">
-                    {offeneMail && item.kind === 'file' && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-primary"
-                        onClick={() => anOffeneMail([item])}
-                        disabled={mailLaedt}
-                        title="An die offene E-Mail anhängen"
-                        aria-label="An die offene E-Mail anhängen"
-                      >
-                        <Paperclip className="h-4 w-4" />
-                      </Button>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-primary"
+                      onClick={() => anEmail([item])}
+                      disabled={mailLaedt}
+                      title={offeneMail && item.kind === 'file' ? 'An die offene E-Mail anhängen' : 'Per E-Mail senden'}
+                      aria-label={offeneMail && item.kind === 'file' ? 'An die offene E-Mail anhängen' : 'Per E-Mail senden'}
+                    >
+                      {mailLaedt ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                    </Button>
                     {item.kind === 'file' ? (
                       <Button
                         variant="ghost"
@@ -636,14 +638,6 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
                             <FileText className="mr-2 h-4 w-4" /> Öffnen
                           </DropdownMenuItem>
                         )}
-                        {offeneMail && item.kind === 'file' && (
-                          <DropdownMenuItem onClick={() => anOffeneMail([item])} disabled={mailLaedt}>
-                            <Paperclip className="mr-2 h-4 w-4" /> An offene E-Mail anhängen
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem onClick={() => perMail([item])} disabled={mailLaedt}>
-                          <Mail className="mr-2 h-4 w-4" /> Per E-Mail senden
-                        </DropdownMenuItem>
                         {item.kind === 'file' && (
                           <DropdownMenuItem onClick={() => setDmsItems([item])}>
                             <FolderArchive className="mr-2 h-4 w-4" /> Im DMS ablegen
@@ -666,7 +660,7 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
         )}
         {!panel && gefiltert.some(i => i.kind === 'file') && (
           <p className="mt-4 text-[12px] text-muted-foreground">
-            Tipp: Ist gerade eine E-Mail offen, hängt die Büroklammer an einem Eintrag die Datei direkt an diese E-Mail an.
+            Tipp: Die Büroklammer hängt die Datei an die gerade offene E-Mail (sonst an eine neue). Oder die Datei einfach ins E-Mail-Fenster ziehen.
           </p>
         )}
       </div>

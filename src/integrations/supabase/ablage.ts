@@ -82,6 +82,19 @@ export interface AblageDragFile {
   bucket: string;
 }
 
+/**
+ * Der gerade laufende Zug aus der Ablage — zusätzlich zum Ziehen-Datentyp.
+ * Manche Browser geben eigene Datentypen beim Ziehen nicht zuverlässig weiter;
+ * das E-Mail-Fenster schaut deshalb auch hier nach.
+ */
+let laufenderZug: AblageDragFile[] | null = null;
+export function setLaufenderAblageZug(dateien: AblageDragFile[] | null) {
+  laufenderZug = dateien;
+}
+export function getLaufenderAblageZug() {
+  return laufenderZug;
+}
+
 /** Was beim Ziehen eines Mail-Anhangs mitgegeben wird. */
 export interface MailAnhangDrag {
   path: string;
