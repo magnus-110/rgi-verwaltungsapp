@@ -12,6 +12,7 @@ import {
   Loader2,
   Mail,
   MoreHorizontal,
+  Paperclip,
   Send,
   StickyNote,
   Trash2,
@@ -61,9 +62,9 @@ import { SaveAttachmentToBuildingDialog } from '@/components/email/SaveAttachmen
  * Die Büro-Ablage — dieselbe Ansicht als Seite (unter Aufgaben) und als
  * Leiste am rechten Rand (Korb-Symbol oben).
  *
- * Alles geht per Ziehen: Dateien vom Desktop oder Anhänge aus einer Mail
- * hineinziehen, Einträge ins E-Mail-Fenster herausziehen. Bildschirmfotos
- * kommen mit Strg+V hinein.
+ * Hinein geht alles per Ziehen: Dateien vom Desktop oder Anhänge aus einer
+ * Mail. Bildschirmfotos kommen mit Strg+V hinein. Ist eine E-Mail offen,
+ * hängt die Büroklammer an einem Eintrag die Datei direkt an diese E-Mail.
  */
 
 type Filter = 'alle' | 'fuer_mich' | 'von_mir';
@@ -96,7 +97,9 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
   const { dateien, notiz, mailAnhaenge } = useAblageHinlegen();
   const loeschen = useAblageLoeschen();
   const markRead = useMarkAblageRead();
-  const { openCompose, updateCompose } = useComposeEmail();
+  const { composes, openCompose, updateCompose, setMode } = useComposeEmail();
+  // Die E-Mail, die gerade offen ist (oder zuletzt geöffnet wurde).
+  const offeneMail = [...composes].reverse().find(c => c.mode !== 'minimized') ?? composes[composes.length - 1];
 
   const [empfaenger, setEmpfaenger] = useState<string[]>([]);
   const [text, setText] = useState('');
@@ -236,6 +239,35 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
       const kommentare = [...notizen.map(n => n.note), ...files.map(f => f.note)].filter(Boolean) as string[];
       const id = openCompose({ prefill: kommentare.length ? { bodyText: kommentare.join('\n\n') } : undefined });
       if (anhaenge.length) updateCompose(id, { attachments: anhaenge });
+    } finally {
+      setMailLaedt(false);
+    }
+  };
+
+  /** Dateien an die gerade offene E-Mail hängen (die Dateien bleiben in der Ablage). */
+  const anOffeneMail = async (liste: AblageItem[]) => {
+    if (!offeneMail) return;
+    const files = liste.filter(i => i.kind === 'file');
+    if (!files.length) return;
+    setMailLaedt(true);
+    try {
+      const neu: { file: File; name: string; size: number }[] = [];
+      for (const i of files) {
+        if ((i.file_size ?? 0) > 25 * 1024 * 1024) {
+          toast.error(`${i.file_name} ist zu groß für eine E-Mail (max. 25 MB)`);
+          continue;
+        }
+        try {
+          const file = await ablageAlsFile(i);
+          neu.push({ file, name: file.name, size: file.size });
+        } catch {
+          toast.error(`${i.file_name}: konnte nicht geladen werden`);
+        }
+      }
+      if (!neu.length) return;
+      updateCompose(offeneMail.id, { attachments: [...offeneMail.attachments, ...neu] });
+      if (offeneMail.mode === 'minimized') setMode(offeneMail.id, 'docked');
+      toast.success(neu.length === 1 ? 'An die offene E-Mail angehängt' : `${neu.length} Dateien an die offene E-Mail angehängt`);
     } finally {
       setMailLaedt(false);
     }
@@ -387,6 +419,11 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
             <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[12.5px]" onClick={() => perMail(ausgewaehlt)} disabled={mailLaedt}>
               <Mail className="h-3.5 w-3.5" /> Per E-Mail
             </Button>
+            {offeneMail && ausgewaehlt.some(i => i.kind === 'file') && (
+              <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[12.5px]" onClick={() => anOffeneMail(ausgewaehlt)} disabled={mailLaedt}>
+                <Paperclip className="h-3.5 w-3.5" /> An offene E-Mail
+              </Button>
+            )}
             {ausgewaehlt.some(i => i.kind === 'file') && (
               <Button
                 size="sm"
@@ -538,6 +575,19 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
                   </div>
 
                   <div className="flex shrink-0 items-start gap-0.5">
+                    {offeneMail && item.kind === 'file' && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-primary"
+                        onClick={() => anOffeneMail([item])}
+                        disabled={mailLaedt}
+                        title="An die offene E-Mail anhängen"
+                        aria-label="An die offene E-Mail anhängen"
+                      >
+                        <Paperclip className="h-4 w-4" />
+                      </Button>
+                    )}
                     {item.kind === 'file' ? (
                       <Button
                         variant="ghost"
@@ -586,6 +636,11 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
                             <FileText className="mr-2 h-4 w-4" /> Öffnen
                           </DropdownMenuItem>
                         )}
+                        {offeneMail && item.kind === 'file' && (
+                          <DropdownMenuItem onClick={() => anOffeneMail([item])} disabled={mailLaedt}>
+                            <Paperclip className="mr-2 h-4 w-4" /> An offene E-Mail anhängen
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => perMail([item])} disabled={mailLaedt}>
                           <Mail className="mr-2 h-4 w-4" /> Per E-Mail senden
                         </DropdownMenuItem>
@@ -611,7 +666,7 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
         )}
         {!panel && gefiltert.some(i => i.kind === 'file') && (
           <p className="mt-4 text-[12px] text-muted-foreground">
-            Tipp: Dateien lassen sich direkt aus der Ablage in ein offenes E-Mail-Fenster ziehen.
+            Tipp: Ist gerade eine E-Mail offen, hängt die Büroklammer an einem Eintrag die Datei direkt an diese E-Mail an.
           </p>
         )}
       </div>
