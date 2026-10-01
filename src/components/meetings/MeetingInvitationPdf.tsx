@@ -18,9 +18,11 @@ import { VariableHelpSheet } from "@/components/communication/VariableHelpSheet"
 interface MeetingInvitationPdfProps {
   meetingId: string;
   buildingId: string;
+  /** Kopfkarte mit Termin/Ort ausblenden (steht bereits im Kopf der Versammlung). */
+  hideContext?: boolean;
 }
 
-export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitationPdfProps) => {
+export const MeetingInvitationPdf = ({ meetingId, buildingId, hideContext }: MeetingInvitationPdfProps) => {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -140,6 +142,7 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
   return (
     <div className="space-y-4">
       {/* ETV Kontext-Karte */}
+      {!hideContext && (
       <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
         <CardContent className="p-4 space-y-2">
           <div className="flex items-center gap-2 text-sm font-semibold">
@@ -167,6 +170,7 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
 
         </CardContent>
       </Card>
+      )}
 
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-2">

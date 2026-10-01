@@ -1,212 +1,170 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { useManagementMode } from "@/hooks/useManagementMode";
-import { MeetingList } from "@/components/meetings/MeetingList";
-import { MeetingEditor } from "@/components/meetings/MeetingEditor";
-import { ResolutionLedger } from "@/components/meetings/ResolutionLedger";
-import { SubmittedTopsManager } from "@/components/meetings/SubmittedTopsManager";
-
-import { ProtocolTemplatesTab } from "@/components/meetings/ProtocolTemplatesTab";
-import { ReportTemplatesTab } from "@/components/meetings/ReportTemplatesTab";
-
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, ArrowLeft, Users, Scale, Inbox, Building2, FileText } from "lucide-react";
+import { Segmented } from "@/components/meetings/etv/ui";
+import { WegPicker } from "@/components/meetings/etv/WegPicker";
+import { TemplatesSheet } from "@/components/meetings/etv/TemplatesSheet";
+import { YearPlan } from "@/components/meetings/etv/YearPlan";
+import { TopicInbox } from "@/components/meetings/etv/TopicInbox";
+import { MeetingArchive } from "@/components/meetings/etv/MeetingArchive";
+import { NewTopicDialog } from "@/components/meetings/etv/NewTopicDialog";
+import { MeetingWorkspace } from "@/components/meetings/etv/MeetingWorkspace";
+import { useEtvMeetings, useEtvTopics, useWegBuildings } from "@/components/meetings/etv/useEtvData";
 
+type Tab = "plan" | "themen" | "archiv";
+const WEG_KEY = "etv-weg-filter";
+
+const readStoredWeg = () => {
+  try { return localStorage.getItem(WEG_KEY) || "all"; } catch { return "all"; }
+};
 
 export const Meetings = () => {
-  const { profile } = useAuth();
-  const { managementMode } = useManagementMode();
-  const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-  const [selectedBuildingId, setSelectedBuildingId] = useState<string>("all");
+  const [params, setParams] = useSearchParams();
+  const thisYear = new Date().getFullYear();
 
-  // Load WEG buildings for filter
-  const { data: wegBuildings = [] } = useQuery({
-    queryKey: ["weg-buildings-filter"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("buildings")
-        .select("id, name, address")
-        .eq("management_mode", "weg")
-        .order("name");
-      if (error) throw error;
-      return data || [];
-    },
-  });
+  const tab = (params.get("tab") as Tab) || "plan";
+  const year = Number(params.get("jahr")) || thisYear;
+  const weg = params.get("weg") || readStoredWeg();
+  const meetingParam = params.get("m");
 
-  const { data: meetings = [], isLoading, refetch } = useQuery({
-    queryKey: ["etv-meetings", managementMode, selectedBuildingId],
-    queryFn: async () => {
-      let query = supabase
-        .from("etv_meetings")
-        .select(`
-          *,
-          buildings!inner(id, name, address, management_mode)
-        `)
-        .eq("buildings.management_mode", "weg")
-        .order("meeting_date", { ascending: false });
+  const [newTopicOpen, setNewTopicOpen] = useState(false);
 
-      if (selectedBuildingId !== "all") {
-        query = query.eq("building_id", selectedBuildingId);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  // Count pending submitted tops
-  const { data: pendingCount = 0 } = useQuery({
-    queryKey: ["pending-tops-count"],
-    queryFn: async () => {
-      const { count, error } = await supabase
-        .from("etv_submitted_tops")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "pending");
-      if (error) throw error;
-      return count || 0;
-    },
-  });
-
-  const handleBack = () => {
-    setSelectedMeetingId(null);
-    setIsCreating(false);
-    refetch();
+  const setParam = (patch: Record<string, string | null>) => {
+    const next = new URLSearchParams(params);
+    Object.entries(patch).forEach(([k, v]) => (v === null ? next.delete(k) : next.set(k, v)));
+    setParams(next);
   };
 
-  if (isCreating || selectedMeetingId) {
+  const setWeg = (id: string) => {
+    try { localStorage.setItem(WEG_KEY, id); } catch { /* egal */ }
+    setParam({ weg: id === "all" ? null : id });
+  };
+
+  // Gespeicherten Filter in die Adresse übernehmen, damit er sichtbar ist
+  useEffect(() => {
+    if (!params.get("weg") && weg !== "all") setParam({ weg });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const { data: buildings = [] } = useWegBuildings();
+  const { data: meetings = [], isLoading: meetingsLoading } = useEtvMeetings();
+  const { data: topics = [], isLoading: topicsLoading } = useEtvTopics();
+
+  const validWeg = weg !== "all" && buildings.some((b) => b.id === weg) ? weg : "all";
+  const selectedBuilding = buildings.find((b) => b.id === validWeg) || null;
+  const scopedBuildings = useMemo(() => (selectedBuilding ? [selectedBuilding] : buildings), [buildings, selectedBuilding]);
+  const scopedMeetings = useMemo(() => (selectedBuilding ? meetings.filter((m) => m.building_id === selectedBuilding.id) : meetings), [meetings, selectedBuilding]);
+  const scopedTopics = useMemo(() => (selectedBuilding ? topics.filter((t) => t.buildingId === selectedBuilding.id) : topics), [topics, selectedBuilding]);
+  const newTopics = scopedTopics.filter((t) => t.status === "neu").length;
+
+  const openMeeting = (id: string) => setParam({ m: id, b: null, phase: null });
+  const createMeeting = (buildingId?: string) =>
+    setParam({ m: "neu", b: buildingId || (validWeg !== "all" ? validWeg : null), phase: null });
+
+  if (meetingParam) {
     return (
-      <div className="p-3 md:p-6 space-y-3 md:space-y-4">
-        <Button variant="ghost" onClick={handleBack} className="gap-2 h-10 -ml-2">
-          <ArrowLeft className="h-4 w-4" />
-          Zurück zur Übersicht
-        </Button>
-        <MeetingEditor
-          meetingId={selectedMeetingId}
-          initialBuildingId={isCreating && selectedBuildingId !== "all" ? selectedBuildingId : undefined}
-          onSaved={handleBack}
-          onCancel={handleBack}
-        />
-      </div>
+      <MeetingWorkspace
+        meetingId={meetingParam === "neu" ? null : meetingParam}
+        initialBuildingId={params.get("b") || undefined}
+        phase={params.get("phase")}
+        onPhaseChange={(p) => setParam({ phase: p })}
+        onCreated={(id) => setParam({ m: id, b: null })}
+        onBack={() => setParam({ m: null, b: null, phase: null })}
+      />
     );
   }
 
+  const years = [thisYear - 1, thisYear, thisYear + 1];
+  if (!years.includes(year)) years.unshift(year);
+
   return (
-    <div className="p-3 md:p-6 space-y-4 md:space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Versammlungen</h1>
-          <p className="text-xs md:text-sm text-muted-foreground">
-            Eigentümerversammlungen planen, durchführen und dokumentieren
-          </p>
-        </div>
-        <Button onClick={() => setIsCreating(true)} className="gap-2 h-11 md:h-10 hidden md:inline-flex">
-          <Plus className="h-4 w-4" />
-          Neue ETV
-        </Button>
-      </div>
-
-      {/* Building Filter */}
-      <div className="flex items-center gap-2">
-        <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-        <Select value={selectedBuildingId} onValueChange={setSelectedBuildingId}>
-          <SelectTrigger className="w-full md:w-[300px] h-11 md:h-10">
-            <SelectValue placeholder="Liegenschaft filtern..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Liegenschaften</SelectItem>
-            {wegBuildings.map((b) => (
-              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <Tabs defaultValue="meetings">
-        <TabsList className="w-full md:w-auto overflow-x-auto scrollbar-hide">
-          <TabsTrigger value="meetings" className="gap-1.5 md:gap-2 min-h-[44px] text-xs md:text-sm">
-            <Users className="h-4 w-4" />
-            <span className="hidden sm:inline">Versammlungen</span>
-            <span className="sm:hidden">ETV</span>
-          </TabsTrigger>
-          <TabsTrigger value="submissions" className="gap-1.5 md:gap-2 min-h-[44px] text-xs md:text-sm">
-            <Inbox className="h-4 w-4" />
-            Anträge
-            {pendingCount > 0 && (
-              <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">
-                {pendingCount}
-              </Badge>
+    <div className="min-h-full">
+      <div className="mx-auto max-w-[1320px] space-y-6 px-3 pb-16 pt-5 md:px-8 md:pt-8">
+        <header className="flex flex-wrap items-end justify-between gap-5">
+          <div className="space-y-1">
+            <div className="text-[13px] font-medium text-muted-foreground">Eigentümerversammlungen</div>
+            <h1 className="text-[28px] font-semibold leading-tight tracking-tight md:text-[34px]">Versammlungen</h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            {tab !== "themen" && (
+              <Segmented
+                ariaLabel="Wirtschaftsjahr"
+                value={String(year)}
+                onChange={(v) => setParam({ jahr: v === String(thisYear) ? null : v })}
+                options={years.map((y) => ({ value: String(y), label: String(y) }))}
+              />
             )}
-          </TabsTrigger>
-          <TabsTrigger value="resolutions" className="gap-1.5 md:gap-2 min-h-[44px] text-xs md:text-sm">
-            <Scale className="h-4 w-4" />
-            <span className="hidden sm:inline">Beschlusssammlung</span>
-            <span className="sm:hidden">Beschl.</span>
-          </TabsTrigger>
-          <TabsTrigger value="templates" className="gap-1.5 md:gap-2 min-h-[44px] text-xs md:text-sm">
-            <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline">Protokoll-Vorlagen</span>
-            <span className="sm:hidden">Vorlagen</span>
-          </TabsTrigger>
-          <TabsTrigger value="report-templates" className="gap-1.5 md:gap-2 min-h-[44px] text-xs md:text-sm">
-            <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline">Bericht-Vorlagen</span>
-            <span className="sm:hidden">Bericht</span>
-          </TabsTrigger>
-        </TabsList>
+            <WegPicker buildings={buildings} value={validWeg} onChange={setWeg} />
+            <TemplatesSheet />
+            {tab === "themen" ? (
+              <Button variant="outline" className="h-10 gap-2 rounded-[10px]" onClick={() => setNewTopicOpen(true)}>
+                <Plus className="h-4 w-4" /> Thema erfassen
+              </Button>
+            ) : (
+              <Button className="h-10 gap-2 rounded-[10px]" onClick={() => createMeeting()}>
+                <Plus className="h-4 w-4" /> Neue Versammlung
+              </Button>
+            )}
+          </div>
+        </header>
 
-        <TabsContent value="meetings" className="mt-4">
-          <Tabs defaultValue="active">
-            <TabsList>
-              <TabsTrigger value="active">Aktuelle</TabsTrigger>
-              <TabsTrigger value="past">Vergangene</TabsTrigger>
-            </TabsList>
-            <TabsContent value="active" className="mt-4">
-              <MeetingList
-                meetings={meetings.filter((m: any) => !["completed", "cancelled"].includes(m.status))}
-                isLoading={isLoading}
-                onSelect={(id) => setSelectedMeetingId(id)}
-              />
-            </TabsContent>
-            <TabsContent value="past" className="mt-4">
-              <MeetingList
-                meetings={meetings.filter((m: any) => ["completed", "cancelled"].includes(m.status))}
-                isLoading={isLoading}
-                onSelect={(id) => setSelectedMeetingId(id)}
-              />
-            </TabsContent>
-          </Tabs>
-        </TabsContent>
-        <TabsContent value="submissions" className="mt-4">
-          <SubmittedTopsManager buildingFilter={selectedBuildingId} />
-        </TabsContent>
-        <TabsContent value="resolutions" className="mt-4">
-          <ResolutionLedger buildingFilter={selectedBuildingId} />
-        </TabsContent>
-        <TabsContent value="templates" className="mt-4">
-          <ProtocolTemplatesTab />
-        </TabsContent>
-        <TabsContent value="report-templates" className="mt-4">
-          <ReportTemplatesTab />
-        </TabsContent>
+        <nav aria-label="Bereiche" className="flex gap-7 overflow-x-auto border-b">
+          {([
+            { key: "plan", label: "Jahresplan" },
+            { key: "themen", label: "Themenspeicher", badge: newTopics },
+            { key: "archiv", label: "Archiv" },
+          ] as { key: Tab; label: string; badge?: number }[]).map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              aria-current={tab === t.key ? "page" : undefined}
+              onClick={() => setParam({ tab: t.key === "plan" ? null : t.key })}
+              className={cn(
+                "-mb-px flex shrink-0 items-center gap-2 border-b-2 pb-3 pt-2.5 text-[15px] transition-colors",
+                tab === t.key ? "border-primary font-semibold text-foreground" : "border-transparent font-medium text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t.label}
+              {!!t.badge && (
+                <span className="rounded-full bg-red-50 px-2 py-px text-xs font-semibold text-red-700 dark:bg-red-950/50 dark:text-red-300">{t.badge} neu</span>
+              )}
+            </button>
+          ))}
+        </nav>
 
-      </Tabs>
+        {tab === "plan" && (meetingsLoading
+          ? <p className="py-10 text-center text-sm text-muted-foreground">Wird geladen …</p>
+          : (
+            <YearPlan
+              year={year}
+              buildings={scopedBuildings}
+              meetings={scopedMeetings}
+              topics={scopedTopics}
+              onOpenMeeting={openMeeting}
+              onCreateMeeting={createMeeting}
+            />
+          ))}
+        {tab === "themen" && (
+          <TopicInbox topics={scopedTopics} allTopics={topics} meetings={meetings} isLoading={topicsLoading} onOpenMeeting={openMeeting} />
+        )}
+        {tab === "archiv" && (
+          <MeetingArchive
+            year={year}
+            buildings={scopedBuildings}
+            selectedBuilding={selectedBuilding}
+            meetings={scopedMeetings}
+            topics={scopedTopics}
+            onOpenMeeting={openMeeting}
+            onCreateMeeting={createMeeting}
+            onSelectBuilding={setWeg}
+            onOpenTopics={() => setParam({ tab: "themen" })}
+          />
+        )}
+      </div>
 
-      {/* Mobile FAB */}
-      <Button
-        onClick={() => setIsCreating(true)}
-        className="md:hidden fixed right-4 h-14 w-14 rounded-full shadow-lg z-40"
-        style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
-        aria-label="Neue ETV"
-      >
-        <Plus className="h-6 w-6" />
-      </Button>
+      <NewTopicDialog open={newTopicOpen} onOpenChange={setNewTopicOpen} buildings={buildings} defaultBuildingId={validWeg} />
     </div>
   );
 };

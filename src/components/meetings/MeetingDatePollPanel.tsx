@@ -24,6 +24,8 @@ interface Props {
   meetingId: string;
   buildingId: string;
   onApplyDate?: (date: string, time: string) => void;
+  /** Bereits übernommener Termin (YYYY-MM-DD) – wird markiert. */
+  appliedDate?: string;
 }
 
 const addDays = (d: number) => {
@@ -40,7 +42,7 @@ const isWeekend = (iso: string) => {
 const toIso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-export const MeetingDatePollPanel = ({ meetingId, buildingId, onApplyDate }: Props) => {
+export const MeetingDatePollPanel = ({ meetingId, buildingId, onApplyDate, appliedDate }: Props) => {
   const { profile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -196,7 +198,7 @@ export const MeetingDatePollPanel = ({ meetingId, buildingId, onApplyDate }: Pro
 
   if (!poll) {
     return (
-      <div className="rounded-lg border border-dashed p-4 flex items-center justify-between gap-4 flex-wrap">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-dashed p-4">
         <div className="flex items-start gap-3">
           <CalendarClock className="h-5 w-5 text-muted-foreground mt-0.5" />
           <div>
@@ -296,136 +298,115 @@ export const MeetingDatePollPanel = ({ meetingId, buildingId, onApplyDate }: Pro
   }
 
   const isClosed = poll.status === "closed" || new Date(poll.closes_at) < new Date();
+  const maxCount = Math.max(1, respondedContacts);
 
   return (
-    <div className="rounded-lg border p-4 space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <CalendarClock className="h-5 w-5 text-muted-foreground" />
-          <div>
-            <h4 className="text-sm font-semibold flex items-center gap-2">
-              Terminfindung
-              <Badge variant={isClosed ? "secondary" : "default"}>
-                {isClosed ? "abgeschlossen" : "läuft"}
-              </Badge>
-            </h4>
-            <p className="text-xs text-muted-foreground">
-              Bis {formatShortDate(poll.closes_at)} · {respondedContacts} von {owners.length} Eigentümern haben
-              geantwortet
-            </p>
-          </div>
-        </div>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/40 px-3.5 py-2.5">
+        <span className="text-[13px] text-foreground/80">
+          <strong className="font-semibold text-foreground">{isClosed ? "Abgeschlossen" : "Läuft"}</strong>
+          {isClosed ? " · " : " bis "}{formatShortDate(poll.closes_at)} · {respondedContacts} von {owners.length} Eigentümern haben geantwortet
+        </span>
         <div className="flex gap-2">
           {!isClosed && (
-            <Button variant="outline" size="sm" className="gap-2" onClick={() => setStatus.mutate("closed")}>
-              <Lock className="h-4 w-4" /> Umfrage schließen
+            <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setStatus.mutate("closed")}>
+              <Lock className="h-3.5 w-3.5" /> Umfrage schließen
             </Button>
           )}
           <Button
             variant="ghost"
             size="sm"
-            className="text-destructive"
+            className="h-8 text-destructive"
             onClick={() => {
               if (confirm("Terminumfrage mit allen Rückmeldungen löschen?")) deletePoll.mutate();
             }}
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
 
-      {/* Auswertung */}
       <div className="space-y-2">
-        {ranking.map((r, idx) => (
-          <div key={r.optionId} className="rounded-md border p-3 space-y-2">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                {idx === 0 && <Badge className="bg-green-600 hover:bg-green-600">Bester Termin</Badge>}
-                <span className="text-sm font-medium">{formatGermanDate(r.date)}</span>
-                <span className="text-sm text-muted-foreground">{slotLabel(r.bestSlot)}</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <Badge variant="outline" className="text-green-600 border-green-600">{r.yes} Ja</Badge>
-                <Badge variant="outline" className="text-orange-500 border-orange-500">{r.maybe} Vielleicht</Badge>
-                <Badge variant="outline" className="text-destructive border-destructive">{r.no} Nein</Badge>
-              </div>
-            </div>
-            <div className="flex gap-3 text-xs text-muted-foreground">
-              {TIME_SLOTS.map((s) => (
-                <span key={s}>
-                  {slotLabel(s)}: <strong>{r.slotAvailability[s]}</strong>
+        {ranking.map((r, idx) => {
+          const applied = appliedDate === r.date;
+          return (
+            <div
+              key={r.optionId}
+              className={`space-y-2.5 rounded-xl border px-4 py-3 ${applied ? "border-2 border-primary bg-primary/5" : "bg-card"}`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2.5">
+                <span className="flex items-center gap-2">
+                  {idx === 0 && r.yes > 0 && (
+                    <span className="rounded-full bg-emerald-700 px-2 py-0.5 text-[11px] font-bold text-white">Bester Termin</span>
+                  )}
+                  <span className="text-[15px] font-semibold">{formatGermanDate(r.date)}</span>
+                  <span className="text-[13px] text-muted-foreground">{slotLabel(r.bestSlot)}</span>
                 </span>
-              ))}
+                {onApplyDate && (
+                  <Button
+                    size="sm"
+                    variant={applied ? "default" : "outline"}
+                    className="h-8"
+                    onClick={() => onApplyDate(r.date, `${r.bestSlot}:00`)}
+                  >
+                    {applied ? <><CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Übernommen</> : "Diesen Termin übernehmen"}
+                  </Button>
+                )}
+              </div>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                <span className="flex h-2 overflow-hidden rounded-full bg-muted">
+                  <span className="block bg-emerald-600" style={{ width: `${(r.yes / maxCount) * 100}%` }} />
+                  <span className="block bg-amber-400" style={{ width: `${(r.maybe / maxCount) * 100}%` }} />
+                  <span className="block bg-red-600" style={{ width: `${(r.no / maxCount) * 100}%` }} />
+                </span>
+                <span className="whitespace-nowrap text-xs text-muted-foreground">
+                  <strong className="text-emerald-700 dark:text-emerald-400">{r.yes} Ja</strong> · {r.maybe} Vielleicht · {r.no} Nein
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                {TIME_SLOTS.map((s) => (
+                  <span key={s}>{slotLabel(s)}: <strong className="text-foreground/80">{r.slotAvailability[s]}</strong></span>
+                ))}
+              </div>
             </div>
-            {onApplyDate && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-2"
-                onClick={() => onApplyDate(r.date, `${r.bestSlot}:00`)}
-              >
-                <CheckCircle2 className="h-4 w-4" /> Diesen Termin übernehmen
-              </Button>
-            )}
-          </div>
-        ))}
-        {ranking.length === 0 && (
-          <p className="text-sm text-muted-foreground">Noch keine Terminvorschläge.</p>
-        )}
+          );
+        })}
+        {ranking.length === 0 && <p className="text-sm text-muted-foreground">Noch keine Terminvorschläge.</p>}
       </div>
 
-      {/* Wer hat wie geantwortet */}
       {owners.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b text-left">
-                <th className="py-1 pr-3 font-medium">Eigentümer</th>
-                {(options as any[]).map((o) => (
-                  <th key={o.id} className="py-1 px-2 font-medium whitespace-nowrap">
-                    {new Date(o.proposed_date + "T00:00:00").toLocaleDateString("de-DE", {
-                      day: "2-digit",
-                      month: "2-digit",
-                    })}
-                  </th>
-                ))}
-                <th className="py-1 pl-2 font-medium">Anmerkung</th>
-              </tr>
-            </thead>
-            <tbody>
-              {owners.map((o) => (
-                <tr key={o.id} className="border-b last:border-0">
-                  <td className="py-1 pr-3 whitespace-nowrap">{o.name}</td>
-                  {(options as any[]).map((opt) => {
-                    const r = responses.find((x) => x.option_id === opt.id && x.contact_id === o.id);
-                    const color =
-                      r?.choice === "yes"
-                        ? "text-green-600"
-                        : r?.choice === "maybe"
-                        ? "text-orange-500"
-                        : r?.choice === "no"
-                        ? "text-destructive"
-                        : "text-muted-foreground";
-                    const label =
-                      r?.choice === "yes"
-                        ? `Ja${r.earliest_time ? ` (${r.earliest_time}:00)` : ""}`
-                        : r?.choice === "maybe"
-                        ? `Vlt.${r.earliest_time ? ` (${r.earliest_time}:00)` : ""}`
-                        : r?.choice === "no"
-                        ? "Nein"
-                        : "–";
-                    return (
-                      <td key={opt.id} className={`py-1 px-2 whitespace-nowrap ${color}`}>
-                        {label}
-                      </td>
-                    );
-                  })}
-                  <td className="py-1 pl-2 text-muted-foreground">{noteByContact[o.id] || ""}</td>
+        <details className="group rounded-xl border px-4 py-2.5">
+          <summary className="cursor-pointer select-none text-[13px] font-semibold text-primary">Wer hat wie geantwortet?</summary>
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="border-b text-left text-muted-foreground">
+                  <th className="py-1.5 pr-3 font-semibold">Eigentümer</th>
+                  {(options as any[]).map((o) => (
+                    <th key={o.id} className="whitespace-nowrap px-2 py-1.5 font-semibold">
+                      {new Date(o.proposed_date + "T00:00:00").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
+                    </th>
+                  ))}
+                  <th className="py-1.5 pl-2 font-semibold">Anmerkung</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {owners.map((o) => (
+                  <tr key={o.id} className="border-b last:border-0">
+                    <td className="whitespace-nowrap py-1.5 pr-3">{o.name}</td>
+                    {(options as any[]).map((opt) => {
+                      const r = responses.find((x) => x.option_id === opt.id && x.contact_id === o.id);
+                      const color = r?.choice === "yes" ? "text-emerald-700 dark:text-emerald-400" : r?.choice === "maybe" ? "text-amber-700 dark:text-amber-400" : r?.choice === "no" ? "text-red-700 dark:text-red-400" : "text-muted-foreground";
+                      const label = r?.choice === "yes" ? `Ja${r.earliest_time ? ` (${r.earliest_time}:00)` : ""}` : r?.choice === "maybe" ? `Vlt.${r.earliest_time ? ` (${r.earliest_time}:00)` : ""}` : r?.choice === "no" ? "Nein" : "–";
+                      return <td key={opt.id} className={`whitespace-nowrap px-2 py-1.5 ${color}`}>{label}</td>;
+                    })}
+                    <td className="py-1.5 pl-2 text-muted-foreground">{noteByContact[o.id] || ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
       )}
     </div>
   );

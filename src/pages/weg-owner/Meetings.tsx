@@ -32,6 +32,7 @@ const topStatusLabels: Record<string, { label: string; variant: "default" | "sec
   accepted: { label: "Aufgenommen", variant: "default" },
   rejected: { label: "Abgelehnt", variant: "destructive" },
   deferred: { label: "Zurückgestellt", variant: "secondary" },
+  resolved: { label: "Erledigt", variant: "secondary" },
 };
 
 // "Frei" bedeutet: keine Weisung. Nur echte Festlegungen werden gespeichert.

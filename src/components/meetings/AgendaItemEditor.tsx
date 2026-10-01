@@ -27,6 +27,8 @@ import {
 interface AgendaItemEditorProps {
   meetingId: string;
   buildingId?: string;
+  /** Standard-Abstimmungsart der Versammlung für neue Punkte */
+  defaultPrinciple?: string;
 }
 
 interface AgendaItem {
@@ -59,7 +61,8 @@ const categories = [
   { value: "sonstiges", label: "Sonstiges" },
 ];
 
-export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProps) => {
+export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "headcount" }: AgendaItemEditorProps) => {
+  const [showAdd, setShowAdd] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,7 +91,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newResolution, setNewResolution] = useState("");
-  const [newPrinciple, setNewPrinciple] = useState("mea");
+  const [newPrinciple, setNewPrinciple] = useState(defaultPrinciple);
   const [newCategory, setNewCategory] = useState("sonstiges");
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [newRequiresDQ, setNewRequiresDQ] = useState(false);
@@ -173,7 +176,8 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       setNewTitle("");
       setNewDescription("");
       setNewResolution("");
-      setNewPrinciple("mea");
+      setNewPrinciple(defaultPrinciple);
+      setShowAdd(false);
       setNewCategory("sonstiges");
       setNewFiles([]);
       setNewDmsPaths([]);
@@ -518,14 +522,14 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                 <Draggable key={item.id} draggableId={item.id} index={idx} isDragDisabled={!!editingItemId}>
                   {(provided, snapshot) => (
                     <div ref={provided.innerRef} {...provided.draggableProps}>
-                      <Card className={`relative ${snapshot.isDragging ? "shadow-lg ring-2 ring-primary/20" : ""}`}>
-                        <CardContent className="p-4">
+                      <div className={`relative rounded-xl border bg-card transition-shadow ${snapshot.isDragging ? "shadow-lg ring-2 ring-primary/20" : ""} ${editingItemId === item.id ? "border-primary/40 bg-primary/[0.02]" : "hover:border-foreground/20"}`}>
+                        <div className={editingItemId === item.id ? "p-4" : "px-3 py-2.5"}>
                           <div className="flex items-start gap-3">
-                            <div className="flex items-center gap-2 text-muted-foreground pt-1">
+                            <div className="flex items-center gap-2 pt-0.5 text-muted-foreground">
                               <div {...provided.dragHandleProps}>
-                                <GripVertical className="h-4 w-4 cursor-grab" />
+                                <GripVertical className="h-4 w-4 cursor-grab text-muted-foreground/50" />
                               </div>
-                              <span className="text-sm font-mono font-bold">TOP {idx + 1}</span>
+                              <span className="w-6 text-[13px] font-semibold tabular-nums">{idx + 1}</span>
                             </div>
                             <div className="flex-1 space-y-2">
                               {editingItemId === item.id ? (
@@ -661,78 +665,46 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                   </div>
                                 </div>
                               ) : (
-                                /* View mode */
-                                <>
-                                  <div className="flex items-center justify-between">
-                                    <h4 className="font-semibold text-foreground">{item.title}</h4>
-                                    <div className="flex items-center gap-2">
-                                      {item.requires_resolution === false ? (
-                                        <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 dark:text-blue-300">
-                                          <Info className="h-3 w-3 mr-1" /> Informativ
-                                        </Badge>
-                                      ) : (
-                                        <Badge variant="outline" className="text-xs">
-                                          {votingPrinciples.find((v) => v.value === item.voting_principle)?.label || item.voting_principle}
-                                        </Badge>
-                                      )}
-                                      {item.requires_resolution !== false && item.requires_double_qualified && (
-                                        <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-                                          DQ erforderlich
-                                        </Badge>
-                                      )}
-                                      {item.category && (
-                                        <Badge variant="secondary" className="text-xs">
-                                          {categories.find((c) => c.value === item.category)?.label || item.category}
-                                        </Badge>
-                                      )}
-                                      {item.is_actionable && (
-                                        <Badge variant="outline" className="text-xs gap-1 border-primary/40 bg-primary/10 text-primary">
-                                          <Wrench className="h-3 w-3" /> Umzusetzen
-                                        </Badge>
-                                      )}
-                                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEditing(item)}>
-                                        <Pencil className="h-3.5 w-3.5" />
-                                      </Button>
-                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteMutation.mutate(item.id)}>
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </div>
+                                /* View mode – kompakte Zeile, Klick öffnet die Bearbeitung */
+                                <div className="flex items-center gap-3">
+                                  <button type="button" onClick={() => startEditing(item)} className="min-w-0 flex-1 text-left">
+                                    <span className="block truncate text-[15px] font-medium text-foreground">{item.title}</span>
+                                    <span className="block truncate text-xs text-muted-foreground">
+                                      {item.requires_resolution === false
+                                        ? "nur Information"
+                                        : `${votingPrinciples.find((v) => v.value === item.voting_principle)?.label || item.voting_principle}${item.requires_double_qualified ? " · doppelt qualifiziert" : " · einfache Mehrheit"}`}
+                                      {item.resolution_text ? " · Beschlussantrag vorhanden" : item.requires_resolution !== false ? " · Beschlussantrag fehlt" : ""}
+                                      {item.attachment_paths?.length ? ` · ${item.attachment_paths.length} Anhang${item.attachment_paths.length === 1 ? "" : "e"}` : ""}
+                                    </span>
+                                  </button>
+                                  <div className="flex shrink-0 items-center gap-1.5">
+                                    {item.requires_resolution === false ? (
+                                      <Badge variant="secondary" className="text-[11px]">Standard</Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="border-blue-200 bg-blue-50 text-[11px] text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300">Beschluss</Badge>
+                                    )}
+                                    {item.requires_double_qualified && (
+                                      <Badge variant="outline" className="border-red-200 bg-red-50 text-[11px] text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">doppelt qualifiziert</Badge>
+                                    )}
+                                    {item.is_actionable && (
+                                      <Badge variant="outline" className="gap-1 border-primary/40 bg-primary/10 text-[11px] text-primary"><Wrench className="h-3 w-3" /> Umzusetzen</Badge>
+                                    )}
+                                    {(item as any).is_management_report && (
+                                      <Badge variant="outline" className="text-[11px] text-muted-foreground">Bericht</Badge>
+                                    )}
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => startEditing(item)} title="Bearbeiten">
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => { if (confirm(`„${item.title}“ aus der Tagesordnung löschen?`)) deleteMutation.mutate(item.id); }} title="Löschen">
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
                                   </div>
-                                  {item.description && (
-                                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{item.description}</p>
-                                  )}
-                                  {item.resolution_text && (
-                                    <div className="bg-muted/50 rounded-md p-3 border">
-                                      <p className="text-xs font-medium text-muted-foreground mb-1">Beschlusstext:</p>
-                                      <p className="text-sm whitespace-pre-wrap">{item.resolution_text}</p>
-                                    </div>
-                                  )}
-                                  {item.attachment_paths && item.attachment_paths.length > 0 && (
-                                    <div className="flex flex-wrap gap-1">
-                                      {item.attachment_paths.map((path, i) => {
-                                        const fileName = path.split("/").pop() || path;
-                                        return (
-                                          <Button key={i} variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => getFileDownloadUrl(path)}>
-                                            <FileText className="h-3 w-3" />
-                                            {fileName.replace(/^\d+-/, "")}
-                                          </Button>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                  {(item as any).is_management_report && (
-                                    <Badge variant="outline" className="text-[10px] gap-1 text-muted-foreground w-fit">
-                                      <FileText className="h-3 w-3" /> Bericht der Verwaltung
-                                    </Badge>
-                                  )}
-
-                                </>
-
+                                </div>
                               )}
                             </div>
                           </div>
-                        </CardContent>
-                      </Card>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </Draggable>
@@ -744,10 +716,15 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       </DragDropContext>
 
       {/* Add new item form */}
+      {!showAdd ? (
+        <Button type="button" variant="outline" className="w-full gap-2 border-dashed" onClick={() => setShowAdd(true)}>
+          <Plus className="h-4 w-4" /> Neuer Punkt
+        </Button>
+      ) : (
       <Card className="border-dashed">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-muted-foreground">Neuen TOP hinzufügen</h4>
+            <h4 className="text-sm font-semibold text-muted-foreground">Neuer Punkt <button type="button" className="ml-2 text-xs font-medium text-primary" onClick={() => setShowAdd(false)}>schließen</button></h4>
             {newRequiresResolution && renderTemplateDropdown("new")}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -950,11 +927,12 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
               className="gap-2"
             >
               <Plus className="h-4 w-4" />
-              TOP hinzufügen
+              Punkt hinzufügen
             </Button>
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Inline Template Management */}
       <TemplateManager templates={templates} queryClient={queryClient} toast={toast} />

@@ -53,6 +53,7 @@ const Inbox = lazy(() => import("./pages/Inbox").then(m => ({ default: m.Inbox }
 const Meetings = lazy(() => import("./pages/Meetings").then(m => ({ default: m.Meetings })));
 const EtvProxy = lazy(() => import("./pages/EtvProxy").then(m => ({ default: m.EtvProxy })));
 const CashAuditProxy = lazy(() => import("./pages/CashAuditProxy").then(m => ({ default: m.CashAuditProxy })));
+const EtvProtocolSign = lazy(() => import("./pages/EtvProtocolSign").then(m => ({ default: m.EtvProtocolSign })));
 const Transfers = lazy(() => import("./pages/Transfers").then(m => ({ default: m.Transfers })));
 const BrokerProperties = lazy(() => import("./pages/BrokerProperties").then(m => ({ default: m.BrokerProperties })));
 
@@ -209,6 +210,7 @@ const App = () => (
               
               <Route path="/etv-proxy/:token" element={<EtvProxy />} />
               <Route path="/kassenpruefung/:token" element={<CashAuditProxy />} />
+              <Route path="/protokoll-unterschreiben/:token" element={<EtvProtocolSign />} />
               <Route path="/offline" element={<Offline />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
