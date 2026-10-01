@@ -11,9 +11,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Send, Loader2, Paperclip, X, Users, Search, Minus, Maximize2, Minimize2,
-  ExternalLink, Wand2, Check, ChevronDown, ArrowLeft, CalendarClock, FolderOpen, Upload, Building2,
+  ExternalLink, Wand2, Check, ChevronDown, ArrowLeft, CalendarClock, FolderOpen, Upload, Building2, Inbox,
 } from "lucide-react";
 import { DmsFilePickerDialog, type DmsPickerItem } from "@/components/meetings/DmsFilePickerDialog";
+import { AblagePickerDialog } from "@/components/ablage/AblagePickerDialog";
+import { DRAG_TYPE_ABLAGE, type AblageDragFile } from "@/integrations/supabase/ablage";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useComposeEmail, type ComposeState } from "@/contexts/ComposeEmailContext";
@@ -176,6 +178,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
 
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [dmsPickerOpen, setDmsPickerOpen] = useState(false);
+  const [ablagePickerOpen, setAblagePickerOpen] = useState(false);
   const [dmsLoading, setDmsLoading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -487,7 +490,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     e.preventDefault();
     e.stopPropagation();
     dragCounterRef.current++;
-    if (e.dataTransfer.types.includes("Files")) {
+    if (e.dataTransfer.types.includes("Files") || e.dataTransfer.types.includes(DRAG_TYPE_ABLAGE)) {
       setIsDragOver(true);
     }
   };
@@ -511,6 +514,16 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     e.stopPropagation();
     dragCounterRef.current = 0;
     setIsDragOver(false);
+    // Aus der Büro-Ablage hereingezogen → wie "Aus DMS" anhängen.
+    const ausAblage = e.dataTransfer.getData(DRAG_TYPE_ABLAGE);
+    if (ausAblage) {
+      try {
+        void handleDmsSelect(JSON.parse(ausAblage) as AblageDragFile[]);
+      } catch {
+        toast.error("Datei aus der Ablage konnte nicht übernommen werden");
+      }
+      return;
+    }
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
       processFiles(files);
@@ -561,7 +574,11 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       }
       if (added.length) {
         update({ attachments: [...compose.attachments, ...added] });
-        toast.success(`${added.length} Datei(en) aus DMS angehängt`);
+        toast.success(
+          items.every((i) => i.bucket === "office-drop")
+            ? `${added.length} Datei(en) aus der Ablage angehängt`
+            : `${added.length} Datei(en) aus DMS angehängt`,
+        );
       }
     } finally {
       setDmsLoading(false);
@@ -1146,6 +1163,9 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" onClick={() => setDmsPickerOpen(true)} disabled={dmsLoading} aria-label="Aus DMS anhängen" title="Aus DMS anhängen">
               {dmsLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <FolderOpen className="h-5 w-5" />}
             </Button>
+            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" onClick={() => setAblagePickerOpen(true)} disabled={dmsLoading} aria-label="Aus Ablage anhängen" title="Aus Ablage anhängen">
+              <Inbox className="h-5 w-5" />
+            </Button>
             <EmailTemplatePicker
               context={{ to: compose.to, accountId: compose.accountId }}
               currentSubject={compose.subject}
@@ -1178,6 +1198,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         mimeType={previewMeta.mimeType}
       />
       <DmsFilePickerDialog open={dmsPickerOpen} onOpenChange={setDmsPickerOpen} onSelectItems={handleDmsSelect} />
+      <AblagePickerDialog open={ablagePickerOpen} onOpenChange={setAblagePickerOpen} onSelectItems={handleDmsSelect} />
 
       </>
     );
@@ -1454,6 +1475,9 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
               <Button type="button" variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => setDmsPickerOpen(true)} disabled={dmsLoading}>
                 {dmsLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FolderOpen className="h-3 w-3" />} Aus DMS
               </Button>
+              <Button type="button" variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => setAblagePickerOpen(true)} disabled={dmsLoading} title="Datei aus der Büro-Ablage anhängen">
+                <Inbox className="h-3 w-3" /> Aus Ablage
+              </Button>
               <EmailTemplatePicker
                 context={{ to: compose.to, accountId: compose.accountId }}
                 currentSubject={compose.subject}
@@ -1529,6 +1553,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       mimeType={previewMeta.mimeType}
     />
     <DmsFilePickerDialog open={dmsPickerOpen} onOpenChange={setDmsPickerOpen} onSelectItems={handleDmsSelect} />
+      <AblagePickerDialog open={ablagePickerOpen} onOpenChange={setAblagePickerOpen} onSelectItems={handleDmsSelect} />
 
     </>
   );
