@@ -65,6 +65,8 @@ export const AssignEmailDialog = ({
   prefilledEtvMeetingId,
 }: AssignEmailDialogProps) => {
   const [buildingId, setBuildingId] = useState<string>("none");
+  /** Weitere betroffene Liegenschaften (ohne die Haupt-Liegenschaft). */
+  const [weitereGebaeude, setWeitereGebaeude] = useState<string[]>([]);
   const [contactId, setContactId] = useState<string>("none");
   const [contactPersonId, setContactPersonId] = useState<string>("none");
   const [caseId, setCaseId] = useState<string>("none");
@@ -80,6 +82,7 @@ export const AssignEmailDialog = ({
   useEffect(() => {
     if (open) {
       setBuildingId(prefilledBuildingId || "none");
+      setWeitereGebaeude([]);
       setContactId(prefilledContactId || "none");
       setContactPersonId(prefilledContactPersonId || "none");
       setCaseId(prefilledCaseId || "none");
@@ -91,6 +94,23 @@ export const AssignEmailDialog = ({
       setNewCaseTitle("");
     }
   }, [open, prefilledBuildingId, prefilledContactId, prefilledContactPersonId, prefilledCaseId, prefilledIsEtvRelevant, prefilledEtvMeetingId]);
+
+  // Schon hinterlegte Zusatz-Liegenschaften dieser Mail uebernehmen.
+  const { data: gespeicherteWeitere } = useQuery({
+    queryKey: ["email-buildings", emailId],
+    enabled: !!emailId && open,
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("email_buildings")
+        .select("building_id")
+        .eq("email_id", emailId!);
+      return ((data || []) as { building_id: string }[]).map((r) => r.building_id);
+    },
+  });
+
+  useEffect(() => {
+    if (open && gespeicherteWeitere) setWeitereGebaeude(gespeicherteWeitere);
+  }, [open, gespeicherteWeitere]);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-for-assign"],
@@ -307,11 +327,35 @@ export const AssignEmailDialog = ({
     }
   };
 
+  /**
+   * Die weiteren Liegenschaften stehen in einer eigenen Tabelle und werden
+   * hier direkt geschrieben — die Haupt-Liegenschaft bleibt wie bisher am
+   * Feld der E-Mail, damit Vorgänge, Versammlungen und Stammakte unberührt
+   * bleiben.
+   */
+  const speichereWeitereGebaeude = async (haupt: string | null) => {
+    if (!emailId) return;
+    const ziel = haupt ? weitereGebaeude.filter((id) => id !== haupt) : [];
+    try {
+      await (supabase as any).from("email_buildings").delete().eq("email_id", emailId);
+      if (ziel.length > 0) {
+        await (supabase as any)
+          .from("email_buildings")
+          .insert(ziel.map((building_id) => ({ email_id: emailId, building_id })));
+      }
+      await qc.invalidateQueries({ queryKey: ["email-buildings", emailId] });
+      await qc.invalidateQueries({ queryKey: ["emails"] });
+    } catch (e: any) {
+      toast({ title: "Weitere Liegenschaften nicht gespeichert", description: e.message, variant: "destructive" });
+    }
+  };
+
   const handleAssign = () => {
     if (!emailId) return;
     const finalCaseId = caseId !== "none" ? caseId : null;
     const finalBuildingId = buildingId !== "none" ? buildingId : null;
     const finalParentEventId = finalCaseId && parentEventId !== "none" ? parentEventId : null;
+    void speichereWeitereGebaeude(finalBuildingId);
     onAssign({
       emailId,
       buildingId: finalBuildingId,
@@ -379,6 +423,59 @@ export const AssignEmailDialog = ({
                 ))}
               </SelectContent>
             </Select>
+
+            {/* Manche Mails betreffen mehrere Häuser — etwa eine Versicherung
+                oder ein Handwerker, der für zwei Liegenschaften schreibt. */}
+            {buildingId !== "none" && (
+              <div className="pt-1">
+                {weitereGebaeude.filter((id) => id !== buildingId).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pb-1.5">
+                    {weitereGebaeude
+                      .filter((id) => id !== buildingId)
+                      .map((id) => {
+                        const b = buildings.find((x) => x.id === id);
+                        return (
+                          <Badge key={id} variant="secondary" className="gap-1 pr-1">
+                            {b?.name || "Unbekannt"}
+                            <button
+                              type="button"
+                              onClick={() => setWeitereGebaeude((prev) => prev.filter((x) => x !== id))}
+                              className="rounded-sm hover:bg-muted"
+                              aria-label={`${b?.name || "Liegenschaft"} entfernen`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        );
+                      })}
+                  </div>
+                )}
+                <Select
+                  value="add"
+                  onValueChange={(v) => {
+                    if (v !== "add") setWeitereGebaeude((prev) => (prev.includes(v) ? prev : [...prev, v]));
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs text-muted-foreground">
+                    <span>+ Betrifft außerdem …</span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {buildings
+                      .filter((b) => b.id !== buildingId && !weitereGebaeude.includes(b.id))
+                      .map((b) => (
+                        <SelectItem key={b.id} value={b.id}>{b.name} – {b.address}</SelectItem>
+                      ))}
+                    {buildings.filter((b) => b.id !== buildingId && !weitereGebaeude.includes(b.id)).length === 0 && (
+                      <div className="p-2 text-xs text-muted-foreground text-center">Keine weitere Liegenschaft</div>
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="pt-1 text-[11px] leading-snug text-muted-foreground">
+                  Vorgänge, Versammlung und Stammakte hängen an der Liegenschaft oben.
+                  Im Postfach erscheint die Mail unter allen genannten.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">
