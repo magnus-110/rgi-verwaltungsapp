@@ -22,6 +22,7 @@ import {
   CONTRACT_STATUS_LABEL, FEE_BASIS_LABEL, FEE_DEBTOR_LABEL, FEE_UNIT_KIND_LABEL,
   contractWarnings, formatDate, formatEur, isPercentBasis, monthlyNet, monthsUntil, toNet,
 } from "@/types/rgiContracts";
+import { ContractSignButton } from "./ContractSignButton";
 
 interface Props {
   open: boolean;
@@ -232,7 +233,10 @@ export function ContractDetailDialog({ open, onOpenChange, contract, onEdit }: P
           <Section icon={StickyNote} title="Sonstiges">
             {c.template_version && <Row label="Vertragsfassung" value={c.template_version} />}
             {c.dms_file_id && (
-              <Row label="Dokument" value="im DMS des Objekts hinterlegt" icon={FileText} />
+              <>
+                <Row label="Dokument" value="im DMS des Objekts hinterlegt" icon={FileText} />
+                <ContractSignButton contractId={c.id} dmsFileId={c.dms_file_id} />
+              </>
             )}
             {c.notes && <Note>{c.notes}</Note>}
           </Section>

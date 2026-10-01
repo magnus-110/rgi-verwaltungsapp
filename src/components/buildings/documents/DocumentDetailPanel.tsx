@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Trash2, X, History, Sparkles, ExternalLink, Wrench, RefreshCw } from "lucide-react";
+import { Download, Trash2, X, History, Sparkles, ExternalLink, Wrench, RefreshCw, PenLine, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -18,6 +18,9 @@ import { DocFile, VisibilityRole, VISIBILITY_LABELS, getFileBucket } from "./typ
 import { useNavigate } from "react-router-dom";
 import { PersonVisibilityPicker } from "./PersonVisibilityPicker";
 import { MAINTENANCE_TYPES } from "@/lib/maintenanceTypes";
+import { SignPdfDialog } from "@/components/documents/SignPdfDialog";
+import { saveSignedBuildingFile, type BuildingFileLike } from "@/lib/documentSigning";
+import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 
 interface DocumentDetailPanelProps {
   file: DocFile | null;
@@ -32,6 +35,8 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
   const [editing, setEditing] = useState<Partial<DocFile>>({});
   const [saving, setSaving] = useState(false);
   const [reindexing, setReindexing] = useState(false);
+  const [signUrl, setSignUrl] = useState<string | null>(null);
+  const { openCompose } = useComposeEmail();
 
   useEffect(() => {
     if (file) setEditing({});
@@ -148,6 +153,17 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
       .createSignedUrl(file.file_path, 60);
     if (error) { toast.error(error.message); return; }
     window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const isPdfFile =
+    (file.mime_type || "").toLowerCase().includes("pdf") || /\.pdf$/i.test(file.display_name || file.file_path);
+
+  const handleOpenSign = async () => {
+    const { data, error } = await supabase.storage
+      .from(getFileBucket(file.source, file.storage_bucket))
+      .createSignedUrl(file.file_path, 600);
+    if (error) { toast.error(error.message); return; }
+    setSignUrl(data.signedUrl);
   };
 
   const handleDelete = async () => {
@@ -390,6 +406,11 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
               Änderungen speichern
             </Button>
           )}
+          {isPdfFile && (
+            <Button size="sm" className="w-full gap-1.5" onClick={handleOpenSign}>
+              <PenLine className="h-3.5 w-3.5" /> Unterschreiben
+            </Button>
+          )}
           <div className="flex gap-2">
             <Button variant="outline" size="sm" className="flex-1" onClick={handleDownload}>
               <Download className="h-3.5 w-3.5 mr-1.5" /> Download
@@ -403,6 +424,33 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
           </div>
         </div>
       </div>
+      <SignPdfDialog
+        open={!!signUrl}
+        onOpenChange={(o) => !o && setSignUrl(null)}
+        sourceUrl={signUrl}
+        fileName={file.display_name}
+        savedHint="Die unterschriebene Fassung liegt jetzt im selben Ordner wie das Original."
+        onSave={async ({ blob, fileName, items }) => {
+          await saveSignedBuildingFile({
+            file: file as unknown as BuildingFileLike,
+            sourceBucket: getFileBucket(file.source, file.storage_bucket),
+            fileName,
+            blob,
+            items,
+          });
+          onChanged();
+        }}
+        renderDone={({ blob, fileName, close }) => (
+          <Button
+            onClick={() => {
+              close();
+              openCompose({ attachments: [new File([blob], fileName, { type: "application/pdf" })] });
+            }}
+          >
+            <Mail className="h-4 w-4 mr-1.5" /> Per E-Mail senden
+          </Button>
+        )}
+      />
     </ScrollArea>
   );
 }
