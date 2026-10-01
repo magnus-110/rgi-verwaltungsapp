@@ -11,6 +11,7 @@ import {
   CreditCard,
   FolderKanban,
   Home,
+  Inbox,
   KeyRound,
   Landmark,
   ListChecks,
@@ -41,9 +42,9 @@ export interface MenuItem {
 }
 
 /**
- * „Aufgaben" fasst die vier Bereiche zusammen, die zusammengehören: die
- * Pinnwand mit den Aufgaben, die Vorgänge, der Jahreszyklus und die
- * Anleitungen. Vorher standen sie einzeln und weit auseinander in der Liste.
+ * „Aufgaben" fasst die Bereiche zusammen, die zusammengehören: die
+ * Pinnwand mit den Aufgaben, die Büro-Ablage, die Vorgänge, der Jahreszyklus
+ * und die Anleitungen. Vorher standen sie einzeln und weit auseinander in der Liste.
  */
 export const adminMenu: MenuItem[] = [
   { title: 'Dashboard', url: '/dashboard', icon: BarChart3 },
@@ -55,6 +56,7 @@ export const adminMenu: MenuItem[] = [
     icon: CheckSquare,
     children: [
       { title: 'Pinnwand', url: '/pinnwand', icon: StickyNote },
+      { title: 'Ablage', url: '/ablage', icon: Inbox },
       { title: 'Vorgänge', url: '/vorgaenge', icon: FolderKanban },
       { title: 'Jahreszyklus', url: '/jahreszyklus', icon: CalendarRange },
       { title: 'Anleitungen', url: '/checklisten', icon: Workflow },
@@ -84,6 +86,7 @@ export const brokerMenu: MenuItem[] = [
 export function istAufgabenPfad(pfad: string) {
   return (
     pfad.startsWith('/pinnwand') ||
+    pfad.startsWith('/ablage') ||
     pfad.startsWith('/vorgaenge') ||
     pfad.startsWith('/jahreszyklus') ||
     pfad.startsWith('/checklisten') ||

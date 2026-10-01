@@ -18,6 +18,7 @@ import { BackendStatusBanner } from "@/components/system/BackendStatusBanner";
 import { BulkSendWatcher } from "@/lib/bulkSendWatch";
 import { FileTypeRepairOnce } from "@/lib/fileTypeRepair";
 import { NotificationBell } from "./notifications/NotificationBell";
+import { AblageButton, AblagePanel } from "./ablage/AblageButton";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -67,6 +68,13 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
           managementMode={managementMode}
           onModeChange={setManagementMode}
         />
+        {/* Korb-Symbol der Ablage, neben dem Menü-Knopf der Handy-Kopfzeile */}
+        <div
+          className="fixed z-[51] right-[60px] flex h-16 items-center"
+          style={{ top: 'env(safe-area-inset-top)' }}
+        >
+          <AblageButton className="h-11 w-11" />
+        </div>
       </div>
       <SidebarProvider>
         <div className="min-h-screen flex w-full bg-background pt-16 lg:pt-0 overflow-x-hidden" style={{ paddingTop: 'max(4rem, env(safe-area-inset-top))' }}>
@@ -81,7 +89,8 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
               <h1 className="heading-primary text-xl font-semibold truncate">
                 {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
               </h1>
-              <div className="ml-auto flex items-center">
+              <div className="ml-auto flex items-center gap-1">
+                <AblageButton />
                 <NotificationBell />
               </div>
             </header>
@@ -98,6 +107,7 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
           </main>
         </div>
       </SidebarProvider>
+      <AblagePanel />
       {profile?.user_id && (
         <>
           <PasskeyPromptDialog userId={profile.user_id} enabled={true} />

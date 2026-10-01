@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, FolderPlus } from "lucide-react";
 import { toast } from "sonner";
@@ -22,14 +23,25 @@ interface SaveAttachmentToBuildingDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   attachments: FileToFile[];
-  emailId: string;
+  /** Herkunfts-Mail. Fehlt, wenn die Dateien aus der Büro-Ablage kommen. */
+  emailId?: string | null;
   defaultBuildingId?: string | null;
-  onDone?: () => void;
+  /** Speicherbereich, aus dem die Dateien gelesen werden (Standard: Mail-Anhänge). */
+  sourceBucket?: string;
+  /**
+   * Zeigt ein zusätzliches Häkchen (z. B. „Danach aus der Ablage entfernen").
+   * Der gewählte Wert kommt bei onDone zurück.
+   */
+  removeAfterLabel?: string;
+  onDone?: (opts: { removeAfter: boolean }) => void;
 }
 
 export function SaveAttachmentToBuildingDialog({
   open, onOpenChange, attachments, emailId, defaultBuildingId, onDone,
+  sourceBucket = 'email-attachments', removeAfterLabel,
 }: SaveAttachmentToBuildingDialogProps) {
+  const ausMail = sourceBucket === 'email-attachments' && !!emailId;
+  const [removeAfter, setRemoveAfter] = useState(true);
   const fyCtx = useFiscalYearContext();
   const [buildingId, setBuildingId] = useState<string>(defaultBuildingId || "");
   const [categoryId, setCategoryId] = useState<string>("");
@@ -59,6 +71,7 @@ export function SaveAttachmentToBuildingDialog({
       setCategoryId("");
       setVisibility('intern');
       setFiscalYear("general");
+      setRemoveAfter(true);
     }
   }, [open, defaultBuildingId]);
 
@@ -145,7 +158,7 @@ export function SaveAttachmentToBuildingDialog({
       for (const att of attachments) {
         // Download from email-attachments bucket
         const { data: signed, error: sErr } = await supabase.storage
-          .from('email-attachments').createSignedUrl(att.path, 300);
+          .from(sourceBucket).createSignedUrl(att.path, 300);
         if (sErr || !signed) throw new Error("Anhang nicht lesbar");
 
         const rawBlob = await (await fetch(signed.signedUrl)).blob();
@@ -175,8 +188,8 @@ export function SaveAttachmentToBuildingDialog({
             visible_to_users: visibility !== 'intern',
             fiscal_year: fiscalYear === "general" ? null : parseInt(fiscalYear, 10),
             rag_enabled: autoRag,
-            source: 'email',
-            source_email_id: emailId,
+            source: ausMail ? 'email' : 'manual',
+            source_email_id: ausMail ? emailId : null,
           })
           .select('id')
           .single();
@@ -185,8 +198,8 @@ export function SaveAttachmentToBuildingDialog({
         await supabase.from('building_file_activity').insert({
           file_id: inserted.id,
           user_id: user.id,
-          action: 'imported_from_email',
-          details: { email_id: emailId },
+          action: ausMail ? 'imported_from_email' : 'imported_from_office_drop',
+          details: ausMail ? { email_id: emailId } : { source: 'office_drop' },
         });
 
         const ocrTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
@@ -197,7 +210,7 @@ export function SaveAttachmentToBuildingDialog({
       }
 
       toast.success(`${attachments.length} Datei(en) in Stammakte abgelegt`);
-      onDone?.();
+      onDone?.({ removeAfter: !!removeAfterLabel && removeAfter });
       onOpenChange(false);
     } catch (e: any) {
       toast.error("Fehler: " + e.message);
@@ -299,6 +312,12 @@ export function SaveAttachmentToBuildingDialog({
               </SelectContent>
             </Select>
           </div>
+          {removeAfterLabel && (
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <Checkbox checked={removeAfter} onCheckedChange={(v) => setRemoveAfter(v === true)} />
+              {removeAfterLabel}
+            </label>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>

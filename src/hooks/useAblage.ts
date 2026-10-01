@@ -196,7 +196,7 @@ export function useMarkAblageRead() {
 // --------------------------------------------------------------- Hinlegen
 
 function sichererDateiname(name: string) {
-  const sauber = name.normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').replace(/_+/g, '_');
+  const sauber = name.normalize('NFKD').replace(/\p{M}/gu, '').replace(/[^\w.-]+/g, '_').replace(/_+/g, '_');
   return sauber.slice(-120) || 'datei';
 }
 
