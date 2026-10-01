@@ -604,7 +604,19 @@ export const Inbox = () => {
       if (isArchiveFolder) {
         query = query.eq("is_archived", true);
         if (filterBuildingId === "none") query = query.is("building_id", null);
-        else if (filterBuildingId !== "all") query = query.eq("building_id", filterBuildingId);
+        else if (filterBuildingId !== "all") {
+          // Eine Mail kann mehrere Liegenschaften betreffen. Die Haupt-Liegenschaft
+          // steht am Datensatz, die weiteren in email_buildings — gefiltert wird
+          // ueber beide, sonst findet man die Mail nur unter einer davon.
+          const { data: weitere } = await (supabase as any)
+            .from("email_buildings")
+            .select("email_id")
+            .eq("building_id", filterBuildingId);
+          const weitereIds = ((weitere || []) as { email_id: string }[]).map((r) => r.email_id);
+          query = weitereIds.length
+            ? query.or(`building_id.eq.${filterBuildingId},id.in.(${weitereIds.join(",")})`)
+            : query.eq("building_id", filterBuildingId);
+        }
         if (filterContactId === "none") query = query.is("contact_id", null);
         else if (filterContactId !== "all") query = query.eq("contact_id", filterContactId);
       } else {
@@ -771,6 +783,26 @@ export const Inbox = () => {
         body_text: selectedEmailBody?.body_text ?? null,
       }
     : undefined;
+
+  /**
+   * Weitere Liegenschaften dieser Mail.
+   *
+   * Die Haupt-Liegenschaft steht am Datensatz — daran haengen Vorgaenge,
+   * Versammlung und Stammakte. Mails, die mehrere Haeuser betreffen (eine
+   * Versicherung, ein Handwerker fuer zwei Objekte), tragen die weiteren
+   * daneben.
+   */
+  const { data: weitereGebaeudeDerMail = [] } = useQuery({
+    queryKey: ["email-buildings", selectedEmailId],
+    enabled: !!selectedEmailId,
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("email_buildings")
+        .select("building_id")
+        .eq("email_id", selectedEmailId!);
+      return ((data || []) as { building_id: string }[]).map((r) => r.building_id);
+    },
+  });
 
   // Auto-select inbox folder
   useEffect(() => {
@@ -2198,6 +2230,12 @@ export const Inbox = () => {
                                 {buildings.find((b) => b.id === selectedEmail.building_id)?.name || "Liegenschaft"}
                               </Badge>
                             )}
+                            {weitereGebaeudeDerMail.map((id) => (
+                              <Badge key={id} variant="outline" className="gap-1 border-dashed">
+                                <Building2 className="h-3 w-3" />
+                                {buildings.find((b) => b.id === id)?.name || "Liegenschaft"}
+                              </Badge>
+                            ))}
                             {selectedEmail.contact_id && (
                               <Badge variant="outline" className="gap-1">
                                 <User className="h-3 w-3" />
