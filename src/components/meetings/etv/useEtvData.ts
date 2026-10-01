@@ -110,7 +110,7 @@ export const useEtvTopics = () =>
           .order("created_at", { ascending: false }),
         db
           .from("emails")
-          .select("id, subject, from_name, from_address, date, ai_summary, body_text, building_id, etv_meeting_id, etv_agenda_item_id, buildings(id, name)")
+          .select("id, subject, from_name, from_address, date, ai_summary, body_text, building_id, etv_meeting_id, etv_agenda_item_id, buildings!emails_building_id_fkey(id, name)")
           .eq("is_etv_relevant", true)
           .order("date", { ascending: false })
           .limit(400),

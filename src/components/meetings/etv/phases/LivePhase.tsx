@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertTriangle, ChevronDown, FileText, Gavel, ListPlus, Loader2, Lock, Play, RotateCcw, Search, Settings2, Square, Trash2, Users,
+  AlertTriangle, ChevronDown, FileText, Gavel, GripVertical, ListPlus, Loader2, Lock, Play, RotateCcw, Search, Settings2, Square, Trash2, Users,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -18,6 +18,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import { AgendaItemEmailsSection } from "../../AgendaItemEmailsSection";
 import { AttendancePanel } from "../AttendancePanel";
 import { EtvCard, Segmented } from "../ui";
@@ -353,6 +354,23 @@ export const LivePhase = ({ meeting, onGoToProtocol }: Props) => {
     toast({ title: "Punkt gelöscht" });
   };
 
+  const onDragEnd = async (r: DropResult) => {
+    if (!r.destination || r.destination.index === r.source.index) return;
+    const next = Array.from(items);
+    const [moved] = next.splice(r.source.index, 1);
+    next.splice(r.destination.index, 0, moved);
+    const key = ["etv-agenda-items-live", meetingId];
+    const prev = qc.getQueryData<any[]>(key);
+    qc.setQueryData(key, next.map((it, i) => ({ ...it, sort_order: i + 1 })));
+    const { error } = await supabase.from("etv_agenda_items").upsert(next.map((it, i) => ({ ...it, sort_order: i + 1 })) as any, { onConflict: "id" });
+    if (error) {
+      qc.setQueryData(key, prev);
+      toast({ title: "Reihenfolge nicht gespeichert", description: error.message, variant: "destructive" });
+    }
+    qc.invalidateQueries({ queryKey: key });
+    qc.invalidateQueries({ queryKey: ["etv-agenda-items", meetingId] });
+  };
+
   const saveField = async (field: "description" | "resolution_text" | "admin_notes", value: string) => {
     if (!item) return;
     if ((item[field] || "") === value) return;
@@ -416,25 +434,25 @@ export const LivePhase = ({ meeting, onGoToProtocol }: Props) => {
   return (
     <div className="space-y-5">
       {/* Kopfleiste */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-foreground px-5 py-3.5 text-background">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-card px-5 py-3.5">
         <div className="flex items-center gap-3.5">
           {live ? (
-            <span className="flex items-center gap-2 text-[13px] font-bold tracking-wider"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-400" />LIVE</span>
+            <span className="flex items-center gap-2 rounded-full bg-red-50 px-2.5 py-1 text-[12px] font-bold tracking-wider text-red-700 dark:bg-red-950/40 dark:text-red-300"><span className="h-2 w-2 animate-pulse rounded-full bg-red-600" />LIVE</span>
           ) : (
-            <span className="text-[13px] font-semibold opacity-80">{ended ? "Beendet" : "Noch nicht eröffnet"}</span>
+            <span className="rounded-full bg-muted px-2.5 py-1 text-[12px] font-semibold text-muted-foreground">{ended ? "Beendet" : "Noch nicht eröffnet"}</span>
           )}
-          <span className="hidden text-sm opacity-70 sm:inline">{items.length} Punkte · {items.filter((i) => i.status === "voted").length} entschieden</span>
+          <span className="hidden text-sm text-muted-foreground sm:inline">{items.length} Punkte · {items.filter((i) => i.status === "voted").length} entschieden</span>
         </div>
         <div className="flex gap-6 text-sm">
-          <span><strong className="text-lg tabular-nums">{sum.present}</strong> <span className="opacity-70">anwesend</span></span>
-          <span><strong className="text-lg tabular-nums">{sum.proxies}</strong> <span className="opacity-70">per Vollmacht</span></span>
-          <span><strong className="text-lg tabular-nums">{sum.absent}</strong> <span className="opacity-70">fehlen</span></span>
+          <span><strong className="text-lg tabular-nums">{sum.present}</strong> <span className="text-muted-foreground">anwesend</span></span>
+          <span><strong className="text-lg tabular-nums">{sum.proxies}</strong> <span className="text-muted-foreground">per Vollmacht</span></span>
+          <span><strong className="text-lg tabular-nums">{sum.absent}</strong> <span className="text-muted-foreground">fehlen</span></span>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" className="h-9 gap-1.5 border-background/30 bg-transparent text-background hover:bg-background/10 hover:text-background" onClick={() => setAttendanceOpen(true)}>
+          <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={() => setAttendanceOpen(true)}>
             <Users className="h-4 w-4" /> Anwesenheit
           </Button>
-          <Button size="sm" variant="outline" className="h-9 gap-1.5 border-background/30 bg-transparent text-red-300 hover:bg-background/10 hover:text-red-200" onClick={() => setResetOpen(true)}>
+          <Button size="sm" variant="outline" className="h-9 gap-1.5 text-red-700 hover:text-red-800 dark:text-red-400" onClick={() => setResetOpen(true)}>
             <RotateCcw className="h-4 w-4" /> Zurücksetzen …
           </Button>
           <SecretBallotToggle meetingId={meetingId} value={meeting.is_secret_ballot ?? true} />
@@ -442,11 +460,11 @@ export const LivePhase = ({ meeting, onGoToProtocol }: Props) => {
             <Button size="sm" className="h-9 gap-1.5" onClick={() => setMeetingStatus.mutate("in_progress")}><Play className="h-4 w-4" /> Versammlung eröffnen</Button>
           )}
           {live && (
-            <Button size="sm" variant="secondary" className="h-9 gap-1.5" onClick={() => confirm("Versammlung beenden? Danach geht es zum Protokoll.") && setMeetingStatus.mutate("completed")}>
+            <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={() => confirm("Versammlung beenden? Danach geht es zum Protokoll.") && setMeetingStatus.mutate("completed")}>
               <Square className="h-4 w-4" /> Versammlung beenden
             </Button>
           )}
-          {ended && <Button size="sm" variant="secondary" className="h-9" onClick={onGoToProtocol}>Zum Protokoll</Button>}
+          {ended && <Button size="sm" className="h-9" onClick={onGoToProtocol}>Zum Protokoll</Button>}
         </div>
       </div>
 
@@ -470,31 +488,39 @@ export const LivePhase = ({ meeting, onGoToProtocol }: Props) => {
               </PopoverContent>
             </Popover>
           </div>
-          <ol className="max-h-[70vh] overflow-y-auto">
-            {items.map((it, i) => {
-              const on = it.id === selId;
-              const dot = it.status === "voted" ? (it.result === "passed" ? "bg-emerald-700 text-white" : "bg-red-700 text-white")
-                : it.status === "voting" ? "bg-primary text-primary-foreground" : it.requires_resolution === false ? "bg-muted-foreground/30" : "bg-muted";
-              const mark = it.status === "voted" ? (it.result === "passed" ? "✓" : "✕") : "";
-              return (
-                <li key={it.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelId(it.id)}
-                    className={cn("grid w-full grid-cols-[22px_minmax(0,1fr)_18px] items-center gap-2 border-t px-4 py-2.5 text-left transition-colors hover:bg-muted/40", on && "bg-primary/5 shadow-[inset_3px_0_0_hsl(var(--primary))]")}
-                  >
-                    <span className="text-[13px] font-semibold tabular-nums text-muted-foreground">{i + 1}</span>
-                    <span className={cn("truncate text-sm", on ? "font-semibold" : "font-medium")}>
-                      {it.category === "geschaeftsbeschluss" && <Gavel className="mr-1 inline h-3 w-3 text-amber-600" />}
-                      {it.title}
-                    </span>
-                    <span className={cn("flex h-[18px] w-[18px] items-center justify-center rounded-full text-[11px] font-bold", dot)}>{mark}</span>
-                  </button>
-                </li>
-              );
-            })}
-            {items.length === 0 && <li className="px-4 py-6 text-sm text-muted-foreground">Keine Punkte. Bitte in der Planung anlegen.</li>}
-          </ol>
+          <DragDropContext onDragEnd={onDragEnd}>
+            <Droppable droppableId="live-agenda">
+              {(prov) => (
+                <ol ref={prov.innerRef} {...prov.droppableProps} className="max-h-[70vh] overflow-y-auto">
+                  {items.map((it, i) => {
+                    const on = it.id === selId;
+                    const dot = it.status === "voted" ? (it.result === "passed" ? "bg-emerald-700 text-white" : "bg-red-700 text-white")
+                      : it.status === "voting" ? "bg-primary text-primary-foreground" : it.requires_resolution === false ? "bg-muted-foreground/30" : "bg-muted";
+                    const mark = it.status === "voted" ? (it.result === "passed" ? "✓" : "✕") : "";
+                    return (
+                      <Draggable key={it.id} draggableId={it.id} index={i}>
+                        {(dp, snap) => (
+                          <li ref={dp.innerRef} {...dp.draggableProps} className={cn(snap.isDragging && "rounded-lg bg-card shadow-lg ring-1 ring-primary/30")}>
+                            <div className={cn("grid w-full grid-cols-[14px_22px_minmax(0,1fr)_18px] items-center gap-2 border-t px-3 py-2.5 transition-colors hover:bg-muted/40", on && "bg-primary/5 shadow-[inset_3px_0_0_hsl(var(--primary))]")}>
+                              <span {...dp.dragHandleProps} aria-label="Ziehen zum Verschieben" title="Ziehen zum Verschieben" className="cursor-grab text-muted-foreground/50 hover:text-muted-foreground"><GripVertical className="h-3.5 w-3.5" /></span>
+                              <span className="text-[13px] font-semibold tabular-nums text-muted-foreground">{i + 1}</span>
+                              <button type="button" onClick={() => setSelId(it.id)} className={cn("truncate text-left text-sm", on ? "font-semibold" : "font-medium")}>
+                                {it.category === "geschaeftsbeschluss" && <Gavel className="mr-1 inline h-3 w-3 text-amber-600" />}
+                                {it.title}
+                              </button>
+                              <span className={cn("flex h-[18px] w-[18px] items-center justify-center rounded-full text-[11px] font-bold", dot)}>{mark}</span>
+                            </div>
+                          </li>
+                        )}
+                      </Draggable>
+                    );
+                  })}
+                  {prov.placeholder}
+                  {items.length === 0 && <li className="px-4 py-6 text-sm text-muted-foreground">Keine Punkte. Bitte in der Planung anlegen.</li>}
+                </ol>
+              )}
+            </Droppable>
+          </DragDropContext>
         </EtvCard>
 
         {/* Aktueller Punkt */}
@@ -779,8 +805,8 @@ const SecretBallotToggle = ({ meetingId, value }: { meetingId: string; value: bo
   const first = useRef(true);
   useEffect(() => { if (first.current) { first.current = false; return; } setOn(value); }, [value]);
   return (
-    <label className="flex h-9 items-center gap-2 rounded-md border border-background/30 px-2.5 text-[13px]" title="Eigentümer sehen im Portal nicht, wer wie abgestimmt hat">
-      <Lock className="h-3.5 w-3.5 opacity-70" /> Geheim
+    <label className="flex h-9 items-center gap-2 rounded-md border px-2.5 text-[13px]" title="Eigentümer sehen im Portal nicht, wer wie abgestimmt hat">
+      <Lock className="h-3.5 w-3.5 text-muted-foreground" /> Geheim
       <Switch
         checked={on}
         onCheckedChange={async (v) => {

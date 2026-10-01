@@ -174,6 +174,7 @@ export const AttendancePanel = ({ meetingId, buildingId, mode }: Props) => {
       toast({ title: n ? `${n} Eigentümer geladen` : "Teilnehmerliste ist aktuell" });
       refresh();
       qc.invalidateQueries({ queryKey: ["etv-heads", meetingId] });
+      qc.invalidateQueries({ queryKey: ["etv-heads-summary", meetingId] });
     } catch (e: any) {
       toast({ title: "Fehler", description: e?.message, variant: "destructive" });
     } finally {

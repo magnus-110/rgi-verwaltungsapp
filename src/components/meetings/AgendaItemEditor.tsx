@@ -522,7 +522,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "he
                 <Draggable key={item.id} draggableId={item.id} index={idx} isDragDisabled={!!editingItemId}>
                   {(provided, snapshot) => (
                     <div ref={provided.innerRef} {...provided.draggableProps}>
-                      <div className={`relative rounded-xl border bg-card transition-shadow ${snapshot.isDragging ? "shadow-lg ring-2 ring-primary/20" : ""} ${editingItemId === item.id ? "border-primary/40 bg-primary/[0.02]" : "hover:border-foreground/20"}`}>
+                      <div className={`relative rounded-xl border bg-card transition-shadow ${snapshot.isDragging ? "shadow-lg ring-2 ring-primary/20" : ""} ${editingItemId === item.id ? "border-primary" : "hover:border-foreground/20"}`}>
                         <div className={editingItemId === item.id ? "p-4" : "px-3 py-2.5"}>
                           <div className="flex items-start gap-3">
                             <div className="flex items-center gap-2 pt-0.5 text-muted-foreground">

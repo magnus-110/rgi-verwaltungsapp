@@ -88,7 +88,7 @@ export const PlanningPhase = ({ meeting, initialBuildingId, onCreated }: Props) 
   });
 
   const { data: heads } = useQuery({
-    queryKey: ["etv-heads", meeting?.id],
+    queryKey: ["etv-heads-summary", meeting?.id],
     enabled: !!meeting?.id,
     queryFn: async () => {
       const { data } = await supabase.from("etv_attendees").select("head_weight").eq("meeting_id", meeting.id);
