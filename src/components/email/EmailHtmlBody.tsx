@@ -7,9 +7,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { FolderArchive, Sparkles, ArrowDownToLine, Download, Loader2 } from "lucide-react";
+import { FolderArchive, Sparkles, ArrowDownToLine, Download, Loader2, Inbox } from "lucide-react";
 import { SaveAttachmentToBuildingDialog } from "./SaveAttachmentToBuildingDialog";
 import { useImportAttachmentAsInvoice, type ImportableAttachment } from "./lib/useImportAttachmentAsInvoice";
+import { InAblageLegenDialog } from "@/components/ablage/InAblageLegenDialog";
+import type { MailAnhangDrag } from "@/integrations/supabase/ablage";
 
 interface EmailHtmlBodyProps {
   html: string;
@@ -38,6 +40,8 @@ export const EmailHtmlBody = ({ html, emailId }: EmailHtmlBodyProps) => {
   const [menu, setMenu] = useState<{ x: number; y: number; att: InlineAttachment } | null>(null);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [savePending, setSavePending] = useState<InlineAttachment | null>(null);
+  // Büro-Ablage: welches Bild gerade hineingelegt werden soll
+  const [ablageBild, setAblageBild] = useState<MailAnhangDrag[]>([]);
 
   const { importAsInvoice, importingId } = useImportAttachmentAsInvoice();
 
@@ -225,6 +229,24 @@ export const EmailHtmlBody = ({ html, emailId }: EmailHtmlBodyProps) => {
               Im Gebäude / DMS speichern
             </DropdownMenuItem>
             <DropdownMenuItem
+              disabled={!menu.att.file_path}
+              onClick={() => {
+                const att = menu.att;
+                setMenu(null);
+                if (!att.file_path) return;
+                setAblageBild([{
+                  path: att.file_path,
+                  name: att.file_name,
+                  mimeType: att.mime_type,
+                  size: att.file_size ? Number(att.file_size) : null,
+                  emailId,
+                }]);
+              }}
+            >
+              <Inbox className="h-3.5 w-3.5 mr-2" />
+              In die Ablage legen
+            </DropdownMenuItem>
+            <DropdownMenuItem
               disabled={importingId === menu.att.id}
               onClick={() => {
                 const att = menu.att;
@@ -278,6 +300,11 @@ export const EmailHtmlBody = ({ html, emailId }: EmailHtmlBodyProps) => {
             : []
         }
         emailId={emailId}
+      />
+      <InAblageLegenDialog
+        open={ablageBild.length > 0}
+        onOpenChange={(o) => !o && setAblageBild([])}
+        anhaenge={ablageBild}
       />
     </>
   );
