@@ -7089,6 +7089,54 @@ export type Database = {
           },
         ]
       }
+      etv_year_exemptions: {
+        Row: {
+          building_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          reason: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          building_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          reason?: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          building_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          reason?: string
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etv_year_exemptions_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_year_exemptions_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+        ]
+      }
       forum_post_templates: {
         Row: {
           content: string

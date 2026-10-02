@@ -318,7 +318,7 @@ export function SignPdfDialog({ open, onOpenChange, sourceUrl, fileName, onSave,
     try {
       const lib = await loadPdfLib();
       const out = await stampPdf(lib, bytes.slice(), items);
-      const blob = new Blob([out], { type: "application/pdf" });
+      const blob = new Blob([out as BlobPart], { type: "application/pdf" });
       const name = signedFileName(fileName);
       await onSave({ blob, fileName: name, items });
       setDone({ blob, fileName: name, url: URL.createObjectURL(blob) });
