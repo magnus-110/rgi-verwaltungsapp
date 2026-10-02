@@ -13,6 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft,
   CalendarClock,
+  FolderOpen,
+  Inbox as InboxIcon,
   Loader2,
   Paperclip,
   Save,
@@ -27,6 +29,8 @@ import { BulkRecipientDialog } from "./BulkRecipientDialog";
 import { BulkDropzone } from "./BulkDropzone";
 import type { PlaceholderSamples } from "../usePlaceholderSamples";
 import { startBulkSend } from "@/lib/bulkSendWatch";
+import { DmsFilePickerDialog, type DmsPickerItem } from "@/components/meetings/DmsFilePickerDialog";
+import { AblagePickerDialog } from "@/components/ablage/AblagePickerDialog";
 
 interface Props {
   campaignId: string;
@@ -334,7 +338,38 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     return path;
   };
 
-  const handleGeneralUpload = async (files: FileList | null) => {
+  // Anhänge aus dem DMS oder der Büro-Ablage: Datei wird kopiert, das Original bleibt, wo es ist.
+  const [pickFor, setPickFor] = useState<null | { source: "dms" | "ablage"; target: "general" | "personal" }>(null);
+  const itemsToFiles = async (items: DmsPickerItem[]) => {
+    const files: File[] = [];
+    for (const it of items) {
+      const { data, error } = await supabase.storage.from(it.bucket).download(it.path);
+      if (error || !data) throw new Error(`„${it.name}“ konnte nicht geladen werden${error?.message ? `: ${error.message}` : ""}`);
+      const ext = it.path.match(/\.[A-Za-z0-9]{1,6}$/)?.[0] || "";
+      const name = /\.[A-Za-z0-9]{1,6}$/.test(it.name) ? it.name : `${it.name}${ext}`;
+      files.push(new File([data], name, { type: it.mimeType || data.type || "application/octet-stream" }));
+    }
+    return files;
+  };
+  const handlePickedItems = async (items: DmsPickerItem[]) => {
+    const target = pickFor?.target;
+    setPickFor(null);
+    if (!items.length || !target) return;
+    setBusy("upload");
+    let files: File[] = [];
+    try {
+      files = await itemsToFiles(items);
+    } catch (e: any) {
+      toast({ title: "Anhang konnte nicht übernommen werden", description: e?.message, variant: "destructive" });
+      setBusy(null);
+      return;
+    }
+    setBusy(null);
+    if (target === "general") await handleGeneralUpload(files);
+    else await handlePersonalUpload(files);
+  };
+
+  const handleGeneralUpload = async (files: FileList | File[] | null) => {
     if (!files || files.length === 0) return;
     setBusy("upload");
     try {
@@ -348,7 +383,7 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     }
   };
 
-  const handlePersonalUpload = async (files: FileList | null) => {
+  const handlePersonalUpload = async (files: FileList | File[] | null) => {
     if (!files || files.length === 0) return;
     setBusy("upload");
     let matched = 0;
@@ -795,6 +830,15 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
                   disabled={busy !== null}
                   onFiles={handleGeneralUpload}
                 >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground">oder übernehmen aus:</span>
+                  <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" disabled={busy !== null} onClick={() => setPickFor({ source: "dms", target: "general" })}>
+                    <FolderOpen className="h-3.5 w-3.5" /> DMS
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" disabled={busy !== null} onClick={() => setPickFor({ source: "ablage", target: "general" })}>
+                    <InboxIcon className="h-3.5 w-3.5" /> Ablage
+                  </Button>
+                </div>
                   <div className="flex flex-wrap gap-1.5">
                     {generalPaths.length === 0 && (
                       <span className="text-xs text-muted-foreground">Keine gemeinsamen Anhänge</span>
@@ -829,6 +873,15 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
                   disabled={busy !== null}
                   onFiles={handlePersonalUpload}
                 >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground">oder übernehmen aus:</span>
+                  <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" disabled={busy !== null} onClick={() => setPickFor({ source: "dms", target: "personal" })}>
+                    <FolderOpen className="h-3.5 w-3.5" /> DMS
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" disabled={busy !== null} onClick={() => setPickFor({ source: "ablage", target: "personal" })}>
+                    <InboxIcon className="h-3.5 w-3.5" /> Ablage
+                  </Button>
+                </div>
                   <p className="text-xs text-muted-foreground">
                     {personalCount} von {selectedGroups.length} ausgewählten Empfängern haben einen persönlichen Anhang.
                     Einzelne Dateien lassen sich auch direkt auf eine Empfänger-Karte ziehen.
@@ -905,6 +958,18 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
           </ScrollArea>
         </div>
       </div>
+
+      <DmsFilePickerDialog
+        open={pickFor?.source === "dms"}
+        onOpenChange={(v) => !v && setPickFor(null)}
+        buildingId={buildingId || undefined}
+        onSelectItems={handlePickedItems}
+      />
+      <AblagePickerDialog
+        open={pickFor?.source === "ablage"}
+        onOpenChange={(v) => !v && setPickFor(null)}
+        onSelectItems={handlePickedItems}
+      />
 
       <BulkRecipientDialog
         open={!!dialog}
