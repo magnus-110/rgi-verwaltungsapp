@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { addDays, subDays } from "date-fns";
+import { CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { EINLADUNGSFRIST_TAGE, TONE_CLASSES, fmt, relativTag } from "./dashboardDates";
@@ -110,7 +111,17 @@ export function DashboardDueList({ todayTasks, weekTasks, isLoading }: Props) {
       {isLoading ? (
         <p className="px-5 pb-5 text-sm text-muted-foreground">Laden…</p>
       ) : sichtbar.length === 0 ? (
-        <p className="px-5 pb-5 text-sm text-muted-foreground">Nichts fällig — alles erledigt.</p>
+        <div className="mx-5 mb-5 flex items-center gap-4 rounded-lg border border-dashed border-emerald-600/30 bg-emerald-50/60 px-4 py-4 dark:bg-emerald-950/20">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+            <CheckCircle2 className="h-5 w-5" aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-foreground">Alles im Griff</span>
+            <span className="block text-[13px] text-muted-foreground">
+              Keine fälligen Aufgaben und keine Einladungsfrist in den nächsten {VORLAUF_TAGE} Tagen.
+            </span>
+          </span>
+        </div>
       ) : (
         <ul className="px-2 pb-2">
           {sichtbar.map((e) => {

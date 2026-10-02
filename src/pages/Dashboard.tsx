@@ -215,15 +215,15 @@ export const Dashboard = () => {
 
       {/* Fällig + Termine */}
       <div className="grid items-start gap-4 md:gap-5 grid-cols-1 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <DashboardDueList
-          todayTasks={stats.today_tasks || []}
-          weekTasks={stats.week_tasks || []}
-          isLoading={isLoading}
-        />
         <div className="flex flex-col gap-4 md:gap-5">
-          <DashboardAppointments />
+          <DashboardDueList
+            todayTasks={stats.today_tasks || []}
+            weekTasks={stats.week_tasks || []}
+            isLoading={isLoading}
+          />
           <DashboardKeys />
         </div>
+        <DashboardAppointments />
       </div>
 
       {/* Jahreszyklus (nur WEG) */}
