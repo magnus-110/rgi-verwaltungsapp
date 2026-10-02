@@ -10,12 +10,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { DashboardDueList } from "@/components/dashboard/DashboardDueList";
 import { DashboardAppointments } from "@/components/dashboard/DashboardAppointments";
 import { DashboardAnnualCycle } from "@/components/dashboard/DashboardAnnualCycle";
+import { DashboardKeys } from "@/components/dashboard/DashboardKeys";
 
 /**
  * Startseite der Verwaltung.
  *
  * Aufbau: Begrüßung · vier Kennzahlen (Meldungen, Rechnungen, E-Mails,
  * Schlüssel) · „Fällig“ (Aufgaben + Einladungsfristen) · „Anstehende Termine“ ·
+ * „Ausgegebene Schlüssel“ ·
  * Jahreszyklus aller WEGs.
  */
 
@@ -212,13 +214,16 @@ export const Dashboard = () => {
       </section>
 
       {/* Fällig + Termine */}
-      <div className="grid gap-4 md:gap-5 grid-cols-1 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <div className="grid items-start gap-4 md:gap-5 grid-cols-1 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <DashboardDueList
           todayTasks={stats.today_tasks || []}
           weekTasks={stats.week_tasks || []}
           isLoading={isLoading}
         />
-        <DashboardAppointments />
+        <div className="flex flex-col gap-4 md:gap-5">
+          <DashboardAppointments />
+          <DashboardKeys />
+        </div>
       </div>
 
       {/* Jahreszyklus (nur WEG) */}

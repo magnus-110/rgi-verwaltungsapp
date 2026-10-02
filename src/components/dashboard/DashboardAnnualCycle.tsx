@@ -3,18 +3,24 @@
 // mit der Maus über ein Feld, steht dort, um welchen Schritt es geht und wie
 // sein Stand ist. Bearbeitet wird weiterhin auf der Seite „Jahreszyklus“.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { ANNUAL_CYCLE_TASKS, buildFiscalYears, type AnnualCycleStatus } from "@/lib/annualCycle";
 import { fmt } from "./dashboardDates";
 
-interface BuildingRow {
+interface BuildingBase {
   id: string;
   name: string;
+  startMonth: number;
+  startDay: number;
+}
+
+interface BuildingRow extends BuildingBase {
   fyStart: string;
   fyLabel: string;
 }
@@ -42,10 +48,39 @@ const STATUS_TEXT: Record<AnnualCycleStatus, string> = {
 
 const TOTAL = ANNUAL_CYCLE_TASKS.length;
 
+/** Index 2 in buildFiscalYears() = das laufende Wirtschaftsjahr. */
+const AKTUELL = 2;
+const JAHR_KEY = "rgi-dashboard-jz-jahr";
+
+const leseJahr = () => {
+  try {
+    const roh = localStorage.getItem(JAHR_KEY);
+    if (roh === null || roh === "") return AKTUELL;
+    const v = Number(roh);
+    return Number.isInteger(v) && v >= 0 && v <= 4 ? v : AKTUELL;
+  } catch {
+    return AKTUELL;
+  }
+};
+
 export function DashboardAnnualCycle() {
   const navigate = useNavigate();
+  // Gemerkt wird die Stelle in der Jahresliste (wie auf der Seite Jahreszyklus):
+  // jedes Haus hat sein eigenes Wirtschaftsjahr.
+  const [jahrIndex, setJahrIndex] = useState<number>(leseJahr);
+  const jahresAuswahl = useMemo(() => buildFiscalYears(), []);
 
-  const { data: buildings = [], isLoading } = useQuery({
+  const waehleJahr = (v: string) => {
+    const i = Number(v);
+    setJahrIndex(i);
+    try {
+      localStorage.setItem(JAHR_KEY, String(i));
+    } catch {
+      /* egal */
+    }
+  };
+
+  const { data: basis = [], isLoading } = useQuery({
     queryKey: ["dashboard-jz-buildings"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -54,17 +89,26 @@ export function DashboardAnnualCycle() {
         .eq("management_mode", "weg")
         .order("name");
       if (error) throw error;
-      return ((data || []) as any[]).map((b) => {
-        // Index 2 = das laufende Wirtschaftsjahr dieses Hauses
-        const fy = buildFiscalYears(undefined, {
-          startMonth: b.fiscal_year_start_month ?? 1,
-          startDay: b.fiscal_year_start_day ?? 1,
-        })[2];
-        return { id: b.id, name: b.name, fyStart: fy.start, fyLabel: fy.label } as BuildingRow;
-      });
+      return ((data || []) as any[]).map((b) => ({
+        id: b.id,
+        name: b.name,
+        startMonth: b.fiscal_year_start_month ?? 1,
+        startDay: b.fiscal_year_start_day ?? 1,
+      })) as BuildingBase[];
     },
     staleTime: 10 * 60_000,
   });
+
+  // Je Haus das Wirtschaftsjahr an der gewählten Stelle
+  const buildings = useMemo<BuildingRow[]>(
+    () =>
+      basis.map((b) => {
+        const jahre = buildFiscalYears(undefined, { startMonth: b.startMonth, startDay: b.startDay });
+        const fy = jahre[jahrIndex] ?? jahre[AKTUELL];
+        return { ...b, fyStart: fy.start, fyLabel: fy.label };
+      }),
+    [basis, jahrIndex],
+  );
 
   const { data: tasks = [] } = useQuery({
     queryKey: ["dashboard-jz-tasks", buildings.map((b) => `${b.id}:${b.fyStart}`).join(",")],
@@ -110,8 +154,9 @@ export function DashboardAnnualCycle() {
 
   const jahrLabel = useMemo(() => {
     const labels = Array.from(new Set(buildings.map((b) => b.fyLabel)));
-    return labels.length === 1 ? `Wirtschaftsjahr ${labels[0]}` : "Laufendes Wirtschaftsjahr je WEG";
-  }, [buildings]);
+    if (labels.length === 1) return `Wirtschaftsjahr ${labels[0]}`;
+    return jahrIndex === AKTUELL ? "Laufendes Wirtschaftsjahr je WEG" : "Wirtschaftsjahr je WEG";
+  }, [buildings, jahrIndex]);
 
   return (
     <section aria-labelledby="h-zyklus" className="rounded-xl border bg-card px-5 pt-4 pb-4 flex flex-col gap-3">
@@ -123,6 +168,18 @@ export function DashboardAnnualCycle() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+          <Select value={String(jahrIndex)} onValueChange={waehleJahr}>
+            <SelectTrigger className="h-8 w-[170px] text-xs" aria-label="Wirtschaftsjahr wählen">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {jahresAuswahl.map((fy, i) => (
+                <SelectItem key={fy.start} value={String(i)}>
+                  Wirtschaftsjahr {fy.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <span className="inline-flex items-center gap-1.5"><span className={cn("h-2.5 w-3.5 rounded-sm", SEG_CLASS.done)} />erledigt</span>
           <span className="inline-flex items-center gap-1.5"><span className={cn("h-2.5 w-3.5 rounded-sm", SEG_CLASS.in_progress)} />in Arbeit</span>
           <span className="inline-flex items-center gap-1.5"><span className={cn("h-2.5 w-3.5 rounded-sm", SEG_CLASS.open)} />offen</span>
