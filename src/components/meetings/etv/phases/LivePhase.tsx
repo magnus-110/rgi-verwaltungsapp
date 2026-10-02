@@ -24,6 +24,7 @@ import { AttendancePanel } from "../AttendancePanel";
 import { EtvCard, Segmented } from "../ui";
 import { contactName, contactSortName, shareOf, summarize, useAttendees } from "../useAttendees";
 import { AddTopDialog, ProceduralDialog } from "./LiveDialogs";
+import { REPORT_SECTIONS, emptyReportSections, type ReportSections } from "@/lib/managementReport";
 
 interface Props {
   meeting: any;
@@ -113,6 +114,26 @@ export const LivePhase = ({ meeting, onGoToProtocol }: Props) => {
 
   const item = items.find((i) => i.id === selId) || null;
   const idx = item ? items.findIndex((i) => i.id === item.id) : -1;
+
+  // Bericht der Verwaltung: vier Unterberichte (Sachstand, Instandhaltung, Vermögen, Sonstiges)
+  const [report, setReport] = useState<ReportSections>(emptyReportSections());
+  const [reportOpen, setReportOpen] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    setReport({ ...emptyReportSections(), ...(((item as any)?.report_sections ?? {}) as ReportSections) });
+    setReportOpen({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id]);
+  const saveReport = async (key: string) => {
+    if (!item) return;
+    const current = { ...emptyReportSections(), ...(((item as any).report_sections ?? {}) as ReportSections) };
+    if ((current[key] || "") === (report[key] || "")) return;
+    const next = { ...current, [key]: report[key] || "" };
+    const { error } = await supabase.from("etv_agenda_items").update({ report_sections: next } as any).eq("id", item.id);
+    if (error) { toast({ title: "Fehler", description: error.message, variant: "destructive" }); return; }
+    invalidateItems();
+    setSavedHint(`report:${key}`);
+    setTimeout(() => setSavedHint(null), 1800);
+  };
 
   useEffect(() => {
     setDesc(item?.description || "");
@@ -627,6 +648,56 @@ export const LivePhase = ({ meeting, onGoToProtocol }: Props) => {
                 <Label htmlFor="live-desc" className="flex items-center justify-between">Beschreibung {savedHint === "description" && <span className="text-xs font-normal text-emerald-700">gespeichert</span>}</Label>
                 <Textarea id="live-desc" rows={3} value={desc} onChange={(e) => setDesc(e.target.value)} onBlur={() => saveField("description", desc)} />
               </div>
+              {(item as any).is_management_report && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-1.5"><FileText className="h-4 w-4 text-muted-foreground" /> Bericht der Verwaltung</Label>
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-primary hover:opacity-80"
+                      onClick={() => {
+                        const allOpen = REPORT_SECTIONS.every((r) => reportOpen[r.key]);
+                        setReportOpen(Object.fromEntries(REPORT_SECTIONS.map((r) => [r.key, !allOpen])));
+                      }}
+                    >
+                      {REPORT_SECTIONS.every((r) => reportOpen[r.key]) ? "Alle einklappen" : "Alle aufklappen"}
+                    </button>
+                  </div>
+                  <div className="overflow-hidden rounded-xl border">
+                    {REPORT_SECTIONS.map((r, i) => {
+                      const open = !!reportOpen[r.key];
+                      const text = report[r.key] || "";
+                      return (
+                        <div key={r.key} className={cn(i > 0 && "border-t")}>
+                          <button
+                            type="button"
+                            aria-expanded={open}
+                            onClick={() => setReportOpen((o) => ({ ...o, [r.key]: !o[r.key] }))}
+                            className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-muted/40"
+                          >
+                            <span className="text-sm font-semibold">{r.label}</span>
+                            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                              {savedHint === `report:${r.key}` ? <span className="text-emerald-700">gespeichert</span> : open ? "" : text.trim() ? text.trim().replace(/\s+/g, " ") : "noch leer"}
+                            </span>
+                            <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+                          </button>
+                          {open && (
+                            <div className="px-3.5 pb-3.5">
+                              <Textarea
+                                aria-label={r.label}
+                                rows={6}
+                                value={text}
+                                onChange={(e) => setReport((p) => ({ ...p, [r.key]: e.target.value }))}
+                                onBlur={() => saveReport(r.key)}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               {needsVote && (
                 <div className="space-y-1.5">
                   <Label htmlFor="live-motion" className="flex items-center justify-between">Beschlussantrag {savedHint === "resolution_text" && <span className="text-xs font-normal text-emerald-700">gespeichert</span>}</Label>

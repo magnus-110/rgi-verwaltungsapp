@@ -689,9 +689,16 @@ export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "he
                                     {item.is_actionable && (
                                       <Badge variant="outline" className="gap-1 border-primary/40 bg-primary/10 text-[11px] text-primary"><Wrench className="h-3 w-3" /> Umzusetzen</Badge>
                                     )}
-                                    {(item as any).is_management_report && (
-                                      <Badge variant="outline" className="text-[11px] text-muted-foreground">Bericht</Badge>
-                                    )}
+                                    {(item as any).is_management_report && (() => {
+                                      const filled = Object.values(((item as any).report_sections ?? {}) as Record<string, string>).filter((v) => (v || "").trim()).length;
+                                      return (
+                                        <button type="button" onClick={() => startEditing(item)} title="Die vier Unterberichte öffnen und bearbeiten">
+                                          <Badge variant="outline" className="cursor-pointer gap-1 text-[11px] text-muted-foreground hover:border-primary/50 hover:text-foreground">
+                                            <FileText className="h-3 w-3" /> Bericht · {filled} von 4 Abschnitten
+                                          </Badge>
+                                        </button>
+                                      );
+                                    })()}
                                     <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => startEditing(item)} title="Bearbeiten">
                                       <Pencil className="h-3.5 w-3.5" />
                                     </Button>
