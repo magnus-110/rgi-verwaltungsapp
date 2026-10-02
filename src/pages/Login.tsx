@@ -213,7 +213,7 @@ export const Login = () => {
           <h2 className={`${HEADING_FONT} m-0 font-medium text-[32px] lg:text-[50px] leading-[1.08] tracking-[-0.02em] text-white`}>
             Ihre Immobilie.<br />Jederzeit im Blick.
           </h2>
-          <p className="m-0 max-w-[600px] text-[15px] lg:text-[17px] leading-relaxed text-[#d2ccc5]">
+          <p className="hidden lg:block m-0 max-w-[600px] text-[17px] leading-relaxed text-[#d2ccc5]">
             Kein Suchen in Ordnern, kein Warten auf Bürozeiten: Hier haben Sie alles rund um Ihre
             Eigentumswohnung griffbereit – am Computer und auf dem Handy. Ihr direkter Draht zur Hausverwaltung.
           </p>
