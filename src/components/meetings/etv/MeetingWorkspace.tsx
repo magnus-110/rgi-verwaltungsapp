@@ -10,7 +10,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import {
-  PHASES, formatMeetingDate, getPhase, invitationDeadline, phaseIndex, relativeDays, type EtvPhase,
+  PHASES, formatMeetingDate, getPhase, getStepsDone, invitationDeadline, phaseIndex, relativeDays, type EtvPhase,
 } from "@/lib/etvPhase";
 import { PlanningPhase } from "./phases/PlanningPhase";
 import { InvitationPhase } from "./phases/InvitationPhase";
@@ -63,7 +63,9 @@ export const MeetingWorkspace = ({ meetingId, initialBuildingId, phase, onPhaseC
     refetchInterval: 30_000,
   });
 
-  const current: EtvPhase = meeting ? getPhase(meeting, { ...(stats || {}), protocolFiled: !!stats?.protocolFiled || !!meeting.protocol_published }) : "planung";
+  const phaseExtras = { ...(stats || {}), protocolFiled: !!stats?.protocolFiled || !!meeting?.protocol_published };
+  const current: EtvPhase = meeting ? getPhase(meeting, phaseExtras) : "planung";
+  const stepsDone = meeting ? getStepsDone(meeting, phaseExtras) : [false, false, false, false];
   const currentIdx = phaseIndex(current);
   const active = (phase as EtvPhase) || (current === "abgeschlossen" ? "protokoll" : current);
 
@@ -80,6 +82,16 @@ export const MeetingWorkspace = ({ meetingId, initialBuildingId, phase, onPhaseC
     qc.invalidateQueries({ queryKey: ["etv-topics"] });
   };
 
+  const toggleStep = async (key: string, done: boolean) => {
+    if (!meeting) return;
+    const next = { ...(meeting.steps_done || {}), [key]: !done };
+    // Optimistisch anzeigen
+    qc.setQueryData(["etv-meeting", meetingId], (old: any) => (old ? { ...old, steps_done: next } : old));
+    const { error } = await db.from("etv_meetings").update({ steps_done: next }).eq("id", meetingId);
+    if (error) { toast({ title: "Fehler", description: error.message, variant: "destructive" }); }
+    refreshAll();
+  };
+
   const markDone = async () => {
     setBusy(true);
     const now = new Date().toISOString();
@@ -87,6 +99,7 @@ export const MeetingWorkspace = ({ meetingId, initialBuildingId, phase, onPhaseC
       status: "completed",
       ended_at: meeting?.ended_at || now,
       protocol_filed_at: meeting?.protocol_filed_at || now,
+      steps_done: {},
     }).eq("id", meetingId);
     setBusy(false);
     setConfirm(null);
@@ -96,7 +109,7 @@ export const MeetingWorkspace = ({ meetingId, initialBuildingId, phase, onPhaseC
   };
 
   const reopenMeeting = async () => {
-    const { error } = await db.from("etv_meetings").update({ protocol_filed_at: null, protocol_published: false }).eq("id", meetingId);
+    const { error } = await db.from("etv_meetings").update({ protocol_filed_at: null, protocol_published: false, steps_done: { ...(meeting?.steps_done || {}), protokoll: false } }).eq("id", meetingId);
     if (error) { toast({ title: "Fehler", description: error.message, variant: "destructive" }); return; }
     refreshAll();
     toast({ title: "Wieder offen", description: "Die Versammlung steht jetzt wieder in der Phase Protokoll." });
@@ -211,41 +224,54 @@ export const MeetingWorkspace = ({ meetingId, initialBuildingId, phase, onPhaseC
           </AlertDialogContent>
         </AlertDialog>
 
-        <nav aria-label="Phasen der Versammlung" className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        <nav aria-label="Phasen der Versammlung" className="space-y-1.5">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           {PHASES.map((p, i) => {
-            const done = i < currentIdx;
+            const done = stepsDone[i];
             const isNow = i === currentIdx;
             const sel = p.key === active;
             const disabled = !meeting && i > 0;
             const s = sub[p.key];
             return (
-              <button
+              <div
                 key={p.key}
-                type="button"
-                disabled={disabled}
-                aria-current={sel ? "step" : undefined}
-                onClick={() => onPhaseChange(p.key)}
                 className={cn(
-                  "flex items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left transition-colors",
+                  "flex items-center gap-3 rounded-2xl border-2 px-4 py-3 transition-colors",
                   sel ? "border-primary bg-card" : "border-transparent bg-muted/60 hover:bg-muted",
-                  disabled && "cursor-not-allowed opacity-50",
+                  disabled && "opacity-50",
                 )}
               >
-                <span
+                <button
+                  type="button"
+                  disabled={!meeting}
+                  onClick={() => toggleStep(p.key, done)}
+                  title={done ? "Haken entfernen" : "Schritt abhaken"}
+                  aria-label={`${p.label}: ${done ? "Haken entfernen" : "abhaken"}`}
+                  aria-pressed={done}
                   className={cn(
-                    "flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[13px] font-bold",
-                    done ? "bg-emerald-700 text-white" : isNow ? "bg-primary text-primary-foreground" : "border-[1.5px] border-muted-foreground/40 bg-background text-muted-foreground",
+                    "flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[13px] font-bold transition-colors disabled:cursor-not-allowed",
+                    done ? "bg-emerald-700 text-white hover:bg-emerald-800"
+                      : isNow ? "bg-primary text-primary-foreground hover:ring-2 hover:ring-emerald-600 hover:ring-offset-1"
+                      : "border-[1.5px] border-muted-foreground/40 bg-background text-muted-foreground hover:border-emerald-600 hover:text-emerald-700",
                   )}
                 >
                   {done ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : i + 1}
-                </span>
-                <span className="min-w-0">
+                </button>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  aria-current={sel ? "step" : undefined}
+                  onClick={() => onPhaseChange(p.key)}
+                  className="min-w-0 flex-1 text-left disabled:cursor-not-allowed"
+                >
                   <span className="block text-[15px] font-semibold">{p.label}</span>
-                  <span className={cn("block truncate text-xs font-medium", s?.warn ? "text-red-700 dark:text-red-400" : "text-muted-foreground")}>{s?.text}</span>
-                </span>
-              </button>
+                  <span className={cn("block truncate text-xs font-medium", s?.warn && !done ? "text-red-700 dark:text-red-400" : "text-muted-foreground")}>{s?.text}</span>
+                </button>
+              </div>
             );
           })}
+        </div>
+        {meeting && <p className="px-1 text-xs text-muted-foreground">Tipp: Auf den Kreis klicken, um einen Schritt von Hand abzuhaken – oder den Haken wieder zu entfernen.</p>}
         </nav>
 
         {active === "planung" && (

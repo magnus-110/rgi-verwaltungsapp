@@ -85,21 +85,24 @@ export const LivePhase = ({ meeting, onGoToProtocol }: Props) => {
       return !v;
     });
   };
-  const enterFocus = () => {
-    setFocusMode(true);
-    try { document.documentElement.requestFullscreen?.().catch(() => {}); } catch { /* egal */ }
-  };
-  const leaveFocus = () => {
-    setFocusMode(false);
-    try { if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); } catch { /* egal */ }
-  };
+  // Bewusst kein Browser-Vollbild: die Tabs des Browsers sollen sichtbar bleiben.
+  const enterFocus = () => setFocusMode(true);
+  const leaveFocus = () => setFocusMode(false);
   useEffect(() => {
     if (!focusMode) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = prev; };
   }, [focusMode]);
-  useEffect(() => () => { try { if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); } catch { /* egal */ } }, []);
+  useEffect(() => {
+    if (!focusMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      // Esc beendet den Modus nur, wenn gerade kein Dialog offen ist
+      if (e.key === "Escape" && !document.querySelector("[role='dialog'],[role='alertdialog']")) setFocusMode(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [focusMode]);
 
   // Standard-Auswahl: erster offener Punkt mit Beschluss
   useEffect(() => {

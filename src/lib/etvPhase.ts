@@ -32,6 +32,8 @@ export interface MeetingLike {
   protocol_published?: boolean | null;
   protocol_filed_at?: string | null;
   created_at?: string | null;
+  /** Von Hand abgehakte Schritte – überschreiben die automatische Erkennung je Schritt. */
+  steps_done?: Partial<Record<string, boolean>> | null;
 }
 
 export interface MeetingExtras {
@@ -69,7 +71,8 @@ export const relativeDays = (target: Date, now = new Date()): string => {
 
 export const isMeetingCompleted = (m: MeetingLike) => m.status === "completed" || !!m.ended_at;
 
-export function getPhase(m: MeetingLike, x: MeetingExtras = {}): EtvPhase {
+/** Phase allein aus den Daten (ohne von Hand abgehakte Schritte). */
+function autoPhase(m: MeetingLike, x: MeetingExtras = {}): EtvPhase {
   if (m.status === "cancelled") return "abgeschlossen";
   if (isMeetingCompleted(m)) return x.protocolFiled || m.protocol_filed_at ? "abgeschlossen" : "protokoll";
   if (m.status === "in_progress") return "durchfuehrung";
@@ -78,6 +81,22 @@ export function getPhase(m: MeetingLike, x: MeetingExtras = {}): EtvPhase {
   const now = new Date();
   if (new Date(m.meeting_date) < startOfDay(now)) return "durchfuehrung";
   return "einladung";
+}
+
+/** Je Schritt: erledigt ja/nein – von Hand abgehakt hat Vorrang vor der Automatik. */
+export function getStepsDone(m: MeetingLike, x: MeetingExtras = {}): boolean[] {
+  const auto = phaseIndex(autoPhase(m, x));
+  const manual = m.steps_done || {};
+  return PHASES.map((p, i) => (typeof manual[p.key] === "boolean" ? !!manual[p.key] : i < auto));
+}
+
+export function getPhase(m: MeetingLike, x: MeetingExtras = {}): EtvPhase {
+  if (m.status === "cancelled") return "abgeschlossen";
+  const manual = m.steps_done || {};
+  if (!Object.values(manual).some((v) => typeof v === "boolean")) return autoPhase(m, x);
+  const done = getStepsDone(m, x);
+  const first = done.findIndex((d) => !d);
+  return first === -1 ? "abgeschlossen" : PHASES[first].key;
 }
 
 /** Index 0..3 der Phase (abgeschlossen = 4). */
@@ -110,6 +129,10 @@ export function getNextStep(m: MeetingLike, x: MeetingExtras = {}): NextStep {
 
   if (phase === "planung") {
     return { label: "Termin festlegen oder Terminumfrage starten", tag: "Termin", urgency: "amber", rank: 30, group: "handeln" };
+  }
+
+  if (phase === "einladung" && !date) {
+    return { label: "Termin eintragen und Einladung erstellen", tag: "Einladung", urgency: "amber", rank: 28, group: "handeln" };
   }
 
   if (phase === "einladung" && date) {

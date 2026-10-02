@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { ChevronRight, ChevronDown, Plus } from "lucide-react";
+import { ChevronRight, ChevronDown, Plus, Search, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   formatMeetingDate, getNextStep, getPhase, meetingYear, phaseIndex, relativeDays, startOfDay,
@@ -33,17 +34,21 @@ type Row = {
   topics: number;
 };
 
-const GROUPS: { key: NextStep["group"] | "ohne"; title: string; dot: string }[] = [
-  { key: "handeln", title: "Handlungsbedarf", dot: "bg-red-600" },
-  { key: "ohne", title: "Noch keine Versammlung", dot: "bg-amber-500" },
-  { key: "protokoll", title: "Protokoll offen", dot: "bg-primary" },
-  { key: "geplant", title: "Geplant", dot: "bg-slate-400" },
-  { key: "erledigt", title: "Abgeschlossen", dot: "bg-emerald-600" },
+type GroupKey = NextStep["group"] | "ohne";
+const GROUPS: { key: GroupKey; title: string; short: string; dot: string }[] = [
+  { key: "geplant", title: "Geplant", short: "Geplant", dot: "bg-slate-400" },
+  { key: "handeln", title: "Handlungsbedarf", short: "Handlungsbedarf", dot: "bg-red-600" },
+  { key: "protokoll", title: "Protokoll offen", short: "Protokoll offen", dot: "bg-primary" },
+  { key: "ohne", title: "Noch offen – keine Versammlung angelegt", short: "Noch offen", dot: "bg-amber-500" },
+  { key: "erledigt", title: "Abgeschlossen", short: "Abgeschlossen", dot: "bg-emerald-600" },
 ];
+const groupOf = (r: { meeting: unknown; step: NextStep }): GroupKey => (r.meeting ? r.step.group : "ohne");
 
 export const YearPlan = ({ year, buildings, meetings, topics, onOpenMeeting, onCreateMeeting }: Props) => {
   const [month, setMonth] = useState<number | null>(null);
   const [showDone, setShowDone] = useState(false);
+  const [groupFilter, setGroupFilter] = useState<GroupKey | null>(null);
+  const [search, setSearch] = useState("");
   const now = new Date();
   const thisYear = now.getFullYear();
 
@@ -86,14 +91,19 @@ export const YearPlan = ({ year, buildings, meetings, topics, onOpenMeeting, onC
     return out;
   }, [buildings, yearMeetings, openTopicsByBuilding, year, thisYear]);
 
-  const filteredRows = month === null
-    ? rows
-    : rows.filter((r) => r.meeting?.meeting_date && new Date(r.meeting.meeting_date).getMonth() === month);
+  const needle = search.trim().toLowerCase();
+  const baseRows = rows
+    .filter((r) => month === null || (r.meeting?.meeting_date && new Date(r.meeting.meeting_date).getMonth() === month))
+    .filter((r) => !needle || [r.building.name, r.building.city, r.building.address, r.meeting?.title, r.meeting?.location]
+      .some((v) => (v || "").toLowerCase().includes(needle)));
+  const groupCounts = new Map<GroupKey, number>();
+  baseRows.forEach((r) => groupCounts.set(groupOf(r), (groupCounts.get(groupOf(r)) || 0) + 1));
+  const filteredRows = groupFilter ? baseRows.filter((r) => groupOf(r) === groupFilter) : baseRows;
 
   const grouped = GROUPS.map((g) => ({
     ...g,
     rows: filteredRows
-      .filter((r) => (g.key === "ohne" ? !r.meeting : r.meeting && r.step.group === g.key))
+      .filter((r) => groupOf(r) === g.key)
       .sort((a, b) => a.step.rank - b.step.rank || (a.meeting?.meeting_date || "").localeCompare(b.meeting?.meeting_date || "")),
   })).filter((g) => g.rows.length > 0);
 
@@ -187,6 +197,45 @@ export const YearPlan = ({ year, buildings, meetings, topics, onOpenMeeting, onC
       </EtvCard>
 
       <EtvCard className="overflow-hidden">
+        <div className="flex flex-col gap-3 border-b px-4 py-3.5 lg:flex-row lg:items-center lg:justify-between">
+          <div role="group" aria-label="Nach Stand filtern" className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setGroupFilter(null)}
+              className={cn("flex h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors",
+                groupFilter === null ? "border-primary bg-primary/10 text-primary" : "bg-background hover:bg-muted/60")}
+            >
+              Alle <span className="tabular-nums text-muted-foreground">{baseRows.length}</span>
+            </button>
+            {GROUPS.map((g) => {
+              const on = groupFilter === g.key;
+              const n = groupCounts.get(g.key) || 0;
+              return (
+                <button
+                  key={g.key}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => setGroupFilter(on ? null : g.key)}
+                  className={cn("flex h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors",
+                    on ? "border-primary bg-primary/10 text-primary" : "bg-background hover:bg-muted/60", n === 0 && !on && "text-muted-foreground")}
+                >
+                  <StatusDot className={g.dot} />
+                  {g.short}
+                  <span className="tabular-nums text-muted-foreground">{n}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="relative w-full lg:w-72">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Liegenschaft oder Ort suchen …" className="h-9 pl-9 pr-8" aria-label="Versammlungen durchsuchen" />
+            {search && (
+              <button type="button" onClick={() => setSearch("")} aria-label="Suche leeren" className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
         <div className="hidden grid-cols-[minmax(0,2.2fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,2.6fr)_70px_20px] gap-4 border-b bg-muted/30 px-5 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground md:grid">
           <div>Liegenschaft</div><div>Termin</div><div>Phase</div><div>Nächster Schritt</div><div>Themen</div><div />
         </div>
@@ -194,7 +243,7 @@ export const YearPlan = ({ year, buildings, meetings, topics, onOpenMeeting, onC
           <p className="px-5 py-10 text-center text-sm text-muted-foreground">Keine Einträge für diese Auswahl.</p>
         )}
         {grouped.map((g) => {
-          const collapsed = g.key === "erledigt" && !showDone;
+          const collapsed = g.key === "erledigt" && !showDone && groupFilter !== "erledigt" && !needle;
           return (
             <div key={g.key}>
               <button
