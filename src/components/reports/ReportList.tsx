@@ -1,4 +1,4 @@
-import { Loader2, MoreHorizontal, Plus, Search, X } from "lucide-react";
+import { Building2, Loader2, MoreHorizontal, Plus, Search, User, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import {
   staffName,
   useAssignReport,
 } from "@/hooks/useReports";
+import { SearchableFilterSelect } from "@/components/email/SearchableFilterSelect";
 import { MiniTag, StaffAvatar } from "./reportUi";
 import { errorMessage, shortDate } from "@/lib/reports";
 
@@ -38,6 +39,15 @@ interface Props {
   onSettings: () => void;
   /** Hinweis, wenn die gewählte Meldung gerade in einen anderen Ordner gewandert ist. */
   movedTo?: string | null;
+  /** Filter nach Gebäude und Melder (nur im Ordner „Erledigt“). */
+  filters?: {
+    buildingId: string;
+    contactName: string;
+    onBuildingChange: (v: string) => void;
+    onContactChange: (v: string) => void;
+    buildings: { id: string; name: string }[];
+    contacts: string[];
+  } | null;
 }
 
 export function ReportList({
@@ -54,6 +64,7 @@ export function ReportList({
   onNew,
   onSettings,
   movedTo,
+  filters,
 }: Props) {
   const searching = search.trim().length >= 2;
 
@@ -99,6 +110,30 @@ export function ReportList({
             </label>
           </div>
         )}
+        {filters && !searching && (
+          <div className="flex gap-2">
+            <SearchableFilterSelect
+              value={filters.buildingId}
+              onChange={filters.onBuildingChange}
+              icon={<Building2 className="h-3 w-3 shrink-0" />}
+              fixedOptions={[{ value: "all", label: "Alle Gebäude" }]}
+              options={filters.buildings.map((b) => ({ value: b.id, label: b.name }))}
+              searchPlaceholder="Gebäude suchen..."
+              emptyText="Kein Gebäude gefunden."
+              className="min-w-0 flex-1"
+            />
+            <SearchableFilterSelect
+              value={filters.contactName}
+              onChange={filters.onContactChange}
+              icon={<User className="h-3 w-3 shrink-0" />}
+              fixedOptions={[{ value: "all", label: "Alle Melder" }]}
+              options={filters.contacts.map((c) => ({ value: c, label: c }))}
+              searchPlaceholder="Melder suchen..."
+              emptyText="Kein Melder gefunden."
+              className="min-w-0 flex-1"
+            />
+          </div>
+        )}
         {movedTo && (
           <p className="rounded-md bg-emerald-500/10 px-2 py-1 text-[11.5px] text-emerald-700 dark:text-emerald-300">
             Die gewählte Meldung liegt jetzt unter „{movedTo}“.
@@ -115,7 +150,9 @@ export function ReportList({
           <div className="px-6 py-12 text-center text-sm text-muted-foreground">
             {searching
               ? "Keine Meldung gefunden."
-              : folder === "open"
+              : filters && (filters.buildingId !== "all" || filters.contactName !== "all")
+                ? "Keine Meldungen zu diesem Filter."
+                : folder === "open"
                 ? "Alles verteilt. Keine offenen Meldungen."
                 : "Keine Meldungen in diesem Ordner."}
           </div>

@@ -30,6 +30,19 @@ export type ReportStep = ReportStepRow;
 
 export interface Report extends ReportRow {
   building: { id: string; name: string } | null;
+  /** Melder, die das Büro beim Anlegen ausgewählt hat (leer bei Meldungen aus dem Portal). */
+  participants: { contact_id: string; user_id: string | null }[];
+}
+
+/** Ein Kontakt eines Gebäudes, der als Melder ausgewählt werden kann. */
+export interface BuildingContact {
+  contact_id: string;
+  user_id: string | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  role: string;
+  unit_number: string | null;
 }
 
 export interface ReportAttachment {
@@ -86,8 +99,10 @@ export const RESOLVE_REASONS = [
 export const folderOfStatus = (status: string): ReportFolder =>
   status === "open" ? "open" : status === "resolved" ? "done" : "progress";
 
-/** Hat der Melder einen Zugang zum Portal? Nur dann sieht er Nachrichten dort. */
-export const hasPortalAccess = (r: Pick<ReportRow, "reported_by">) => !!r.reported_by;
+/** Hat (mindestens ein) Melder einen Zugang zum Portal? Nur dann sieht er Nachrichten dort. */
+export const hasPortalAccess = (
+  r: Pick<ReportRow, "reported_by"> & { participants?: { user_id: string | null }[] | null },
+) => !!r.reported_by || !!r.participants?.some((p) => p.user_id);
 
 /** Was der Melder als aktuellen Stand sieht. */
 export const currentStandOf = (r: Pick<ReportRow, "current_step" | "status">) =>
@@ -122,7 +137,18 @@ export const staffInitials = (p?: StaffProfile | null) =>
         .toUpperCase() || "?"
     : "?");
 
-const REPORT_SELECT = "*, building:buildings(id, name)";
+const REPORT_SELECT = "*, building:buildings(id, name), participants:report_participants(contact_id, user_id)";
+
+export interface ReportListFilter {
+  buildingId?: string | null;
+  contactName?: string | null;
+}
+
+export const ROLE_LABEL: Record<string, string> = {
+  eigentuemer: "Eigentümer",
+  mieter: "Mieter",
+  beirat: "Beirat",
+};
 
 // ---------------------------------------------------------------------------
 // Abfragen
@@ -162,9 +188,11 @@ export function useStaffProfiles() {
   });
 }
 
-export function useReportList(folder: ReportFolder | null) {
+export function useReportList(folder: ReportFolder | null, filter: ReportListFilter = {}) {
+  const buildingId = filter.buildingId || null;
+  const contactName = filter.contactName || null;
   return useQuery({
-    queryKey: ["reports", "list", folder],
+    queryKey: ["reports", "list", folder, buildingId, contactName],
     enabled: !!folder,
     queryFn: async (): Promise<Report[]> => {
       let q = reportsDb
@@ -172,12 +200,108 @@ export function useReportList(folder: ReportFolder | null) {
         .select(REPORT_SELECT)
         .in("status", REPORT_FOLDER_STATUSES[folder!])
         .order("last_activity_at", { ascending: false });
+      if (buildingId) q = q.eq("building_id", buildingId);
+      if (contactName) q = q.eq("contact_name", contactName);
       // Erledigte können viele werden; die jüngsten reichen für die Liste,
-      // ältere findet man über die Suche.
+      // ältere findet man über die Filter oder die Suche.
       if (folder === "done") q = q.limit(300);
       const { data, error } = await q;
       if (error) throw error;
       return (data || []) as unknown as Report[];
+    },
+  });
+}
+
+/**
+ * Auswahl für die Filter im Ordner (Gebäude und Melder): alle Gebäude und
+ * Namen, die in diesem Ordner vorkommen — auch über die angezeigten hinaus.
+ */
+export function useReportFilterOptions(folder: ReportFolder | null) {
+  return useQuery({
+    queryKey: ["reports", "filter-options", folder],
+    enabled: !!folder,
+    queryFn: async () => {
+      const { data, error } = await reportsDb
+        .from("reports")
+        .select("building_id, contact_name, building:buildings(id, name)")
+        .in("status", REPORT_FOLDER_STATUSES[folder!])
+        .limit(5000);
+      if (error) throw error;
+      const rows = (data || []) as unknown as {
+        building_id: string | null;
+        contact_name: string | null;
+        building: { id: string; name: string } | null;
+      }[];
+      const buildings = new Map<string, string>();
+      const names = new Set<string>();
+      rows.forEach((r) => {
+        if (r.building) buildings.set(r.building.id, r.building.name);
+        if (r.contact_name?.trim()) names.add(r.contact_name.trim());
+      });
+      return {
+        buildings: [...buildings.entries()]
+          .map(([id, name]) => ({ id, name }))
+          .sort((a, b) => a.name.localeCompare(b.name, "de")),
+        contacts: [...names].sort((a, b) => a.localeCompare(b, "de")),
+      };
+    },
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * Kontakte eines Gebäudes (Eigentümer, Mieter, Beirat), aus denen das Büro
+ * beim Erfassen die Melder auswählt. Wer ein App-Konto hat, sieht die Meldung
+ * danach im Portal.
+ */
+export function useBuildingContacts(buildingId: string | null) {
+  return useQuery({
+    queryKey: ["reports", "building-contacts", buildingId],
+    enabled: !!buildingId,
+    queryFn: async (): Promise<BuildingContact[]> => {
+      const { data, error } = await supabase
+        .from("contact_building_assignments")
+        .select(
+          "contact_id, unit_number, role_in_building, contact:contacts(id, first_name, last_name, company_name, short_name, user_id, emails:contact_emails(email, is_primary), phones:contact_phones(phone_number))",
+        )
+        .eq("building_id", buildingId!)
+        .in("role_in_building", ["eigentuemer", "mieter", "beirat"])
+        .or("is_active.is.null,is_active.eq.true");
+      if (error) throw error;
+      const seen = new Set<string>();
+      const list: BuildingContact[] = [];
+      type Row = {
+        unit_number: string | null;
+        role_in_building: string | null;
+        contact: {
+          id: string;
+          first_name: string | null;
+          last_name: string | null;
+          company_name: string | null;
+          short_name: string | null;
+          user_id: string | null;
+          emails: { email: string; is_primary: boolean | null }[] | null;
+          phones: { phone_number: string | null }[] | null;
+        } | null;
+      };
+      for (const row of (data || []) as unknown as Row[]) {
+        const c = row.contact;
+        if (!c || seen.has(c.id)) continue;
+        seen.add(c.id);
+        const person = [c.first_name, c.last_name].filter(Boolean).join(" ");
+        const emails = (c.emails || []) as { email: string; is_primary: boolean | null }[];
+        const email = emails.find((e) => e.is_primary)?.email || emails[0]?.email || null;
+        list.push({
+          contact_id: c.id,
+          user_id: c.user_id ?? null,
+          name: person || c.company_name || c.short_name || "Unbenannt",
+          email,
+          phone: (c.phones || [])[0]?.phone_number ?? null,
+          role: row.role_in_building ?? "",
+          unit_number: row.unit_number ?? null,
+        });
+      }
+      return list.sort((a, b) => a.name.localeCompare(b.name, "de"));
     },
   });
 }
@@ -256,20 +380,17 @@ export function useReportTodos(reportId: string | null) {
   });
 }
 
-/** Zahlen für die Ordner im Postfach und das Abzeichen im Menü. */
+/** Zahl der offenen Meldungen (noch niemand zuständig) — für Ordner und Menü. */
 export function useReportCounts(enabled = true) {
   return useQuery({
     queryKey: ["reports", "counts"],
     enabled,
     queryFn: async () => {
-      const [open, progress] = await Promise.all([
-        reportsDb.from("reports").select("id", { count: "exact", head: true }).eq("status", "open"),
-        reportsDb
-          .from("reports")
-          .select("id", { count: "exact", head: true })
-          .in("status", ["in_progress", "waiting"]),
-      ]);
-      return { open: open.count ?? 0, progress: progress.count ?? 0 };
+      const { count } = await reportsDb
+        .from("reports")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "open");
+      return { open: count ?? 0 };
     },
     staleTime: 15_000,
   });
@@ -322,12 +443,12 @@ export function useReportByNumber(number: string | null) {
   });
 }
 
-/** Signierte Links für die Anhänge (Bucket „report-attachments“). */
-export function useReportAttachmentUrls(reportId: string | null, attachments: unknown) {
+/** Signierte Links für Anhänge (Bucket „report-attachments“) — der Meldung oder eines Verlaufseintrags. */
+export function useReportAttachmentUrls(attachments: unknown) {
   const list = parseAttachments(attachments);
   return useQuery({
-    queryKey: ["reports", "attachments", reportId, list.map((a) => a.path).join("|")],
-    enabled: !!reportId && list.length > 0,
+    queryKey: ["report-attachment-urls", list.map((a) => a.path).join("|")],
+    enabled: list.length > 0,
     staleTime: 30 * 60_000,
     queryFn: async () => {
       return Promise.all(
@@ -375,6 +496,7 @@ function useInvalidateReports() {
     qc.invalidateQueries({ queryKey: ["reports", "list"] });
     qc.invalidateQueries({ queryKey: ["reports", "counts"] });
     qc.invalidateQueries({ queryKey: ["reports", "search"] });
+    qc.invalidateQueries({ queryKey: ["reports", "filter-options"] });
     if (reportId) {
       qc.invalidateQueries({ queryKey: ["reports", "one", reportId] });
       qc.invalidateQueries({ queryKey: ["reports", "events", reportId] });
@@ -753,7 +875,11 @@ export function useCreateTaskFromReport() {
   });
 }
 
-/** Meldung von Hand erfassen (Anruf, Brief) oder aus einer E-Mail übernehmen. */
+/**
+ * Meldung von Hand erfassen (Anruf, Brief) oder aus einer E-Mail übernehmen.
+ * Sind Kontakte ausgewählt, sind sie die Melder: wer ein App-Konto hat, sieht
+ * die Meldung im Portal und bekommt dort Stände und Nachrichten.
+ */
 export function useCreateReport() {
   const { user } = useAuth();
   const invalidate = useInvalidateReports();
@@ -768,10 +894,14 @@ export function useCreateReport() {
       contactPhone: string;
       channel: ReportChannel;
       sourceEmailId?: string | null;
+      contacts?: BuildingContact[];
     }) => {
+      const contacts = input.contacts || [];
+      const withAccount = contacts.find((c) => c.user_id);
       const { data, error } = await reportsDb
         .from("reports")
         .insert({
+          reported_by: withAccount?.user_id ?? null,
           building_id: input.buildingId,
           management_mode: input.managementMode,
           title: input.title.trim(),
@@ -786,6 +916,12 @@ export function useCreateReport() {
         .select("id, report_number, status")
         .single();
       if (error) throw error;
+      if (contacts.length) {
+        const { error: partError } = await reportsDb.from("report_participants").insert(
+          contacts.map((c) => ({ report_id: data.id, contact_id: c.contact_id, user_id: c.user_id })),
+        );
+        if (partError) throw partError;
+      }
       await insertEvent({
         report_id: data.id,
         kind: "system",
@@ -799,6 +935,30 @@ export function useCreateReport() {
     },
     onSuccess: (d) => {
       invalidate(d.id);
+    },
+  });
+}
+
+/**
+ * Meldung endgültig löschen — samt Verlauf und hochgeladenen Dateien.
+ * Aufgaben, die aus ihr entstanden sind, bleiben stehen.
+ */
+export function useDeleteReport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (report: Pick<ReportRow, "id" | "attachments">) => {
+      const { data: events } = await reportsDb.from("report_events").select("attachments").eq("report_id", report.id);
+      const paths = [
+        ...parseAttachments(report.attachments),
+        ...(events || []).flatMap((e) => parseAttachments(e.attachments)),
+      ].map((a) => a.path);
+      const { error } = await reportsDb.from("reports").delete().eq("id", report.id);
+      if (error) throw error;
+      // Dateien zuletzt: schlägt das fehl, ist die Meldung trotzdem weg.
+      if (paths.length) await supabase.storage.from("report-attachments").remove(paths);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["reports"] });
     },
   });
 }
