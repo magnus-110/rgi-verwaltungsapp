@@ -12,6 +12,7 @@ import {
   Loader2,
   MoreHorizontal,
   Paperclip,
+  Pencil,
   PenLine,
   Send,
   StickyNote,
@@ -23,6 +24,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
@@ -44,6 +46,7 @@ import {
   useAblage,
   useAblageHinlegen,
   useAblageLoeschen,
+  useAblageUmbenennen,
   useMarkAblageRead,
   type AblageItem,
 } from '@/hooks/useAblage';
@@ -52,6 +55,7 @@ import {
   DRAG_TYPE_ABLAGE,
   DRAG_TYPE_DMS,
   DRAG_TYPE_MAIL_ANHANG,
+  getLaufenderMailZug,
   setLaufenderAblageZug,
   type AblageDragFile,
   type MailAnhangDrag,
@@ -95,7 +99,7 @@ const istBild = (i: AblageItem) =>
 
 function hatEigeneDaten(e: React.DragEvent) {
   const t = Array.from(e.dataTransfer.types);
-  return t.includes('Files') || t.includes(DRAG_TYPE_MAIL_ANHANG) || t.includes(DRAG_TYPE_DMS);
+  return t.includes('Files') || t.includes(DRAG_TYPE_MAIL_ANHANG) || t.includes(DRAG_TYPE_DMS) || !!getLaufenderMailZug()?.length;
 }
 
 export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
@@ -104,6 +108,10 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
   const { dateien, notiz, mailAnhaenge, dmsDateien } = useAblageHinlegen();
   const loeschen = useAblageLoeschen();
   const markRead = useMarkAblageRead();
+  const umbenennen = useAblageUmbenennen();
+  // Umbenennen direkt in der Liste: welcher Eintrag gerade bearbeitet wird
+  const [bearbeiteId, setBearbeiteId] = useState<string | null>(null);
+  const [neuerName, setNeuerName] = useState('');
   const { composes, openCompose, updateCompose, setMode } = useComposeEmail();
   // Die E-Mail, die gerade offen ist (oder zuletzt geöffnet wurde).
   const offeneMail = [...composes].reverse().find(c => c.mode !== 'minimized') ?? composes[composes.length - 1];
@@ -194,15 +202,18 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
     e.preventDefault();
     dragCounter.current = 0;
     setDragOver(false);
-    const mail = e.dataTransfer.getData(DRAG_TYPE_MAIL_ANHANG);
-    if (mail) {
-      try {
-        const anhaenge = JSON.parse(mail) as MailAnhangDrag[];
-        mailAnhaenge.mutate({ anhaenge, recipientIds: empfaenger, note: text });
-        setText('');
-      } catch {
-        toast.error('Anhang konnte nicht übernommen werden');
-      }
+    // Mail-Anhang: über den Ziehen-Datentyp, zur Sicherheit auch über den gemerkten Zug
+    let anhaenge: MailAnhangDrag[] | null = null;
+    try {
+      const mail = e.dataTransfer.getData(DRAG_TYPE_MAIL_ANHANG);
+      if (mail) anhaenge = JSON.parse(mail) as MailAnhangDrag[];
+    } catch {
+      anhaenge = null;
+    }
+    anhaenge = anhaenge?.length ? anhaenge : getLaufenderMailZug();
+    if (anhaenge?.length) {
+      mailAnhaenge.mutate({ anhaenge, recipientIds: empfaenger, note: text });
+      setText('');
       return;
     }
     // Aus dem DMS (Objekt-Dokumente oder RGI intern) hereingezogen
@@ -325,6 +336,18 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
     } finally {
       setMailLaedt(false);
     }
+  };
+
+  const starteUmbenennen = (item: AblageItem) => {
+    setBearbeiteId(item.id);
+    setNeuerName(item.file_name || '');
+  };
+
+  const speichereName = (item: AblageItem) => {
+    const name = neuerName.trim();
+    setBearbeiteId(null);
+    if (!name || name === item.file_name) return;
+    umbenennen.mutate({ item, name });
   };
 
   const loescheAuswahl = (liste: AblageItem[]) => {
@@ -577,7 +600,33 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
                   </button>
 
                   <div className="min-w-0 flex-1">
-                    {item.kind === 'file' ? (
+                    {item.kind === 'file' && bearbeiteId === item.id ? (
+                      <Input
+                        autoFocus
+                        value={neuerName}
+                        onChange={e => setNeuerName(e.target.value)}
+                        onFocus={e => {
+                          // Nur den Namen markieren, nicht die Endung
+                          const punkt = e.target.value.lastIndexOf('.');
+                          e.target.setSelectionRange(0, punkt > 0 ? punkt : e.target.value.length);
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            speichereName(item);
+                          } else if (e.key === 'Escape') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setBearbeiteId(null);
+                          }
+                        }}
+                        onBlur={() => speichereName(item)}
+                        draggable={false}
+                        onDragStart={e => e.preventDefault()}
+                        className="h-7 px-2 text-[13px]"
+                        aria-label="Neuer Dateiname"
+                      />
+                    ) : item.kind === 'file' ? (
                       <button
                         type="button"
                         onClick={() => oeffnen(item)}
@@ -693,10 +742,17 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                      <DropdownMenuContent align="end" onCloseAutoFocus={e => e.preventDefault()}>
                         {item.kind === 'file' && (
                           <DropdownMenuItem onClick={() => oeffnen(item)}>
                             <FileText className="mr-2 h-4 w-4" /> Öffnen
+                          </DropdownMenuItem>
+                        )}
+                        {item.kind === 'file' && (
+                          // Erst nach dem Schließen des Menüs umschalten — sonst holt
+                          // sich das Menü den Fokus zurück und das Feld schließt sofort.
+                          <DropdownMenuItem onClick={() => window.setTimeout(() => starteUmbenennen(item), 150)}>
+                            <Pencil className="mr-2 h-4 w-4" /> Umbenennen
                           </DropdownMenuItem>
                         )}
                         {istPdf(item) && (

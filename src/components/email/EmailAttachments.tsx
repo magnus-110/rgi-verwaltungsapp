@@ -2,14 +2,14 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown, FileArchive, RefreshCw, Inbox, PenLine, Reply } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { SaveAttachmentToBuildingDialog } from "./SaveAttachmentToBuildingDialog";
 import { InAblageLegenDialog } from "@/components/ablage/InAblageLegenDialog";
-import { DRAG_TYPE_MAIL_ANHANG, type MailAnhangDrag } from "@/integrations/supabase/ablage";
+import { DRAG_TYPE_MAIL_ANHANG, setLaufenderMailZug, type MailAnhangDrag } from "@/integrations/supabase/ablage";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
 import { sanitizeStorageKey } from "@/lib/sanitizeStorageKey";
 import { mergeImagesToPdf } from "./lib/mergeImagesToPdf";
@@ -651,10 +651,12 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
               onDragStart={(e) => {
                 const a = alsAblageAnhang(att);
                 if (!a) return;
+                setLaufenderMailZug([a]);
                 e.dataTransfer.effectAllowed = "copy";
                 e.dataTransfer.setData(DRAG_TYPE_MAIL_ANHANG, JSON.stringify([a]));
                 e.dataTransfer.setData("text/plain", att.file_name);
               }}
+              onDragEnd={() => setLaufenderMailZug(null)}
             >
               {canSelect && (
                 <div className="flex items-center gap-0.5">
@@ -692,11 +694,21 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
                   )}
                 </div>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 h-auto py-1.5 px-2.5"
+              {/* Kein echter <button>: Aus Knöpfen lässt sich in manchen Browsern
+                  (z. B. Firefox) nichts herausziehen — so geht das Ziehen in die
+                  Ablage überall. */}
+              <div
+                role="button"
+                tabIndex={0}
+                className={buttonVariants({ variant: "outline", size: "sm", className: "gap-1.5 h-auto py-1.5 px-2.5 cursor-pointer" })}
+                title="Klicken zum Öffnen · in die Ablage ziehen zum Ablegen"
                 onClick={() => att.file_path && handleOpenPreview(att.file_path, att.file_name, att.mime_type)}
+                onKeyDown={(e) => {
+                  if ((e.key === "Enter" || e.key === " ") && att.file_path) {
+                    e.preventDefault();
+                    handleOpenPreview(att.file_path, att.file_name, att.mime_type);
+                  }
+                }}
               >
                 <Icon className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate max-w-[150px]">{att.file_name}</span>
@@ -706,7 +718,7 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
                   </span>
                 )}
                 <Download className="h-3 w-3 shrink-0" />
-              </Button>
+              </div>
               {isPdf(att.mime_type, att.file_name) && att.file_path && (
                 <Button
                   variant="ghost"
