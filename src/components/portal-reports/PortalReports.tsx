@@ -38,6 +38,7 @@ import {
   useReporterContext,
 } from "@/hooks/usePortalReports";
 import { errorMessage } from "@/lib/reports";
+import { AttachmentChips } from "@/components/reports/reportUi";
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
@@ -174,6 +175,7 @@ function PortalReportDetail({ report, onBack }: { report: PortalReport; onBack: 
   const { data: events = [] } = usePortalReportEvents(report.id);
   const reply = usePortalReply();
   const [text, setText] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
   const done = report.status === "resolved";
   const steps = events.filter((e) => e.kind === "step");
   const messages = events.filter((e) => e.kind === "message" || e.kind === "reply");
@@ -191,10 +193,11 @@ function PortalReportDetail({ report, onBack }: { report: PortalReport; onBack: 
   }, [steps, report.created_at, report.status]);
 
   const send = async () => {
-    if (!text.trim()) return;
+    if (!text.trim() && files.length === 0) return;
     try {
-      await reply.mutateAsync({ reportId: report.id, body: text });
+      await reply.mutateAsync({ reportId: report.id, body: text, files });
       setText("");
+      setFiles([]);
       toast({ title: "Antwort gesendet", description: "Die Verwaltung hat Ihre Nachricht erhalten." });
     } catch (e) {
       toast({ title: "Nicht gesendet", description: errorMessage(e, "Bitte später erneut versuchen."), variant: "destructive" });
@@ -288,7 +291,8 @@ function PortalReportDetail({ report, onBack }: { report: PortalReport; onBack: 
                     : "justify-self-end rounded-br-sm bg-primary/10",
                 )}
               >
-                <p className="whitespace-pre-wrap">{m.body}</p>
+                {m.body && <p className="whitespace-pre-wrap">{m.body}</p>}
+                <AttachmentChips attachments={m.attachments} className="mt-1.5" />
                 <p className="mt-1 text-[10.5px] text-muted-foreground">
                   {m.kind === "message" ? "Ihre Verwaltung" : "Sie"} · {fmtDateTime(m.created_at)}
                 </p>
@@ -309,7 +313,50 @@ function PortalReportDetail({ report, onBack }: { report: PortalReport; onBack: 
               placeholder="Ihre Antwort …"
               className="w-full resize-y rounded-lg border-0 bg-[hsl(var(--input))] px-3 py-2.5 text-[14px] outline-none"
             />
-            <Button onClick={send} disabled={reply.isPending || !text.trim()} className="w-full gap-2 rounded-[12px]">
+            <label
+              htmlFor={`portal-reply-files-${report.id}`}
+              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-[hsl(var(--input))] px-3 py-2.5 text-[13px] text-foreground/80 transition-colors hover:bg-[hsl(35_25%_92%)]"
+            >
+              <Upload className="h-4 w-4" />
+              Fotos oder Dokumente anhängen
+            </label>
+            <input
+              id={`portal-reply-files-${report.id}`}
+              type="file"
+              multiple
+              accept="image/*,.pdf,.doc,.docx"
+              onChange={(e) => {
+                const picked = e.target.files ? Array.from(e.target.files) : [];
+                setFiles((prev) => [...prev, ...picked]);
+                e.target.value = "";
+              }}
+              className="hidden"
+            />
+            {files.length > 0 && (
+              <div className="space-y-1.5">
+                {files.map((file, index) => (
+                  <div key={index} className="flex items-center justify-between gap-2 rounded-lg bg-[hsl(var(--input))] px-3 py-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span className="truncate text-[13px]">{file.name}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFiles((prev) => prev.filter((_, i) => i !== index))}
+                      className="text-muted-foreground hover:text-foreground"
+                      aria-label="Anhang entfernen"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Button
+              onClick={send}
+              disabled={reply.isPending || (!text.trim() && files.length === 0)}
+              className="w-full gap-2 rounded-[12px]"
+            >
               {reply.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               Antwort senden
             </Button>
