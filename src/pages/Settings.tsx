@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +27,7 @@ import { NotificationSettingsSection } from "@/components/settings/NotificationS
 import { PasskeysSection } from "@/components/settings/PasskeysSection";
 import { MySignatureSection } from "@/components/settings/MySignatureSection";
 import { BrokerModeToggle } from "@/components/settings/BrokerModeToggle";
+import { ReportSettings } from "@/components/reports/ReportSettings";
 
 interface AdminUser {
   user_id: string;
@@ -371,6 +371,7 @@ export const Settings = () => {
             {isAdmin && <TabsTrigger variant="segment" value="users" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Benutzer</TabsTrigger>}
             {isAdmin && <TabsTrigger variant="segment" value="chatbot" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Chatbot</TabsTrigger>}
             {isAdmin && <TabsTrigger variant="segment" value="email" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">E-Mail</TabsTrigger>}
+            {isAdmin && <TabsTrigger variant="segment" value="meldungen" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Meldungen</TabsTrigger>}
             {isAdmin && <TabsTrigger variant="segment" value="templates" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Vorlagen</TabsTrigger>}
           </TabsList>
 
@@ -584,6 +585,13 @@ export const Settings = () => {
           {isAdmin && (
             <TabsContent value="email" className="space-y-6 mt-6">
               <EmailSettingsSection />
+            </TabsContent>
+          )}
+
+          {/* Tab: Meldungen — Schritte für den Melder und Export */}
+          {isAdmin && (
+            <TabsContent value="meldungen" className="space-y-6 mt-6">
+              <ReportSettings />
             </TabsContent>
           )}
 
