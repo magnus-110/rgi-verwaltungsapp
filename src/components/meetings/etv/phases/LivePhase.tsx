@@ -434,7 +434,7 @@ export const LivePhase = ({ meeting, onGoToProtocol }: Props) => {
   return (
     <div className="space-y-5">
       {/* Kopfleiste */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-card px-5 py-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-white px-5 py-3.5 shadow-sm dark:bg-card">
         <div className="flex items-center gap-3.5">
           {live ? (
             <span className="flex items-center gap-2 rounded-full bg-red-50 px-2.5 py-1 text-[12px] font-bold tracking-wider text-red-700 dark:bg-red-950/40 dark:text-red-300"><span className="h-2 w-2 animate-pulse rounded-full bg-red-600" />LIVE</span>
@@ -555,10 +555,10 @@ export const LivePhase = ({ meeting, onGoToProtocol }: Props) => {
               </div>
             )}
 
-            <div className={cn("grid gap-3.5", needsVote ? "md:grid-cols-2" : "grid-cols-1")}>
+            <div className="grid grid-cols-1 gap-3.5">
               <div className="space-y-1.5">
                 <Label htmlFor="live-desc" className="flex items-center justify-between">Beschreibung {savedHint === "description" && <span className="text-xs font-normal text-emerald-700">gespeichert</span>}</Label>
-                <Textarea id="live-desc" rows={4} value={desc} onChange={(e) => setDesc(e.target.value)} onBlur={() => saveField("description", desc)} />
+                <Textarea id="live-desc" rows={3} value={desc} onChange={(e) => setDesc(e.target.value)} onBlur={() => saveField("description", desc)} />
               </div>
               {needsVote && (
                 <div className="space-y-1.5">
@@ -605,7 +605,7 @@ export const LivePhase = ({ meeting, onGoToProtocol }: Props) => {
             {/* Abstimmung */}
             {needsVote && (
               <div className="overflow-hidden rounded-2xl border">
-                <div className="space-y-3 border-b bg-muted/30 px-4 py-3.5">
+                <div className="space-y-3 border-b bg-white px-4 py-3.5 dark:bg-card">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <Segmented
                       value={mode}
