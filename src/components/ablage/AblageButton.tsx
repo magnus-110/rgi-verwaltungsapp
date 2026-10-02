@@ -54,8 +54,8 @@ export function AblageButton({ className }: { className?: string }) {
 
 /**
  * Die Leiste am rechten Rand — einmal im Verwaltungsbereich eingebunden.
- * Hört außerdem live mit: Legt ein Kollege etwas hinein, kommt unten rechts
- * ein kurzer Hinweis; ein Klick darauf öffnet die Ablage.
+ * Hört außerdem live mit: Legt ein Kollege etwas nur für einen selbst hinein,
+ * kommt unten rechts ein kurzer Hinweis; ein Klick darauf öffnet die Ablage.
  */
 export function AblagePanel() {
   const open = useAblageOffen();
@@ -66,9 +66,13 @@ export function AblagePanel() {
   useAblageLive(row => {
     const von = people.find(p => p.userId === row.created_by)?.name ?? 'Ein Kollege';
     const nurFuerMich = !!user?.id && (row.recipient_ids || []).includes(user.id);
+    // Einträge "für alle" melden sich nicht mehr mit einem Hinweis — nur noch
+    // über die Zahl am Korb-Symbol. Hingewiesen wird nur, wenn etwas
+    // ausdrücklich für einen selbst hingelegt wurde.
+    if (!nurFuerMich) return;
     showInAppToast({
       icon: <Inbox className="h-5 w-5" />,
-      title: nurFuerMich ? `${von} hat dir etwas in die Ablage gelegt` : `${von} hat etwas in die Ablage gelegt`,
+      title: `${von} hat dir etwas in die Ablage gelegt`,
       subtitle: row.kind === 'note' ? 'Notiz' : row.file_name ?? 'Datei',
       detail: (row.note ?? '').slice(0, 140) || undefined,
       onClick: () => setAblageOffen(true),
