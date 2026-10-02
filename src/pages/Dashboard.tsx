@@ -181,7 +181,7 @@ export const Dashboard = () => {
           label="Offene Meldungen"
           value={stats.open_reports}
           tone="red"
-          onClick={() => navigate("/reports")}
+          onClick={() => navigate("/postfach?ordner=meldungen")}
           isLoading={isLoading}
         />
         <KpiCard
