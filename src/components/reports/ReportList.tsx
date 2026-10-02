@@ -4,9 +4,18 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { REPORT_FOLDER_LABEL, Report, ReportFolder, StaffProfile } from "@/hooks/useReports";
+import { toast } from "sonner";
+import {
+  REPORT_FOLDER_LABEL,
+  Report,
+  ReportFolder,
+  StaffProfile,
+  staffInitials,
+  staffName,
+  useAssignReport,
+} from "@/hooks/useReports";
 import { MiniTag, StaffAvatar } from "./reportUi";
-import { shortDate } from "@/lib/reports";
+import { errorMessage, shortDate } from "@/lib/reports";
 
 const HINT: Record<ReportFolder, string> = {
   open: "Neu eingegangen, noch niemand zuständig.",
@@ -116,11 +125,19 @@ export function ReportList({
               const unread = !r.is_read;
               const assignee = r.assigned_to ? staff.get(r.assigned_to) : null;
               return (
-                <button
+                <div
                   key={r.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => onSelect(r.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onSelect(r.id);
+                    }
+                  }}
                   className={cn(
-                    "grid w-full gap-0.5 px-3.5 py-2.5 text-left transition-colors",
+                    "grid w-full cursor-pointer gap-0.5 px-3.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
                     selectedId === r.id ? "bg-accent" : "hover:bg-muted/50",
                     unread && "border-l-4 border-l-primary bg-primary/[0.06] pl-2.5",
                   )}
@@ -150,14 +167,66 @@ export function ReportList({
                     </span>
                     {searching && <span className="shrink-0">{REPORT_FOLDER_LABEL[r.status === "open" ? "open" : r.status === "resolved" ? "done" : "progress"]}</span>}
                     {r.status === "waiting" && <MiniTag tone="info">wartet</MiniTag>}
-                    <StaffAvatar profile={assignee} empty={!assignee} />
+                    <QuickAssign report={r} assignee={assignee} staff={staff} />
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
         )}
       </ScrollArea>
     </div>
+  );
+}
+
+/**
+ * Zuständigkeit direkt in der Liste ändern — wie bei den E-Mails über das
+ * Kürzel unten rechts. Ohne Notiz; wer etwas dazuschreiben will, nimmt den
+ * Knopf oben in der Meldung.
+ */
+function QuickAssign({
+  report,
+  assignee,
+  staff,
+}: {
+  report: Report;
+  assignee: StaffProfile | null | undefined;
+  staff: Map<string, StaffProfile>;
+}) {
+  const assign = useAssignReport();
+  const people = [...staff.values()];
+  return (
+    <span
+      className="relative inline-flex shrink-0"
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      <StaffAvatar profile={assignee} empty={!assignee} />
+      <select
+        aria-label="Zuständigkeit"
+        title={assignee ? `Zuständig: ${staffName(assignee)}` : "Zuständig machen"}
+        value={report.assigned_to ?? ""}
+        disabled={assign.isPending}
+        onChange={(e) => {
+          const userId = e.target.value || null;
+          assign.mutate(
+            { report, userId },
+            {
+              onSuccess: () =>
+                toast.success(userId ? `Zuständig: ${staffName(staff.get(userId))}` : "Zuständigkeit entfernt"),
+              onError: (err) => toast.error(errorMessage(err, "Konnte nicht zugeordnet werden")),
+            },
+          );
+        }}
+        className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0"
+      >
+        <option value="">— niemand —</option>
+        {people.map((p) => (
+          <option key={p.user_id} value={p.user_id}>
+            {staffInitials(p)} · {staffName(p)}
+          </option>
+        ))}
+      </select>
+    </span>
   );
 }

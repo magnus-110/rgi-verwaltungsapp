@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Check, Clock, Mail, MessageSquare, StickyNote, ListChecks } from 'lucide-react';
+import { Bell, Check, Clock, ClipboardList, Mail, MessageSquare, StickyNote, ListChecks } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +21,8 @@ const ICONS: Record<NotificationType, typeof Bell> = {
   case_email: Mail,
   review_due: ListChecks,
   deadline: Clock,
+  report_assigned: ClipboardList,
+  report_reply: ClipboardList,
 };
 
 const ICON_TONE: Record<NotificationType, string> = {
@@ -32,6 +34,8 @@ const ICON_TONE: Record<NotificationType, string> = {
   case_email: 'bg-muted text-muted-foreground',
   review_due: 'bg-muted text-muted-foreground',
   deadline: 'bg-[#FBEAE5] text-[#B4472B]',
+  report_assigned: 'bg-[#FFF4E3] text-[#8a6417]',
+  report_reply: 'bg-[#EDF2E6] text-[#4e6b3c]',
 };
 
 function relativeTime(iso: string) {
