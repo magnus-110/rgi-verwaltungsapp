@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -19,8 +18,7 @@ import {
 import { EtvCard, KpiTile, PhaseBars, Pill, StatusDot } from "./ui";
 import type { EtvMeetingWithExtras, Topic, WegBuilding } from "./useEtvData";
 import {
-  EXEMPTION_REASON_LABEL, removeEtvYearExemption, setEtvYearExemption, useEtvYearExemptions,
-  type EtvExemptionReason, type EtvYearExemption,
+  removeEtvYearExemption, setEtvYearExemption, useEtvYearExemptions, type EtvYearExemption,
 } from "./useEtvYearExemptions";
 
 interface Props {
@@ -66,7 +64,6 @@ export const YearPlan = ({ year, buildings, meetings, topics, onOpenMeeting, onC
   const [groupFilter, setGroupFilter] = useState<GroupKey | null>(null);
   const [search, setSearch] = useState("");
   const [exemptTarget, setExemptTarget] = useState<WegBuilding | null>(null);
-  const [exemptReason, setExemptReason] = useState<EtvExemptionReason>("extern");
   const [exemptNote, setExemptNote] = useState("");
   const [saving, setSaving] = useState(false);
   const { data: exemptions = [] } = useEtvYearExemptions();
@@ -100,7 +97,7 @@ export const YearPlan = ({ year, buildings, meetings, topics, onOpenMeeting, onC
         out.push({
           key: `exempt-${b.id}`, building: b, meeting: null, exemption,
           step: {
-            label: exemption.note || (exemption.reason === "extern" ? "Versammlung außerhalb der App abgehalten" : "Ohne Versammlung als erledigt markiert"),
+            label: exemption.note || "Versammlung außerhalb der App abgehalten (lt. Jahreszyklus)",
             tag: "Erledigt", urgency: "green", rank: 98, group: "erledigt",
           },
           phase: "Abgeschlossen", done: 4, late: false, topics: openTopicsByBuilding.get(b.id) || 0,
@@ -132,7 +129,6 @@ export const YearPlan = ({ year, buildings, meetings, topics, onOpenMeeting, onC
   }, [buildings, yearMeetings, openTopicsByBuilding, exemptionByBuilding, year, thisYear]);
 
   const openExemptDialog = (b: WegBuilding) => {
-    setExemptReason("extern");
     setExemptNote("");
     setExemptTarget(b);
   };
@@ -141,8 +137,11 @@ export const YearPlan = ({ year, buildings, meetings, topics, onOpenMeeting, onC
     if (!exemptTarget) return;
     setSaving(true);
     try {
-      await setEtvYearExemption(exemptTarget.id, year, exemptReason, exemptNote);
-      await qc.invalidateQueries({ queryKey: ["etv-year-exemptions"] });
+      await setEtvYearExemption(exemptTarget.id, year, exemptNote);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["etv-year-exemptions"] }),
+        qc.invalidateQueries({ queryKey: ["annual-cycle"] }),
+      ]);
       toast({ title: "Als erledigt markiert", description: `${exemptTarget.name} – Versammlung ${year}` });
       setExemptTarget(null);
     } catch (e: any) {
@@ -155,7 +154,10 @@ export const YearPlan = ({ year, buildings, meetings, topics, onOpenMeeting, onC
   const undoExemption = async (b: WegBuilding) => {
     try {
       await removeEtvYearExemption(b.id, year);
-      await qc.invalidateQueries({ queryKey: ["etv-year-exemptions"] });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["etv-year-exemptions"] }),
+        qc.invalidateQueries({ queryKey: ["annual-cycle"] }),
+      ]);
       toast({ title: "Markierung aufgehoben", description: `${b.name} – Versammlung ${year} wieder offen` });
     } catch (e: any) {
       toast({ title: "Fehler", description: e.message, variant: "destructive" });
@@ -410,18 +412,10 @@ export const YearPlan = ({ year, buildings, meetings, topics, onOpenMeeting, onC
           <DialogHeader>
             <DialogTitle>Versammlung {year} als erledigt markieren</DialogTitle>
             <DialogDescription>
-              {exemptTarget?.name} – für dieses Jahr ist keine Versammlung in der App angelegt. Die Liegenschaft erscheint danach unter „Abgeschlossen“.
+              {exemptTarget?.name} – z. B. weil die Versammlung noch von der Vorverwaltung oder vor Einführung der App abgehalten wurde. Im Jahreszyklus werden „TOPs abfragen“, „ETV einberufen“ und „ETV-Protokoll fertig“ auf erledigt gesetzt; die Liegenschaft erscheint dann unter „Abgeschlossen“.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <RadioGroup value={exemptReason} onValueChange={(v) => setExemptReason(v as EtvExemptionReason)} className="space-y-2">
-              {(Object.keys(EXEMPTION_REASON_LABEL) as EtvExemptionReason[]).map((k) => (
-                <div key={k} className="flex items-start gap-2.5">
-                  <RadioGroupItem value={k} id={`exempt-${k}`} className="mt-0.5" />
-                  <Label htmlFor={`exempt-${k}`} className="text-sm font-normal leading-snug">{EXEMPTION_REASON_LABEL[k]}</Label>
-                </div>
-              ))}
-            </RadioGroup>
             <div className="space-y-1.5">
               <Label htmlFor="exempt-note" className="text-sm">Notiz (optional)</Label>
               <Textarea
