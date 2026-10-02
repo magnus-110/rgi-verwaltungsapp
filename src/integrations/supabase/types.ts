@@ -4863,6 +4863,63 @@ export type Database = {
           },
         ]
       }
+      document_signature_log: {
+        Row: {
+          building_id: string | null
+          context: string
+          contract_id: string | null
+          created_at: string
+          email_id: string | null
+          id: string
+          placements: Json | null
+          result_bucket: string | null
+          result_file_id: string | null
+          result_name: string | null
+          result_path: string | null
+          signed_by: string | null
+          signer_name: string | null
+          source_bucket: string | null
+          source_name: string | null
+          source_path: string | null
+        }
+        Insert: {
+          building_id?: string | null
+          context: string
+          contract_id?: string | null
+          created_at?: string
+          email_id?: string | null
+          id?: string
+          placements?: Json | null
+          result_bucket?: string | null
+          result_file_id?: string | null
+          result_name?: string | null
+          result_path?: string | null
+          signed_by?: string | null
+          signer_name?: string | null
+          source_bucket?: string | null
+          source_name?: string | null
+          source_path?: string | null
+        }
+        Update: {
+          building_id?: string | null
+          context?: string
+          contract_id?: string | null
+          created_at?: string
+          email_id?: string | null
+          id?: string
+          placements?: Json | null
+          result_bucket?: string | null
+          result_file_id?: string | null
+          result_name?: string | null
+          result_path?: string | null
+          signed_by?: string | null
+          signer_name?: string | null
+          source_bucket?: string | null
+          source_name?: string | null
+          source_path?: string | null
+        }
+        Relationships: []
+      }
       economic_plan_items: {
         Row: {
           account_id: string | null
@@ -5229,6 +5286,46 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "email_attachments_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "emails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_buildings: {
+        Row: {
+          building_id: string
+          created_at: string
+          email_id: string
+        }
+        Insert: {
+          building_id: string
+          created_at?: string
+          email_id: string
+        }
+        Update: {
+          building_id?: string
+          created_at?: string
+          email_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_buildings_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_buildings_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
+            foreignKeyName: "email_buildings_email_id_fkey"
             columns: ["email_id"]
             isOneToOne: false
             referencedRelation: "emails"
@@ -6242,8 +6339,10 @@ export type Database = {
           building_id: string
           created_at: string | null
           created_by: string | null
+          default_voting_principle: string | null
           ended_at: string | null
           id: string
+          invitation_sent_at: string | null
           is_secret_ballot: boolean
           location: string | null
           lock_time: string | null
@@ -6251,20 +6350,25 @@ export type Database = {
           meeting_date: string | null
           minutes_taker: string | null
           notes: string | null
+          protocol_filed_at: string | null
           protocol_generated_at: string | null
           protocol_published: boolean | null
           protocol_text: string | null
           quorum_reached: boolean | null
           status: string
+          steps_done: Json
           title: string
           updated_at: string | null
+          voting_basis_note: string | null
         }
         Insert: {
           building_id: string
           created_at?: string | null
           created_by?: string | null
+          default_voting_principle?: string | null
           ended_at?: string | null
           id?: string
+          invitation_sent_at?: string | null
           is_secret_ballot?: boolean
           location?: string | null
           lock_time?: string | null
@@ -6272,20 +6376,25 @@ export type Database = {
           meeting_date?: string | null
           minutes_taker?: string | null
           notes?: string | null
+          protocol_filed_at?: string | null
           protocol_generated_at?: string | null
           protocol_published?: boolean | null
           protocol_text?: string | null
           quorum_reached?: boolean | null
           status?: string
+          steps_done?: Json
           title: string
           updated_at?: string | null
+          voting_basis_note?: string | null
         }
         Update: {
           building_id?: string
           created_at?: string | null
           created_by?: string | null
+          default_voting_principle?: string | null
           ended_at?: string | null
           id?: string
+          invitation_sent_at?: string | null
           is_secret_ballot?: boolean
           location?: string | null
           lock_time?: string | null
@@ -6293,13 +6402,16 @@ export type Database = {
           meeting_date?: string | null
           minutes_taker?: string | null
           notes?: string | null
+          protocol_filed_at?: string | null
           protocol_generated_at?: string | null
           protocol_published?: boolean | null
           protocol_text?: string | null
           quorum_reached?: boolean | null
           status?: string
+          steps_done?: Json
           title?: string
           updated_at?: string | null
+          voting_basis_note?: string | null
         }
         Relationships: [
           {
@@ -6372,6 +6484,66 @@ export type Database = {
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "etv_protocol_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etv_protocol_sign_requests: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          email: string | null
+          expires_at: string
+          id: string
+          meeting_id: string
+          role: string
+          signed_at: string | null
+          signer_contact_id: string | null
+          signer_name: string
+          status: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          expires_at?: string
+          id?: string
+          meeting_id: string
+          role: string
+          signed_at?: string | null
+          signer_contact_id?: string | null
+          signer_name: string
+          status?: string
+          token?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          expires_at?: string
+          id?: string
+          meeting_id?: string
+          role?: string
+          signed_at?: string | null
+          signer_contact_id?: string | null
+          signer_name?: string
+          status?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etv_protocol_sign_requests_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "etv_meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_protocol_sign_requests_signer_contact_id_fkey"
+            columns: ["signer_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
         ]
@@ -6780,6 +6952,80 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      etv_topic_states: {
+        Row: {
+          agenda_item_id: string | null
+          building_id: string | null
+          created_at: string
+          meeting_id: string | null
+          merged_into: string | null
+          outcome: string | null
+          reason: string | null
+          source_id: string
+          source_type: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          agenda_item_id?: string | null
+          building_id?: string | null
+          created_at?: string
+          meeting_id?: string | null
+          merged_into?: string | null
+          outcome?: string | null
+          reason?: string | null
+          source_id: string
+          source_type: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          agenda_item_id?: string | null
+          building_id?: string | null
+          created_at?: string
+          meeting_id?: string | null
+          merged_into?: string | null
+          outcome?: string | null
+          reason?: string | null
+          source_id?: string
+          source_type?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etv_topic_states_agenda_item_id_fkey"
+            columns: ["agenda_item_id"]
+            isOneToOne: false
+            referencedRelation: "etv_agenda_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_topic_states_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_topic_states_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
+            foreignKeyName: "etv_topic_states_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "etv_meetings"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -9472,6 +9718,77 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rgi_building_billing_overview"
             referencedColumns: ["contract_id"]
+          },
+        ]
+      }
+      office_drop_items: {
+        Row: {
+          created_at: string
+          created_by: string
+          file_name: string | null
+          file_path: string | null
+          file_size: number | null
+          id: string
+          kind: string
+          mime_type: string | null
+          note: string | null
+          recipient_ids: string[]
+          source: string
+          source_email_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          file_name?: string | null
+          file_path?: string | null
+          file_size?: number | null
+          id?: string
+          kind: string
+          mime_type?: string | null
+          note?: string | null
+          recipient_ids?: string[]
+          source?: string
+          source_email_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          file_name?: string | null
+          file_path?: string | null
+          file_size?: number | null
+          id?: string
+          kind?: string
+          mime_type?: string | null
+          note?: string | null
+          recipient_ids?: string[]
+          source?: string
+          source_email_id?: string | null
+        }
+        Relationships: []
+      }
+      office_drop_reads: {
+        Row: {
+          item_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          item_id: string
+          read_at?: string
+          user_id?: string
+        }
+        Update: {
+          item_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "office_drop_reads_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "office_drop_items"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -12414,6 +12731,27 @@ export type Database = {
           },
         ]
       }
+      user_signatures: {
+        Row: {
+          created_at: string
+          signature_png: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          signature_png: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          signature_png?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_tour_progress: {
         Row: {
           progress: Json
@@ -13190,6 +13528,14 @@ export type Database = {
       }
       is_rgi_staff: { Args: never; Returns: boolean }
       normalize_phone_last8: { Args: { p: string }; Returns: string }
+      office_drop_can_see: {
+        Args: {
+          p_created_by: string
+          p_recipient_ids: string[]
+          p_user: string
+        }
+        Returns: boolean
+      }
       remove_building_manager: {
         Args: { manager_id_param: string }
         Returns: undefined
