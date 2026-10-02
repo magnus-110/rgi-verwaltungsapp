@@ -1,11 +1,14 @@
+import { Paperclip } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import {
   REPORT_STATUS_LABEL,
   ReportStatus,
   StaffProfile,
+  parseAttachments,
   staffInitials,
   staffName,
+  useReportAttachmentUrls,
 } from "@/hooks/useReports";
 
 /** Kleine Bausteine, die Liste, Detail und Dialoge gemeinsam nutzen. */
@@ -116,5 +119,40 @@ export function CheckRow({
       <Checkbox checked={checked} disabled={disabled} onCheckedChange={(v) => onChange(!!v)} className="mt-0.5" />
       <span>{children}</span>
     </label>
+  );
+}
+
+/** Hochgeladene Fotos und Dokumente als anklickbare Chips (öffnen in neuem Tab). */
+export function AttachmentChips({ attachments, className }: { attachments: unknown; className?: string }) {
+  const list = parseAttachments(attachments);
+  const { data: links = [] } = useReportAttachmentUrls(attachments);
+  if (list.length === 0) return null;
+  const items = links.length ? links : list.map((a) => ({ ...a, url: null as string | null }));
+  return (
+    <div className={cn("flex flex-wrap gap-1.5", className)}>
+      {items.map((a, i) =>
+        a.url ? (
+          <a
+            key={i}
+            href={a.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex max-w-[220px] items-center gap-1.5 rounded-full border bg-background/70 px-2.5 py-0.5 text-[11.5px] hover:border-primary/40 hover:bg-primary/5"
+          >
+            <Paperclip className="h-3 w-3 shrink-0" />
+            <span className="truncate">{a.name}</span>
+          </a>
+        ) : (
+          <span
+            key={i}
+            className="inline-flex max-w-[220px] items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11.5px] text-muted-foreground"
+          >
+            <Paperclip className="h-3 w-3 shrink-0" />
+            <span className="truncate">{a.name}</span>
+          </span>
+        ),
+      )}
+    </div>
   );
 }

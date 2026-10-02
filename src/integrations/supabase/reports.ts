@@ -2,7 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from './client';
 
 /**
- * Typen für die Meldungs-Tabellen (reports, report_events, report_steps).
+ * Typen für die Meldungs-Tabellen (reports, report_events, report_participants,
+ * report_steps).
  *
  * Warum hier und nicht in types.ts: Diese Datei wird von
  * `npm run db:types` erzeugt. Sobald jemand die Typen neu generiert, stehen
@@ -55,6 +56,15 @@ export type ReportEventRow = {
   sent_by_email: boolean;
   assigned_to: string | null;
   created_by: string | null;
+  attachments: unknown;
+  created_at: string;
+};
+
+/** Melder einer Meldung, wenn das Büro sie für einen oder mehrere Kontakte anlegt. */
+export type ReportParticipantRow = {
+  report_id: string;
+  contact_id: string;
+  user_id: string | null;
   created_at: string;
 };
 
@@ -90,6 +100,12 @@ type ReportsDatabase = {
         Row: ReportEventRow;
         Insert: Insertable<ReportEventRow, 'report_id' | 'kind'>;
         Update: Partial<ReportEventRow>;
+        Relationships: [];
+      };
+      report_participants: {
+        Row: ReportParticipantRow;
+        Insert: Insertable<ReportParticipantRow, 'report_id' | 'contact_id'>;
+        Update: Partial<ReportParticipantRow>;
         Relationships: [];
       };
       report_steps: {

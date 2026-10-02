@@ -17,13 +17,20 @@ interface Props {
   variant: "expanded" | "collapsed" | "mobile";
 }
 
+/**
+ * Die Meldungs-Ordner — gestaltet wie die E-Mail-Ordner darüber, nur mit der
+ * Überschrift „Meldungen“. Gezählt werden nur die offenen: das sind die, um
+ * die sich noch niemand kümmert.
+ */
 export function ReportFolderNav({ selectedFolderId, onSelect, variant }: Props) {
   const { data: counts } = useReportCounts();
-  const countOf = (f: ReportFolder) => (f === "open" ? counts?.open ?? 0 : f === "progress" ? counts?.progress ?? 0 : 0);
+  const openCount = counts?.open ?? 0;
+  const countOf = (f: ReportFolder) => (f === "open" ? openCount : 0);
 
   if (variant === "collapsed") {
     return (
-      <div className="mt-2 flex flex-col items-center border-t pt-2">
+      <>
+        <div className="my-2 h-px w-6 bg-border" />
         {ITEMS.map(({ folder, icon: Icon }) => {
           const id = REPORT_FOLDER_IDS[folder];
           const active = selectedFolderId === id;
@@ -40,26 +47,21 @@ export function ReportFolderNav({ selectedFolderId, onSelect, variant }: Props) 
             >
               <Icon className="h-4 w-4" />
               {count > 0 && (
-                <span
-                  className={cn(
-                    "absolute -right-0.5 -top-0.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full px-0.5 text-[9px]",
-                    folder === "open" ? "bg-destructive text-destructive-foreground" : "bg-primary/80 text-white",
-                  )}
-                >
+                <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-destructive px-0.5 text-[9px] text-destructive-foreground">
                   {count}
                 </span>
               )}
             </button>
           );
         })}
-      </div>
+      </>
     );
   }
 
   const mobile = variant === "mobile";
   return (
-    <div className="mx-2 mt-3 rounded-lg border border-primary/20 bg-primary/[0.03] p-1.5">
-      <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wider text-primary">Meldungen</p>
+    <div className="p-2 pt-1">
+      <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Meldungen</p>
       {ITEMS.map(({ folder, icon: Icon }) => {
         const id = REPORT_FOLDER_IDS[folder];
         const active = selectedFolderId === id;
@@ -69,18 +71,16 @@ export function ReportFolderNav({ selectedFolderId, onSelect, variant }: Props) 
             key={folder}
             onClick={() => onSelect(id)}
             className={cn(
-              "flex w-full items-center gap-2 rounded-md text-left transition-colors",
-              mobile ? "px-3 py-3 text-sm" : "px-2 py-1.5 text-sm",
+              "flex w-full items-center gap-2 rounded-md text-sm transition-colors",
+              mobile ? "px-3 py-3" : "px-2 py-1.5",
               active ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted",
             )}
           >
             <Icon className={cn("shrink-0", mobile ? "h-5 w-5" : "h-4 w-4")} />
-            <span className={cn("flex-1 truncate", folder === "open" && "font-medium")}>
-              {REPORT_FOLDER_LABEL[folder]}
-            </span>
+            <span className="flex-1 truncate text-left">{REPORT_FOLDER_LABEL[folder]}</span>
             {count > 0 && (
               <Badge
-                variant={active ? "secondary" : folder === "open" ? "destructive" : "outline"}
+                variant={active ? "secondary" : "default"}
                 className={cn(mobile ? "text-xs" : "h-5 min-w-[20px] justify-center px-1.5 py-0 text-[10px]")}
               >
                 {count}
