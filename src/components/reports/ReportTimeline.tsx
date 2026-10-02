@@ -2,6 +2,7 @@ import { Activity, Lock, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ReportEvent, StaffProfile, staffFirstName } from "@/hooks/useReports";
 import { dateTime } from "@/lib/reports";
+import { AttachmentChips } from "./reportUi";
 
 export type TimelineFilter = "all" | "reporter" | "internal";
 
@@ -76,7 +77,8 @@ export function ReportTimeline({ events, filter, staff, reporterName }: Props) {
               key={e.id}
               className="max-w-[88%] justify-self-start rounded-xl rounded-bl-sm border bg-muted/50 px-3 py-2 text-[12.5px]"
             >
-              <p className="whitespace-pre-wrap">{e.body}</p>
+              {e.body && <p className="whitespace-pre-wrap">{e.body}</p>}
+              <AttachmentChips attachments={e.attachments} className="mt-1.5" />
               <p className="mt-1 text-[10.5px] text-muted-foreground">
                 {reporterName} · {dateTime(e.created_at)} · aus dem Portal
               </p>

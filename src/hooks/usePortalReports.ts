@@ -8,7 +8,8 @@ import type { ReportAttachment, ReportEvent, ReportRow } from "@/hooks/useReport
 /**
  * Meldungen aus Sicht des Melders (Eigentümer- und Mieterportal).
  *
- * Der Melder sieht seine eigenen Meldungen, den aktuellen Stand, die
+ * Der Melder sieht seine eigenen Meldungen (und die, bei denen ihn die
+ * Verwaltung als Beteiligten eingetragen hat), den aktuellen Stand, die
  * bisherigen Schritte und die Nachrichten der Verwaltung. Antworten kann er
  * nur, wenn die Verwaltung das bei einer Nachricht oder einem Stand
  * freigegeben hat (reply_open). Interne Einträge sieht er nie — das regelt
@@ -44,7 +45,6 @@ export function usePortalReports() {
       const { data, error } = await reportsDb
         .from("reports")
         .select("*, building:buildings(id, name)")
-        .eq("reported_by", userId!)
         .order("last_activity_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as PortalReport[];
@@ -81,7 +81,7 @@ export function usePortalReportsLive() {
       .channel(`portal-reports-${userId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "reports", filter: `reported_by=eq.${userId}` },
+        { event: "*", schema: "public", table: "reports" },
         () => qc.invalidateQueries({ queryKey: ["portal-reports"] }),
       )
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "report_events" }, (payload) => {
@@ -95,18 +95,37 @@ export function usePortalReportsLive() {
   }, [userId, qc]);
 }
 
-/** Antwort des Melders — nur möglich, solange die Verwaltung sie freigegeben hat. */
+/** Fotos und Dokumente in den Speicher legen (Ordner des Nutzers). */
+async function uploadFiles(userId: string, files: File[]): Promise<ReportAttachment[]> {
+  const uploaded: ReportAttachment[] = [];
+  for (const file of files) {
+    const ext = file.name.split(".").pop();
+    const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await supabase.storage.from("report-attachments").upload(path, file);
+    if (error) throw new Error(`„${file.name}“ konnte nicht hochgeladen werden`);
+    uploaded.push({ name: file.name, path, size: file.size, type: file.type });
+  }
+  return uploaded;
+}
+
+/**
+ * Antwort des Melders — nur möglich, solange die Verwaltung sie freigegeben
+ * hat. Fotos und Dokumente dürfen mitgeschickt werden.
+ */
 export function usePortalReply() {
   const { profile } = useAuth();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { reportId: string; body: string }) => {
+    mutationFn: async (input: { reportId: string; body: string; files?: File[] }) => {
+      const userId = profile!.user_id;
+      const uploaded = await uploadFiles(userId, input.files || []);
       const { error } = await reportsDb.from("report_events").insert({
         report_id: input.reportId,
         kind: "reply",
         body: input.body.trim(),
         visible_to_reporter: true,
-        created_by: profile!.user_id,
+        created_by: userId,
+        attachments: uploaded,
       });
       if (error) throw error;
     },
@@ -199,14 +218,7 @@ export function useCreatePortalReport(mode: PortalMode) {
       files: File[];
     }) => {
       const userId = profile!.user_id;
-      const uploaded: ReportAttachment[] = [];
-      for (const file of input.files) {
-        const ext = file.name.split(".").pop();
-        const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        const { error } = await supabase.storage.from("report-attachments").upload(path, file);
-        if (error) throw new Error(`„${file.name}“ konnte nicht hochgeladen werden`);
-        uploaded.push({ name: file.name, path, size: file.size, type: file.type });
-      }
+      const uploaded = await uploadFiles(userId, input.files);
       const { error } = await reportsDb.from("reports").insert({
         management_mode: mode,
         channel: "portal",

@@ -9,6 +9,7 @@ import {
   ReportFolder,
   folderOfStatus,
   useReport,
+  useReportFilterOptions,
   useReportList,
   useReportSearch,
   useReportsLive,
@@ -37,13 +38,30 @@ export function ReportsPanel({ folder, selectedId, onSelect, onFolderChange, onO
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [movedTo, setMovedTo] = useState<string | null>(null);
+  // Filter im Ordner „Erledigt“ — dort sammeln sich mit der Zeit viele Meldungen.
+  const [filterBuilding, setFilterBuilding] = useState("all");
+  const [filterContact, setFilterContact] = useState("all");
+  const withFilters = folder === "done";
+  useEffect(() => {
+    setFilterBuilding("all");
+    setFilterContact("all");
+  }, [folder]);
+  const { data: filterOptions } = useReportFilterOptions(withFilters ? folder : null);
 
   useReportsLive("postfach");
   const { data: staff = [] } = useStaffProfiles();
   const staffMap = useMemo(() => new Map(staff.map((s) => [s.user_id, s])), [staff]);
 
   const searching = search.trim().length >= 2;
-  const { data: folderReports = [], isLoading } = useReportList(searching ? null : folder);
+  const { data: folderReports = [], isLoading } = useReportList(
+    searching ? null : folder,
+    withFilters
+      ? {
+          buildingId: filterBuilding === "all" ? null : filterBuilding,
+          contactName: filterContact === "all" ? null : filterContact,
+        }
+      : {},
+  );
   const { data: found = [], isLoading: searchLoading } = useReportSearch(search);
   const reports = useMemo(() => {
     const base = searching ? found : folderReports;
@@ -91,6 +109,18 @@ export function ReportsPanel({ folder, selectedId, onSelect, onFolderChange, onO
             onNew={() => setCreateOpen(true)}
             onSettings={() => navigate("/settings?tab=meldungen")}
             movedTo={movedTo}
+            filters={
+              withFilters
+                ? {
+                    buildingId: filterBuilding,
+                    contactName: filterContact,
+                    onBuildingChange: setFilterBuilding,
+                    onContactChange: setFilterContact,
+                    buildings: filterOptions?.buildings ?? [],
+                    contacts: filterOptions?.contacts ?? [],
+                  }
+                : null
+            }
           />
         </ResizablePanel>
         <ResizableHandle withHandle className="hidden w-1.5 bg-border transition-colors hover:bg-primary/40 md:flex" />
