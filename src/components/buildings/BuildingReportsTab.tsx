@@ -1,201 +1,95 @@
-import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Edit, Copy, AlertCircle, FolderPlus, Link2 } from "lucide-react";
-import { useManagementMode } from "@/hooks/useManagementMode";
-import { EditReportDialog } from "@/components/reports/EditReportDialog";
-import { useToast } from "@/hooks/use-toast";
-import { CreateCaseDialog } from "@/components/cases/CreateCaseDialog";
-import { useCreateCase, useAddCaseEvent } from "@/hooks/useCases";
+import { AlertCircle, ChevronRight, Loader2 } from "lucide-react";
+import { reportsDb } from "@/integrations/supabase/reports";
+import { REPORT_FOLDER_LABEL, ReportFolder, ReportRow, currentStandOf, folderOfStatus } from "@/hooks/useReports";
+import { ReportStatusBadge } from "@/components/reports/reportUi";
+import { shortDate } from "@/lib/reports";
 
 interface BuildingReportsTabProps {
   buildingId: string;
-  managementMode: "weg" | "rent";
 }
 
-export const BuildingReportsTab = ({ buildingId, managementMode }: BuildingReportsTabProps) => {
-  const { toast } = useToast();
-  const [editingReport, setEditingReport] = useState<any>(null);
-  const [createCaseFromReport, setCreateCaseFromReport] = useState<any>(null);
-  const createCase = useCreateCase();
-  const addEvent = useAddCaseEvent();
+const ORDER: ReportFolder[] = ["open", "progress", "done"];
 
-  const tableName = managementMode === "weg" ? "weg_reports" : "miete_reports";
-
-  const { data: reports = [], isLoading, refetch } = useQuery({
-    queryKey: ['building-reports', buildingId, tableName],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from(tableName)
+/**
+ * Meldungen eines Gebäudes — nur zum Überblick. Bearbeitet werden sie im
+ * Postfach; ein Klick öffnet die Meldung dort.
+ */
+export const BuildingReportsTab = ({ buildingId }: BuildingReportsTabProps) => {
+  const navigate = useNavigate();
+  const { data: reports = [], isLoading } = useQuery({
+    queryKey: ["reports", "building", buildingId],
+    queryFn: async (): Promise<ReportRow[]> => {
+      const { data, error } = await reportsDb
+        .from("reports")
         .select("*")
         .eq("building_id", buildingId)
-        .order("created_at", { ascending: false });
+        .order("last_activity_at", { ascending: false })
+        .limit(300);
       if (error) throw error;
       return data || [];
     },
   });
 
-  const openReports = reports.filter(r => r.status === 'open');
-  const inProgressReports = reports.filter(r => r.status === 'in_progress');
-  const resolvedReports = reports.filter(r => r.status === 'resolved');
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "open": return <Badge variant="destructive" className="text-xs">Offen</Badge>;
-      case "in_progress": return <Badge variant="secondary" className="text-xs">Bearbeitet</Badge>;
-      case "resolved": return <Badge className="text-xs">Erledigt</Badge>;
-      default: return <Badge variant="outline" className="text-xs">{status}</Badge>;
-    }
-  };
-
-  const copyToClipboard = (report: any) => {
-    const text = `Name: ${report.contact_name}\nTitel: ${report.title}\nBeschreibung: ${report.description}`;
-    navigator.clipboard.writeText(text);
-    toast({ title: "Kopiert", description: "Meldungsinformationen kopiert." });
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  };
-
   if (isLoading) {
-    return <div className="text-center py-8 text-muted-foreground">Laden...</div>;
-  }
-
-  if (reports.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="p-3 bg-muted rounded-xl mb-4">
-          <AlertCircle className="h-8 w-8 text-muted-foreground" />
-        </div>
-        <h3 className="font-semibold text-lg mb-1">Keine Meldungen</h3>
-        <p className="text-sm text-muted-foreground">Für dieses Gebäude liegen keine Meldungen vor.</p>
+      <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Laden …
       </div>
     );
   }
 
-  const renderReport = (report: any) => (
-    <Card key={report.id} className="shadow-sm">
-      <CardContent className="p-4">
-        <div className="flex justify-between items-start mb-2">
-          <div className="flex-1 min-w-0">
-            <h4 className="font-medium truncate">{report.title}</h4>
-            <p className="text-xs text-muted-foreground mt-0.5">{formatDate(report.created_at)}</p>
-          </div>
-          <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-            {report.case_id && (
-              <Badge variant="outline" className="gap-1 text-[10px]">
-                <Link2 className="h-2.5 w-2.5" />
-                Vorgang
-              </Badge>
-            )}
-            {getStatusBadge(report.status)}
-            {!report.case_id && (
-              <Button variant="ghost" size="sm" className="h-7 px-2 gap-1" onClick={() => setCreateCaseFromReport(report)} title="Vorgang aus Meldung erstellen">
-                <FolderPlus className="h-3.5 w-3.5" />
-                <span className="text-xs">Vorgang</span>
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => copyToClipboard(report)}>
-              <Copy className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setEditingReport(report)}>
-              <Edit className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-        {report.description && (
-          <p className="text-sm text-muted-foreground line-clamp-2">{report.description}</p>
-        )}
-        {report.contact_name && (
-          <p className="text-xs text-muted-foreground mt-2">Kontakt: {report.contact_name}</p>
-        )}
-      </CardContent>
-    </Card>
-  );
+  if (reports.length === 0) {
+    return (
+      <div className="py-12 text-center text-muted-foreground">
+        <AlertCircle className="mx-auto mb-2 h-8 w-8 opacity-50" />
+        <p className="text-sm">Keine Meldungen für dieses Gebäude.</p>
+      </div>
+    );
+  }
+
+  const grouped = ORDER.map((f) => ({ folder: f, items: reports.filter((r) => folderOfStatus(r.status) === f) }));
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
-      <div className="flex gap-4 text-sm">
-        <span className="text-muted-foreground">
-          <Badge variant="destructive" className="text-xs mr-1">{openReports.length}</Badge> Offen
-        </span>
-        <span className="text-muted-foreground">
-          <Badge variant="secondary" className="text-xs mr-1">{inProgressReports.length}</Badge> In Bearbeitung
-        </span>
-        <span className="text-muted-foreground">
-          <Badge className="text-xs mr-1">{resolvedReports.length}</Badge> Erledigt
-        </span>
+      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+        {grouped.map((g) => (
+          <span key={g.folder}>
+            <span className="font-semibold text-foreground">{g.items.length}</span> {REPORT_FOLDER_LABEL[g.folder]}
+          </span>
+        ))}
       </div>
 
-      {/* Open reports */}
-      {openReports.length > 0 && (
-        <div className="space-y-3">
-          <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">Offene Meldungen</h4>
-          <div className="space-y-2">{openReports.map(renderReport)}</div>
-        </div>
-      )}
-
-      {/* In progress */}
-      {inProgressReports.length > 0 && (
-        <div className="space-y-3">
-          <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">In Bearbeitung</h4>
-          <div className="space-y-2">{inProgressReports.map(renderReport)}</div>
-        </div>
-      )}
-
-      {/* Resolved */}
-      {resolvedReports.length > 0 && (
-        <div className="space-y-3">
-          <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">Erledigt</h4>
-          <div className="space-y-2">{resolvedReports.map(renderReport)}</div>
-        </div>
-      )}
-
-      {editingReport && (
-        <EditReportDialog
-          report={editingReport}
-          open={!!editingReport}
-          tableName={managementMode === 'weg' ? 'weg_reports' : 'miete_reports'}
-          onClose={() => setEditingReport(null)}
-          onSaved={() => { setEditingReport(null); refetch(); }}
-        />
-      )}
-
-      <CreateCaseDialog
-        open={!!createCaseFromReport}
-        onOpenChange={(open) => !open && setCreateCaseFromReport(null)}
-        buildingId={buildingId}
-        managementMode={managementMode}
-        defaults={createCaseFromReport ? {
-          title: createCaseFromReport.title,
-          description: createCaseFromReport.description,
-        } : undefined}
-        onCreated={async (caseRow) => {
-          if (!createCaseFromReport) return;
-          // Link report to the new case
-          await supabase.from(tableName).update({ case_id: caseRow.id } as any).eq("id", createCaseFromReport.id);
-          // Add a timeline event
-          try {
-            await addEvent.mutateAsync({
-              case_id: caseRow.id,
-              event_type: "note",
-              title: "Aus Meldung erstellt",
-              body: `Meldung: ${createCaseFromReport.title}\n${createCaseFromReport.description || ""}${createCaseFromReport.contact_name ? `\n\nKontakt: ${createCaseFromReport.contact_name}` : ""}`,
-              source_table: tableName,
-              source_id: createCaseFromReport.id,
-              trigger_summary: false,
-            });
-          } catch (e) { console.error(e); }
-          setCreateCaseFromReport(null);
-          refetch();
-        }}
-      />
+      {grouped
+        .filter((g) => g.items.length > 0)
+        .map((g) => (
+          <div key={g.folder} className="space-y-2">
+            <h4 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+              {REPORT_FOLDER_LABEL[g.folder]}
+            </h4>
+            <div className="divide-y rounded-lg border bg-card">
+              {g.items.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => navigate(`/postfach?meldung=${r.id}`)}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{r.title}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {r.report_number} · {r.contact_name || "Unbekannt"} · {currentStandOf(r)}
+                    </p>
+                  </div>
+                  <span className="hidden text-xs text-muted-foreground sm:inline">{shortDate(r.last_activity_at)}</span>
+                  <ReportStatusBadge status={r.status} />
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      <p className="text-xs text-muted-foreground">Bearbeitet werden Meldungen im Postfach unter „Meldungen“.</p>
     </div>
   );
 };

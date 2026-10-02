@@ -122,29 +122,18 @@ export function InAppNotificationsProvider({ children }: { children: React.React
           navigate,
         });
       })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "weg_reports" }, (payload) => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "reports" }, (payload) => {
         const row: any = payload.new;
         if (!prefsRef.current.in_app_report_enabled) return;
-        if (!isFresh(row.created_at) || dedupe("wr:" + row.id)) return;
+        // Von Hand erfasste Meldungen legt das Büro selbst an — dafür kein Hinweis.
+        if (row.is_read) return;
+        if (!isFresh(row.created_at) || dedupe("r:" + row.id)) return;
         showToast({
           icon: <ClipboardList className="h-4 w-4" />,
-          title: "Neue WEG-Meldung",
+          title: row.management_mode === "rent" ? "Neue Miet-Meldung" : "Neue Meldung",
           subtitle: truncate(row.title || "Ohne Titel"),
           detail: truncate(row.contact_name || row.description, 80),
-          url: "/tickets",
-          navigate,
-        });
-      })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "miete_reports" }, (payload) => {
-        const row: any = payload.new;
-        if (!prefsRef.current.in_app_report_enabled) return;
-        if (!isFresh(row.created_at) || dedupe("mr:" + row.id)) return;
-        showToast({
-          icon: <ClipboardList className="h-4 w-4" />,
-          title: "Neue Miet-Meldung",
-          subtitle: truncate(row.title || "Ohne Titel"),
-          detail: truncate(row.contact_name || row.description, 80),
-          url: "/tickets",
+          url: `/postfach?meldung=${row.id}`,
           navigate,
         });
       })
