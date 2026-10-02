@@ -1,6 +1,16 @@
 import { useMemo, useState } from "react";
-import { ChevronRight, ChevronDown, Plus, Search, X } from "lucide-react";
+import { ChevronRight, ChevronDown, CheckCircle2, MoreHorizontal, Plus, RotateCcw, Search, X } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   formatMeetingDate, getNextStep, getPhase, meetingYear, phaseIndex, relativeDays, startOfDay,
@@ -8,6 +18,10 @@ import {
 } from "@/lib/etvPhase";
 import { EtvCard, KpiTile, PhaseBars, Pill, StatusDot } from "./ui";
 import type { EtvMeetingWithExtras, Topic, WegBuilding } from "./useEtvData";
+import {
+  EXEMPTION_REASON_LABEL, removeEtvYearExemption, setEtvYearExemption, useEtvYearExemptions,
+  type EtvExemptionReason, type EtvYearExemption,
+} from "./useEtvYearExemptions";
 
 interface Props {
   year: number;
@@ -32,6 +46,7 @@ type Row = {
   done: number;
   late: boolean;
   topics: number;
+  exemption: EtvYearExemption | null;
 };
 
 type GroupKey = NextStep["group"] | "ohne";
@@ -42,13 +57,21 @@ const GROUPS: { key: GroupKey; title: string; short: string; dot: string }[] = [
   { key: "ohne", title: "Noch offen – keine Versammlung angelegt", short: "Noch offen", dot: "bg-amber-500" },
   { key: "erledigt", title: "Abgeschlossen", short: "Abgeschlossen", dot: "bg-emerald-600" },
 ];
-const groupOf = (r: { meeting: unknown; step: NextStep }): GroupKey => (r.meeting ? r.step.group : "ohne");
+const groupOf = (r: { meeting: unknown; exemption: unknown; step: NextStep }): GroupKey =>
+  r.meeting ? r.step.group : r.exemption ? "erledigt" : "ohne";
 
 export const YearPlan = ({ year, buildings, meetings, topics, onOpenMeeting, onCreateMeeting }: Props) => {
   const [month, setMonth] = useState<number | null>(null);
   const [showDone, setShowDone] = useState(false);
   const [groupFilter, setGroupFilter] = useState<GroupKey | null>(null);
   const [search, setSearch] = useState("");
+  const [exemptTarget, setExemptTarget] = useState<WegBuilding | null>(null);
+  const [exemptReason, setExemptReason] = useState<EtvExemptionReason>("extern");
+  const [exemptNote, setExemptNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const { data: exemptions = [] } = useEtvYearExemptions();
+  const qc = useQueryClient();
+  const { toast } = useToast();
   const now = new Date();
   const thisYear = now.getFullYear();
 
@@ -63,12 +86,29 @@ export const YearPlan = ({ year, buildings, meetings, topics, onOpenMeeting, onC
     return map;
   }, [topics]);
 
+  const exemptionByBuilding = useMemo(
+    () => new Map(exemptions.filter((e) => e.year === year).map((e) => [e.building_id, e])),
+    [exemptions, year],
+  );
+
   const rows: Row[] = useMemo(() => {
     const out: Row[] = [];
     for (const b of buildings) {
       const ms = yearMeetings.filter((m) => m.building_id === b.id);
-      if (ms.length === 0) {
+      const exemption = exemptionByBuilding.get(b.id) || null;
+      if (ms.length === 0 && exemption) {
         out.push({
+          key: `exempt-${b.id}`, building: b, meeting: null, exemption,
+          step: {
+            label: exemption.note || (exemption.reason === "extern" ? "Versammlung außerhalb der App abgehalten" : "Ohne Versammlung als erledigt markiert"),
+            tag: "Erledigt", urgency: "green", rank: 98, group: "erledigt",
+          },
+          phase: "Abgeschlossen", done: 4, late: false, topics: openTopicsByBuilding.get(b.id) || 0,
+        });
+        continue;
+      }
+      if (ms.length === 0) {
+        out.push({ exemption: null,
           key: `none-${b.id}`, building: b, meeting: null,
           step: year < thisYear
             ? { label: `Keine Versammlung in ${year}`, tag: "Fehlt", urgency: "amber", rank: 50, group: "handeln" }
@@ -82,14 +122,45 @@ export const YearPlan = ({ year, buildings, meetings, topics, onOpenMeeting, onC
         const phase = getPhase(m, m.extras);
         const idx = phaseIndex(phase);
         out.push({
-          key: m.id, building: b, meeting: m, step, phase: PHASE_LABEL[phase],
+          key: m.id, building: b, meeting: m, exemption: null, step, phase: PHASE_LABEL[phase],
           done: idx, late: step.urgency === "red" || (step.tag === "Status"),
           topics: openTopicsByBuilding.get(b.id) || 0,
         });
       }
     }
     return out;
-  }, [buildings, yearMeetings, openTopicsByBuilding, year, thisYear]);
+  }, [buildings, yearMeetings, openTopicsByBuilding, exemptionByBuilding, year, thisYear]);
+
+  const openExemptDialog = (b: WegBuilding) => {
+    setExemptReason("extern");
+    setExemptNote("");
+    setExemptTarget(b);
+  };
+
+  const saveExemption = async () => {
+    if (!exemptTarget) return;
+    setSaving(true);
+    try {
+      await setEtvYearExemption(exemptTarget.id, year, exemptReason, exemptNote);
+      await qc.invalidateQueries({ queryKey: ["etv-year-exemptions"] });
+      toast({ title: "Als erledigt markiert", description: `${exemptTarget.name} – Versammlung ${year}` });
+      setExemptTarget(null);
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const undoExemption = async (b: WegBuilding) => {
+    try {
+      await removeEtvYearExemption(b.id, year);
+      await qc.invalidateQueries({ queryKey: ["etv-year-exemptions"] });
+      toast({ title: "Markierung aufgehoben", description: `${b.name} – Versammlung ${year} wieder offen` });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e.message, variant: "destructive" });
+    }
+  };
 
   const needle = search.trim().toLowerCase();
   const baseRows = rows
@@ -112,7 +183,8 @@ export const YearPlan = ({ year, buildings, meetings, topics, onOpenMeeting, onC
   const heldDone = held.filter((m) => getPhase(m, m.extras) === "abgeschlossen");
   const planned = yearMeetings.filter((m) => m.meeting_date && new Date(m.meeting_date) >= startOfDay(now) && !(m.status === "completed" || m.ended_at));
   const nextPlanned = [...planned].sort((a, b) => (a.meeting_date || "").localeCompare(b.meeting_date || ""))[0];
-  const withoutMeeting = rows.filter((r) => !r.meeting).length;
+  const withoutMeeting = rows.filter((r) => !r.meeting && !r.exemption).length;
+  const exemptCount = rows.filter((r) => r.exemption).length;
   const toClarify = rows.filter((r) => r.meeting && r.step.group === "handeln").length;
 
   // Saisonleiste
@@ -132,7 +204,13 @@ export const YearPlan = ({ year, buildings, meetings, topics, onOpenMeeting, onC
     <div className="space-y-6">
       <section aria-label={`Stand ${year}`} className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <KpiTile label="WEGs" value={buildings.length} hint={`Wirtschaftsjahr ${year}`} dot="bg-slate-500" />
-        <KpiTile label="Abgehalten" value={held.length} unit={`von ${buildings.length}`} hint={`${heldDone.length} vollständig abgeschlossen`} dot="bg-emerald-600" />
+        <KpiTile
+          label="Abgehalten"
+          value={held.length + exemptCount}
+          unit={`von ${buildings.length}`}
+          hint={`${heldDone.length} vollständig abgeschlossen${exemptCount ? ` · ${exemptCount} außerhalb der App` : ""}`}
+          dot="bg-emerald-600"
+        />
         <KpiTile
           label="Geplant"
           value={planned.length}
@@ -257,38 +335,110 @@ export const YearPlan = ({ year, buildings, meetings, topics, onOpenMeeting, onC
                 {g.key === "erledigt" && <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", showDone && "rotate-180")} />}
               </button>
               {!collapsed && g.rows.map((r) => (
-                <button
+                <div
                   key={r.key}
-                  type="button"
-                  onClick={() => (r.meeting ? onOpenMeeting(r.meeting.id) : onCreateMeeting(r.building.id))}
-                  className="grid w-full grid-cols-1 items-center gap-2 border-t border-border/50 px-5 py-3 text-left transition-colors hover:bg-muted/40 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,2.6fr)_70px_20px] md:gap-4"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => (r.meeting ? onOpenMeeting(r.meeting.id) : !r.exemption && onCreateMeeting(r.building.id))}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+                    e.preventDefault();
+                    if (r.meeting) onOpenMeeting(r.meeting.id);
+                    else if (!r.exemption) onCreateMeeting(r.building.id);
+                  }}
+                  className={cn("grid w-full grid-cols-1 items-center gap-2 border-t border-border/50 px-5 py-3 text-left transition-colors hover:bg-muted/40 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,2.6fr)_70px_20px] md:gap-4",
+                    r.exemption ? "cursor-default" : "cursor-pointer")}
                 >
                   <div className="min-w-0">
                     <div className="truncate text-[15px] font-semibold">{r.building.name}</div>
                     <div className="truncate text-xs text-muted-foreground">{r.building.city || r.building.address || ""}</div>
                   </div>
                   <div>
-                    <div className="text-sm font-medium tabular-nums">{r.meeting ? formatMeetingDate(r.meeting.meeting_date, { weekday: true }) : "kein Termin"}</div>
+                    <div className="text-sm font-medium tabular-nums">{r.meeting ? formatMeetingDate(r.meeting.meeting_date, { weekday: true }) : r.exemption ? "außerhalb der App" : "kein Termin"}</div>
                     <div className="text-xs text-muted-foreground">
-                      {r.meeting?.meeting_date ? relativeDays(new Date(r.meeting.meeting_date), now) : r.meeting ? "Termin offen" : `noch keine ${year}`}
+                      {r.meeting?.meeting_date ? relativeDays(new Date(r.meeting.meeting_date), now) : r.meeting ? "Termin offen" : r.exemption ? `erledigt ${year}` : `noch keine ${year}`}
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <PhaseBars done={Math.min(r.done, 4)} current={r.meeting ? r.done : 0} late={r.late} />
-                    <div className="text-xs text-muted-foreground">{r.meeting ? r.phase : "Planung"}</div>
+                    <PhaseBars done={Math.min(r.done, 4)} current={r.meeting || r.exemption ? r.done : 0} late={r.late} />
+                    <div className="text-xs text-muted-foreground">{r.meeting || r.exemption ? r.phase : "Planung"}</div>
                   </div>
                   <div className="flex min-w-0 items-center gap-2.5">
                     <Pill urgency={r.step.urgency}>{r.step.tag}</Pill>
                     <span className="truncate text-sm">{r.step.label}</span>
                   </div>
                   <div className="text-sm text-muted-foreground tabular-nums">{r.topics || "–"}</div>
-                  {r.meeting ? <ChevronRight className="hidden h-4 w-4 text-muted-foreground/60 md:block" /> : <Plus className="hidden h-4 w-4 text-primary md:block" />}
-                </button>
+                  {r.meeting ? <ChevronRight className="hidden h-4 w-4 text-muted-foreground/60 md:block" /> : (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label={`Aktionen für ${r.building.name}`}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                          className="justify-self-start rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground md:justify-self-end"
+                        >
+                          {r.exemption ? <MoreHorizontal className="h-4 w-4" /> : <Plus className="h-4 w-4 text-primary" />}
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem onSelect={() => onCreateMeeting(r.building.id)}>
+                          <Plus className="mr-2 h-4 w-4" />Versammlung anlegen
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {r.exemption ? (
+                          <DropdownMenuItem onSelect={() => undoExemption(r.building)}>
+                            <RotateCcw className="mr-2 h-4 w-4" />Erledigt-Markierung aufheben
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem onSelect={() => openExemptDialog(r.building)}>
+                            <CheckCircle2 className="mr-2 h-4 w-4" />Für {year} als erledigt markieren …
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
               ))}
             </div>
           );
         })}
       </EtvCard>
+
+      <Dialog open={!!exemptTarget} onOpenChange={(o) => !o && !saving && setExemptTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Versammlung {year} als erledigt markieren</DialogTitle>
+            <DialogDescription>
+              {exemptTarget?.name} – für dieses Jahr ist keine Versammlung in der App angelegt. Die Liegenschaft erscheint danach unter „Abgeschlossen“.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <RadioGroup value={exemptReason} onValueChange={(v) => setExemptReason(v as EtvExemptionReason)} className="space-y-2">
+              {(Object.keys(EXEMPTION_REASON_LABEL) as EtvExemptionReason[]).map((k) => (
+                <div key={k} className="flex items-start gap-2.5">
+                  <RadioGroupItem value={k} id={`exempt-${k}`} className="mt-0.5" />
+                  <Label htmlFor={`exempt-${k}`} className="text-sm font-normal leading-snug">{EXEMPTION_REASON_LABEL[k]}</Label>
+                </div>
+              ))}
+            </RadioGroup>
+            <div className="space-y-1.5">
+              <Label htmlFor="exempt-note" className="text-sm">Notiz (optional)</Label>
+              <Textarea
+                id="exempt-note"
+                value={exemptNote}
+                onChange={(e) => setExemptNote(e.target.value)}
+                placeholder="z. B. Versammlung am 14.05. durch Vorverwaltung, Protokoll im DMS"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExemptTarget(null)} disabled={saving}>Abbrechen</Button>
+            <Button onClick={saveExemption} disabled={saving}>{saving ? "Speichert …" : "Als erledigt markieren"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
