@@ -15,6 +15,7 @@ export interface WegBuilding {
 export interface EtvMeetingRow extends MeetingLike {
   title: string;
   location: string | null;
+  meeting_kind?: "ordentlich" | "ausserordentlich" | null;
 }
 
 /** Alle WEG-Liegenschaften (für Filter, Jahresplan und Archiv). */
@@ -40,7 +41,7 @@ export const useEtvMeetings = () =>
     queryFn: async () => {
       const { data, error } = await db
         .from("etv_meetings")
-        .select("id, building_id, title, meeting_date, status, location, invitation_sent_at, ended_at, protocol_published, protocol_filed_at, steps_done, created_at")
+        .select("id, building_id, title, meeting_date, status, location, invitation_sent_at, ended_at, protocol_published, protocol_filed_at, steps_done, meeting_kind, created_at")
         .order("meeting_date", { ascending: false, nullsFirst: true });
       if (error) throw error;
       const meetings = (data || []) as EtvMeetingRow[];

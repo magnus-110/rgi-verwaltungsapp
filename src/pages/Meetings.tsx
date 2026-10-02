@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Plus, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/meetings/etv/ui";
@@ -61,17 +61,20 @@ export const Meetings = () => {
 
   const openMeeting = (id: string) => setParam({ m: id, b: null, phase: null });
   const createMeeting = (buildingId?: string) =>
-    setParam({ m: "neu", b: buildingId || (validWeg !== "all" ? validWeg : null), phase: null });
+    setParam({ m: "neu", b: buildingId || (validWeg !== "all" ? validWeg : null), phase: null, art: null });
+  const createExtraordinary = () =>
+    setParam({ m: "neu", b: validWeg !== "all" ? validWeg : null, phase: null, art: "ao" });
 
   if (meetingParam) {
     return (
       <MeetingWorkspace
         meetingId={meetingParam === "neu" ? null : meetingParam}
         initialBuildingId={params.get("b") || undefined}
+        initialKind={params.get("art") === "ao" ? "ausserordentlich" : "ordentlich"}
         phase={params.get("phase")}
         onPhaseChange={(p) => setParam({ phase: p })}
-        onCreated={(id) => setParam({ m: id, b: null })}
-        onBack={() => setParam({ m: null, b: null, phase: null })}
+        onCreated={(id) => setParam({ m: id, b: null, art: null })}
+        onBack={() => setParam({ m: null, b: null, phase: null, art: null })}
       />
     );
   }
@@ -103,8 +106,8 @@ export const Meetings = () => {
                 <Plus className="h-4 w-4" /> Thema erfassen
               </Button>
             ) : (
-              <Button className="h-10 gap-2 rounded-[10px]" onClick={() => createMeeting()}>
-                <Plus className="h-4 w-4" /> Neue Versammlung
+              <Button className="h-10 gap-2 rounded-[10px]" onClick={createExtraordinary} title="Ordentliche Versammlungen legst du direkt im Jahresplan bei der jeweiligen WEG an.">
+                <Zap className="h-4 w-4" /> Außerordentliche Versammlung
               </Button>
             )}
           </div>

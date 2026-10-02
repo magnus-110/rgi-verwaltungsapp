@@ -22,6 +22,7 @@ import { useWegBuildings } from "../useEtvData";
 interface Props {
   meeting: any | null;
   initialBuildingId?: string;
+  initialKind?: "ordentlich" | "ausserordentlich";
   onCreated: (id: string) => void;
 }
 
@@ -33,7 +34,7 @@ const PRINCIPLES = [
 
 const PRINCIPLE_LABEL: Record<string, string> = { headcount: "Kopfprinzip", mea: "Nach Anteilen (MEA)", sqm: "Nach Wohnfläche" };
 
-export const PlanningPhase = ({ meeting, initialBuildingId, onCreated }: Props) => {
+export const PlanningPhase = ({ meeting, initialBuildingId, initialKind = "ordentlich", onCreated }: Props) => {
   const { profile } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -42,8 +43,14 @@ export const PlanningPhase = ({ meeting, initialBuildingId, onCreated }: Props) 
 
   // Formular
   const [buildingId, setBuildingId] = useState<string>(meeting?.building_id || initialBuildingId || "");
-  const [kind, setKind] = useState<"ordentlich" | "ausserordentlich">(/außerordentlich/i.test(meeting?.title || "") ? "ausserordentlich" : "ordentlich");
-  const [title, setTitle] = useState<string>(meeting?.title || `Ordentliche Eigentümerversammlung ${new Date().getFullYear()}`);
+  const [kind, setKind] = useState<"ordentlich" | "ausserordentlich">(
+    meeting
+      ? (meeting.meeting_kind === "ausserordentlich" || meeting.meeting_kind === "ordentlich" ? meeting.meeting_kind : /außerordentlich/i.test(meeting.title || "") ? "ausserordentlich" : "ordentlich")
+      : initialKind,
+  );
+  const [title, setTitle] = useState<string>(
+    meeting?.title || (initialKind === "ausserordentlich" ? "Außerordentliche Eigentümerversammlung" : `Ordentliche Eigentümerversammlung ${new Date().getFullYear()}`),
+  );
   const [location, setLocation] = useState<string>(meeting?.location || "");
   const [chair, setChair] = useState<string>(meeting?.meeting_chair || "");
   const [minutes, setMinutes] = useState<string>(meeting?.minutes_taker || "");
@@ -127,6 +134,7 @@ export const PlanningPhase = ({ meeting, initialBuildingId, onCreated }: Props) 
         notes: notes.trim() || null,
         default_voting_principle: principle,
         voting_basis_note: basis.trim() || null,
+        meeting_kind: kind,
         ...patch,
       };
       if (meeting?.id) {

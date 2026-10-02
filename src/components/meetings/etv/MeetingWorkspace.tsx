@@ -20,6 +20,7 @@ import { ProtocolPhase } from "./phases/ProtocolPhase";
 interface Props {
   meetingId: string | null;
   initialBuildingId?: string;
+  initialKind?: "ordentlich" | "ausserordentlich";
   phase: string | null;
   onPhaseChange: (p: string) => void;
   onCreated: (id: string) => void;
@@ -28,7 +29,7 @@ interface Props {
 
 const db = supabase as any;
 
-export const MeetingWorkspace = ({ meetingId, initialBuildingId, phase, onPhaseChange, onCreated, onBack }: Props) => {
+export const MeetingWorkspace = ({ meetingId, initialBuildingId, initialKind = "ordentlich", phase, onPhaseChange, onCreated, onBack }: Props) => {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [confirm, setConfirm] = useState<null | "delete" | "done">(null);
@@ -165,7 +166,7 @@ export const MeetingWorkspace = ({ meetingId, initialBuildingId, phase, onPhaseC
             <h1 className="text-[26px] font-semibold leading-tight tracking-tight md:text-[30px]">
               {date
                 ? `${date.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", weekday: "long", day: "numeric", month: "long", year: "numeric" })} · ${date.toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" })} Uhr`
-                : meeting ? "Termin noch offen" : "Neue Versammlung anlegen"}
+                : meeting ? "Termin noch offen" : initialKind === "ausserordentlich" ? "Außerordentliche Versammlung anlegen" : "Neue Versammlung anlegen"}
             </h1>
             {meeting?.location && <p className="text-sm text-muted-foreground">{meeting.location}</p>}
           </div>
@@ -275,7 +276,7 @@ export const MeetingWorkspace = ({ meetingId, initialBuildingId, phase, onPhaseC
         </nav>
 
         {active === "planung" && (
-          <PlanningPhase meeting={meeting || null} initialBuildingId={initialBuildingId} onCreated={onCreated} />
+          <PlanningPhase meeting={meeting || null} initialBuildingId={initialBuildingId} initialKind={initialKind} onCreated={onCreated} />
         )}
         {meeting && active === "einladung" && <InvitationPhase meeting={meeting} />}
         {meeting && active === "durchfuehrung" && <LivePhase meeting={meeting} onGoToProtocol={() => onPhaseChange("protokoll")} />}
