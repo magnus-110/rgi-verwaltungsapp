@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Upload, ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ablageZugAusEvent, istAblageZug } from "@/integrations/supabase/ablage";
+import { ablageZugAlsFiles } from "@/hooks/useAblage";
 import { useIsTabletOrBelow } from "@/hooks/use-mobile";
 import { FolderTree } from "./documents/FolderTree";
 import { DocumentFileList } from "./documents/DocumentFileList";
@@ -34,9 +36,18 @@ export function BuildingDocumentsTab({ buildingId, managementMode }: BuildingDoc
     queryClient.invalidateQueries({ queryKey: ['file-versions'] });
   }, [queryClient, buildingId]);
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    // Aus der Büro-Ablage hereingezogen: Dateien laden und wie gewohnt hochladen
+    const ausAblage = ablageZugAusEvent(e);
+    if (ausAblage) {
+      const files = await ablageZugAlsFiles(ausAblage);
+      if (files.length === 0) return;
+      setPendingFiles(files);
+      setUploadOpen(true);
+      return;
+    }
     const droppedFiles = Array.from(e.dataTransfer.files);
     if (droppedFiles.length === 0) return;
     setPendingFiles(droppedFiles);
@@ -109,13 +120,13 @@ export function BuildingDocumentsTab({ buildingId, managementMode }: BuildingDoc
       onDragOver={(e) => {
         // Nur reagieren, wenn echte Dateien vom Betriebssystem gezogen werden,
         // nicht bei internem Drag&Drop zwischen Ordnern.
-        if (!e.dataTransfer.types.includes("Files")) return;
+        if (!e.dataTransfer.types.includes("Files") && !istAblageZug(e)) return;
         e.preventDefault();
         setIsDragging(true);
       }}
       onDragLeave={() => setIsDragging(false)}
       onDrop={(e) => {
-        if (!e.dataTransfer.types.includes("Files")) return;
+        if (!e.dataTransfer.types.includes("Files") && !istAblageZug(e)) return;
         handleDrop(e);
       }}
 

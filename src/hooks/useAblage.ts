@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   ABLAGE_BUCKET,
   ablageDb,
+  type AblageDragFile,
   type AblageItemRow,
   type AblageSource,
   type MailAnhangDrag,
@@ -433,6 +434,34 @@ export function useAblageLoeschen() {
   );
 }
 
+// --------------------------------------------------------------- Umbenennen
+
+/**
+ * Anzeigenamen einer Datei (oder den Kommentar) ändern. Die Datei im Speicher
+ * bleibt, wo sie ist — nur der Name, unter dem sie angezeigt, angehängt und
+ * heruntergeladen wird, ändert sich. Fehlt die Dateiendung, wird die alte
+ * wieder angehängt.
+ */
+export function useAblageUmbenennen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ item, name }: { item: AblageItemRow; name: string }) => {
+      let neu = name.trim().replace(/[\\/:*?"<>|]+/g, '_');
+      if (!neu) throw new Error('Der Name ist leer');
+      const altEndung = (item.file_name || '').match(/\.[^.]+$/)?.[0] ?? '';
+      if (altEndung && !neu.toLowerCase().endsWith(altEndung.toLowerCase())) neu += altEndung;
+      const { error } = await ablageDb.from('office_drop_items').update({ file_name: neu }).eq('id', item.id);
+      if (error) throw error;
+      return neu;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ABLAGE_KEY });
+      toast.success('Umbenannt');
+    },
+    onError: (e: any) => toast.error('Umbenennen fehlgeschlagen: ' + (e?.message ?? 'unbekannter Fehler')),
+  });
+}
+
 // --------------------------------------------------------------- Dateien
 
 export async function ablageSignedUrl(path: string, sekunden = 600) {
@@ -466,6 +495,23 @@ export async function ablageAlsFile(item: Pick<AblageItemRow, 'file_path' | 'fil
   return new File([data], item.file_name || 'datei', {
     type: item.mime_type || data.type || 'application/octet-stream',
   });
+}
+
+/**
+ * Aus der Ablage gezogene Dateien als echte Dateien laden — z. B. damit das
+ * DMS sie wie vom Desktop hereingezogene Dateien hochladen kann.
+ */
+export async function ablageZugAlsFiles(liste: AblageDragFile[]): Promise<File[]> {
+  const files: File[] = [];
+  for (const d of liste) {
+    const { data, error } = await supabase.storage.from(d.bucket || ABLAGE_BUCKET).download(d.path);
+    if (error || !data) {
+      toast.error(`${d.name}: konnte nicht geladen werden`);
+      continue;
+    }
+    files.push(new File([data], d.name, { type: d.mimeType || data.type || 'application/octet-stream' }));
+  }
+  return files;
 }
 
 export function formatGroesse(bytes: number | null | undefined) {

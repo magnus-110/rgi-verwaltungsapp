@@ -105,3 +105,31 @@ export interface MailAnhangDrag {
   size: number | null;
   emailId: string;
 }
+
+/** Wie beim Ablage-Zug: der gerade gezogene Mail-Anhang, falls der Browser den Datentyp verschluckt. */
+let laufenderMailZug: MailAnhangDrag[] | null = null;
+export function setLaufenderMailZug(anhaenge: MailAnhangDrag[] | null) {
+  laufenderMailZug = anhaenge;
+}
+export function getLaufenderMailZug() {
+  return laufenderMailZug;
+}
+
+/** Kommt das, was gerade gezogen wird, aus der Ablage? (z. B. für die DMS-Ablagepunkte) */
+export function istAblageZug(e: { dataTransfer: DataTransfer }) {
+  return Array.from(e.dataTransfer.types).includes(DRAG_TYPE_ABLAGE) || !!laufenderZug?.length;
+}
+
+/** Die gezogenen Ablage-Dateien aus einem Loslassen-Ereignis. */
+export function ablageZugAusEvent(e: { dataTransfer: DataTransfer }): AblageDragFile[] | null {
+  try {
+    const roh = e.dataTransfer.getData(DRAG_TYPE_ABLAGE);
+    if (roh) {
+      const liste = JSON.parse(roh) as AblageDragFile[];
+      if (liste.length) return liste;
+    }
+  } catch {
+    // dann eben über den gemerkten Zug
+  }
+  return laufenderZug?.length ? laufenderZug : null;
+}

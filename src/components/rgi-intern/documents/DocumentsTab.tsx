@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Search, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ablageZugAusEvent, istAblageZug } from "@/integrations/supabase/ablage";
+import { ablageZugAlsFiles } from "@/hooks/useAblage";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CompanyFolderTree } from "./CompanyFolderTree";
 import { CompanyFileList } from "./CompanyFileList";
@@ -35,9 +37,18 @@ export function DocumentsTab() {
   const showsInvoices = isVirtualInvoiceFolder(categoryId);
   const invoiceDirection = categoryId === VIRTUAL_INVOICES_OUT ? "outgoing" : "incoming";
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    // Aus der Büro-Ablage hereingezogen: Dateien laden und wie gewohnt hochladen
+    const ausAblage = ablageZugAusEvent(e);
+    if (ausAblage) {
+      const files = await ablageZugAlsFiles(ausAblage);
+      if (files.length === 0) return;
+      setPendingFiles(files);
+      setUploadOpen(true);
+      return;
+    }
     const dropped = Array.from(e.dataTransfer.files);
     if (dropped.length === 0) return;
     setPendingFiles(dropped);
@@ -127,13 +138,13 @@ export function DocumentsTab() {
     <div
       className="mt-4 flex h-[calc(100vh-260px)] flex-col gap-3"
       onDragOver={(e) => {
-        if (!e.dataTransfer.types.includes("Files")) return;
+        if (!e.dataTransfer.types.includes("Files") && !istAblageZug(e)) return;
         e.preventDefault();
         setIsDragging(true);
       }}
       onDragLeave={() => setIsDragging(false)}
       onDrop={(e) => {
-        if (!e.dataTransfer.types.includes("Files")) return;
+        if (!e.dataTransfer.types.includes("Files") && !istAblageZug(e)) return;
         handleDrop(e);
       }}
     >
