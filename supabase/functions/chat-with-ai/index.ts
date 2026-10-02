@@ -143,7 +143,39 @@ serve(async (req) => {
 
     // Status der Meldungen so, wie der Nutzer sie in der App sieht.
     const statusText = (status: string) =>
-      ({ open: 'Offen', in_progress: 'In Bearbeitung', resolved: 'Erledigt' } as Record<string, string>)[status] || status;
+      ({ open: 'Eingegangen', in_progress: 'In Bearbeitung', waiting: 'Wartet', resolved: 'Erledigt' } as Record<string, string>)[status] || status;
+
+    // Die letzten Meldungen des Nutzers mit aktuellem Stand und der letzten
+    // Nachricht der Verwaltung — nur, was der Melder auch im Portal sieht.
+    const meldungenText = async (mode: 'weg' | 'rent') => {
+      const { data: reports } = await supabase
+        .from('reports')
+        .select('id, report_number, title, status, current_step, created_at')
+        .eq('reported_by', userId)
+        .eq('management_mode', mode)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (!reports || reports.length === 0) return '';
+      const { data: messages } = await supabase
+        .from('report_events')
+        .select('report_id, body, created_at')
+        .in('report_id', reports.map((r: any) => r.id))
+        .eq('kind', 'message')
+        .eq('visible_to_reporter', true)
+        .order('created_at', { ascending: false });
+      const letzteNachricht = new Map<string, string>();
+      (messages || []).forEach((m: any) => {
+        if (!letzteNachricht.has(m.report_id) && m.body) letzteNachricht.set(m.report_id, m.body);
+      });
+      let text = `\n\nIhre letzten Meldungen:\n`;
+      reports.forEach((report: any) => {
+        const stand = report.current_step || statusText(report.status);
+        text += `- ${report.report_number}: ${report.title} (Stand: ${stand}, Erstellt: ${new Date(report.created_at).toLocaleDateString('de-DE')})\n`;
+        const nachricht = letzteNachricht.get(report.id);
+        if (nachricht) text += `  Letzte Nachricht der Verwaltung: ${nachricht.slice(0, 300)}\n`;
+      });
+      return text;
+    };
 
     // Gebaeude, fuer die der Nutzer eine Meldung abgeben darf. Wird unten fuer das
     // Meldungs-Werkzeug gebraucht, damit eine Meldung beim richtigen Objekt landet.
@@ -200,23 +232,8 @@ serve(async (req) => {
         }
       }
 
-      // Get tenant reports
-      const { data: userReports } = await supabase
-        .from('miete_reports')
-        .select('*')
-        .eq('reported_by', userId)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (userReports && userReports.length > 0) {
-        contextData += `\n\nIhre letzten Meldungen:\n`;
-        userReports.forEach(report => {
-          contextData += `- ${report.title} (Status: ${statusText(report.status)}${report.priority ? `, Priorität: ${report.priority}` : ''}, Erstellt: ${new Date(report.created_at).toLocaleDateString('de-DE')})\n`;
-          if (report.admin_notes) {
-            contextData += `  Verwalter-Notiz: ${report.admin_notes}\n`;
-          }
-        });
-      }
+      // Meldungen des Mieters
+      contextData += await meldungenText('rent');
     }
 
     // For WEG owners
@@ -226,23 +243,8 @@ serve(async (req) => {
       // (er hielt sie fuer Objekte des Fragenden). Relevant sind nur die eigenen
       // Gebaeude, die weiter unten geladen werden.
 
-      // Get WEG owner reports
-      const { data: userReports } = await supabase
-        .from('weg_reports')
-        .select('*')
-        .eq('reported_by', userId)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (userReports && userReports.length > 0) {
-        contextData += `\n\nIhre letzten Meldungen:\n`;
-        userReports.forEach(report => {
-          contextData += `- ${report.title} (Status: ${statusText(report.status)}${report.priority ? `, Priorität: ${report.priority}` : ''}, Erstellt: ${new Date(report.created_at).toLocaleDateString('de-DE')})\n`;
-          if (report.admin_notes) {
-            contextData += `  Verwalter-Notiz: ${report.admin_notes}\n`;
-          }
-        });
-      }
+      // Meldungen des Eigentümers
+      contextData += await meldungenText('weg');
 
       // Add building ID context if provided
       if (buildingId) {
