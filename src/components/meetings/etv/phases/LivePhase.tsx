@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertTriangle, ChevronDown, FileText, Gavel, GripVertical, ListPlus, Loader2, Lock, Play, RotateCcw, Search, Settings2, Square, Trash2, Users,
+  AlertTriangle, ChevronDown, ChevronsLeft, ChevronsRight, Maximize2, Minimize2, FileText, Gavel, GripVertical, ListPlus, Loader2, Lock, Play, RotateCcw, Search, Settings2, Square, Trash2, Users,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -73,6 +73,33 @@ export const LivePhase = ({ meeting, onGoToProtocol }: Props) => {
   const [motion, setMotion] = useState("");
   const [notes, setNotes] = useState("");
   const [savedHint, setSavedHint] = useState<string | null>(null);
+  // Versammlungsmodus: Vollbild ohne Navigation links
+  const [focusMode, setFocusMode] = useState(false);
+  // Tagesordnung eingeklappt (wird im Browser gemerkt)
+  const [agendaCollapsed, setAgendaCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem("etv-live-agenda-collapsed") === "1"; } catch { return false; }
+  });
+  const toggleAgenda = () => {
+    setAgendaCollapsed((v) => {
+      try { localStorage.setItem("etv-live-agenda-collapsed", v ? "0" : "1"); } catch { /* egal */ }
+      return !v;
+    });
+  };
+  const enterFocus = () => {
+    setFocusMode(true);
+    try { document.documentElement.requestFullscreen?.().catch(() => {}); } catch { /* egal */ }
+  };
+  const leaveFocus = () => {
+    setFocusMode(false);
+    try { if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); } catch { /* egal */ }
+  };
+  useEffect(() => {
+    if (!focusMode) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [focusMode]);
+  useEffect(() => () => { try { if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); } catch { /* egal */ } }, []);
 
   // Standard-Auswahl: erster offener Punkt mit Beschluss
   useEffect(() => {
@@ -432,10 +459,11 @@ export const LivePhase = ({ meeting, onGoToProtocol }: Props) => {
   const ended = meeting.status === "completed" || !!meeting.ended_at;
 
   return (
-    <div className="space-y-5">
+    <div className={cn("space-y-5", focusMode && "fixed inset-0 z-50 overflow-y-auto bg-background p-4 md:p-6")}>
       {/* Kopfleiste */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-white px-5 py-3.5 shadow-sm dark:bg-card">
         <div className="flex items-center gap-3.5">
+          {focusMode && <span className="max-w-[260px] truncate text-[15px] font-semibold">{meeting.title}</span>}
           {live ? (
             <span className="flex items-center gap-2 rounded-full bg-red-50 px-2.5 py-1 text-[12px] font-bold tracking-wider text-red-700 dark:bg-red-950/40 dark:text-red-300"><span className="h-2 w-2 animate-pulse rounded-full bg-red-600" />LIVE</span>
           ) : (
@@ -449,6 +477,15 @@ export const LivePhase = ({ meeting, onGoToProtocol }: Props) => {
           <span><strong className="text-lg tabular-nums">{sum.absent}</strong> <span className="text-muted-foreground">fehlen</span></span>
         </div>
         <div className="flex flex-wrap gap-2">
+          {focusMode ? (
+            <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={leaveFocus}>
+              <Minimize2 className="h-4 w-4" /> Versammlungsmodus verlassen
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" className="h-9 gap-1.5 border-primary text-primary hover:text-primary" onClick={enterFocus}>
+              <Maximize2 className="h-4 w-4" /> Versammlungsmodus
+            </Button>
+          )}
           <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={() => setAttendanceOpen(true)}>
             <Users className="h-4 w-4" /> Anwesenheit
           </Button>
@@ -475,11 +512,36 @@ export const LivePhase = ({ meeting, onGoToProtocol }: Props) => {
         </EtvCard>
       )}
 
-      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,9fr)]">
+      <div className={cn("grid grid-cols-1 items-start gap-5", agendaCollapsed ? "lg:grid-cols-[64px_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,3fr)_minmax(0,9fr)]")}>
         {/* Tagesordnung */}
+        {agendaCollapsed ? (
+          <EtvCard className="overflow-hidden lg:sticky lg:top-4">
+            <button type="button" onClick={toggleAgenda} title="Tagesordnung ausklappen" aria-label="Tagesordnung ausklappen"
+              className="flex w-full items-center justify-center border-b py-3 text-muted-foreground hover:bg-muted/40 hover:text-foreground">
+              <ChevronsRight className="h-4 w-4" />
+            </button>
+            <ol className="flex max-h-[75vh] flex-wrap gap-1.5 overflow-y-auto p-2 lg:flex-col lg:flex-nowrap lg:items-center">
+              {items.map((it, i) => {
+                const on = it.id === selId;
+                const look = it.status === "voted" ? (it.result === "passed" ? "bg-emerald-700 text-white" : "bg-red-700 text-white")
+                  : it.status === "voting" ? "bg-primary text-primary-foreground" : on ? "bg-primary/10 text-primary" : "bg-muted text-foreground/80";
+                return (
+                  <li key={it.id}>
+                    <button type="button" onClick={() => setSelId(it.id)} title={it.title}
+                      className={cn("flex h-9 w-9 items-center justify-center rounded-full text-[13px] font-semibold tabular-nums transition-shadow", look, on && "ring-2 ring-primary ring-offset-2 ring-offset-card")}>
+                      {i + 1}
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </EtvCard>
+        ) : (
         <EtvCard className="overflow-hidden lg:sticky lg:top-4">
           <div className="flex items-center justify-between border-b px-4 py-3.5">
             <h2 className="text-[17px] font-semibold">Tagesordnung</h2>
+            <div className="flex items-center gap-0.5">
+            <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Tagesordnung einklappen" title="Tagesordnung einklappen" onClick={toggleAgenda}><ChevronsLeft className="h-4 w-4" /></Button>
             <Popover>
               <PopoverTrigger asChild><Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Punkt hinzufügen"><ListPlus className="h-4 w-4" /></Button></PopoverTrigger>
               <PopoverContent align="end" className="w-56 p-1.5">
@@ -487,6 +549,7 @@ export const LivePhase = ({ meeting, onGoToProtocol }: Props) => {
                 <button type="button" className="w-full rounded-md px-2.5 py-2 text-left text-sm hover:bg-muted" onClick={() => setProcOpen(true)}>Geschäftsordnungsbeschluss</button>
               </PopoverContent>
             </Popover>
+            </div>
           </div>
           <DragDropContext onDragEnd={onDragEnd}>
             <Droppable droppableId="live-agenda">
@@ -522,6 +585,7 @@ export const LivePhase = ({ meeting, onGoToProtocol }: Props) => {
             </Droppable>
           </DragDropContext>
         </EtvCard>
+        )}
 
         {/* Aktueller Punkt */}
         {item ? (
