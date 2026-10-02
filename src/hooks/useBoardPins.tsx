@@ -1,10 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { reportsDb } from '@/integrations/supabase/reports';
 import { boardDb } from '@/integrations/supabase/board';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 import { createNotification } from '@/hooks/useNotifications';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Pinnwand-Datenschicht.
@@ -38,7 +40,8 @@ export type BoardOrigin =
   | 'frist'
   | 'wiedervorlage'
   | 'ohne_termin'
-  | 'wartung';
+  | 'wartung'
+  | 'meldung';
 
 export const ORIGIN_LABEL: Record<BoardOrigin, string> = {
   vorgang: 'Vorgang',
@@ -47,6 +50,7 @@ export const ORIGIN_LABEL: Record<BoardOrigin, string> = {
   wiedervorlage: 'Wiedervorlage',
   ohne_termin: 'Ohne Termin',
   wartung: 'Wartung',
+  meldung: 'Meldung',
 };
 
 export const ORIGIN_DOT: Record<BoardOrigin, string> = {
@@ -56,6 +60,7 @@ export const ORIGIN_DOT: Record<BoardOrigin, string> = {
   wiedervorlage: 'bg-[#6b8a55]',
   ohne_termin: 'bg-[#b6b0a4]',
   wartung: 'bg-[#7a6fa0]',
+  meldung: 'bg-[#c2410c]',
 };
 
 /** Ein Eintrag, egal ob er auf einer Wand hängt oder noch im Vorrat liegt. */
@@ -131,6 +136,7 @@ function originOfTodo(t: { due_date: string | null; follow_up_at: string | null;
   if (t.source_type === 'maintenance') return 'wartung';
   if (t.source_type === 'annual_cycle') return 'jahreszyklus';
   if (t.source_type === 'case') return 'vorgang';
+  if (t.source_type === 'report') return 'meldung';
   if (t.follow_up_at) return 'wiedervorlage';
   if (t.due_date) return 'frist';
   return 'ohne_termin';
@@ -560,9 +566,39 @@ export function useReorderPin() {
   });
 }
 
+/**
+ * Ist eine Aufgabe erledigt, die aus einer Meldung stammt, fragt die App, ob
+ * die Meldung auch erledigt ist — der Melder wartet ja noch auf Antwort.
+ * Erledigt wird die Meldung im Postfach (mit Abschluss-Nachricht).
+ */
+async function frageNachMeldung(todoId: string, oeffnen: (reportId: string) => void) {
+  const { data: todo } = await supabase
+    .from('todos')
+    .select('source_type, source_id')
+    .eq('id', todoId)
+    .maybeSingle();
+  if (!todo || todo.source_type !== 'report' || !todo.source_id) return;
+  const { data: report } = await reportsDb
+    .from('reports')
+    .select('id, report_number, status')
+    .eq('id', todo.source_id)
+    .maybeSingle();
+  if (!report || report.status === 'resolved') return;
+  toast({
+    title: `Gehört zu Meldung ${report.report_number}`,
+    description: 'Ist die Meldung damit auch erledigt? Dann im Postfach abschließen, damit der Melder Bescheid bekommt.',
+    action: (
+      <ToastAction altText="Meldung öffnen" onClick={() => oeffnen(report.id)}>
+        Meldung öffnen
+      </ToastAction>
+    ),
+  });
+}
+
 /** Erledigt: die Quelle wird geschlossen, die Aufgabe rutscht in die Spalte "done". */
 export function useCompleteBoardItem() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   return useMutation({
     mutationFn: async (item: BoardItem) => {
       if (item.refType === 'todo' || item.refType === 'maintenance') {
@@ -592,8 +628,9 @@ export function useCompleteBoardItem() {
           .eq('id', item.pin.id);
       }
     },
-    onSuccess: () => {
+    onSuccess: (_d, item) => {
       invalidateBoard(qc);
+      if (item.refType === 'todo') frageNachMeldung(item.refId, id => navigate(`/postfach?meldung=${id}`));
       qc.invalidateQueries({ queryKey: ['todos'] });
       qc.invalidateQueries({ queryKey: ['cycle-tasks'] });
       qc.invalidateQueries({ queryKey: ['cycle-pins'] });
@@ -618,6 +655,7 @@ export function useCompleteBoardItem() {
  */
 export function useCompleteNote() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
 
   return useMutation({
     mutationFn: async (todoId: string) => {
@@ -641,6 +679,7 @@ export function useCompleteNote() {
       qc.invalidateQueries({ queryKey: ['todo', todoId] });
       invalidateCases(qc);
       toast({ title: 'Erledigt', description: 'Die Aufgabe ist von der Wand.' });
+      frageNachMeldung(todoId, id => navigate(`/postfach?meldung=${id}`));
     },
     onError: (e: any) =>
       toast({ title: 'Konnte nicht erledigt werden', description: e.message, variant: 'destructive' }),
