@@ -20,7 +20,9 @@ export type NotificationType =
   | 'reminder'
   | 'case_email'
   | 'review_due'
-  | 'deadline';
+  | 'deadline'
+  | 'report_assigned'
+  | 'report_reply';
 
 export interface AppNotification {
   id: string;

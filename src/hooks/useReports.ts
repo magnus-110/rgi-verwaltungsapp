@@ -44,6 +44,8 @@ export interface StaffProfile {
   first_name: string | null;
   last_name: string | null;
   role: string;
+  /** Kürzel wie bei den E-Mails (aus dem E-Mail-Konto der Person), sonst null. */
+  short_code: string | null;
 }
 
 export const REPORT_FOLDER_STATUSES: Record<ReportFolder, ReportStatus[]> = {
@@ -111,13 +113,14 @@ export const staffName = (p?: StaffProfile | null) =>
 export const staffFirstName = (p?: StaffProfile | null) => p?.first_name || staffName(p);
 
 export const staffInitials = (p?: StaffProfile | null) =>
-  p
+  p?.short_code ||
+  (p
     ? [p.first_name, p.last_name]
         .filter(Boolean)
         .map((n) => n![0])
         .join("")
         .toUpperCase() || "?"
-    : "?";
+    : "?");
 
 const REPORT_SELECT = "*, building:buildings(id, name)";
 
@@ -127,15 +130,33 @@ const REPORT_SELECT = "*, building:buildings(id, name)";
 
 export function useStaffProfiles() {
   return useQuery({
-    queryKey: ["admin-profiles"],
+    // Eigener Schlüssel: das Postfach lädt unter "admin-profiles" dieselben
+    // Personen, aber ohne Kürzel.
+    queryKey: ["report-staff"],
     queryFn: async (): Promise<StaffProfile[]> => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name, role")
-        .in("role", ["admin", "employee"])
-        .order("last_name");
-      if (error) throw error;
-      return (data || []) as StaffProfile[];
+      const [profilesRes, accountsRes, linksRes] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("user_id, first_name, last_name, role")
+          .in("role", ["admin", "employee"])
+          .order("last_name"),
+        supabase.from("email_accounts").select("id, short_code"),
+        supabase.from("email_account_users").select("user_id, account_id"),
+      ]);
+      if (profilesRes.error) throw profilesRes.error;
+      // Kürzel wie im Postfach: das Kürzel des E-Mail-Kontos, das der Person gehört.
+      const codeOfAccount = new Map(
+        (accountsRes.data || []).filter((a) => a.short_code).map((a) => [a.id, a.short_code as string]),
+      );
+      const codeOfUser = new Map<string, string>();
+      (linksRes.data || []).forEach((l) => {
+        const code = codeOfAccount.get(l.account_id);
+        if (code && !codeOfUser.has(l.user_id)) codeOfUser.set(l.user_id, code);
+      });
+      return (profilesRes.data || []).map((p) => ({
+        ...(p as Omit<StaffProfile, "short_code">),
+        short_code: codeOfUser.get(p.user_id) ?? null,
+      }));
     },
     staleTime: 5 * 60_000,
   });
