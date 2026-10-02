@@ -4,6 +4,7 @@ import { AlertTriangle, MessageSquare, MessageCircle, FileText, Users, Scale, Ph
 import { useAuth } from "@/hooks/useAuth";
 import { useStammdatenName } from "@/hooks/useStammdatenName";
 import { supabase } from "@/integrations/supabase/client";
+import { reportsDb } from "@/integrations/supabase/reports";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 import { OwnerAnnualCycleWidget } from "@/components/dashboard/OwnerAnnualCycleWidget";
 import { EmergencyContactsWidget } from "@/components/forum/EmergencyContactsWidget";
@@ -77,11 +78,12 @@ export const WegOwnerDashboard = () => {
         }
         setBuildings(bs);
 
-        const { data: reports } = await supabase
-          .from("weg_reports")
+        // Offen aus Sicht des Eigentümers: alles, was noch nicht erledigt ist.
+        const { data: reports } = await reportsDb
+          .from("reports")
           .select("id")
           .eq("reported_by", userId)
-          .eq("status", "open");
+          .neq("status", "resolved");
         setOpenReports(reports?.length || 0);
 
         if (bIds.length) {

@@ -75,37 +75,31 @@ export const DeleteBuildingDialog = ({
       const { error: forumError } = await supabase.from("forum_posts").delete().eq("building_id", buildingId);
       if (forumError) throw forumError;
 
-      // 2. weg reports
-      const { error: wegReportsError } = await supabase.from("weg_reports").delete().eq("building_id", buildingId);
-      if (wegReportsError) throw wegReportsError;
+      // 2. Meldungen werden mit dem Gebäude von der Datenbank gelöscht (ON DELETE CASCADE).
 
-      // 3. miete reports
-      const { error: mieteReportsError } = await supabase.from("miete_reports").delete().eq("building_id", buildingId);
-      if (mieteReportsError) throw mieteReportsError;
-
-      // 4. building managers
+      // 3. building managers
       const { error: managersError } = await supabase.from("building_managers").delete().eq("building_id", buildingId);
       if (managersError) throw managersError;
 
-      // 5. tenants
+      // 4. tenants
       const { error: tenantsError } = await supabase.from("tenants").delete().eq("building_id", buildingId);
       if (tenantsError) throw tenantsError;
 
-      // 6. weg owner buildings
+      // 5. weg owner buildings
       const { error: wegOwnersError } = await supabase
         .from("weg_owner_buildings")
         .delete()
         .eq("building_id", buildingId);
       if (wegOwnersError) throw wegOwnersError;
 
-      // 7. profiles
+      // 6. profiles
       const { error: profilesError } = await supabase
         .from("profiles")
         .update({ building_id: null })
         .eq("building_id", buildingId);
       if (profilesError) throw profilesError;
 
-      // 8. building
+      // 7. building
       const { error: buildingError } = await supabase.from("buildings").delete().eq("id", buildingId);
       if (buildingError) throw buildingError;
 

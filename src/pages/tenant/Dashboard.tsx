@@ -18,6 +18,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useStammdatenName } from "@/hooks/useStammdatenName";
 import { supabase } from "@/integrations/supabase/client";
+import { reportsDb } from "@/integrations/supabase/reports";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 
 interface Report {
@@ -62,9 +63,9 @@ export const TenantDashboard = () => {
   const fetchData = async () => {
     try {
       // Fetch reports
-      const { data: reportsData, error: reportsError } = await supabase
-        .from("miete_reports")
-        .select("*")
+      const { data: reportsData, error: reportsError } = await reportsDb
+        .from("reports")
+        .select("id, title, description, status, created_at, building_id, contact_name, contact_email, contact_phone, contact_address, attachments, reported_by")
         .eq("reported_by", profile?.user_id)
         .order("created_at", { ascending: false });
 
@@ -125,7 +126,7 @@ export const TenantDashboard = () => {
     }
   };
 
-  const openReports = reports.filter(r => r.status === "open").length;
+  const openReports = reports.filter(r => r.status !== "resolved").length;
 
   if (loading) {
     return (

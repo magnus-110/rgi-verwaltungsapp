@@ -35,6 +35,7 @@ import {
 import { TodoAttachments } from '@/components/todos/TodoAttachments';
 import { ZettelChecklist } from '@/components/board/ZettelChecklist';
 import { AufgabeBlatt } from '@/components/board/AufgabeBlatt';
+import { TodoReportLink } from '@/components/reports/TodoReportLink';
 import { useChecklistTemplates, useApplyChecklistTemplate } from '@/hooks/useChecklistTemplates';
 import { usePinsForRef } from '@/hooks/useBoardWalls';
 import { useTodoVerlauf, VerlaufEintrag } from '@/hooks/useTodoVerlauf';
@@ -263,6 +264,7 @@ export default function Zettel() {
       <div className="flex flex-col gap-5 lg:flex-row">
         {/* Links: das Blatt und die Arbeit */}
         <div className="min-w-0 flex-1 space-y-4">
+          <TodoReportLink sourceType={t.source_type} sourceId={t.source_id} />
           <AufgabeBlatt
             titel={t.title}
             beschreibung={t.description}

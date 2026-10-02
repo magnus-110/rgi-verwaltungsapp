@@ -187,7 +187,7 @@ export const BuildingResolutionsTab = ({ buildingId }: BuildingResolutionsTabPro
                         </div>
                         <div className="flex items-center gap-2">
                           {r.case_id && (
-                            <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => navigate(`/tickets/vorgaenge?case=${r.case_id}`)}>
+                            <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => navigate(`/vorgaenge/${r.case_id}`)}>
                               <ExternalLink className="h-3 w-3" /> Vorgang
                             </Button>
                           )}

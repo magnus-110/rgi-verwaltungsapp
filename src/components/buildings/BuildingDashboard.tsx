@@ -76,19 +76,6 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
   const fileCount = stats?.file_count ?? 0;
   const forumCount = stats?.forum_count ?? 0;
 
-  // Reports (modus-abhängig, separat)
-  const { data: reportCount = 0 } = useQuery({
-    queryKey: ['building-report-count', buildingId, building?.management_mode],
-    queryFn: async () => {
-      if (!building) return 0;
-      const table = building.management_mode === 'weg' ? 'weg_reports' : 'miete_reports';
-      const { count } = await supabase.from(table).select('*', { count: 'exact', head: true })
-        .eq('building_id', buildingId).eq('status', 'open');
-      return count || 0;
-    },
-    enabled: !!building,
-  });
-
   const { data: managerNames = [] } = useQuery({
     queryKey: ['building-managers-names', buildingId],
     queryFn: async () => {
@@ -102,7 +89,6 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['building-detail', buildingId] });
     queryClient.invalidateQueries({ queryKey: ['building-stats', buildingId] });
-    queryClient.invalidateQueries({ queryKey: ['building-report-count', buildingId] });
     queryClient.invalidateQueries({ queryKey: ['building-managers-names', buildingId] });
     queryClient.invalidateQueries({ queryKey: ['buildings-list'] });
   };
@@ -213,7 +199,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
 
           {/* Reports Tab */}
           <TabsContent value="reports" className="p-3 md:p-6 mt-0">
-            <BuildingReportsTab buildingId={buildingId} managementMode={building.management_mode} />
+            <BuildingReportsTab buildingId={buildingId} />
           </TabsContent>
 
           {/* Cases Tab */}

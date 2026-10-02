@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { reportsDb } from "@/integrations/supabase/reports";
 import {
   Mail,
   Search,
@@ -85,6 +86,11 @@ import { CallLogList } from "@/components/calls/CallLogList";
 import { Phone as PhoneIcon, Mails as MailsIcon } from "lucide-react";
 import { BulkMailPanel } from "@/components/communication/bulk/BulkMailPanel";
 import { CreateContactDialog, type CreateContactPrefill } from "@/components/contacts/CreateContactDialog";
+import { ReportFolderNav } from "@/components/reports/ReportFolderNav";
+import { REPORT_FOLDER_IDS, isReportFolderId, reportFolderOfId } from "@/lib/reports";
+import { ReportsPanel } from "@/components/reports/ReportsPanel";
+import { EmailReportBadge, EmailToReportButton } from "@/components/reports/EmailReportLink";
+import { REPORT_FOLDER_LABEL, folderOfStatus } from "@/hooks/useReports";
 
 
 const folderIcons: Record<string, any> = {
@@ -103,6 +109,8 @@ const folderIcons: Record<string, any> = {
 export const Inbox = () => {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  // Meldungen: gewählte Meldung im Ordner „Meldungen“
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   // Suchbegriff erst nach kurzer Tipp-Pause abschicken (nicht bei jedem Buchstaben)
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -487,6 +495,28 @@ export const Inbox = () => {
   const isDraftsFolder = selectedFolderId === DRAFTS_FOLDER_ID;
   const isCallsFolder = selectedFolderId === CALLS_FOLDER_ID;
   const isBulkFolder = selectedFolderId === BULK_FOLDER_ID;
+  const reportFolder = reportFolderOfId(selectedFolderId);
+  const isReportsFolder = isReportFolderId(selectedFolderId);
+
+  /** Ordner wechseln — aus der Seitenleiste oder dem Ordner-Blatt am Handy. */
+  const selectFolder = (id: string) => {
+    setSelectedFolderId(id);
+    setSelectedEmailId(null);
+    setSelectedReportId(null);
+    setMobileFoldersOpen(false);
+  };
+
+  /** Meldung öffnen (aus einer E-Mail, einem Link oder einer Benachrichtigung). */
+  const openReport = async (reportId: string) => {
+    const { data } = await reportsDb.from("reports").select("id, status").eq("id", reportId).maybeSingle();
+    if (!data) {
+      toast.error("Meldung nicht gefunden");
+      return;
+    }
+    setSelectedEmailId(null);
+    setSelectedFolderId(REPORT_FOLDER_IDS[folderOfStatus(data.status)]);
+    setSelectedReportId(data.id);
+  };
 
 
   // Fetch emails for selected folder — slim columns; body wird lazy für Detail geladen
@@ -639,7 +669,7 @@ export const Inbox = () => {
       if (error) throw error;
       return data;
     },
-    enabled: !isScheduledFolder && !isCallsFolder && !isBulkFolder,
+    enabled: !isScheduledFolder && !isCallsFolder && !isBulkFolder && !isReportsFolder,
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
@@ -854,6 +884,20 @@ export const Inbox = () => {
       setSearchParams(next, { replace: true });
     })();
   }, [searchParams, selectedEmailId, folders, setSearchParams]);
+
+  // Deep-Link: ?meldung=<id> öffnet eine Meldung, ?ordner=meldungen den Ordner „Offen“.
+  useEffect(() => {
+    const reportFromUrl = searchParams.get("meldung");
+    const folderFromUrl = searchParams.get("ordner");
+    if (!reportFromUrl && folderFromUrl !== "meldungen") return;
+    if (reportFromUrl) openReport(reportFromUrl);
+    else selectFolder(REPORT_FOLDER_IDS.open);
+    const next = new URLSearchParams(searchParams);
+    next.delete("meldung");
+    next.delete("ordner");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const handleSync = async () => {
     setIsSyncing(true);
@@ -1214,7 +1258,9 @@ export const Inbox = () => {
         <span className="font-medium text-sm truncate flex-1 text-center">
           {selectedEmailId
             ? selectedEmail?.subject || "(Kein Betreff)"
-            : folders.find((f) => f.id === selectedFolderId)?.name || "Postfach"}
+            : reportFolder
+              ? `Meldungen · ${REPORT_FOLDER_LABEL[reportFolder]}`
+              : folders.find((f) => f.id === selectedFolderId)?.name || "Postfach"}
         </span>
         {!selectedEmailId && (
           <>
@@ -1269,10 +1315,7 @@ export const Inbox = () => {
             return (
               <button
                 key={folder.id}
-                onClick={() => {
-                  setSelectedFolderId(folder.id);
-                  setSelectedEmailId(null);
-                }}
+                onClick={() => selectFolder(folder.id)}
                 className={cn(
                   "relative h-8 w-8 flex items-center justify-center rounded-md transition-colors mb-0.5",
                   isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground",
@@ -1295,6 +1338,7 @@ export const Inbox = () => {
               </button>
             );
           })}
+          <ReportFolderNav variant="collapsed" selectedFolderId={selectedFolderId} onSelect={selectFolder} />
         </div>
       ) : (
         <div className="hidden md:flex w-56 border-r flex-col shrink-0">
@@ -1313,7 +1357,7 @@ export const Inbox = () => {
 
           <ScrollArea className="flex-1">
             <div className="p-2">
-              <p className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ordner</p>
+              <p className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">E-Mails</p>
               {folders.map((folder) => {
                 const Icon = folderIcons[folder.icon || "inbox"] || Mail;
                 const isActive = selectedFolderId === folder.id;
@@ -1321,10 +1365,7 @@ export const Inbox = () => {
                 return (
                   <button
                     key={folder.id}
-                    onClick={() => {
-                      setSelectedFolderId(folder.id);
-                      setSelectedEmailId(null);
-                    }}
+                    onClick={() => selectFolder(folder.id)}
                     className={cn(
                       "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors",
                       isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground",
@@ -1349,6 +1390,7 @@ export const Inbox = () => {
                 );
               })}
             </div>
+            <ReportFolderNav variant="expanded" selectedFolderId={selectedFolderId} onSelect={selectFolder} />
 
             <Separator className="my-2" />
 
@@ -1367,7 +1409,7 @@ export const Inbox = () => {
                   className="flex items-center gap-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
                 >
                   <ChevronDown className={cn("h-3 w-3 transition-transform", !accountsExpanded && "-rotate-90")} />
-                  Konten
+                  E-Mail-Konten
                 </button>
                 {isAdmin && (
                   <Button
@@ -1468,6 +1510,19 @@ export const Inbox = () => {
               queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
             }}
             onOpenCampaign={(id) => navigate(`/kommunikation?campaign=${id}`)}
+          />
+        ) : reportFolder ? (
+          <ReportsPanel
+            folder={reportFolder}
+            selectedId={selectedReportId}
+            onSelect={setSelectedReportId}
+            onFolderChange={(f) => setSelectedFolderId(REPORT_FOLDER_IDS[f])}
+            onOpenEmail={(emailId) => {
+              setSelectedReportId(null);
+              const next = new URLSearchParams(searchParams);
+              next.set("email", emailId);
+              setSearchParams(next, { replace: true });
+            }}
           />
         ) : isCallsFolder ? (
           <CallLogList />
@@ -2262,6 +2317,7 @@ export const Inbox = () => {
                                 {Math.round(((selectedEmail as any).ai_case_confidence || 0) * 100)}%)
                               </Badge>
                             )}
+                            <EmailReportBadge email={selectedEmail as any} onOpenReport={openReport} />
                             {selectedEmail.ai_category && <Badge variant="outline">{selectedEmail.ai_category}</Badge>}
                             {selectedEmail.ai_priority && (
                               <Badge variant={selectedEmail.ai_priority === "hoch" ? "destructive" : "secondary"}>
@@ -2359,6 +2415,7 @@ export const Inbox = () => {
                           <Forward className="h-3.5 w-3.5" />
                           Weiterleiten
                         </Button>
+                        <EmailToReportButton email={selectedEmail as any} onCreated={openReport} />
                         <Button
                           variant="ghost"
                           size="icon"
@@ -2448,7 +2505,7 @@ export const Inbox = () => {
           </SheetHeader>
           <ScrollArea className="flex-1">
             <div className="p-2">
-              <p className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ordner</p>
+              <p className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">E-Mails</p>
               {folders.map((folder) => {
                 const Icon = folderIcons[folder.icon || "inbox"] || Mail;
                 const isActive = selectedFolderId === folder.id;
@@ -2456,11 +2513,7 @@ export const Inbox = () => {
                 return (
                   <button
                     key={folder.id}
-                    onClick={() => {
-                      setSelectedFolderId(folder.id);
-                      setSelectedEmailId(null);
-                      setMobileFoldersOpen(false);
-                    }}
+                    onClick={() => selectFolder(folder.id)}
                     className={cn(
                       "w-full flex items-center gap-2 px-3 py-3 rounded-md text-sm transition-colors",
                       isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground",
@@ -2485,12 +2538,13 @@ export const Inbox = () => {
                 );
               })}
             </div>
+            <ReportFolderNav variant="mobile" selectedFolderId={selectedFolderId} onSelect={selectFolder} />
 
             <Separator className="my-2" />
 
             <div className="p-2">
               <div className="flex items-center justify-between px-2 py-1">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Konten</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">E-Mail-Konten</p>
                 {isAdmin && (
                   <Button
                     variant="ghost"

@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useBrokerMode } from "@/hooks/useBrokerMode";
 import { adminMenu, brokerMenu, istAktiv, istAufgabenPfad, menueFuer } from "@/lib/adminNavigation";
-import { useOpenReportsCount } from "@/hooks/useOpenReportsCount";
+import { useReportCounts, useReportsLive } from "@/hooks/useReports";
 
 interface AdminSidebarProps {
   managementMode: 'weg' | 'rent';
@@ -34,7 +34,10 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
   const isBrokerActive = brokerEnabled && brokerMode !== null;
 
   const menuItems = isBrokerActive ? brokerMenu : adminMenu;
-  const openReportsCount = useOpenReportsCount(!isBrokerActive);
+  // Abzeichen am Postfach: neue Meldungen, für die noch niemand zuständig ist.
+  useReportsLive("sidebar", !isBrokerActive);
+  const { data: reportCounts } = useReportCounts(!isBrokerActive);
+  const openReportsCount = isBrokerActive ? 0 : reportCounts?.open ?? 0;
 
   // Aufgeklappt, sobald man in einem der Unterpunkte steht. Danach darf man
   // es zuklappen, ohne dass es beim nächsten Klick wieder aufspringt.
@@ -275,7 +278,6 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                     <SidebarMenuItem key={item.title}>
                       <NavLink
                         to={item.url}
-                        end={item.url === "/tickets"}
                         className={({ isActive }) =>
                           (isActive || aliasActive)
                             ? "bg-primary text-white group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
@@ -283,7 +285,7 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                         }
                       >
                         {({ isActive }) => {
-                          const showBadge = item.url === "/tickets" && openReportsCount > 0;
+                          const showBadge = item.url === "/postfach" && openReportsCount > 0;
                           const badgeLabel = openReportsCount > 99 ? "99+" : String(openReportsCount);
                           return (
                             <>

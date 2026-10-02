@@ -7,7 +7,6 @@ import {
   CalendarRange,
   Castle,
   CheckSquare,
-  ClipboardList,
   CreditCard,
   FolderKanban,
   Home,
@@ -66,7 +65,6 @@ export const adminMenu: MenuItem[] = [
   { title: 'Zahlungen', url: '/zahlungen', icon: CreditCard },
   { title: 'Adressen', url: '/contacts', icon: BookUser },
   { title: 'Kalender', url: '/calendar', icon: CalendarDays },
-  { title: 'Meldungen', url: '/tickets', icon: ClipboardList },
   { title: 'Versammlungen', url: '/versammlungen', icon: Users },
   { title: 'Schlüssel', url: '/schluessel', icon: KeyRound },
   { title: 'Umfragen', url: '/umfragen', icon: ListChecks },
@@ -90,17 +88,13 @@ export function istAufgabenPfad(pfad: string) {
     pfad.startsWith('/vorgaenge') ||
     pfad.startsWith('/jahreszyklus') ||
     pfad.startsWith('/checklisten') ||
-    pfad.startsWith('/prozesse') ||
-    pfad.startsWith('/tickets/vorgaenge')
+    pfad.startsWith('/prozesse')
   );
 }
 
 /** Steht man gerade auf diesem Punkt? Einige Punkte haben Nebenpfade. */
 export function istAktiv(item: MenuItem, pfad: string): boolean {
   if (item.children) return istAufgabenPfad(pfad);
-  if (item.url === '/tickets') {
-    return pfad === '/tickets' || pfad.startsWith('/reports') || pfad.startsWith('/admin/reports');
-  }
   if (item.url === '/checklisten') {
     return pfad.startsWith('/checklisten') || pfad.startsWith('/prozesse');
   }

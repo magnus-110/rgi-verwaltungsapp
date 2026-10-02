@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { reportsDb } from "@/integrations/supabase/reports";
 import { ChatMessage, type ChatSource, type ReportDraft } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
@@ -175,16 +176,16 @@ export const WegOwnerChatbot = () => {
     // Vorrang hat das Gebaeude, das der Assistent aus dem Gespraech erkannt hat.
     const gebaeudeId = draft.buildingId || selectedBuildingId || buildingAssignments[0]?.building_id || null;
     try {
-      const { error } = await supabase.from("weg_reports").insert([{
+      const { error } = await reportsDb.from("reports").insert([{
+        management_mode: "weg",
+        channel: "chatbot",
         title: draft.title,
         description: draft.description,
         reported_by: profile.user_id,
-        weg_owner_id: profile.user_id,
         building_id: gebaeudeId,
         contact_name: [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.email,
         contact_email: profile.email,
         contact_phone: (profile as any).phone || null,
-        status: "open",
       }]);
       if (error) throw error;
       setMessages(prev => prev.map(m => (m.id === messageId ? { ...m, reportStatus: "gesendet" as const } : m)));

@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { UploadProvider } from "@/contexts/UploadContext";
 import { ComposeEmailProvider } from "@/contexts/ComposeEmailContext";
@@ -27,7 +27,6 @@ const MagicLinkLogin = lazy(() => import("./pages/MagicLinkLogin").then(m => ({ 
 const ConfirmEmailChange = lazy(() => import("./pages/ConfirmEmailChange").then(m => ({ default: m.ConfirmEmailChange })));
 const MfaEnroll = lazy(() => import("./pages/MfaEnroll").then(m => ({ default: m.MfaEnroll })));
 const MfaChallenge = lazy(() => import("./pages/MfaChallenge").then(m => ({ default: m.MfaChallenge })));
-const Tickets = lazy(() => import("./pages/Tickets").then(m => ({ default: m.Tickets })));
 const Buildings = lazy(() => import("./pages/Buildings").then(m => ({ default: m.Buildings })));
 const Settings = lazy(() => import("./pages/Settings").then(m => ({ default: m.Settings })));
 const WebhookSettings = lazy(() => import("./pages/WebhookSettings").then(m => ({ default: m.WebhookSettings })));
@@ -86,6 +85,13 @@ const TenantFiles = lazy(() => import("./pages/tenant/Files").then(m => ({ defau
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Offline = lazy(() => import("./pages/Offline"));
 
+/** Alte Adresse /tickets/vorgaenge?case=… → Vorgangsseite. */
+const LegacyCaseRedirect = () => {
+  const [params] = useSearchParams();
+  const caseId = params.get("case");
+  return <Navigate to={caseId ? `/vorgaenge/${caseId}` : "/vorgaenge"} replace />;
+};
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -130,9 +136,10 @@ const App = () => (
               {/* Admin Routes */}
               <Route path="/admin/change-password" element={<AdminLayout><ChangePassword /></AdminLayout>} />
               <Route path="/dashboard" element={<AdminLayout><Dashboard /></AdminLayout>} />
-              <Route path="/reports" element={<AdminLayout><Tickets /></AdminLayout>} />
-              <Route path="/tickets" element={<AdminLayout><Tickets /></AdminLayout>} />
-              <Route path="/tickets/vorgaenge" element={<AdminLayout><Tickets /></AdminLayout>} />
+              {/* Meldungen liegen im Postfach; alte Adressen leiten dorthin. */}
+              <Route path="/reports" element={<Navigate to="/postfach?ordner=meldungen" replace />} />
+              <Route path="/tickets" element={<Navigate to="/postfach?ordner=meldungen" replace />} />
+              <Route path="/tickets/vorgaenge" element={<LegacyCaseRedirect />} />
               <Route path="/buildings" element={<AdminLayout><Buildings /></AdminLayout>} />
               <Route path="/buildings/:id" element={<AdminLayout><Buildings /></AdminLayout>} />
               <Route path="/schluessel" element={<AdminLayout><Keys /></AdminLayout>} />
@@ -172,7 +179,7 @@ const App = () => (
               {/* Legacy admin routes for compatibility */}
               <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
               <Route path="/admin/dashboard" element={<AdminLayout><Dashboard /></AdminLayout>} />
-              <Route path="/admin/reports" element={<AdminLayout><Tickets /></AdminLayout>} />
+              <Route path="/admin/reports" element={<Navigate to="/postfach?ordner=meldungen" replace />} />
               <Route path="/admin/buildings" element={<AdminLayout><Buildings /></AdminLayout>} />
               <Route path="/admin/forum" element={<Navigate to="/buildings" replace />} />
               <Route path="/admin/chatbot-settings" element={<Navigate to="/settings?tab=chatbot" replace />} />
