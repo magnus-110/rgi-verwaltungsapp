@@ -14,11 +14,21 @@ import {
   Lock,
   Mail,
   MoreHorizontal,
-  Paperclip,
   Reply,
   RotateCcw,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,12 +48,12 @@ import {
   useMarkReportRead,
   useReopenReport,
   useReport,
-  useReportAttachmentUrls,
   useReportEvents,
   useReportTodos,
   useSetReportPriority,
   useSetReportReplyOpen,
   useUnlinkReportCase,
+  useDeleteReport,
 } from "@/hooks/useReports";
 import { ReportAssignButton } from "./ReportAssignButton";
 import { ReportCaseDialog } from "./ReportCaseDialog";
@@ -52,14 +62,14 @@ import { ReportStepDialog } from "./ReportStepDialog";
 import { ReportTaskDialog } from "./ReportTaskDialog";
 import { ReportTimeline, TimelineFilter } from "./ReportTimeline";
 import { ResolveReportDialog } from "./ResolveReportDialog";
-import { MiniTag, ReportStatusBadge } from "./reportUi";
+import { AttachmentChips, MiniTag, ReportStatusBadge } from "./reportUi";
 import { dateTime, errorMessage } from "@/lib/reports";
 
 interface Props {
   reportId: string;
   staff: StaffProfile[];
   staffMap: Map<string, StaffProfile>;
-  /** Am Handy: zurück zur Liste. */
+  /** Zurück zur Liste (am Handy; nach dem Löschen auch am Rechner). */
   onBack?: () => void;
   onOpenEmail: (emailId: string) => void;
 }
@@ -68,16 +78,16 @@ export function ReportDetail({ reportId, staff, staffMap, onBack, onOpenEmail }:
   const { data: report, isLoading } = useReport(reportId);
   const { data: events = [] } = useReportEvents(reportId);
   const { data: todos = [] } = useReportTodos(reportId);
-  const { data: attachments = [] } = useReportAttachmentUrls(report?.id ?? null, report?.attachments);
   const markRead = useMarkReportRead();
   const reopen = useReopenReport();
   const setReplyOpen = useSetReportReplyOpen();
   const setPriority = useSetReportPriority();
   const unlinkCase = useUnlinkReportCase();
+  const deleteReport = useDeleteReport();
 
   const [composer, setComposer] = useState<ComposerMode | null>(null);
   const [filter, setFilter] = useState<TimelineFilter>("all");
-  const [dialog, setDialog] = useState<"step" | "resolve" | "task" | "case" | null>(null);
+  const [dialog, setDialog] = useState<"step" | "resolve" | "task" | "case" | "delete" | null>(null);
 
   useEffect(() => {
     setComposer(null);
@@ -192,6 +202,13 @@ export function ReportDetail({ reportId, staff, staffMap, onBack, onOpenEmail }:
                 </DropdownMenuItem>
               </>
             )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => setDialog("delete")}
+            >
+              <Trash2 className="mr-2 h-4 w-4" /> Meldung löschen
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -266,28 +283,7 @@ export function ReportDetail({ reportId, staff, staffMap, onBack, onOpenEmail }:
             {dateTime(report.created_at)}
           </p>
           <p className="whitespace-pre-wrap text-[13.5px]">{report.description || "—"}</p>
-          {attachments.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {attachments.map((a, i) =>
-                a.url ? (
-                  <a
-                    key={i}
-                    href={a.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex max-w-[220px] items-center gap-1.5 rounded-full border bg-muted/40 px-2.5 py-0.5 text-[11.5px] hover:border-primary/40 hover:bg-primary/5"
-                  >
-                    <Paperclip className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{a.name}</span>
-                  </a>
-                ) : (
-                  <span key={i} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11.5px] text-muted-foreground">
-                    <Paperclip className="h-3 w-3" /> {a.name}
-                  </span>
-                ),
-              )}
-            </div>
-          )}
+          <AttachmentChips attachments={report.attachments} />
           {(report.contact_email || report.contact_phone) && (
             <p className="text-[11.5px] text-muted-foreground">
               {[report.contact_email, report.contact_phone].filter(Boolean).join(" · ")}
@@ -392,6 +388,39 @@ export function ReportDetail({ reportId, staff, staffMap, onBack, onOpenEmail }:
         onOpenChange={(v) => setDialog(v ? "task" : null)}
       />
       <ReportCaseDialog report={report} open={dialog === "case"} onOpenChange={(v) => setDialog(v ? "case" : null)} />
+
+      <AlertDialog open={dialog === "delete"} onOpenChange={(v) => !v && setDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Meldung löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {report.report_number} · {report.title} wird mit dem ganzen Verlauf und allen Fotos und Dokumenten
+              gelöscht. Auch der Melder sieht sie danach nicht mehr. Das lässt sich nicht rückgängig machen.
+              {openTodos.length > 0 && " Aufgaben, die aus der Meldung entstanden sind, bleiben bestehen."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteReport.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                deleteReport.mutate(report, {
+                  onSuccess: () => {
+                    toast.success(`Meldung ${report.report_number} gelöscht`);
+                    setDialog(null);
+                    onBack?.();
+                  },
+                  onError: (err) => toast.error(errorMessage(err, "Konnte nicht gelöscht werden")),
+                });
+              }}
+            >
+              Endgültig löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
