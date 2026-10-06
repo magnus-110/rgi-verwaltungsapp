@@ -22,6 +22,8 @@ import { BoardSupply } from '@/components/board/BoardSupply';
 import { TodoDialog } from '@/components/todos/TodoDialog';
 import { WaitingDialog } from '@/components/board/WaitingDialog';
 import { BoardTeam } from '@/components/board/BoardTeam';
+import { DoneDialog } from '@/components/board/DoneDialog';
+import { useRestoreBoardItem } from '@/hooks/useBoardDone';
 
 /**
  * Die Pinnwand.
@@ -56,6 +58,7 @@ export default function Pinnwand() {
   const [supplyKey, setSupplyKey] = useState('frist');
   const [noteOpen, setNoteOpen] = useState(false);
   const [waitingItem, setWaitingItem] = useState<BoardItem | null>(null);
+  const [doneOpen, setDoneOpen] = useState(false);
 
   const [zug, setZug] = useState<Zug>(null);
   /** Vor welcher Karte würde losgelassen? wall.length = ganz hinten. */
@@ -67,6 +70,7 @@ export default function Pinnwand() {
   const complete = useCompleteBoardItem();
   const setWaiting = useSetWaiting();
   const deleteSupplyTodo = useDeleteSupplyTodo();
+  const restore = useRestoreBoardItem();
 
   const mine = useMemo(
     () => allItems.filter(i => i.pin?.user_id === user?.id),
@@ -82,6 +86,9 @@ export default function Pinnwand() {
   );
 
   const waiting = useMemo(() => mine.filter(i => i.pin?.column_key === 'waiting'), [mine]);
+
+  /** Abgehakt — bleibt nachvollziehbar und lässt sich zurückholen. */
+  const erledigt = useMemo(() => mine.filter(i => i.pin?.column_key === 'done'), [mine]);
 
   /**
    * Eine Karte an Position `to` schieben (Zählung in der Liste ohne die Karte
@@ -289,6 +296,19 @@ export default function Pinnwand() {
             </div>
           </div>
         )}
+
+        {/* Dezent ganz unten: das Archiv der abgehakten Aufgaben */}
+        {!isLoading && erledigt.length > 0 && (
+          <div className="mt-8 text-center">
+            <button
+              type="button"
+              onClick={() => setDoneOpen(true)}
+              className="text-[12.5px] text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+            >
+              Erledigte Aufgaben ansehen ({erledigt.length})
+            </button>
+          </div>
+        )}
       </section>
 
       <BoardSupply
@@ -307,6 +327,13 @@ export default function Pinnwand() {
         onOpenChange={setNoteOpen}
         mode="create"
         /* Aufgehaengt wird im Dialog selbst — dort steht, an welche Wand. */
+      />
+      <DoneDialog
+        open={doneOpen}
+        onOpenChange={setDoneOpen}
+        items={erledigt}
+        restoringId={restore.isPending ? restore.variables?.pin?.id ?? null : null}
+        onRestore={item => restore.mutate(item)}
       />
       <WaitingDialog
         item={waitingItem}
