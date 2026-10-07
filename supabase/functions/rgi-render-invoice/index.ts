@@ -228,6 +228,38 @@ Deno.serve(async (req) => {
       : "";
     const clientName = invoice.client_name_snapshot || invoice.client?.name || "";
 
+    // ---------------- Empfänger ----------------
+    // Rechnungen an ein verwaltetes Objekt gehen an die Gemeinschaft,
+    // zu Händen der Hausverwaltung - also an die eigene Anschrift:
+    //   WEG Achweg 3-5
+    //   z.H. RGI Immobilien GmbH & Co. KG
+    //   Vilstalstr. 4
+    //   87459 Pfronten
+    // Externe Kunden ohne Objekt behalten ihre eigene Anschrift.
+    let recipient = {
+      name: clientName,
+      lines: addressLines(invoice.client_address_snapshot, invoice.client),
+    };
+    if (buildingId) {
+      const { data: obj } = await admin
+        .from("rgi_building_billing_overview")
+        .select("building_name, management_mode")
+        .eq("building_id", buildingId)
+        .maybeSingle();
+      const objName = (obj?.building_name || clientName || "").trim();
+      const isWeg = (obj?.management_mode ?? "weg") === "weg";
+      const name = isWeg && !/^weg\b/i.test(objName) ? `WEG ${objName}` : objName;
+      const companyName = company?.legal_name || "RGI Immobilien GmbH & Co. KG";
+      recipient = {
+        name,
+        lines: [
+          `z.H. ${companyName}`,
+          [company?.address_line1, company?.address_line2].filter(Boolean).join(", "),
+          [company?.zip, company?.city].filter(Boolean).join(" "),
+        ].filter(Boolean),
+      };
+    }
+
     const invoiceData: InvoiceData = {
       company: {
         name: company?.legal_name || "RGI Immobilien GmbH & Co. KG",
@@ -245,10 +277,7 @@ Deno.serve(async (req) => {
         iban: company?.iban || "",
         bic: company?.bic || "",
       },
-      recipient: {
-        name: clientName,
-        lines: addressLines(invoice.client_address_snapshot, invoice.client),
-      },
+      recipient,
       meta: {
         number: invoice.invoice_number || "Entwurf",
         date: fmtDate(invoice.issue_date),
