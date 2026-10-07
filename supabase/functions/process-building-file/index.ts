@@ -318,9 +318,10 @@ async function processFile(supabase: any, fileId: string, force: boolean) {
       return;
     }
 
+    // rag_enabled wird hier bewusst NICHT mehr gesetzt: Der Schalter "KI-Indexierung"
+    // gehoert der Verwaltung. Die Chat-Suche beachtet ihn (search_document_chunks_for_user).
     await supabase.from('building_files').update({
       extracted_text: extractedText,
-      rag_enabled: true,
     }).eq('id', fileId);
 
     let chunks = createSemanticChunks(extractedText, file.display_name);
@@ -373,24 +374,79 @@ async function processFile(supabase: any, fileId: string, force: boolean) {
   }
 }
 
+// ================== Zugriff ==================
+// Einzelne Datei auslesen duerfen nur Verwaltung/Mitarbeiter (oder interne Aufrufe mit
+// Service-Role-Key). Vorher konnte jeder eingeloggte Nutzer - auch Eigentuemer und
+// Mieter - fuer beliebige Dateien OCR starten und vorhandene Abschnitte loeschen (force).
+async function darfEinzeldateiVerarbeiten(supabase: any, req: Request): Promise<boolean> {
+  const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
+  if (!token) return false;
+  if (token === SUPABASE_SERVICE_ROLE_KEY) return true;
+  const { data: userData, error } = await supabase.auth.getUser(token);
+  if (error || !userData?.user) return false;
+  const { data: istVerwaltung } = await supabase.rpc('user_has_admin_access', { user_id: userData.user.id });
+  return istVerwaltung === true;
+}
+
+// ================== Warteschlange ==================
+// Wird alle 5 Minuten per Cron aufgerufen ({ queue: true }). Holt Dateien, die Eigentuemer
+// oder Mieter sehen koennen, aber noch keine Textabschnitte haben (z. B. automatisch
+// erzeugte Einzelabrechnungen, Serienbriefe oder abgebrochene Verarbeitungen).
+// Ohne Parameter von aussen - ein Aufruf kann also nur die Warteschlange abarbeiten.
+const QUEUE_BATCH = 3;
+
+async function abarbeitenWarteschlange(supabase: any): Promise<number> {
+  const { data: offene, error } = await supabase.rpc('building_files_index_queue', { p_limit: QUEUE_BATCH });
+  if (error) {
+    console.error('Warteschlange konnte nicht geladen werden:', error.message);
+    return 0;
+  }
+  const ids: string[] = (offene || []).map((r: any) => r.id);
+  if (ids.length === 0) return 0;
+  await supabase.from('building_files').update({ processing_status: 'processing', processing_error: null }).in('id', ids);
+  const arbeit = (async () => {
+    for (const id of ids) {
+      try {
+        await processFile(supabase, id, false);
+      } catch (e) {
+        console.error(`[queue ${id}]`, (e as Error).message);
+      }
+    }
+  })();
+  // @ts-ignore EdgeRuntime is provided by Supabase Deno runtime
+  if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime?.waitUntil) {
+    // @ts-ignore
+    EdgeRuntime.waitUntil(arbeit);
+  } else {
+    arbeit.catch(e => console.error('queue bg error:', e));
+  }
+  return ids.length;
+}
+
 // ================== Main ==================
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
+  const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+    status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+
   try {
-    const { fileId, force, wait } = await req.json();
-    if (!fileId) {
-      return new Response(JSON.stringify({ error: 'fileId is required' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-    if (!MISTRAL_API_KEY) {
-      return new Response(JSON.stringify({ error: 'MISTRAL_API_KEY not configured' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    const { fileId, force, wait, queue } = await req.json().catch(() => ({}));
+    if (!MISTRAL_API_KEY) return json({ error: 'MISTRAL_API_KEY not configured' }, 500);
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+
+    if (queue) {
+      const anzahl = await abarbeitenWarteschlange(supabase);
+      return json({ success: true, mode: 'queue', started: anzahl }, 202);
+    }
+
+    if (!fileId) return json({ error: 'fileId is required' }, 400);
+
+    if (!(await darfEinzeldateiVerarbeiten(supabase, req))) {
+      return json({ error: 'Keine Berechtigung' }, 403);
+    }
 
     // Mark queued immediately so UI feedback is instant
     await supabase.from('building_files').update({
@@ -401,9 +457,7 @@ serve(async (req) => {
     // Synchronous mode for diagnostics / cron
     if (wait) {
       await processFile(supabase, fileId, !!force);
-      return new Response(JSON.stringify({ success: true, mode: 'sync' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return json({ success: true, mode: 'sync' });
     }
 
     // Background mode (default): survives client disconnect
@@ -416,14 +470,9 @@ serve(async (req) => {
       processFile(supabase, fileId, !!force).catch(e => console.error('bg error:', e));
     }
 
-    return new Response(JSON.stringify({ success: true, mode: 'async', fileId }), {
-      status: 202,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return json({ success: true, mode: 'async', fileId }, 202);
   } catch (error) {
     console.error('Error in process-building-file:', error);
-    return new Response(JSON.stringify({ error: (error as Error).message || 'Processing failed' }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return json({ error: (error as Error).message || 'Processing failed' }, 500);
   }
 });
