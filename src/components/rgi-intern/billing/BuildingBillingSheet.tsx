@@ -1,42 +1,42 @@
 // Ebene 2 des Abrechnungsblatts: alles, was bei einer Liegenschaft
 // abrechenbar ist — und ob es schon abgerechnet wurde.
 //
-// Vier Herkünfte in einer Liste: Vertrag, Stunden, Vorlage, Frei.
-// Jede Zeile ist an Ort und Stelle überschreibbar. Angehakte Zeilen
-// werden zu einem Rechnungsentwurf.
+// Herkünfte: Vertrag (Honorar + Zusatzleistungen), Stunden, Vorlage,
+// Frei. Jede Position ist eine Karte: anklicken wählt sie aus,
+// Bezeichnung, Menge und Einzelpreis lassen sich direkt ändern.
+// Rechts steht live eine Vorschau der Rechnung(en) – je
+// Zahlungspflichtigem eine eigene.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
   Plus, Save, MoreVertical, Trash2, Ban, Calculator, FileStack, Receipt, Undo2, Info,
-  FolderKanban,
+  FolderKanban, CheckCircle2, Landmark, User,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/hooks/useAuth";
 import { useManagementContracts } from "@/hooks/useManagementContracts";
-import { useRgiItemPresets, useRgiTemplates, type RgiPresetItem } from "@/hooks/useRgi";
+import { useRgiItemPresets, type RgiPresetItem } from "@/hooks/useRgi";
 import {
   useBuildingBillables, useOpenTimeForBuilding, useUpsertBillable,
   useSetBillableStatus, useDeleteBillable, useCreateInvoiceFromBillables,
 } from "@/hooks/useRgiBilling";
 import {
-  type BillingRow, ORIGIN_LABEL, ROW_STATUS_LABEL, isOpenRow, rowNet, rowsNet,
+  type BillingRow, isOpenRow, rowNet, rowsNet,
   rowFromEvent, suggestionsFromContract, mergeSuggestions,
 } from "@/types/rgiBilling";
-import { formatDate, formatEur } from "@/types/rgiContracts";
+import { type FeeDebtor, formatDate, formatEur } from "@/types/rgiContracts";
 import { BillingRowDialog, PercentBaseDialog } from "./BillingRowDialogs";
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog";
 
@@ -56,6 +56,19 @@ interface Props {
 /** Lokale Änderungen an einer Zeile, bevor sie gespeichert werden. */
 type Override = Partial<Pick<BillingRow, "label" | "quantity" | "unitPriceNet" | "vatRate">>;
 
+type Tab = "open" | "done" | "dismissed";
+
+const isDone = (r: BillingRow) => r.status === "invoiced" || r.status === "settled";
+
+/** Für wen eine Rechnung ist – je Zahlungspflichtigem ein Entwurf. */
+const DEBTOR_TITLE: Record<FeeDebtor, string> = {
+  community: "Gemeinschaft",
+  owner: "Einzelner Eigentümer",
+  tenant: "Mieter",
+};
+
+const num = (n: number) => n.toLocaleString("de-DE", { maximumFractionDigits: 2 });
+
 export function BuildingBillingSheet({
   open, onOpenChange, buildingId, buildingName, onDraftCreated,
 }: Props) {
@@ -66,7 +79,6 @@ export function BuildingBillingSheet({
   const { data: events, isLoading } = useBuildingBillables(open ? buildingId : null);
   const { data: time } = useOpenTimeForBuilding(open ? buildingId : null);
   const { data: presets } = useRgiItemPresets();
-  const { data: templates } = useRgiTemplates();
 
   const upsert = useUpsertBillable();
   const setStatus = useSetBillableStatus();
@@ -74,15 +86,16 @@ export function BuildingBillingSheet({
   const createInvoice = useCreateInvoiceFromBillables();
 
   const [year, setYear] = useState(currentYear - 1);
+  const [tab, setTab] = useState<Tab>("open");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [overrides, setOverrides] = useState<Record<string, Override>>({});
   const [extraRows, setExtraRows] = useState<BillingRow[]>([]);
-  const [showDone, setShowDone] = useState(false);
   const [mergeTime, setMergeTime] = useState(true);
   const [editRow, setEditRow] = useState<BillingRow | null>(null);
   const [newRowOpen, setNewRowOpen] = useState(false);
   const [percentRow, setPercentRow] = useState<BillingRow | null>(null);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const contract = useMemo(
     () => (contracts ?? []).find((c) => c.building_id === buildingId) ?? null,
@@ -96,7 +109,7 @@ export function BuildingBillingSheet({
     setSelected(new Set());
     setOverrides({});
     setExtraRows([]);
-    setShowDone(false);
+    setTab("open");
   }, [open, buildingId]);
 
   // ---------------- Zeilen zusammenstellen ----------------
@@ -151,14 +164,27 @@ export function BuildingBillingSheet({
     return merged.map((r) => ({ ...r, ...(overrides[r.key] ?? {}) }));
   }, [suggestionRows, timeRows, extraRows, eventRows, overrides]);
 
+  const counts = useMemo(() => ({
+    open: allRows.filter(isOpenRow).length,
+    done: allRows.filter(isDone).length,
+    dismissed: allRows.filter((r) => r.status === "dismissed").length,
+  }), [allRows]);
+
   const visible = useMemo(
-    () => allRows.filter((r) => (showDone ? true : isOpenRow(r))),
-    [allRows, showDone],
+    () => allRows.filter((r) =>
+      tab === "open" ? isOpenRow(r) : tab === "done" ? isDone(r) : r.status === "dismissed"),
+    [allRows, tab],
   );
 
   const groups = useMemo(() => {
-    const g: Record<string, BillingRow[]> = { contract: [], time: [], preset: [], manual: [] };
-    for (const r of visible) g[r.origin].push(r);
+    const g = {
+      fee: [] as BillingRow[], extra: [] as BillingRow[], time: [] as BillingRow[],
+      preset: [] as BillingRow[], manual: [] as BillingRow[],
+    };
+    for (const r of visible) {
+      if (r.origin === "contract") (r.periodKey ? g.fee : g.extra).push(r);
+      else g[r.origin].push(r);
+    }
     return g;
   }, [visible]);
 
@@ -174,6 +200,8 @@ export function BuildingBillingSheet({
 
   // ---------------- Aktionen ----------------
 
+  const isSelectable = (r: BillingRow) => isOpenRow(r) && !(r.needsInput && !r.unitPriceNet);
+
   const toggle = (key: string) =>
     setSelected((prev) => {
       const next = new Set(prev);
@@ -182,8 +210,8 @@ export function BuildingBillingSheet({
     });
 
   const toggleGroup = (rows: BillingRow[]) => {
-    const open = rows.filter(isOpenRow).filter((r) => !r.needsInput || r.unitPriceNet);
-    const allOn = open.every((r) => selected.has(r.key));
+    const open = rows.filter(isSelectable);
+    const allOn = open.length > 0 && open.every((r) => selected.has(r.key));
     setSelected((prev) => {
       const next = new Set(prev);
       for (const r of open) (allOn ? next.delete(r.key) : next.add(r.key));
@@ -244,6 +272,7 @@ export function BuildingBillingSheet({
     }));
     setExtraRows((prev) => [...prev, ...rows]);
     setSelected((prev) => new Set([...prev, ...rows.map((r) => r.key)]));
+    setTab("open");
     toast.success(`Vorlage „${p.name}“ übernommen`);
   };
 
@@ -318,318 +347,496 @@ export function BuildingBillingSheet({
     return [...chosen.filter((r) => r.origin !== "time"), ...merged];
   }, [chosen, mergeTime]);
 
-  // ---------------- Darstellung ----------------
+  /** Je Zahlungspflichtigem eine Rechnung. Gemeinschaft zuerst. */
+  const invoiceGroups = useMemo(() => {
+    const order: FeeDebtor[] = ["community", "owner", "tenant"];
+    return order
+      .map((debtor) => {
+        const rows = readyRows.filter((r) => r.debtor === debtor);
+        const net = rowsNet(rows);
+        const vatByRate = new Map<number, number>();
+        for (const r of rows) {
+          vatByRate.set(r.vatRate, (vatByRate.get(r.vatRate) ?? 0) + (rowNet(r) * r.vatRate) / 100);
+        }
+        const vat = [...vatByRate.values()].reduce((s, v) => s + Math.round(v * 100) / 100, 0);
+        return {
+          debtor,
+          rows,
+          net,
+          vatLines: [...vatByRate.entries()]
+            .filter(([rate]) => rate > 0)
+            .sort((a, b) => b[0] - a[0])
+            .map(([rate, v]) => ({ rate, amount: Math.round(v * 100) / 100 })),
+          gross: Math.round((net + vat) * 100) / 100,
+        };
+      })
+      .filter((g) => g.rows.length > 0);
+  }, [readyRows]);
 
-  const statusBadge = (r: BillingRow) => {
-    if (r.status === "invoiced" || r.status === "settled") {
-      return (
-        <Badge variant="secondary" className="gap-1 font-normal">
-          <Receipt className="w-3 h-3" />
-          {r.invoiceNumber ?? ROW_STATUS_LABEL[r.status]}
-        </Badge>
-      );
+  const createDrafts = async (opts: {
+    issueDate: string; dueDate: string | null;
+    servicePeriodFrom: string | null; servicePeriodTo: string | null; introText: string;
+  }) => {
+    if (!buildingId) return;
+    setCreating(true);
+    try {
+      let firstId: string | null = null;
+      for (const g of invoiceGroups) {
+        const inv = await createInvoice.mutateAsync({
+          buildingId,
+          rows: g.rows,
+          createdBy: user?.id,
+          paidByWithdrawal: false,
+          templateId: null,
+          ...opts,
+        });
+        firstId ??= inv?.id ?? null;
+      }
+      setInvoiceOpen(false);
+      setSelected(new Set());
+      setOverrides({});
+      setExtraRows([]);
+      if (firstId) onDraftCreated?.(firstId);
+    } finally {
+      setCreating(false);
     }
-    if (r.status === "dismissed") {
-      return <Badge variant="outline" className="font-normal text-muted-foreground">Verworfen</Badge>;
-    }
-    if (r.status === "suggested") {
-      return <Badge variant="outline" className="font-normal">Vorschlag</Badge>;
-    }
-    return <Badge variant="outline" className="font-normal">{ROW_STATUS_LABEL[r.status]}</Badge>;
   };
 
-  /**
-   * Stundenzeilen bekommen je Projekt eine Zwischenüberschrift mit
-   * Gesamtstunden und einem Haken, der das ganze Projekt auswählt —
-   * damit „Eingangsplattform, 2,5 Std" ein Griff ist und nicht drei.
-   */
-  const renderProjectHeader = (name: string, rows: BillingRow[]) => {
-    const openRows = rows.filter(isOpenRow);
-    const hours = rows.reduce((s, r) => s + r.quantity, 0);
+  // ---------------- Darstellung ----------------
+
+  /** Klick auf die Karte wählt aus – außer auf Eingabefelder und Menüs. */
+  const onCardClick = (e: MouseEvent<HTMLDivElement>, r: BillingRow) => {
+    if (!isSelectable(r)) return;
+    const t = e.target as HTMLElement;
+    if (t.closest("input, textarea, button, [role='menuitem'], [data-no-toggle]")) return;
+    toggle(r.key);
+  };
+
+  function renderRow(r: BillingRow) {
+    const selectable = isSelectable(r);
+    const isSel = selected.has(r.key);
+    const editable = isOpenRow(r);
+    const edited = !!overrides[r.key];
+    const needsAmount = r.needsInput && !r.unitPriceNet;
+
     return (
-      <div className="flex items-center gap-2 px-4 py-1.5 bg-muted/20 border-b">
-        <div className="w-4">
-          {openRows.length > 0 && (
+      <div
+        key={r.key}
+        onClick={(e) => onCardClick(e, r)}
+        className={[
+          "group relative rounded-xl border bg-card pl-4 pr-12 py-3 flex flex-wrap items-start gap-x-3 gap-y-2 transition-colors",
+          selectable ? "cursor-pointer" : "",
+          isSel ? "border-primary/50 bg-orange-50/60 dark:bg-primary/10 ring-1 ring-primary/30" : "hover:border-foreground/20",
+          needsAmount ? "border-dashed" : "",
+          !editable ? "opacity-80" : "",
+        ].join(" ")}
+      >
+        <div className="pt-1.5 w-5 shrink-0">
+          {selectable && (
             <Checkbox
-              checked={openRows.length > 0 && openRows.every((r) => selected.has(r.key))}
-              onCheckedChange={() => toggleGroup(rows)}
-              aria-label={`Alle Stunden aus ${name} auswählen`}
+              checked={isSel}
+              onCheckedChange={() => toggle(r.key)}
+              aria-label={`${r.label} auswählen`}
             />
           )}
+          {!editable && isDone(r) && <CheckCircle2 className="w-4 h-4 mt-0.5 text-emerald-600" />}
         </div>
-        <FolderKanban className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-        <span className="text-sm font-medium truncate">{name}</span>
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {hours.toLocaleString("de-DE", { maximumFractionDigits: 2 })} Std · {rows.length}{" "}
-          {rows.length === 1 ? "Eintrag" : "Einträge"}
-        </span>
-        <span className="ml-auto text-sm font-mono">{formatEur(rowsNet(rows))}</span>
+
+        {/* Bezeichnung und Herkunft */}
+        <div className="flex-1 min-w-[220px]">
+          <Input
+            value={r.label}
+            onChange={(e) => patch(r.key, { label: e.target.value })}
+            disabled={!editable}
+            aria-label="Bezeichnung"
+            className="h-8 border-transparent bg-transparent shadow-none px-1.5 -ml-1.5 hover:border-input focus-visible:border-input text-sm font-medium disabled:opacity-100 disabled:cursor-default"
+          />
+          <div className="flex items-center gap-1.5 flex-wrap mt-1 pl-0.5">
+            {r.hint && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{r.hint}</span>
+            )}
+            {r.debtor !== "community" && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 dark:bg-sky-950/40 dark:text-sky-200 inline-flex items-center gap-1">
+                <User className="w-3 h-3" />{DEBTOR_TITLE[r.debtor]} · eigene Rechnung
+              </span>
+            )}
+            {isDone(r) && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 inline-flex items-center gap-1">
+                <Receipt className="w-3 h-3" />{r.invoiceNumber ? `Rechnung ${r.invoiceNumber}` : "abgerechnet"}
+              </span>
+            )}
+            {r.dismissedReason && (
+              <span className="text-[11px] text-muted-foreground italic">„{r.dismissedReason}“</span>
+            )}
+            {edited && (
+              <button
+                type="button"
+                onClick={() => resetRow(r.key)}
+                className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+              >
+                <Undo2 className="w-3 h-3" />geändert – zurücksetzen
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Menge × Einzelpreis = Betrag */}
+        {needsAmount ? (
+          <Button variant="outline" size="sm" className="h-9 gap-1.5 shrink-0" onClick={() => setPercentRow(r)}>
+            <Calculator className="w-3.5 h-3.5" />Betrag berechnen
+          </Button>
+        ) : (
+          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+            <Input
+              type="number" step="0.01" inputMode="decimal"
+              value={r.quantity}
+              disabled={!editable}
+              aria-label="Menge"
+              onChange={(e) => patch(r.key, { quantity: Number(e.target.value) })}
+              className="h-9 w-[76px] text-right text-sm disabled:opacity-100"
+            />
+            <span className="text-xs text-muted-foreground w-[54px] truncate" title={r.unit}>{r.unit}</span>
+            <span className="text-xs text-muted-foreground">×</span>
+            <div className="relative">
+              <Input
+                type="number" step="0.01" inputMode="decimal"
+                value={r.unitPriceNet ?? 0}
+                disabled={!editable}
+                aria-label="Einzelpreis netto"
+                onChange={(e) => patch(r.key, { unitPriceNet: Number(e.target.value) })}
+                className="h-9 w-[104px] text-right text-sm pr-6 disabled:opacity-100"
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">€</span>
+            </div>
+            <span className="text-sm font-semibold tabular-nums w-[104px] text-right">
+              {formatEur(rowNet(r))}
+            </span>
+          </div>
+        )}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-9 w-9 absolute right-1.5 top-3" aria-label="Weitere Aktionen">
+              <MoreVertical className="w-4 h-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {editable && <DropdownMenuItem onClick={() => setEditRow(r)}>Im Detail bearbeiten</DropdownMenuItem>}
+            {r.needsInput && editable && (
+              <DropdownMenuItem onClick={() => setPercentRow(r)}>
+                <Calculator className="w-4 h-4 mr-2" />Betrag neu berechnen
+              </DropdownMenuItem>
+            )}
+            {editable && (
+              <DropdownMenuItem onClick={() => dismiss(r)}>
+                <Ban className="w-4 h-4 mr-2" />Nicht abrechnen
+              </DropdownMenuItem>
+            )}
+            {r.eventId && editable && (
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => remove.mutate({ id: r.eventId!, buildingId: buildingId! })}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />Löschen
+              </DropdownMenuItem>
+            )}
+            {(r.origin === "preset" || r.origin === "manual") && !r.eventId && (
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => {
+                  setExtraRows((prev) => prev.filter((x) => x.key !== r.key));
+                  setSelected((prev) => { const n = new Set(prev); n.delete(r.key); return n; });
+                }}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />Entfernen
+              </DropdownMenuItem>
+            )}
+            {!editable && r.invoiceNumber && (
+              <DropdownMenuItem disabled>Steht auf Rechnung {r.invoiceNumber}</DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    );
+  }
+
+  const groupHeader = (title: string, rows: BillingRow[], note?: string, extra?: ReactNode) => {
+    const selectable = rows.filter(isSelectable);
+    const allOn = selectable.length > 0 && selectable.every((r) => selected.has(r.key));
+    return (
+      <div className="flex items-baseline gap-2.5 flex-wrap px-1">
+        <h3 className="text-[15px] font-semibold">{title}</h3>
+        {note && <span className="text-xs text-muted-foreground">{note}</span>}
+        <div className="ml-auto flex items-center gap-4">
+          {extra}
+          {selectable.length > 1 && (
+            <button
+              type="button"
+              onClick={() => toggleGroup(rows)}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              {allOn ? "Keine auswählen" : "Alle auswählen"}
+            </button>
+          )}
+        </div>
       </div>
     );
   };
 
-  const renderGroup = (
-    title: string,
-    rows: BillingRow[],
-    note?: string,
-    byProject = false,
-  ) => {
+  const renderGroup = (title: string, rows: BillingRow[], note?: string) => {
     if (!rows.length) return null;
-    const openRows = rows.filter(isOpenRow);
-
-    // Nach Projekt gruppieren, Reihenfolge nach Gesamtaufwand.
-    const projectGroups = byProject
-      ? [...rows.reduce((m, r) => {
-          const k = r.projectName ?? "Ohne Projekt";
-          m.set(k, [...(m.get(k) ?? []), r]);
-          return m;
-        }, new Map<string, BillingRow[]>())].sort(
-          (a, b) => rowsNet(b[1]) - rowsNet(a[1]),
-        )
-      : [];
-
     return (
-      <Card className="overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-muted/40">
-          {openRows.length > 0 && (
-            <Checkbox
-              checked={openRows.every((r) => selected.has(r.key)) && openRows.length > 0}
-              onCheckedChange={() => toggleGroup(rows)}
-              aria-label={`Alle ${title} auswählen`}
-            />
-          )}
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</span>
-          <span className="text-xs text-muted-foreground">
-            · {byProject ? `${projectGroups.length} ${projectGroups.length === 1 ? "Projekt" : "Projekte"}` : rows.length}
-          </span>
-          {note && <span className="text-xs text-muted-foreground ml-auto">{note}</span>}
-        </div>
-
-        {byProject
-          ? projectGroups.map(([name, projectRows]) => (
-              <div key={name}>
-                {renderProjectHeader(name, projectRows)}
-                <div className="divide-y">{projectRows.map(renderRow)}</div>
-              </div>
-            ))
-          : <div className="divide-y">{rows.map(renderRow)}</div>}
-      </Card>
+      <section className="space-y-2">
+        {groupHeader(title, rows, note)}
+        <div className="space-y-2">{rows.map(renderRow)}</div>
+      </section>
     );
   };
 
-  function renderRow(r: BillingRow) {
-            const selectable = isOpenRow(r) && !(r.needsInput && !r.unitPriceNet);
-            const edited = !!overrides[r.key];
-            return (
-              <div key={r.key} className={`px-4 py-2.5 flex items-start gap-3 ${selected.has(r.key) ? "bg-primary/5" : ""}`}>
-                <div className="pt-1.5 w-4">
-                  {selectable && (
-                    <Checkbox checked={selected.has(r.key)} onCheckedChange={() => toggle(r.key)} />
-                  )}
-                </div>
+  /** Stunden je Projekt, Projekte nach Aufwand sortiert. */
+  const renderTimeGroup = (rows: BillingRow[]) => {
+    if (!rows.length) return null;
+    const projects = [...rows.reduce((m, r) => {
+      const k = r.projectName ?? "Ohne Projekt";
+      m.set(k, [...(m.get(k) ?? []), r]);
+      return m;
+    }, new Map<string, BillingRow[]>())].sort((a, b) => rowsNet(b[1]) - rowsNet(a[1]));
 
-                <div className="flex-1 min-w-0">
-                  <Input
-                    value={r.label}
-                    onChange={(e) => patch(r.key, { label: e.target.value })}
-                    disabled={!isOpenRow(r)}
-                    className="h-8 border-transparent bg-transparent px-1 -ml-1 hover:border-input focus:border-input text-sm font-medium"
+    return (
+      <section className="space-y-2">
+        {groupHeader(
+          "Erfasste Stunden", rows, "noch keiner Rechnung zugeordnet",
+          tab === "open" ? (
+            <label className="flex items-center gap-2 text-xs cursor-pointer text-muted-foreground">
+              <Switch checked={mergeTime} onCheckedChange={setMergeTime} />
+              je Projekt als eine Zeile
+            </label>
+          ) : undefined,
+        )}
+        {projects.map(([name, projectRows]) => {
+          const selectable = projectRows.filter(isSelectable);
+          const hours = projectRows.reduce((s, r) => s + r.quantity, 0);
+          return (
+            <div key={name} className="space-y-2">
+              <div className="flex items-center gap-2.5 px-4 py-2 rounded-lg bg-muted/60 text-sm">
+                {selectable.length > 0 ? (
+                  <Checkbox
+                    checked={selectable.every((r) => selected.has(r.key))}
+                    onCheckedChange={() => toggleGroup(projectRows)}
+                    aria-label={`Alle Stunden aus ${name} auswählen`}
                   />
-                  <div className="flex items-center gap-2 flex-wrap mt-0.5 pl-1">
-                    {statusBadge(r)}
-                    <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-normal">
-                      {ORIGIN_LABEL[r.origin]}
-                    </Badge>
-                    {r.hint && <span className="text-xs text-muted-foreground">{r.hint}</span>}
-                    {r.dismissedReason && (
-                      <span className="text-xs text-muted-foreground italic">{r.dismissedReason}</span>
-                    )}
-                    {edited && (
-                      <button
-                        onClick={() => resetRow(r.key)}
-                        className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-                      >
-                        <Undo2 className="w-3 h-3" />geändert
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {r.needsInput && !r.unitPriceNet ? (
-                  <Button variant="outline" size="sm" className="h-8 gap-1.5 shrink-0" onClick={() => setPercentRow(r)}>
-                    <Calculator className="w-3.5 h-3.5" />Betrag berechnen
-                  </Button>
-                ) : (
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Input
-                      type="number" step="0.01"
-                      value={r.quantity}
-                      disabled={!isOpenRow(r)}
-                      onChange={(e) => patch(r.key, { quantity: Number(e.target.value) })}
-                      className="h-8 w-[74px] text-right text-sm"
-                    />
-                    <span className="text-xs text-muted-foreground w-[52px] truncate">{r.unit}</span>
-                    <Input
-                      type="number" step="0.01"
-                      value={r.unitPriceNet ?? 0}
-                      disabled={!isOpenRow(r)}
-                      onChange={(e) => patch(r.key, { unitPriceNet: Number(e.target.value) })}
-                      className="h-8 w-[92px] text-right text-sm"
-                    />
-                    <span className="text-sm font-mono font-semibold w-[96px] text-right">
-                      {formatEur(rowNet(r))}
-                    </span>
-                  </div>
-                )}
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                      <MoreVertical className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setEditRow(r)}>Im Detail bearbeiten</DropdownMenuItem>
-                    {r.needsInput && (
-                      <DropdownMenuItem onClick={() => setPercentRow(r)}>
-                        <Calculator className="w-4 h-4 mr-2" />Betrag neu berechnen
-                      </DropdownMenuItem>
-                    )}
-                    {isOpenRow(r) && (
-                      <DropdownMenuItem onClick={() => dismiss(r)}>
-                        <Ban className="w-4 h-4 mr-2" />Nicht abrechnen
-                      </DropdownMenuItem>
-                    )}
-                    {r.eventId && (
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={() => remove.mutate({ id: r.eventId!, buildingId: buildingId! })}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />Löschen
-                      </DropdownMenuItem>
-                    )}
-                    {r.origin === "preset" && !r.eventId && (
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={() => setExtraRows((prev) => prev.filter((x) => x.key !== r.key))}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />Entfernen
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                ) : <span className="w-4" />}
+                <FolderKanban className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span className="font-medium truncate">{name}</span>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {num(hours)} Std · {projectRows.length} {projectRows.length === 1 ? "Eintrag" : "Einträge"}
+                </span>
+                <span className="ml-auto font-semibold tabular-nums">{formatEur(rowsNet(projectRows))}</span>
               </div>
-            );
-  }
+              <div className="space-y-2 pl-3 border-l-2 border-muted ml-2">{projectRows.map(renderRow)}</div>
+            </div>
+          );
+        })}
+      </section>
+    );
+  };
 
-  const years = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+  const years = [currentYear - 2, currentYear - 1, currentYear];
+  const tabs: { key: Tab; label: string }[] = [
+    { key: "open", label: "Offen" },
+    { key: "done", label: "Abgerechnet" },
+    { key: "dismissed", label: "Verworfen" },
+  ];
+
+  const emptyText =
+    tab === "open"
+      ? contract
+        ? "Hier ist gerade nichts offen. Über „Freie Position“ kannst du jederzeit etwas ergänzen."
+        : "Für dieses Objekt ist kein Verwaltervertrag erfasst — deshalb gibt es keine Vorschläge. Du kannst trotzdem freie Positionen anlegen."
+      : tab === "done"
+        ? "Für dieses Objekt wurde über das Abrechnungsblatt noch nichts abgerechnet."
+        : "Nichts verworfen. Posten, die du bewusst nicht abrechnest, landen hier – mit Begründung.";
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 flex flex-col border-0 [&>button]:top-4 [&>button]:right-4">
-          <DialogHeader className="px-6 pt-4 pb-3 border-b shrink-0">
-            <DialogTitle className="text-base flex items-center gap-2 flex-wrap">
-              Abrechnung · {buildingName}
-              {contract ? (
-                <Badge variant="outline" className="font-normal">Vertrag hinterlegt</Badge>
-              ) : (
-                <Badge variant="outline" className="font-normal text-muted-foreground">
-                  kein Verwaltervertrag erfasst
-                </Badge>
-              )}
-            </DialogTitle>
+        <DialogContent className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 flex flex-col border-0 bg-background [&>button]:top-4 [&>button]:right-4">
+          {/* Kopf */}
+          <DialogHeader className="px-4 sm:px-6 pt-4 pb-0 border-b bg-background shrink-0 space-y-0 text-left">
+            <div className="mx-auto w-full max-w-7xl">
+              <div className="flex flex-wrap items-end justify-between gap-3 pr-10">
+                <div>
+                  <DialogTitle className="text-xl font-semibold tracking-tight">{buildingName}</DialogTitle>
+                  <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1.5">
+                    {contract ? (
+                      <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+                        <CheckCircle2 className="w-3.5 h-3.5" />Verwaltervertrag hinterlegt
+                      </span>
+                    ) : (
+                      <span>kein Verwaltervertrag erfasst</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Honorarjahr</span>
+                  <div className="flex rounded-full bg-muted p-0.5" role="group" aria-label="Honorarjahr">
+                    {years.map((y) => (
+                      <button
+                        key={y}
+                        type="button"
+                        onClick={() => setYear(y)}
+                        aria-pressed={year === y}
+                        className={`h-8 px-3.5 rounded-full text-xs transition-colors ${
+                          year === y ? "bg-background shadow-sm font-semibold" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {y}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1 mt-3">
+                {tabs.map((t) => (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => setTab(t.key)}
+                    className={`h-10 px-3 inline-flex items-center gap-2 text-sm border-b-2 -mb-px transition-colors ${
+                      tab === t.key
+                        ? "border-primary font-semibold text-foreground"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {t.label}
+                    <span className={`text-[11px] px-1.5 rounded-full ${tab === t.key ? "bg-primary/10 text-primary" : "bg-muted"}`}>
+                      {counts[t.key]}
+                    </span>
+                  </button>
+                ))}
+                <div className="ml-auto flex items-center gap-2 pb-2">
+                  {hasUnsaved && (
+                    <Button size="sm" variant="secondary" className="h-9 gap-1.5 rounded-full" onClick={saveEdits}>
+                      <Save className="w-3.5 h-3.5" />Änderungen speichern
+                    </Button>
+                  )}
+                  <Select value="" onValueChange={applyPreset}>
+                    <SelectTrigger className="h-9 w-auto gap-1.5 rounded-full text-xs whitespace-nowrap">
+                      <div className="flex items-center gap-1.5"><FileStack className="w-3.5 h-3.5" />Vorlage einfügen</div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(presets ?? []).length === 0 && (
+                        <div className="px-2 py-1.5 text-xs text-muted-foreground">Keine Vorlagen</div>
+                      )}
+                      {presets?.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" variant="outline" className="h-9 gap-1.5 rounded-full text-xs" onClick={() => setNewRowOpen(true)}>
+                    <Plus className="w-3.5 h-3.5" />Freie Position
+                  </Button>
+                </div>
+              </div>
+            </div>
           </DialogHeader>
 
-          {/* Werkzeugleiste */}
-          <div className="px-6 py-2.5 border-b flex items-center gap-2 flex-wrap shrink-0">
-            <div className="flex items-center gap-1.5">
-              <Label className="text-xs text-muted-foreground">Honorarjahr</Label>
-              <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-                <SelectTrigger className="h-8 w-[92px] text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Select value="" onValueChange={applyPreset}>
-              <SelectTrigger className="h-8 w-[180px] text-xs">
-                <span className="flex items-center gap-1.5"><FileStack className="w-3.5 h-3.5" />Vorlage übernehmen…</span>
-              </SelectTrigger>
-              <SelectContent>
-                {(presets ?? []).length === 0 && (
-                  <div className="px-2 py-1.5 text-xs text-muted-foreground">Keine Vorlagen</div>
+          {/* Inhalt: Positionen links, Vorschau rechts */}
+          <div className="flex-1 overflow-y-auto bg-muted/40">
+            <div className="mx-auto w-full max-w-7xl p-4 sm:p-6 flex flex-wrap items-start gap-6">
+              <div className="flex-[999_1_560px] min-w-0 space-y-6">
+                {isLoading ? (
+                  <Skeleton className="h-64 rounded-xl" />
+                ) : visible.length === 0 ? (
+                  <div className="rounded-xl border bg-card p-10 text-center text-sm text-muted-foreground">
+                    <Info className="w-8 h-8 mx-auto mb-3 opacity-25" />
+                    {emptyText}
+                  </div>
+                ) : (
+                  <>
+                    {renderGroup("Honorar laut Vertrag", groups.fee, "einmal im Jahr")}
+                    {renderGroup("Zusatzleistungen laut Vertrag", groups.extra,
+                      tab === "open" ? "Vorschläge – nichts wird ohne dein Zutun abgerechnet" : undefined)}
+                    {renderTimeGroup(groups.time)}
+                    {renderGroup("Aus Positionsvorlagen", groups.preset)}
+                    {renderGroup("Freie Positionen", groups.manual)}
+                  </>
                 )}
-                {presets?.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              </div>
 
-            <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={() => setNewRowOpen(true)}>
-              <Plus className="w-3.5 h-3.5" />Freie Position
-            </Button>
+              {/* Vorschau */}
+              <aside className="flex-[1_1_320px] min-w-0 lg:max-w-[400px] lg:sticky lg:top-0">
+                <div className="rounded-2xl border bg-card overflow-hidden">
+                  <div className="h-1 bg-primary" />
+                  <div className="px-5 pt-4 pb-2">
+                    <div className="text-[11px] uppercase tracking-widest text-muted-foreground">Vorschau</div>
+                    <div className="text-lg font-semibold mt-0.5">
+                      {chosen.length === 0
+                        ? "Noch nichts ausgewählt"
+                        : `${chosen.length} ${chosen.length === 1 ? "Position" : "Positionen"}, ${invoiceGroups.length} ${invoiceGroups.length === 1 ? "Rechnung" : "Rechnungen"}`}
+                    </div>
+                  </div>
 
-            {hasUnsaved && (
-              <Button size="sm" variant="secondary" className="h-8 gap-1 text-xs" onClick={saveEdits}>
-                <Save className="w-3.5 h-3.5" />Änderungen speichern
-              </Button>
-            )}
+                  {chosen.length === 0 && (
+                    <p className="px-5 pb-5 text-sm text-muted-foreground">
+                      Hake links an, was auf die Rechnung soll. Menge und Preis kannst du direkt in der Karte ändern.
+                    </p>
+                  )}
 
-            <div className="ml-auto flex items-center gap-4">
-              <label className="flex items-center gap-2 text-xs cursor-pointer">
-                <Switch checked={mergeTime} onCheckedChange={setMergeTime} />
-                Stunden zusammenfassen
-              </label>
-              <label className="flex items-center gap-2 text-xs cursor-pointer">
-                <Switch checked={showDone} onCheckedChange={setShowDone} />
-                Erledigtes einblenden
-              </label>
-            </div>
-          </div>
+                  {invoiceGroups.map((g) => (
+                    <div key={g.debtor} className="px-5 py-4 border-t">
+                      <div className="text-xs text-muted-foreground">Rechnung an</div>
+                      <div className="font-semibold mb-2.5">
+                        {g.debtor === "community" ? `Gemeinschaft ${buildingName}` : DEBTOR_TITLE[g.debtor]}
+                      </div>
+                      <div className="space-y-1.5">
+                        {g.rows.map((r) => (
+                          <div key={r.key} className="flex gap-3 text-sm">
+                            <span className="flex-1 min-w-0 text-muted-foreground">
+                              {r.label}
+                              <span className="block text-[11px]">{num(r.quantity)} {r.unit} × {formatEur(r.unitPriceNet ?? 0)}</span>
+                            </span>
+                            <span className="tabular-nums whitespace-nowrap">{formatEur(rowNet(r))}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <dl className="mt-3 pt-2.5 border-t space-y-1 text-sm">
+                        <div className="flex justify-between text-muted-foreground">
+                          <dt>Netto</dt><dd className="tabular-nums">{formatEur(g.net)}</dd>
+                        </div>
+                        {g.vatLines.map((v) => (
+                          <div key={v.rate} className="flex justify-between text-muted-foreground">
+                            <dt>{num(v.rate)} % USt.</dt><dd className="tabular-nums">{formatEur(v.amount)}</dd>
+                          </div>
+                        ))}
+                        <div className="flex justify-between items-baseline pt-1">
+                          <dt className="font-semibold">Gesamt</dt>
+                          <dd className="tabular-nums text-xl font-bold">{formatEur(g.gross)}</dd>
+                        </div>
+                      </dl>
+                    </div>
+                  ))}
 
-          {/* Liste */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            {isLoading ? (
-              <Skeleton className="h-64" />
-            ) : visible.length === 0 ? (
-              <Card className="p-10 text-center text-sm text-muted-foreground">
-                <Info className="w-8 h-8 mx-auto mb-3 opacity-25" />
-                {contract
-                  ? "Hier ist gerade nichts offen. Über „Erledigtes einblenden“ siehst du, was bereits abgerechnet wurde."
-                  : "Für dieses Objekt ist kein Verwaltervertrag erfasst — deshalb gibt es keine Vorschläge. Du kannst trotzdem freie Positionen anlegen."}
-              </Card>
-            ) : (
-              <>
-                {renderGroup(
-                  "Aus dem Verwaltervertrag", groups.contract,
-                  contract ? "Vorschläge — nichts wird ohne dein Zutun abgerechnet" : undefined,
-                )}
-                {renderGroup(
-                  "Erfasste Stunden", groups.time,
-                  "nach Projekt, abrechenbar und noch keiner Rechnung zugeordnet",
-                  true,
-                )}
-                {renderGroup("Aus Positionsvorlagen", groups.preset)}
-                {renderGroup("Freie Positionen", groups.manual)}
-              </>
-            )}
-          </div>
-
-          {/* Fußleiste */}
-          <div className="px-6 py-3 border-t shrink-0 flex items-center gap-4 flex-wrap">
-            <div className="text-sm">
-              <span className="font-semibold">{chosen.length}</span>
-              <span className="text-muted-foreground"> ausgewählt · </span>
-              <span className="font-mono font-semibold">{formatEur(rowsNet(chosen))}</span>
-              <span className="text-muted-foreground"> netto</span>
-            </div>
-            <div className="ml-auto flex gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>Schließen</Button>
-              <Button disabled={chosen.length === 0} onClick={() => setInvoiceOpen(true)} className="gap-1.5">
-                <Receipt className="w-4 h-4" />Rechnung erstellen
-              </Button>
+                  <div className="px-5 py-4 border-t space-y-3">
+                    <div className="flex gap-2.5 items-start rounded-lg bg-muted/60 px-3 py-2.5 text-xs text-muted-foreground">
+                      <Landmark className="w-4 h-4 shrink-0 text-primary" />
+                      <span>Wird durch die Hausverwaltung vom Gemeinschaftskonto überwiesen und landet automatisch im Zahlungslauf.</span>
+                    </div>
+                    <Button
+                      className="w-full h-11 rounded-full gap-2 text-[15px]"
+                      disabled={chosen.length === 0}
+                      onClick={() => setInvoiceOpen(true)}
+                    >
+                      <Receipt className="w-4 h-4" />
+                      {invoiceGroups.length > 1 ? `${invoiceGroups.length} Rechnungsentwürfe erstellen` : "Rechnungsentwurf erstellen"}
+                    </Button>
+                    <p className="text-[11px] text-center text-muted-foreground">
+                      Wird als Entwurf angelegt – du kannst danach noch alles ändern.
+                    </p>
+                  </div>
+                </div>
+              </aside>
             </div>
           </div>
         </DialogContent>
@@ -649,6 +856,7 @@ export function BuildingBillingSheet({
           } else {
             setExtraRows((prev) => [...prev, row]);
             setSelected((prev) => new Set([...prev, row.key]));
+            setTab("open");
           }
           setNewRowOpen(false);
           setEditRow(null);
@@ -670,24 +878,11 @@ export function BuildingBillingSheet({
         open={invoiceOpen}
         onOpenChange={setInvoiceOpen}
         rows={readyRows}
+        invoiceCount={invoiceGroups.length}
         buildingName={buildingName}
-        templates={templates ?? []}
         year={year}
-        pending={createInvoice.isPending}
-        onConfirm={async (opts) => {
-          if (!buildingId) return;
-          const inv = await createInvoice.mutateAsync({
-            buildingId,
-            rows: readyRows,
-            createdBy: user?.id,
-            ...opts,
-          });
-          setInvoiceOpen(false);
-          setSelected(new Set());
-          setOverrides({});
-          setExtraRows([]);
-          if (inv?.id) onDraftCreated?.(inv.id);
-        }}
+        pending={creating || createInvoice.isPending}
+        onConfirm={createDrafts}
       />
     </>
   );

@@ -19,7 +19,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -33,7 +32,7 @@ import {
 import { toast } from "sonner";
 
 import {
-  useRgiClients, useRgiProjects, useRgiTemplates, useRgiInvoice, useRgiInvoiceItems,
+  useRgiClients, useRgiProjects, useRgiInvoice, useRgiInvoiceItems,
   useCreateRgiInvoice, useUpdateRgiInvoice, useUpsertRgiInvoiceItems,
   useRgiItemPresets, useUpsertRgiItemPreset,
   rgiNextInvoiceNumber, rgiRenderInvoice, rgiSignedUrl, type RgiInvoiceItem,
@@ -72,7 +71,6 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
   const { user } = useAuth();
   const { data: clients } = useRgiClients();
   const { data: projects } = useRgiProjects();
-  const { data: templates } = useRgiTemplates();
   const { data: invoice } = useRgiInvoice(invoiceId);
   const { data: items } = useRgiInvoiceItems(invoiceId);
   const { data: presets } = useRgiItemPresets();
@@ -212,7 +210,6 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
    */
   const finalize = async () => {
     if (!d.client_id) { toast.error("Bitte einen Rechnungsempfänger wählen"); return; }
-    if (!d.template_id) { toast.error("Bitte zuerst eine Word-Vorlage wählen"); return; }
     setRendering(true);
     try {
       const project = projects?.find((p) => p.id === d.project_id);
@@ -260,16 +257,15 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
     }
   };
 
-  const preview = async (format: "pdf" | "docx") => {
+  const preview = async (format: "pdf") => {
     if (!d.client_id) { toast.error("Bitte einen Rechnungsempfänger wählen"); return; }
-    if (!d.template_id) { toast.error("Bitte zuerst eine Word-Vorlage wählen"); return; }
     setRendering(true);
     const tid = toast.loading(`${format.toUpperCase()} wird erzeugt …`);
     try {
       const id = await persist();
       const r = await rgiRenderInvoice(id, [format]);
       if (format === "pdf" && r?.pdf_error) throw new Error(r.pdf_error);
-      const path = format === "pdf" ? r?.pdf_path : r?.docx_path;
+      const path = r?.pdf_path;
       if (!path) throw new Error(`${format.toUpperCase()} wurde nicht erzeugt`);
       window.open(await rgiSignedUrl("invoices", path), "_blank");
       toast.success(`${format.toUpperCase()} erzeugt`, { id: tid });
@@ -291,7 +287,7 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
       : null,
     d.paid_by_withdrawal
       ? "Selbstentnahme vom Objektkonto"
-      : d.due_date ? `fällig ${formatDate(d.due_date)}` : "Überweisung",
+      : d.due_date ? `Überweisung bis ${formatDate(d.due_date)}` : "Überweisung durch die Hausverwaltung",
   ].filter(Boolean);
 
   return (
@@ -367,7 +363,7 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
                       onChange={(e) => setD({ ...d, issue_date: e.target.value })} />
                   </div>
                   <div>
-                    <Label className="text-xs">{d.paid_by_withdrawal ? "Fällig (entfällt)" : "Fällig am"}</Label>
+                    <Label className="text-xs">{d.paid_by_withdrawal ? "Fällig (entfällt)" : "Überweisen bis"}</Label>
                     <Input type="date" value={d.due_date} disabled={d.paid_by_withdrawal}
                       onChange={(e) => setD({ ...d, due_date: e.target.value })} />
                   </div>
@@ -381,18 +377,16 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
                     <Input type="date" value={d.service_period_to ?? ""}
                       onChange={(e) => setD({ ...d, service_period_to: e.target.value || null })} />
                   </div>
-                  <label className="sm:col-span-2 flex items-center justify-between gap-3 rounded-md border px-3 py-2.5 cursor-pointer">
-                    <span className="text-sm">
-                      {d.paid_by_withdrawal ? "Selbstentnahme vom Objektkonto" : "Überweisung durch den Empfänger"}
+                  <div className="sm:col-span-2 flex items-start gap-2.5 rounded-md border px-3 py-2.5 text-sm">
+                    <Landmark className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
+                    <span>
+                      {d.paid_by_withdrawal ? "Selbstentnahme vom Objektkonto (ältere Rechnung)" : "Überweisung durch die Hausverwaltung"}
                       <span className="block text-xs text-muted-foreground mt-0.5">
-                        {d.paid_by_withdrawal
-                          ? "Die Rechnung ist der Beleg zur Entnahme — ohne Bankverbindung und Zahlungsziel."
-                          : "Die Rechnung zeigt Bankverbindung und Zahlungsziel."}
+                        Gehört die Rechnung zu einem Objekt, überweist die Verwaltung sie vom Gemeinschaftskonto –
+                        sie landet automatisch im Zahlungslauf. Ohne Objekt zeigt die Rechnung die Bankverbindung.
                       </span>
                     </span>
-                    <Switch checked={d.paid_by_withdrawal}
-                      onCheckedChange={(v) => setD({ ...d, paid_by_withdrawal: v })} />
-                  </label>
+                  </div>
                 </div>
               )}
             </Card>
@@ -549,26 +543,8 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
             {/* Vorlage und Texte */}
             <Card className="p-4 space-y-3">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Vorlage und Texte
+                Texte
               </h3>
-              <div>
-                <Label className="text-xs">Word-Vorlage *</Label>
-                <Select value={d.template_id ?? "none"}
-                  onValueChange={(v) => setD({ ...d, template_id: v === "none" ? null : v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— noch keine gewählt —</SelectItem>
-                    {templates?.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>{t.name}{t.is_default ? " (Standard)" : ""}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {!d.template_id && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Ohne Vorlage lässt sich kein Dokument erzeugen. Vorlagen liegen unter „Word-Vorlagen“.
-                  </p>
-                )}
-              </div>
               <div>
                 <Label className="text-xs">Einleitungstext</Label>
                 <Textarea rows={3} value={d.intro_text}
@@ -601,10 +577,6 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
               Entwurf speichern
             </Button>
           )}
-          <Button variant="outline" onClick={() => preview("docx")}
-            disabled={rendering || !d.client_id} className="gap-1.5">
-            <Download className="w-4 h-4" />Word
-          </Button>
           <Button variant="outline" onClick={() => preview("pdf")}
             disabled={rendering || !d.client_id} className="gap-1.5">
             {rendering ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}

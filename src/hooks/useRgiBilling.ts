@@ -246,6 +246,19 @@ export function useCreateInvoiceFromBillables() {
       const eventIds: string[] = [];
       for (const r of rows) {
         if (r.eventId) {
+          // Im Abrechnungsblatt geänderte Werte (z. B. Anzahl Porto)
+          // auch am Posten festhalten, damit beides übereinstimmt.
+          const { error: upErr } = await db
+            .from("billable_events")
+            .update({
+              label: r.label,
+              quantity: r.quantity,
+              unit: r.unit,
+              amount_net: r.unitPriceNet ?? 0,
+              vat_rate: r.vatRate,
+            })
+            .eq("id", r.eventId);
+          if (upErr) throw upErr;
           eventIds.push(r.eventId);
           continue;
         }
