@@ -255,8 +255,7 @@ export async function buildInvoicePdf(d: InvoiceData, logoUrl: string): Promise<
   const metaRows: [string, string][] = ([
     ["Rechnungsnr.", d.meta.number],
     ["Datum", d.meta.date],
-    ["Kundennr.", d.meta.customerNo],
-    ["Leistung", d.meta.servicePeriod],
+    ["Leistungszeitraum", d.meta.servicePeriod],
     ...(d.payment === "transfer" && d.meta.dueDate ? [["Fällig am", d.meta.dueDate]] : []),
   ] as [string, string][]).filter(([, v]) => v);
   const metaX = RIGHT - 72 * MM;
