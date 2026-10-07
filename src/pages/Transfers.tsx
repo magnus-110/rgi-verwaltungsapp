@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { TransferReviewMode } from "@/components/transfers/TransferReviewMode";
+import { DatevToggle } from "@/components/transfers/DatevToggle";
 import { InvoiceDropZone } from "@/components/finance/InvoiceDropZone";
 import JSZip from "jszip";
 
@@ -637,7 +638,17 @@ export function Transfers() {
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0">Offen</Badge>
                     )}
                     {(inv as any).is_company_invoice ? (
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/40 text-primary bg-primary/10">RGI</Badge>
+                      <>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/40 text-primary bg-primary/10">RGI</Badge>
+                        {(inv as any).invoice_type !== "credit_note" && <DatevToggle
+                          invoiceId={inv.id}
+                          enabled={(inv as any).datev_upload}
+                          sentAt={(inv as any).datev_sent_at}
+                          status={(inv as any).datev_status}
+                          error={(inv as any).datev_error}
+                          onChanged={refetch}
+                        />}
+                      </>
                     ) : (inv as any).buildings?.name ? (
                       <span className="text-muted-foreground truncate">· {(inv as any).buildings?.name}</span>
                     ) : null}
@@ -733,7 +744,17 @@ export function Transfers() {
                       <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(inv.gross_amount)}</TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {(inv as any).is_company_invoice ? (
-                          <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/10">RGI</Badge>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/10">RGI</Badge>
+                            {(inv as any).invoice_type !== "credit_note" && <DatevToggle
+                              invoiceId={inv.id}
+                              enabled={(inv as any).datev_upload}
+                              sentAt={(inv as any).datev_sent_at}
+                              status={(inv as any).datev_status}
+                              error={(inv as any).datev_error}
+                              onChanged={refetch}
+                            />}
+                          </div>
                         ) : ((inv as any).buildings?.name || "–")}
                       </TableCell>
                       <TableCell>
