@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { FileText, Check, AlertCircle } from 'lucide-react';
+import { FileText, Check, AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 export interface ChatSource {
+  fileId?: string | null;
   fileName: string;
   folderPath?: string[];
   pageNumber?: number | null;
@@ -30,10 +34,41 @@ interface ChatMessageProps {
 }
 
 export const ChatMessage = ({ message, onSubmitReport, isSubmittingReport }: ChatMessageProps) => {
+  const { toast } = useToast();
+  const [oeffnet, setOeffnet] = useState<string | null>(null);
+
+  // Dokument aus einer Quelle oeffnen. get-building-file-url prueft die Freigabe erneut,
+  // der Link ist eine Stunde gueltig. Das Fenster wird sofort geoeffnet (vor dem Laden),
+  // damit Browser - besonders Safari auf dem iPhone - es nicht als Pop-up blockieren.
+  const dokumentOeffnen = async (q: ChatSource) => {
+    if (!q.fileId) return;
+    const fenster = window.open('', '_blank');
+    setOeffnet(q.fileId);
+    try {
+      const { data, error } = await supabase.functions.invoke('get-building-file-url', {
+        body: { fileId: q.fileId },
+      });
+      if (error || !data?.signedUrl) throw error || new Error('Kein Link');
+      const ziel = q.pageNumber ? `${data.signedUrl}#page=${q.pageNumber}` : data.signedUrl;
+      if (fenster) fenster.location.href = ziel;
+      else window.location.href = ziel;
+    } catch {
+      fenster?.close();
+      toast({
+        title: 'Dokument konnte nicht geöffnet werden',
+        description: 'Sie finden es auch unter „Dokumente“.',
+        variant: 'destructive',
+      });
+    } finally {
+      setOeffnet(null);
+    }
+  };
+
   // Mehrere Textabschnitte stammen oft aus derselben Datei - dem Leser genuegt
   // das Dokument einmal.
   const quellen = (message.sources || []).filter(
-    (q, i, alle) => alle.findIndex((a) => a.fileName === q.fileName) === i,
+    (q, i, alle) =>
+      alle.findIndex((a) => (a.fileId && q.fileId ? a.fileId === q.fileId : a.fileName === q.fileName)) === i,
   );
 
   return (
@@ -88,13 +123,31 @@ export const ChatMessage = ({ message, onSubmitReport, isSubmittingReport }: Cha
               </p>
               <ul className="space-y-1">
                 {quellen.map((q, i) => (
-                  <li key={i} className="flex gap-1.5 text-xs text-muted-foreground">
-                    <FileText className="h-3.5 w-3.5 shrink-0 mt-px" />
-                    <span>
-                      {q.fileName}
-                      {q.folderPath?.length ? ` · ${q.folderPath.join(' › ')}` : ''}
-                      {q.pageNumber ? ` · S. ${q.pageNumber}` : ''}
-                    </span>
+                  <li key={q.fileId || i} className="flex gap-1.5 text-xs text-muted-foreground">
+                    {oeffnet && oeffnet === q.fileId ? (
+                      <Loader2 className="h-3.5 w-3.5 shrink-0 mt-px animate-spin" />
+                    ) : (
+                      <FileText className="h-3.5 w-3.5 shrink-0 mt-px" />
+                    )}
+                    {q.fileId ? (
+                      <button
+                        type="button"
+                        onClick={() => dokumentOeffnen(q)}
+                        className="text-left hover:text-foreground hover:underline underline-offset-2 transition-colors"
+                        title="Dokument öffnen"
+                      >
+                        <span className="font-medium text-foreground/80">{q.fileName}</span>
+                        {q.folderPath?.length ? ` · ${q.folderPath.join(' › ')}` : ''}
+                        {q.pageNumber ? ` · S. ${q.pageNumber}` : ''}
+                        <ExternalLink className="inline h-3 w-3 ml-1 -mt-0.5" />
+                      </button>
+                    ) : (
+                      <span>
+                        {q.fileName}
+                        {q.folderPath?.length ? ` · ${q.folderPath.join(' › ')}` : ''}
+                        {q.pageNumber ? ` · S. ${q.pageNumber}` : ''}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

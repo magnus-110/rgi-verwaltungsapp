@@ -107,6 +107,9 @@ serve(async (req) => {
       .sort((a, b) => (b.similarity ?? 0) - (a.similarity ?? 0))
       .slice(0, Number(matchCount) || MAX_QUELLEN)
       .map((t) => ({
+        // fileId erlaubt dem Chat einen Link zum Dokument. Geoeffnet wird es ueber
+        // get-building-file-url, das die Freigabe erneut prueft.
+        fileId: t.file_id ?? null,
         fileName: t.file_name || "Unbekanntes Dokument",
         folderPath: Array.isArray(t.category_path) ? t.category_path : [],
         pageNumber: t.page_start ?? null,

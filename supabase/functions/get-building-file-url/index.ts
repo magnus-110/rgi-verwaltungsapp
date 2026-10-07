@@ -21,11 +21,12 @@ serve(async (req) => {
       );
     }
 
-    const { filePath } = await req.json();
+    // filePath (Dokumentenbereich) oder fileId (Quellen-Links im Chat)
+    const { filePath, fileId } = await req.json();
 
-    if (!filePath) {
+    if (!filePath && !fileId) {
       return new Response(
-        JSON.stringify({ error: 'filePath is required' }),
+        JSON.stringify({ error: 'filePath or fileId is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -42,12 +43,12 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: fileRow, error: fileErr } = await userClient
+    let abfrage = userClient
       .from('building_files')
-      .select('id')
-      .eq('file_path', filePath)
-      .is('deleted_at', null)
-      .maybeSingle();
+      .select('id, file_path, storage_bucket, display_name')
+      .is('deleted_at', null);
+    abfrage = fileId ? abfrage.eq('id', fileId) : abfrage.eq('file_path', filePath);
+    const { data: fileRow, error: fileErr } = await abfrage.limit(1).maybeSingle();
 
     if (fileErr) {
       console.error('Authorization lookup failed:', fileErr);
@@ -68,8 +69,8 @@ serve(async (req) => {
     // --- Sign with service role only AFTER authorization succeeded ---
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { data, error } = await supabase.storage
-      .from('building-files')
-      .createSignedUrl(filePath, 3600);
+      .from(fileRow.storage_bucket || 'building-files')
+      .createSignedUrl(fileRow.file_path, 3600);
 
     if (error) {
       console.error('Error creating signed URL:', error);
@@ -80,7 +81,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ signedUrl: data.signedUrl }),
+      JSON.stringify({ signedUrl: data.signedUrl, fileName: fileRow.display_name ?? null }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
