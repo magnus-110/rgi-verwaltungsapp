@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import JSZip from "jszip";
 import * as XLSX from "xlsx";
 import {
@@ -22,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Download, ExternalLink, FileSpreadsheet, Loader2, Receipt } from "lucide-react";
+import { Download, ExternalLink, FileSpreadsheet, Loader2, Receipt, Send } from "lucide-react";
 import { toast } from "sonner";
 import {
   CompanyInvoiceRow,
@@ -77,6 +78,8 @@ export function CompanyInvoiceList({ direction }: Props) {
   const [from, setFrom] = useState<string | null>(null);
   const [to, setTo] = useState<string | null>(null);
   const [busy, setBusy] = useState<"zip" | "xlsx" | null>(null);
+  const [datevBusy, setDatevBusy] = useState<string | null>(null);
+  const qc = useQueryClient();
 
   useEffect(() => {
     const now = new Date();
@@ -152,6 +155,40 @@ export function CompanyInvoiceList({ direction }: Props) {
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   };
 
+  /** Einzelne Rechnung (erneut) an DATEV Upload Mail schicken. */
+  const sendToDatev = async (r: CompanyInvoiceRow) => {
+    if (!r.filePath) {
+      toast.error("Zu dieser Rechnung ist kein Beleg hinterlegt.");
+      return;
+    }
+    if (r.datevStatus === "sent" && !window.confirm("Diese Rechnung wurde schon an DATEV geschickt. Nochmal senden?")) {
+      return;
+    }
+    setDatevBusy(r.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("datev-upload-sync", {
+        body: { invoiceId: r.id },
+      });
+      if (error || (data as any)?.error) {
+        let msg = (data as any)?.error as string | undefined;
+        if (!msg && error && "context" in error) {
+          try {
+            msg = (await (error as any).context.json())?.error;
+          } catch {
+            /* ignore */
+          }
+        }
+        throw new Error(msg || error?.message || "Senden fehlgeschlagen");
+      }
+      toast.success("An DATEV geschickt");
+    } catch (e: any) {
+      toast.error(e.message ?? "Senden fehlgeschlagen");
+    } finally {
+      setDatevBusy(null);
+      qc.invalidateQueries({ queryKey: ["rgi", "company-invoices"] });
+    }
+  };
+
   const periodSuffix = from && to ? `${from}_bis_${to}` : "alle";
   const kindLabel = direction === "outgoing" ? "Ausgangsrechnungen" : "Eingangsrechnungen";
 
@@ -222,6 +259,9 @@ export function CompanyInvoiceList({ direction }: Props) {
           "Brutto (EUR)": r.gross ?? "",
           Status: invoiceStatusLabel(r),
           Beleg: r.filePath ? "ja" : "nein",
+          ...(direction === "incoming"
+            ? { DATEV: r.datevStatus === "sent" ? "geschickt" : r.datevStatus === "error" ? "Fehler" : "" }
+            : {}),
         })),
       );
       const book = XLSX.utils.book_new();
@@ -320,7 +360,39 @@ export function CompanyInvoiceList({ direction }: Props) {
                       {invoiceStatusLabel(r)}
                     </Badge>
                   )}
+                  {r.datevStatus === "sent" && (
+                    <Badge
+                      variant="outline"
+                      className="h-5 border-emerald-300 px-1.5 text-[10px] text-emerald-700 dark:text-emerald-400"
+                      title={r.datevSentAt ? `An DATEV geschickt am ${format(new Date(r.datevSentAt), "dd.MM.yyyy HH:mm")}` : undefined}
+                    >
+                      DATEV ✓
+                    </Badge>
+                  )}
+                  {r.datevStatus === "error" && (
+                    <Badge
+                      variant="outline"
+                      className="h-5 border-destructive/50 px-1.5 text-[10px] text-destructive"
+                      title={r.datevError ?? "Fehler beim Senden an DATEV"}
+                    >
+                      DATEV Fehler
+                    </Badge>
+                  )}
                   <div className="w-28 text-right text-sm tabular-nums">{eur(r.gross)}</div>
+                  {direction === "incoming" && <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 flex-shrink-0"
+                    title={r.datevStatus === "sent" ? "Erneut an DATEV senden" : "An DATEV senden"}
+                    disabled={!r.filePath || datevBusy === r.id}
+                    onClick={() => sendToDatev(r)}
+                  >
+                    {datevBusy === r.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Send className="h-3.5 w-3.5" />
+                    )}
+                  </Button>}
                   <Button
                     variant="ghost"
                     size="icon"

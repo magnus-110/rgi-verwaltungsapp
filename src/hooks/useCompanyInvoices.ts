@@ -20,6 +20,10 @@ export interface CompanyInvoiceRow {
   status: string | null;
   /** Pfad im Bucket `invoices`, falls ein Beleg hinterlegt ist. */
   filePath: string | null;
+  /** Versand an DATEV Upload Mail (nur Eingangsrechnungen): null, sending, sent, error. */
+  datevStatus: string | null;
+  datevSentAt: string | null;
+  datevError: string | null;
 }
 
 export const OUTGOING_STATUS_LABEL: Record<string, string> = {
@@ -100,13 +104,17 @@ export function useCompanyInvoices(
           gross: num(r.total_gross),
           status: r.status,
           filePath: r.pdf_storage_path,
+          // Ausgangsrechnungen gehen nicht an DATEV.
+          datevStatus: null,
+          datevSentAt: null,
+          datevError: null,
         }));
       }
 
       let q = db
         .from("invoices")
         .select(
-          "id, invoice_number, invoice_date, vendor_display_name, vendor_name, net_amount, vat_amount, gross_amount, status, file_path",
+          "id, invoice_number, invoice_date, vendor_display_name, vendor_name, net_amount, vat_amount, gross_amount, status, file_path, datev_status, datev_sent_at, datev_error",
         )
         .eq("is_company_invoice", true);
       if (from) q = q.gte("invoice_date", from);
@@ -125,6 +133,9 @@ export function useCompanyInvoices(
         gross: num(r.gross_amount),
         status: r.status,
         filePath: r.file_path,
+        datevStatus: r.datev_status ?? null,
+        datevSentAt: r.datev_sent_at ?? null,
+        datevError: r.datev_error ?? null,
       }));
     },
   });

@@ -178,3 +178,6 @@ verify_jwt = false
 
 [functions.etv-protocol-sign]
 verify_jwt = false
+
+[functions.datev-upload-sync]
+verify_jwt = false
