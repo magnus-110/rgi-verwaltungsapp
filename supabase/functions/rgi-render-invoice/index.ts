@@ -1,34 +1,16 @@
 // rgi-render-invoice
-// Rendert eine RGI-Rechnung als HTML (klassisches Design, siehe
-// invoiceHtml.ts), lässt sie von Gotenberg auf dem eigenen Server
-// in ein PDF drucken und legt das PDF in Bucket 'invoices' ab.
+// Erzeugt eine RGI-Rechnung als PDF im klassischen Design (siehe
+// invoicePdf.ts) und legt sie in Bucket 'invoices' ab.
 //
-// Kein Word, kein CloudConvert mehr. Benötigte Umgebungsvariablen:
-//   GOTENBERG_URL       z. B. https://pdf.innovations-werk.de
-//   GOTENBERG_USER      (optional) Benutzer für die Basic-Auth
-//   GOTENBERG_PASSWORD  (optional) Passwort für die Basic-Auth
+// Kein Word, kein CloudConvert, kein Zusatzserver: das PDF wird
+// direkt hier in der Funktion gezeichnet.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
-import { buildInvoiceHtml, type InvoiceHtmlInput } from "./invoiceHtml.ts";
+import { buildInvoicePdf, type InvoiceData } from "./invoicePdf.ts";
 
 // Logo für den Rechnungskopf. Standard ist das Logo aus dem öffentlichen
 // Repo; mit RGI_LOGO_URL lässt sich eine andere Adresse setzen.
 const DEFAULT_LOGO_URL =
-  "https://raw.githubusercontent.com/magnus-110/rgi-verwaltungsapp/main/public/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png";
-let logoCache: string | null = null;
-async function logoDataUri(): Promise<string> {
-  if (logoCache) return logoCache;
-  try {
-    const r = await fetch(Deno.env.get("RGI_LOGO_URL") || DEFAULT_LOGO_URL);
-    if (!r.ok) return "";
-    const bytes = new Uint8Array(await r.arrayBuffer());
-    let bin = "";
-    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-    logoCache = `data:${r.headers.get("content-type") || "image/png"};base64,${btoa(bin)}`;
-    return logoCache;
-  } catch {
-    return "";
-  }
-}
+  "https://raw.githubusercontent.com/magnus-110/rgi-verwaltungsapp/main/public/lovable-uploads/8cc4ac02-ecfc-41ef-945a-738115d31106.png";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -59,42 +41,6 @@ function sanitize(s: string): string {
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "")
     .slice(0, 80) || "Datei";
-}
-
-/**
- * Druckt das HTML über Gotenberg (Chromium) zu einem A4-PDF.
- * Die Ränder passen zu den Maßen in invoiceHtml.ts: links 20 mm
- * (Lochrand), rechts 18 mm, unten Platz für die Fußzeile.
- */
-async function htmlToPdf(body: string, footer: string): Promise<Uint8Array> {
-  const base = (Deno.env.get("GOTENBERG_URL") || "").replace(/\/+$/, "");
-  if (!base) throw new Error("GOTENBERG_URL ist nicht konfiguriert");
-
-  const mm = (v: number) => String(Math.round((v / 25.4) * 1000) / 1000); // Gotenberg rechnet in Zoll
-  const form = new FormData();
-  form.append("files", new Blob([body], { type: "text/html" }), "index.html");
-  form.append("files", new Blob([footer], { type: "text/html" }), "footer.html");
-  form.append("paperWidth", mm(210));
-  form.append("paperHeight", mm(297));
-  form.append("marginTop", mm(12));
-  form.append("marginBottom", mm(30));
-  form.append("marginLeft", mm(20));
-  form.append("marginRight", mm(18));
-  form.append("printBackground", "true");
-  form.append("preferCssPageSize", "false");
-  // Auf die Webschrift warten, bevor gedruckt wird.
-  form.append("skipNetworkIdleEvent", "false");
-
-  const headers: Record<string, string> = {};
-  const user = Deno.env.get("GOTENBERG_USER");
-  const pass = Deno.env.get("GOTENBERG_PASSWORD");
-  if (user && pass) headers.Authorization = `Basic ${btoa(`${user}:${pass}`)}`;
-
-  const resp = await fetch(`${base}/forms/chromium/convert/html`, { method: "POST", headers, body: form });
-  if (!resp.ok) {
-    throw new Error(`PDF-Erzeugung fehlgeschlagen (Gotenberg ${resp.status}): ${(await resp.text()).slice(0, 300)}`);
-  }
-  return new Uint8Array(await resp.arrayBuffer());
 }
 
 /**
@@ -270,7 +216,7 @@ Deno.serve(async (req) => {
     // selbst vom Gemeinschaftskonto. Ohne Objektbezug (z. B. ein
     // externer Kunde) bleibt es bei der klassischen Überweisung.
     const buildingId = invoice.building_id || invoice.client?.building_id || null;
-    const payment: InvoiceHtmlInput["payment"] =
+    const payment: InvoiceData["payment"] =
       invoice.paid_by_withdrawal === true ? "withdrawal" : buildingId ? "management" : "transfer";
 
     const servicePeriod = invoice.service_period_from || invoice.service_period_to
@@ -278,8 +224,7 @@ Deno.serve(async (req) => {
       : "";
     const clientName = invoice.client_name_snapshot || invoice.client?.name || "";
 
-    const html = buildInvoiceHtml({
-      logoDataUri: await logoDataUri(),
+    const invoiceData: InvoiceData = {
       company: {
         name: company?.legal_name || "RGI Immobilien GmbH & Co. KG",
         street: [company?.address_line1, company?.address_line2].filter(Boolean).join(", "),
@@ -334,7 +279,7 @@ Deno.serve(async (req) => {
         gross: fmtMoney(totals.gross),
       },
       payment,
-    });
+    };
 
     // ---------------- PDF ----------------
     const renderStamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
@@ -342,7 +287,7 @@ Deno.serve(async (req) => {
 
     let pdfBytes: Uint8Array;
     try {
-      pdfBytes = await htmlToPdf(html.body, html.footer);
+      pdfBytes = await buildInvoicePdf(invoiceData, Deno.env.get("RGI_LOGO_URL") || DEFAULT_LOGO_URL);
     } catch (pe: any) {
       console.error("PDF conversion failed", pe);
       return json({ error: String(pe?.message || pe), pdf_error: String(pe?.message || pe) }, 502);
