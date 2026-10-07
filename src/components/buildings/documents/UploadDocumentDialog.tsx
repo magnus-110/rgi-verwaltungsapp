@@ -91,7 +91,7 @@ export function UploadDocumentDialog({
     const out: { id: string; label: string }[] = [];
     const walk = (parentId: string | null, depth: number) => {
       (byParent[parentId || 'root'] || []).forEach(c => {
-        out.push({ id: c.id, label: `${'\u00A0\u00A0'.repeat(depth)}${c.name}` });
+        out.push({ id: c.id, label: `${'  '.repeat(depth)}${c.name}` });
         walk(c.id, depth + 1);
       });
     };
@@ -110,9 +110,9 @@ export function UploadDocumentDialog({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Nicht angemeldet");
 
-      // Auto-RAG default from category
-      const cat = categories.find(c => c.id === categoryId);
-      const autoRag = cat?.auto_rag_enabled || false;
+      // KI-Indexierung standardmaessig an: Was Eigentuemer/Mieter sehen duerfen, soll der
+      // Chat auch beantworten koennen. Je Dokument abschaltbar (Detailansicht).
+      const autoRag = true;
 
       for (const file of files) {
         if (file.size > 50 * 1024 * 1024) {

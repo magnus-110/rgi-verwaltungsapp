@@ -152,8 +152,9 @@ export function SaveAttachmentToBuildingDialog({
       const building = buildings.find(b => b.id === buildingId);
       if (!building) throw new Error("Gebäude nicht gefunden");
 
-      const cat = categories.find(c => c.id === categoryId);
-      const autoRag = cat?.auto_rag_enabled || false;
+      // KI-Indexierung standardmaessig an: Was Eigentuemer/Mieter sehen duerfen, soll der
+      // Chat auch beantworten koennen. Je Dokument abschaltbar (Detailansicht).
+      const autoRag = true;
 
       for (const att of attachments) {
         // Download from email-attachments bucket
