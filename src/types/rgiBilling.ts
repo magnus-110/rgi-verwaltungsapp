@@ -158,6 +158,10 @@ export interface BillingRow {
   dismissedReason?: string | null;
 }
 
+/** Standard-Einleitung jeder neuen Rechnung. */
+export const DEFAULT_INTRO =
+  "Sehr geehrte Damen und Herren,\nvereinbarungsgemäß berechnen wir Ihnen die nachfolgenden Positionen.";
+
 export const ORIGIN_LABEL: Record<BillingRowOrigin, string> = {
   contract: "Vertrag",
   time: "Stunden",
@@ -312,7 +316,11 @@ export function suggestionsFromContract(
   const active = contract.fees.filter((f) => f.is_active);
 
   // --- Grundvergütung: eine Jahreszeile je Baustein ---
-  for (const fee of active.filter((f) => BASE_BASES.includes(f.basis))) {
+  // Auf der Rechnung steht „Verwaltervergütung 2026 – 26 × 25,00 €“.
+  // Gibt es mehrere Bausteine (z. B. Wohnungen und Garagen), steht die
+  // Art der Einheit in Klammern dahinter, damit man sie unterscheidet.
+  const baseFees = active.filter((f) => BASE_BASES.includes(f.basis));
+  for (const fee of baseFees) {
     const net = toNet(Number(fee.amount ?? 0), fee.is_gross, Number(fee.vat_rate));
     const count = fee.basis === "unit_month" ? Number(fee.quantity ?? 0) : 1;
     const monthly = Math.round(net * count * 100) / 100;
@@ -322,10 +330,14 @@ export function suggestionsFromContract(
       origin: "contract",
       eventId: null,
       status: "suggested",
-      label:
-        fee.basis === "unit_month"
-          ? `${fee.label} ${year} — ${count} × ${formatEur(net)} je Monat`
-          : `${fee.label} ${year}`,
+      label: (() => {
+        const kind = baseFees.length > 1
+          ? ` (${fee.label.replace(/^Grundvergütung\s*/i, "") || fee.label})`
+          : "";
+        return fee.basis === "unit_month"
+          ? `Verwaltervergütung ${year} – ${count} × ${formatEur(net)}${kind}`
+          : `Verwaltervergütung ${year} – Monatspauschale${kind}`;
+      })(),
       quantity: 12,
       unit: "Monate",
       unitPriceNet: monthly,
@@ -337,7 +349,7 @@ export function suggestionsFromContract(
       sourceKind: "contract_fee",
       sourceId: null,
       occurredOn: today,
-      hint: "Jahresrechnung für das laufend entnommene Honorar",
+      hint: "Jahresrechnung zum Verwalterhonorar",
     });
   }
 
