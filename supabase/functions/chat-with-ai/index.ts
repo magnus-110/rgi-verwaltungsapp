@@ -317,20 +317,68 @@ serve(async (req) => {
       }
     }
 
-    // Get forum posts for additional context
-    const { data: forumPosts } = await supabase
-      .from('forum_posts')
-      .select('*')
-      .eq('management_mode', managementMode)
-      .order('created_at', { ascending: false })
-      .limit(5);
+    // Gebaeude des Nutzers (Eigentuemer: weg_owner_buildings, Mieter: Profil)
+    const eigeneGebaeudeIds = [...new Set(meldeGebaeude.map((g) => g.id))];
 
-    if (forumPosts && forumPosts.length > 0) {
-      contextData += `\n\nAktuelle Forum-Beiträge:\n`;
-      forumPosts.forEach(post => {
-        contextData += `- ${post.title}: ${post.content.substring(0, 100)}...\n`;
-      });
+    // Forum-Beitraege NUR aus den eigenen Gebaeuden. Vorher wurden die letzten 5 Beitraege
+    // aller Gebaeude geladen - damit landeten Beitraege fremder WEGs im Antwortkontext.
+    if (eigeneGebaeudeIds.length > 0) {
+      const { data: forumPosts } = await supabase
+        .from('forum_posts')
+        .select('title, content, building_id, created_at')
+        .in('building_id', eigeneGebaeudeIds)
+        .eq('management_mode', managementMode)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (forumPosts && forumPosts.length > 0) {
+        contextData += `\n\nAktuelle Beiträge am Schwarzen Brett Ihres Gebäudes:\n`;
+        forumPosts.forEach(post => {
+          contextData += `- ${post.title}: ${(post.content || '').substring(0, 100)}...\n`;
+        });
+      }
     }
+
+    // ===== NOTFALLNUMMERN =====
+    // Gleiche Quelle wie das Feld "Notfall-Nummern" am Schwarzen Brett: als Notfallkontakt
+    // markierte Dienstleister der eigenen Gebaeude, dazu Hausverwaltung und Notrufe.
+    let notfallContext = "\n\n=== NOTFALLNUMMERN ===\n";
+    notfallContext += "Öffentliche Notrufe: Feuerwehr und Rettungsdienst 112 (Brand, Rauch, Gasgeruch, medizinischer Notfall), Polizei 110 (Einbruch, akute Gefahr).\n";
+    notfallContext += "Hausverwaltung RGI Immobilien GmbH & Co. KG: 08363 960656, info@rgi-immobilien.de – während der Bürozeiten zuerst hier melden. Handwerker nur selbst beauftragen, wenn die Hausverwaltung nicht erreichbar ist.\n";
+    if (eigeneGebaeudeIds.length > 0) {
+      const { data: notfallKontakte, error: notfallErr } = await supabase
+        .from('contact_building_assignments')
+        .select(`building_id, service_category, emergency_note, emergency_sort_order,
+          contact:contacts(company_name, first_name, last_name, contact_phones(phone_number, label))`)
+        .in('building_id', eigeneGebaeudeIds)
+        .eq('is_active', true)
+        .eq('is_emergency_contact', true);
+      if (notfallErr) console.error('Notfallkontakte:', notfallErr.message);
+      const gebaeudeName = new Map(meldeGebaeude.map((g) => [g.id, g.name]));
+      const kategorieHinweis = (kat: string | null): string | null => {
+        const k = (kat || '').toLowerCase();
+        if (k.includes('hausmeister')) return 'bei kleinen technischen Defekten im Haus';
+        if (k.includes('heizung') || k.includes('sanitär') || k.includes('sanitaer')) return 'nur bei Totalausfall der Heizung, akuten Wasserschäden oder Rohrbruch';
+        if (k.includes('rohrreinigung') || k.includes('abfluss')) return 'bei massiven Verstopfungen, wenn Abwasser in Wohnung oder Keller drückt';
+        if (k.includes('schlüssel') || k.includes('schluessel')) return 'bei Defekten am Haustürschloss oder Aussperrung';
+        return null;
+      };
+      const zeilen = (notfallKontakte || [])
+        .filter((a: any) => a.contact)
+        .sort((a: any, b: any) => (a.emergency_sort_order ?? 999) - (b.emergency_sort_order ?? 999))
+        .map((a: any) => {
+          const c = a.contact;
+          const name = c.company_name || [c.first_name, c.last_name].filter(Boolean).join(' ') || 'Dienstleister';
+          const tel = (c.contact_phones || [])[0]?.phone_number;
+          const wann = a.emergency_note || kategorieHinweis(a.service_category);
+          const objekt = eigeneGebaeudeIds.length > 1 ? ` [${gebaeudeName.get(a.building_id) || 'Gebäude'}]` : '';
+          return `- ${a.service_category || 'Notdienst'}: ${name}${tel ? `, Tel. ${tel}` : ''}${wann ? ` (anrufen ${wann})` : ''}${objekt}`;
+        });
+      if (zeilen.length > 0) {
+        notfallContext += "Notdienste für Ihr Gebäude (nur wenn die Hausverwaltung nicht erreichbar ist):\n" + zeilen.join('\n') + "\n";
+      }
+    }
+    notfallContext += "Alle Notfallnummern stehen auch am Schwarzen Brett unter „Notfall-Nummern“.\n=== ENDE NOTFALLNUMMERN ===\n";
 
     // Extract keywords from user message (used by knowledge_documents scoring below)
     const messageWords = message.toLowerCase()
@@ -621,10 +669,28 @@ ${isFirstMessage
      zuerst auf Notruf 112 bzw. den Notfall-Leitfaden hinweisen, KEINE Meldung vorschlagen.
    ✗ Behaupten Sie nie, Sie könnten keine Meldungen erstellen.
 
+7. NOTFALLNUMMERN (aus dem Abschnitt NOTFALLNUMMERN):
+   ✓ Geht es um einen Schaden, Defekt, Ausfall, Wasser, Heizung, Schloss, Aussperrung oder
+     etwas Dringendes, nennen Sie am Ende der Antwort die PASSENDE Nummer (meist 1–2 Nummern),
+     z. B. "Bei einem akuten Rohrbruch außerhalb der Bürozeiten: Notdienst XY, Tel. …".
+   ✓ Reihenfolge: Bei Gefahr für Personen, Feuer, Rauch oder Gasgeruch IMMER zuerst 112.
+     Sonst zuerst die Hausverwaltung; Dienstleister-Notdienste nur, wenn die Hausverwaltung
+     nicht erreichbar ist (z. B. abends, am Wochenende).
+   ✓ Fragt jemand direkt nach Notfallnummern, nennen Sie alle aus dem Abschnitt.
+   ✗ Nennen Sie nur Nummern, die im Abschnitt NOTFALLNUMMERN stehen - niemals erfinden.
+   ✗ Bei Fragen ohne Bezug zu Schäden oder Notfällen keine Notfallnummern anhängen.
+
+8. QUELLEN UND DOKUMENT-LINKS:
+   ✓ Unter Ihrer Antwort werden die verwendeten Dokumente automatisch als anklickbare Links
+     angezeigt. Nennen Sie im Text den Dokumentnamen (und ggf. die Seite), z. B.
+     "laut Teilungserklärung (S. 4)". Schreiben Sie KEINE eigenen Links oder URLs.
+   ✓ Fragt jemand nach einem Dokument, das unter RELEVANTE DOKUMENTE steht, sagen Sie, dass
+     er es unten direkt öffnen kann.
+
 === ENDE VERHALTENSREGELN ===`;
 
     // Construct system prompt using admin-configured prompt + behavioral rules
-    const systemPrompt = `${settings.system_prompt}${conversationBehavior}\n\nWissensdatenbank (allgemein):\n${knowledgeString}${knowledgeContext}${beschlussContext}${fileDocContext}\n\nAktuelle Kontextdaten:${contextData}\n\nNutzerinformationen (nur für Kontext): ${profile?.first_name} ${profile?.last_name} (${profile?.email})${managementMode === 'weg' ? ' - WEG-Eigentümer' : ' - Mieter'}${buildingId ? `. Gebäude-ID: ${buildingId}` : managementMode === 'weg' ? '. Keine spezifische Gebäude-ID angegeben.' : ''}`;
+    const systemPrompt = `${settings.system_prompt}${conversationBehavior}\n\nWissensdatenbank (allgemein):\n${knowledgeString}${knowledgeContext}${beschlussContext}${fileDocContext}${notfallContext}\n\nAktuelle Kontextdaten:${contextData}\n\nNutzerinformationen (nur für Kontext): ${profile?.first_name} ${profile?.last_name} (${profile?.email})${managementMode === 'weg' ? ' - WEG-Eigentümer' : ' - Mieter'}${buildingId ? `. Gebäude-ID: ${buildingId}` : managementMode === 'weg' ? '. Keine spezifische Gebäude-ID angegeben.' : ''}`;
 
     // Construct messages for OpenAI with conversation history
     const messages = [
@@ -855,9 +921,18 @@ ${isFirstMessage
       // Continue - don't fail the request for logging issues
     }
 
+    // Quellen fuer die Anzeige unter der Antwort - ohne den Textauszug, der nur fuer das
+    // Sprachmodell gebraucht wird. fileId ermoeglicht den Link zum Dokument.
+    const quellenFuerAnzeige = ragSources.map((q: any) => ({
+      fileId: q.fileId ?? null,
+      fileName: q.fileName,
+      folderPath: q.folderPath,
+      pageNumber: q.pageNumber ?? null,
+    }));
+
     return new Response(JSON.stringify({
       response: assistantMessage,
-      sources: ragSources,
+      sources: quellenFuerAnzeige,
       reportDraft,
       usage: data.usage,
       sessionId: currentSessionId
