@@ -90,10 +90,10 @@ const PAPER = hex("#faf6f1");
 // Spalten der Positionstabelle (rechte Kante der Zahlen-Spalten)
 const COL_POS = LEFT;
 const COL_DESC = LEFT + 9 * MM;
+// Keine USt.-Spalte: die Steuer steht nur unten bei den Summen.
 const COL_NET_R = RIGHT;
-const COL_VAT_R = RIGHT - 27 * MM;
-const COL_PRICE_R = COL_VAT_R - 15 * MM;
-const COL_QTY_R = COL_PRICE_R - 25 * MM;
+const COL_PRICE_R = RIGHT - 30 * MM;
+const COL_QTY_R = COL_PRICE_R - 30 * MM;
 const DESC_W = COL_QTY_R - 25 * MM - COL_DESC;
 
 // ---------------------------------------------------------------
@@ -206,7 +206,6 @@ export async function buildInvoicePdf(d: InvoiceData, logoUrl: string): Promise<
     head("Beschreibung", COL_DESC);
     head("Menge", COL_QTY_R, "right");
     head("Einzelpreis", COL_PRICE_R, "right");
-    head("USt.", COL_VAT_R, "right");
     head("Netto", COL_NET_R, "right");
     y -= size + 2.2 * MM;
     hline(LEFT, RIGHT, y, 1.1, INK);
@@ -302,7 +301,6 @@ export async function buildInvoicePdf(d: InvoiceData, logoUrl: string): Promise<
     text(String(it.pos), COL_POS, top - 9.6, { color: MUTED });
     text(it.quantity, COL_QTY_R, top - 9.6, { align: "right" });
     text(it.unitPrice, COL_PRICE_R, top - 9.6, { align: "right" });
-    text(it.vat, COL_VAT_R, top - 9.6, { align: "right" });
     text(it.net, COL_NET_R, top - 9.6, { align: "right" });
 
     let ly = top;
