@@ -91,7 +91,7 @@ export function UploadDocumentDialog({
     const out: { id: string; label: string }[] = [];
     const walk = (parentId: string | null, depth: number) => {
       (byParent[parentId || 'root'] || []).forEach(c => {
-        out.push({ id: c.id, label: `${'\\u00A0\\u00A0'.repeat(depth)}${c.name}` });
+        out.push({ id: c.id, label: `${'  '.repeat(depth)}${c.name}` });
         walk(c.id, depth + 1);
       });
     };
