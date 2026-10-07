@@ -1,33 +1,26 @@
-// Rechnungsentwurf bearbeiten.
+// Rechnungsentwurf bearbeiten – eine Seite für alles.
 //
-// Zwei Dinge sind hier bewusst weg:
-//
-// Die Live-Vorschau. Sie belegte die halbe Breite und zeigte eine
-// Nachbildung, die dem echten Word-Dokument nicht gleicht. Wer
-// wissen will, wie die Rechnung aussieht, drückt „PDF-Vorschau“ und
-// bekommt das Dokument selbst. Die Positionstabelle hat dafür jetzt
-// die volle Breite.
-//
-// Die Zahlungseingänge. Vor dem Versand gibt es nichts zu buchen —
-// sie stehen jetzt in der Rechnungsansicht.
+// Früher gab es zwei Schritte: einen Dialog „Rechnungsentwurf
+// erstellen“ und danach diese Bearbeitungsseite. Jetzt landet man
+// direkt hier. Links steht die Rechnung so, wie sie später aussieht
+// (Empfänger, Daten, Einleitung, Positionen, Summen), und alles ist
+// an Ort und Stelle änderbar. Rechts stehen Gesamtbetrag, Zahlungsweg
+// und die nächsten Schritte. Alle Knöpfe sitzen oben in einer Leiste.
 
-import { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useEffect, useState, type ReactNode } from "react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Trash2, Plus, RefreshCw, Download, FileSignature, FileStack, Save, FolderInput,
-  Wallet, Landmark, ChevronUp, ChevronDown, Pencil,
+  Trash2, Plus, RefreshCw, Eye, FileStack, Save, FolderInput, Landmark,
+  ChevronUp, ChevronDown, ChevronLeft, X, CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -41,6 +34,7 @@ import { useDeleteInvoiceDraft } from "@/hooks/useRgiBilling";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { ImportFromProjectDialog } from "./ImportFromProjectDialog";
+import { DEFAULT_INTRO } from "@/types/rgiBilling";
 import { formatDate, formatEur } from "@/types/rgiContracts";
 
 interface Props {
@@ -64,8 +58,13 @@ type Draft = {
 };
 
 const blankItem = (): Partial<RgiInvoiceItem> => ({
-  kind: "flat", description: "", quantity: 1, unit: "Std", unit_price_net: 0, vat_rate: 19,
+  kind: "flat", description: "", quantity: 1, unit: "Stück", unit_price_net: 0, vat_rate: 19,
 });
+
+/** Kleine Überschrift über einem Abschnitt. */
+function Eyebrow({ children }: { children: ReactNode }) {
+  return <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{children}</span>;
+}
 
 export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
   const { user } = useAuth();
@@ -84,12 +83,13 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
   const [d, setD] = useState<Draft>(emptyDraft());
   const [rendering, setRendering] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [headOpen, setHeadOpen] = useState(false);
+  const [recipientOpen, setRecipientOpen] = useState(false);
+  const [footerOpen, setFooterOpen] = useState(false);
   const [askDelete, setAskDelete] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    setHeadOpen(false);
+    setRecipientOpen(false);
     if (invoice) {
       setD({
         client_id: invoice.client_id,
@@ -104,9 +104,11 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
         paid_by_withdrawal: (invoice as any).paid_by_withdrawal === true,
         items: (items ?? []).map((it) => ({ ...it })),
       });
+      setFooterOpen(!!invoice.footer_text);
     } else {
       setD(emptyDraft());
-      setHeadOpen(true); // ohne Objektbezug muss man alles selbst setzen
+      setRecipientOpen(true); // ohne Objektbezug muss man den Empfänger selbst wählen
+      setFooterOpen(false);
     }
   }, [open, invoice, items]);
 
@@ -124,7 +126,8 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
 
   const totals = computeTotals(d.items);
   const isFinal = !!invoice?.invoice_number;
-  const client = clients?.find((c) => c.id === d.client_id);
+  const client = clients?.find((c) => c.id === d.client_id) as any;
+  const hasBuilding = !!((invoice as any)?.building_id || client?.building_id);
 
   // ---------------- Vorlagen ----------------
 
@@ -203,11 +206,7 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
     }
   };
 
-  /**
-   * Vergibt die Rechnungsnummer und erzeugt das Dokument. Der Knopf
-   * hieß früher „Festschreiben und versenden“ — verschickt wurde nie
-   * etwas, einen Mailversand gibt es in der App nicht.
-   */
+  /** Vergibt die Rechnungsnummer und erzeugt das PDF. */
   const finalize = async () => {
     if (!d.client_id) { toast.error("Bitte einen Rechnungsempfänger wählen"); return; }
     setRendering(true);
@@ -239,8 +238,6 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
 
       const r = await rgiRenderInvoice(id);
       const nr = extra.invoice_number ?? invoice?.invoice_number;
-      // Der Posten in der Zahlungsliste ist der eigentliche Zweck des
-      // Ganzen — deshalb steht er in der Meldung, nicht nur das PDF.
       toast.success(`Nummer ${nr} vergeben, PDF erzeugt`, {
         description: r?.payment === "created" || r?.payment === "updated"
           ? "Die Rechnung steht jetzt unter „Zahlungen“ beim Objekt."
@@ -257,21 +254,20 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
     }
   };
 
-  const preview = async (format: "pdf") => {
+  const preview = async () => {
     if (!d.client_id) { toast.error("Bitte einen Rechnungsempfänger wählen"); return; }
     setRendering(true);
-    const tid = toast.loading(`${format.toUpperCase()} wird erzeugt …`);
+    const tid = toast.loading("PDF wird erzeugt …");
     try {
       const id = await persist();
-      const r = await rgiRenderInvoice(id, [format]);
-      if (format === "pdf" && r?.pdf_error) throw new Error(r.pdf_error);
-      const path = r?.pdf_path;
-      if (!path) throw new Error(`${format.toUpperCase()} wurde nicht erzeugt`);
-      window.open(await rgiSignedUrl("invoices", path), "_blank");
-      toast.success(`${format.toUpperCase()} erzeugt`, { id: tid });
+      const r = await rgiRenderInvoice(id, ["pdf"]);
+      if (r?.pdf_error) throw new Error(r.pdf_error);
+      if (!r?.pdf_path) throw new Error("PDF wurde nicht erzeugt");
+      window.open(await rgiSignedUrl("invoices", r.pdf_path), "_blank");
+      toast.success("PDF erzeugt", { id: tid });
     } catch (e: any) {
       console.error("preview failed", e);
-      toast.error(`Rendern fehlgeschlagen: ${e?.message ?? e}`, { id: tid });
+      toast.error(`PDF fehlgeschlagen: ${e?.message ?? e}`, { id: tid });
     } finally {
       setRendering(false);
     }
@@ -279,314 +275,345 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
 
   // ---------------- Darstellung ----------------
 
-  const summary = [
-    client?.name || "Empfänger fehlt",
-    `Rechnung vom ${formatDate(d.issue_date)}`,
-    d.service_period_from
-      ? `Leistung ${formatDate(d.service_period_from)}–${formatDate(d.service_period_to)}`
-      : null,
-    d.paid_by_withdrawal
-      ? "Selbstentnahme vom Objektkonto"
-      : d.due_date ? `Überweisung bis ${formatDate(d.due_date)}` : "Überweisung durch die Hausverwaltung",
-  ].filter(Boolean);
+  const busy = rendering || create.isPending || update.isPending;
+  const paymentText = d.paid_by_withdrawal
+    ? "Der Rechnungsbetrag wird gemäß Verwaltervertrag vom Objektkonto der Gemeinschaft entnommen."
+    : hasBuilding
+      ? "Der Rechnungsbetrag wird durch die Hausverwaltung vom Konto der Gemeinschaft überwiesen."
+      : "Die Rechnung zeigt die Bankverbindung – der Empfänger überweist selbst.";
+  const dateField = (label: string, value: string, onChange: (v: string) => void, disabled = false) => (
+    <div className="flex flex-col gap-1">
+      <Label className="text-xs font-normal text-muted-foreground">{label}</Label>
+      <Input type="date" value={value} disabled={disabled}
+        onChange={(e) => onChange(e.target.value)} className="h-10 rounded-lg bg-muted/30" />
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 flex flex-col border-0 [&>button]:top-4 [&>button]:right-4">
-        <DialogHeader className="px-6 pt-4 pb-3 border-b bg-background shrink-0">
-          <DialogTitle className="flex items-center gap-2 text-base flex-wrap">
-            {isFinal ? "Rechnung" : "Rechnungsentwurf"}
-            {invoice?.invoice_number
-              ? <Badge variant="outline" className="font-mono">{invoice.invoice_number}</Badge>
-              : <Badge variant="secondary" className="font-normal">noch keine Nummer</Badge>}
-            {d.paid_by_withdrawal && (
-              <Badge variant="secondary" className="gap-1 font-normal">
-                <Wallet className="w-3 h-3" />Selbstentnahme
-              </Badge>
-            )}
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-5xl p-6 space-y-4">
-
-            {/* Kopfdaten: eine Zeile, aufklappbar */}
-            <Card className="p-3">
-              <div className="flex items-center gap-2 flex-wrap text-sm">
-                {d.paid_by_withdrawal
-                  ? <Wallet className="w-4 h-4 text-primary shrink-0" />
-                  : <Landmark className="w-4 h-4 text-muted-foreground shrink-0" />}
-                {summary.map((s, i) => (
-                  <span key={i} className="flex items-center gap-2">
-                    {i > 0 && <span className="text-muted-foreground">·</span>}
-                    <span className={i === 0 ? "font-medium" : ""}>{s}</span>
+      <DialogContent
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 flex flex-col border-0 bg-background [&>button]:hidden">
+        {/* Kopfleiste mit allen Aktionen */}
+        <div className="border-b bg-background shrink-0">
+          <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 py-3 flex flex-wrap items-center gap-x-4 gap-y-3">
+            <div className="flex-1 min-w-[260px]">
+              <button type="button" onClick={() => onOpenChange(false)}
+                className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+                <ChevronLeft className="w-3.5 h-3.5" />Zurück
+              </button>
+              <div className="flex flex-wrap items-center gap-2.5 mt-0.5">
+                <DialogTitle className="text-xl font-semibold tracking-tight">
+                  {isFinal ? "Rechnung" : "Rechnungsentwurf"}
+                </DialogTitle>
+                {invoice?.invoice_number ? (
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-muted font-mono">{invoice.invoice_number}</span>
+                ) : (
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-orange-50 text-orange-800 dark:bg-primary/15 dark:text-orange-200">
+                    Entwurf · Nummer folgt beim Festschreiben
                   </span>
-                ))}
-                <Button variant="ghost" size="sm" className="ml-auto gap-1.5 h-8"
-                  onClick={() => setHeadOpen((v) => !v)}>
-                  <Pencil className="w-3.5 h-3.5" />{headOpen ? "Zuklappen" : "Ändern"}
+                )}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {!isFinal && invoiceId && (
+                <Button variant="ghost" onClick={() => setAskDelete(true)} disabled={deleteDraft.isPending || busy}
+                  className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10">
+                  <Trash2 className="w-4 h-4" />Löschen
                 </Button>
-              </div>
-              {!headOpen && (
-                <p className="text-xs text-muted-foreground mt-1.5">
-                  Aus dem Objekt übernommen. Aufklappen nur, wenn du abweichen willst.
-                </p>
               )}
-
-              {headOpen && (
-                <div className="mt-3 pt-3 border-t grid sm:grid-cols-2 gap-3">
-                  <div className="sm:col-span-2">
-                    <Label className="text-xs">Rechnungsempfänger *</Label>
-                    <Select value={d.client_id} onValueChange={(v) => setD({ ...d, client_id: v })} disabled={isFinal}>
-                      <SelectTrigger><SelectValue placeholder="Empfänger wählen…" /></SelectTrigger>
-                      <SelectContent>
-                        {clients?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <Label className="text-xs">Projekt (optional)</Label>
-                    <Select value={d.project_id ?? "none"}
-                      onValueChange={(v) => setD({ ...d, project_id: v === "none" ? null : v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">— kein Projekt —</SelectItem>
-                        {projects?.filter((p) => !d.client_id || p.client_id === d.client_id).map((p) => (
-                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Rechnungsdatum</Label>
-                    <Input type="date" value={d.issue_date}
-                      onChange={(e) => setD({ ...d, issue_date: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">{d.paid_by_withdrawal ? "Fällig (entfällt)" : "Überweisen bis"}</Label>
-                    <Input type="date" value={d.due_date} disabled={d.paid_by_withdrawal}
-                      onChange={(e) => setD({ ...d, due_date: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Leistung von</Label>
-                    <Input type="date" value={d.service_period_from ?? ""}
-                      onChange={(e) => setD({ ...d, service_period_from: e.target.value || null })} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Leistung bis</Label>
-                    <Input type="date" value={d.service_period_to ?? ""}
-                      onChange={(e) => setD({ ...d, service_period_to: e.target.value || null })} />
-                  </div>
-                  <div className="sm:col-span-2 flex items-start gap-2.5 rounded-md border px-3 py-2.5 text-sm">
-                    <Landmark className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
-                    <span>
-                      {d.paid_by_withdrawal ? "Selbstentnahme vom Objektkonto (ältere Rechnung)" : "Überweisung durch die Hausverwaltung"}
-                      <span className="block text-xs text-muted-foreground mt-0.5">
-                        Gehört die Rechnung zu einem Objekt, überweist die Verwaltung sie vom Gemeinschaftskonto –
-                        sie landet automatisch im Zahlungslauf. Ohne Objekt zeigt die Rechnung die Bankverbindung.
-                      </span>
-                    </span>
-                  </div>
-                </div>
+              {!isFinal && (
+                <Button variant="outline" className="rounded-full gap-1.5" onClick={saveDraft} disabled={busy}>
+                  <Save className="w-4 h-4" />Speichern
+                </Button>
               )}
-            </Card>
-
-            {/* Positionen, volle Breite */}
-            <Card className="p-4">
-              <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Positionen<span className="ml-1.5 font-normal normal-case">· {d.items.length}</span>
-                </h3>
-                <div className="flex gap-1.5 flex-wrap">
-                  <Select value="" onValueChange={applyPreset}>
-                    <SelectTrigger className="h-8 w-[164px] text-xs">
-                      <span className="flex items-center gap-1.5">
-                        <FileStack className="w-3.5 h-3.5" />Vorlage laden…
-                      </span>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(presets ?? []).length === 0 && (
-                        <div className="px-2 py-1.5 text-xs text-muted-foreground">Keine Vorlagen</div>
-                      )}
-                      {presets?.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name}{p.sparte ? ` · ${p.sparte}` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button size="sm" variant="ghost" onClick={() => setImportOpen(true)}
-                    disabled={!d.project_id} className="h-8 gap-1 text-xs">
-                    <FolderInput className="w-3.5 h-3.5" />Stunden
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={saveAsPreset}
-                    disabled={d.items.length === 0} className="h-8 gap-1 text-xs">
-                    <Save className="w-3.5 h-3.5" />Als Vorlage
-                  </Button>
-                  <Button size="sm" className="h-8 gap-1 text-xs"
-                    onClick={() => setD({ ...d, items: [...d.items, blankItem()] })}>
-                    <Plus className="w-3.5 h-3.5" />Position
-                  </Button>
-                </div>
-              </div>
-
-              {d.items.length === 0 ? (
-                <div className="text-sm text-muted-foreground text-center py-10 border border-dashed rounded-md">
-                  Noch keine Positionen. Über „Position“ oder eine Vorlage hinzufügen.
-                </div>
-              ) : (
-                <div className="border rounded-md overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-8">#</TableHead>
-                        <TableHead>Beschreibung</TableHead>
-                        <TableHead className="w-[88px] text-right">Menge</TableHead>
-                        <TableHead className="w-[92px]">Einheit</TableHead>
-                        <TableHead className="w-[110px] text-right">€ netto</TableHead>
-                        <TableHead className="w-[84px]">USt</TableHead>
-                        <TableHead className="w-[118px] text-right">Betrag</TableHead>
-                        <TableHead className="w-[76px]" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {d.items.map((it, idx) => {
-                        const lineNet = (it.quantity ?? 0) * (it.unit_price_net ?? 0);
-                        return (
-                          <TableRow key={idx} className="align-top">
-                            <TableCell className="text-xs font-mono text-muted-foreground pt-4">{idx + 1}</TableCell>
-                            <TableCell className="p-1.5">
-                              <Textarea
-                                rows={1}
-                                placeholder="Beschreibung der Leistung…"
-                                className="min-h-[34px] text-sm resize-y"
-                                value={it.description ?? ""}
-                                onChange={(e) => setItem(idx, { description: e.target.value })}
-                              />
-                            </TableCell>
-                            <TableCell className="p-1.5">
-                              <Input className="h-8 text-right text-sm tabular-nums" type="number" step="0.01"
-                                value={it.quantity ?? 0}
-                                onChange={(e) => setItem(idx, { quantity: Number(e.target.value) })} />
-                            </TableCell>
-                            <TableCell className="p-1.5">
-                              <Input className="h-8 text-sm" value={it.unit ?? ""}
-                                onChange={(e) => setItem(idx, { unit: e.target.value })} />
-                            </TableCell>
-                            <TableCell className="p-1.5">
-                              <Input className="h-8 text-right text-sm tabular-nums" type="number" step="0.01"
-                                value={it.unit_price_net ?? 0}
-                                onChange={(e) => setItem(idx, { unit_price_net: Number(e.target.value) })} />
-                            </TableCell>
-                            <TableCell className="p-1.5">
-                              <Select value={String(it.vat_rate ?? 19)}
-                                onValueChange={(v) => setItem(idx, { vat_rate: Number(v) })}>
-                                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="0">0 %</SelectItem>
-                                  <SelectItem value="7">7 %</SelectItem>
-                                  <SelectItem value="19">19 %</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell className="text-right font-mono text-sm pt-4 whitespace-nowrap tabular-nums">
-                              {formatEur(lineNet)}
-                            </TableCell>
-                            <TableCell className="p-1.5">
-                              <div className="flex">
-                                <Button variant="ghost" size="icon" className="h-8 w-6"
-                                  disabled={idx === 0} onClick={() => moveItem(idx, -1)}>
-                                  <ChevronUp className="w-3.5 h-3.5" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-6"
-                                  disabled={idx === d.items.length - 1} onClick={() => moveItem(idx, 1)}>
-                                  <ChevronDown className="w-3.5 h-3.5" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-6"
-                                  onClick={() => setD({ ...d, items: d.items.filter((_, i) => i !== idx) })}>
-                                  <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-
-              <div className="mt-4 pt-3 border-t flex justify-end">
-                <dl className="grid grid-cols-2 gap-x-8 gap-y-1 min-w-[250px] text-sm">
-                  <dt className="text-muted-foreground">Netto</dt>
-                  <dd className="text-right font-mono tabular-nums">{formatEur(totals.net)}</dd>
-                  {totals.vat19 > 0 && (
-                    <>
-                      <dt className="text-muted-foreground">USt 19 %</dt>
-                      <dd className="text-right font-mono tabular-nums">{formatEur(totals.vat19)}</dd>
-                    </>
-                  )}
-                  {totals.vat7 > 0 && (
-                    <>
-                      <dt className="text-muted-foreground">USt 7 %</dt>
-                      <dd className="text-right font-mono tabular-nums">{formatEur(totals.vat7)}</dd>
-                    </>
-                  )}
-                  <dt className="font-semibold text-base pt-1 border-t">Gesamt</dt>
-                  <dd className="text-right font-mono tabular-nums font-semibold text-base pt-1 border-t">
-                    {formatEur(totals.gross)}
-                  </dd>
-                </dl>
-              </div>
-            </Card>
-
-            {/* Vorlage und Texte */}
-            <Card className="p-4 space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Texte
-              </h3>
-              <div>
-                <Label className="text-xs">Einleitungstext</Label>
-                <Textarea rows={3} value={d.intro_text}
-                  onChange={(e) => setD({ ...d, intro_text: e.target.value })} />
-              </div>
-              <div>
-                <Label className="text-xs">Fußtext</Label>
-                <Textarea rows={2} value={d.footer_text}
-                  onChange={(e) => setD({ ...d, footer_text: e.target.value })} />
-              </div>
-            </Card>
+              <Button variant="outline" className="rounded-full gap-1.5" onClick={preview} disabled={busy || !d.client_id}>
+                {rendering ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}PDF-Vorschau
+              </Button>
+              <Button className="rounded-full gap-1.5 bg-foreground text-background hover:bg-foreground/90"
+                onClick={finalize} disabled={busy || !d.client_id}>
+                {isFinal ? "PDF neu erzeugen" : "Festschreiben & PDF erzeugen"}
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} aria-label="Schließen">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
 
-        <DialogFooter className="gap-2 flex-wrap px-6 py-3 border-t bg-background shrink-0">
-          <span className="mr-auto text-sm self-center">
-            Gesamt <b className="font-mono tabular-nums">{formatEur(totals.gross)}</b>
-          </span>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Schließen</Button>
-          {!isFinal && invoiceId && (
-            <Button variant="ghost" onClick={() => setAskDelete(true)}
-              disabled={deleteDraft.isPending || rendering}
-              className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10">
-              <Trash2 className="w-4 h-4" />Entwurf löschen
-            </Button>
-          )}
-          {!isFinal && (
-            <Button variant="secondary" onClick={saveDraft}
-              disabled={create.isPending || update.isPending || rendering}>
-              Entwurf speichern
-            </Button>
-          )}
-          <Button variant="outline" onClick={() => preview("pdf")}
-            disabled={rendering || !d.client_id} className="gap-1.5">
-            {rendering ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            PDF-Vorschau
-          </Button>
-          <Button onClick={finalize} disabled={rendering || !d.client_id} className="gap-1.5">
-            {rendering ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileSignature className="w-4 h-4" />}
-            {isFinal ? "PDF neu erzeugen" : "Nummer vergeben und PDF erzeugen"}
-          </Button>
-        </DialogFooter>
+        <div className="flex-1 overflow-y-auto bg-muted/40">
+          <div className="mx-auto w-full max-w-7xl p-4 sm:p-6 flex flex-wrap items-start gap-6">
+
+            {/* Die Rechnung */}
+            <div className="flex-[999_1_640px] min-w-0 rounded-2xl border bg-card overflow-hidden">
+              <div className="h-1 bg-primary" />
+              <div className="p-5 sm:p-8 space-y-7">
+
+                {/* Empfänger und Daten */}
+                <div className="flex flex-wrap gap-x-10 gap-y-6 justify-between">
+                  <div className="flex-[1_1_260px] min-w-0">
+                    <div className="flex items-baseline gap-3">
+                      <Eyebrow>Rechnung an</Eyebrow>
+                      {!isFinal && (
+                        <button type="button" onClick={() => setRecipientOpen((v) => !v)}
+                          className="text-xs font-medium text-primary hover:underline">
+                          {recipientOpen ? "Fertig" : "Ändern"}
+                        </button>
+                      )}
+                    </div>
+                    {recipientOpen ? (
+                      <div className="mt-2 space-y-3">
+                        <div>
+                          <Label className="text-xs font-normal text-muted-foreground">Rechnungsempfänger *</Label>
+                          <Select value={d.client_id} onValueChange={(v) => setD({ ...d, client_id: v })}>
+                            <SelectTrigger className="h-10"><SelectValue placeholder="Empfänger wählen…" /></SelectTrigger>
+                            <SelectContent>
+                              {clients?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs font-normal text-muted-foreground">Projekt (optional)</Label>
+                          <Select value={d.project_id ?? "none"}
+                            onValueChange={(v) => setD({ ...d, project_id: v === "none" ? null : v })}>
+                            <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">— kein Projekt —</SelectItem>
+                              {projects?.filter((p) => !d.client_id || p.client_id === d.client_id).map((p) => (
+                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-1.5 text-[15px] leading-relaxed">
+                        {client ? (
+                          <>
+                            <div className="font-semibold">{client.name}</div>
+                            {client.address_line1 && <div>{client.address_line1}</div>}
+                            {(client.zip || client.city) && <div>{[client.zip, client.city].filter(Boolean).join(" ")}</div>}
+                          </>
+                        ) : (
+                          <div className="text-muted-foreground">Noch kein Empfänger gewählt</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-[1_1_340px] grid grid-cols-2 gap-3">
+                    {dateField("Rechnungsdatum", d.issue_date, (v) => setD({ ...d, issue_date: v }))}
+                    {d.paid_by_withdrawal
+                      ? dateField("Fällig (entfällt)", "", () => {}, true)
+                      : dateField("Überweisen bis", d.due_date, (v) => setD({ ...d, due_date: v }))}
+                    {dateField("Leistungszeitraum von", d.service_period_from ?? "", (v) => setD({ ...d, service_period_from: v || null }))}
+                    {dateField("Leistungszeitraum bis", d.service_period_to ?? "", (v) => setD({ ...d, service_period_to: v || null }))}
+                  </div>
+                </div>
+
+                {/* Einleitung */}
+                <div className="space-y-1.5">
+                  <Eyebrow>Einleitung</Eyebrow>
+                  <Textarea rows={3} value={d.intro_text}
+                    onChange={(e) => setD({ ...d, intro_text: e.target.value })}
+                    className="text-[15px] leading-relaxed bg-muted/30 border-transparent hover:border-input focus-visible:border-input" />
+                </div>
+
+                {/* Positionen */}
+                <div>
+                  <div className="flex items-baseline gap-2.5 mb-2.5">
+                    <Eyebrow>Positionen</Eyebrow>
+                    <span className="text-xs text-muted-foreground">
+                      {d.items.length} {d.items.length === 1 ? "Position" : "Positionen"}
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <div className="min-w-[680px]">
+                      <div className="grid grid-cols-[24px_minmax(0,1fr)_60px_84px_92px_84px_100px_72px] gap-2.5 items-center pb-2 border-b-[1.5px] border-foreground text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <div>Pos.</div><div>Beschreibung</div><div className="text-right">Menge</div><div>Einheit</div>
+                        <div className="text-right">Einzelpreis</div><div>USt.</div><div className="text-right">Netto</div><div />
+                      </div>
+
+                      {d.items.length === 0 && (
+                        <div className="text-sm text-muted-foreground text-center py-8 border-b">
+                          Noch keine Positionen. Über „Position hinzufügen“ oder eine Vorlage ergänzen.
+                        </div>
+                      )}
+
+                      {d.items.map((it, idx) => {
+                        const lineNet = (it.quantity ?? 0) * (it.unit_price_net ?? 0);
+                        return (
+                          <div key={idx}
+                            className="grid grid-cols-[24px_minmax(0,1fr)_60px_84px_92px_84px_100px_72px] gap-2.5 items-start py-3 border-b">
+                            <div className="text-sm text-muted-foreground pt-2.5">{idx + 1}</div>
+                            <Textarea
+                              rows={1}
+                              placeholder="Beschreibung der Leistung"
+                              className="min-h-[40px] text-sm font-medium resize-none [field-sizing:content]"
+                              value={it.description ?? ""}
+                              onChange={(e) => setItem(idx, { description: e.target.value })}
+                            />
+                            <Input className="h-10 text-right text-sm tabular-nums" type="number" step="0.01"
+                              aria-label="Menge" value={it.quantity ?? 0}
+                              onChange={(e) => setItem(idx, { quantity: Number(e.target.value) })} />
+                            <Input className="h-10 text-sm" aria-label="Einheit" value={it.unit ?? ""}
+                              onChange={(e) => setItem(idx, { unit: e.target.value })} />
+                            <Input className="h-10 text-right text-sm tabular-nums" type="number" step="0.01"
+                              aria-label="Einzelpreis netto" value={it.unit_price_net ?? 0}
+                              onChange={(e) => setItem(idx, { unit_price_net: Number(e.target.value) })} />
+                            <Select value={String(it.vat_rate ?? 19)}
+                              onValueChange={(v) => setItem(idx, { vat_rate: Number(v) })}>
+                              <SelectTrigger className="h-10 text-sm" aria-label="Umsatzsteuer"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="0">0 %</SelectItem>
+                                <SelectItem value="7">7 %</SelectItem>
+                                <SelectItem value="19">19 %</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <div className="text-right text-sm font-semibold tabular-nums pt-2.5 whitespace-nowrap">
+                              {formatEur(lineNet)}
+                            </div>
+                            <div className="flex justify-end">
+                              <Button variant="ghost" size="icon" className="h-9 w-6" aria-label="Nach oben"
+                                disabled={idx === 0} onClick={() => moveItem(idx, -1)}>
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-9 w-6" aria-label="Nach unten"
+                                disabled={idx === d.items.length - 1} onClick={() => moveItem(idx, 1)}>
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-9 w-7 text-muted-foreground hover:text-destructive"
+                                aria-label="Position entfernen"
+                                onClick={() => setD({ ...d, items: d.items.filter((_, i) => i !== idx) })}>
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <Button variant="outline" size="sm" className="h-9 rounded-full gap-1.5 border-dashed"
+                      onClick={() => setD({ ...d, items: [...d.items, blankItem()] })}>
+                      <Plus className="w-3.5 h-3.5" />Position hinzufügen
+                    </Button>
+                    <Select value="" onValueChange={applyPreset}>
+                      <SelectTrigger className="h-9 w-auto rounded-full text-sm gap-1.5 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5"><FileStack className="w-3.5 h-3.5" />Aus Vorlage</div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(presets ?? []).length === 0 && (
+                          <div className="px-2 py-1.5 text-xs text-muted-foreground">Keine Vorlagen</div>
+                        )}
+                        {presets?.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}{p.sparte ? ` · ${p.sparte}` : ""}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" size="sm" className="h-9 rounded-full gap-1.5"
+                      onClick={() => setImportOpen(true)} disabled={!d.project_id}
+                      title={d.project_id ? undefined : "Erst unter „Ändern“ ein Projekt wählen"}>
+                      <FolderInput className="w-3.5 h-3.5" />Stunden übernehmen
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-9 rounded-full gap-1.5"
+                      onClick={saveAsPreset} disabled={d.items.length === 0}>
+                      <Save className="w-3.5 h-3.5" />Als Vorlage speichern
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Summen */}
+                <div className="flex justify-end">
+                  <dl className="w-[300px] max-w-full space-y-1.5 text-sm">
+                    <div className="flex justify-between"><dt className="text-muted-foreground">Summe netto</dt>
+                      <dd className="tabular-nums">{formatEur(totals.net)}</dd></div>
+                    {totals.vat19 > 0 && (
+                      <div className="flex justify-between"><dt className="text-muted-foreground">zzgl. 19 % Umsatzsteuer</dt>
+                        <dd className="tabular-nums">{formatEur(totals.vat19)}</dd></div>
+                    )}
+                    {totals.vat7 > 0 && (
+                      <div className="flex justify-between"><dt className="text-muted-foreground">zzgl. 7 % Umsatzsteuer</dt>
+                        <dd className="tabular-nums">{formatEur(totals.vat7)}</dd></div>
+                    )}
+                    <div className="flex justify-between items-baseline pt-2.5 mt-1.5 border-t-[1.5px] border-foreground">
+                      <dt className="font-semibold">Gesamtbetrag</dt>
+                      <dd className="tabular-nums text-xl font-bold">{formatEur(totals.gross)}</dd>
+                    </div>
+                  </dl>
+                </div>
+
+                {/* Zahlungshinweis, wie er auf der Rechnung steht */}
+                <div className="flex gap-3 items-start rounded-xl bg-orange-50/70 dark:bg-primary/10 px-4 py-3.5 text-sm text-muted-foreground">
+                  <CheckCircle2 className="w-[18px] h-[18px] shrink-0 mt-0.5 text-primary" />
+                  <span>{paymentText}</span>
+                </div>
+
+                {/* Fußtext nur bei Bedarf */}
+                {footerOpen ? (
+                  <div className="space-y-1.5">
+                    <Eyebrow>Fußtext (optional)</Eyebrow>
+                    <Textarea rows={2} value={d.footer_text} placeholder="z. B. ein Hinweis für den Empfänger"
+                      onChange={(e) => setD({ ...d, footer_text: e.target.value })} className="bg-muted/30" />
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setFooterOpen(true)}
+                    className="text-sm font-medium text-primary hover:underline">
+                    + Fußtext hinzufügen
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Seitenleiste */}
+            <aside className="flex-[1_1_300px] min-w-0 lg:max-w-[360px] space-y-4 lg:sticky lg:top-0">
+              <div className="rounded-2xl border bg-card p-5">
+                <Eyebrow>Gesamtbetrag</Eyebrow>
+                <div className="text-3xl font-bold tracking-tight tabular-nums mt-0.5">{formatEur(totals.gross)}</div>
+                <div className="text-xs text-muted-foreground tabular-nums">
+                  {formatEur(totals.net)} netto · {formatEur(totals.vat19 + totals.vat7)} USt.
+                </div>
+                <div className="mt-4 flex gap-2.5 items-start rounded-lg bg-muted/60 px-3 py-2.5 text-sm">
+                  <Landmark className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
+                  <span>
+                    {d.paid_by_withdrawal
+                      ? "Selbstentnahme vom Objektkonto (ältere Rechnung)"
+                      : hasBuilding
+                        ? <>Überweisung durch die Hausverwaltung{d.due_date && <> bis <b className="font-semibold">{formatDate(d.due_date)}</b></>}</>
+                        : <>Der Empfänger überweist{d.due_date && <> bis <b className="font-semibold">{formatDate(d.due_date)}</b></>}</>}
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border bg-card p-5">
+                <div className="mb-3"><Eyebrow>So geht es weiter</Eyebrow></div>
+                <ol className="space-y-3">
+                  {[
+                    ["Entwurf prüfen", "Positionen, Daten und Text stimmen? Mit „PDF-Vorschau“ siehst du die echte Rechnung."],
+                    ["Festschreiben", "Die Rechnung bekommt ihre Nummer und das PDF wird erzeugt."],
+                    ["Zahlungslauf", "Die Rechnung steht automatisch unter „Zahlungen“ beim Objekt."],
+                  ].map(([t, txt], i) => {
+                    const done = isFinal ? i < 2 : i < 0;
+                    const current = isFinal ? i === 2 : i === 0;
+                    return (
+                      <li key={t} className="flex gap-3 items-start">
+                        <span className={`w-6 h-6 shrink-0 rounded-full text-xs font-bold inline-flex items-center justify-center ${
+                          current ? "bg-primary text-primary-foreground" : done ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground"
+                        }`}>{i + 1}</span>
+                        <div>
+                          <div className="font-semibold text-sm">{t}</div>
+                          <div className="text-xs text-muted-foreground">{txt}</div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            </aside>
+          </div>
+        </div>
       </DialogContent>
 
       <AlertDialog open={askDelete} onOpenChange={setAskDelete}>
@@ -638,15 +665,14 @@ export function InvoiceEditorDialog({ open, onOpenChange, invoiceId }: Props) {
 }
 
 function emptyDraft(): Draft {
-  const today = new Date();
-  const due = new Date();
-  due.setDate(due.getDate() + 14);
-  const fmt = (x: Date) => x.toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
   return {
     client_id: "", project_id: null, template_id: null,
-    issue_date: fmt(today), due_date: fmt(due),
+    issue_date: today,
+    // Überwiesen wird bis zum Jahresende des Rechnungsjahres.
+    due_date: `${today.slice(0, 4)}-12-31`,
     service_period_from: null, service_period_to: null,
-    intro_text: "", footer_text: "", paid_by_withdrawal: false, items: [],
+    intro_text: DEFAULT_INTRO, footer_text: "", paid_by_withdrawal: false, items: [],
   };
 }
 
