@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { DatevToggle } from "./DatevToggle";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, isToday } from "date-fns";
@@ -51,6 +52,10 @@ interface Invoice {
   building_id?: string | null;
   is_company_invoice?: boolean;
   invoice_type?: string | null;
+  datev_upload?: boolean | null;
+  datev_sent_at?: string | null;
+  datev_status?: string | null;
+  datev_error?: string | null;
   ocr_extracted_data?: any;
   buildings?: { name: string } | null;
 }
@@ -765,6 +770,18 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
                   else { toast.success("Liegenschaft aktualisiert"); onRefetch(); }
                 }}
               />
+              {invoice.is_company_invoice && invoice.invoice_type !== "credit_note" && (
+                <div className="pt-2">
+                  <DatevToggle
+                    invoiceId={invoice.id}
+                    enabled={invoice.datev_upload}
+                    sentAt={invoice.datev_sent_at}
+                    status={invoice.datev_status}
+                    error={invoice.datev_error}
+                    onChanged={onRefetch}
+                  />
+                </div>
+              )}
             </div>
             <Separator />
             <PurposeEditCopyField
