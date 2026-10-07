@@ -51,6 +51,7 @@ export function InvoiceDetailDialog({
   const paid = Number(invoice.paid_amount);
   const rest = Math.round((gross - paid) * 100) / 100;
   const withdrawal = (invoice as any).paid_by_withdrawal === true;
+  const byManagement = !withdrawal && !!invoice.building_id;
   const overdue =
     !withdrawal && invoice.due_date && rest > 0 &&
     invoice.due_date < new Date().toISOString().slice(0, 10);
@@ -102,7 +103,7 @@ export function InvoiceDetailDialog({
                   buildingName(invoice.building_id) ?? clientName(invoice.client_id),
                   `Rechnung vom ${formatDate(invoice.issue_date)}`,
                   invoice.service_period_from
-                    ? `Leistung ${formatDate(invoice.service_period_from)}–${formatDate(invoice.service_period_to)}`
+                    ? `Leistungszeitraum ${formatDate(invoice.service_period_from)}–${formatDate(invoice.service_period_to)}`
                     : null,
                 ].filter(Boolean).join(" · ")}
               </span>
@@ -127,12 +128,14 @@ export function InvoiceDetailDialog({
             ? <Wallet className="w-4 h-4 mt-0.5 text-primary shrink-0" />
             : <Landmark className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />}
           <span>
-            {withdrawal ? "Selbstentnahme vom Objektkonto" : "Überweisung durch den Empfänger"}
+            {withdrawal
+              ? "Selbstentnahme vom Objektkonto"
+              : byManagement ? "Überweisung durch die Hausverwaltung" : "Überweisung durch den Empfänger"}
             <span className="block text-xs text-muted-foreground mt-0.5">
               {withdrawal
                 ? "Die Rechnung ist der Beleg zur Entnahme. Trag den Betrag ein, sobald er abgebucht ist."
                 : invoice.due_date
-                  ? `Zahlungsziel ${formatDate(invoice.due_date)}`
+                  ? `Überweisen bis ${formatDate(invoice.due_date)}`
                   : "Kein Zahlungsziel hinterlegt"}
             </span>
           </span>

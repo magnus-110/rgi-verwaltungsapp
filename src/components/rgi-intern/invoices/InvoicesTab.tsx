@@ -34,6 +34,12 @@ import { InvoiceEditorDialog } from "./InvoiceEditorDialog";
 import { InvoiceDetailDialog } from "./InvoiceDetailDialog";
 
 type StackKey = "todo" | "draft" | "open" | "paid";
+type Mode = "weg" | "rent";
+
+const MODE_KEY = "rgi-invoices-mode";
+function loadMode(): Mode {
+  try { return localStorage.getItem(MODE_KEY) === "rent" ? "rent" : "weg"; } catch { return "weg"; }
+}
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -49,6 +55,13 @@ export function InvoicesTab() {
   const [year, setYear] = useState(currentYear - 1);
   const [stack, setStack] = useState<StackKey>("todo");
   const [search, setSearch] = useState("");
+  // WEG- oder Mietverwaltung: im einen Modus erscheint vom anderen
+  // nichts – weder Objekte noch deren Rechnungen.
+  const [mode, setModeState] = useState<Mode>(loadMode);
+  const setMode = (m: Mode) => {
+    setModeState(m);
+    try { localStorage.setItem(MODE_KEY, m); } catch { /* egal */ }
+  };
 
   const { data: overview, isLoading: loadingObjects } = useBillingOverview();
   const { data: invoices, isLoading: loadingInvoices } = useRgiInvoices();
@@ -65,17 +78,31 @@ export function InvoicesTab() {
   const buildingName = (id: string | null) =>
     (overview ?? []).find((o) => o.building_id === id)?.building_name ?? null;
 
+  /** Objekte des gewählten Modus. */
+  const modeOverview = useMemo(
+    () => (overview ?? []).filter((r) => (r.management_mode ?? "weg") === mode),
+    [overview, mode],
+  );
+  /**
+   * Rechnungen eines Objekts gehören zu dessen Modus. Freie Rechnungen
+   * ohne Objekt erscheinen in beiden.
+   */
+  const modeInvoices = useMemo(() => {
+    const modeOf = new Map((overview ?? []).map((o) => [o.building_id, o.management_mode ?? "weg"]));
+    return (invoices ?? []).filter((i: any) => !i.building_id || (modeOf.get(i.building_id) ?? "weg") === mode);
+  }, [invoices, overview, mode]);
+
   // ---------------- Stapel füllen ----------------
 
   const todo = useMemo(
-    () => (overview ?? [])
+    () => modeOverview
       .filter((r) => hasOpenWork(r, year))
       .sort((a, b) => openWorkNet(b, year) - openWorkNet(a, year)),
-    [overview, year],
+    [modeOverview, year],
   );
 
   const buckets = useMemo(() => {
-    const all = invoices ?? [];
+    const all = modeInvoices;
     const drafts = all.filter((i) => i.status === "draft");
     const paid = all.filter(
       (i) => i.status === "paid" ||
@@ -86,7 +113,7 @@ export function InvoicesTab() {
       (i) => i.invoice_number && i.status !== "cancelled" && !paidIds.has(i.id),
     );
     return { drafts, open, paid, overdue: open.filter(isOverdue).length };
-  }, [invoices]);
+  }, [modeInvoices]);
 
   const stacks = [
     {
@@ -189,7 +216,7 @@ export function InvoicesTab() {
             <span>{buildingName(inv.building_id) ?? clientName(inv.client_id)}</span>
             <span>· {formatDate(inv.issue_date)}</span>
             {inv.service_period_from && (
-              <span>· Leistung {formatDate(inv.service_period_from)}–{formatDate(inv.service_period_to)}</span>
+              <span>· Leistungszeitraum {formatDate(inv.service_period_from)}–{formatDate(inv.service_period_to)}</span>
             )}
           </div>
         </div>
@@ -267,7 +294,22 @@ export function InvoicesTab() {
   return (
     <div className="space-y-4 mt-4">
       {/* Kopfzeile */}
-      <div className="flex items-start gap-3 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex rounded-full bg-muted p-0.5" role="group" aria-label="Verwaltungsart">
+          {([["weg", "WEG"], ["rent", "Miete"]] as const).map(([m, label]) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              aria-pressed={mode === m}
+              className={`h-8 px-4 rounded-full text-sm transition-colors ${
+                mode === m ? "bg-background shadow-sm font-semibold" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-muted-foreground">Honorarjahr</span>
           <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
