@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, ArrowRight, Check, MoreHorizontal, X, Clock } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, MoreHorizontal, X, Clock, Tag, Settings2 } from 'lucide-react';
 import {
   BoardItem,
   ORIGIN_DOT,
@@ -12,8 +12,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { sparteDot, sparteIdVon } from '@/hooks/useBoardSparten';
 import { Button } from '@/components/ui/button';
 
 interface BoardCardProps {
@@ -29,6 +33,10 @@ interface BoardCardProps {
   onMove?: (richtung: 'vor' | 'zurueck') => void;
   kannVor?: boolean;
   kannZurueck?: boolean;
+  /** Eigene Sparten — gesetzt, wenn die Karte einer Sparte zugeordnet werden kann. */
+  sparten?: { id: string; name: string; color: string }[];
+  onSetSparte?: (sparteId: string | null) => void;
+  onSpartenVerwalten?: () => void;
 }
 
 function todayIso() {
@@ -76,8 +84,9 @@ function StatusChip({ item }: { item: BoardItem }) {
 
 export function BoardCard({
   item, onOpen, onComplete, onRemove, onWaiting, compact, dragging,
-  onMove, kannVor, kannZurueck,
+  onMove, kannVor, kannZurueck, sparten, onSetSparte, onSpartenVerwalten,
 }: BoardCardProps) {
+  const aktuelleSparte = sparteIdVon(item.pin);
   if (compact) {
     return (
       <div className="rounded-lg border border-[#EBE4D6] bg-[#FFFDF7] px-3 py-2.5">
@@ -150,6 +159,38 @@ export function BoardCard({
                   <DropdownMenuItem disabled={!kannZurueck} onClick={() => onMove('zurueck')}>
                     <ArrowRight className="mr-2 h-4 w-4" /> Weiter nach hinten
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              {onSetSparte && sparten && (
+                <>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <Tag className="mr-2 h-4 w-4" /> Sparte
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="w-52">
+                      {sparten.map(sp => (
+                        <DropdownMenuItem key={sp.id} onClick={() => onSetSparte(sp.id)}>
+                          <span className={`mr-2 h-2.5 w-2.5 rounded-full ${sparteDot(sp.color)}`} />
+                          <span className="flex-1 truncate">{sp.name}</span>
+                          {aktuelleSparte === sp.id && <Check className="ml-2 h-3.5 w-3.5" />}
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuItem onClick={() => onSetSparte(null)}>
+                        <span className="mr-2 h-2.5 w-2.5 rounded-full border border-muted-foreground/50" />
+                        <span className="flex-1">Ohne Sparte</span>
+                        {aktuelleSparte === null && <Check className="ml-2 h-3.5 w-3.5" />}
+                      </DropdownMenuItem>
+                      {onSpartenVerwalten && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={onSpartenVerwalten}>
+                            <Settings2 className="mr-2 h-4 w-4" /> Sparten verwalten …
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
                   <DropdownMenuSeparator />
                 </>
               )}

@@ -26,6 +26,18 @@ export type BoardPinRow = {
   pinned_at: string;
   pinned_by: string | null;
   done_at: string | null;
+  /** Eigene Sparte auf der Wand dieser Person (board_sparten). */
+  sparte_id?: string | null;
+}
+
+/** Eine Sparte der Pinnwand. Jede Person hat ihre eigenen. */
+export type BoardSparteRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  color: string;
+  sort_order: number;
+  created_at: string;
 }
 
 export type NotificationRow = {
@@ -56,6 +68,12 @@ type BoardDatabase = {
         Row: BoardPinRow;
         Insert: Insertable<BoardPinRow, 'user_id' | 'ref_type' | 'ref_id'>;
         Update: Partial<BoardPinRow>;
+        Relationships: [];
+      };
+      board_sparten: {
+        Row: BoardSparteRow;
+        Insert: Insertable<BoardSparteRow, 'name'>;
+        Update: Partial<BoardSparteRow>;
         Relationships: [];
       };
       notifications: {
