@@ -33,12 +33,11 @@ import {
   useSetBillableStatus, useDeleteBillable, useCreateInvoiceFromBillables,
 } from "@/hooks/useRgiBilling";
 import {
-  type BillingRow, isOpenRow, rowNet, rowsNet,
+  type BillingRow, DEFAULT_INTRO, isOpenRow, rowNet, rowsNet,
   rowFromEvent, suggestionsFromContract, mergeSuggestions,
 } from "@/types/rgiBilling";
 import { type FeeDebtor, formatDate, formatEur } from "@/types/rgiContracts";
 import { BillingRowDialog, PercentBaseDialog } from "./BillingRowDialogs";
-import { CreateInvoiceDialog } from "./CreateInvoiceDialog";
 
 interface Props {
   open: boolean;
@@ -94,7 +93,6 @@ export function BuildingBillingSheet({
   const [editRow, setEditRow] = useState<BillingRow | null>(null);
   const [newRowOpen, setNewRowOpen] = useState(false);
   const [percentRow, setPercentRow] = useState<BillingRow | null>(null);
-  const [invoiceOpen, setInvoiceOpen] = useState(false);
   const [creating, setCreating] = useState(false);
 
   const contract = useMemo(
@@ -373,26 +371,38 @@ export function BuildingBillingSheet({
       .filter((g) => g.rows.length > 0);
   }, [readyRows]);
 
-  const createDrafts = async (opts: {
-    issueDate: string; dueDate: string | null;
-    servicePeriodFrom: string | null; servicePeriodTo: string | null; introText: string;
-  }) => {
+  /**
+   * Legt die Entwürfe direkt an und öffnet den ersten – ohne Zwischen-
+   * dialog. Datum, Leistungszeitraum und Text werden vorbelegt und
+   * lassen sich auf der Entwurfsseite noch ändern.
+   *
+   *   Rechnungsdatum     heute
+   *   Überweisen bis     31.12. des Rechnungsjahres
+   *   Leistungszeitraum  ganzes Honorarjahr, sonst Spanne der Posten
+   */
+  const createDrafts = async () => {
     if (!buildingId) return;
+    const todayIso = new Date().toISOString().slice(0, 10);
     setCreating(true);
     try {
       let firstId: string | null = null;
       for (const g of invoiceGroups) {
+        const hasYearFee = g.rows.some((r) => r.periodKey);
+        const dates = g.rows.map((r) => r.occurredOn).filter(Boolean).sort();
         const inv = await createInvoice.mutateAsync({
           buildingId,
           rows: g.rows,
           createdBy: user?.id,
           paidByWithdrawal: false,
           templateId: null,
-          ...opts,
+          issueDate: todayIso,
+          dueDate: `${todayIso.slice(0, 4)}-12-31`,
+          servicePeriodFrom: hasYearFee ? `${year}-01-01` : (dates[0] ?? null),
+          servicePeriodTo: hasYearFee ? `${year}-12-31` : (dates[dates.length - 1] ?? null),
+          introText: DEFAULT_INTRO,
         });
         firstId ??= inv?.id ?? null;
       }
-      setInvoiceOpen(false);
       setSelected(new Set());
       setOverrides({});
       setExtraRows([]);
@@ -825,8 +835,8 @@ export function BuildingBillingSheet({
                     </div>
                     <Button
                       className="w-full h-11 rounded-full gap-2 text-[15px]"
-                      disabled={chosen.length === 0}
-                      onClick={() => setInvoiceOpen(true)}
+                      disabled={chosen.length === 0 || creating}
+                      onClick={createDrafts}
                     >
                       <Receipt className="w-4 h-4" />
                       {invoiceGroups.length > 1 ? `${invoiceGroups.length} Rechnungsentwürfe erstellen` : "Rechnungsentwurf erstellen"}
@@ -874,16 +884,6 @@ export function BuildingBillingSheet({
         }}
       />
 
-      <CreateInvoiceDialog
-        open={invoiceOpen}
-        onOpenChange={setInvoiceOpen}
-        rows={readyRows}
-        invoiceCount={invoiceGroups.length}
-        buildingName={buildingName}
-        year={year}
-        pending={creating || createInvoice.isPending}
-        onConfirm={createDrafts}
-      />
     </>
   );
 }
