@@ -1,10 +1,34 @@
 // rgi-render-invoice
-// Rendert eine RGI-Rechnung aus Word-Vorlage + DB-Daten,
-// konvertiert via CloudConvert nach PDF und legt beide Dateien
-// in Bucket 'invoices' ab.
+// Rendert eine RGI-Rechnung als HTML (klassisches Design, siehe
+// invoiceHtml.ts), lässt sie von Gotenberg auf dem eigenen Server
+// in ein PDF drucken und legt das PDF in Bucket 'invoices' ab.
+//
+// Kein Word, kein CloudConvert mehr. Benötigte Umgebungsvariablen:
+//   GOTENBERG_URL       z. B. https://pdf.innovations-werk.de
+//   GOTENBERG_USER      (optional) Benutzer für die Basic-Auth
+//   GOTENBERG_PASSWORD  (optional) Passwort für die Basic-Auth
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
-import PizZip from "https://esm.sh/pizzip@3.1.7";
-import Docxtemplater from "https://esm.sh/docxtemplater@3.50.0";
+import { buildInvoiceHtml, type InvoiceHtmlInput } from "./invoiceHtml.ts";
+
+// Logo für den Rechnungskopf. Standard ist das Logo aus dem öffentlichen
+// Repo; mit RGI_LOGO_URL lässt sich eine andere Adresse setzen.
+const DEFAULT_LOGO_URL =
+  "https://raw.githubusercontent.com/magnus-110/rgi-verwaltungsapp/main/public/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png";
+let logoCache: string | null = null;
+async function logoDataUri(): Promise<string> {
+  if (logoCache) return logoCache;
+  try {
+    const r = await fetch(Deno.env.get("RGI_LOGO_URL") || DEFAULT_LOGO_URL);
+    if (!r.ok) return "";
+    const bytes = new Uint8Array(await r.arrayBuffer());
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    logoCache = `data:${r.headers.get("content-type") || "image/png"};base64,${btoa(bin)}`;
+    return logoCache;
+  } catch {
+    return "";
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,55 +61,40 @@ function sanitize(s: string): string {
     .slice(0, 80) || "Datei";
 }
 
-function withDotAliases<T extends Record<string, any>>(source: T): T {
-  const out: Record<string, any> = { ...source };
-  for (const [group, value] of Object.entries(source)) {
-    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
-    for (const [key, nestedValue] of Object.entries(value)) {
-      out[`${group}.${key}`] = nestedValue;
-    }
-  }
-  return out as T;
-}
+/**
+ * Druckt das HTML über Gotenberg (Chromium) zu einem A4-PDF.
+ * Die Ränder passen zu den Maßen in invoiceHtml.ts: links 20 mm
+ * (Lochrand), rechts 18 mm, unten Platz für die Fußzeile.
+ */
+async function htmlToPdf(body: string, footer: string): Promise<Uint8Array> {
+  const base = (Deno.env.get("GOTENBERG_URL") || "").replace(/\/+$/, "");
+  if (!base) throw new Error("GOTENBERG_URL ist nicht konfiguriert");
 
-async function convertDocxToPdf(docxBytes: Uint8Array, filename: string): Promise<Uint8Array> {
-  const apiKey = Deno.env.get("CLOUDCONVERT_API_KEY");
-  if (!apiKey) throw new Error("CLOUDCONVERT_API_KEY ist nicht konfiguriert");
-  let bin = "";
-  const chunk = 0x8000;
-  for (let i = 0; i < docxBytes.length; i += chunk) {
-    bin += String.fromCharCode(...docxBytes.subarray(i, i + chunk));
+  const mm = (v: number) => String(Math.round((v / 25.4) * 1000) / 1000); // Gotenberg rechnet in Zoll
+  const form = new FormData();
+  form.append("files", new Blob([body], { type: "text/html" }), "index.html");
+  form.append("files", new Blob([footer], { type: "text/html" }), "footer.html");
+  form.append("paperWidth", mm(210));
+  form.append("paperHeight", mm(297));
+  form.append("marginTop", mm(12));
+  form.append("marginBottom", mm(30));
+  form.append("marginLeft", mm(20));
+  form.append("marginRight", mm(18));
+  form.append("printBackground", "true");
+  form.append("preferCssPageSize", "false");
+  // Auf die Webschrift warten, bevor gedruckt wird.
+  form.append("skipNetworkIdleEvent", "false");
+
+  const headers: Record<string, string> = {};
+  const user = Deno.env.get("GOTENBERG_USER");
+  const pass = Deno.env.get("GOTENBERG_PASSWORD");
+  if (user && pass) headers.Authorization = `Basic ${btoa(`${user}:${pass}`)}`;
+
+  const resp = await fetch(`${base}/forms/chromium/convert/html`, { method: "POST", headers, body: form });
+  if (!resp.ok) {
+    throw new Error(`PDF-Erzeugung fehlgeschlagen (Gotenberg ${resp.status}): ${(await resp.text()).slice(0, 300)}`);
   }
-  const b64 = btoa(bin);
-  const jobResp = await fetch("https://api.cloudconvert.com/v2/jobs", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      tasks: {
-        "import-1": { operation: "import/base64", file: b64, filename },
-        "convert-1": { operation: "convert", input: "import-1", output_format: "pdf", engine: "libreoffice" },
-        "export-1": { operation: "export/url", input: "convert-1" },
-      },
-    }),
-  });
-  if (!jobResp.ok) throw new Error(`CloudConvert Job fehlgeschlagen: ${jobResp.status} ${await jobResp.text()}`);
-  const jobJson = await jobResp.json();
-  const jobId = jobJson?.data?.id;
-  if (!jobId) throw new Error("CloudConvert: keine Job-ID");
-  const waitResp = await fetch(`https://sync.api.cloudconvert.com/v2/jobs/${jobId}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-  });
-  if (!waitResp.ok) throw new Error(`CloudConvert Wait fehlgeschlagen: ${waitResp.status} ${await waitResp.text()}`);
-  const waitJson = await waitResp.json();
-  if (waitJson?.data?.status !== "finished") {
-    throw new Error(`CloudConvert Job nicht erfolgreich: ${waitJson?.data?.status}`);
-  }
-  const exportTask = (waitJson.data.tasks || []).find((t: any) => t.name === "export-1");
-  const url = exportTask?.result?.files?.[0]?.url;
-  if (!url) throw new Error("CloudConvert: keine Download-URL");
-  const dl = await fetch(url);
-  if (!dl.ok) throw new Error(`PDF-Download fehlgeschlagen: ${dl.status}`);
-  return new Uint8Array(await dl.arrayBuffer());
+  return new Uint8Array(await resp.arrayBuffer());
 }
 
 /**
@@ -183,6 +192,32 @@ function json(b: unknown, status = 200) {
   });
 }
 
+
+/**
+ * Teilt eine Positionsbezeichnung in Hauptzeile und Zusatz.
+ * „Verwaltervergütung 2025 — 26 × 28,00 € je Monat“ wird zu
+ * Hauptzeile „Verwaltervergütung 2025“ und grauer Zusatzzeile.
+ * Ein Zeilenumbruch in der Bezeichnung trennt genauso.
+ */
+function splitDescription(text: string): { main: string; detail: string } {
+  const t = (text || "").trim();
+  const nl = t.indexOf("\n");
+  if (nl > 0) return { main: t.slice(0, nl).trim(), detail: t.slice(nl + 1).trim() };
+  const m = t.split(/\s+[—–]\s+/);
+  if (m.length > 1) return { main: m[0].trim(), detail: m.slice(1).join(" – ").trim() };
+  return { main: t, detail: "" };
+}
+
+/** Adresszeilen aus dem Schnappschuss („Straße, PLZ Ort, DE“). */
+function addressLines(snapshot: string | null | undefined, client: any): string[] {
+  const parts = snapshot
+    ? snapshot.split(/\s*,\s*|\n/)
+    : [client?.address_line1, [client?.zip, client?.city].filter(Boolean).join(" "), client?.country];
+  return parts
+    .map((p: any) => String(p ?? "").trim())
+    .filter((p: string) => p && !/^(de|deutschland|germany)$/i.test(p));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -193,31 +228,18 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { invoice_id } = body;
-    const formats: ("docx" | "pdf")[] = Array.isArray(body?.formats) && body.formats.length
-      ? body.formats.filter((f: any) => f === "docx" || f === "pdf")
-      : ["docx", "pdf"];
     if (!invoice_id) return json({ error: "invoice_id erforderlich" }, 400);
 
     const { data: invoice, error: invErr } = await admin
       .from("rgi_invoices")
-      .select("*, client:rgi_clients(*), project:rgi_projects(*), template:rgi_invoice_templates(*), items:rgi_invoice_items(*)")
+      .select("*, client:rgi_clients(*), project:rgi_projects(*), items:rgi_invoice_items(*)")
       .eq("id", invoice_id)
       .maybeSingle();
     if (invErr || !invoice) return json({ error: invErr?.message || "Rechnung nicht gefunden" }, 404);
-    if (!invoice.template?.storage_path) return json({ error: "Rechnung hat keine Vorlage" }, 400);
 
     const { data: company } = await admin.from("rgi_company_settings").select("*").limit(1).maybeSingle();
-    const { data: tplFile, error: tplErr } = await admin.storage
-      .from("rgi-invoice-templates")
-      .download(invoice.template.storage_path);
-    if (tplErr || !tplFile) {
-      const msg = /not.?found|object/i.test(tplErr?.message || "")
-        ? "Die Vorlagendatei wurde im Speicher nicht gefunden. Bitte die Word-Vorlage erneut hochladen."
-        : (tplErr?.message || "Vorlage nicht ladbar");
-      return json({ error: msg }, 404);
-    }
 
-    // Build payload
+    // ---------------- Beträge ----------------
     const items = (invoice.items || [])
       .sort((a: any, b: any) => a.position - b.position)
       .map((it: any, idx: number) => {
@@ -242,193 +264,107 @@ Deno.serve(async (req) => {
       acc.gross += it.lineGross;
       return acc;
     }, { net: 0, vat: 0, gross: 0 });
-    const invoiceNumber = invoice.invoice_number || "ENTWURF";
-    const issueDate = fmtDate(invoice.issue_date);
-    const dueDate = fmtDate(invoice.due_date);
+
+    // ---------------- Zahlungsweg ----------------
+    // Rechnungen an eine Gemeinschaft überweist die Hausverwaltung
+    // selbst vom Gemeinschaftskonto. Ohne Objektbezug (z. B. ein
+    // externer Kunde) bleibt es bei der klassischen Überweisung.
+    const buildingId = invoice.building_id || invoice.client?.building_id || null;
+    const payment: InvoiceHtmlInput["payment"] =
+      invoice.paid_by_withdrawal === true ? "withdrawal" : buildingId ? "management" : "transfer";
+
     const servicePeriod = invoice.service_period_from || invoice.service_period_to
       ? `${fmtDate(invoice.service_period_from)} – ${fmtDate(invoice.service_period_to)}`
       : "";
     const clientName = invoice.client_name_snapshot || invoice.client?.name || "";
-    const clientAddress = invoice.client_address_snapshot || [invoice.client?.address_line1, [invoice.client?.zip, invoice.client?.city].filter(Boolean).join(" "), invoice.client?.country].filter(Boolean).join(", ");
-    // Selbstentnahme vom Objektkonto statt Ueberweisung. Die Word-
-    // Vorlage schaltet darueber den Zahlungsblock um: {#entnahme}
-    // druckt den Entnahmehinweis, {^entnahme} die Bankverbindung.
-    // Ein Zahlungsziel gibt es bei Entnahme nicht.
-    const isWithdrawal = invoice.paid_by_withdrawal === true;
-    const withdrawnOn = fmtDate(invoice.withdrawn_on);
 
-    const payload = {
-      entnahme: isWithdrawal,
-      Rechnungsnummer: invoiceNumber,
-      Rechnungsdatum: issueDate,
-      Faellig: isWithdrawal ? "" : dueDate,
-      Fällig: isWithdrawal ? "" : dueDate,
-      Faelligkeit: isWithdrawal ? "" : dueDate,
-      Fälligkeit: isWithdrawal ? "" : dueDate,
-      Leistungszeitraum: servicePeriod,
-      Kundennummer: invoice.client?.customer_no || "",
-      Kunde: clientName,
-      Kundenadresse: clientAddress,
-      Netto: fmtMoney(totals.net),
-      Nettobetrag: fmtMoney(totals.net),
-      Umsatzsteuer: fmtMoney(totals.vat),
-      Gesamtbetrag: fmtMoney(totals.gross),
-      Brutto: fmtMoney(totals.gross),
-      IBAN: company?.iban || "",
-      BIC: company?.bic || "",
-      Bank: company?.bank_name || "",
-      firma: {
-        name: company?.legal_name || "",
-        adresse: [company?.address_line1, company?.address_line2, [company?.zip, company?.city].filter(Boolean).join(" "), company?.country].filter(Boolean).join(", "),
-        strasse: company?.address_line1 || "",
-        plz: company?.zip || "",
-        zip: company?.zip || "",
-        ort: company?.city || "",
-        stadt: company?.city || "",
-        land: company?.country || "",
-        steuernr: company?.tax_no || "",
-        ustid: company?.vat_id || "",
-        ceo: company?.ceo || "",
-        geschaeftsfuehrer: company?.ceo || "",
+    const html = buildInvoiceHtml({
+      logoDataUri: await logoDataUri(),
+      company: {
+        name: company?.legal_name || "RGI Immobilien GmbH & Co. KG",
+        street: [company?.address_line1, company?.address_line2].filter(Boolean).join(", "),
+        zipCity: [company?.zip, company?.city].filter(Boolean).join(" "),
+        phone: company?.phone || "",
+        email: company?.email || "",
+        website: company?.website || "",
+        court: company?.court || "",
         hrb: company?.hrb || "",
-        amtsgericht: company?.court || "",
+        ceo: company?.ceo || "",
+        vatId: company?.vat_id || "",
+        taxNo: company?.tax_no || "",
+        bank: company?.bank_name || "",
         iban: company?.iban || "",
         bic: company?.bic || "",
-        bank: company?.bank_name || "",
-        email: company?.email || "",
-        telefon: company?.phone || "",
-        website: company?.website || "",
       },
-      kunde: {
+      recipient: {
         name: clientName,
-        adresse: clientAddress,
-        strasse: invoice.client?.address_line1 || "",
-        plz: invoice.client?.zip || "",
-        zip: invoice.client?.zip || "",
-        ort: invoice.client?.city || "",
-        stadt: invoice.client?.city || "",
-        land: invoice.client?.country || "",
-        email: invoice.client?.email || "",
-        ustid: invoice.client?.vat_id || "",
-        kundennr: invoice.client?.customer_no || "",
+        lines: addressLines(invoice.client_address_snapshot, invoice.client),
       },
-      rechnung: {
-        nummer: invoiceNumber,
-        datum: issueDate,
-        faellig: isWithdrawal ? "" : dueDate,
-        entnahme: isWithdrawal,
-        entnommen_am: withdrawnOn || issueDate,
-        leistungszeitraum: servicePeriod,
-        intro: invoice.intro_text || "",
-        footer: invoice.footer_text || company?.default_footer_text || "",
-        projekt: invoice.project?.name || "",
+      meta: {
+        number: invoice.invoice_number || "Entwurf",
+        date: fmtDate(invoice.issue_date),
+        customerNo: invoice.client?.customer_no || "",
+        servicePeriod,
+        dueDate: fmtDate(invoice.due_date),
+        isDraft: !invoice.invoice_number,
       },
-      positionen: items.map((it: any) => ({
-        nr: it.idx + 1,
-        pos: it.idx + 1,
-        beschreibung: it.description,
-        menge: fmtNumber(it.quantity),
-        einheit: it.unit || "",
-        einzelpreis: fmtMoney(it.unitPriceNet),
-        ust: `${fmtNumber(it.vatRate, 2)}%`,
-        netto: fmtMoney(it.lineNet),
-        summe: fmtMoney(it.lineGross),
-        brutto: fmtMoney(it.lineGross),
-      })),
-      summe: {
-        netto: fmtMoney(totals.net),
-        ust: fmtMoney(totals.vat),
-        ust19: fmtMoney(vatBreakdown["19"]?.vat || 0),
-        ust7: fmtMoney(vatBreakdown["7"]?.vat || 0),
-        ust0: fmtMoney(vatBreakdown["0"]?.vat || 0),
-        netto19: fmtMoney(vatBreakdown["19"]?.net || 0),
-        netto7: fmtMoney(vatBreakdown["7"]?.net || 0),
-        netto0: fmtMoney(vatBreakdown["0"]?.net || 0),
-        brutto: fmtMoney(totals.gross),
+      intro: invoice.intro_text || "",
+      footerText: invoice.footer_text || company?.default_footer_text || "",
+      items: items.map((it: any) => {
+        const { main, detail } = splitDescription(it.description);
+        return {
+          pos: it.idx + 1,
+          description: main,
+          detail,
+          quantity: `${fmtNumber(it.quantity)}${it.unit ? ` ${it.unit}` : ""}`,
+          unitPrice: fmtMoney(it.unitPriceNet),
+          vat: `${fmtNumber(it.vatRate, 2)} %`,
+          net: fmtMoney(it.lineNet),
+        };
+      }),
+      totals: {
+        net: fmtMoney(totals.net),
+        vatLines: Object.entries(vatBreakdown)
+          .filter(([, v]) => v.net !== 0)
+          .sort((a, b) => Number(b[0]) - Number(a[0]))
+          .map(([rate, v]) => ({
+            label: Number(rate) === 0 ? "Umsatzsteuer 0 %" : `zzgl. ${fmtNumber(Number(rate), 2)} % Umsatzsteuer`,
+            amount: fmtMoney(v.vat),
+          })),
+        gross: fmtMoney(totals.gross),
       },
-    };
-
-    const tplBuf = new Uint8Array(await tplFile.arrayBuffer());
-    let zip: PizZip;
-    try {
-      zip = new PizZip(tplBuf);
-    } catch (zErr: any) {
-      return json({ error: `Vorlage ist keine gültige .docx-Datei: ${zErr?.message || zErr}` }, 422);
-    }
-    // Word's spell-/grammar-checker injects <w:proofErr/> tags inside placeholders
-    // like {firma.adresse}, splitting them across runs and breaking docxtemplater.
-    // Also strip bookmark markers for the same reason.
-    const SPLIT_RE = /<w:(?:proofErr|bookmarkStart|bookmarkEnd)\b[^>]*\/>/g;
-    for (const name of Object.keys(zip.files)) {
-      if (/^word\/(document|header\d*|footer\d*)\.xml$/.test(name)) {
-        const f = zip.file(name);
-        if (!f) continue;
-        zip.file(name, f.asText().replace(SPLIT_RE, ""));
-      }
-    }
-    const doc = new Docxtemplater(zip, {
-      paragraphLoop: true,
-      linebreaks: true,
-      delimiters: { start: "{", end: "}" },
-      nullGetter: () => "",
+      payment,
     });
-    try {
-      doc.render(withDotAliases(payload));
-    } catch (rErr: any) {
-      const tplErrors = rErr?.properties?.errors;
-      if (Array.isArray(tplErrors) && tplErrors.length) {
-        const details = tplErrors.map((te: any) => `${te?.properties?.xtag ?? "?"}: ${te?.properties?.explanation ?? te?.message}`).join(" | ");
-        return json({ error: `Vorlage enthält ungültige/unbekannte Platzhalter — ${details}` }, 422);
-      }
-      return json({ error: `Word-Rendering fehlgeschlagen: ${rErr?.message || rErr}` }, 500);
-    }
-    const docxBytes = doc.getZip().generate({ type: "uint8array" });
 
+    // ---------------- PDF ----------------
     const renderStamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
-    const baseName = `${sanitize(invoice.invoice_number || "Entwurf")}_${sanitize(invoice.client_name_snapshot || invoice.client?.name || "Kunde")}_${renderStamp}`;
-    const docxPath = `docx/${invoice.id}/${baseName}.docx`;
+    const baseName = `${sanitize(invoice.invoice_number || "Entwurf")}_${sanitize(clientName || "Kunde")}_${renderStamp}`;
 
-    const { error: docxUploadError } = await admin.storage.from("invoices").upload(docxPath, docxBytes, {
-      contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    let pdfBytes: Uint8Array;
+    try {
+      pdfBytes = await htmlToPdf(html.body, html.footer);
+    } catch (pe: any) {
+      console.error("PDF conversion failed", pe);
+      return json({ error: String(pe?.message || pe), pdf_error: String(pe?.message || pe) }, 502);
+    }
+
+    const pdfPath = `pdf/${invoice.id}/${baseName}.pdf`;
+    const { error: pdfUploadError } = await admin.storage.from("invoices").upload(pdfPath, pdfBytes, {
+      contentType: "application/pdf",
       cacheControl: "0",
       upsert: true,
     });
-    if (docxUploadError) return json({ error: `DOCX-Upload fehlgeschlagen: ${docxUploadError.message}` }, 500);
+    if (pdfUploadError) return json({ error: `PDF-Upload fehlgeschlagen: ${pdfUploadError.message}` }, 500);
 
-    let pdfPath: string | null = null;
-    let pdfError: string | null = null;
-    if (formats.includes("pdf")) {
-      try {
-        const pdfBytes = await convertDocxToPdf(docxBytes, `${baseName}.docx`);
-        pdfPath = `pdf/${invoice.id}/${baseName}.pdf`;
-        const { error: pdfUploadError } = await admin.storage.from("invoices").upload(pdfPath, pdfBytes, {
-          contentType: "application/pdf",
-          cacheControl: "0",
-          upsert: true,
-        });
-        if (pdfUploadError) throw new Error(`PDF-Upload fehlgeschlagen: ${pdfUploadError.message}`);
-      } catch (pe: any) {
-        console.error("PDF conversion failed", pe);
-        pdfError = String(pe?.message || pe);
-      }
-    }
-
-    await admin.from("rgi_invoices").update({
-      docx_storage_path: docxPath,
-      ...(pdfPath ? { pdf_storage_path: pdfPath } : {}),
-    }).eq("id", invoice.id);
+    await admin.from("rgi_invoices").update({ pdf_storage_path: pdfPath }).eq("id", invoice.id);
 
     // Ab in die Zahlungsliste des Objekts. Scheitert das, ist die
     // Rechnung trotzdem erzeugt - der Hinweis geht als payment_error
     // zurueck, statt den ganzen Vorgang abzubrechen.
-    let payment: string | null = null;
+    let paymentResult: string | null = null;
     let paymentError: string | null = null;
     try {
-      payment = await pushToPayments(
-        admin, invoice, company, items, totals,
-        pdfPath ?? docxPath,
-        `${baseName}.${pdfPath ? "pdf" : "docx"}`,
-      );
+      paymentResult = await pushToPayments(admin, invoice, company, items, totals, pdfPath, `${baseName}.pdf`);
     } catch (qe: any) {
       console.error("pushToPayments failed", qe);
       paymentError = String(qe?.message || qe);
@@ -436,25 +372,14 @@ Deno.serve(async (req) => {
 
     return json({
       ok: true,
-      docx_path: docxPath,
+      docx_path: null,
       pdf_path: pdfPath,
-      pdf_error: pdfError,
-      payment,
+      pdf_error: null,
+      payment: paymentResult,
       payment_error: paymentError,
     });
   } catch (e: any) {
     console.error("rgi-render-invoice error", e);
-    const tplErrors = e?.properties?.errors;
-    if (Array.isArray(tplErrors) && tplErrors.length) {
-      return json({
-        error: "DOCX-Vorlage enthält ungültige Platzhalter",
-        details: tplErrors.map((te: any) => ({
-          message: te?.message,
-          explanation: te?.properties?.explanation,
-          tag: te?.properties?.xtag,
-        })),
-      }, 422);
-    }
     return json({ error: String(e?.message || e) }, 500);
   }
 });
