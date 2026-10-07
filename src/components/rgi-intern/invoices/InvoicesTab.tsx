@@ -168,8 +168,7 @@ export function InvoicesTab() {
         <div className="flex-1 min-w-0">
           <div className="font-medium">{r.building_name}</div>
           <div className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap mt-0.5">
-            {r.building_code && <span className="font-mono">{r.building_code}</span>}
-            {r.city && <span>· {r.city}</span>}
+            {r.city && <span>{r.city}</span>}
             {Number(r.base_monthly_net) > 0 && (
               <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-normal font-mono">
                 {formatEur(Number(r.base_monthly_net))} / Monat
@@ -378,6 +377,7 @@ export function InvoicesTab() {
         onOpenChange={(v) => !v && setSheetFor(null)}
         buildingId={sheetFor?.id ?? null}
         buildingName={sheetFor?.name ?? ""}
+        year={year}
         onDraftCreated={(id) => {
           // Kein Suchen mehr in einer zweiten Liste: der frische
           // Entwurf geht direkt auf.

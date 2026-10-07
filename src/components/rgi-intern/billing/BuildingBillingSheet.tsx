@@ -50,6 +50,8 @@ interface Props {
    * genau die Naht, an der der Vorgang bisher abriss.
    */
   onDraftCreated?: (invoiceId: string) => void;
+  /** Das oben in der Rechnungsübersicht gewählte Honorarjahr. */
+  year?: number;
 }
 
 /** Lokale Änderungen an einer Zeile, bevor sie gespeichert werden. */
@@ -69,7 +71,7 @@ const DEBTOR_TITLE: Record<FeeDebtor, string> = {
 const num = (n: number) => n.toLocaleString("de-DE", { maximumFractionDigits: 2 });
 
 export function BuildingBillingSheet({
-  open, onOpenChange, buildingId, buildingName, onDraftCreated,
+  open, onOpenChange, buildingId, buildingName, onDraftCreated, year: initialYear,
 }: Props) {
   const { user } = useAuth();
   const currentYear = new Date().getFullYear();
@@ -84,7 +86,7 @@ export function BuildingBillingSheet({
   const remove = useDeleteBillable();
   const createInvoice = useCreateInvoiceFromBillables();
 
-  const [year, setYear] = useState(currentYear - 1);
+  const [year, setYear] = useState(initialYear ?? currentYear - 1);
   const [tab, setTab] = useState<Tab>("open");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [overrides, setOverrides] = useState<Record<string, Override>>({});
@@ -108,7 +110,9 @@ export function BuildingBillingSheet({
     setOverrides({});
     setExtraRows([]);
     setTab("open");
-  }, [open, buildingId]);
+    // Das Honorarjahr aus der Übersicht übernehmen.
+    if (initialYear) setYear(initialYear);
+  }, [open, buildingId, initialYear]);
 
   // ---------------- Zeilen zusammenstellen ----------------
 
@@ -651,7 +655,7 @@ export function BuildingBillingSheet({
     );
   };
 
-  const years = [currentYear - 2, currentYear - 1, currentYear];
+  const years = Array.from(new Set([currentYear - 2, currentYear - 1, currentYear, year])).sort((a, b) => a - b);
   const tabs: { key: Tab; label: string }[] = [
     { key: "open", label: "Offen" },
     { key: "done", label: "Abgerechnet" },
