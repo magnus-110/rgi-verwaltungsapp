@@ -87,6 +87,36 @@ async function melden(args: {
   }
 }
 
+// ================== Deutsche Zeit ==================
+// Der Server laeuft auf Weltzeit (UTC). Uhrzeiten aus der App (Termine, Aufgaben)
+// meinen aber deutsche Zeit. Ohne diese Umrechnung zeigte die Glocke einen Termin
+// um 15:00 als "13:00" an, und Aufgaben mit Uhrzeit meldeten sich 1-2 Stunden zu spaet.
+const ZEITZONE = "Europe/Berlin";
+
+/** Uhrzeit eines Zeitpunkts in deutscher Zeit, z. B. "15:00". */
+function uhrzeitDE(d: Date): string {
+  return d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: ZEITZONE });
+}
+
+/** Abstand deutscher Zeit zur Weltzeit in Minuten (60 im Winter, 120 im Sommer). */
+function berlinVersatzMinuten(d: Date): number {
+  const teile = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: ZEITZONE, hourCycle: "h23",
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    }).formatToParts(d).map((t) => [t.type, t.value]),
+  );
+  const alsUtc = Date.UTC(+teile.year, +teile.month - 1, +teile.day, +teile.hour, +teile.minute, +teile.second);
+  return Math.round((alsUtc - d.getTime()) / 60000);
+}
+
+/** Datum + Uhrzeit, gemeint als deutsche Zeit, als echter Zeitpunkt. */
+function berlinZeitpunkt(datum: string, zeit: string): Date {
+  const naiv = new Date(`${datum}T${zeit}Z`);
+  return new Date(naiv.getTime() - berlinVersatzMinuten(naiv) * 60000);
+}
+
 async function getInboxFolderId(): Promise<string | null> {
   const { data } = await supabase
     .from("email_folders")
@@ -176,7 +206,7 @@ async function notifyTodos() {
     // due moment
     const dueDateStr = todo.due_date as string;
     const timeStr = (todo.calendar_start_time as string | null) ?? "09:00:00";
-    const due = new Date(`${dueDateStr}T${timeStr}`);
+    const due = berlinZeitpunkt(dueDateStr, timeStr);
     const minutesUntil = Math.round((due.getTime() - now.getTime()) / 60000);
 
     // Empfaenger: die Mehrfachzuweisung UND das alte Einzelfeld.
@@ -252,7 +282,7 @@ async function notifyCalendar() {
       user_ids: [uid],
       type: "deadline",
       title: "Termin steht an",
-      body: `${ev.title} – ${start.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`,
+      body: `${ev.title} – ${uhrzeitDE(start)}`,
       url: `/calendar`,
       ref_type: refType,
       ref_id: refId,
