@@ -380,16 +380,21 @@ export function useReportTodos(reportId: string | null) {
   });
 }
 
-/** Zahl der offenen Meldungen (noch niemand zuständig) — für Ordner und Menü. */
+/**
+ * Zahl der offenen Meldungen für Ordner und Menü. Gezählt werden nur eigene und
+ * noch nicht zugeordnete - was jemand anderem zugeordnet ist, zählt hier nicht.
+ */
 export function useReportCounts(enabled = true) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ["reports", "counts"],
-    enabled,
+    queryKey: ["reports", "counts", user?.id ?? null],
+    enabled: enabled && !!user?.id,
     queryFn: async () => {
       const { count } = await reportsDb
         .from("reports")
         .select("id", { count: "exact", head: true })
-        .eq("status", "open");
+        .eq("status", "open")
+        .or(`assigned_to.is.null,assigned_to.eq.${user!.id}`);
       return { open: count ?? 0 };
     },
     staleTime: 15_000,
