@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ProtocolReadableView } from "../../ProtocolReadableView";
+import { bisherigeUmsetzungen, umsetzungFelder } from "@/lib/beschlussUebertragung";
 import { ProtocolDownloadButtons } from "../../ProtocolDownloadButtons";
 import { EmailCampaignWizard } from "@/components/communication/EmailCampaignWizard";
 import { EtvCard, EtvSectionTitle } from "../ui";
@@ -39,7 +40,7 @@ export const ProtocolPhase = ({ meeting }: Props) => {
   const { data: items = [] } = useQuery({
     queryKey: ["etv-agenda-protocol", meetingId],
     queryFn: async () => (await supabase.from("etv_agenda_items")
-      .select("id, status, resolution_text, result, yes_count, no_count, abstain_count, voting_principle, is_actionable, requires_resolution")
+      .select("id, status, resolution_text, result, yes_count, no_count, abstain_count, voting_principle, is_actionable, requires_resolution, case_id")
       .eq("meeting_id", meetingId).order("sort_order")).data || [],
   });
   const { data: resolutionCount = 0 } = useQuery({
@@ -61,12 +62,13 @@ export const ProtocolPhase = ({ meeting }: Props) => {
     setBusy("res");
     try {
       const year = meeting.meeting_date ? new Date(meeting.meeting_date).getFullYear() : new Date().getFullYear();
+      const bisher = await bisherigeUmsetzungen(meetingId);
       const rows = decided.map((item: any, idx: number) => ({
         meeting_id: meetingId, agenda_item_id: item.id, building_id: meeting.building_id,
         resolution_number: `${year}-${idx + 1}`, resolution_text: item.resolution_text, result: item.result || "failed",
         yes_count: item.yes_count || 0, no_count: item.no_count || 0, abstain_count: item.abstain_count || 0,
         voting_principle: item.voting_principle, resolved_at: meeting.meeting_date, published: !!meeting.protocol_published,
-        is_actionable: !!item.is_actionable,
+        ...umsetzungFelder(item, bisher.get(item.id)),
       }));
       await supabase.from("etv_resolutions").delete().eq("meeting_id", meetingId);
       if (rows.length) {

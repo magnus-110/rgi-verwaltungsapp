@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Sparkles, Loader2, Maximize2, FileText, Send, CheckCircle2, AlertTriangle } from "lucide-react";
 import { ProtocolDownloadButtons } from "./ProtocolDownloadButtons";
 import { ProtocolReadableView } from "./ProtocolReadableView";
+import { bisherigeUmsetzungen, umsetzungFelder } from "@/lib/beschlussUebertragung";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -39,7 +40,7 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
     queryFn: async () => {
       const { data, error } = await supabase
         .from("etv_agenda_items")
-        .select("id, status, resolution_text, result, yes_count, no_count, abstain_count, voting_principle, is_actionable, requires_resolution")
+        .select("id, status, resolution_text, result, yes_count, no_count, abstain_count, voting_principle, is_actionable, requires_resolution, case_id")
         .eq("meeting_id", meetingId)
         .order("sort_order");
       if (error) throw error;
@@ -69,6 +70,7 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
   const saveResolutionsMutation = useMutation({
     mutationFn: async () => {
       const items = agendaItems.filter((i: any) => i.status === "voted" && i.resolution_text && i.requires_resolution !== false);
+      const bisher = await bisherigeUmsetzungen(meetingId);
       const resolutions = items.map((item: any, idx: number) => ({
         meeting_id: meetingId,
         agenda_item_id: item.id,
@@ -82,11 +84,11 @@ export const MeetingProtocol = ({ meetingId, buildingId }: MeetingProtocolProps)
         voting_principle: item.voting_principle,
         resolved_at: meeting?.meeting_date,
         published: false,
-        is_actionable: !!item.is_actionable,
+        ...umsetzungFelder(item, bisher.get(item.id)),
       }));
       if (resolutions.length === 0) return 0;
       await supabase.from("etv_resolutions").delete().eq("meeting_id", meetingId);
-      const { error } = await supabase.from("etv_resolutions").insert(resolutions);
+      const { error } = await supabase.from("etv_resolutions").insert(resolutions as any);
       if (error) throw error;
       return resolutions.length;
     },
