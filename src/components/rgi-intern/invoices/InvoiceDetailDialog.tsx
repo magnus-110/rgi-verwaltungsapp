@@ -14,8 +14,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   FileType, Download, RefreshCw, CheckCircle, Wallet, Landmark, Receipt, AlertTriangle,
-  CreditCard,
+  CreditCard, Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -23,6 +27,7 @@ import {
   useLinkedPayment, rgiRenderInvoice, rgiSignedUrl,
 } from "@/hooks/useRgi";
 import { Link } from "react-router-dom";
+import { useRevertInvoiceToDraft } from "@/hooks/useRgiBilling";
 import { formatDate, formatEur } from "@/types/rgiContracts";
 
 interface Props {
@@ -31,10 +36,12 @@ interface Props {
   invoiceId: string | null;
   buildingName: (id: string | null) => string | null;
   clientName: (id: string) => string;
+  /** Nach dem Zurücknehmen: den Entwurf zum Bearbeiten öffnen. */
+  onReverted?: (invoiceId: string) => void;
 }
 
 export function InvoiceDetailDialog({
-  open, onOpenChange, invoiceId, buildingName, clientName,
+  open, onOpenChange, invoiceId, buildingName, clientName, onReverted,
 }: Props) {
   const { data: invoice } = useRgiInvoice(open ? invoiceId : null);
   const { data: items } = useRgiInvoiceItems(open ? invoiceId : null);
@@ -44,6 +51,8 @@ export function InvoiceDetailDialog({
 
   const [amount, setAmount] = useState("");
   const [rendering, setRendering] = useState(false);
+  const [confirmRevert, setConfirmRevert] = useState(false);
+  const revert = useRevertInvoiceToDraft();
 
   if (!invoice) return null;
 
@@ -252,9 +261,59 @@ export function InvoiceDetailDialog({
           )}
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex justify-between gap-2 flex-wrap">
+          {invoice.invoice_number ? (
+            <Button
+              variant="ghost"
+              className="gap-1.5 text-muted-foreground hover:text-destructive"
+              onClick={() => setConfirmRevert(true)}
+            >
+              <Undo2 className="w-4 h-4" />Rechnung zurücknehmen
+            </Button>
+          ) : <span />}
           <Button variant="outline" onClick={() => onOpenChange(false)}>Schließen</Button>
         </div>
+
+        {/* Zurücknehmen – in der Testphase ausdrücklich erlaubt */}
+        <AlertDialog open={confirmRevert} onOpenChange={setConfirmRevert}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Rechnung {invoice.invoice_number} zurücknehmen?</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2">
+                  <p>Die Rechnung wird wieder ein Entwurf ohne Nummer. Dabei wird entfernt:</p>
+                  <ul className="list-disc pl-5 space-y-0.5">
+                    <li>der Eintrag unter „Zahlungen“ beim Objekt</li>
+                    <li>erfasste Zahlungseingänge</li>
+                    <li>das erzeugte PDF</li>
+                  </ul>
+                  <p>
+                    Positionen und Texte bleiben erhalten. War es die zuletzt vergebene
+                    Nummer, bekommt die nächste Rechnung dieselbe Nummer wieder.
+                  </p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={revert.isPending}
+                onClick={async () => {
+                  try {
+                    await revert.mutateAsync(invoice);
+                    onOpenChange(false);
+                    onReverted?.(invoice.id);
+                  } finally {
+                    setConfirmRevert(false);
+                  }
+                }}
+              >
+                Zurücknehmen
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );

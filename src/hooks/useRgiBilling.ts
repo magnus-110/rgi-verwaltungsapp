@@ -432,3 +432,99 @@ export function useDeleteInvoiceDraft() {
     onError: (e: any) => toast.error(e.message),
   });
 }
+
+/**
+ * Nimmt eine festgeschriebene Rechnung zurück: sie wird wieder ein
+ * Entwurf ohne Nummer.
+ *
+ * Buchhalterisch eigentlich nicht vorgesehen – eine vergebene Nummer
+ * soll bleiben. In der Testphase muss sich ein Fehler aber ohne Griff
+ * in die Datenbank beheben lassen. Abgeräumt wird alles, was beim
+ * Festschreiben entstanden ist:
+ *
+ *   - der Posten in „Zahlungen“ beim Objekt
+ *   - erfasste Zahlungseingänge und Mahnungen
+ *   - Nummer, Versanddatum und PDF
+ *
+ * War es die zuletzt vergebene Nummer, wird der Zähler zurückgesetzt –
+ * die nächste Rechnung bekommt dann wieder dieselbe Nummer.
+ * Positionen, abgerechnete Posten und Stunden bleiben am Entwurf.
+ */
+export function useRevertInvoiceToDraft() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (invoice: { id: string; invoice_number?: string | null }) => {
+      const id = invoice.id;
+      const number = invoice.invoice_number ?? null;
+
+      // 1) Aus der Zahlungsliste des Objekts nehmen.
+      const { error: e1 } = await db.from("invoices").delete().eq("rgi_invoice_id", id);
+      if (e1) throw e1;
+
+      // 2) Zahlungseingänge und Mahnungen entfernen.
+      const { error: e2 } = await db.from("rgi_payments").delete().eq("invoice_id", id);
+      if (e2) throw e2;
+      const { error: e3 } = await db.from("rgi_reminders").delete().eq("invoice_id", id);
+      if (e3) throw e3;
+
+      // 3) Nummer freigeben, falls es die zuletzt vergebene war.
+      let numberFreed = false;
+      if (number) {
+        const { data: settings } = await db
+          .from("rgi_company_settings").select("invoice_number_pattern").limit(1).maybeSingle();
+        const pattern: string = settings?.invoice_number_pattern || "{YYYY}-{NNNN}";
+        const { data: seqs } = await db.from("rgi_invoice_sequences").select("scope, year, last_no");
+        for (const s of seqs ?? []) {
+          const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const re = new RegExp(
+            "^" +
+              esc(pattern)
+                .replace(esc("{YYYY}"), String(s.year))
+                .replace(esc("{MM}"), "\\d{2}")
+                .replace(esc("{SPARTE}"), esc(String(s.scope).toUpperCase()))
+                .replace(esc("{NNNN}"), String(s.last_no).padStart(4, "0")) +
+              "$",
+          );
+          if (re.test(number)) {
+            const { error } = await db
+              .from("rgi_invoice_sequences")
+              .update({ last_no: Math.max(Number(s.last_no) - 1, 0) })
+              .eq("scope", s.scope).eq("year", s.year);
+            if (!error) numberFreed = true;
+            break;
+          }
+        }
+      }
+
+      // 4) Zurück auf Entwurf.
+      const { error: e4 } = await db.from("rgi_invoices").update({
+        invoice_number: null,
+        status: "draft",
+        sent_at: null,
+        paid_at: null,
+        paid_amount: 0,
+        withdrawn_on: null,
+        pdf_storage_path: null,
+        docx_storage_path: null,
+      }).eq("id", id);
+      if (e4) throw e4;
+
+      return { number, numberFreed };
+    },
+    onSuccess: (r) => {
+      invalidate(qc);
+      qc.invalidateQueries({ queryKey: ["rgi"] });
+      toast.success(
+        r.number ? `Rechnung ${r.number} zurückgenommen – sie ist wieder ein Entwurf` : "Wieder ein Entwurf",
+        {
+          description: r.numberFreed
+            ? `Die Nummer ${r.number} wird bei der nächsten Rechnung erneut vergeben.`
+            : r.number
+              ? "Es wurden danach schon weitere Nummern vergeben – diese Nummer bleibt frei."
+              : undefined,
+        },
+      );
+    },
+    onError: (e: any) => toast.error(`Zurücknehmen fehlgeschlagen: ${e.message}`),
+  });
+}
