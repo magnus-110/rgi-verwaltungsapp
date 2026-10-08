@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { BeschlussVorgangDialog, GewaehlterVorgang } from "./BeschlussVorgangDialog";
 
 interface ResolutionLedgerProps {
   buildingFilter?: string;
@@ -25,19 +26,27 @@ export const ResolutionLedger = ({ buildingFilter: externalBuildingFilter }: Res
   const navigate = useNavigate();
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  // Beschluss, fuer den gerade ein Vorgang gewaehlt wird (umzusetzen einschalten oder Verknuepfung aendern)
+  const [vorgangFuer, setVorgangFuer] = useState<any | null>(null);
 
   const toggleActionableMutation = useMutation({
-    mutationFn: async ({ id, value }: { id: string; value: boolean }) => {
+    mutationFn: async ({ id, value, vorgang }: { id: string; value: boolean; vorgang?: GewaehlterVorgang | null }) => {
+      // Mit vorhandenem Vorgang: case_id mitschicken, dann legt die Datenbank keinen neuen an.
+      const patch: any = { is_actionable: value };
+      if (value && vorgang) patch.case_id = vorgang.id;
       const { error } = await supabase
         .from("etv_resolutions")
-        .update({ is_actionable: value } as any)
+        .update(patch)
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: (_d, vars) => {
+      setVorgangFuer(null);
       toast({
         title: vars.value ? "Als umsetzungsrelevant markiert" : "Markierung entfernt",
-        description: vars.value ? "Es wurde automatisch ein Vorgang angelegt." : undefined,
+        description: vars.value
+          ? vars.vorgang ? `Mit dem Vorgang „${vars.vorgang.title}“ verknüpft.` : "Es wurde automatisch ein Vorgang angelegt."
+          : undefined,
       });
       queryClient.invalidateQueries({ queryKey: ["etv-resolutions"] });
     },
@@ -218,7 +227,7 @@ export const ResolutionLedger = ({ buildingFilter: externalBuildingFilter }: Res
                         <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
                         <div>
                           <div className="font-medium text-foreground">Umsetzungsrelevant</div>
-                          <div className="text-muted-foreground">Erstellt automatisch einen Vorgang zur Nachverfolgung.</div>
+                          <div className="text-muted-foreground">Vorhandenen Vorgang verknüpfen oder neuen anlegen.</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -232,9 +241,14 @@ export const ResolutionLedger = ({ buildingFilter: externalBuildingFilter }: Res
                             <ExternalLink className="h-3 w-3" /> Vorgang
                           </Button>
                         )}
+                        {r.is_actionable && (
+                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setVorgangFuer(r)}>
+                            Ändern
+                          </Button>
+                        )}
                         <Switch
                           checked={!!r.is_actionable}
-                          onCheckedChange={(v) => toggleActionableMutation.mutate({ id: r.id, value: v })}
+                          onCheckedChange={(v) => (v ? setVorgangFuer(r) : toggleActionableMutation.mutate({ id: r.id, value: false }))}
                           disabled={toggleActionableMutation.isPending}
                         />
                       </div>
@@ -302,6 +316,20 @@ export const ResolutionLedger = ({ buildingFilter: externalBuildingFilter }: Res
           })}
         </div>
       )}
+
+      <BeschlussVorgangDialog
+        open={!!vorgangFuer}
+        onOpenChange={(v) => !v && setVorgangFuer(null)}
+        buildingId={vorgangFuer?.building_id}
+        text={vorgangFuer?.resolution_text}
+        aktuellerVorgangId={vorgangFuer?.case_id}
+        busy={toggleActionableMutation.isPending}
+        neuErlaubt={!vorgangFuer?.is_actionable}
+        onPick={(vorgang) => {
+          if (!vorgangFuer) return;
+          toggleActionableMutation.mutate({ id: vorgangFuer.id, value: true, vorgang });
+        }}
+      />
     </div>
   );
 };
