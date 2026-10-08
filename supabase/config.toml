@@ -181,3 +181,6 @@ verify_jwt = false
 
 [functions.datev-upload-sync]
 verify_jwt = false
+
+[functions.case-short-title]
+verify_jwt = true
