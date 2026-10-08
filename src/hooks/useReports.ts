@@ -528,10 +528,10 @@ export function useMarkReportRead() {
 }
 
 /**
- * Zuständigkeit ändern. Die Erklärung („Was soll Sandra tun?“) landet als
- * interner Eintrag im Verlauf. Wer eine neue Meldung übernimmt, setzt sie
- * damit auf „In Bearbeitung“; wird die Zuständigkeit wieder entfernt, bevor
- * etwas passiert ist, ist sie wieder offen.
+ * Zuständigkeit ändern. Der Status bleibt dabei unverändert - zuständig sein
+ * heißt noch nicht, dass schon jemand daran arbeitet. Der Eintrag wird trotzdem
+ * gespeichert: Er löst die Glocken-Benachrichtigung für den neuen Zuständigen aus.
+ * Im Verlauf erscheint er nur, wenn eine Erklärung („Was soll Sandra tun?“) dabei ist.
  */
 export function useAssignReport() {
   const { user } = useAuth();
@@ -539,10 +539,7 @@ export function useAssignReport() {
   return useMutation({
     mutationFn: async (input: { report: ReportRow; userId: string | null; note?: string }) => {
       const { report, userId, note } = input;
-      let status = report.status;
-      if (userId && status === "open") status = "in_progress";
-      if (!userId && status === "in_progress" && !report.current_step) status = "open";
-      await updateReport(report.id, { assigned_to: userId, status });
+      await updateReport(report.id, { assigned_to: userId });
       await insertEvent({
         report_id: report.id,
         kind: "assignment",
