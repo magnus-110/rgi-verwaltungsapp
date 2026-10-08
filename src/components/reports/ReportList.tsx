@@ -19,7 +19,7 @@ import { MiniTag, StaffAvatar } from "./reportUi";
 import { errorMessage, shortDate } from "@/lib/reports";
 
 const HINT: Record<ReportFolder, string> = {
-  open: "Neu eingegangen, noch niemand zuständig.",
+  open: "Neu eingegangen, noch nicht in Arbeit.",
   progress: "Jemand kümmert sich oder es wird gewartet.",
   done: "Abgeschlossen.",
 };
@@ -106,7 +106,7 @@ export function ReportList({
             <span className="flex-1 text-[11.5px] text-muted-foreground">{HINT[folder]}</span>
             <label className="flex cursor-pointer select-none items-center gap-1.5 text-xs text-muted-foreground">
               <Checkbox checked={onlyMine} onCheckedChange={(v) => onOnlyMineChange(!!v)} className="h-3.5 w-3.5" />
-              Nur meine
+              Nur meine &amp; nicht zugeordnete
             </label>
           </div>
         )}
@@ -153,7 +153,7 @@ export function ReportList({
               : filters && (filters.buildingId !== "all" || filters.contactName !== "all")
                 ? "Keine Meldungen zu diesem Filter."
                 : folder === "open"
-                ? "Alles verteilt. Keine offenen Meldungen."
+                ? "Keine offenen Meldungen."
                 : "Keine Meldungen in diesem Ordner."}
           </div>
         ) : (

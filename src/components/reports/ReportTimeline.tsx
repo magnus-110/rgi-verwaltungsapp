@@ -22,9 +22,10 @@ interface Props {
  * Antworten des Melders (grau, links), interne Einträge (gelb, mit Schloss).
  */
 export function ReportTimeline({ events, filter, staff, reporterName }: Props) {
-  const shown = events.filter((e) =>
-    filter === "all" ? true : filter === "reporter" ? isForReporter(e) : isInternal(e),
-  );
+  const shown = events
+    // Reiner Zuständigkeitswechsel ohne Erklärung ist kein Ereignis im Verlauf.
+    .filter((e) => !(e.kind === "assignment" && !e.body?.trim()))
+    .filter((e) => (filter === "all" ? true : filter === "reporter" ? isForReporter(e) : isInternal(e)));
   const firstName = reporterName.split(" ")[0] || "Melder";
   const nameOf = (id: string | null) => (id ? staffFirstName(staff.get(id)) : "Verwaltung");
 

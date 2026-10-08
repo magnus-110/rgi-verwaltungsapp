@@ -34,7 +34,8 @@ interface Props {
 export function ReportsPanel({ folder, selectedId, onSelect, onFolderChange, onOpenEmail }: Props) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [onlyMine, setOnlyMine] = useState(false);
+  // Standard: nur eigene und noch nicht zugeordnete Meldungen. Abgehakt: alle.
+  const [onlyMine, setOnlyMine] = useState(true);
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [movedTo, setMovedTo] = useState<string | null>(null);
@@ -65,7 +66,9 @@ export function ReportsPanel({ folder, selectedId, onSelect, onFolderChange, onO
   const { data: found = [], isLoading: searchLoading } = useReportSearch(search);
   const reports = useMemo(() => {
     const base = searching ? found : folderReports;
-    return onlyMine && !searching ? base.filter((r) => r.assigned_to === user?.id) : base;
+    return onlyMine && !searching
+      ? base.filter((r) => !r.assigned_to || r.assigned_to === user?.id)
+      : base;
   }, [searching, found, folderReports, onlyMine, user?.id]);
 
   // Ändert sich durch eine Aktion der Status, wandert die Meldung in einen
