@@ -72,7 +72,7 @@ const LEFT = 20 * MM;          // Lochrand
 const RIGHT = PAGE_W - 18 * MM;
 const WIDTH = RIGHT - LEFT;
 const TOP = PAGE_H - 12 * MM;
-const BOTTOM = 32 * MM;        // darunter liegt die Fußzeile
+const BOTTOM = 36 * MM;        // darunter liegt die Fußzeile
 
 const hex = (h: string) => rgb(
   parseInt(h.slice(1, 3), 16) / 255,
@@ -378,22 +378,30 @@ export async function buildInvoicePdf(d: InvoiceData, logoUrl: string): Promise<
   ].map((col) => col.filter(Boolean));
   const colW = (WIDTH - 24 * MM) / 3;
 
+  // Lange Angaben (z. B. mehrere Geschäftsführer) werden umgebrochen
+  // statt abgeschnitten.
+  const FOOT_LH = 9.5;
   pages.forEach((p, i) => {
     page = p;
-    const fy = 26 * MM;
+    const fy = 30 * MM;
     hline(LEFT, RIGHT, fy, 0.6, RULE);
+    let maxRow = 0;
     cols.forEach((lines, ci) => {
       const x = LEFT + ci * (colW + 4 * MM);
+      let row = 0;
       lines.forEach((l, li) => {
-        let s = safe(l);
-        const f = ci === 0 && li === 0 ? bold : regular;
-        while (s.length > 3 && f.widthOfTextAtSize(s, 7) > colW) s = s.slice(0, -2) + "…";
-        page.drawText(s, { x, y: fy - 2.5 * MM - 7 - li * 10.5, size: 7, font: f, color: ci === 0 && li === 0 ? TEXT : MUTED });
+        const strong = ci === 0 && li === 0;
+        const f = strong ? bold : regular;
+        for (const part of wrap(safe(l), f, 7, colW)) {
+          page.drawText(part, { x, y: fy - 2.5 * MM - 7 - row * FOOT_LH, size: 7, font: f, color: strong ? TEXT : MUTED });
+          row++;
+        }
       });
+      maxRow = Math.max(maxRow, row);
     });
     const label = `Seite ${i + 1} von ${pages.length}`;
     page.drawText(label, {
-      x: RIGHT - regular.widthOfTextAtSize(label, 7), y: fy - 2.5 * MM - 7 - 3 * 10.5,
+      x: RIGHT - regular.widthOfTextAtSize(label, 7), y: fy - 2.5 * MM - 7 - Math.max(maxRow - 1, 0) * FOOT_LH,
       size: 7, font: regular, color: MUTED,
     });
   });

@@ -395,6 +395,12 @@ export function InvoicesTab() {
         invoiceId={detailId}
         buildingName={buildingName}
         clientName={clientName}
+        onReverted={(id) => {
+          // Der zurückgenommene Entwurf geht direkt zum Korrigieren auf.
+          setStack("draft");
+          setEditorId(id);
+          setEditorOpen(true);
+        }}
       />
 
       {/* Entwurf löschen */}
