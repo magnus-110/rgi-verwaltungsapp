@@ -18,6 +18,7 @@ import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2
 import { DmsFilePickerDialog } from "./DmsFilePickerDialog";
 import { ManagementReportPanel } from "./ManagementReportPanel";
 import { ReportSections, emptyReportSections } from "@/lib/managementReport";
+import { BeschlussVorgangDialog } from "./BeschlussVorgangDialog";
 
 
 import {
@@ -98,6 +99,10 @@ export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "he
   const [newDQRelevant, setNewDQRelevant] = useState(false);
   const [newRequiresResolution, setNewRequiresResolution] = useState(true);
   const [newIsActionable, setNewIsActionable] = useState(false);
+  // Vorhandener Vorgang fuer die Umsetzung (leer = nach der Versammlung neu anlegen)
+  const [newCaseId, setNewCaseId] = useState<string | null>(null);
+  const [editCaseId, setEditCaseId] = useState<string | null>(null);
+  const [vorgangDialog, setVorgangDialog] = useState<null | "new" | "edit">(null);
   const [newIncludeDescriptionInInvitation, setNewIncludeDescriptionInInvitation] = useState(false);
 
 
@@ -166,6 +171,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "he
         double_qualified_relevant: newRequiresResolution ? newDQRelevant : false,
         requires_resolution: newRequiresResolution,
         is_actionable: newRequiresResolution ? newIsActionable : false,
+        case_id: newRequiresResolution && newIsActionable ? newCaseId : null,
         include_description_in_invitation: newIncludeDescriptionInInvitation,
       } as any);
 
@@ -186,6 +192,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "he
       setNewDQRelevant(false);
       setNewRequiresResolution(true);
       setNewIsActionable(false);
+      setNewCaseId(null);
       setNewIncludeDescriptionInInvitation(false);
 
       toast({ title: "TOP hinzugefügt" });
@@ -279,6 +286,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "he
     setEditDQRelevant(item.double_qualified_relevant || false);
     setEditRequiresResolution(item.requires_resolution !== false);
     setEditIsActionable((item as any).is_actionable || false);
+    setEditCaseId((item as any).case_id ?? null);
     setEditIncludeDescriptionInInvitation(!!(item as any).include_description_in_invitation);
     setEditIsReport(!!(item as any).is_management_report);
     setEditReportSections({ ...emptyReportSections(), ...(((item as any).report_sections ?? {}) as ReportSections) });
@@ -307,6 +315,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "he
       double_qualified_relevant: editRequiresResolution ? editDQRelevant : false,
       requires_resolution: editRequiresResolution,
       is_actionable: editRequiresResolution ? editIsActionable : false,
+      case_id: editRequiresResolution && editIsActionable ? editCaseId : null,
       include_description_in_invitation: editIncludeDescriptionInInvitation,
       is_management_report: editIsReport,
       report_sections: editIsReport ? editReportSections : {},
@@ -644,11 +653,18 @@ export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "he
                                             <Wrench className="h-3.5 w-3.5" /> Beschluss ist umzusetzen
                                           </Label>
                                           <p className="text-[11px] text-muted-foreground">
-                                            Erstellt nach der Versammlung automatisch einen Vorgang zur Nachverfolgung. Eigentümer sehen ihn auf der Beschlüsse-Seite und im Dashboard.
+                                            Nach der Versammlung wird der Vorgang zur Nachverfolgung angelegt oder ein vorhandener verknüpft. Eigentümer sehen den Stand auf der Beschlüsse-Seite.
                                           </p>
                                         </div>
                                         <Switch checked={editIsActionable} onCheckedChange={setEditIsActionable} />
                                       </div>
+                                      {editIsActionable && (
+                                        <VorgangZeile
+                                          caseId={editCaseId}
+                                          onWaehlen={() => setVorgangDialog("edit")}
+                                          onLoesen={() => setEditCaseId(null)}
+                                        />
+                                      )}
                                     </>
                                   ) : (
                                     <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 rounded-md p-3 border">
@@ -831,11 +847,18 @@ export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "he
                     <Wrench className="h-3.5 w-3.5" /> Beschluss ist umzusetzen
                   </Label>
                   <p className="text-[11px] text-muted-foreground">
-                    Erstellt nach der Versammlung automatisch einen Vorgang zur Nachverfolgung. Eigentümer sehen ihn auf der Beschlüsse-Seite und im Dashboard.
+                    Nach der Versammlung wird der Vorgang zur Nachverfolgung angelegt oder ein vorhandener verknüpft. Eigentümer sehen den Stand auf der Beschlüsse-Seite.
                   </p>
                 </div>
                 <Switch checked={newIsActionable} onCheckedChange={setNewIsActionable} />
               </div>
+              {newIsActionable && (
+                <VorgangZeile
+                  caseId={newCaseId}
+                  onWaehlen={() => setVorgangDialog("new")}
+                  onLoesen={() => setNewCaseId(null)}
+                />
+              )}
             </>
           ) : (
             <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 rounded-md p-3 border">
@@ -958,6 +981,20 @@ export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "he
         buildingId={buildingId}
         excludePaths={editItemExistingPaths}
         onSelect={(paths) => setEditItemExistingPaths((prev) => [...prev, ...paths])}
+      />
+
+      {/* Vorhandenen Vorgang fuer die Umsetzung waehlen */}
+      <BeschlussVorgangDialog
+        open={!!vorgangDialog}
+        onOpenChange={(v) => !v && setVorgangDialog(null)}
+        buildingId={buildingId}
+        text={vorgangDialog === "edit" ? `${editItemTitle} ${editItemResolution}` : `${newTitle} ${newResolution}`}
+        aktuellerVorgangId={vorgangDialog === "edit" ? editCaseId : newCaseId}
+        onPick={(vorgang) => {
+          if (vorgangDialog === "edit") setEditCaseId(vorgang?.id ?? null);
+          else setNewCaseId(vorgang?.id ?? null);
+          setVorgangDialog(null);
+        }}
       />
     </div>
   );
@@ -1190,3 +1227,32 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
     </>
   );
 };
+
+/** Zeigt, welcher Vorgang den Beschluss umsetzen wird, mit Auswahl- und Loesen-Knopf. */
+function VorgangZeile({ caseId, onWaehlen, onLoesen }: { caseId: string | null; onWaehlen: () => void; onLoesen: () => void }) {
+  const { data: titel } = useQuery({
+    queryKey: ["vorgang-titel", caseId],
+    enabled: !!caseId,
+    queryFn: async () => (await supabase.from("cases").select("title").eq("id", caseId!).maybeSingle()).data?.title ?? null,
+  });
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-md border border-dashed px-3 py-2 text-xs">
+      <span className="min-w-0 truncate text-muted-foreground">
+        Vorgang:{" "}
+        <span className="font-medium text-foreground">
+          {caseId ? titel || "…" : "wird nach der Versammlung neu angelegt"}
+        </span>
+      </span>
+      <span className="flex shrink-0 items-center gap-1">
+        {caseId && (
+          <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={onLoesen}>
+            Lösen
+          </Button>
+        )}
+        <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={onWaehlen}>
+          {caseId ? "Ändern" : "Vorhandenen wählen"}
+        </Button>
+      </span>
+    </div>
+  );
+}
