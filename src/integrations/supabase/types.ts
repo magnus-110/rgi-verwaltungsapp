@@ -1003,6 +1003,7 @@ export type Database = {
           ref_id: string
           ref_type: Database["public"]["Enums"]["board_ref_type"]
           sort_order: number
+          sparte_id: string | null
           user_id: string
           waiting_for: string | null
         }
@@ -1016,6 +1017,7 @@ export type Database = {
           ref_id: string
           ref_type: Database["public"]["Enums"]["board_ref_type"]
           sort_order?: number
+          sparte_id?: string | null
           user_id: string
           waiting_for?: string | null
         }
@@ -1029,8 +1031,44 @@ export type Database = {
           ref_id?: string
           ref_type?: Database["public"]["Enums"]["board_ref_type"]
           sort_order?: number
+          sparte_id?: string | null
           user_id?: string
           waiting_for?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "board_pins_sparte_id_fkey"
+            columns: ["sparte_id"]
+            isOneToOne: false
+            referencedRelation: "board_sparten"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      board_sparten: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+          user_id?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          user_id?: string
         }
         Relationships: []
       }
@@ -3239,6 +3277,7 @@ export type Database = {
           snooze_until: string | null
           status: Database["public"]["Enums"]["case_status"]
           title: string
+          title_auto: boolean
           unit_number: string | null
           updated_at: string
         }
@@ -3264,6 +3303,7 @@ export type Database = {
           snooze_until?: string | null
           status?: Database["public"]["Enums"]["case_status"]
           title: string
+          title_auto?: boolean
           unit_number?: string | null
           updated_at?: string
         }
@@ -3289,6 +3329,7 @@ export type Database = {
           snooze_until?: string | null
           status?: Database["public"]["Enums"]["case_status"]
           title?: string
+          title_auto?: boolean
           unit_number?: string | null
           updated_at?: string
         }
@@ -5885,6 +5926,7 @@ export type Database = {
           abstain_count: number | null
           admin_notes: string | null
           attachment_paths: string[] | null
+          case_id: string | null
           category: string | null
           created_at: string | null
           description: string | null
@@ -5916,6 +5958,7 @@ export type Database = {
           abstain_count?: number | null
           admin_notes?: string | null
           attachment_paths?: string[] | null
+          case_id?: string | null
           category?: string | null
           created_at?: string | null
           description?: string | null
@@ -5947,6 +5990,7 @@ export type Database = {
           abstain_count?: number | null
           admin_notes?: string | null
           attachment_paths?: string[] | null
+          case_id?: string | null
           category?: string | null
           created_at?: string | null
           description?: string | null
@@ -5975,6 +6019,20 @@ export type Database = {
           yes_count?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "etv_agenda_items_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "case_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_agenda_items_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "etv_agenda_items_meeting_id_fkey"
             columns: ["meeting_id"]
@@ -6348,6 +6406,7 @@ export type Database = {
           lock_time: string | null
           meeting_chair: string | null
           meeting_date: string | null
+          meeting_kind: string
           minutes_taker: string | null
           notes: string | null
           protocol_filed_at: string | null
@@ -6374,6 +6433,7 @@ export type Database = {
           lock_time?: string | null
           meeting_chair?: string | null
           meeting_date?: string | null
+          meeting_kind?: string
           minutes_taker?: string | null
           notes?: string | null
           protocol_filed_at?: string | null
@@ -6400,6 +6460,7 @@ export type Database = {
           lock_time?: string | null
           meeting_chair?: string | null
           meeting_date?: string | null
+          meeting_kind?: string
           minutes_taker?: string | null
           notes?: string | null
           protocol_filed_at?: string | null
@@ -6771,6 +6832,7 @@ export type Database = {
           actionable_status: string
           agenda_item_id: string | null
           building_id: string
+          case_auto_created: boolean
           case_id: string | null
           created_at: string | null
           created_by: string | null
@@ -6793,6 +6855,7 @@ export type Database = {
           actionable_status?: string
           agenda_item_id?: string | null
           building_id: string
+          case_auto_created?: boolean
           case_id?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -6815,6 +6878,7 @@ export type Database = {
           actionable_status?: string
           agenda_item_id?: string | null
           building_id?: string
+          case_auto_created?: boolean
           case_id?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -7086,6 +7150,54 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contact_building_assignments"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      etv_year_exemptions: {
+        Row: {
+          building_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          reason: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          building_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          reason?: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          building_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          reason?: string
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etv_year_exemptions_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_year_exemptions_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
           },
         ]
       }
@@ -8026,6 +8138,12 @@ export type Database = {
           building_id: string | null
           created_at: string
           created_by: string | null
+          datev_attempts: number
+          datev_error: string | null
+          datev_queued_at: string | null
+          datev_sent_at: string | null
+          datev_status: string | null
+          datev_upload: boolean
           description: string | null
           due_date: string | null
           duplicate_of: string | null
@@ -8071,6 +8189,12 @@ export type Database = {
           building_id?: string | null
           created_at?: string
           created_by?: string | null
+          datev_attempts?: number
+          datev_error?: string | null
+          datev_queued_at?: string | null
+          datev_sent_at?: string | null
+          datev_status?: string | null
+          datev_upload?: boolean
           description?: string | null
           due_date?: string | null
           duplicate_of?: string | null
@@ -8116,6 +8240,12 @@ export type Database = {
           building_id?: string | null
           created_at?: string
           created_by?: string | null
+          datev_attempts?: number
+          datev_error?: string | null
+          datev_queued_at?: string | null
+          datev_sent_at?: string | null
+          datev_status?: string | null
+          datev_upload?: boolean
           description?: string | null
           due_date?: string | null
           duplicate_of?: string | null
@@ -10481,6 +10611,153 @@ export type Database = {
         }
         Relationships: []
       }
+      report_events: {
+        Row: {
+          allow_reply: boolean
+          assigned_to: string | null
+          attachments: Json
+          body: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: string
+          report_id: string
+          sent_by_email: boolean
+          step_label: string | null
+          visible_to_reporter: boolean
+        }
+        Insert: {
+          allow_reply?: boolean
+          assigned_to?: string | null
+          attachments?: Json
+          body?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind: string
+          report_id: string
+          sent_by_email?: boolean
+          step_label?: string | null
+          visible_to_reporter?: boolean
+        }
+        Update: {
+          allow_reply?: boolean
+          assigned_to?: string | null
+          attachments?: Json
+          body?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          report_id?: string
+          sent_by_email?: boolean
+          step_label?: string | null
+          visible_to_reporter?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_events_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "report_events_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_number_counters: {
+        Row: {
+          last_value: number
+          year: number
+        }
+        Insert: {
+          last_value?: number
+          year: number
+        }
+        Update: {
+          last_value?: number
+          year?: number
+        }
+        Relationships: []
+      }
+      report_participants: {
+        Row: {
+          contact_id: string
+          created_at: string
+          report_id: string
+          user_id: string | null
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          report_id: string
+          user_id?: string | null
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          report_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_participants_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_participants_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_steps: {
+        Row: {
+          asks_reply: boolean
+          created_at: string
+          default_text: string
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          asks_reply?: boolean
+          created_at?: string
+          default_text?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          asks_reply?: boolean
+          created_at?: string
+          default_text?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       report_templates: {
         Row: {
           background_pdf_url: string | null
@@ -10541,6 +10818,139 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rgi_building_billing_overview"
             referencedColumns: ["building_id"]
+          },
+        ]
+      }
+      reports: {
+        Row: {
+          assigned_to: string | null
+          attachments: Json
+          building_id: string | null
+          case_id: string | null
+          channel: string
+          contact_address: string | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          current_step: string | null
+          description: string | null
+          has_new_reply: boolean
+          id: string
+          is_read: boolean
+          last_activity_at: string
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          priority: string
+          reply_open: boolean
+          report_number: string
+          reported_by: string | null
+          resolved_at: string | null
+          resolved_reason: string | null
+          source_email_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          attachments?: Json
+          building_id?: string | null
+          case_id?: string | null
+          channel?: string
+          contact_address?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          current_step?: string | null
+          description?: string | null
+          has_new_reply?: boolean
+          id?: string
+          is_read?: boolean
+          last_activity_at?: string
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          priority?: string
+          reply_open?: boolean
+          report_number: string
+          reported_by?: string | null
+          resolved_at?: string | null
+          resolved_reason?: string | null
+          source_email_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          attachments?: Json
+          building_id?: string | null
+          case_id?: string | null
+          channel?: string
+          contact_address?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          current_step?: string | null
+          description?: string | null
+          has_new_reply?: boolean
+          id?: string
+          is_read?: boolean
+          last_activity_at?: string
+          management_mode?: Database["public"]["Enums"]["management_mode"]
+          priority?: string
+          reply_open?: boolean
+          report_number?: string
+          reported_by?: string | null
+          resolved_at?: string | null
+          resolved_reason?: string | null
+          source_email_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "reports_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "rgi_building_billing_overview"
+            referencedColumns: ["building_id"]
+          },
+          {
+            foreignKeyName: "reports_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "case_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_source_email_id_fkey"
+            columns: ["source_email_id"]
+            isOneToOne: false
+            referencedRelation: "emails"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -10643,6 +11053,8 @@ export type Database = {
           country: string | null
           court: string | null
           created_at: string
+          datev_upload_account_id: string | null
+          datev_upload_address_incoming: string | null
           default_footer_text: string | null
           default_payment_terms_days: number
           email: string | null
@@ -10671,6 +11083,8 @@ export type Database = {
           country?: string | null
           court?: string | null
           created_at?: string
+          datev_upload_account_id?: string | null
+          datev_upload_address_incoming?: string | null
           default_footer_text?: string | null
           default_payment_terms_days?: number
           email?: string | null
@@ -10699,6 +11113,8 @@ export type Database = {
           country?: string | null
           court?: string | null
           created_at?: string
+          datev_upload_account_id?: string | null
+          datev_upload_address_incoming?: string | null
           default_footer_text?: string | null
           default_payment_terms_days?: number
           email?: string | null
@@ -10717,7 +11133,15 @@ export type Database = {
           website?: string | null
           zip?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "rgi_company_settings_datev_upload_account_id_fkey"
+            columns: ["datev_upload_account_id"]
+            isOneToOne: false
+            referencedRelation: "email_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rgi_geloeschte_rechnungen_20260728: {
         Row: {
@@ -13305,9 +13729,19 @@ export type Database = {
         Args: { building_id_param: string; user_id_param: string }
         Returns: undefined
       }
+      beschluss_vorlaeufiger_titel: {
+        Args: { p_text: string }
+        Returns: string
+      }
       book_split_transaction: {
         Args: { p_bank_transaction_id: string; p_bookings: Json }
         Returns: Json
+      }
+      building_files_index_queue: {
+        Args: { p_limit?: number }
+        Returns: {
+          id: string
+        }[]
       }
       building_total_mea: { Args: { _building: string }; Returns: number }
       calculate_account_balance_at: {
@@ -13526,7 +13960,12 @@ export type Database = {
         Args: { _contact_id: string; _user_id: string }
         Returns: boolean
       }
+      is_report_member: {
+        Args: { p_report_id: string; p_user_id: string }
+        Returns: boolean
+      }
       is_rgi_staff: { Args: never; Returns: boolean }
+      next_report_number: { Args: { p_at?: string }; Returns: string }
       normalize_phone_last8: { Args: { p: string }; Returns: string }
       office_drop_can_see: {
         Args: {
@@ -13544,6 +13983,7 @@ export type Database = {
         Args: { endpoint_param: string; user_id_param: string }
         Returns: undefined
       }
+      report_file_visible: { Args: { p_name: string }; Returns: boolean }
       rgi_agenda_item_vote_totals: {
         Args: { p_agenda_item_id: string }
         Returns: {
