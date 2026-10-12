@@ -197,7 +197,7 @@ async function ensureClientForBuilding(buildingId: string): Promise<string> {
     .from("rgi_clients")
     .insert({
       name,
-      type: "weg",
+      type: "building",
       building_id: buildingId,
       address_line1: b.address ?? null,
       zip: b.postal_code ?? null,
