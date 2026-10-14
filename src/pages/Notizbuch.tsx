@@ -69,7 +69,7 @@ import {
  */
 
 type Filter =
-  | { art: 'alle' }
+  | { art: 'keiner' }
   | { art: 'angeheftet' }
   | { art: 'meine' }
   | { art: 'bereich'; id: string }
@@ -110,7 +110,7 @@ export default function Notizbuch() {
   const [suche, setSuche] = useState('');
   const [filter, setFilter] = useState<Filter>(() => {
     const g = params.get('gebaeude');
-    return g && !params.get('neu') ? { art: 'gebaeude', id: g } : { art: 'alle' };
+    return g && !params.get('neu') ? { art: 'gebaeude', id: g } : { art: 'keiner' };
   });
   const [thema, setThema] = useState<string | null>(null);
   const [modus, setModus] = useState<Modus>(() => (params.get('neu') ? { art: 'neu' } : null));
@@ -165,10 +165,11 @@ export default function Notizbuch() {
           case 'meine': return n.is_private;
           case 'bereich': return n.area_id === filter.id && !n.building_id;
           case 'gebaeude': return n.building_id === filter.id;
-          default: return true;
+          // Nichts gewählt: nur beim Suchen wird über alles gesucht
+          default: return suche.trim() !== '';
         }
       }),
-    [notizen, filter],
+    [notizen, filter, suche],
   );
 
   /** Themen innerhalb des gewählten Gebäudes, als kleine Knöpfe über der Liste. */
@@ -324,7 +325,7 @@ export default function Notizbuch() {
     }`;
 
   const ueberschrift =
-    filter.art === 'alle' ? 'Alle Notizen'
+    filter.art === 'keiner' ? (suche.trim() ? 'Suchergebnisse in allen Notizen' : 'Notizbuch')
     : filter.art === 'angeheftet' ? 'Angeheftet'
     : filter.art === 'meine' ? 'Nur für mich'
     : filter.art === 'bereich' ? bereichMap[filter.id]?.name ?? 'Bereich'
@@ -366,10 +367,6 @@ export default function Notizbuch() {
         {/* Filter */}
         <nav aria-label="Notizen filtern" className="lg:w-[230px] lg:flex-none">
           <div className="flex flex-col gap-0.5">
-            <button type="button" className={filterKnopf(filter.art === 'alle')} onClick={() => filterSetzen({ art: 'alle' })}>
-              <span className="flex-1">Alle Notizen</span>
-              <span className="text-muted-foreground">{notizen.length}</span>
-            </button>
             <button type="button" className={filterKnopf(filter.art === 'angeheftet')} onClick={() => filterSetzen({ art: 'angeheftet' })}>
               <Pin className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
               <span className="flex-1">Angeheftet</span>
@@ -438,6 +435,7 @@ export default function Notizbuch() {
 
         {/* Notizen */}
         <section aria-label="Notizen" className="min-w-0 flex-1">
+          {(filter.art !== 'keiner' || suche.trim()) && (
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-[15px] font-semibold text-foreground">
               {filter.art === 'gebaeude' && <GebaeudeIcon className="mr-1.5 inline h-4 w-4 align-[-2px]" />}
@@ -447,6 +445,7 @@ export default function Notizbuch() {
               {sichtbar.length === 1 ? '1 Notiz' : `${sichtbar.length} Notizen`}
             </span>
           </div>
+          )}
 
           {themenImGebaeude.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-1.5">
@@ -480,7 +479,12 @@ export default function Notizbuch() {
               {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-[110px] w-full rounded-lg" />)}
             </div>
           )}
-          {!isLoading && sichtbar.length === 0 && (
+          {!isLoading && filter.art === 'keiner' && !suche.trim() && (
+            <div className="rounded-lg border border-dashed border-border px-4 py-12 text-center text-[13.5px] text-muted-foreground">
+              Wähle links einen Bereich oder ein Gebäude – oder such oben nach einem Stichwort.
+            </div>
+          )}
+          {!isLoading && sichtbar.length === 0 && (filter.art !== 'keiner' || suche.trim()) && (
             <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-[13px] text-muted-foreground">
               {suche ? 'Nichts gefunden.' : 'Hier liegen noch keine Notizen.'}
               <div className="mt-3">
