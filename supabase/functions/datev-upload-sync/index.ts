@@ -145,14 +145,37 @@ Deno.serve(async (req) => {
   for (const r of rows) {
     // Sperren, damit zwei Läufe nicht gleichzeitig dieselbe Rechnung senden.
     // Beim Knopfdruck wird ein hängengebliebenes "sending" bewusst überschrieben.
-    let lock = admin
-      .from("invoices")
-      .update({ datev_status: "sending" })
-      .eq("id", r.id);
-    if (!single) {
-      lock = lock.is("datev_sent_at", null).or("datev_status.is.null,datev_status.neq.sending");
+    // Kein .or() hier: PostgREST wendet einen or-Filter bei update+select auch
+    // auf die zurückgegebenen Spalten an ("column invoices.datev_status does
+    // not exist"). Deshalb nacheinander: erst Status leer, dann Status "error".
+    const claim = (status: string | null) => {
+      let q = admin
+        .from("invoices")
+        .update({ datev_status: "sending" })
+        .eq("id", r.id)
+        .is("datev_sent_at", null);
+      q = status === null ? q.is("datev_status", null) : q.eq("datev_status", status);
+      return q.select("id").maybeSingle();
+    };
+    let locked: unknown = null;
+    if (single) {
+      const { data } = await admin
+        .from("invoices")
+        .update({ datev_status: "sending" })
+        .eq("id", r.id)
+        .select("id")
+        .maybeSingle();
+      locked = data;
+    } else {
+      const first = await claim(null);
+      if (first.error) console.error(`DATEV-Sperre ${r.id}:`, first.error.message);
+      locked = first.data;
+      if (!locked) {
+        const second = await claim("error");
+        if (second.error) console.error(`DATEV-Sperre ${r.id}:`, second.error.message);
+        locked = second.data;
+      }
     }
-    const { data: locked } = await lock.select("id").maybeSingle();
     if (!locked) continue;
 
     const attempts = (r.datev_attempts ?? 0) + 1;
