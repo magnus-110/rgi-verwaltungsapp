@@ -3,8 +3,6 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Building2,
-  ChevronDown,
-  ChevronUp,
   Image as ImageIcon,
   Lock,
   MoreHorizontal,
@@ -77,9 +75,7 @@ type Filter =
   | { art: 'bereich'; id: string }
   | { art: 'gebaeude'; id: string };
 
-type Modus = { art: 'lesen' } | { art: 'bearbeiten'; id: string } | { art: 'neu' };
-
-const GEBAEUDE_KURZLISTE = 8;
+type Modus = { art: 'bearbeiten'; id: string } | { art: 'neu' } | null;
 
 function datum(iso: string) {
   return new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -89,8 +85,19 @@ function GebaeudeIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
   return <Building2 className={className} aria-hidden="true" />;
 }
 
+/** Bei übernommenen Notizen steht der Text oft noch einmal als Titel. */
+function textOhneTitel(n: Notiz) {
+  const text = nurText(n.content);
+  return text === n.title.trim() ? '' : text;
+}
+
 // ------------------------------------------------------------------ Seite
 
+/**
+ * Zwei Ansichten, damit nicht zu viel auf einmal auf dem Bildschirm steht:
+ *   1. Übersicht: Filter links, Notizen als Karten rechts.
+ *   2. Eine Notiz groß — zum Lesen oder Bearbeiten. „Zurück" führt zur Übersicht.
+ */
 export default function Notizbuch() {
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
@@ -105,22 +112,23 @@ export default function Notizbuch() {
     const g = params.get('gebaeude');
     return g && !params.get('neu') ? { art: 'gebaeude', id: g } : { art: 'alle' };
   });
-  const [gewaehlt, setGewaehlt] = useState<string | null>(() => params.get('notiz'));
-  const [modus, setModus] = useState<Modus>(() =>
-    params.get('neu') ? { art: 'neu' } : { art: 'lesen' },
-  );
+  const [thema, setThema] = useState<string | null>(null);
+  const [modus, setModus] = useState<Modus>(() => (params.get('neu') ? { art: 'neu' } : null));
   const [neuFuerGebaeude] = useState<string | null>(() =>
     params.get('neu') ? params.get('gebaeude') : null,
   );
   const [bereicheOffen, setBereicheOffen] = useState(false);
-  const [alleGebaeude, setAlleGebaeude] = useState(false);
   const [ungespeichert, setUngespeichert] = useState(false);
 
-  // Adresse nach dem ersten Lesen aufräumen, damit Neuladen nicht erneut "neu" öffnet.
+  // Die geöffnete Notiz steht in der Adresse — so klappt auch der Zurück-Knopf des Browsers.
+  const offenId = params.get('notiz');
+
+  // "neu" nach dem ersten Lesen aus der Adresse nehmen, damit Neuladen nicht erneut "neu" öffnet.
   useEffect(() => {
     if (params.get('neu')) {
       const p = new URLSearchParams(params);
       p.delete('neu');
+      p.delete('gebaeude');
       setParams(p, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,7 +137,15 @@ export default function Notizbuch() {
   const bereichMap = useMemo(() => Object.fromEntries(bereiche.map(b => [b.id, b])), [bereiche]);
   const gebaeudeMap = useMemo(() => Object.fromEntries(gebaeude.map(g => [g.id, g])), [gebaeude]);
 
+  /** In einem Bereich zählen nur Notizen ohne Gebäude. */
   const anzahlBereich = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const n of notizen) if (n.area_id && !n.building_id) m[n.area_id] = (m[n.area_id] ?? 0) + 1;
+    return m;
+  }, [notizen]);
+
+  /** Für den Bereiche-Dialog: alle Notizen, auch Gebäude-Notizen mit diesem Thema. */
+  const nutzungBereich = useMemo(() => {
     const m: Record<string, number> = {};
     for (const n of notizen) if (n.area_id) m[n.area_id] = (m[n.area_id] ?? 0) + 1;
     return m;
@@ -138,23 +154,35 @@ export default function Notizbuch() {
   const gebaeudeMitNotizen = useMemo(() => {
     const m: Record<string, number> = {};
     for (const n of notizen) if (n.building_id) m[n.building_id] = (m[n.building_id] ?? 0) + 1;
-    return gebaeude
-      .filter(g => m[g.id])
-      .map(g => ({ ...g, anzahl: m[g.id] }));
+    return gebaeude.filter(g => m[g.id]).map(g => ({ ...g, anzahl: m[g.id] }));
   }, [notizen, gebaeude]);
 
-  const sichtbar = useMemo(() => {
-    const woerter = suche.toLowerCase().split(/\s+/).filter(Boolean);
-    return notizen
-      .filter(n => {
+  const imFilter = useMemo(
+    () =>
+      notizen.filter(n => {
         switch (filter.art) {
           case 'angeheftet': return n.pinned;
           case 'meine': return n.is_private;
-          case 'bereich': return n.area_id === filter.id;
+          case 'bereich': return n.area_id === filter.id && !n.building_id;
           case 'gebaeude': return n.building_id === filter.id;
           default: return true;
         }
-      })
+      }),
+    [notizen, filter],
+  );
+
+  /** Themen innerhalb des gewählten Gebäudes, als kleine Knöpfe über der Liste. */
+  const themenImGebaeude = useMemo(() => {
+    if (filter.art !== 'gebaeude') return [];
+    const zahl: Record<string, number> = {};
+    for (const n of imFilter) if (n.area_id) zahl[n.area_id] = (zahl[n.area_id] ?? 0) + 1;
+    return bereiche.filter(b => zahl[b.id]).map(b => ({ ...b, anzahl: zahl[b.id] }));
+  }, [filter, imFilter, bereiche]);
+
+  const sichtbar = useMemo(() => {
+    const woerter = suche.toLowerCase().split(/\s+/).filter(Boolean);
+    return imFilter
+      .filter(n => filter.art !== 'gebaeude' || !thema || n.area_id === thema)
       .filter(n => {
         if (!woerter.length) return true;
         const text = [
@@ -172,41 +200,45 @@ export default function Notizbuch() {
         if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
         return b.updated_at.localeCompare(a.updated_at);
       });
-  }, [notizen, filter, suche, gebaeudeMap, bereichMap]);
+  }, [imFilter, filter, thema, suche, gebaeudeMap, bereichMap]);
 
-  const aktuelleNotiz = notizen.find(n => n.id === gewaehlt) ?? null;
   const offeneNotiz =
-    modus.art === 'bearbeiten' ? notizen.find(n => n.id === modus.id) ?? null : aktuelleNotiz;
-
-  // Auf großen Bildschirmen gleich die erste Notiz zeigen
-  useEffect(() => {
-    if (modus.art !== 'lesen' || isLoading) return;
-    if (gewaehlt && notizen.some(n => n.id === gewaehlt)) return;
-    if (window.matchMedia('(min-width: 1024px)').matches) setGewaehlt(sichtbar[0]?.id ?? null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sichtbar, isLoading]);
+    modus?.art === 'bearbeiten'
+      ? notizen.find(n => n.id === modus.id) ?? null
+      : offenId
+        ? notizen.find(n => n.id === offenId) ?? null
+        : null;
 
   const darfWechseln = () =>
-    !ungespeichert || confirm('Deine Änderungen sind noch nicht gespeichert. Trotzdem wechseln?');
+    !ungespeichert || confirm('Deine Änderungen sind noch nicht gespeichert. Trotzdem verlassen?');
 
-  const oeffnen = (id: string) => {
+  const notizOeffnen = (id: string) => {
+    const p = new URLSearchParams(params);
+    p.set('notiz', id);
+    setParams(p);
+    window.scrollTo({ top: 0 });
+  };
+
+  const zurUebersicht = () => {
     if (!darfWechseln()) return;
     setUngespeichert(false);
-    setModus({ art: 'lesen' });
-    setGewaehlt(id);
+    setModus(null);
+    if (params.get('notiz')) {
+      const p = new URLSearchParams(params);
+      p.delete('notiz');
+      setParams(p);
+    }
   };
 
   const filterSetzen = (f: Filter) => {
-    if (!darfWechseln()) return;
-    setUngespeichert(false);
-    setModus({ art: 'lesen' });
     setFilter(f);
+    setThema(null);
   };
 
   const neueNotiz = () => {
-    if (!darfWechseln()) return;
     setUngespeichert(false);
     setModus({ art: 'neu' });
+    window.scrollTo({ top: 0 });
   };
 
   /** Vorbelegung einer neuen Notiz aus dem aktuellen Filter. */
@@ -214,20 +246,89 @@ export default function Notizbuch() {
     title: '',
     content: '',
     building_id: neuFuerGebaeude ?? (filter.art === 'gebaeude' ? filter.id : null),
-    area_id: filter.art === 'bereich' ? filter.id : null,
+    area_id: filter.art === 'bereich' ? filter.id : filter.art === 'gebaeude' ? thema : null,
     is_private: filter.art === 'meine',
     pinned: false,
   };
 
-  // Auf Handy und Tablet: entweder Liste oder Notiz
-  const detailAufKleinem = modus.art !== 'lesen' || !!gewaehlt;
+  // ---------------------------------------------------- Ansicht 2: eine Notiz groß
+  if (modus || offenId) {
+    return (
+      <div className="mx-auto w-full max-w-5xl">
+        <button
+          type="button"
+          onClick={zurUebersicht}
+          className="mb-4 inline-flex min-h-10 items-center gap-1.5 rounded-md pr-2 text-[13.5px] text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> Zurück zur Übersicht
+        </button>
 
+        {modus ? (
+          <NotizFormular
+            key={modus.art === 'neu' ? 'neu' : modus.id}
+            notiz={modus.art === 'bearbeiten' ? offeneNotiz : null}
+            vorlage={neuVorlage}
+            bereiche={bereiche}
+            gebaeude={gebaeude}
+            anzahlBereich={nutzungBereich}
+            istErsteller={modus.art === 'neu' || offeneNotiz?.created_by === user?.id}
+            onGeaendert={setUngespeichert}
+            onAbbrechen={() => {
+              setUngespeichert(false);
+              setModus(null);
+            }}
+            onGespeichert={id => {
+              setUngespeichert(false);
+              setModus(null);
+              const p = new URLSearchParams(params);
+              p.set('notiz', id);
+              setParams(p, { replace: true });
+            }}
+          />
+        ) : offeneNotiz ? (
+          <NotizLesen
+            notiz={offeneNotiz}
+            bereich={offeneNotiz.area_id ? bereichMap[offeneNotiz.area_id] : undefined}
+            gebaeude={offeneNotiz.building_id ? gebaeudeMap[offeneNotiz.building_id] : undefined}
+            personen={personen}
+            onBearbeiten={() => setModus({ art: 'bearbeiten', id: offeneNotiz.id })}
+            onAnheften={() => aktionen.anheften.mutate({ id: offeneNotiz.id, pinned: !offeneNotiz.pinned })}
+            onLoeschen={() => {
+              if (confirm(`Notiz „${offeneNotiz.title}“ wirklich löschen? Bilder und Dateien werden mit gelöscht.`)) {
+                aktionen.loeschen.mutate(offeneNotiz, { onSuccess: zurUebersicht });
+              }
+            }}
+          />
+        ) : isLoading ? (
+          <Skeleton className="h-64 w-full rounded-xl" />
+        ) : (
+          <div className="rounded-xl border border-dashed border-border px-6 py-16 text-center text-[13.5px] text-muted-foreground">
+            Diese Notiz gibt es nicht mehr oder sie ist nur für jemand anderen sichtbar.
+          </div>
+        )}
+
+        <BereicheDialog
+          open={bereicheOffen}
+          onOpenChange={setBereicheOffen}
+          bereiche={bereiche}
+          anzahl={nutzungBereich}
+        />
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------- Ansicht 1: Übersicht
   const filterKnopf = (aktiv: boolean) =>
     `flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13.5px] transition-colors ${
       aktiv ? 'bg-muted font-semibold text-foreground' : 'text-foreground hover:bg-muted/60'
     }`;
 
-  const gebaeudeListe = alleGebaeude ? gebaeudeMitNotizen : gebaeudeMitNotizen.slice(0, GEBAEUDE_KURZLISTE);
+  const ueberschrift =
+    filter.art === 'alle' ? 'Alle Notizen'
+    : filter.art === 'angeheftet' ? 'Angeheftet'
+    : filter.art === 'meine' ? 'Nur für mich'
+    : filter.art === 'bereich' ? bereichMap[filter.id]?.name ?? 'Bereich'
+    : gebaeudeMap[filter.id]?.name ?? 'Gebäude';
 
   return (
     <div className="mx-auto w-full max-w-[1400px]">
@@ -249,7 +350,7 @@ export default function Notizbuch() {
         </div>
       </div>
 
-      <label className="mb-4 flex h-12 items-center gap-3 rounded-lg border border-border bg-card px-4 shadow-sm focus-within:ring-2 focus-within:ring-ring">
+      <label className="mb-5 flex h-12 items-center gap-3 rounded-lg border border-border bg-card px-4 shadow-sm focus-within:ring-2 focus-within:ring-ring">
         <Search className="h-4 w-4 flex-none text-muted-foreground" aria-hidden="true" />
         <span className="sr-only">Notizen durchsuchen</span>
         <input
@@ -261,12 +362,9 @@ export default function Notizbuch() {
         />
       </label>
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
         {/* Filter */}
-        <nav
-          aria-label="Notizen filtern"
-          className={`${detailAufKleinem ? 'hidden lg:block' : ''} lg:w-[210px] lg:flex-none`}
-        >
+        <nav aria-label="Notizen filtern" className="lg:w-[230px] lg:flex-none">
           <div className="flex flex-col gap-0.5">
             <button type="button" className={filterKnopf(filter.art === 'alle')} onClick={() => filterSetzen({ art: 'alle' })}>
               <span className="flex-1">Alle Notizen</span>
@@ -284,7 +382,29 @@ export default function Notizbuch() {
             </button>
           </div>
 
-          <div className="mb-1 mt-4 flex items-center justify-between pl-2.5">
+          <div className="mb-1.5 mt-5 pl-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Gebäude
+          </div>
+          <Select
+            value={filter.art === 'gebaeude' ? filter.id : ''}
+            onValueChange={v => filterSetzen({ art: 'gebaeude', id: v })}
+          >
+            <SelectTrigger
+              aria-label="Gebäude wählen"
+              className={`h-10 ${filter.art === 'gebaeude' ? 'border-primary font-semibold' : ''}`}
+            >
+              <SelectValue placeholder="Gebäude wählen …" />
+            </SelectTrigger>
+            <SelectContent>
+              {gebaeudeMitNotizen.map(g => (
+                <SelectItem key={g.id} value={g.id}>
+                  {g.name} ({g.anzahl})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="mb-1 mt-5 flex items-center justify-between pl-2.5">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Bereiche</span>
             <Button
               type="button"
@@ -314,55 +434,54 @@ export default function Notizbuch() {
               <p className="px-2.5 py-1 text-[12.5px] text-muted-foreground">Noch keine Bereiche.</p>
             )}
           </div>
-
-          {gebaeudeMitNotizen.length > 0 && (
-            <>
-              <div className="mb-1 mt-4 pl-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Gebäude
-              </div>
-              <div className="flex flex-col gap-0.5">
-                {gebaeudeListe.map(g => (
-                  <button
-                    key={g.id}
-                    type="button"
-                    className={filterKnopf(filter.art === 'gebaeude' && filter.id === g.id)}
-                    onClick={() => filterSetzen({ art: 'gebaeude', id: g.id })}
-                  >
-                    <GebaeudeIcon className="h-3.5 w-3.5 flex-none text-muted-foreground" />
-                    <span className="flex-1 truncate">{g.name}</span>
-                    <span className="text-muted-foreground">{g.anzahl}</span>
-                  </button>
-                ))}
-                {gebaeudeMitNotizen.length > GEBAEUDE_KURZLISTE && (
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-[12.5px] text-primary hover:underline"
-                    onClick={() => setAlleGebaeude(a => !a)}
-                  >
-                    {alleGebaeude ? (
-                      <>Weniger anzeigen <ChevronUp className="h-3.5 w-3.5" /></>
-                    ) : (
-                      <>Alle {gebaeudeMitNotizen.length} Gebäude <ChevronDown className="h-3.5 w-3.5" /></>
-                    )}
-                  </button>
-                )}
-              </div>
-            </>
-          )}
         </nav>
 
-        {/* Liste */}
-        <section
-          aria-label="Notizen"
-          className={`${detailAufKleinem ? 'hidden lg:flex' : 'flex'} flex-col gap-2 lg:w-[340px] lg:flex-none`}
-        >
-          <div className="px-1 text-[12.5px] text-muted-foreground">
-            {sichtbar.length === 1 ? '1 Notiz' : `${sichtbar.length} Notizen`}
+        {/* Notizen */}
+        <section aria-label="Notizen" className="min-w-0 flex-1">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-[15px] font-semibold text-foreground">
+              {filter.art === 'gebaeude' && <GebaeudeIcon className="mr-1.5 inline h-4 w-4 align-[-2px]" />}
+              {ueberschrift}
+            </h2>
+            <span className="text-[12.5px] text-muted-foreground">
+              {sichtbar.length === 1 ? '1 Notiz' : `${sichtbar.length} Notizen`}
+            </span>
           </div>
-          {isLoading &&
-            Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[92px] w-full rounded-lg" />)}
+
+          {themenImGebaeude.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setThema(null)}
+                className={`inline-flex min-h-9 items-center rounded-full border px-3 text-[13px] ${
+                  thema === null ? 'border-foreground bg-foreground font-semibold text-background' : 'border-border bg-background hover:bg-muted'
+                }`}
+              >
+                Alle Themen
+              </button>
+              {themenImGebaeude.map(t => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setThema(t.id)}
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-[13px] ${
+                    thema === t.id ? 'border-foreground bg-foreground font-semibold text-background' : 'border-border bg-background hover:bg-muted'
+                  }`}
+                >
+                  {thema !== t.id && <span className="h-2 w-2 rounded-[2px]" style={{ background: t.color }} />}
+                  {t.name} <span className="opacity-70">{t.anzahl}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {isLoading && (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-[110px] w-full rounded-lg" />)}
+            </div>
+          )}
           {!isLoading && sichtbar.length === 0 && (
-            <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-[13px] text-muted-foreground">
+            <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-[13px] text-muted-foreground">
               {suche ? 'Nichts gefunden.' : 'Hier liegen noch keine Notizen.'}
               <div className="mt-3">
                 <Button size="sm" variant="outline" onClick={neueNotiz}>
@@ -371,70 +490,25 @@ export default function Notizbuch() {
               </div>
             </div>
           )}
-          {sichtbar.map(n => (
-            <NotizKarte
-              key={n.id}
-              notiz={n}
-              aktiv={modus.art !== 'neu' && offeneNotiz?.id === n.id}
-              bereich={n.area_id ? bereichMap[n.area_id] : undefined}
-              gebaeude={n.building_id ? gebaeudeMap[n.building_id] : undefined}
-              onClick={() => oeffnen(n.id)}
-            />
-          ))}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {sichtbar.map(n => (
+              <NotizKarte
+                key={n.id}
+                notiz={n}
+                bereich={n.area_id ? bereichMap[n.area_id] : undefined}
+                gebaeude={n.building_id && filter.art !== 'gebaeude' ? gebaeudeMap[n.building_id] : undefined}
+                onClick={() => notizOeffnen(n.id)}
+              />
+            ))}
+          </div>
         </section>
-
-        {/* Lesen / Bearbeiten */}
-        <div className={`${detailAufKleinem ? 'block' : 'hidden lg:block'} min-w-0 flex-1`}>
-          {modus.art !== 'lesen' ? (
-            <NotizFormular
-              key={modus.art === 'neu' ? 'neu' : modus.id}
-              notiz={modus.art === 'bearbeiten' ? offeneNotiz : null}
-              vorlage={neuVorlage}
-              bereiche={bereiche}
-              gebaeude={gebaeude}
-              anzahlBereich={anzahlBereich}
-              istErsteller={modus.art === 'neu' || offeneNotiz?.created_by === user?.id}
-              onGeaendert={setUngespeichert}
-              onAbbrechen={() => {
-                setUngespeichert(false);
-                setModus({ art: 'lesen' });
-              }}
-              onGespeichert={id => {
-                setUngespeichert(false);
-                setGewaehlt(id);
-                setModus({ art: 'lesen' });
-              }}
-            />
-          ) : offeneNotiz ? (
-            <NotizLesen
-              notiz={offeneNotiz}
-              bereich={offeneNotiz.area_id ? bereichMap[offeneNotiz.area_id] : undefined}
-              gebaeude={offeneNotiz.building_id ? gebaeudeMap[offeneNotiz.building_id] : undefined}
-              personen={personen}
-              onZurueck={() => setGewaehlt(null)}
-              onBearbeiten={() => setModus({ art: 'bearbeiten', id: offeneNotiz.id })}
-              onAnheften={() => aktionen.anheften.mutate({ id: offeneNotiz.id, pinned: !offeneNotiz.pinned })}
-              onLoeschen={() => {
-                if (confirm(`Notiz „${offeneNotiz.title}“ wirklich löschen? Bilder und Dateien werden mit gelöscht.`)) {
-                  aktionen.loeschen.mutate(offeneNotiz, { onSuccess: () => setGewaehlt(null) });
-                }
-              }}
-            />
-          ) : (
-            !isLoading && (
-              <div className="hidden rounded-xl border border-dashed border-border px-6 py-16 text-center text-[13.5px] text-muted-foreground lg:block">
-                Wähle links eine Notiz aus – oder lege eine neue an.
-              </div>
-            )
-          )}
-        </div>
       </div>
 
       <BereicheDialog
         open={bereicheOffen}
         onOpenChange={setBereicheOffen}
         bereiche={bereiche}
-        anzahl={anzahlBereich}
+        anzahl={nutzungBereich}
       />
     </div>
   );
@@ -469,28 +543,23 @@ function Zuordnung({
 
 function NotizKarte({
   notiz,
-  aktiv,
   bereich,
   gebaeude,
   onClick,
 }: {
   notiz: Notiz;
-  aktiv: boolean;
   bereich?: NotizBereich;
   gebaeude?: GebaeudeKurz;
   onClick: () => void;
 }) {
-  const vorschau = nurText(notiz.content).slice(0, 140);
+  const vorschau = textOhneTitel(notiz).slice(0, 160);
   const bilder = notiz.anhaenge.filter(istBild).length;
   const dateien = notiz.anhaenge.length - bilder;
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-current={aktiv ? 'true' : undefined}
-      className={`flex w-full flex-col gap-1.5 rounded-lg border bg-card px-4 py-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-        aktiv ? 'border-primary shadow-sm' : 'border-border hover:border-primary/40'
-      }`}
+      className="flex h-full w-full flex-col gap-1.5 rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors hover:border-primary/50 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <span className="flex items-start gap-2">
         <span className="flex-1 text-[14px] font-semibold leading-snug text-foreground">{notiz.title}</span>
@@ -525,7 +594,6 @@ function NotizLesen({
   bereich,
   gebaeude,
   personen,
-  onZurueck,
   onBearbeiten,
   onAnheften,
   onLoeschen,
@@ -534,23 +602,16 @@ function NotizLesen({
   bereich?: NotizBereich;
   gebaeude?: GebaeudeKurz;
   personen: Record<string, string>;
-  onZurueck: () => void;
   onBearbeiten: () => void;
   onAnheften: () => void;
   onLoeschen: () => void;
 }) {
   const html = useMemo(() => notizHtmlZumAnzeigen(notiz.content), [notiz.content]);
+  const zeigeText = textOhneTitel(notiz) !== '';
   const wer = notiz.updated_by ? personen[notiz.updated_by] : undefined;
 
   return (
-    <article className="rounded-xl border border-border bg-card p-5 shadow-sm sm:p-7">
-      <button
-        type="button"
-        onClick={onZurueck}
-        className="mb-3 inline-flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground lg:hidden"
-      >
-        <ArrowLeft className="h-4 w-4" /> Zurück zur Liste
-      </button>
+    <article className="rounded-xl border border-border bg-card p-5 shadow-sm sm:p-8">
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-2">
@@ -573,7 +634,7 @@ function NotizLesen({
               {notiz.is_private ? (<><Lock className="h-3 w-3" /> Nur für mich</>) : 'Für alle'}
             </span>
           </div>
-          <h2 className="text-[20px] font-semibold leading-snug text-foreground">{notiz.title}</h2>
+          <h2 className="text-[22px] font-semibold leading-snug text-foreground">{notiz.title}</h2>
           <p className="text-[12px] text-muted-foreground">
             Zuletzt geändert am {datum(notiz.updated_at)}
             {wer ? ` von ${wer}` : ''} · angelegt {datum(notiz.created_at)}
@@ -609,8 +670,8 @@ function NotizLesen({
         </div>
       </div>
 
-      {html.trim() && (
-        <div className={`${NOTIZ_TEXT_KLASSEN} mt-5 max-w-3xl`} dangerouslySetInnerHTML={{ __html: html }} />
+      {zeigeText && (
+        <div className={`${NOTIZ_TEXT_KLASSEN} mt-6 max-w-3xl text-[15px]`} dangerouslySetInnerHTML={{ __html: html }} />
       )}
 
       {notiz.anhaenge.length > 0 && (
