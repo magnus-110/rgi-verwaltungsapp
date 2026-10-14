@@ -104,8 +104,16 @@ export function PortalReports({ mode }: { mode: PortalMode }) {
                 </div>
               ) : (
                 <>
-                  <ReportGroup title="Offen" reports={open} onOpen={setSelectedId} empty="Keine offenen Meldungen." />
-                  {closed.length > 0 && <ReportGroup title="Abgeschlossen" reports={closed} onOpen={setSelectedId} />}
+                  <ReportGroup
+                    tour="reports-open"
+                    title="Offen"
+                    reports={open}
+                    onOpen={setSelectedId}
+                    empty="Keine offenen Meldungen."
+                  />
+                  {closed.length > 0 && (
+                    <ReportGroup tour="reports-closed" title="Abgeschlossen" reports={closed} onOpen={setSelectedId} />
+                  )}
                 </>
               )}
             </section>
@@ -119,18 +127,21 @@ export function PortalReports({ mode }: { mode: PortalMode }) {
 }
 
 function ReportGroup({
+  tour,
   title,
   reports,
   onOpen,
   empty,
 }: {
+  /** Anker für die Hilfetour (data-tour). */
+  tour?: string;
   title: string;
   reports: PortalReport[];
   onOpen: (id: string) => void;
   empty?: string;
 }) {
   return (
-    <div>
+    <div data-tour={tour}>
       <h2 className="mb-2 px-1 font-display text-[11px] font-semibold uppercase tracking-[0.6px] text-muted-foreground/80">
         {title}
       </h2>
@@ -141,6 +152,7 @@ function ReportGroup({
           {reports.map((r) => (
             <button
               key={r.id}
+              data-tour="reports-item"
               onClick={() => onOpen(r.id)}
               className={cn(
                 "flex w-full items-center gap-3 rounded-[14px] border border-border/60 bg-card px-4 py-3.5 text-left shadow-sm transition-colors hover:bg-muted/40",
@@ -151,7 +163,10 @@ function ReportGroup({
                 <p className="font-display text-[15px] font-semibold leading-tight tracking-tight text-foreground">{r.title}</p>
                 <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[12px] text-muted-foreground">
                   {r.reply_open && r.status !== "resolved" && (
-                    <span className="rounded-full bg-emerald-600 px-2 py-px text-[10.5px] font-semibold text-white">
+                    <span
+                      data-tour="reports-reply-badge"
+                      className="rounded-full bg-emerald-600 px-2 py-px text-[10.5px] font-semibold text-white"
+                    >
                       Rückmeldung erbeten
                     </span>
                   )}

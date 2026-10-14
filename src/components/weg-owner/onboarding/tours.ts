@@ -135,24 +135,52 @@ export const DASHBOARD_TOUR: TourDefinition = {
 
 export const REPORTS_TOUR: TourDefinition = {
   id: "reports",
-  title: "Meine Meldungen",
+  title: "Meldungen",
   steps: [
     {
-      title: "Etwas mitteilen",
+      title: "Ihre Meldungen",
       description:
-        "Hier können Sie der Verwaltung Schäden, Anliegen oder Fragen melden. Wir bearbeiten jede Meldung und Sie sehen jederzeit den aktuellen Stand.",
+        "Hier melden Sie der Hausverwaltung Schäden, Anliegen oder Fragen. Wie bei einer Paketverfolgung sehen Sie danach jederzeit, wie weit wir mit Ihrer Meldung sind.",
     },
     {
       element: '[data-tour="reports-new"]',
       title: "Neue Meldung",
       description:
-        "Über diesen Knopf erstellen Sie eine neue Meldung. Beschreiben Sie kurz, worum es geht – Fotos können Sie direkt anhängen.",
+        "Über diesen Knopf erstellen Sie eine neue Meldung. Geben Sie kurz an, was das Problem ist, und beschreiben Sie es möglichst genau. Fotos oder Dokumente können Sie direkt anhängen. Ihre Kontaktdaten sind bereits eingetragen – über „Details“ können Sie sie bei Bedarf ändern. Haben Sie mehrere Wohnanlagen, wählen Sie noch das passende Gebäude aus.",
     },
     {
-      element: '[data-tour="reports-list"]',
-      title: "Ihre Meldungen",
+      element: '[data-tour="reports-open"]',
+      title: "Offene Meldungen",
       description:
-        "Hier sehen Sie alle Ihre bisherigen Meldungen. Farbige Punkte zeigen den Status: orange = offen, blau = in Bearbeitung, grün = erledigt.",
+        "Hier stehen alle Meldungen, an denen wir gerade arbeiten. Unter jedem Titel sehen Sie auf einen Blick den aktuellen Stand, die Meldungsnummer und das Datum, an dem Sie die Meldung abgeschickt haben.",
+    },
+    {
+      element: '[data-tour="reports-reply-badge"]',
+      title: "Rückmeldung erbeten",
+      description:
+        "Ist eine Meldung grün markiert und trägt den Hinweis „Rückmeldung erbeten“, braucht die Hausverwaltung eine Antwort von Ihnen – zum Beispiel ein Foto oder einen Termin. Öffnen Sie die Meldung, um zu antworten.",
+    },
+    {
+      element: '[data-tour="reports-closed"]',
+      title: "Abgeschlossene Meldungen",
+      description:
+        "Erledigte Meldungen wandern nach unten unter „Abgeschlossen“. So behalten Sie den Überblick, was schon erledigt wurde.",
+    },
+    {
+      element: '[data-tour="reports-item"]',
+      title: "Meldung öffnen",
+      description:
+        "Tippen Sie eine Meldung an, um alle Einzelheiten zu sehen. Über „Meine Meldungen“ oben links kommen Sie wieder zurück zur Liste.",
+    },
+    {
+      title: "Aktueller Stand und Verlauf",
+      description:
+        "In der geöffneten Meldung steht ganz oben im farbigen Kasten der aktuelle Stand – also was wir gerade tun. Darunter sehen Sie mit grünen Punkten die Schritte, die schon erledigt sind. Unter „Ihre Meldung anzeigen“ finden Sie Ihren ursprünglichen Text und Ihre Anhänge.",
+    },
+    {
+      title: "Nachrichten und Antworten",
+      description:
+        "Im Bereich „Nachrichten“ lesen Sie, was Ihnen die Hausverwaltung schreibt. Bittet sie Sie um eine Rückmeldung, erscheint dort ein grün umrandetes Feld: Schreiben Sie Ihre Antwort hinein, hängen Sie bei Bedarf Fotos an und tippen Sie auf „Antwort senden“. Ist eine Meldung abgeschlossen, legen Sie für ein neues Anliegen bitte einfach eine neue Meldung an.",
     },
   ],
 };
