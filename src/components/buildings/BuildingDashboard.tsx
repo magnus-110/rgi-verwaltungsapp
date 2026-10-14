@@ -21,7 +21,7 @@ import { BuildingResolutionsTab } from "./BuildingResolutionsTab";
 import { BuildingDistributionKeysTab } from "@/components/finance/BuildingDistributionKeysTab";
 import { BuildingServiceProvidersTab } from "./BuildingServiceProvidersTab";
 import { BuildingOverviewTab } from "./BuildingOverviewTab";
-import { BuildingNotesTab } from "./BuildingNotesTab";
+import { GebaeudeNotizen } from "@/components/notizbuch/GebaeudeNotizen";
 import { AnnualCycleBuildingTab } from "./AnnualCycleBuildingTab";
 import { BuildingOnboardingTab } from "./BuildingOnboardingTab";
 import { BuildingTakeoverTab } from "./takeover/BuildingTakeoverTab";
@@ -29,7 +29,7 @@ import { BuildingKeysTab } from "./keys/BuildingKeysTab";
 import { BuildingDepositsTab } from "./BuildingDepositsTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 interface BuildingDashboardProps {
   buildingId: string;
@@ -40,7 +40,9 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isManagerOpen, setIsManagerOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("overview");
+  // ?tab=notes öffnet gleich einen Reiter (z. B. aus dem Notizbuch heraus)
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") || "overview");
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -214,7 +216,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
 
           {/* Notes Tab */}
           <TabsContent value="notes" className="p-3 md:p-6 mt-0">
-            <BuildingNotesTab buildingId={buildingId} />
+            <GebaeudeNotizen buildingId={buildingId} />
           </TabsContent>
 
           {/* Forum Tab */}

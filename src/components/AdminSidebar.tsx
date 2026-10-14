@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useBrokerMode } from "@/hooks/useBrokerMode";
-import { adminMenu, brokerMenu, istAktiv, istAufgabenPfad, menueFuer } from "@/lib/adminNavigation";
+import { adminMenu, brokerMenu, istAktiv, istGruppenPfad, menueFuer } from "@/lib/adminNavigation";
 import { useReportCounts, useReportsLive } from "@/hooks/useReports";
 
 interface AdminSidebarProps {
@@ -41,7 +41,12 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
 
   // Aufgeklappt, sobald man in einem der Unterpunkte steht. Danach darf man
   // es zuklappen, ohne dass es beim nächsten Klick wieder aufspringt.
-  const [aufgabenOffen, setAufgabenOffen] = useState(() => istAufgabenPfad(currentPath));
+  // Gilt für jede Gruppe („Aufgaben", „Wissen") einzeln.
+  const [offeneGruppen, setOffeneGruppen] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(adminMenu.filter(i => i.children).map(i => [i.title, istGruppenPfad(i, currentPath)])),
+  );
+  const gruppeUmschalten = (titel: string) =>
+    setOffeneGruppen(g => ({ ...g, [titel]: !g[titel] }));
 
   const handleSignOut = async () => { await signOut(); };
 
@@ -181,9 +186,10 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
             <SidebarMenu className="space-y-1">
               {menueFuer(profile?.role, menuItems)
                 .map((item) => {
-                  // Gruppe mit Unterpunkten ("Aufgaben").
+                  // Gruppe mit Unterpunkten ("Aufgaben", "Wissen").
                   if (item.children) {
-                    const gruppeAktiv = istAufgabenPfad(currentPath);
+                    const gruppeAktiv = istGruppenPfad(item, currentPath);
+                    const aufgabenOffen = !!offeneGruppen[item.title];
                     return (
                       <SidebarMenuItem key={item.title}>
                         {collapsed ? (
@@ -202,7 +208,7 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                           <>
                             <button
                               type="button"
-                              onClick={() => setAufgabenOffen((o) => !o)}
+                              onClick={() => gruppeUmschalten(item.title)}
                               aria-expanded={aufgabenOffen}
                               className={
                                 gruppeAktiv && !aufgabenOffen
@@ -236,11 +242,7 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                             {aufgabenOffen && (
                               <div className="mt-1 ml-4 space-y-1 border-l border-border pl-3">
                                 {item.children.map((kind) => {
-                                  const kindAktiv =
-                                    kind.url === "/checklisten"
-                                      ? currentPath.startsWith("/checklisten") ||
-                                        currentPath.startsWith("/prozesse")
-                                      : currentPath.startsWith(kind.url);
+                                  const kindAktiv = istAktiv(kind, currentPath);
                                   return (
                                     <NavLink
                                       key={kind.url}

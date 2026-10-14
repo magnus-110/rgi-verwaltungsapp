@@ -13,8 +13,10 @@ import {
   Inbox,
   KeyRound,
   Landmark,
+  Library,
   ListChecks,
   Mail,
+  NotebookPen,
   Settings,
   StickyNote,
   Users,
@@ -42,8 +44,11 @@ export interface MenuItem {
 
 /**
  * „Aufgaben" fasst die Bereiche zusammen, die zusammengehören: die
- * Pinnwand mit den Aufgaben, die Büro-Ablage, die Vorgänge, der Jahreszyklus
- * und die Anleitungen. Vorher standen sie einzeln und weit auseinander in der Liste.
+ * Pinnwand mit den Aufgaben, die Büro-Ablage, die Vorgänge und der
+ * Jahreszyklus — also alles, was zu erledigen ist.
+ *
+ * „Wissen" ist alles zum Nachschlagen: das Notizbuch und die Anleitungen.
+ * Die Anleitungen standen vorher unter „Aufgaben" (Umbau 14.10.2026).
  */
 export const adminMenu: MenuItem[] = [
   { title: 'Dashboard', url: '/dashboard', icon: BarChart3 },
@@ -58,6 +63,14 @@ export const adminMenu: MenuItem[] = [
       { title: 'Ablage', url: '/ablage', icon: Inbox },
       { title: 'Vorgänge', url: '/vorgaenge', icon: FolderKanban },
       { title: 'Jahreszyklus', url: '/jahreszyklus', icon: CalendarRange },
+    ],
+  },
+  {
+    title: 'Wissen',
+    url: '/notizbuch',
+    icon: Library,
+    children: [
+      { title: 'Notizbuch', url: '/notizbuch', icon: NotebookPen },
       { title: 'Anleitungen', url: '/checklisten', icon: Workflow },
     ],
   },
@@ -80,21 +93,14 @@ export const brokerMenu: MenuItem[] = [
   { title: 'Einstellungen', url: '/settings', icon: Settings, adminOnly: true },
 ];
 
-/** Gehört dieser Pfad zu einem der Unterpunkte von „Aufgaben"? */
-export function istAufgabenPfad(pfad: string) {
-  return (
-    pfad.startsWith('/pinnwand') ||
-    pfad.startsWith('/ablage') ||
-    pfad.startsWith('/vorgaenge') ||
-    pfad.startsWith('/jahreszyklus') ||
-    pfad.startsWith('/checklisten') ||
-    pfad.startsWith('/prozesse')
-  );
+/** Steht man gerade auf einem der Unterpunkte dieser Gruppe? */
+export function istGruppenPfad(item: MenuItem, pfad: string): boolean {
+  return (item.children ?? []).some(kind => istAktiv(kind, pfad));
 }
 
 /** Steht man gerade auf diesem Punkt? Einige Punkte haben Nebenpfade. */
 export function istAktiv(item: MenuItem, pfad: string): boolean {
-  if (item.children) return istAufgabenPfad(pfad);
+  if (item.children) return istGruppenPfad(item, pfad);
   if (item.url === '/checklisten') {
     return pfad.startsWith('/checklisten') || pfad.startsWith('/prozesse');
   }

@@ -78,21 +78,29 @@ export async function applyAnswer(
       return `building_service_providers:${(data as any).id}`;
     }
     case "note": {
+      // Landet im Notizbuch als Notiz zu diesem Gebäude (ohne Thema).
       const text = formatNoteContent(q, v);
       const { data: user } = await supabase.auth.getUser();
-      const { data, error } = await supabase
-        .from("building_notes")
+      const html = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .split("\n")
+        .map((zeile) => `<p>${zeile}</p>`)
+        .join("");
+      const { data, error } = await (supabase as any)
+        .from("notebook_notes")
         .insert({
           building_id: buildingId,
           title: `Übernahme: ${q.label}`,
-          content: text,
-          category: "Übernahme",
+          content: html,
           created_by: user.user?.id ?? null,
-        } as any)
+          updated_by: user.user?.id ?? null,
+        })
         .select("id")
         .single();
       if (error) throw error;
-      return `building_notes:${(data as any).id}`;
+      return `notebook_notes:${(data as any).id}`;
     }
     default:
       throw new Error("Für diese Frage ist keine automatische Übernahme hinterlegt.");

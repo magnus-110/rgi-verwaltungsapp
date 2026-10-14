@@ -6,7 +6,7 @@ import {
   adminMenu,
   brokerMenu,
   istAktiv,
-  istAufgabenPfad,
+  istGruppenPfad,
   menueFuer,
   type MenuItem,
 } from "@/lib/adminNavigation";
@@ -43,7 +43,9 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
   const istMakler = !!profile?.broker_mode_enabled && brokerMode !== null;
   /** Dieselbe Liste wie in der Seitenleiste — es gibt nur eine. */
   const verwaltungsMenue = menueFuer(profile?.role, istMakler ? brokerMenu : adminMenu);
-  const [aufgabenOffen, setAufgabenOffen] = useState(() => istAufgabenPfad(location.pathname));
+  const [offeneGruppen, setOffeneGruppen] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(verwaltungsMenue.filter(i => i.children).map(i => [i.title, istGruppenPfad(i, location.pathname)])),
+  );
 
   const getNavigationItems = () => {
     const baseItems = [
@@ -204,6 +206,7 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
                           // Seitenleiste, nur hier gleich aufgeklappt, sobald
                           // man in einem davon steht.
                           if (item.children) {
+                            const aufgabenOffen = !!offeneGruppen[item.title];
                             return (
                               <div key={item.title}>
                                 <Button
@@ -213,7 +216,7 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
                                       ? 'bg-primary text-primary-foreground'
                                       : 'hover:bg-muted text-muted-foreground hover:text-foreground'
                                   }`}
-                                  onClick={() => setAufgabenOffen(o => !o)}
+                                  onClick={() => setOffeneGruppen(g => ({ ...g, [item.title]: !g[item.title] }))}
                                   aria-expanded={aufgabenOffen}
                                 >
                                   <item.icon className="w-5 h-5" />
