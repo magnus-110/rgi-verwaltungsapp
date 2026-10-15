@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, isToday } from "date-fns";
 import {
-  Play, StickyNote, Check, X, FileCode, Loader2,
+  StickyNote, Check, X, FileCode, Loader2,
   RefreshCw, Sparkles, ArrowDownToLine, ArrowUpFromLine, Link2, Clock, ArrowUpDown, Download,
   Plus, ChevronRight,
 } from "lucide-react";
@@ -317,10 +317,6 @@ export function Transfers() {
     () => outgoingInvoices.filter(i => i.status === "paid"),
     [outgoingInvoices]
   );
-  const unreviewedInvoices = useMemo(
-    () => outgoingInvoices.filter(i => i.status !== "paid" && i.review_status !== "verified"),
-    [outgoingInvoices]
-  );
   // Freigabe: bestätigte, offene Rechnungen einer Liegenschaft, die noch in keinem Zahllauf stecken
   const freigabeAnzahl = useMemo(
     () => outgoingInvoices.filter((i: any) =>
@@ -407,6 +403,20 @@ export function Transfers() {
       .eq("id", invoiceId);
     if (error) toast.error("Fehler beim Aktualisieren");
     else { toast.success(newStatus === "paid" ? "Als bezahlt markiert" : "Auf offen zurückgesetzt"); refetch(); }
+  };
+
+  // Ein Knopf je Rechnung: „Freigeben" legt sie in die Freigabe (dort per TAN bezahlen)
+  const freigeben = async (inv: any) => {
+    if (!inv.building_id && !inv.is_company_invoice) {
+      toast.error("Bitte zuerst eine Liegenschaft zuordnen (Rechnung öffnen › Zuordnung).");
+      return;
+    }
+    const { error } = await supabase.from("invoices").update({ review_status: "verified" } as any).eq("id", inv.id);
+    if (error) toast.error("Fehler beim Freigeben");
+    else {
+      toast.success(inv.is_company_invoice ? "Freigegeben – RGI-Rechnungen werden nicht über die Freigabe bezahlt" : "Freigegeben – liegt jetzt in der Freigabe");
+      refetch();
+    }
   };
 
   const retryOcr = async (invoiceId: string, isCompanyInvoice?: boolean) => {
@@ -536,7 +546,7 @@ export function Transfers() {
         <div>
           <h1 className="text-2xl font-bold md:text-3xl">Zahlungen</h1>
           <p className="mt-1.5 text-sm text-muted-foreground md:text-base">
-            Rechnungen prüfen und bestätigen, eigene Aufträge anlegen – alles Bestätigte sammelt sich in der Freigabe.
+            Rechnungen freigeben, eigene Aufträge anlegen – alles Freigegebene sammelt sich in der Freigabe und wird dort per TAN bezahlt.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -617,11 +627,6 @@ export function Transfers() {
           {reiterKnopf("gutschriften", "Gutschriften")}
         </div>
         <div className="flex flex-wrap gap-2 pb-2">
-          {reiter === "offen" && unreviewedInvoices.length > 0 && (
-            <Button size="sm" variant="outline" onClick={() => { setReviewInvoices(unreviewedInvoices); setReviewIndex(0); setReviewMode(true); }}>
-              <Play className="h-4 w-4 mr-1.5" /> Prüfmodus ({unreviewedInvoices.length})
-            </Button>
-          )}
           {reiter !== "auftraege" && stuckOcrInvoices.length > 0 && (
             <Button size="sm" variant="outline" onClick={retryAllStuckOcr} disabled={retryingOcr === "all"}>
               {retryingOcr === "all" ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
@@ -714,7 +719,7 @@ export function Transfers() {
                     ) : inv.lastschrift ? (
                       <Badge variant="outline" className="px-1.5 py-0 text-[11px]" title="Wird per Lastschrift eingezogen">Lastschrift</Badge>
                     ) : inv.review_status === "verified" ? (
-                      <Badge variant="default" className="px-1.5 py-0 text-[11px]">Bestätigt</Badge>
+                      <Badge variant="default" className="px-1.5 py-0 text-[11px]">In Freigabe</Badge>
                     ) : (
                       <Badge variant="outline" className="border-amber-300 bg-amber-50 px-1.5 py-0 text-[11px] text-amber-900 dark:bg-amber-950 dark:text-amber-200">Prüfen</Badge>
                     )}
@@ -728,9 +733,15 @@ export function Transfers() {
                 </span>
                 <span className="whitespace-nowrap font-semibold tabular-nums">{formatCurrency(inv.gross_amount)}</span>
                 <span className="hidden items-center gap-0.5 md:flex" onClick={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title={isPaid ? "Als unbezahlt markieren" : "Als bezahlt markieren"} onClick={() => handleMarkAsPaid(inv.id, inv.status)}>
-                    {isPaid ? <X className="h-3.5 w-3.5 text-destructive" /> : <Check className="h-3.5 w-3.5 text-muted-foreground" />}
-                  </Button>
+                  {isPaid ? (
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Doch nicht bezahlt – zurück zu offen" onClick={() => handleMarkAsPaid(inv.id, inv.status)}>
+                      <X className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  ) : inv.review_status !== "verified" && !inZahlung.has(inv.id) && !inv.lastschrift ? (
+                    <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => freigeben(inv)}>
+                      <Check className="mr-1 h-3.5 w-3.5" /> Freigeben
+                    </Button>
+                  ) : null}
                   <Popover
                     open={editingNote === inv.id}
                     onOpenChange={(open) => {

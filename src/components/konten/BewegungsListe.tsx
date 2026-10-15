@@ -271,11 +271,8 @@ export function BewegungsListe({ txns, liegenschaftsNamen, zeigeLiegenschaft, le
                   </div>
                   <BewegungDetail
                     txn={t}
-                    onPruefen={pruefen}
-                    onZuordnen={setZuordnen}
                     onBuchungBearbeiten={buchungBearbeiten}
                     onRechnungOeffnen={rechnungOeffnen}
-                    onIgnorieren={ignorieren}
                     ohneBuchung={ohneBuchung}
                   />
                 </>
