@@ -991,14 +991,14 @@ async function lastschriftNachpruefen(req: Request, body: any): Promise<Response
   }
   if (!erlaubt) return antwort({ error: "Nicht erlaubt" }, 403);
 
-  const anwenden = body.anwenden === true;
-  const { data: offene } = await supabase
-    .from("invoices")
-    .select("id, vendor_name, gross_amount, invoice_number, ocr_raw_data, ocr_extracted_data")
-    .eq("status", "open")
-    .or("lastschrift.is.null,lastschrift.eq.false")
-    .neq("invoice_type", "credit_note")
-    .limit(500);
+  // Mit „ids": nur diese Rechnungen prüfen (zum Testen, ändert nichts)
+  const nurIds: string[] | null = Array.isArray(body.ids) ? body.ids.slice(0, 50).map(String) : null;
+  const anwenden = body.anwenden === true && !nurIds;
+  let abfrage = supabase.from("invoices").select("id, vendor_name, gross_amount, invoice_number, ocr_raw_data, ocr_extracted_data");
+  abfrage = nurIds
+    ? abfrage.in("id", nurIds)
+    : abfrage.eq("status", "open").or("lastschrift.is.null,lastschrift.eq.false").neq("invoice_type", "credit_note").limit(500);
+  const { data: offene } = await abfrage;
   const mistral = Deno.env.get("MISTRAL_API_KEY");
   const treffer: any[] = [];
   let geprueft = 0;
@@ -1007,6 +1007,10 @@ async function lastschriftNachpruefen(req: Request, body: any): Promise<Response
     if (!text) continue;
     geprueft++;
     const r = await erkenneLastschrift(text, mistral);
+    if (nurIds) {
+      treffer.push({ id: inv.id, lieferant: inv.vendor_name, lastschrift: r.lastschrift, quelle: r.quelle, satz: r.satz, begruendung: r.begruendung });
+      continue;
+    }
     if (!r.lastschrift) continue;
     treffer.push({ id: inv.id, lieferant: inv.vendor_name, betrag: inv.gross_amount, nummer: inv.invoice_number, quelle: r.quelle, satz: r.satz });
     if (anwenden) {
