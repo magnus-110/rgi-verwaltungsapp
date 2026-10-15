@@ -101,8 +101,13 @@ export async function kurzInhalt(
               role: "system",
               content:
                 "Du schreibst für eine Hausverwaltung den Inhalt einer Rechnung für den Verwendungszweck einer Überweisung. " +
-                "Genau 1 bis 3 Wörter, deutsch, ohne Firmennamen, ohne Rechnungsnummer, ohne Datum außer Monat/Zeitraum wenn wichtig, kein Satzzeichen am Ende. " +
-                "Beispiele: Mülltonnenhäuschen | Hausmeister Sept 26 | Heizungswartung | Treppenhausreinigung | Rohrreparatur | Gebäudeversicherung 26 | Strom 25/26 | Dachrinnenreinigung | Schlüssel + Zylinder. " +
+                "Genau 1 bis 3 Wörter, deutsch. Nimm den allgemeinen Oberbegriff der Leistung oder Ware, wie man ihn auf einen Überweisungsträger schreibt – " +
+                "keine Marken-, Produkt- oder Paketnamen, keine Mengen/Stückzahlen, keine Firmennamen, keine Rechnungsnummer, kein Satzzeichen am Ende. " +
+                "Monat oder Zeitraum nur bei wiederkehrenden Leistungen. Englische Produktbezeichnungen in den deutschen Oberbegriff übersetzen. " +
+                "Beispiele: „Metzler Mülltonnenbox 2er Holz“ → Mülltonnenhäuschen | „immowelt Power-Paket Objekt Füssen“ → Immobilienanzeige | " +
+                "„Hausmeisterpauschale September 2026“ → Hausmeister Sept 26 | „Wartung Viessmann Vitodens 200“ → Heizungswartung | " +
+                "„Treppenhausreinigung wöchentlich“ → Treppenhausreinigung | „Wohngebäudeversicherung 2026“ → Gebäudeversicherung 26 | " +
+                "„Stromabrechnung 10.09.2025–07.09.2026“ → Strom 25/26 | „Profilzylinder ABUS + 3 Schlüssel“ → Schließzylinder. " +
                 "Antworte nur mit den Wörtern.",
             },
             {
