@@ -1,29 +1,27 @@
 import { useState, useRef, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BankStatementsTab } from "@/components/finance/BankStatementsTab";
 import { BookingTemplatesTab } from "@/components/finance/BookingTemplatesTab";
 import { BookingsTab } from "@/components/finance/BookingsTab";
 import { BillingTab } from "@/components/finance/BillingTab";
 import { BillingPeriodSelector } from "@/components/finance/BillingPeriodSelector";
 import { CashAuditTab } from "@/components/finance/CashAuditTab";
-import { BankReconciliationTab } from "@/components/finance/BankReconciliationTab";
 import { RentAccountingPage } from "@/components/finance/rent/RentAccountingPage";
 import { RentBillingPage } from "@/components/finance/rent/RentBillingPage";
 import { HeizkostenTab } from "@/components/finance/heizkosten/HeizkostenTab";
 import { ChevronDown } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useFiscalYearContext } from "@/contexts/FiscalYearContext";
 
 
 const NEEDS_PERIOD_TABS = ["abrechnung", "heizkosten"];
-const NEEDS_PERIOD_SUB = ["bookings", "statements"]; // Sub-tabs under "buchen" that need a period
+const NEEDS_PERIOD_SUB = ["bookings"]; // Sub-tabs under "buchen" that need a period
 
+// Kontoauszüge und Kontenabgleich sind seit 15.10.2026 auf der Seite „Konten".
 const SUB_TABS = [
   { value: "templates", label: "Vorlagen" },
-  { value: "statements", label: "Kontoauszüge" },
   { value: "bookings", label: "Buchungen" },
-  { value: "abgleich", label: "Kontenabgleich" },
 ] as const;
 
 type SubTab = typeof SUB_TABS[number]["value"];
@@ -54,7 +52,9 @@ export const Finance = () => {
     persisted.selectedPeriodId ?? (persisted.selectedBuildingId ? fyCtx.getPeriodId(persisted.selectedBuildingId) : null);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(initialPeriod);
   const [activeTab, setActiveTab] = useState(persisted.activeTab ?? "buchen");
-  const [activeSubTab, setActiveSubTab] = useState<SubTab>(persisted.activeSubTab ?? "statements");
+  const [activeSubTab, setActiveSubTab] = useState<SubTab>(
+    SUB_TABS.some(t => t.value === persisted.activeSubTab) ? (persisted.activeSubTab as SubTab) : "bookings",
+  );
   const [buchenHover, setBuchenHover] = useState(false);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout>>();
 
@@ -155,7 +155,8 @@ export const Finance = () => {
       <div>
         <h1 className="text-xl md:text-2xl font-bold">Buchhaltung</h1>
         <p className="text-muted-foreground text-xs md:text-sm mt-1">
-          Kontoauszüge, Buchungen, Abrechnungen und Wirtschaftspläne verwalten
+          Buchungen, Abrechnungen und Wirtschaftspläne verwalten · Kontoauszüge und Kontenabgleich stehen jetzt unter{" "}
+          <Link to="/konten" className="text-primary hover:underline">Konten</Link>
         </p>
       </div>
 
@@ -239,21 +240,8 @@ export const Finance = () => {
                   onBuildingChange={setSelectedBuildingId}
                 />
               )}
-              {activeSubTab === "statements" && (
-                <BankStatementsTab
-                  sharedBuildingId={selectedBuildingId}
-                  onBuildingChange={setSelectedBuildingId}
-                  sharedFiscalYear={selectedFiscalYear}
-                />
-              )}
               {activeSubTab === "bookings" && (
                 <BookingsTab sharedBuildingId={selectedBuildingId} sharedPeriodId={selectedPeriodId} />
-              )}
-              {activeSubTab === "abgleich" && (
-                <BankReconciliationTab
-                  sharedBuildingId={selectedBuildingId}
-                  onBuildingChange={setSelectedBuildingId}
-                />
               )}
             </>
           )}

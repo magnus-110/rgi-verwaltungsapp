@@ -3,10 +3,10 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
 import {
+  abschnittsweise,
   adminMenu,
   brokerMenu,
   istAktiv,
-  istGruppenPfad,
   menueFuer,
   type MenuItem,
 } from "@/lib/adminNavigation";
@@ -22,8 +22,6 @@ import {
   LogOut,
   UserRound,
   Menu,
-  ChevronDown,
-  ChevronRight,
 } from "lucide-react";
 
 interface MobileHeaderProps {
@@ -42,9 +40,10 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
   const istVerwaltung = userRole === 'admin' || userRole === 'employee';
   const istMakler = !!profile?.broker_mode_enabled && brokerMode !== null;
   /** Dieselbe Liste wie in der Seitenleiste — es gibt nur eine. */
-  const verwaltungsMenue = menueFuer(profile?.role, istMakler ? brokerMenu : adminMenu);
-  const [offeneGruppen, setOffeneGruppen] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(verwaltungsMenue.filter(i => i.children).map(i => [i.title, istGruppenPfad(i, location.pathname)])),
+  const verwaltungsMenue = menueFuer(
+    profile?.role,
+    istMakler ? brokerMenu : adminMenu,
+    istMakler ? undefined : managementMode,
   );
 
   const getNavigationItems = () => {
@@ -199,77 +198,35 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
                 <nav className="p-4">
                   <div className="space-y-2">
                     {istVerwaltung
-                      ? verwaltungsMenue.map((item: MenuItem) => {
-                          const aktiv = istAktiv(item, location.pathname);
-
-                          // „Aufgaben" hat vier Unterpunkte — wie in der
-                          // Seitenleiste, nur hier gleich aufgeklappt, sobald
-                          // man in einem davon steht.
-                          if (item.children) {
-                            const aufgabenOffen = !!offeneGruppen[item.title];
-                            return (
-                              <div key={item.title}>
-                                <Button
-                                  variant={aktiv && !aufgabenOffen ? "default" : "ghost"}
-                                  className={`w-full justify-start gap-3 h-12 ${
-                                    aktiv && !aufgabenOffen
-                                      ? 'bg-primary text-primary-foreground'
-                                      : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                                  }`}
-                                  onClick={() => setOffeneGruppen(g => ({ ...g, [item.title]: !g[item.title] }))}
-                                  aria-expanded={aufgabenOffen}
-                                >
-                                  <item.icon className="w-5 h-5" />
-                                  <span className="flex-1 text-left">{item.title}</span>
-                                  {aufgabenOffen ? (
-                                    <ChevronDown className="w-4 h-4" />
-                                  ) : (
-                                    <ChevronRight className="w-4 h-4" />
-                                  )}
-                                </Button>
-
-                                {aufgabenOffen && (
-                                  <div className="mt-1 ml-4 space-y-1 border-l border-border pl-3">
-                                    {item.children.map((kind) => {
-                                      const kindAktiv = istAktiv(kind, location.pathname);
-                                      return (
-                                        <Button
-                                          key={kind.url}
-                                          variant={kindAktiv ? "default" : "ghost"}
-                                          className={`w-full justify-start gap-3 h-11 ${
-                                            kindAktiv
-                                              ? 'bg-primary text-primary-foreground'
-                                              : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                                          }`}
-                                          onClick={() => handleNavigation(kind.url)}
-                                        >
-                                          <kind.icon className="w-5 h-5" />
-                                          {kind.title}
-                                        </Button>
-                                      );
-                                    })}
-                                  </div>
-                                )}
+                      ? abschnittsweise(verwaltungsMenue).map((gruppe, gi) => (
+                          <div key={gruppe.abschnitt ?? `oben-${gi}`} className={gi > 0 ? "pt-2" : ""}>
+                            {gruppe.abschnitt && (
+                              <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                {gruppe.abschnitt}
                               </div>
-                            );
-                          }
-
-                          return (
-                            <Button
-                              key={item.url}
-                              variant={aktiv ? "default" : "ghost"}
-                              className={`w-full justify-start gap-3 h-12 ${
-                                aktiv
-                                  ? 'bg-primary text-primary-foreground'
-                                  : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                              }`}
-                              onClick={() => handleNavigation(item.url)}
-                            >
-                              <item.icon className="w-5 h-5" />
-                              {item.title}
-                            </Button>
-                          );
-                        })
+                            )}
+                            <div className="space-y-1">
+                              {gruppe.items.map((item: MenuItem) => {
+                                const aktiv = istAktiv(item, location.pathname);
+                                return (
+                                  <Button
+                                    key={item.url}
+                                    variant={aktiv ? "default" : "ghost"}
+                                    className={`w-full justify-start gap-3 h-11 ${
+                                      aktiv
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                                    }`}
+                                    onClick={() => handleNavigation(item.url)}
+                                  >
+                                    <item.icon className="w-5 h-5" />
+                                    {item.title}
+                                  </Button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))
                       : navigationItems.map((item) => (
                           <Button
                             key={item.path}

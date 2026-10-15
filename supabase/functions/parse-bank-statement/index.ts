@@ -107,6 +107,19 @@ function parseCamtAmount(raw: string): number {
   return isNaN(v) ? 0 : v;
 }
 
+/** Liegenschaft zur Konto-IBAN laut building_bank_accounts (oder null). */
+async function buildingFuerIban(supabase: any, iban: string | null): Promise<string | null> {
+  if (!iban) return null;
+  const clean = iban.replace(/\s/g, "").toUpperCase();
+  const { data } = await supabase
+    .from("building_bank_accounts")
+    .select("building_id")
+    .eq("iban", clean)
+    .limit(2);
+  if (!data || data.length !== 1) return null;
+  return data[0].building_id;
+}
+
 async function deduplicateTransactions(supabase: any, transactions: any[], buildingId: string | null): Promise<{ unique: any[]; duplicateCount: number }> {
   if (transactions.length === 0) return { unique: [], duplicateCount: 0 };
 
@@ -420,10 +433,25 @@ Deno.serve(async (req) => {
     let totalDuplicates = 0;
     let totalMatched = 0;
     let lastStatementId: string | null = null;
+    const warnings: string[] = [];
 
     for (const stmt of stmts) {
       const accountIban = getTag(getTag(getTag(stmt, "Acct"), "Id"), "IBAN");
       const accountName = getTag(getTag(stmt, "Acct"), "Nm");
+
+      // Liegenschaft über die IBAN des Kontos (building_bank_accounts).
+      // Ist die IBAN hinterlegt, gilt sie – auch wenn beim Hochladen eine
+      // andere Liegenschaft gewählt war. Ohne Treffer gilt die Auswahl.
+      const ibanBuilding = await buildingFuerIban(supabase, accountIban || null);
+      const stmtBuilding: string | null = ibanBuilding || buildingId || null;
+      if (ibanBuilding && buildingId && ibanBuilding !== buildingId) {
+        warnings.push(`Konto ${accountIban} gehört zu einer anderen Liegenschaft und wurde dort eingelesen.`);
+      }
+      if (!stmtBuilding) {
+        warnings.push(`Konto ${accountIban || "ohne IBAN"} ist keiner Liegenschaft zugeordnet – übersprungen.`);
+        perStatement.push({ period: null, inserted: 0, duplicates: 0, matched: 0, skipped: true, iban: accountIban || null });
+        continue;
+      }
 
       const frToDt = getTag(stmt, "FrToDt");
       let frDt: string | null = getTag(frToDt, "FrDtTm").substring(0, 10) ||
@@ -462,7 +490,7 @@ Deno.serve(async (req) => {
       const { data: statement, error: stmtError } = await supabase
         .from("bank_statements")
         .insert({
-          building_id: buildingId || null,
+          building_id: stmtBuilding,
           file_name: `CAMT XML Import ${stmtLabel}`,
           account_iban: accountIban || null,
           account_name: accountName || null,
@@ -478,9 +506,9 @@ Deno.serve(async (req) => {
         .single();
       if (stmtError) throw stmtError;
 
-      let transactions = parseEntries(stmt, buildingId, statement.id);
+      let transactions = parseEntries(stmt, stmtBuilding, statement.id);
       transactions = await addHashes(transactions);
-      const { unique, duplicateCount } = await deduplicateTransactions(supabase, transactions, buildingId || null);
+      const { unique, duplicateCount } = await deduplicateTransactions(supabase, transactions, stmtBuilding);
 
       if (unique.length > 0) {
         const { error: txError } = await supabase.from("bank_transactions").insert(unique);
@@ -500,13 +528,13 @@ Deno.serve(async (req) => {
       }
 
       const matchResult = unique.length > 0
-        ? await matchTransactions(supabase, statement.id, buildingId || null)
+        ? await matchTransactions(supabase, statement.id, stmtBuilding)
         : { matched: 0, total: 0 };
 
-      if (buildingId && (openingBalance != null || closingBalance != null)) {
+      if (openingBalance != null || closingBalance != null) {
         try {
           await syncReconciliation(
-            supabase, buildingId, statement.id, accountIban || null,
+            supabase, stmtBuilding, statement.id, accountIban || null,
             frDt, toDt, openingBalance, closingBalance, "camt_import",
           );
         } catch (e) { console.warn("recon sync failed:", e); }
@@ -524,6 +552,8 @@ Deno.serve(async (req) => {
         matched: matchResult.matched,
         opening: openingBalance,
         closing: closingBalance,
+        buildingId: stmtBuilding,
+        iban: accountIban || null,
       });
     }
 
@@ -537,6 +567,7 @@ Deno.serve(async (req) => {
         duplicatesSkipped: totalDuplicates,
         matchedCount: totalMatched,
         unmatchedCount: totalUnique - totalMatched,
+        warnings,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

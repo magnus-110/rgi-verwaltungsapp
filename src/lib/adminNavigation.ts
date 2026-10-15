@@ -6,20 +6,19 @@ import {
   CalendarDays,
   CalendarRange,
   Castle,
-  CheckSquare,
   CreditCard,
   FolderKanban,
   Home,
   Inbox,
   KeyRound,
   Landmark,
-  Library,
   ListChecks,
   Mail,
   NotebookPen,
   Settings,
   StickyNote,
   Users,
+  Wallet,
   Workflow,
 } from 'lucide-react';
 
@@ -40,49 +39,49 @@ export interface MenuItem {
   icon: ComponentType<{ className?: string }>;
   adminOnly?: boolean;
   children?: MenuItem[];
+  /** Zwischenüberschrift, unter der der Punkt steht (leer = ganz oben). */
+  abschnitt?: Abschnitt;
+  /** Nur in diesem Verwaltungsmodus sichtbar (leer = in beiden). */
+  modus?: 'weg' | 'rent';
 }
 
+export type Abschnitt = 'Büro' | 'Objekte' | 'Finanzen' | 'Eigentümer' | 'Intern';
+
 /**
- * „Aufgaben" fasst die Bereiche zusammen, die zusammengehören: die
- * Pinnwand mit den Aufgaben, die Büro-Ablage, die Vorgänge und der
- * Jahreszyklus — also alles, was zu erledigen ist.
+ * Seit dem Umbau vom 15.10.2026 hat die Seitenleiste fünf
+ * Zwischenüberschriften statt aufklappbarer Gruppen. Oben stehen die drei
+ * Seiten für jeden Tag (Dashboard, Postfach, Kalender).
  *
- * „Wissen" ist alles zum Nachschlagen: das Notizbuch und die Anleitungen.
- * Die Anleitungen standen vorher unter „Aufgaben" (Umbau 14.10.2026).
+ * „Büro" nimmt die frühere Gruppe „Aufgaben" und „Wissen" auf
+ * (Notizbuch und Anleitungen stehen am Ende). Was nur zur WEG oder nur
+ * zur Miete gehört, trägt `modus` und erscheint nur im passenden Modus:
+ * Versammlungen und Umfragen nur im WEG-Modus.
  */
 export const adminMenu: MenuItem[] = [
   { title: 'Dashboard', url: '/dashboard', icon: BarChart3 },
   { title: 'Postfach', url: '/postfach', icon: Mail },
-  { title: 'Gebäude', url: '/buildings', icon: Castle },
-  {
-    title: 'Aufgaben',
-    url: '/pinnwand',
-    icon: CheckSquare,
-    children: [
-      { title: 'Pinnwand', url: '/pinnwand', icon: StickyNote },
-      { title: 'Ablage', url: '/ablage', icon: Inbox },
-      { title: 'Vorgänge', url: '/vorgaenge', icon: FolderKanban },
-      { title: 'Jahreszyklus', url: '/jahreszyklus', icon: CalendarRange },
-    ],
-  },
-  {
-    title: 'Wissen',
-    url: '/notizbuch',
-    icon: Library,
-    children: [
-      { title: 'Notizbuch', url: '/notizbuch', icon: NotebookPen },
-      { title: 'Anleitungen', url: '/checklisten', icon: Workflow },
-    ],
-  },
-  { title: 'Buchhaltung', url: '/finanzen', icon: Landmark },
-  { title: 'Zahlungen', url: '/zahlungen', icon: CreditCard },
-  { title: 'Adressen', url: '/contacts', icon: BookUser },
   { title: 'Kalender', url: '/calendar', icon: CalendarDays },
-  { title: 'Versammlungen', url: '/versammlungen', icon: Users },
-  { title: 'Schlüssel', url: '/schluessel', icon: KeyRound },
-  { title: 'Umfragen', url: '/umfragen', icon: ListChecks },
-  { title: 'RGI Intern', url: '/rgi-intern', icon: Briefcase, adminOnly: true },
-  { title: 'Einstellungen', url: '/settings', icon: Settings, adminOnly: true },
+
+  { title: 'Pinnwand', url: '/pinnwand', icon: StickyNote, abschnitt: 'Büro' },
+  { title: 'Ablage', url: '/ablage', icon: Inbox, abschnitt: 'Büro' },
+  { title: 'Vorgänge', url: '/vorgaenge', icon: FolderKanban, abschnitt: 'Büro' },
+  { title: 'Jahreszyklus', url: '/jahreszyklus', icon: CalendarRange, abschnitt: 'Büro' },
+  { title: 'Notizbuch', url: '/notizbuch', icon: NotebookPen, abschnitt: 'Büro' },
+  { title: 'Anleitungen', url: '/checklisten', icon: Workflow, abschnitt: 'Büro' },
+
+  { title: 'Gebäude', url: '/buildings', icon: Castle, abschnitt: 'Objekte' },
+  { title: 'Adressen', url: '/contacts', icon: BookUser, abschnitt: 'Objekte' },
+  { title: 'Schlüssel', url: '/schluessel', icon: KeyRound, abschnitt: 'Objekte' },
+
+  { title: 'Konten', url: '/konten', icon: Wallet, abschnitt: 'Finanzen' },
+  { title: 'Zahlungen', url: '/zahlungen', icon: CreditCard, abschnitt: 'Finanzen' },
+  { title: 'Buchhaltung', url: '/finanzen', icon: Landmark, abschnitt: 'Finanzen' },
+
+  { title: 'Versammlungen', url: '/versammlungen', icon: Users, abschnitt: 'Eigentümer', modus: 'weg' },
+  { title: 'Umfragen', url: '/umfragen', icon: ListChecks, abschnitt: 'Eigentümer', modus: 'weg' },
+
+  { title: 'RGI Intern', url: '/rgi-intern', icon: Briefcase, adminOnly: true, abschnitt: 'Intern' },
+  { title: 'Einstellungen', url: '/settings', icon: Settings, adminOnly: true, abschnitt: 'Intern' },
 ];
 
 export const brokerMenu: MenuItem[] = [
@@ -112,11 +111,31 @@ export function istAktiv(item: MenuItem, pfad: string): boolean {
   return pfad.startsWith(item.url);
 }
 
-/** Die Punkte, die diese Rolle sehen darf. */
-export function menueFuer(rolle: string | undefined, items: MenuItem[]): MenuItem[] {
+/** Die Punkte, die diese Rolle (und dieser Verwaltungsmodus) sehen darf. */
+export function menueFuer(
+  rolle: string | undefined,
+  items: MenuItem[],
+  modus?: 'weg' | 'rent',
+): MenuItem[] {
   return items.filter(item => {
     if (item.adminOnly && rolle !== 'admin') return false;
     if (rolle === 'employee' && ['Chatbot', 'Einstellungen'].includes(item.title)) return false;
+    if (item.modus && modus && item.modus !== modus) return false;
     return true;
   });
+}
+
+/**
+ * Teilt die sichtbaren Punkte nach Zwischenüberschrift auf, in der
+ * Reihenfolge der Liste. Ein Abschnitt ohne sichtbaren Punkt (z. B.
+ * „Eigentümer" im Miete-Modus) fällt dabei weg.
+ */
+export function abschnittsweise(items: MenuItem[]): { abschnitt?: Abschnitt; items: MenuItem[] }[] {
+  const gruppen: { abschnitt?: Abschnitt; items: MenuItem[] }[] = [];
+  for (const item of items) {
+    const letzte = gruppen[gruppen.length - 1];
+    if (letzte && letzte.abschnitt === item.abschnitt) letzte.items.push(item);
+    else gruppen.push({ abschnitt: item.abschnitt, items: [item] });
+  }
+  return gruppen;
 }

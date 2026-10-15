@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { LogOut, ToggleLeft, ToggleRight, ChevronDown, ChevronRight } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useBrokerMode } from "@/hooks/useBrokerMode";
-import { adminMenu, brokerMenu, istAktiv, istGruppenPfad, menueFuer } from "@/lib/adminNavigation";
+import { abschnittsweise, adminMenu, brokerMenu, istAktiv, menueFuer } from "@/lib/adminNavigation";
 import { useReportCounts, useReportsLive } from "@/hooks/useReports";
 
 interface AdminSidebarProps {
@@ -38,15 +38,6 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
   useReportsLive("sidebar", !isBrokerActive);
   const { data: reportCounts } = useReportCounts(!isBrokerActive);
   const openReportsCount = isBrokerActive ? 0 : reportCounts?.open ?? 0;
-
-  // Aufgeklappt, sobald man in einem der Unterpunkte steht. Danach darf man
-  // es zuklappen, ohne dass es beim nächsten Klick wieder aufspringt.
-  // Gilt für jede Gruppe („Aufgaben", „Wissen") einzeln.
-  const [offeneGruppen, setOffeneGruppen] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(adminMenu.filter(i => i.children).map(i => [i.title, istGruppenPfad(i, currentPath)])),
-  );
-  const gruppeUmschalten = (titel: string) =>
-    setOffeneGruppen(g => ({ ...g, [titel]: !g[titel] }));
 
   const handleSignOut = async () => { await signOut(); };
 
@@ -180,141 +171,66 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
           </div>
         )}
 
-        {/* Navigation Menu */}
+        {/* Navigation: fünf Zwischenüberschriften (Umbau 15.10.2026) */}
         <SidebarGroup className="px-4 flex-1">
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {menueFuer(profile?.role, menuItems)
-                .map((item) => {
-                  // Gruppe mit Unterpunkten ("Aufgaben", "Wissen").
-                  if (item.children) {
-                    const gruppeAktiv = istGruppenPfad(item, currentPath);
-                    const aufgabenOffen = !!offeneGruppen[item.title];
-                    return (
-                      <SidebarMenuItem key={item.title}>
-                        {collapsed ? (
+            <nav aria-label="Hauptnavigation">
+              {abschnittsweise(
+                menueFuer(profile?.role, menuItems, isBrokerActive ? undefined : managementMode),
+              ).map((gruppe, gi) => (
+                <div key={gruppe.abschnitt ?? `oben-${gi}`} className={gi > 0 ? "mt-3" : ""}>
+                  {gruppe.abschnitt && (
+                    collapsed ? (
+                      <div className="mx-2 mb-2 border-t border-border" aria-hidden="true" />
+                    ) : (
+                      <div className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        {gruppe.abschnitt}
+                      </div>
+                    )
+                  )}
+                  <SidebarMenu className="space-y-0.5">
+                    {gruppe.items.map((item) => {
+                      // Welche Pfade zu welchem Punkt gehören, steht in
+                      // adminNavigation — damit die mobile Ansicht dasselbe
+                      // hervorhebt wie die Seitenleiste.
+                      const aktiv = istAktiv(item, currentPath);
+                      const showBadge = item.url === "/postfach" && openReportsCount > 0;
+                      const badgeLabel = openReportsCount > 99 ? "99+" : String(openReportsCount);
+                      return (
+                        <SidebarMenuItem key={item.url}>
                           <NavLink
                             to={item.url}
+                            title={collapsed ? item.title : undefined}
                             className={
-                              gruppeAktiv
-                                ? "bg-primary text-white flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
-                                : "text-foreground hover:bg-muted flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
+                              aktiv
+                                ? "bg-primary text-white group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
+                                : "text-foreground hover:bg-muted hover:text-foreground group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
                             }
-                            title={item.title}
                           >
-                            <item.icon className="h-4 w-4" />
-                          </NavLink>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => gruppeUmschalten(item.title)}
-                              aria-expanded={aufgabenOffen}
-                              className={
-                                gruppeAktiv && !aufgabenOffen
-                                  ? "bg-primary text-white w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
-                                  : "text-foreground hover:bg-muted w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
-                              }
-                            >
-                              <div className="relative flex-shrink-0 mr-3">
-                                <item.icon className="h-4 w-4" />
-                              </div>
-                              {/*
-                                label-text setzt selbst text-foreground und
-                                ueberschreibt damit das geerbte Weiss. Auf dem
-                                orangen Grund muss die Schrift hier also noch
-                                einmal ausdruecklich weiss gesetzt werden.
-                              */}
-                              <span
-                                className={`label-text flex-1 text-left ${
-                                  gruppeAktiv && !aufgabenOffen ? "text-white" : ""
-                                }`}
-                              >
+                            <div className="relative flex-shrink-0 mr-3">
+                              <item.icon className="h-4 w-4" />
+                              {showBadge && collapsed && (
+                                <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive" />
+                              )}
+                            </div>
+                            {!collapsed && (
+                              <span className={`label-text flex-1 ${aktiv ? "text-white" : ""}`}>
                                 {item.title}
                               </span>
-                              {aufgabenOffen ? (
-                                <ChevronDown className="h-3.5 w-3.5" />
-                              ) : (
-                                <ChevronRight className="h-3.5 w-3.5" />
-                              )}
-                            </button>
-
-                            {aufgabenOffen && (
-                              <div className="mt-1 ml-4 space-y-1 border-l border-border pl-3">
-                                {item.children.map((kind) => {
-                                  const kindAktiv = istAktiv(kind, currentPath);
-                                  return (
-                                    <NavLink
-                                      key={kind.url}
-                                      to={kind.url}
-                                      className={
-                                        kindAktiv
-                                          ? "bg-primary text-white flex items-center px-3 py-2 text-sm rounded-md transition-colors"
-                                          : "text-foreground hover:bg-muted flex items-center px-3 py-2 text-sm rounded-md transition-colors"
-                                      }
-                                    >
-                                      <kind.icon className="h-4 w-4 flex-shrink-0 mr-3" />
-                                      <span
-                                        className={`label-text flex-1 ${
-                                          kindAktiv ? "text-white" : ""
-                                        }`}
-                                      >
-                                        {kind.title}
-                                      </span>
-                                    </NavLink>
-                                  );
-                                })}
-                              </div>
                             )}
-                          </>
-                        )}
-                      </SidebarMenuItem>
-                    );
-                  }
-
-                  // Welche Pfade zu welchem Punkt gehoeren, steht in
-                  // adminNavigation — damit die mobile Ansicht dasselbe
-                  // hervorhebt wie die Seitenleiste.
-                  const aliasActive = istAktiv(item, currentPath);
-                  return (
-                    <SidebarMenuItem key={item.title}>
-                      <NavLink
-                        to={item.url}
-                        className={({ isActive }) =>
-                          (isActive || aliasActive)
-                            ? "bg-primary text-white group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
-                            : "text-foreground hover:bg-muted hover:text-foreground group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
-                        }
-                      >
-                        {({ isActive }) => {
-                          const showBadge = item.url === "/postfach" && openReportsCount > 0;
-                          const badgeLabel = openReportsCount > 99 ? "99+" : String(openReportsCount);
-                          return (
-                            <>
-                              <div className="relative flex-shrink-0 mr-3">
-                                <item.icon className="h-4 w-4" />
-                                {showBadge && collapsed && (
-                                  <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive" />
-                                )}
-                              </div>
-                              {!collapsed && (
-                                <span className={`label-text flex-1 ${(isActive || aliasActive) ? 'text-white' : ''}`}>
-                                  {item.title}
-                                </span>
-                              )}
-                              {!collapsed && showBadge && (
-                                <span className="ml-auto inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-destructive text-white text-xs font-semibold">
-                                  {badgeLabel}
-                                </span>
-                              )}
-                            </>
-                          );
-                        }}
-                      </NavLink>
-                    </SidebarMenuItem>
-                  );
-                })}
-            </SidebarMenu>
+                            {!collapsed && showBadge && (
+                              <span className="ml-auto inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-destructive text-white text-xs font-semibold">
+                                {badgeLabel}
+                              </span>
+                            )}
+                          </NavLink>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </div>
+              ))}
+            </nav>
           </SidebarGroupContent>
         </SidebarGroup>
 

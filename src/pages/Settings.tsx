@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BankzugaengeEinstellungen } from "@/components/konten/BankzugaengeEinstellungen";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -373,6 +374,7 @@ export const Settings = () => {
             {isAdmin && <TabsTrigger variant="segment" value="email" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">E-Mail</TabsTrigger>}
             {isAdmin && <TabsTrigger variant="segment" value="meldungen" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Meldungen</TabsTrigger>}
             {isAdmin && <TabsTrigger variant="segment" value="templates" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Vorlagen</TabsTrigger>}
+            {isAdmin && <TabsTrigger variant="segment" value="bankzugaenge" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Bankzugänge</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="notifications" className="space-y-6 mt-6">
@@ -605,6 +607,13 @@ export const Settings = () => {
                 </CardContent>
               </Card>
               <ReportTemplateSettings />
+            </TabsContent>
+          )}
+
+          {/* Tab: Bankzugänge — Abruf über die Bank, Datei-Import als Notlösung */}
+          {isAdmin && (
+            <TabsContent value="bankzugaenge" className="space-y-6 mt-6">
+              <BankzugaengeEinstellungen />
             </TabsContent>
           )}
         </Tabs>
