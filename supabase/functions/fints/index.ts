@@ -35,6 +35,7 @@ import { pain001, sepaId, summeVon } from "../_shared/sepa.ts";
 import { sammelueberweisung } from "./zahlung.ts";
 import {
   addHashes,
+  bestandAbziehen,
   camtBloecke,
   deduplicateTransactions,
   leseKopf,
@@ -74,6 +75,7 @@ const heute = () => new Date().toISOString().slice(0, 10);
 class RohCamt extends StatementInteractionCAMT {
   dokumente: string[] = [];
   ziel: { iban: string; buildingId: string | null } | null = null;
+  ab = ""; // abgefragt ab (JJJJ-MM-TT)
   override handleResponse(response: any, clientResponse: any) {
     const roh = response.findAllSegments(HICAZ.Id).flatMap((s: any) => s.bookedTransactions ?? []);
     this.dokumente = roh.map((xml: string) =>
@@ -453,8 +455,10 @@ async function abrufen(
       }
       if (!buildingId && !istRgi) continue;
       if (config.isAccountTransactionSupported(konto, "HKCAZ")) {
-        const c = new RohCamt(konto, opts.ab ? new Date(`${opts.ab}T00:00:00Z`) : await abrufBeginn(admin, ziel.buildingId, iban), new Date());
+        const beginn = opts.ab ? new Date(`${opts.ab}T00:00:00Z`) : await abrufBeginn(admin, ziel.buildingId, iban);
+        const c = new RohCamt(konto, beginn, new Date());
         c.ziel = ziel;
+        c.ab = beginn.toISOString().slice(0, 10);
         dialog.addCustomerInteraction(c);
         camts.push(c);
       }
@@ -505,7 +509,7 @@ async function abrufen(
     for (const c of camts) {
       if (!c.ziel || (teilweise && c.dokumente.length === 0)) continue;
       const r = await camtEinlesen(admin, { ...c.ziel, xmls: c.dokumente, titel, userId: opts.userId ?? zugang.created_by });
-      jeKonto.push({ iban: c.ziel.iban, ...r });
+      jeKonto.push({ iban: c.ziel.iban, ab: c.ab, ...r });
     }
     const saldoJe = new Map<string, { saldo: number; datum: string }>();
     for (const s of salden) {
@@ -607,7 +611,9 @@ async function camtEinlesen(
 
   let txns = bloecke.flatMap((b) => parseEntries(b, opts.buildingId, auszug.id));
   txns = await addHashes(txns);
-  const { unique, duplicateCount } = await deduplicateTransactions(admin, txns, opts.buildingId);
+  const { unique: nachHash } = await deduplicateTransactions(admin, txns, opts.buildingId);
+  const unique = await bestandAbziehen(admin, opts.iban, txns, nachHash, von, bis);
+  const duplicateCount = txns.length - unique.length;
   if (unique.length === 0) {
     await admin.from("bank_statements").delete().eq("id", auszug.id);
     return { neu: 0, schonDa: duplicateCount, zugeordnet: 0 };

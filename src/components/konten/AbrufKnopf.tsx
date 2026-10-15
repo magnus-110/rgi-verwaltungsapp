@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
 import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button, type ButtonProps } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -54,6 +55,31 @@ export function AbrufKnopf({ zugangId, nurRgi, disabled, children, ...knopf }: P
   const [zeitraum, setZeitraum] = useState<Zeitraum>("neu");
   const [datum, setDatum] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
   const [konto, setKonto] = useState("alle");
+  const [vorhandeneUeberspringen, setVorhandeneUeberspringen] = useState(true);
+  const stopp = useRef(false);
+
+  // Bis wann zurück ist jedes Konto schon abgerufen? (aus dem Protokoll)
+  const { data: abgedeckt = new Map<string, string>() } = useQuery({
+    queryKey: ["bank-connections", "abruf-abdeckung"],
+    enabled: offen,
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("bank_fetch_log")
+        .select("ergebnis")
+        .not("ergebnis", "is", null)
+        .order("gestartet", { ascending: false })
+        .limit(200);
+      const m = new Map<string, string>();
+      (data ?? []).forEach((l: any) =>
+        (l.ergebnis?.jeKonto ?? []).forEach((k: any) => {
+          if (!k.iban || !k.ab) return;
+          const i = cleanIban(k.iban);
+          if (!m.has(i) || k.ab < m.get(i)!) m.set(i, k.ab);
+        }),
+      );
+      return m;
+    },
+  });
 
   const { data: auswahl = [] } = useQuery({
     queryKey: ["bank-connections", "abruf-konten", zugangId ?? "alle", !!nurRgi],
@@ -63,17 +89,22 @@ export function AbrufKnopf({ zugangId, nurRgi, disabled, children, ...knopf }: P
       if (zugangId) q = q.eq("id", zugangId);
       const [{ data: zugaenge, error }, { data: bba }] = await Promise.all([
         q,
-        supabase.from("building_bank_accounts").select("iban, building_id, buildings(name)"),
+        supabase.from("building_bank_accounts").select("iban, building_id, display_name, buildings(name)"),
       ]);
       if (error) throw error;
       const liegenschaft = new Map<string, string>();
-      (bba ?? []).forEach((b: any) => b.iban && liegenschaft.set(cleanIban(b.iban), b.buildings?.name ?? "Liegenschaft"));
+      const kontoName = new Map<string, string>();
+      (bba ?? []).forEach((b: any) => {
+        if (!b.iban) return;
+        liegenschaft.set(cleanIban(b.iban), b.buildings?.name ?? "Liegenschaft");
+        if (b.display_name) kontoName.set(cleanIban(b.iban), b.display_name);
+      });
       return (zugaenge ?? []).flatMap((z: any) =>
         (z.konten ?? [])
           .filter((k: any) => k.iban && !k.ausgeblendet)
           .map((k: any) => ({ ...k, iban: cleanIban(k.iban), zugang: z.id, bank: z.bank_name }))
           .filter((k: any) => (nurRgi ? k.rgi : k.rgi || liegenschaft.has(k.iban)))
-          .map((k: any) => ({ ...k, ziel: k.rgi ? "RGI intern" : liegenschaft.get(k.iban) })),
+          .map((k: any) => ({ ...k, ziel: k.rgi ? "RGI intern" : liegenschaft.get(k.iban), kontoName: kontoName.get(k.iban) ?? null })),
       );
     },
   });
@@ -89,15 +120,70 @@ export function AbrufKnopf({ zugangId, nurRgi, disabled, children, ...knopf }: P
   const weitZurueck = !!ab && ab < grenze;
   const datumFalsch = zeitraum === "datum" && (!datum || datum > heute);
 
+  /** Weiter als 85 Tage: Konto für Konto, je eine Freigabe in der App. */
+  const einzeln = weitZurueck && konto === "alle";
+  const reihe = useMemo(
+    () => (einzeln ? sortiert.filter((k: any) => !(vorhandeneUeberspringen && ab && abgedeckt.get(k.iban) && abgedeckt.get(k.iban)! <= ab)) : []),
+    [einzeln, sortiert, vorhandeneUeberspringen, ab, abgedeckt],
+  );
+
+  const nacheinander = async () => {
+    stopp.current = false;
+    const liste = [...reihe];
+    let neu = 0;
+    let zugeordnet = 0;
+    const fehlt: string[] = [];
+    const t = toast.loading("Abruf startet …", {
+      action: { label: "Anhalten", onClick: () => (stopp.current = true) },
+      duration: Infinity,
+    });
+    for (let i = 0; i < liste.length; i++) {
+      const k = liste[i];
+      if (stopp.current) {
+        fehlt.push(...liste.slice(i).map((x: any) => x.ziel + (x.kontoName ? ` (${x.kontoName})` : "")));
+        break;
+      }
+      toast.loading(`Konto ${i + 1} von ${liste.length}: ${k.ziel}${k.kontoName ? ` · ${k.kontoName}` : ""} – bitte in der App freigeben`, {
+        id: t,
+        action: { label: "Anhalten", onClick: () => (stopp.current = true) },
+        duration: Infinity,
+      });
+      try {
+        const r = await bankAbrufStarten({ id: k.zugang, ab, iban: k.iban });
+        const e = r.ergebnisse?.[0];
+        if (e?.ok) {
+          neu += e.neu ?? 0;
+          zugeordnet += e.zugeordnet ?? 0;
+        } else {
+          neu += e?.neu ?? 0;
+          fehlt.push(`${k.ziel}${k.kontoName ? ` (${k.kontoName})` : ""}`);
+        }
+      } catch {
+        fehlt.push(`${k.ziel}${k.kontoName ? ` (${k.kontoName})` : ""}`);
+      }
+      kontenNeuLaden(queryClient);
+    }
+    toast.dismiss(t);
+    const text = `${neu} neue Bewegungen${zugeordnet ? `, ${zugeordnet} zugeordnet` : ""}.`;
+    if (fehlt.length) toast.warning(`${text} Noch nicht abgerufen: ${fehlt.join(", ")}. Einfach noch einmal starten – fertige Konten werden übersprungen.`, { duration: 20000 });
+    else toast.success(`Fertig: ${text}`, { duration: 10000 });
+  };
+
   const starten = async () => {
     const gewaehlt = konto === "alle" ? null : auswahl.find((k: any) => k.iban === konto);
     setOffen(false);
     setLaeuft(true);
-    const t = toast.loading(
-      weitZurueck && !gewaehlt
-        ? "Abruf läuft … Die Bank fragt eventuell für jedes Konto einzeln – bitte jede Anfrage in der App freigeben."
-        : "Abruf läuft … Falls die Bank fragt: bitte in der App freigeben.",
-    );
+    if (einzeln) {
+      try {
+        await nacheinander();
+      } finally {
+        setLaeuft(false);
+        kontenNeuLaden(queryClient);
+        queryClient.invalidateQueries({ queryKey: ["bank-connections"] });
+      }
+      return;
+    }
+    const t = toast.loading("Abruf läuft … Falls die Bank fragt: bitte in der App freigeben.");
     try {
       const r = await bankAbrufStarten({
         id: gewaehlt?.zugang ?? zugangId,
@@ -166,7 +252,7 @@ export function AbrufKnopf({ zugangId, nurRgi, disabled, children, ...knopf }: P
                   {sortiert.length > 0 && <SelectSeparator />}
                   {sortiert.map((k: any) => (
                     <SelectItem key={k.iban} value={k.iban}>
-                      {k.ziel} · {ibanFormatiert(k.iban)}
+                      {k.ziel}{k.kontoName ? ` · ${k.kontoName}` : ""} · {ibanFormatiert(k.iban)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -174,24 +260,34 @@ export function AbrufKnopf({ zugangId, nurRgi, disabled, children, ...knopf }: P
             </div>
 
             {weitZurueck && (
-              <div className="flex gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  Weiter als {TAGE_EINE_FREIGABE} Tage zurück will die Bank für <b>jedes Konto eine eigene Freigabe</b>.
-                  {konto === "alle"
-                    ? " Tipp: oben ein einzelnes Konto auswählen – dann ist es nur eine Freigabe."
-                    : " Bei einem Konto ist das nur eine Freigabe."}{" "}
-                  Wie weit die Bank zurückreicht, entscheidet sie selbst (oft ein bis zwei Jahre).
-                </span>
+              <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                <div className="flex gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    Weiter als {TAGE_EINE_FREIGABE} Tage zurück will die Bank für <b>jedes Konto eine eigene Freigabe</b>.
+                    {konto === "alle"
+                      ? ` Die App geht die Konten deshalb einzeln nacheinander durch (${reihe.length} Konten) – bitte jede Anfrage in der App freigeben. Sie können jederzeit anhalten.`
+                      : " Bei einem Konto ist das nur eine Freigabe."}
+                  </span>
+                </div>
+                {konto === "alle" && (
+                  <label className="ml-6 flex cursor-pointer items-center gap-2">
+                    <Checkbox checked={vorhandeneUeberspringen} onCheckedChange={(v) => setVorhandeneUeberspringen(!!v)} />
+                    Konten überspringen, die schon ab diesem Tag abgerufen sind
+                  </label>
+                )}
               </div>
             )}
+            <p className="text-xs text-muted-foreground">
+              Schon vorhandene Bewegungen – auch aus hochgeladenen Dateien – werden erkannt und nicht doppelt angelegt.
+            </p>
           </div>
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOffen(false)}>
               Abbrechen
             </Button>
-            <Button onClick={starten} disabled={datumFalsch || auswahl.length === 0}>
+            <Button onClick={starten} disabled={datumFalsch || auswahl.length === 0 || (einzeln && reihe.length === 0)}>
               Abrufen
             </Button>
           </DialogFooter>

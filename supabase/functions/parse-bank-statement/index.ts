@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.52.1";
 import {
   addHashes,
   buildingFuerIban,
+  bestandAbziehen,
   deduplicateTransactions,
   getAllTags,
   getTag,
@@ -172,7 +173,13 @@ Deno.serve(async (req) => {
 
       let transactions = parseEntries(stmt, stmtBuilding, statement.id);
       transactions = await addHashes(transactions);
-      const { unique, duplicateCount } = await deduplicateTransactions(supabase, transactions, stmtBuilding);
+      const { unique: nachHash } = await deduplicateTransactions(supabase, transactions, stmtBuilding);
+      // auch gegen Bewegungen, die per Bankabruf (FinTS) schon da sind
+      const daten = transactions.map((t: any) => String(t.booking_date).slice(0, 10)).sort();
+      const unique = accountIban && daten.length
+        ? await bestandAbziehen(supabase, accountIban, transactions, nachHash, daten[0], daten[daten.length - 1])
+        : nachHash;
+      const duplicateCount = transactions.length - unique.length;
 
       if (unique.length > 0) {
         const { error: txError } = await supabase.from("bank_transactions").insert(unique);

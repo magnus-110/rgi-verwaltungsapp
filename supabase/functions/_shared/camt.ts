@@ -147,6 +147,53 @@ export async function deduplicateTransactions(supabase: any, transactions: any[]
   return { unique, duplicateCount: transactions.length - unique.length };
 }
 
+/**
+ * Zweite Doppelprüfung gegen ALLE vorhandenen Bewegungen dieses Kontos
+ * (auch aus hochgeladenen Dateien). Die Bank schreibt Texte je Weg leicht
+ * anders („ABSCHLUSS PER …" in der Datei, „Abschluss per … Saldo …" per
+ * FinTS), deshalb hilft die Prüfsumme allein nicht. Verglichen wird
+ * Buchungstag + Betrag + Gegen-IBAN und gezählt: Gibt es eine Bewegung
+ * schon k-mal, werden nur die darüber hinausgehenden neu angelegt.
+ */
+export async function bestandAbziehen(admin: any, iban: string, alle: any[], kandidaten: any[], von: string, bis: string) {
+  if (kandidaten.length === 0) return [];
+  const cleanIban = (i: string | null | undefined) => (i ?? "").replace(/\s+/g, "").toUpperCase();
+  iban = cleanIban(iban);
+  const schluessel = (t: any) =>
+    `${String(t.booking_date).slice(0, 10)}|${Number(t.amount).toFixed(2)}|${cleanIban(t.creditor_iban)}|${cleanIban(t.debtor_iban)}`;
+
+  // vorhandene Bewegungen dieses Kontos im Zeitraum
+  const { data: auszuege } = await admin.from("bank_statements").select("id, account_iban");
+  const ids = (auszuege ?? []).filter((x: any) => cleanIban(x.account_iban) === iban).map((x: any) => x.id);
+  const vorhanden = new Map<string, number>();
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data } = await admin
+      .from("bank_transactions")
+      .select("booking_date, amount, creditor_iban, debtor_iban")
+      .in("statement_id", ids.slice(i, i + 100))
+      .gte("booking_date", von)
+      .lte("booking_date", bis);
+    (data ?? []).forEach((t: any) => vorhanden.set(schluessel(t), (vorhanden.get(schluessel(t)) ?? 0) + 1));
+  }
+
+  // je Schlüssel: wie oft liefert die Bank sie, wie oft gibt es sie schon?
+  const neuJe = new Map<string, number>();
+  alle.forEach((t) => neuJe.set(schluessel(t), (neuJe.get(schluessel(t)) ?? 0) + 1));
+  const erlaubt = new Map<string, number>();
+  for (const [k, n] of neuJe) erlaubt.set(k, Math.max(0, n - (vorhanden.get(k) ?? 0)));
+
+  const ergebnis: any[] = [];
+  for (const t of kandidaten) {
+    const k = schluessel(t);
+    const rest = erlaubt.get(k) ?? 0;
+    if (rest > 0) {
+      ergebnis.push(t);
+      erlaubt.set(k, rest - 1);
+    }
+  }
+  return ergebnis;
+}
+
 export async function matchTransactions(supabase: any, statementId: string, buildingId: string | null) {
   const { data: savedTxns } = await supabase
     .from("bank_transactions")
