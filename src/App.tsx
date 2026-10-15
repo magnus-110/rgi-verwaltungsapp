@@ -44,6 +44,7 @@ const Billing = lazy(() => import("./pages/Billing").then(m => ({ default: m.Bil
 const Checklisten = lazy(() => import("./pages/Checklisten"));
 const Notizbuch = lazy(() => import("./pages/Notizbuch"));
 const Konten = lazy(() => import("./pages/Konten"));
+const Mietkontrolle = lazy(() => import("./pages/Mietkontrolle"));
 const Jahreszyklus = lazy(() => import("./pages/JahreszyklusNeu"));
 const JahreszyklusAlt = lazy(() => import("./pages/Jahreszyklus"));
 const RgiIntern = lazy(() => import("./pages/RgiIntern"));
@@ -160,6 +161,7 @@ const App = () => (
               <Route path="/files" element={<Navigate to="/buildings" replace />} />
               <Route path="/contacts" element={<AdminLayout><Contacts /></AdminLayout>} />
               <Route path="/konten" element={<AdminLayout><Konten /></AdminLayout>} />
+              <Route path="/mietkontrolle" element={<AdminLayout><Mietkontrolle /></AdminLayout>} />
               <Route path="/finanzen" element={<AdminLayout><Finance /></AdminLayout>} />
               <Route path="/finanzen/abrechnung" element={<AdminLayout><Billing /></AdminLayout>} />
               <Route path="/finanzen/lernsignale" element={<AdminLayout><Lernsignale /></AdminLayout>} />

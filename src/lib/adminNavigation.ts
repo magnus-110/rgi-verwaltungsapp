@@ -19,8 +19,7 @@ import {
   StickyNote,
   Users,
   Wallet,
-  Workflow,
-} from 'lucide-react';
+  Workflow, ReceiptText } from 'lucide-react';
 
 /**
  * Die Navigation — an einer Stelle.
@@ -76,6 +75,7 @@ export const adminMenu: MenuItem[] = [
   { title: 'Konten', url: '/konten', icon: Wallet, abschnitt: 'Finanzen' },
   { title: 'Zahlungen', url: '/zahlungen', icon: CreditCard, abschnitt: 'Finanzen' },
   { title: 'Buchhaltung', url: '/finanzen', icon: Landmark, abschnitt: 'Finanzen' },
+  { title: 'Mietkontrolle', url: '/mietkontrolle', icon: ReceiptText, abschnitt: 'Finanzen', modus: 'rent' },
 
   { title: 'Versammlungen', url: '/versammlungen', icon: Users, abschnitt: 'Eigentümer', modus: 'weg' },
   { title: 'Umfragen', url: '/umfragen', icon: ListChecks, abschnitt: 'Eigentümer', modus: 'weg' },

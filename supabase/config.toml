@@ -184,3 +184,9 @@ verify_jwt = false
 
 [functions.case-short-title]
 verify_jwt = true
+
+[functions.fints]
+verify_jwt = false
+
+[functions.mietkontrolle]
+verify_jwt = false
