@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { erkenneLastschrift } from "../_shared/lastschrift.ts";
-import { empfaengerBestimmen, istFloskel, kurzInhalt, verwendungszweck } from "../_shared/zahlungsdaten.ts";
+import { empfaengerBestimmen, istFloskel, kurzInhalt, verwendungszweck, zweckIstGut } from "../_shared/zahlungsdaten.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
 import { detectAndParseEInvoice, isEInvoiceComplete, type ParsedEInvoice } from "../_shared/einvoice.ts";
 
@@ -1087,7 +1087,8 @@ async function zahlungsdatenNachpruefen(req: Request, body: any): Promise<Respon
     const zweck = verwendungszweck(inv.invoice_number, inhalt);
     const upd: Record<string, any> = {};
     if (empf.name && empf.name !== inv.vendor_name) upd.vendor_name = empf.name;
-    if (zweck && zweck !== inv.payment_purpose) upd.payment_purpose = zweck;
+    // Vorhandene Zwecke im richtigen Format bleiben (evtl. von Hand eingetragen)
+    if (zweck && zweck !== inv.payment_purpose && !zweckIstGut(inv.payment_purpose)) upd.payment_purpose = zweck;
     if (beschreibung && beschreibung !== inv.description && istFloskel(inv.description)) upd.description = beschreibung.slice(0, 2000);
     if (!Object.keys(upd).length) continue;
     aenderungen.push({ id: inv.id, vorher: { empfaenger: inv.vendor_name, zweck: inv.payment_purpose }, nachher: { empfaenger: upd.vendor_name ?? inv.vendor_name, zweck: upd.payment_purpose ?? inv.payment_purpose }, quelleEmpfaenger: empf.quelle });
