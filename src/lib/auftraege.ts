@@ -176,7 +176,9 @@ export async function faelligeAuftragsposten(auftraege?: Auftrag[]): Promise<Fae
         else if (lastschrift && !mandatBereit(mandat)) hinderung = "Mandat fehlt oder unvollständig";
         else if (!lastschrift && !it.iban) hinderung = "IBAN fehlt";
 
-        const monat = tag.slice(5, 7) + "/" + tag.slice(0, 4);
+        // {monat} → 09/26, {einheit} → 0002, {lage} → EG links
+        const monat = tag.slice(5, 7) + "/" + tag.slice(2, 4);
+        const einheit = e?.einheit ? (/^\d+$/.test(e.einheit) ? e.einheit.padStart(4, "0") : e.einheit) : "";
         ergebnis.push({
           schluessel: `${it.id}|${tag}`,
           orderId: a.id,
@@ -190,7 +192,13 @@ export async function faelligeAuftragsposten(auftraege?: Auftrag[]): Promise<Fae
           iban: lastschrift ? mandat?.iban ?? it.iban : it.iban,
           bic: lastschrift ? mandat?.bic ?? it.bic : it.bic,
           betrag,
-          verwendungszweck: (it.verwendungszweck || a.verwendungszweck || a.titel).replace("{monat}", monat),
+          verwendungszweck: (it.verwendungszweck || a.verwendungszweck || a.titel)
+            .replace(/\{monat\}/g, monat)
+            .replace(/\{einheit\}/g, einheit)
+            .replace(/\{lage\}/g, e?.lage ?? "")
+            .replace(/\s+/g, " ")
+            .replace(/\s*-\s*$/, "")
+            .trim(),
           mandat,
           hinderung,
         });

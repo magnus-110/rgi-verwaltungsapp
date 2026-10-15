@@ -89,7 +89,11 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
 
   // Art wechselt → passende Betragsquelle und Datum
   useEffect(() => {
-    if (art === "dauerlastschrift") setQuelle("wirtschaftsplan");
+    if (art === "dauerlastschrift") {
+      setQuelle("wirtschaftsplan");
+      setZweck((z) => z || "Hausgeld {monat} - {einheit} {lage}");
+      setTitel((t) => t || "Hausgeld");
+    }
     else if (quelle === "wirtschaftsplan") setQuelle("fest");
     if (art === "einzug") setFaellig(fruehesterEinzug());
     if (art === "ueberweisung") setFaellig(heuteIso());
@@ -201,7 +205,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
             art: g.art,
             betragsquelle: quelle,
             titel: titel.trim() || standardTitel,
-            verwendungszweck: zweck.trim() || (art === "dauerlastschrift" ? "Hausgeld {monat}" : null),
+            verwendungszweck: zweck.trim() || (art === "dauerlastschrift" ? "Hausgeld {monat} - {einheit} {lage}" : null),
             rhythmus: art === "dauerlastschrift" ? rhythmus : null,
             faellig_am: ersterTag,
             status: "aktiv",
@@ -466,7 +470,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
           <label className="space-y-1.5 text-sm font-medium sm:col-span-2">
             Verwendungszweck
             <Input
-              placeholder={art === "dauerlastschrift" ? "Hausgeld {monat} – {monat} wird z. B. zu 11/2026" : "Text für den Kontoauszug"}
+              placeholder={art === "dauerlastschrift" ? "Hausgeld {monat} - {einheit} {lage} → z. B. Hausgeld 09/26 - 0002 EG links" : "Text für den Kontoauszug"}
               value={zweck}
               onChange={(e) => setZweck(e.target.value)}
               className="h-11"

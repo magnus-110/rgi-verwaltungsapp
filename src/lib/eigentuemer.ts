@@ -6,6 +6,8 @@ export interface Eigentuemer {
   contactId: string | null;
   name: string;
   einheit: string;
+  /** Lage der Einheit, z. B. „EG links" */
+  lage: string | null;
   kontoinhaber: string | null;
   iban: string | null;
   bic: string | null;
@@ -55,7 +57,7 @@ export async function ladeEigentuemer(buildingId: string, stichtag = new Date().
   const { data: zuordnungen, error } = await (supabase as any)
     .from("contact_building_assignments")
     .select(
-      "id, contact_id, unit_number, iban_override, iban_holder_override, first_name_override, last_name_override, company_name_override, " +
+      "id, contact_id, unit_number, floor_location, iban_override, iban_holder_override, first_name_override, last_name_override, company_name_override, " +
         "contacts(first_name, last_name, company_name, short_name), contact_bank_accounts!contact_building_assignments_bank_account_id_fkey(account_holder, iban, bic)",
     )
     .eq("building_id", buildingId)
@@ -91,6 +93,7 @@ export async function ladeEigentuemer(buildingId: string, stichtag = new Date().
         contactId: a.contact_id,
         name: anzeigeName(a),
         einheit: a.unit_number ?? "",
+        lage: (a.floor_location ?? "").trim() || null,
         kontoinhaber: a.iban_holder_override || konto.account_holder || null,
         iban: cleanIban(a.iban_override || konto.iban),
         bic: konto.bic ?? null,
