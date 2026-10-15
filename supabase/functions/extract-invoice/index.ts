@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { erkenneLastschrift } from "../_shared/lastschrift.ts";
+import { empfaengerBestimmen, istFloskel, kurzInhalt, verwendungszweck } from "../_shared/zahlungsdaten.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
 import { detectAndParseEInvoice, isEInvoiceComplete, type ParsedEInvoice } from "../_shared/einvoice.ts";
 
@@ -184,6 +185,7 @@ serve(async (req) => {
     // Nachprüfung offener Rechnungen auf Lastschrift (Knopf in der App oder Zeitplan)
     const vorab = await req.clone().json().catch(() => ({}));
     if (vorab?.aktion === "lastschrift_nachpruefen") return await lastschriftNachpruefen(req, vorab);
+    if (vorab?.aktion === "zahlungsdaten_nachpruefen") return await zahlungsdatenNachpruefen(req, vorab);
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -341,7 +343,8 @@ serve(async (req) => {
             line_items: eInvoice.line_items || [],
             ocr_extracted_data: { ...eInvoice, source: "einvoice" },
           };
-          if (eInvoice.vendor_name) eUpdate.vendor_name = eInvoice.vendor_name;
+          const eEmpf = await empfaengerBestimmen(supabase, { erkannt: eInvoice.vendor_name, iban: eInvoice.vendor_iban, ohneId: invoiceId });
+          if (eEmpf.name) eUpdate.vendor_name = eEmpf.name;
           if (eInvoice.vendor_iban) eUpdate.vendor_iban = eInvoice.vendor_iban;
           if (eInvoice.invoice_number) eUpdate.invoice_number = eInvoice.invoice_number;
           if (eInvoice.invoice_date) eUpdate.invoice_date = eInvoice.invoice_date;
@@ -349,8 +352,14 @@ serve(async (req) => {
           if (eInvoice.net_amount != null) eUpdate.net_amount = eInvoice.net_amount;
           if (eInvoice.vat_amount != null) eUpdate.vat_amount = eInvoice.vat_amount;
           if (eInvoice.gross_amount != null) eUpdate.gross_amount = eInvoice.gross_amount;
-          if (eInvoice.description) eUpdate.description = eInvoice.description;
-          if (eInvoice.payment_purpose) eUpdate.payment_purpose = eInvoice.payment_purpose;
+          const ePositionen = (eInvoice.line_items ?? []).map((l: any) => l?.description).filter(Boolean);
+          // Floskeln („Rechnung | Wir bedanken uns …") durch die Positionen ersetzen
+          const eBeschreibung = eInvoice.description && !istFloskel(eInvoice.description) ? eInvoice.description : ePositionen.join(", ") || eInvoice.description;
+          if (eBeschreibung) eUpdate.description = eBeschreibung.slice(0, 2000);
+          const eInhalt = await kurzInhalt(mistralApiKey, { beschreibung: eBeschreibung, positionen: ePositionen, lieferant: eEmpf.name ?? eInvoice.vendor_name });
+          const eZweck = verwendungszweck(eInvoice.invoice_number, eInhalt);
+          if (eZweck) eUpdate.payment_purpose = eZweck;
+          else if (eInvoice.payment_purpose) eUpdate.payment_purpose = eInvoice.payment_purpose;
           if (eInvoice.lastschrift) eUpdate.lastschrift = true;
           if (matchedBuildingId && !invoice.building_id && !isCompany) eUpdate.building_id = matchedBuildingId;
           if (isCompanyInvoice === true && !invoice.is_company_invoice) eUpdate.is_company_invoice = true;
@@ -441,6 +450,10 @@ serve(async (req) => {
             role: "system",
             content: `Du bist ein Experte für die Extraktion von Rechnungsdaten aus OCR-Text. Extrahiere alle relevanten Felder und rufe die Funktion extract_invoice_data auf. Wenn ein Feld nicht erkennbar ist, setze null. Betraege immer als Dezimalzahl (z.B. 1234.56). Datumsangaben im Format YYYY-MM-DD. Fuer suggested_account_number: Schlage eine passende Kontonummer aus dem deutschen SKR-Kontenrahmen vor (z.B. 4200 fuer Reparaturen, 4100 fuer Versicherungen, 4500 fuer Verwaltungskosten). WICHTIG: Extrahiere auch die vollständige Empfängeradresse (an wen die Rechnung adressiert ist, NICHT der Absender/Lieferant). Das ist typischerweise die Hausverwaltung oder der Eigentümer mit Straße und Ort.
 
+RECHNUNGSSTELLER (vendor_name): Wer die Rechnung geschrieben hat und das Geld bekommt – steht im Briefkopf, in der Absenderzeile über der Anschrift oder in der Fußzeile/Impressum. Nimm den Firmennamen genau so, wie er dort steht, mit Rechtsform (GmbH, GmbH & Co. KG, e.K. …), ohne Slogans, Branchenbeschreibungen oder Adressen. Bei Einzelunternehmern den Namen des Inhabers bzw. der Firma. Steht ein „Kontoinhaber" bei der Bankverbindung, ist das ein guter Hinweis. NIEMALS der Rechnungsempfänger: RGI Immobilien, eine WEG / Wohnungseigentümergemeinschaft, eine Hausverwaltung oder die Person in der Empfängeranschrift sind nie vendor_name.
+
+DESCRIPTION: Kurz, was berechnet wurde (Leistung/Ware, ggf. Objekt und Zeitraum) – nicht die Einleitung („Wir bedanken uns …", „Unsere Leistungen stellen wir Ihnen …").
+
 BRENNSTOFF-ERKENNUNG: Prüfe ob es sich um eine Brennstofflieferung handelt (Heizöl, Pellets, Gas, Fernwärme). Wenn ja, setze is_fuel_purchase=true und extrahiere fuel_type, fuel_quantity und fuel_unit.
 
 CO₂-DATEN (BEHG, nur bei fossilen Brennstoffen oil/gas/district_heating): Extrahiere NUR wenn explizit auf der Rechnung genannt - NIEMALS berechnen oder schätzen!
@@ -487,7 +500,7 @@ oder nur ein Angebot, ein Mandat zu erteilen, setze lastschrift=false.`
               parameters: {
                 type: "object",
                 properties: {
-                  vendor_name: { type: "string", description: "Name des Lieferanten/Dienstleisters (Absender der Rechnung)" },
+                  vendor_name: { type: "string", description: "Rechnungssteller laut Briefkopf/Impressum mit Rechtsform – niemals der Empfänger (RGI, WEG, Hausverwaltung)" },
                   vendor_iban: { type: "string", description: "IBAN des Lieferanten" },
                   invoice_number: { type: "string", description: "Rechnungsnummer" },
                   invoice_date: { type: "string", description: "Rechnungsdatum (YYYY-MM-DD)" },
@@ -801,7 +814,17 @@ oder nur ein Angebot, ein Mandat zu erteilen, setze lastschrift=false.`
     }
 
     // Only overwrite fields that are currently empty
-    if (extracted.vendor_name) updateData.vendor_name = extracted.vendor_name;
+    // Empfänger: bestätigter Name zur IBAN schlägt den erkannten Namen
+    const empf = await empfaengerBestimmen(supabase, { erkannt: extracted.vendor_name, iban: extracted.vendor_iban, ohneId: invoiceId });
+    if (empf.name) updateData.vendor_name = empf.name;
+    // Verwendungszweck gleich beim Einlesen: „Re. Nr. XXXX, Inhalt"
+    const inhalt = await kurzInhalt(mistralApiKey, {
+      beschreibung: extracted.description,
+      positionen: (extracted.line_items ?? []).map((l: any) => l?.description).filter(Boolean),
+      lieferant: empf.name ?? extracted.vendor_name,
+    });
+    const zweck = verwendungszweck(extracted.invoice_number, inhalt);
+    if (zweck) updateData.payment_purpose = zweck;
     if (extracted.invoice_number) updateData.invoice_number = extracted.invoice_number;
     if (extracted.invoice_date) updateData.invoice_date = extracted.invoice_date;
     if (extracted.due_date) updateData.due_date = extracted.due_date;
@@ -1021,4 +1044,54 @@ async function lastschriftNachpruefen(req: Request, body: any): Promise<Response
     }
   }
   return antwort({ ok: true, geprueft, gefunden: treffer.length, angewendet: anwenden, treffer });
+}
+
+/** Gleiche Rechte wie die Lastschrift-Nachprüfung: Verwaltung oder Zeitplan-Schlüssel. */
+async function nachpruefenErlaubt(req: Request, body: any, supabase: any): Promise<boolean> {
+  if (body.token) {
+    const { data } = await supabase.rpc("fints_cron_token_pruefen", { p_token: String(body.token) });
+    return !!data;
+  }
+  const token = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
+  const anon = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!);
+  const { data: { user } } = await anon.auth.getUser(token);
+  if (!user) return false;
+  const { data: profil } = await supabase.from("profiles").select("role").eq("user_id", user.id).single();
+  return profil?.role === "admin" || profil?.role === "employee";
+}
+
+/**
+ * Empfänger und Verwendungszweck offener Rechnungen nach den neuen Regeln
+ * neu bestimmen. {anwenden:false} zeigt nur an, was sich ändern würde.
+ * Bereits geprüfte/freigegebene Rechnungen werden nicht angefasst.
+ */
+async function zahlungsdatenNachpruefen(req: Request, body: any): Promise<Response> {
+  const antwort = (d: unknown, status = 200) => new Response(JSON.stringify(d), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  if (!(await nachpruefenErlaubt(req, body, supabase))) return antwort({ error: "Nicht erlaubt" }, 403);
+  const anwenden = body.anwenden === true;
+  const mistral = Deno.env.get("MISTRAL_API_KEY");
+  const { data: offene } = await supabase
+    .from("invoices")
+    .select("id, vendor_name, vendor_iban, invoice_number, description, payment_purpose, line_items, review_status")
+    .eq("status", "open")
+    .neq("invoice_type", "credit_note")
+    .neq("review_status", "verified")
+    .limit(300);
+  const aenderungen: any[] = [];
+  for (const inv of offene ?? []) {
+    const empf = await empfaengerBestimmen(supabase, { erkannt: inv.vendor_name, iban: inv.vendor_iban, ohneId: inv.id });
+    const positionen = (Array.isArray(inv.line_items) ? inv.line_items : []).map((l: any) => l?.description).filter(Boolean);
+    const beschreibung = inv.description && !istFloskel(inv.description) ? inv.description : positionen.join(", ") || null;
+    const inhalt = await kurzInhalt(mistral, { beschreibung, positionen, lieferant: empf.name ?? inv.vendor_name });
+    const zweck = verwendungszweck(inv.invoice_number, inhalt);
+    const upd: Record<string, any> = {};
+    if (empf.name && empf.name !== inv.vendor_name) upd.vendor_name = empf.name;
+    if (zweck && zweck !== inv.payment_purpose) upd.payment_purpose = zweck;
+    if (beschreibung && beschreibung !== inv.description && istFloskel(inv.description)) upd.description = beschreibung.slice(0, 2000);
+    if (!Object.keys(upd).length) continue;
+    aenderungen.push({ id: inv.id, vorher: { empfaenger: inv.vendor_name, zweck: inv.payment_purpose }, nachher: { empfaenger: upd.vendor_name ?? inv.vendor_name, zweck: upd.payment_purpose ?? inv.payment_purpose }, quelleEmpfaenger: empf.quelle });
+    if (anwenden) await supabase.from("invoices").update(upd).eq("id", inv.id);
+  }
+  return antwort({ ok: true, geprueft: (offene ?? []).length, geaendert: aenderungen.length, angewendet: anwenden, aenderungen });
 }

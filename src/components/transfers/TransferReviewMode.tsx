@@ -413,7 +413,7 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
     if (invoice.payment_purpose) {
       setPurpose(invoice.payment_purpose);
       setGeneratingPurpose(false);
-    } else if (invoice.description) {
+    } else if (invoice.description || invoice.invoice_number) {
       setPurpose(fallbackPurpose(invoice));
       setGeneratingPurpose(true);
       supabase.functions.invoke("generate-payment-purpose", {
