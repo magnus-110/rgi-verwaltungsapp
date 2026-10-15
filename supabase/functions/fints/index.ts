@@ -43,8 +43,12 @@ import {
 
 const PRODUKT_ID = "7C97B8D6E011C6019EE08166C"; // FinTS-Registrierung RGI, erteilt 13.10.2026
 const PRODUKT_VERSION = "1.0";
-const TAN_WARTEZEIT_MS = 110_000; // so lange wartet ein Aufruf höchstens auf die Freigabe in der App
-const ERSTER_ABRUF_TAGE = 90;
+const TAN_WARTEZEIT_MS = 100_000; // so lange wartet ein Aufruf höchstens auf EINE Freigabe in der App
+const GESAMT_MS = 135_000; // länger darf ein Aufruf insgesamt nicht auf Freigaben warten
+// Umsätze der letzten 90 Tage gibt die Bank ohne neue TAN heraus (PSD2) –
+// deshalb nie weiter als 85 Tage zurück.
+const MAX_TAGE_ZURUECK = 85;
+let START = Date.now(); // Beginn der aktuellen Anfrage
 
 const BANKEN: Record<string, { name: string; url: string }> = {
   "72090000": { name: "VR Bank Augsburg-Ostallgäu", url: "https://fints1.atruvia.de/cgi-bin/hbciservlet" },
@@ -116,6 +120,7 @@ function kontenAusUpd(config: any) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  START = Date.now();
 
   let body: any = {};
   try {
@@ -265,11 +270,22 @@ async function aufFreigabeWarten(config: any, antwort: any, weiter: (ref: string
   if (!tm?.isDecoupled) {
     throw new Error("Für dieses TAN-Verfahren müsste eine TAN eingetippt werden. Bitte ein Verfahren mit Freigabe in der App wählen.");
   }
-  const ende = Date.now() + TAN_WARTEZEIT_MS;
+  // Fragt die Bank nach einer Freigabe gleich die nächste an (z. B. je
+  // Konto), beginnt die Wartezeit für diese neu – insgesamt aber höchstens
+  // GESAMT_MS, damit der Aufruf nicht abgebrochen wird.
+  const gesamtEnde = START + GESAMT_MS;
+  let ende = Math.min(Date.now() + TAN_WARTEZEIT_MS, gesamtEnde);
+  let referenz = antwort?.tanReference;
   await sleep(Math.max(tm.decoupled?.waitingSecondsBeforeFirstStatusRequest ?? 0, 3) * 1000);
   while (antwort?.requiresTan && Date.now() < ende) {
     antwort = await weiter(antwort.tanReference);
-    if (antwort?.requiresTan) await sleep(Math.max(tm.decoupled?.waitingSecondsBetweenStatusRequests ?? 0, 2) * 1000);
+    if (antwort?.requiresTan) {
+      if (antwort.tanReference !== referenz) {
+        referenz = antwort.tanReference;
+        ende = Math.min(Date.now() + TAN_WARTEZEIT_MS, gesamtEnde);
+      }
+      await sleep(Math.max(tm.decoupled?.waitingSecondsBetweenStatusRequests ?? 0, 2) * 1000);
+    }
   }
   if (antwort?.requiresTan) throw new Error("Die Freigabe in der App kam nicht rechtzeitig. Bitte noch einmal versuchen.");
   return antwort;
@@ -350,9 +366,10 @@ async function abrufBeginn(admin: any, buildingId: string | null, iban: string):
     const d = data?.[0]?.booking_date ?? null;
     if (d && (!letzte || d > letzte)) letzte = d;
   }
-  const basis = letzte ? new Date(letzte) : new Date(Date.now() - ERSTER_ABRUF_TAGE * 86400_000);
+  const grenze = new Date(Date.now() - MAX_TAGE_ZURUECK * 86400_000);
+  const basis = letzte ? new Date(letzte) : grenze;
   if (letzte) basis.setDate(basis.getDate() - 3);
-  return basis;
+  return basis < grenze ? grenze : basis;
 }
 
 async function abrufen(
@@ -417,7 +434,7 @@ async function abrufen(
       }
       if (!buildingId && !istRgi) continue;
       if (config.isAccountTransactionSupported(konto, "HKCAZ")) {
-        const c = new RohCamt(konto, await abrufBeginn(admin, buildingId, iban), new Date());
+        const c = new RohCamt(konto, await abrufBeginn(admin, ziel.buildingId, iban), new Date());
         c.ziel = ziel;
         dialog.addCustomerInteraction(c);
         camts.push(c);
@@ -438,6 +455,7 @@ async function abrufen(
     const aktuelle = () => antworten.get(dialog.currentInteraction?.segId) ?? [...antworten.values()].at(-1);
     let antwort = aktuelle();
     let mitTan = false;
+    let teilweise: string | null = null;
     if (antwort?.success && antwort?.requiresTan) {
       if (!opts.interaktiv) {
         await tanNoetig(admin, zugang);
@@ -445,18 +463,27 @@ async function abrufen(
         return { id, ok: false, tanNoetig: true, bank: zugang.bank_name };
       }
       mitTan = true;
-      antwort = await aufFreigabeWarten(config, antwort, async (ref) => {
-        antworten = await dialog.continue(ref);
-        return aktuelle();
-      });
+      try {
+        antwort = await aufFreigabeWarten(config, antwort, async (ref) => {
+          antworten = await dialog.continue(ref);
+          return aktuelle();
+        });
+      } catch (e) {
+        // Was bis hierher kam, wird trotzdem eingelesen.
+        teilweise = (e as Error).message;
+        antwort = null;
+      }
     }
-    if (antwort && !antwort.success) throw new Error(bankText(antwort));
+    if (antwort && !antwort.success) {
+      if (!camts.some((c) => c.dokumente.length) && !salden.some((s) => s.ergebnis)) throw new Error(bankText(antwort));
+      teilweise = bankText(antwort);
+    }
 
     // Einlesen
     const titel = `Abruf ${zugang.bank_name} ${new Date().toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })}`;
     const jeKonto: any[] = [];
     for (const c of camts) {
-      if (!c.ziel) continue;
+      if (!c.ziel || (teilweise && c.dokumente.length === 0)) continue;
       const r = await camtEinlesen(admin, { ...c.ziel, xmls: c.dokumente, titel, userId: opts.userId ?? zugang.created_by });
       jeKonto.push({ iban: c.ziel.iban, ...r });
     }
@@ -497,13 +524,15 @@ async function abrufen(
     if (mitTan) await tanAufgabenErledigen(admin, id);
 
     const ergebnis = {
+      teilweise,
+      offen: teilweise ? camts.filter((c) => c.dokumente.length === 0).length : 0,
       konten: jeKonto.length,
       neu: jeKonto.reduce((s, k) => s + (k.neu ?? 0), 0),
       zugeordnet: jeKonto.reduce((s, k) => s + (k.zugeordnet ?? 0), 0),
       jeKonto,
     };
-    await protokoll(true, ergebnis);
-    return { id, ok: true, bank: zugang.bank_name, ...ergebnis };
+    await protokoll(!teilweise, ergebnis, teilweise ?? undefined);
+    return { id, ok: !teilweise, bank: zugang.bank_name, ...ergebnis, fehler: teilweise ?? undefined };
   } catch (e) {
     const text = (e as Error).message || "Unbekannter Fehler";
     console.error(`fints abrufen ${id}:`, text);
