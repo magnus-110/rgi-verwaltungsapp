@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { DatevToggle } from "./DatevToggle";
+import { LastschriftToggle } from "./LastschriftToggle";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, isToday } from "date-fns";
@@ -56,6 +57,7 @@ interface Invoice {
   datev_sent_at?: string | null;
   datev_status?: string | null;
   datev_error?: string | null;
+  lastschrift?: boolean | null;
   ocr_extracted_data?: any;
   buildings?: { name: string } | null;
 }
@@ -783,6 +785,11 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
                 </div>
               )}
             </div>
+            {invoice.invoice_type !== "credit_note" && invoice.status !== "paid" && (
+              <div className="py-2">
+                <LastschriftToggle key={invoice.id} invoiceId={invoice.id} an={!!invoice.lastschrift} onChanged={onRefetch} />
+              </div>
+            )}
             <Separator />
             <PurposeEditCopyField
               label="Empfänger"

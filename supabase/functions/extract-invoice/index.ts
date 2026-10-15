@@ -346,6 +346,7 @@ serve(async (req) => {
           if (eInvoice.gross_amount != null) eUpdate.gross_amount = eInvoice.gross_amount;
           if (eInvoice.description) eUpdate.description = eInvoice.description;
           if (eInvoice.payment_purpose) eUpdate.payment_purpose = eInvoice.payment_purpose;
+          if (eInvoice.lastschrift) eUpdate.lastschrift = true;
           if (matchedBuildingId && !invoice.building_id && !isCompany) eUpdate.building_id = matchedBuildingId;
           if (isCompanyInvoice === true && !invoice.is_company_invoice) eUpdate.is_company_invoice = true;
 
@@ -458,7 +459,14 @@ für Wartungsverträge, Versicherungen, Reinigungs- und Dienstleistungsverträge
 wird der Zeitraum für die periodengerechte Abgrenzung in der Abrechnung gebraucht.
 Nur wenn wirklich kein Zeitraum genannt ist: null.
 
-Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärme handelt.`
+Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärme handelt.
+
+LASTSCHRIFT: Setze lastschrift=true, wenn der Rechnungsbetrag vom Konto des Empfängers
+abgebucht bzw. eingezogen wird und deshalb NICHT überwiesen werden muss. Typische
+Formulierungen: "wird per SEPA-Lastschrift eingezogen", "buchen wir von Ihrem Konto ab",
+"Der Betrag wird am ... abgebucht", "Einzug erfolgt", "Lastschriftverfahren",
+"Mandatsreferenz" zusammen mit einer "Gläubiger-ID". Steht dagegen "bitte überweisen Sie"
+oder nur ein Angebot, ein Mandat zu erteilen, setze lastschrift=false.`
           },
           {
             role: "user",
@@ -483,6 +491,7 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
                   vat_amount: { type: "number", description: "MwSt-Betrag" },
                   gross_amount: { type: "number", description: "Bruttobetrag" },
                   description: { type: "string", description: "Kurzbeschreibung der Rechnung" },
+                  lastschrift: { type: "boolean", description: "true, wenn der Betrag per Lastschrift eingezogen wird und nicht überwiesen werden muss" },
                   recipient_address: { type: "string", description: "Vollständige Empfängeradresse inkl. Name, Straße, PLZ, Ort" },
                   line_items: {
                     type: "array",
@@ -795,6 +804,10 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
     if (extracted.vat_amount != null) updateData.vat_amount = extracted.vat_amount;
     if (extracted.gross_amount != null) updateData.gross_amount = extracted.gross_amount;
     if (extracted.description) updateData.description = extracted.description;
+
+    // Lastschrift: KI-Erkennung, abgesichert durch eindeutige Angaben im Text
+    const lastschriftText = /mandatsreferenz/i.test(extractedText) && /gl(ä|ae|a)ubiger[- ]?(id|identifikation)/i.test(extractedText);
+    if (extracted.lastschrift === true || eInvoicePartial?.lastschrift || lastschriftText) updateData.lastschrift = true;
 
     // Installment / utility fields
     if (extracted.invoice_type && extracted.invoice_type !== "standard") {

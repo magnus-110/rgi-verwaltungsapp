@@ -8,12 +8,14 @@
 //                                                                  Bedarf auf die Freigabe in der App)
 //  - "salden"         { id }                                     → Kontostände aller sichtbaren Konten
 //  - "konto_setzen"   { id, iban, ausgeblendet?, rgi? }           → Konto ausblenden / RGI intern
+//  - "zahlung_senden" { runId, akzeptiert? }                   → Sammelüberweisung eines Zahllaufs per TAN
 //  - "pin_aendern"    { id, pin }
 //  - "entfernen"      { id }
 //  - "zeitplan"       { token }                                  → pg_cron 06:00/13:00, ohne TAN
 //
 // Die PIN liegt im Supabase Vault (fints_pin_setzen / fints_pin_holen) und
-// verlässt diese Funktion nie. Geld bewegt diese Funktion nicht.
+// verlässt diese Funktion nie. Geld bewegt sie nur mit Freigabe in der
+// Banking-App (zahlung_senden).
 //
 // Bibliothek: lib-fints (LGPL-2.1) – über jsDelivr eingebunden, weil die
 // internen Klassen (Abfragen je Konto) im npm-Paket nicht exportiert sind.
@@ -29,6 +31,8 @@ import { BalanceInteraction } from "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2
 // @ts-ignore
 import { HICAZ } from "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HICAZ.js";
 import { requireAdmin } from "../_shared/require-admin.ts";
+import { pain001, sepaId, summeVon } from "../_shared/sepa.ts";
+import { sammelueberweisung } from "./zahlung.ts";
 import {
   addHashes,
   camtBloecke,
@@ -178,6 +182,7 @@ Deno.serve(async (req) => {
       return json(await abrufen(admin, String(body.id), { interaktiv: true, ausloeser: "hand", userId, nurSalden: true }));
     }
     if (aktion === "konto_setzen") return json(await kontoSetzen(admin, String(body.id), body));
+    if (aktion === "zahlung_senden") return json(await zahlungSenden(admin, String(body.runId), body.akzeptiert ?? null, userId));
     if (aktion === "pin_aendern") {
       if (!body.pin) return json({ error: "PIN fehlt" }, 400);
       const { error } = await admin.rpc("fints_pin_setzen", { p_connection: body.id, p_pin: String(body.pin) });
@@ -674,4 +679,90 @@ async function kontoSetzen(admin: any, id: string, body: any) {
   const { error: e2 } = await admin.from("bank_connections").update({ konten, updated_at: new Date().toISOString() }).eq("id", id);
   if (e2) throw e2;
   return { ok: true };
+}
+
+// ── Überweisung ─────────────────────────────────────────────────────────────
+
+/**
+ * Einen Zahllauf (alle Zahlungen EINES Kontos) als Sammelüberweisung per
+ * FinTS senden. Die Bank prüft die Empfängernamen; weicht einer ab, kommt
+ * das Ergebnis zurück (Status „pruefung") und der Mensch entscheidet. Erst
+ * mit der Freigabe in der Banking-App geht das Geld raus.
+ */
+async function zahlungSenden(admin: any, runId: string, akzeptiert: Record<string, string> | null, userId: string | null) {
+  // Sperre gegen doppelten Versand: nur aus „pruefung" oder „fehler" heraus
+  const { data: lauf } = await admin
+    .from("payment_runs")
+    .update({ status: "laeuft", updated_at: new Date().toISOString() })
+    .eq("id", runId)
+    .in("status", ["pruefung", "fehler"])
+    .select("*")
+    .maybeSingle();
+  if (!lauf) return { error: "Dieser Zahllauf wird gerade gesendet oder ist schon erledigt." };
+
+  const ende = async (status: string, felder: Record<string, unknown> = {}) => {
+    await admin.from("payment_runs").update({ status, updated_at: new Date().toISOString(), ...felder }).eq("id", runId);
+  };
+
+  try {
+    const { data: posten } = await admin.from("payment_run_items").select("*").eq("run_id", runId).order("created_at");
+    if (!posten?.length) {
+      await ende("abgebrochen", { fehler: "Keine Zahlungen im Lauf." });
+      return { error: "Keine Zahlungen im Lauf." };
+    }
+    const iban = cleanIban(lauf.konto_iban);
+
+    // Bankzugang mit diesem Konto
+    const { data: zugaenge } = await admin.from("bank_connections").select("id, konten, status").in("status", ["aktiv", "tan_noetig"]);
+    const zugang = (zugaenge ?? []).find((z: any) => (z.konten ?? []).some((k: any) => cleanIban(k.iban) === iban && !k.ausgeblendet));
+    if (!zugang) {
+      await ende("fehler", { fehler: "Für dieses Konto ist kein Bankzugang eingerichtet." });
+      return { error: "Für dieses Konto ist kein Bankzugang eingerichtet." };
+    }
+    const { config } = await ladeZugang(admin, zugang.id);
+    const konto = (config.bankingInformation?.upd?.bankAccounts ?? []).find((a: any) => cleanIban(a.iban) === iban);
+    if (!konto) throw new Error("Die Bank kennt dieses Konto unter diesem Zugang nicht.");
+    if (!config.isAccountTransactionSupported(konto, "HKCCM")) throw new Error("Für dieses Konto sind Sammelüberweisungen über FinTS nicht freigeschaltet.");
+
+    const eintrag = (zugang.konten ?? []).find((k: any) => cleanIban(k.iban) === iban);
+    const inhaber = eintrag?.inhaber || lauf.konto_inhaber || "WEG";
+    const zahlungen = posten.map((p: any) => ({
+      empfaenger: p.empfaenger,
+      iban: p.iban,
+      bic: p.bic,
+      betrag: Number(p.betrag),
+      verwendungszweck: p.verwendungszweck ?? "",
+      endToEndId: p.end_to_end_id,
+    }));
+    const pain = pain001({ absender: "RGI Immobilien GmbH & Co. KG", kontoInhaber: inhaber, kontoIban: iban, zahlungen, msgId: sepaId("RGI") });
+
+    const r = await sammelueberweisung({
+      config,
+      konto,
+      pain,
+      summe: summeVon(zahlungen),
+      akzeptiert,
+      bis: START + GESAMT_MS,
+      warteAufFreigabeMs: TAN_WARTEZEIT_MS,
+    });
+
+    const felder: Record<string, unknown> = {
+      connection_id: zugang.id,
+      pain_xml: pain,
+      bank_antwort: r.antworten,
+      empfaengerpruefung: r.vop ?? null,
+      fehler: r.fehler ?? null,
+    };
+    if (r.status === "gesendet") {
+      felder.gesendet_am = new Date().toISOString();
+      felder.gesendet_von = userId;
+    }
+    await ende(r.status, felder);
+    return { ok: r.status === "gesendet", status: r.status, fehler: r.fehler, vop: r.vop ?? null };
+  } catch (e) {
+    const text = (e as Error).message || "Unbekannter Fehler";
+    console.error("fints zahlung:", text);
+    await ende("fehler", { fehler: text });
+    return { ok: false, status: "fehler", fehler: text };
+  }
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { AlertTriangle, Download, Loader2, Lock, Pencil, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Download, Loader2, Lock, Pencil, ShieldCheck, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { bankName, blzAusIban, cleanIban, euro, ibanFormatiert } from "@/lib/bankInfo";
 import { erzeugePain001, ibanGueltig, naechsterBankarbeitstag, sepaId, type SepaBlock } from "@/lib/sepa";
 import type { KontoZeile } from "@/components/konten/kontenTypes";
+import { TanSendenDialog } from "./TanSendenDialog";
 
 interface Props {
   open: boolean;
@@ -43,7 +44,7 @@ export function useRechnungenInZahlung() {
         .from("payment_run_items")
         .select("invoice_id, run:payment_runs!inner(status, created_at)")
         .is("bank_transaction_id", null)
-        .in("run.status", ["datei", "gesendet"]);
+        .in("run.status", ["datei", "pruefung", "laeuft", "gesendet", "unklar"]);
       if (error) throw error;
       const m = new Map<string, string>();
       (data ?? []).forEach((r: any) => r.invoice_id && m.set(r.invoice_id, r.run?.created_at));
@@ -63,8 +64,10 @@ function verwendungszweck(r: Rechnung): string {
  * danach unter dem Puffer (fester Betrag je WEG, sonst ein Monats-Hausgeld),
  * erscheint ein Hinweis mit Vorschlag zum Verschieben.
  *
- * Bis die Überweisung per TAN direkt aus der App freigeschaltet ist, gibt
- * es je Bank eine SEPA-Datei (ein Sammelauftrag, eine TAN im Online-Banking).
+ * „Per TAN senden" schickt je Konto eine Sammelüberweisung über FinTS
+ * (Freigabe in der Banking-App, mit Empfängerüberprüfung). Für Konten ohne
+ * Bankzugang gibt es je Bank eine SEPA-Datei für das Online-Banking.
+ * Rechnungen, die per Lastschrift eingezogen werden, erscheinen hier nicht.
  * Kommt die Abbuchung auf dem Konto an, ist die Rechnung automatisch bezahlt.
  */
 export function FreigabeDialog({ open, onOpenChange }: Props) {
@@ -75,7 +78,35 @@ export function FreigabeDialog({ open, onOpenChange }: Props) {
   const [kontoWahl, setKontoWahl] = useState<Record<string, string>>({});
   const [pufferEdit, setPufferEdit] = useState<{ id: string; wert: string } | null>(null);
   const [laeuft, setLaeuft] = useState<string | null>(null);
+  const [tanLaeufe, setTanLaeufe] = useState<string[] | null>(null);
   const istAdmin = profile?.role === "admin";
+
+  // Konten, für die ein Bankzugang (FinTS) eingerichtet ist
+  const { data: fintsKonten = new Set<string>() } = useQuery({
+    queryKey: ["bank-connections", "fints-konten"],
+    enabled: open,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("bank_connections").select("konten, status").in("status", ["aktiv", "tan_noetig"]);
+      if (error) throw error;
+      const m = new Set<string>();
+      (data ?? []).forEach((z: any) => (z.konten ?? []).forEach((k: any) => k.iban && !k.ausgeblendet && m.add(cleanIban(k.iban))));
+      return m;
+    },
+  });
+  // Überweisungen per TAN, die noch auf eine Entscheidung warten
+  const { data: offeneEntscheidungen = [] } = useQuery({
+    queryKey: ["zahllauf-entscheidung"],
+    enabled: open,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("payment_runs")
+        .select("id")
+        .eq("weg", "fints")
+        .in("status", ["pruefung", "unklar", "fehler"]);
+      if (error) throw error;
+      return (data ?? []).map((r: any) => r.id as string);
+    },
+  });
 
   const { data: inZahlung = new Map<string, string>() } = useRechnungenInZahlung();
 
@@ -83,11 +114,12 @@ export function FreigabeDialog({ open, onOpenChange }: Props) {
     queryKey: ["freigabe-rechnungen"],
     enabled: open,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("invoices")
         .select("id, building_id, vendor_name, vendor_iban, gross_amount, due_date, invoice_number, payment_purpose, invoice_type")
         .eq("status", "open")
         .eq("review_status", "verified")
+        .eq("lastschrift", false)
         .not("building_id", "is", null)
         .gt("gross_amount", 0)
         .order("due_date", { ascending: true, nullsFirst: false });
@@ -212,57 +244,62 @@ export function FreigabeDialog({ open, onOpenChange }: Props) {
     queryClient.invalidateQueries({ queryKey: ["zahlungspuffer"] });
   };
 
+  /** Je Konto einen Zahllauf anlegen – damit die Abbuchung später die Rechnung bezahlt. */
+  const laeufeAnlegen = async (bank: (typeof banken)[number], weg: "datei" | "fints") => {
+    const ausfuehrungAm = naechsterBankarbeitstag();
+    const ergebnis: { laufId: string; block: SepaBlock }[] = [];
+    for (const g of bank.gruppen) {
+      const konto = g.konto!;
+      const inhaber = konto.bank_name && !/sparkasse|bank/i.test(konto.bank_name) ? konto.bank_name : `WEG ${g.name}`;
+      const zahlungen = g.ausgewaehlt.map((r) => ({
+        empfaenger: r.vendor_name || "Empfänger",
+        iban: cleanIban(r.vendor_iban),
+        betrag: Number(r.gross_amount),
+        verwendungszweck: verwendungszweck(r),
+        endToEndId: sepaId("RE"),
+        invoiceId: r.id,
+      }));
+      const { data: lauf, error } = await (supabase as any)
+        .from("payment_runs")
+        .insert({
+          building_id: g.id,
+          konto_iban: konto.iban,
+          konto_inhaber: inhaber,
+          status: weg === "fints" ? "pruefung" : "datei",
+          weg,
+          ausfuehrung_am: ausfuehrungAm,
+          summe: g.summe,
+          anzahl: zahlungen.length,
+          created_by: profile?.user_id ?? null,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      const { error: e2 } = await (supabase as any).from("payment_run_items").insert(
+        zahlungen.map((z) => ({
+          run_id: lauf.id,
+          invoice_id: z.invoiceId,
+          empfaenger: z.empfaenger,
+          iban: z.iban,
+          betrag: z.betrag,
+          verwendungszweck: z.verwendungszweck,
+          end_to_end_id: z.endToEndId,
+        })),
+      );
+      if (e2) {
+        await (supabase as any).from("payment_runs").delete().eq("id", lauf.id);
+        throw e2;
+      }
+      ergebnis.push({ laufId: lauf.id, block: { kontoInhaber: inhaber, kontoIban: konto.iban, ausfuehrungAm, zahlungen } });
+    }
+    return ergebnis;
+  };
+
   const dateiErzeugen = async (bank: (typeof banken)[number]) => {
     setLaeuft(bank.blz);
     try {
-      const ausfuehrungAm = naechsterBankarbeitstag();
       const msgId = sepaId("RGI");
-      const bloecke: SepaBlock[] = [];
-      for (const g of bank.gruppen) {
-        const konto = g.konto!;
-        const inhaber = konto.bank_name && !/sparkasse|bank/i.test(konto.bank_name) ? konto.bank_name : `WEG ${g.name}`;
-        const zahlungen = g.ausgewaehlt.map((r) => ({
-          empfaenger: r.vendor_name || "Empfänger",
-          iban: cleanIban(r.vendor_iban),
-          betrag: Number(r.gross_amount),
-          verwendungszweck: verwendungszweck(r),
-          endToEndId: sepaId("RE"),
-          invoiceId: r.id,
-        }));
-        // Zahllauf merken, damit die Abbuchung die Rechnung später automatisch bezahlt
-        const { data: lauf, error } = await (supabase as any)
-          .from("payment_runs")
-          .insert({
-            building_id: g.id,
-            konto_iban: konto.iban,
-            konto_inhaber: inhaber,
-            status: "datei",
-            weg: "datei",
-            ausfuehrung_am: ausfuehrungAm,
-            summe: g.summe,
-            anzahl: zahlungen.length,
-            created_by: profile?.user_id ?? null,
-          })
-          .select("id")
-          .single();
-        if (error) throw error;
-        const { error: e2 } = await (supabase as any).from("payment_run_items").insert(
-          zahlungen.map((z) => ({
-            run_id: lauf.id,
-            invoice_id: z.invoiceId,
-            empfaenger: z.empfaenger,
-            iban: z.iban,
-            betrag: z.betrag,
-            verwendungszweck: z.verwendungszweck,
-            end_to_end_id: z.endToEndId,
-          })),
-        );
-        if (e2) {
-          await (supabase as any).from("payment_runs").delete().eq("id", lauf.id);
-          throw e2;
-        }
-        bloecke.push({ kontoInhaber: inhaber, kontoIban: konto.iban, ausfuehrungAm, zahlungen });
-      }
+      const bloecke = (await laeufeAnlegen(bank, "datei")).map((x) => x.block);
       const inhalt = erzeugePain001({ absender: "RGI Immobilien GmbH & Co. KG", bloecke, msgId });
       const blob = new Blob([inhalt], { type: "application/xml" });
       const url = URL.createObjectURL(blob);
@@ -283,6 +320,19 @@ export function FreigabeDialog({ open, onOpenChange }: Props) {
     }
   };
 
+  const perTanSenden = async (bank: (typeof banken)[number]) => {
+    setLaeuft(bank.blz);
+    try {
+      const laeufe = await laeufeAnlegen(bank, "fints");
+      queryClient.invalidateQueries({ queryKey: ["zahllauf-offen"] });
+      setTanLaeufe(laeufe.map((x) => x.laufId));
+    } catch (e: any) {
+      toast.error(e?.message || "Überweisung konnte nicht vorbereitet werden");
+    } finally {
+      setLaeuft(null);
+    }
+  };
+
   const gesamtAnzahl = banken.reduce((s, b) => s + b.anzahl, 0);
   const gesamtSumme = banken.reduce((s, b) => s + b.summe, 0);
 
@@ -295,6 +345,18 @@ export function FreigabeDialog({ open, onOpenChange }: Props) {
             Bestätigte Rechnungen je Konto. Haken raus bei allem, was noch warten soll.
           </DialogDescription>
         </DialogHeader>
+
+        {offeneEntscheidungen.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span className="flex-1">
+              {offeneEntscheidungen.length === 1 ? "Eine Überweisung per TAN wartet" : `${offeneEntscheidungen.length} Überweisungen per TAN warten`} auf Ihre Entscheidung.
+            </span>
+            <Button size="sm" variant="outline" className="h-8 bg-transparent" onClick={() => setTanLaeufe(offeneEntscheidungen)}>
+              Ansehen
+            </Button>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -434,20 +496,32 @@ export function FreigabeDialog({ open, onOpenChange }: Props) {
                     <span className="font-medium">{b.name}</span>
                     <span className="text-muted-foreground"> · {b.anzahl} Zahlungen · {euro(b.summe)}</span>
                   </span>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span>
-                          <Button size="sm" disabled>
-                            <Lock className="h-4 w-4 mr-1.5" /> Per TAN senden
-                          </Button>
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        Kommt, sobald der Abruf über die Bank bei euch sicher läuft. Bis dahin die SEPA-Datei im Online-Banking hochladen.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  {(() => {
+                    const bereit = b.gruppen.every((g) => fintsKonten.has(cleanIban(g.konto!.iban)));
+                    const grund = !istAdmin
+                      ? "Nur Admins können Überweisungen senden."
+                      : !bereit
+                        ? "Für mindestens ein Konto ist noch kein Bankzugang eingerichtet (Einstellungen › Bankzugänge). Bis dahin die SEPA-Datei nutzen."
+                        : null;
+                    const knopf = (
+                      <Button size="sm" disabled={!!grund || !!laeuft} onClick={() => perTanSenden(b)}>
+                        {laeuft === b.blz ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : grund ? <Lock className="h-4 w-4 mr-1.5" /> : <Smartphone className="h-4 w-4 mr-1.5" />}
+                        Per TAN senden
+                      </Button>
+                    );
+                    return grund ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span>{knopf}</span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">{grund}</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
+                      knopf
+                    );
+                  })()}
                   <Button size="sm" variant="outline" onClick={() => dateiErzeugen(b)} disabled={!!laeuft}>
                     {laeuft === b.blz ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Download className="h-4 w-4 mr-1.5" />}
                     SEPA-Datei
@@ -455,13 +529,23 @@ export function FreigabeDialog({ open, onOpenChange }: Props) {
                 </div>
               ))}
               <p className="text-xs text-muted-foreground">
-                Die SEPA-Datei ist ein Sammelauftrag: im Online-Banking unter „Datei-Upload" hochladen und mit einer TAN freigeben. Sobald die
+                „Per TAN senden“ schickt je Konto einen Sammelauftrag an die Bank; Sie geben ihn in der Banking-App frei. Die
+                SEPA-Datei ist der Weg für Konten ohne Bankzugang: Sie ist ein Sammelauftrag: im Online-Banking unter „Datei-Upload" hochladen und mit einer TAN freigeben. Sobald die
                 Abbuchung auf dem Konto ankommt, steht die Rechnung von selbst auf „bezahlt".
               </p>
             </div>
           </div>
         )}
       </DialogContent>
+      <TanSendenDialog
+        laufIds={tanLaeufe}
+        onClose={() => {
+          setTanLaeufe(null);
+          queryClient.invalidateQueries({ queryKey: ["zahllauf-offen"] });
+          queryClient.invalidateQueries({ queryKey: ["freigabe-rechnungen"] });
+          queryClient.invalidateQueries({ queryKey: ["zahllauf-entscheidung"] });
+        }}
+      />
     </Dialog>
   );
 }

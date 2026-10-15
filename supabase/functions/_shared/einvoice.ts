@@ -108,6 +108,8 @@ export interface ParsedEInvoice {
   recipient_address: string | null;
   leitweg_id: string | null;
   payment_purpose: string | null;
+  /** Zahlung per SEPA-Lastschrift (Code 59 bzw. Mandatsangabe) */
+  lastschrift: boolean;
   line_items: EInvoiceLineItem[];
 }
 
@@ -216,6 +218,10 @@ function parseEInvoiceXml(xmlRaw: string, formatHint: "xrechnung" | "zugferd"): 
       if (/^[A-Z]{6}[A-Z0-9]{2,5}$/i.test(bic)) vendor_bic = bic.toUpperCase();
     }
   }
+  // Lastschrift: Zahlungsart 59 (SEPA-Lastschrift) oder Mandatsreferenz in der Rechnung
+  const lastschrift =
+    paymentBlocks.some((pb) => /^(59|49)$/.test((findFirst(pb, ["TypeCode", "PaymentMeansCode"]) || "").trim())) ||
+    /DirectDebitMandateID|PaymentMandate|MandateReferenceID/i.test(xml);
   if (!vendor_iban) {
     vendor_iban = xml.replace(/\s/g, "").match(/\b(DE\d{20}|[A-Z]{2}\d{2}[A-Z0-9]{11,30})\b/)?.[1] || null;
   }
@@ -280,6 +286,7 @@ function parseEInvoiceXml(xmlRaw: string, formatHint: "xrechnung" | "zugferd"): 
     recipient_address,
     leitweg_id: leitweg_id?.trim() || null,
     payment_purpose: payment_purpose?.trim() || null,
+    lastschrift,
     line_items,
   };
 }

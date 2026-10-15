@@ -309,7 +309,7 @@ export function Transfers() {
   const freigabeAnzahl = useMemo(
     () => outgoingInvoices.filter((i: any) =>
       i.status === "open" && i.review_status === "verified" && i.building_id &&
-      i.invoice_type !== "credit_note" && Number(i.gross_amount) > 0 && !inZahlung.has(i.id)
+      i.invoice_type !== "credit_note" && Number(i.gross_amount) > 0 && !inZahlung.has(i.id) && !i.lastschrift
     ).length,
     [outgoingInvoices, inZahlung]
   );
@@ -652,6 +652,8 @@ export function Transfers() {
                       </Badge>
                     ) : inZahlung.has(inv.id) ? (
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/40 text-primary">Überweisung läuft</Badge>
+                    ) : (inv as any).lastschrift ? (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">Lastschrift</Badge>
                     ) : inv.review_status === "verified" ? (
                       <Badge variant="default" className="text-[10px] px-1.5 py-0">Geprüft</Badge>
                     ) : (
@@ -784,6 +786,8 @@ export function Transfers() {
                           </Badge>
                         ) : inZahlung.has(inv.id) ? (
                           <Badge variant="outline" className="text-xs border-primary/40 text-primary whitespace-nowrap">Überweisung läuft</Badge>
+                        ) : (inv as any).lastschrift ? (
+                          <Badge variant="outline" className="text-xs whitespace-nowrap" title="Wird per Lastschrift eingezogen">Lastschrift</Badge>
                         ) : inv.review_status === "verified" ? (
                           <Badge variant="default" className="text-xs">Geprüft</Badge>
                         ) : (
