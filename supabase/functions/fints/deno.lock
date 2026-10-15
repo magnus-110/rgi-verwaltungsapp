@@ -1,0 +1,253 @@
+{
+  "version": "4",
+  "specifiers": {
+    "npm:@supabase/supabase-js@2.52.1": "2.52.1",
+    "npm:fast-xml-parser@5.11.2": "5.11.2"
+  },
+  "npm": {
+    "@nodable/entities@3.1.0": {
+      "integrity": "sha512-LsS/DjHr+uDM647Gru/cA8+J3a3HfhttwCKLyuoyN7yXTFCxKBtSgMQBvrW9yNPa2/zDRUNuGPaH5QUFoa4arQ=="
+    },
+    "@supabase/auth-js@2.71.1": {
+      "integrity": "sha512-mMIQHBRc+SKpZFRB2qtupuzulaUhFYupNyxqDj5Jp/LyPvcWvjaJzZzObv6URtL/O6lPxkanASnotGtNpS3H2Q==",
+      "dependencies": [
+        "@supabase/node-fetch"
+      ]
+    },
+    "@supabase/functions-js@2.4.5": {
+      "integrity": "sha512-v5GSqb9zbosquTo6gBwIiq7W9eQ7rE5QazsK/ezNiQXdCbY+bH8D9qEaBIkhVvX4ZRW5rP03gEfw5yw9tiq4EQ==",
+      "dependencies": [
+        "@supabase/node-fetch"
+      ]
+    },
+    "@supabase/node-fetch@2.6.15": {
+      "integrity": "sha512-1ibVeYUacxWYi9i0cf5efil6adJ9WRyZBLivgjs+AUpewx1F3xPi7gLgaASI2SmIQxPoCEjAsLAzKPgMJVgOUQ==",
+      "dependencies": [
+        "whatwg-url"
+      ]
+    },
+    "@supabase/postgrest-js@1.19.4": {
+      "integrity": "sha512-O4soKqKtZIW3olqmbXXbKugUtByD2jPa8kL2m2c1oozAO11uCcGrRhkZL0kVxjBLrXHE0mdSkFsMj7jDSfyNpw==",
+      "dependencies": [
+        "@supabase/node-fetch"
+      ]
+    },
+    "@supabase/realtime-js@2.11.15_ws@8.22.0": {
+      "integrity": "sha512-HQKRnwAqdVqJW/P9TjKVK+/ETpW4yQ8tyDPPtRMKOH4Uh3vQD74vmj353CYs8+YwVBKubeUOOEpI9CT8mT4obw==",
+      "dependencies": [
+        "@supabase/node-fetch",
+        "@types/phoenix",
+        "@types/ws",
+        "isows",
+        "ws"
+      ]
+    },
+    "@supabase/storage-js@2.7.1": {
+      "integrity": "sha512-asYHcyDR1fKqrMpytAS1zjyEfvxuOIp1CIXX7ji4lHHcJKqyk+sLl/Vxgm4sN6u8zvuUtae9e4kDxQP2qrwWBA==",
+      "dependencies": [
+        "@supabase/node-fetch"
+      ]
+    },
+    "@supabase/supabase-js@2.52.1": {
+      "integrity": "sha512-IxYljprgl381j4SuFrW4JimjTb59WJ98DqxhMvEOJjpGJWuZ7kwttIWn7E4NBnvkYwZ948zJkJ7dSI6B0oO0Xw==",
+      "dependencies": [
+        "@supabase/auth-js",
+        "@supabase/functions-js",
+        "@supabase/node-fetch",
+        "@supabase/postgrest-js",
+        "@supabase/realtime-js",
+        "@supabase/storage-js"
+      ]
+    },
+    "@types/node@22.5.4": {
+      "integrity": "sha512-FDuKUJQm/ju9fT/SeX/6+gBzoPzlVCzfzmGkwKvRHQVxi4BntVbyIwf6a4Xn62mrvndLiml6z/UBXIdEVjQLXg==",
+      "dependencies": [
+        "undici-types"
+      ]
+    },
+    "@types/phoenix@1.6.7": {
+      "integrity": "sha512-oN9ive//QSBkf19rfDv45M7eZPi0eEXylht2OLEXicu5b4KoQ1OzXIw+xDSGWxSxe1JmepRR/ZH283vsu518/Q=="
+    },
+    "@types/ws@8.18.2": {
+      "integrity": "sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==",
+      "dependencies": [
+        "@types/node"
+      ]
+    },
+    "anynum@1.0.1": {
+      "integrity": "sha512-N6//FLET/tXYNM/F6ABca1oH6fWB+KlTt909Le28WMDBk8oaT4vY17DCrwg2MvmuqUKt3Ni4N5dGJ/EoBgcO6A=="
+    },
+    "fast-xml-builder@1.3.1": {
+      "integrity": "sha512-pIM/1n3ntFXKYrUZwW7QCK0gAW7XY+wzj1YMIV3tLDvPj/V+zTGJK5e3/4WJfwj0qWw2ElNXiTixda/R+3YSug==",
+      "dependencies": [
+        "path-expression-matcher",
+        "xml-naming"
+      ]
+    },
+    "fast-xml-parser@5.11.2": {
+      "integrity": "sha512-R9iDuNrQYeQut46cn2r2wHKn4HYzVDvDm5J1wW+koZewykv0yuO2HChTYeZtrULyHIDM9cj9TUXloCsueCQUog==",
+      "dependencies": [
+        "@nodable/entities",
+        "fast-xml-builder",
+        "is-unsafe",
+        "path-expression-matcher",
+        "strnum",
+        "xml-naming"
+      ]
+    },
+    "is-unsafe@2.0.2": {
+      "integrity": "sha512-HgbIHPBH0KHHCcjLfGsCvhtPTVxjaAZlXjwdz7/GQC40SjSe4sfQsar8J5VFo8JOSbarkpV0OLG95bbaNd9aAQ=="
+    },
+    "isows@1.0.7_ws@8.22.0": {
+      "integrity": "sha512-I1fSfDCZL5P0v33sVqeTDSpcstAg/N+wF5HS033mogOVIp4B+oHC7oOCsA3axAbBSGTJ8QubbNmnIRN/h8U7hg==",
+      "dependencies": [
+        "ws"
+      ]
+    },
+    "path-expression-matcher@1.6.2": {
+      "integrity": "sha512-enSlaiat05iasnzmgNxRj8reFdj3puY2QpNgP1aPIaVfT6nn9ICuPoFlKHk8EN22HcwewshO+mN2DGbkCEOtqQ=="
+    },
+    "strnum@2.5.1": {
+      "integrity": "sha512-UM4nTLWzQiDBseVxUGxN0wJzIk0UU89Qi7pKXz9qISo+lhviJikTuikBsK/oFRlpvYHvSdz0TVoLyQ+sEpYwxA==",
+      "dependencies": [
+        "anynum"
+      ]
+    },
+    "tr46@0.0.3": {
+      "integrity": "sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw=="
+    },
+    "undici-types@6.19.8": {
+      "integrity": "sha512-ve2KP6f/JnbPBFyobGHuerC9g1FYGn/F8n1LWTwNxCEzd6IfqTwUQcNXgEtmmQ6DlRrC1hrSrBnCZPokRrDHjw=="
+    },
+    "webidl-conversions@3.0.1": {
+      "integrity": "sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ=="
+    },
+    "whatwg-url@5.0.0": {
+      "integrity": "sha512-saE57nupxk6v3HY35+jzBwYa0rKSy0XR8JSxZPwgLr7ys0IBzhGviA1/TUGJLmSVqs8pb9AnvICXEuOHLprYTw==",
+      "dependencies": [
+        "tr46",
+        "webidl-conversions"
+      ]
+    },
+    "ws@8.22.0": {
+      "integrity": "sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg=="
+    },
+    "xml-naming@0.3.0": {
+      "integrity": "sha512-ghig2TBE/H11aOVgmahA3MhimvkBr6JIYknH/Dhdk10nXwdbIqBJsbfMxpvFPG8bAw77gN29aQWvKpmVoPlvPQ=="
+    }
+  },
+  "remote": {
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/accountBalance.js": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/accountDescriptor.js": "94c472941ff2c662a80f60f8b3cdb418db83a38a415ec9f8031ade29c4e053f2",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/bankAccount.js": "e657223179aed4e51eaff75f6cfbb1fbe05e3946b96481876ee5297ae07f8adb",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/bankAnswer.js": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/bankingInformation.js": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/bpd.js": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/camtParser.js": "fa24eaf774f0dabed082b9aadfb66624a7f20a1a4b55548212c106d9313075e2",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/client.js": "969ca325c28caa5e8ca44508fd4f2fdc09fef0c440162f8f72469fbf01f29a59",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/codes.js": "5897fbe3176ee6d72cc3c618eb77bd1ef860f4e7ed9c59fb902a749592c31389",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/config.js": "58c8b023be8d4f44fbdac2ff09d48d96a2c6010ce341b76f24bf36cd1e622f41",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataElements/AlphaNumeric.js": "3c2d2e38666a709e9cedd276c4a939500e81e4c2228ba3348c6ac08e09950568",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataElements/Amount.js": "0bc9207a60ab1fc59350cbbb827978887b83d71a0220ae1df8ad722380d0bd2d",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataElements/Binary.js": "66c69cf646242301c2c5cd247f46725f0791da159a9149a3f4b2daf310914ee5",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataElements/Country.js": "66424be09ebb83a06d6b4b1d52c0a55b2aa5f69ec809daa4514833ea313b6800",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataElements/Currency.js": "b3cbfe2c2f6e7ce619fe34d944b93d2199e304379cf240e1e89a04a2e6da41d8",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataElements/Dat.js": "db3a25357fb77af782e512765fd248c59880aa78b969225251d721cadb7936e6",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataElements/DataElement.js": "8526fe55a6a3b7cb37cfb533503904f997dd0999692c93e082919a86dc0cde34",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataElements/Digits.js": "c499f5dd036dc65729a3ebcaec475425490144368dd5ad5cc3fdc40e9cb7dcf6",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataElements/Float.js": "0a1df43d006d30afaa1868dc08a58982b115e441aeadfab78f6756cee41da3a3",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataElements/Identification.js": "70c6a1b3c6e808ae4c50eacde9890c9f9bd7f07132cef6828a1881f8db37ffee",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataElements/Numeric.js": "a4097244c9e70431f3fd02cbeed2f6ab3eec71e66d463518dd6e442a945f4b59",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataElements/Text.js": "370864c48e7dc470c14d683344f35e09b67964e6455ad23736a338a79d7efe0b",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataElements/Time.js": "69fcc45b2eebbe1f68d6b51c3270161eebd43ee7a610254d6ec42c1a24bec3a9",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataElements/YesNo.js": "026efebd2277604e21a8116ada5b7a8fd335d21384726f78ad7f8817b1e1b1d8",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataGroups/Account.js": "ba522edb32d7491073b3f0ee131bcdcee38b05503bcff417257e2d533832f0de",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataGroups/Balance.js": "18c36727d9c8aa5ef68a8faee7c1ac6ebe84a06af79af673aa31cc699940a232",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataGroups/BankIdentification.js": "d8fde49201403700dcc5c3bf09d032bb4851e11df75d56b059622f64dc71a53c",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataGroups/DataGroup.js": "74f95232ed7e1f8ecf4605748df2c040e530eb6bd4a5b33fee64653a2fa0eb64",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataGroups/InternationalAccount.js": "fabbf2568598e4bdff50e24f2dc1ebacf014582bba7d3f0bcc7e6a3ad674a5ed",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataGroups/Money.js": "a7eb8181974ea9482aee6240cb868c5113776e587e9f7878b1173bb2aa2ebdac",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataGroups/RefMessage.js": "760a20d73ae69a2f5aa0f84aa478d4e0afa5caa9ab5ec682cdf2a14755bdd306",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataGroups/SepaAccount.js": "869ebcd0e5ab650c3068b80d68952ec77c617cf6ebaa04b8fa591a07a254e7d3",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dataGroups/TimeStamp.js": "52c37b1ce69dc80a04108597d39db665244e66b8054035fe018bd381c829a99e",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/decoder.js": "0f0255d45ff2963e2e9105ee3315765e088f682bee22671c513c68e308bb2c77",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/dialog.js": "4db2d0d4d1fb1bc9d00c5a0cb017a7c5d70ad1628f68b0809a80986898535e9b",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/electronicStatement.js": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/encoder.js": "a090698853b4219ad95c188df9cdd269d83d17ad62b5ef8253de4ae02393e835",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/format.js": "ee7205648ad9bfe247a3c6f3867a4f5c74fb6c61c5a907cea467ecd5cd53a9b3",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/httpClient.js": "f3632f54b074a62e6624f56aef08cb82483b0b5c41b38be8ccab72968330116f",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/index.js": "f90f0c151340804d0d1b0b45353afb7f08b2471b4004f27e472fdeb1ce5692c7",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/interactions/balanceInteraction.js": "faf8abbb464c6f22888a0695de738c7e0aab1152ee1139edbbb251cb610616ba",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/interactions/creditcardStatementInteraction.js": "2c232510dbdec94929d3d331e0fc6235c3587625e1ad5d09284e89ffe8bcbd35",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/interactions/customerInteraction.js": "8bcd710d76efcc01492e836e65d29e577c3d2e413aea83e993e69ce8a4b7dae6",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/interactions/electronicStatementInteraction.js": "d54668b4b13bdb229e7550af602b34b95f101dc8df9c8fac2a03ec8da50876cc",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/interactions/endDialogInteraction.js": "49ad99f53f8db30f9afd50532c5e97812ffaafa38fb0a0d37ae25e35c8bf718e",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/interactions/initDialogInteraction.js": "c49e4cfcd7e8fc8d5971b7f035373a7e1cd9c213b55ca4551b638f968cbcccc3",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/interactions/portfolioInteraction.js": "c5224abdd0949999c736d2ec8d8da90423b1a014319df66f7c2c4b0c8b94bd76",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/interactions/sepaAccountInteraction.js": "d4ea228b2ebe2e41811d89576b4e1a33bf0b9d4c99e31e157c6b5487bcb878a3",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/interactions/statementInteractionCAMT.js": "441fa8554f745f58cbd09211e60a59947be8a7bebcfe46618a690b250fbfd298",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/interactions/statementInteractionMT940.js": "46985c7492c76551262c3b2c510fcaa47270c653360693fea5abfe093b57b719",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/interactions/tanMediaInteraction.js": "df08b70f99f5efb877f217d0967beea6c5b722a77346fc48befec2fc58b3ec4d",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/message.js": "c7ac4a3c9fd92f2221a9b59f35960d93a2155a83fbf3102039ca46705fdaf2df",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/mt535parser.js": "401ee768b61622a3de3c9d8dbe259c0e28d1c76b2a0b77e75bd801eb2408b61b",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/mt940parser.js": "d6f4f6bdeeff03493f008d31c3132dbde057324fe2abe39c434675e9b889e8cf",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/parser.js": "b9c8e8596f5b371406e0151632b98467e2b440e892ad99d8c68782464cdf4eb0",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/partedSegment.js": "3acdccb2bc6172990d608282986ce16caa0bb888df2b9842ac9ed758ed17d665",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segment.js": "68c7dff5df545b6e32aca5878e8b00372ac94de8b03548402c188442f666b1ee",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segmentDefinition.js": "c8f6b3451c37834cb1ececf037c431cb702136f52996d911ffefdb376d86290c",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segmentHeader.js": "ffc760932401bff56ccf31e7f7ffe43080893e90b7b50fe2b7ce0872560dfa09",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/DIKKU.js": "c09157520df86b02dcd75b2946c3c751fecec544a17d3a23eccb3780c22294f3",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/DKKKU.js": "5dd8df6e751d513082bbe414d303195e3fa2e000b8f61f5e593ae49a0f455c49",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HIBPA.js": "345843adc69ea0c150891a4b35e81ca8eea6a2af288fe10be93cf0436d0121de",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HICAZ.js": "c56e8b14f8cc3a612f9ac4bcefe68c41dac9144f53158877320d23ecb4b51bee",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HICAZS.js": "98eb5d9e5b913c59a3d24365bac81656027d62fdf5bf39f5bcc438be29c88be4",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HIEKA.js": "b4d0d3ec4c8f3f2412ae4733c17cfabf559265ee12802a598ff11fe1ac651b78",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HIEKAS.js": "6c52ebf0c48632d4b02fd8f9e8270f5a21ee39e9bec33097e127c6228cde2a03",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HIKAZ.js": "9f9bd47244ac276ed3af1e9c847cf7fe059dd19a9923dcc57d21ebc8217d1ac9",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HIKAZS.js": "1ca71113c2f60f75436bcc22ed112a9ef72700d6f792cf97f6e6325324f82bbf",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HIKIM.js": "985e9c0e2464811fb8f4acfa3f2ef2dc84b33c729cbd8aab0d12956885318109",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HIKOM.js": "53cb44685bf9914aea3cf0412eff1fc70c0d9fcd9b862f758eb6a8de55b61d50",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HIPINS.js": "dd2df9046d18844807fe7e6d5a9a715ab52403f062e625d82a6e36fcad6c0847",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HIRMG.js": "8488f7978aac16eb63f0feab6f3c47287476262349722957c875885cdb63cbd7",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HIRMS.js": "14320555149e7e3b2f7d2b310adef6ceeb96c68fa40030c001c91b19765fc73e",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HISAL.js": "14b06d041beadfc9e81039979c5878ab7efad12758341cd421da1e7251bdddcd",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HISPA.js": "f6ef1d68731e89c3b26070bece1341c93c38789ba28d0ac4b5423ebefe7a78dd",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HISPAS.js": "d598b2f3e042b2cc987ac0d829c31e2696661a564d27c142112f6905c2a233e5",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HISYN.js": "c7f81b83b89ac7df6fd2024608355f96e02867c6181a2963ef2b5ec03b4c3263",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HITAB.js": "6bee7c26e8c4430b5d4ee544580e74a79e0b0ea4ff5220936c153ce2ce15df90",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HITAN.js": "afbe2d6776700815f16dd668f44631b34c30487fe4d2dc1bad4f0200754885e1",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HITANS.js": "f4db69b7a58681dde32652adca16ec5dce8d08313e5a55cd64cfbbc8ac2e07ec",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HIUPA.js": "466c73113f3793cc7035f3268833fefb8f1debe637dc8be6aea1630a3a362849",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HIUPD.js": "79b1aeaa04cb3b59860ae939a64068b8d6fc2b3b9d3f52db407d1094c636daa4",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HIWPD.js": "ec6dede6e393138f23a5b1d99b522c27230b263d6c0eebf517159c3497c9c669",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HKCAZ.js": "eb6350e12162e0f8d723f34b0ffe14638296dad55b80152d8c3631f65aded6b0",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HKEKA.js": "04a6cdf9babbdd4ca024c8fc733b51d46b7365a2a68377dcf54ae76394737ca1",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HKEND.js": "3d3a8b145572e0e4f0d92384eeeb0fc1e703fd4a1833939a23f31f035ec6ad3c",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HKIDN.js": "118b1c47c32c2ca98e09f0076ec860df1075578c2678265e8c110c5952eaee38",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HKKAZ.js": "56c99d3757f743441a389659e666806980fe4912a0772fdcd5999edaca06f60d",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HKSAL.js": "882350b435f8465de611de25879bcecb9b545f40bb46bbb2021026675ef949b9",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HKSPA.js": "7963da4081121491c80d63b2883b2eee3e2e2cfa4e070ade78701d1f145cfa5c",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HKSYN.js": "ee7916313724fc456d6968ed3b784e55977fdc67f522d2bbb547325571d1dd49",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HKTAB.js": "a29ded52b4fa1bcd19c89e174006456d09ea9d27f608574ff9ba789e39ece8f8",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HKTAN.js": "9003902cacc8f8a59482a9d12bbfb191ddbf65bb226c32c29255ee3aaff55536",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HKVVB.js": "cc9d680fe3812f453c8fef9a347759fb62af6ca785e651205b292f5b72b16807",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HKWPD.js": "b97b07c18c808dba75d6fbc30b44653f678f88fca0b8236c9928f145504f168d",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HNHBK.js": "17f74ec9f7063956029dd64b04faa3c681ee21afc072c5bf44aafffbcf14b684",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HNHBS.js": "121b0805816c5affb480645e43f71a9b5747dc7251c501b90636c7549aa1d69a",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HNSHA.js": "8a05628c8691c1ddedfe228c852dc3101fe89d066531b7318c4f040e52d0221b",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HNSHK.js": "f5982de734e4a1813af23e983feafa4847b66255fa4f4420946b157d4c6df9ce",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HNVSD.js": "83b9600136f98f56d044d50949f19f57e51db9decf6c3212a21d55df2abef2a1",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HNVSK.js": "da4d06eba1f2e7173ebb5f4b78d05afb23cc3896f875975cb2e7387700fd2f76",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/businessTransactionParameter.js": "4f0f4b32518678d565f0ae100e6780f8ff2c60d097a27e2418d7b1402b6f5d5d",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/registry.js": "e289257c9fcac76867db8b5fbb4d6a91f4f96e4ffe348b5f62f5ca3a98af84f6",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/statement.js": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/unknownSegment.js": "ae735128dc3936bc2b1ee474a587fb1fa8a430a32e93eed7e7552ed008221258",
+    "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/upd.js": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+    "https://esm.sh/@supabase/supabase-js@2.52.1": "ad77441c3b7573c350d7efcd4d4e3b5d4b6192bca9a9c63a52571388e966e681"
+  },
+  "workspace": {
+    "dependencies": [
+      "npm:fast-xml-parser@5.11.2"
+    ]
+  }
+}

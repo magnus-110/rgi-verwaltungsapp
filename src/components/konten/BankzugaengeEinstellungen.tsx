@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
-import { KeyRound, Landmark, Loader2, Plus, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { KeyRound, Landmark, Loader2, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { bankName, cleanIban, ibanFormatiert } from "@/lib/bankInfo";
 import { AuszugImport } from "./AuszugImport";
 import { BankzugangAssistent } from "./BankzugangAssistent";
 import { ZugangKonten } from "./ZugangKonten";
+import { AbrufKnopf } from "./AbrufKnopf";
 import { kontenNeuLaden } from "./BewegungsListe";
 import type { KontoZeile } from "./kontenTypes";
 
@@ -25,22 +26,7 @@ const STATUS: Record<string, { text: string; stil: string }> = {
   fehler: { text: "Fehler", stil: "bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200" },
 };
 
-/** Ein Bankzugang-Abruf von Hand; wartet bei Bedarf auf die Freigabe in der App. */
-export async function bankAbrufStarten(id?: string) {
-  const { data, error } = await supabase.functions.invoke("fints", { body: { aktion: "abrufen", id } });
-  if (error) throw new Error(data?.error || error.message);
-  if (data?.error) throw new Error(data.error);
-  return data as { ok: boolean; ergebnisse: any[] };
-}
-
-export function abrufMeldung(ergebnisse: any[]) {
-  const teile: string[] = [];
-  for (const e of ergebnisse ?? []) {
-    if (e.ok) teile.push(`${e.bank}: ${e.neu ?? 0} neue Bewegungen${e.zugeordnet ? `, ${e.zugeordnet} zugeordnet` : ""}`);
-    else teile.push(`${e.bank ?? "Bank"}: ${e.tanNoetig ? "Freigabe per TAN nötig" : e.fehler || "Fehler"}`);
-  }
-  return teile.join(" · ") || "Kein Bankzugang aktiv";
-}
+export { abrufMeldung, bankAbrufStarten } from "./AbrufKnopf";
 
 /**
  * Einstellungen › Bankzugänge
@@ -52,7 +38,6 @@ export function abrufMeldung(ergebnisse: any[]) {
 export function BankzugaengeEinstellungen() {
   const queryClient = useQueryClient();
   const [assistent, setAssistent] = useState(false);
-  const [abruf, setAbruf] = useState<string | null>(null);
   const [pinFuer, setPinFuer] = useState<any | null>(null);
   const [neuePin, setNeuePin] = useState("");
   const [zuordnen, setZuordnen] = useState<{ iban: string; buildingId: string; name?: string | null } | null>(null);
@@ -116,22 +101,6 @@ export function BankzugaengeEinstellungen() {
   const neuLaden = () => {
     queryClient.invalidateQueries({ queryKey: ["bank-connections"] });
     kontenNeuLaden(queryClient);
-  };
-
-  const abrufen = async (id: string) => {
-    setAbruf(id);
-    const t = toast.loading("Abruf läuft … Falls die Bank fragt: bitte in der App freigeben.");
-    try {
-      const r = await bankAbrufStarten(id);
-      toast.dismiss(t);
-      (r.ok ? toast.success : toast.warning)(abrufMeldung(r.ergebnisse), { duration: 8000 });
-    } catch (e: any) {
-      toast.dismiss(t);
-      toast.error(e?.message || "Abruf fehlgeschlagen");
-    } finally {
-      setAbruf(null);
-      neuLaden();
-    }
   };
 
   const pinSpeichern = async () => {
@@ -214,10 +183,7 @@ export function BankzugaengeEinstellungen() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button variant="outline" size="sm" onClick={() => abrufen(z.id)} disabled={!!abruf || z.status === "neu"}>
-                        {abruf === z.id ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
-                        Jetzt abrufen
-                      </Button>
+                      <AbrufKnopf variant="outline" size="sm" zugangId={z.id} disabled={z.status === "neu"} />
                       <Button variant="ghost" size="icon" title="PIN ändern" onClick={() => setPinFuer(z)}>
                         <KeyRound className="h-4 w-4" />
                       </Button>

@@ -4,7 +4,7 @@
 //  - "anlegen"        { blz, anmeldename, kundenId?, pin }      → Zugang speichern, TAN-Verfahren laden
 //  - "tan_waehlen"    { id, tanMethodId }                        → Verfahren wählen, Freigabe in der App,
 //                                                                  danach sind die Konten bekannt
-//  - "abrufen"        { id? }                                    → Umsätze holen (von Hand; wartet bei
+//  - "abrufen"        { id?, ab?, iban? }                                  → Umsätze holen (von Hand; wartet bei
 //                                                                  Bedarf auf die Freigabe in der App)
 //  - "salden"         { id }                                     → Kontostände aller sichtbaren Konten
 //  - "konto_setzen"   { id, iban, ausgeblendet?, rgi? }           → Konto ausblenden / RGI intern
@@ -160,7 +160,13 @@ Deno.serve(async (req) => {
         ? [String(body.id)]
         : ((await admin.from("bank_connections").select("id").in("status", ["aktiv", "tan_noetig"])).data ?? []).map((z: any) => z.id);
       const ergebnisse = [];
-      for (const id of ids) ergebnisse.push(await abrufen(admin, id, { interaktiv: true, ausloeser: "hand", userId }));
+      // Zeitraum und Konto wählbar: { ab?: "JJJJ-MM-TT", iban? }
+      const ab = /^\d{4}-\d{2}-\d{2}$/.test(String(body.ab ?? "")) ? String(body.ab) : null;
+      if (ab && ab > heute()) return json({ error: "Das Datum liegt in der Zukunft." }, 400);
+      const nurIban = body.iban ? cleanIban(String(body.iban)) : null;
+      for (const id of ids) {
+        ergebnisse.push(await abrufen(admin, id, { interaktiv: true, ausloeser: "hand", userId, ab, nurIban }));
+      }
       return json({ ok: ergebnisse.every((e: any) => e.ok), ergebnisse });
     }
 
@@ -375,7 +381,14 @@ async function abrufBeginn(admin: any, buildingId: string | null, iban: string):
 async function abrufen(
   admin: any,
   id: string,
-  opts: { interaktiv: boolean; ausloeser: "zeitplan" | "hand"; userId: string | null; nurSalden?: boolean },
+  opts: {
+    interaktiv: boolean;
+    ausloeser: "zeitplan" | "hand";
+    userId: string | null;
+    nurSalden?: boolean;
+    ab?: string | null; // fester Beginn statt „seit dem letzten Abruf"
+    nurIban?: string | null; // nur dieses Konto
+  },
 ) {
   const { data: log } = await admin
     .from("bank_fetch_log")
@@ -420,6 +433,7 @@ async function abrufen(
       const iban = cleanIban(konto.iban);
       const f = flags.get(iban) ?? {};
       if (f.ausgeblendet) continue;
+      if (opts.nurIban && iban !== opts.nurIban) continue;
       const buildingId = zaehler.get(iban) === 1 ? zuLiegenschaft.get(iban)! : null;
       const istRgi = !!f.rgi;
       const ziel = { iban, buildingId: istRgi ? null : buildingId };
@@ -434,7 +448,7 @@ async function abrufen(
       }
       if (!buildingId && !istRgi) continue;
       if (config.isAccountTransactionSupported(konto, "HKCAZ")) {
-        const c = new RohCamt(konto, await abrufBeginn(admin, ziel.buildingId, iban), new Date());
+        const c = new RohCamt(konto, opts.ab ? new Date(`${opts.ab}T00:00:00Z`) : await abrufBeginn(admin, ziel.buildingId, iban), new Date());
         c.ziel = ziel;
         dialog.addCustomerInteraction(c);
         camts.push(c);
@@ -447,6 +461,7 @@ async function abrufen(
       }
     }
     if (camts.length === 0 && salden.length === 0) {
+      if (opts.nurIban) throw new Error("Dieses Konto gehört nicht zu diesem Zugang oder ist nicht zugeordnet.");
       throw new Error(opts.nurSalden ? "Keine Konten zum Abfragen." : "Keines der Konten dieses Zugangs ist einer Liegenschaft oder RGI intern zugeordnet.");
     }
 

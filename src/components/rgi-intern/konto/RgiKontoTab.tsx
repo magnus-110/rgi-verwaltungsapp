@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Landmark, Loader2, RefreshCw } from "lucide-react";
-import { toast } from "sonner";
+import { Landmark, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,9 +9,9 @@ import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { cleanIban, euro, ibanFormatiert } from "@/lib/bankInfo";
-import { BewegungsListe, kontenNeuLaden } from "@/components/konten/BewegungsListe";
+import { BewegungsListe } from "@/components/konten/BewegungsListe";
 import { BEWEGUNG_SELECT } from "@/components/konten/kontenTypes";
-import { abrufMeldung, bankAbrufStarten } from "@/components/konten/BankzugaengeEinstellungen";
+import { AbrufKnopf } from "@/components/konten/AbrufKnopf";
 
 const JETZT = new Date().getFullYear();
 
@@ -22,10 +21,8 @@ const JETZT = new Date().getFullYear();
  * Ansehen – gebucht wird bei RGI in DATEV, Rechnungen werden verknüpft.
  */
 export function RgiKontoTab() {
-  const queryClient = useQueryClient();
   const [gewaehlt, setGewaehlt] = useState<string | null>(null);
   const [jahr, setJahr] = useState(JETZT);
-  const [abruf, setAbruf] = useState(false);
 
   const { data: konten = [], isLoading } = useQuery({
     queryKey: ["bank-connections", "rgi"],
@@ -72,22 +69,7 @@ export function RgiKontoTab() {
     return { ein, aus };
   }, [txns]);
 
-  const abrufen = async () => {
-    setAbruf(true);
-    const t = toast.loading("Abruf läuft … Falls die Bank fragt: bitte in der App freigeben.");
-    try {
-      const r = await bankAbrufStarten();
-      toast.dismiss(t);
-      (r.ok ? toast.success : toast.warning)(abrufMeldung(r.ergebnisse), { duration: 8000 });
-    } catch (e: any) {
-      toast.dismiss(t);
-      toast.error(e?.message || "Abruf fehlgeschlagen");
-    } finally {
-      setAbruf(false);
-      kontenNeuLaden(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["bank-connections"] });
-    }
-  };
+
 
   if (isLoading) {
     return (
@@ -139,10 +121,7 @@ export function RgiKontoTab() {
             ))}
           </SelectContent>
         </Select>
-        <Button variant="outline" className="ml-auto" onClick={abrufen} disabled={abruf}>
-          {abruf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-          Jetzt abrufen
-        </Button>
+        <AbrufKnopf variant="outline" className="ml-auto" nurRgi />
       </div>
 
       <Card className="overflow-hidden p-0">

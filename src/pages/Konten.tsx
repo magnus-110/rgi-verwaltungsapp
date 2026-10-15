@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ChevronRight, Loader2, RefreshCw, Search, Upload } from "lucide-react";
-import { toast } from "sonner";
-import { abrufMeldung, bankAbrufStarten } from "@/components/konten/BankzugaengeEinstellungen";
-import { kontenNeuLaden } from "@/components/konten/BewegungsListe";
+import { ChevronRight, Loader2, Search, Upload } from "lucide-react";
+import { AbrufKnopf } from "@/components/konten/AbrufKnopf";
 import { supabase } from "@/integrations/supabase/client";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { Button } from "@/components/ui/button";
@@ -40,8 +38,6 @@ function ladeAuswahl(): { filter?: string; offen?: string[]; tab?: Record<string
 export default function Konten() {
   const { managementMode } = useManagementMode();
   const [importOffen, setImportOffen] = useState(false);
-  const [abruf, setAbruf] = useState(false);
-  const queryClient = useQueryClient();
   const gespeichert = useMemo(ladeAuswahl, []);
   const [filter, setFilter] = useState<string>(gespeichert.filter ?? "alle");
   const [offen, setOffen] = useState<Set<string>>(new Set(gespeichert.offen ?? []));
@@ -112,21 +108,7 @@ export default function Konten() {
     if (filter !== "alle" && liegenschaften.length > 0 && !liegenschaften.some((l) => l.id === filter)) setFilter("alle");
   }, [filter, liegenschaften]);
 
-  const jetztAbrufen = async () => {
-    setAbruf(true);
-    const t = toast.loading("Abruf läuft … Falls die Bank fragt: bitte in der App freigeben.");
-    try {
-      const r = await bankAbrufStarten();
-      toast.dismiss(t);
-      (r.ok ? toast.success : toast.warning)(abrufMeldung(r.ergebnisse), { duration: 8000 });
-    } catch (e: any) {
-      toast.dismiss(t);
-      toast.error(e?.message || "Abruf fehlgeschlagen");
-    } finally {
-      setAbruf(false);
-      kontenNeuLaden(queryClient);
-    }
-  };
+
 
   const umschalten = (id: string) =>
     setOffen((o) => {
@@ -149,10 +131,7 @@ export default function Konten() {
           <Button variant="outline" onClick={() => setImportOffen(true)}>
             <Upload className="h-4 w-4 mr-2" /> Auszug einlesen
           </Button>
-          <Button onClick={jetztAbrufen} disabled={abruf}>
-            {abruf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Jetzt abrufen
-          </Button>
+          <AbrufKnopf />
         </div>
       </header>
 
