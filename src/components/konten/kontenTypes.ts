@@ -13,6 +13,8 @@ export interface KontoZeile {
   offen: number;
   bewegungen: number;
   letzte_bewegung: string | null;
+  bank_connection_id?: string | null;
+  saldo_bank_am?: string | null;
 }
 
 /** Spalten, die die Konten-Seite je Kontobewegung lädt. */
