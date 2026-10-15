@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { erkenneLastschrift } from "../_shared/lastschrift.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
 import { detectAndParseEInvoice, isEInvoiceComplete, type ParsedEInvoice } from "../_shared/einvoice.ts";
 
@@ -180,6 +181,10 @@ serve(async (req) => {
   }
 
   try {
+    // Nachprüfung offener Rechnungen auf Lastschrift (Knopf in der App oder Zeitplan)
+    const vorab = await req.clone().json().catch(() => ({}));
+    if (vorab?.aktion === "lastschrift_nachpruefen") return await lastschriftNachpruefen(req, vorab);
+
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Nicht autorisiert" }), {
@@ -805,9 +810,10 @@ oder nur ein Angebot, ein Mandat zu erteilen, setze lastschrift=false.`
     if (extracted.gross_amount != null) updateData.gross_amount = extracted.gross_amount;
     if (extracted.description) updateData.description = extracted.description;
 
-    // Lastschrift: KI-Erkennung, abgesichert durch eindeutige Angaben im Text
-    const lastschriftText = /mandatsreferenz/i.test(extractedText) && /gl(ä|ae|a)ubiger[- ]?(id|identifikation)/i.test(extractedText);
-    if (extracted.lastschrift === true || eInvoicePartial?.lastschrift || lastschriftText) updateData.lastschrift = true;
+    // Lastschrift: eigene Prüfung (feste Regeln + KI nur für die passenden Sätze)
+    const ls = await erkenneLastschrift(extractedText, mistralApiKey);
+    if (ls.lastschrift || eInvoicePartial?.lastschrift) updateData.lastschrift = true;
+    updateData.ocr_extracted_data = { ...(updateData.ocr_extracted_data ?? extracted), lastschrift: ls.lastschrift || !!eInvoicePartial?.lastschrift, lastschrift_satz: ls.satz, lastschrift_quelle: ls.quelle };
 
     // Installment / utility fields
     if (extracted.invoice_type && extracted.invoice_type !== "standard") {
@@ -961,3 +967,54 @@ oder nur ein Angebot, ein Mandat zu erteilen, setze lastschrift=false.`
     );
   }
 });
+
+/**
+ * Offene Rechnungen erneut auf Lastschrift prüfen (nur gespeicherter Text,
+ * keine neue Texterkennung). {anwenden:false} zeigt nur an.
+ * Erlaubt für Verwaltung (admin/employee) oder mit dem Zeitplan-Schlüssel.
+ */
+async function lastschriftNachpruefen(req: Request, body: any): Promise<Response> {
+  const antwort = (d: unknown, status = 200) => new Response(JSON.stringify(d), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  let erlaubt = false;
+  if (body.token) {
+    const { data } = await supabase.rpc("fints_cron_token_pruefen", { p_token: String(body.token) });
+    erlaubt = !!data;
+  } else {
+    const token = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
+    const anon = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!);
+    const { data: { user } } = await anon.auth.getUser(token);
+    if (user) {
+      const { data: profil } = await supabase.from("profiles").select("role").eq("user_id", user.id).single();
+      erlaubt = profil?.role === "admin" || profil?.role === "employee";
+    }
+  }
+  if (!erlaubt) return antwort({ error: "Nicht erlaubt" }, 403);
+
+  const anwenden = body.anwenden === true;
+  const { data: offene } = await supabase
+    .from("invoices")
+    .select("id, vendor_name, gross_amount, invoice_number, ocr_raw_data, ocr_extracted_data")
+    .eq("status", "open")
+    .or("lastschrift.is.null,lastschrift.eq.false")
+    .neq("invoice_type", "credit_note")
+    .limit(500);
+  const mistral = Deno.env.get("MISTRAL_API_KEY");
+  const treffer: any[] = [];
+  let geprueft = 0;
+  for (const inv of offene ?? []) {
+    const text = (inv.ocr_raw_data as any)?.text;
+    if (!text) continue;
+    geprueft++;
+    const r = await erkenneLastschrift(text, mistral);
+    if (!r.lastschrift) continue;
+    treffer.push({ id: inv.id, lieferant: inv.vendor_name, betrag: inv.gross_amount, nummer: inv.invoice_number, quelle: r.quelle, satz: r.satz });
+    if (anwenden) {
+      await supabase
+        .from("invoices")
+        .update({ lastschrift: true, ocr_extracted_data: { ...((inv.ocr_extracted_data as any) ?? {}), lastschrift: true, lastschrift_satz: r.satz, lastschrift_quelle: r.quelle } })
+        .eq("id", inv.id);
+    }
+  }
+  return antwort({ ok: true, geprueft, gefunden: treffer.length, angewendet: anwenden, treffer });
+}
