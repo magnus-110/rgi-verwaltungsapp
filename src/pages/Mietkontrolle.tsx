@@ -35,6 +35,10 @@ async function rufe(aktion: string, daten: Record<string, unknown> = {}) {
 /** Ergebnis eines Mieters in einem Wort (für Liste und Detail). */
 function ergebnis(x: any): { kurz: string; lang: string; stil: string } {
   const f = x.fall;
+  if (x.ohneDaten)
+    return { kurz: "keine Kontodaten", lang: "Für dieses Objekt liegen keine Kontoauszüge vor – kein Abgleich, keine Mahnung", stil: "bg-muted text-muted-foreground" };
+  if (x.datenAlt)
+    return { kurz: "Kontodaten alt", lang: `Kontoauszüge nur bis ${datum(x.datenBis)} – Mahnungen pausieren, bis neue abgerufen sind`, stil: "bg-muted text-muted-foreground" };
   if (x.rueckstand <= 0) {
     const spaet = x.monate.some((m: any) => m.status === "verspaetet");
     return spaet
@@ -261,7 +265,7 @@ export default function Mietkontrolle() {
                         <span className="tabular-nums">{euro(x.sollMonat)}</span>
                         <span className="flex flex-wrap gap-1" aria-label={x.monate.map((m: any) => `${m.monat}: ${STATUS_TEXT[m.status]}`).join(", ")}>
                           {x.monate.map((m: any) => (
-                            <span key={m.monat} title={`${MONAT_KURZ[Number(m.monat.slice(5, 7)) - 1]} ${m.monat.slice(0, 4)}: ${STATUS_TEXT[m.status]}`} className={cn("h-3.5 w-3.5 rounded-[4px]", STATUS_FARBE[m.status])} />
+                            <span key={m.monat} title={`${MONAT_KURZ[Number(m.monat.slice(5, 7)) - 1]} ${m.monat.slice(0, 4)}: ${STATUS_TEXT[m.status]}`} className={cn("h-3.5 w-3.5 rounded-[4px]", x.ohneDaten ? "bg-muted" : STATUS_FARBE[m.status])} />
                           ))}
                         </span>
                         <span className={cn("text-right font-semibold tabular-nums", x.rueckstand > 0 ? "text-red-700 dark:text-red-400" : "text-muted-foreground")}>{x.rueckstand > 0 ? euro(x.rueckstand) : "—"}</span>
@@ -301,7 +305,9 @@ export default function Mietkontrolle() {
                 </div>
 
                 <Schritt nr="1" titel="Abgleich nach Regeln">
-                  {sel.rueckstand <= 0
+                  {sel.ohneDaten
+                    ? "Für dieses Objekt sind noch keine Kontoauszüge in der App. Sobald das Mietkonto unter Konten abgerufen wird, startet der Abgleich."
+                    : sel.rueckstand <= 0
                     ? sel.monate.some((m: any) => m.status === "verspaetet")
                       ? "Kein Betrag offen. Einige Zahlungen kamen nach dem 3. Werktag; spätere Zahlungen wurden dem ältesten offenen Monat zugeordnet."
                       : "Alle Mieten pünktlich und vollständig."

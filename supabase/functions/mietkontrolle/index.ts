@@ -217,6 +217,7 @@ async function ladeZahlungen(admin: any, mieter: Mieter[], ab: string) {
   mieter.forEach((m) => jeHaus.set(m.buildingId, [...(jeHaus.get(m.buildingId) ?? []), m]));
   const zahlungen = new Map<string, Zahlung[]>();
   const datenAb = new Map<string, string>(); // ab wann liegen Kontoauszüge vor?
+  const datenBis = new Map<string, string>(); // bis wann liegen Kontoauszüge vor?
 
   for (const [hausId, liste] of jeHaus) {
     const { data: ersteAuszuege } = await admin
@@ -227,6 +228,14 @@ async function ladeZahlungen(admin: any, mieter: Mieter[], ab: string) {
       .order("statement_date_from", { ascending: true })
       .limit(1);
     if (ersteAuszuege?.[0]?.statement_date_from) datenAb.set(hausId, ersteAuszuege[0].statement_date_from);
+    const { data: letzteAuszuege } = await admin
+      .from("bank_statements")
+      .select("statement_date_to")
+      .eq("building_id", hausId)
+      .not("statement_date_to", "is", null)
+      .order("statement_date_to", { ascending: false })
+      .limit(1);
+    if (letzteAuszuege?.[0]?.statement_date_to) datenBis.set(hausId, letzteAuszuege[0].statement_date_to);
 
     const alle: any[] = [];
     for (let seite = 0; seite < 20; seite++) {
@@ -260,11 +269,10 @@ async function ladeZahlungen(admin: any, mieter: Mieter[], ab: string) {
       }
     }
   }
-  return { zahlungen, datenAb };
+  return { zahlungen, datenAb, datenBis };
 }
 
-function zeitraum(m: Mieter, datenAb: string | undefined) {
-  const h = heute();
+function zeitraum(m: Mieter, datenAb: string | undefined, h: string) {
   const vor12 = `${Number(h.slice(0, 4)) - 1}-${h.slice(5, 7)}`;
   const kandidaten = [vor12];
   if (m.beginn) kandidaten.push(m.beginn.slice(0, 7));
@@ -283,21 +291,27 @@ async function rechne(admin: any, buildingId: string | null) {
   const { mieter, haeuser } = await ladeMieter(admin, buildingId);
   const h = heute();
   const ab = `${Number(h.slice(0, 4)) - 1}-${h.slice(5, 7)}-01`;
-  const { zahlungen, datenAb } = await ladeZahlungen(admin, mieter, ab);
+  const { zahlungen, datenAb, datenBis } = await ladeZahlungen(admin, mieter, ab);
   const { data: e } = await admin.from("mietkontrolle_einstellungen").select("*").eq("id", 1).single();
   const ergebnisse = mieter
     .filter((m) => m.kosten.length > 0)
     .map((m) => {
-      const z = zeitraum(m, datenAb.get(m.buildingId));
+      // Ohne Kontoauszüge kein Abgleich (sonst wäre jeder Mieter „offen");
+      // gerechnet wird nur bis zum letzten Tag mit Kontodaten.
+      const bis = datenBis.get(m.buildingId);
+      const ohneDaten = !datenAb.get(m.buildingId) || !bis;
+      const stichtag = bis && bis < h ? plusTage(bis, 1) : h;
+      const datenAlt = !!bis && bis < plusTage(h, -7);
+      const z = zeitraum(m, datenAb.get(m.buildingId), stichtag);
       const ergebnis = abgleich({
         kosten: m.kosten,
         zahlungen: (zahlungen.get(m.assignmentId) ?? []).filter((x) => x.datum >= `${z.vonMonat}-01`),
         vonMonat: z.vonMonat,
         bisMonat: z.bisMonat,
-        heute: h,
+        heute: stichtag,
         toleranz: Number(e?.toleranz_euro ?? 1),
       });
-      return { m, ergebnis, zahlungen: zahlungen.get(m.assignmentId) ?? [] };
+      return { m, ergebnis, zahlungen: zahlungen.get(m.assignmentId) ?? [], ohneDaten, datenAlt, datenBis: bis ?? null };
     });
   return { ergebnisse, haeuser, einstellungen: e };
 }
@@ -348,8 +362,14 @@ async function pruefen(admin: any, buildingId: string | null, nurAssignment?: st
   const h = heute();
   let geplant = 0;
   let erledigt = 0;
-  for (const { m, ergebnis } of ergebnisse) {
+  const ohneAktuelleDaten: string[] = [];
+  for (const { m, ergebnis, ohneDaten, datenAlt } of ergebnisse) {
     if (nurAssignment && m.assignmentId !== nurAssignment) continue;
+    // ohne aktuelle Kontodaten wird nichts geplant und nichts erledigt
+    if (ohneDaten || datenAlt) {
+      ohneAktuelleDaten.push(m.assignmentId);
+      continue;
+    }
     const { data: faelle } = await admin
       .from("dunning_cases")
       .select("*")
@@ -416,7 +436,7 @@ async function pruefen(admin: any, buildingId: string | null, nurAssignment?: st
     if (plan.kuendigungPruefen && fallId) await aufgabe(admin, m, fallId, `Kündigung prüfen: ${m.name} (${m.haus} ${m.einheit})`,
       `Rückstand ${ergebnis.rueckstand.toFixed(2).replace(".", ",")} € – mindestens zwei Monatsmieten (§ 543 Abs. 2 Nr. 3 BGB). Die App kündigt nicht selbst. Zahlt der Mieter bis zwei Monate nach Zustellung einer Räumungsklage, wird eine fristlose Kündigung unwirksam (§ 569 Abs. 3 Nr. 2 BGB).`);
   }
-  return { mieter: ergebnisse.length, geplant, erledigt };
+  return { mieter: ergebnisse.length, geplant, erledigt, ohneAktuelleDaten };
 }
 
 async function aufgabe(admin: any, m: Mieter, fallId: string, titel: string, text: string) {
@@ -469,7 +489,8 @@ async function senden(admin: any, caseId: string): Promise<{ ok: boolean; fehler
   const { data: f0 } = await admin.from("dunning_cases").select("*").eq("id", caseId).single();
   if (!f0 || !["geplant", "fehler"].includes(f0.status)) return { ok: false, fehler: "Mahnung ist nicht (mehr) geplant." };
   // unmittelbar vorher neu abgleichen
-  await pruefen(admin, f0.building_id, f0.assignment_id);
+  const p = await pruefen(admin, f0.building_id, f0.assignment_id);
+  if (p.ohneAktuelleDaten.includes(f0.assignment_id)) return { ok: false, fehler: "Kontoauszüge sind nicht aktuell – bitte erst abrufen, dann senden." };
   const { data: f } = await admin.from("dunning_cases").select("*").eq("id", caseId).single();
   if (!f || f.status !== "geplant") return { ok: false, fehler: f?.status === "erledigt" ? "Inzwischen bezahlt – nichts gesendet." : "Nach neuer Prüfung ausgesetzt." };
 
@@ -557,7 +578,7 @@ async function uebersicht(admin: any, buildingId: string | null) {
     faelle.push(...(data ?? []));
   }
   const mieter = ergebnisse
-    .map(({ m, ergebnis, zahlungen }) => {
+    .map(({ m, ergebnis, zahlungen, ohneDaten, datenAlt, datenBis }) => {
       const fall = faelle.find((f) => f.assignment_id === m.assignmentId) ?? null;
       return {
         assignmentId: m.assignmentId,
@@ -568,12 +589,15 @@ async function uebersicht(admin: any, buildingId: string | null) {
         email: m.emails[0] ?? null,
         app: !!m.userId,
         sollMonat: ergebnis.sollMonat,
-        rueckstand: ergebnis.rueckstand,
+        rueckstand: ohneDaten ? 0 : ergebnis.rueckstand,
         guthaben: ergebnis.guthaben,
         monate: ergebnis.monate.slice(-12),
         infos: m.infos,
         fall,
         letzteZahlungen: zahlungen.slice(-8).reverse(),
+        ohneDaten,
+        datenAlt,
+        datenBis,
       };
     })
     .sort((a, b) => a.haus.localeCompare(b.haus, "de") || a.einheit.localeCompare(b.einheit, "de", { numeric: true }) || a.name.localeCompare(b.name, "de"));

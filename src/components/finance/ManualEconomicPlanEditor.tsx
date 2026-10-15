@@ -30,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SHARE_TYPES } from "@/lib/shareTypes";
 import { useDmsJobs, type DmsJobItem } from "@/contexts/DmsJobsProvider";
 import { unitFilePrefix } from "@/lib/unitFilePrefix";
+import { HausgeldUebernehmen, type HausgeldWert } from "./HausgeldUebernehmen";
 
 /** Einheitennummer eines Eigentümer-Datensatzes (ohne Platzhalter "–"). */
 const unitNo = (o: any): string => {
@@ -1021,6 +1022,15 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
   }
 
   const isActive = plan.status === "active";
+  // Monatliche Vorschüsse je Eigentümer – dieselbe Rechnung wie im Einzelplan
+  const hausgeldWerte: HausgeldWert[] = ownerData.map((o) => {
+    const unitRows = buildUnitRows(o.id);
+    const sumAbs = (xs: PlanRow[]) => xs.reduce((s, r) => s + Math.abs(r.planned_amount), 0);
+    const monthlyTotal = Math.abs(monthlyTotalOverrides[o.id] ?? Math.ceil(sumAbs(unitRows.filter((r) => r.isDistributable)) / 12));
+    const monatlich = Math.abs(monthlyAdvanceOverrides[o.id] ?? monthlyTotal);
+    const ruecklage = Math.abs(sumAbs(unitRows.filter((r) => r.isReserve)) / 12);
+    return { assignmentId: o.id, name: o.name, einheit: unitNo(o), monatlich, ruecklage };
+  });
   const periodLabel = `01.01.${fiscalYear} – 31.12.${fiscalYear}`;
 
   return (
@@ -1059,6 +1069,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
                 Plan aktivieren
               </Button>
             )}
+            {isActive && <HausgeldUebernehmen werte={hausgeldWerte} fiscalYear={fiscalYear} />}
             {isActive && (
               <Button
                 size="sm"

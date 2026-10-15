@@ -96,6 +96,30 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [art]);
 
+  // Abrechnungsspitze: zuletzt beschlossenes Ergebnis der Jahresabrechnung
+  const { data: beschluss } = useQuery({
+    queryKey: ["settlement-results-auftrag", buildingId],
+    enabled: !!buildingId && quelle === "abrechnung",
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("settlement_results")
+        .select("assignment_id, nachzahlung, beschlossen_am, geschaeftsjahr, billing_period_id")
+        .eq("building_id", buildingId)
+        .order("beschlossen_am", { ascending: false })
+        .limit(2000);
+      if (error) throw error;
+      const erste = data?.[0];
+      if (!erste) return null;
+      return { jahr: erste.geschaeftsjahr as number | null, am: erste.beschlossen_am as string, zeilen: (data ?? []).filter((z: any) => z.billing_period_id === erste.billing_period_id) };
+    },
+  });
+  useEffect(() => {
+    if (!beschluss) return;
+    setErgebnis(Object.fromEntries(beschluss.zeilen.map((z: any) => [z.assignment_id, Number(z.nachzahlung) ? String(Number(z.nachzahlung).toFixed(2)).replace(".", ",") : ""])));
+    if (beschluss.jahr && !titel) setTitel(`Abrechnung ${beschluss.jahr}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [beschluss]);
+
   // Eigentümer mit Mandat vorauswählen
   useEffect(() => {
     setAuswahl(Object.fromEntries(eigentuemer.map((e) => [e.assignmentId, mandatBereit(e.mandat)])));
@@ -320,7 +344,9 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
           <div className="space-y-3">
             <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
               Ergebnis der Jahresabrechnung je Eigentümer eintragen: <b>Nachzahlung positiv</b>, <b>Guthaben negativ</b> (mit Minus). Nachzahlungen werden per Lastschrift eingezogen.
-              Die automatische Übernahme aus der Abrechnung kommt, sobald sie als beschlossen gespeichert ist.
+              {beschluss
+                ? <> Übernommen aus der Abrechnung{beschluss.jahr ? ` ${beschluss.jahr}` : ""}, beschlossen am {beschluss.am.split("-").reverse().join(".")} – bei Bedarf hier anpassen.</>
+                : buildingId ? " Noch keine Abrechnung als beschlossen gespeichert (Finanzen › Abrechnung › „Als beschlossen speichern“) – bis dahin bitte von Hand eintragen." : ""}
             </div>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={guthabenAuszahlen} onCheckedChange={(v) => setGuthabenAuszahlen(!!v)} />

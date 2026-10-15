@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { ErgebnisBeschliessen } from "./ErgebnisBeschliessen";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { SUPABASE_FUNCTIONS_URL } from "@/integrations/supabase/functions-url";
@@ -1818,6 +1819,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-1.5">
+              <ErgebnisBeschliessen buildingId={buildingId} periodId={periodId} fiscalYear={fiscalYear} ownerResults={ownerResults} />
               <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setDocsOpen(true)}>
                 <FileText className="h-4 w-4" />
                 Dokumente
