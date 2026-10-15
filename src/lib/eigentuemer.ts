@@ -12,6 +12,8 @@ export interface Eigentuemer {
   /** monatliches Hausgeld heute laut Kostenzeilen (aus dem gültigen Wirtschaftsplan) */
   hausgeldMonat: number;
   mandat: Mandat | null;
+  /** Mandat zur Freigabe (z. B. aus dem Eigentümer-Fragebogen) */
+  vorschlag: Mandat | null;
 }
 
 export interface Mandat {
@@ -28,6 +30,7 @@ export interface Mandat {
   quelle: string;
   status: string;
   zuletzt_genutzt: string | null;
+  notiz?: string | null;
 }
 
 const cleanIban = (i: string | null | undefined) => (i ?? "").replace(/\s+/g, "").toUpperCase() || null;
@@ -69,7 +72,7 @@ export async function ladeEigentuemer(buildingId: string, stichtag = new Date().
       .select("assignment_id, amount, interval, valid_from, valid_to")
       .in("assignment_id", ids)
       .eq("cost_type", "Hausgeld"),
-    (supabase as any).from("sepa_mandates").select("*").eq("building_id", buildingId).eq("status", "aktiv"),
+    (supabase as any).from("sepa_mandates").select("*").eq("building_id", buildingId).in("status", ["aktiv", "pruefen"]),
     kontaktIds.length
       ? (supabase as any).from("contact_bank_accounts").select("contact_id, account_holder, iban, bic, is_default").in("contact_id", kontaktIds)
       : Promise.resolve({ data: [] }),
@@ -92,7 +95,8 @@ export async function ladeEigentuemer(buildingId: string, stichtag = new Date().
         iban: cleanIban(a.iban_override || konto.iban),
         bic: konto.bic ?? null,
         hausgeldMonat: Math.round(hausgeld * 100) / 100,
-        mandat: (mandate ?? []).find((m: any) => m.assignment_id === a.id) ?? null,
+        mandat: (mandate ?? []).find((m: any) => m.assignment_id === a.id && m.status === "aktiv") ?? null,
+        vorschlag: (mandate ?? []).find((m: any) => m.assignment_id === a.id && m.status === "pruefen") ?? null,
       };
     })
     .sort((x: Eigentuemer, y: Eigentuemer) => x.einheit.localeCompare(y.einheit, "de", { numeric: true }) || x.name.localeCompare(y.name, "de"));

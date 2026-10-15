@@ -1,7 +1,9 @@
 import { useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { FileText, Loader2, Pencil, Upload } from "lucide-react";
+import { Check, FileText, FileUp, Loader2, Pencil, Upload, X } from "lucide-react";
+import { Fragment } from "react";
+import { MandatImport } from "./MandatImport";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,7 +13,7 @@ import { ibanFormatiert } from "@/lib/bankInfo";
 import { ibanGueltig } from "@/lib/sepa";
 import { ladeEigentuemer, mandatBereit, mandatVerfallen, type Eigentuemer, type Mandat } from "@/lib/eigentuemer";
 
-type Filter = "alle" | "ohne" | "unvollstaendig";
+type Filter = "alle" | "freigabe" | "ohne" | "unvollstaendig";
 
 /** Gläubiger-ID prüfen (DEkkZZZ…, Prüfziffer modulo 97). */
 function glaeubigerIdGueltig(id: string): boolean {
@@ -44,6 +46,7 @@ export function BuildingMandateTab({ buildingId }: { buildingId: string }) {
   const [filter, setFilter] = useState<Filter>("alle");
   const [gidEdit, setGidEdit] = useState<string | null>(null);
   const [laedtHoch, setLaedtHoch] = useState<string | null>(null);
+  const [importOffen, setImportOffen] = useState(false);
   const datei = useRef<HTMLInputElement>(null);
   const uploadFuer = useRef<Eigentuemer | null>(null);
 
@@ -72,7 +75,29 @@ export function BuildingMandateTab({ buildingId }: { buildingId: string }) {
       }),
     [liste],
   );
-  const sichtbar = zeilen.filter((z) => filter === "alle" || (filter === "ohne" && z.ohne) || (filter === "unvollstaendig" && !z.ohne && !z.bereit));
+  const sichtbar = zeilen.filter(
+    (z) => filter === "alle" || (filter === "freigabe" && !!z.e.vorschlag) || (filter === "ohne" && z.ohne) || (filter === "unvollstaendig" && !z.ohne && !z.bereit),
+  );
+  const zurFreigabe = zeilen.filter((z) => z.e.vorschlag).length;
+
+  /** Vorschlag (z. B. aus dem Fragebogen) freigeben: wird das aktive Mandat. */
+  const vorschlagFreigeben = async (e: Eigentuemer) => {
+    if (!e.vorschlag) return;
+    if (!e.vorschlag.iban || !e.vorschlag.unterschrieben_am) {
+      toast.error("IBAN oder Datum fehlt im Vorschlag");
+      return;
+    }
+    if (e.mandat) await (supabase as any).from("sepa_mandates").update({ status: "ersetzt", updated_at: new Date().toISOString() }).eq("id", e.mandat.id);
+    const { error } = await (supabase as any).from("sepa_mandates").update({ status: "aktiv", updated_at: new Date().toISOString() }).eq("id", e.vorschlag.id);
+    if (error) toast.error("Freigabe fehlgeschlagen");
+    else toast.success(`Mandat für ${e.name} freigegeben`);
+    neuLaden();
+  };
+  const vorschlagVerwerfen = async (e: Eigentuemer) => {
+    if (!e.vorschlag) return;
+    await (supabase as any).from("sepa_mandates").update({ status: "verworfen", updated_at: new Date().toISOString() }).eq("id", e.vorschlag.id);
+    neuLaden();
+  };
   const mitMandat = zeilen.filter((z) => z.bereit).length;
   const unvollstaendig = zeilen.filter((z) => !z.ohne && !z.bereit).length;
 
@@ -251,10 +276,12 @@ export function BuildingMandateTab({ buildingId }: { buildingId: string }) {
         </div>
       </section>
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="inline-flex flex-wrap gap-0.5 rounded-xl bg-muted p-1" role="group" aria-label="Filter">
         {(
           [
             ["alle", "Alle"],
+            ...(zurFreigabe ? [["freigabe", `Zur Freigabe · ${zurFreigabe}`]] : []),
             ["ohne", "Ohne Mandat"],
             ["unvollstaendig", "Unvollständig"],
           ] as [Filter, string][]
@@ -268,6 +295,10 @@ export function BuildingMandateTab({ buildingId }: { buildingId: string }) {
             {t}
           </button>
         ))}
+      </div>
+      <Button variant="outline" onClick={() => setImportOffen(true)}>
+        <FileUp className="mr-1.5 h-4 w-4" /> Mandate importieren
+      </Button>
       </div>
 
       <section className="overflow-hidden rounded-xl border bg-card">
@@ -287,11 +318,13 @@ export function BuildingMandateTab({ buildingId }: { buildingId: string }) {
             </thead>
             <tbody>
               {sichtbar.map(({ e, m, bereit, ohne, ibanGeaendert, verfallen }) => (
-                <tr key={e.assignmentId} className="border-b last:border-0">
+                <Fragment key={e.assignmentId}>
+                <tr className={cn("border-b last:border-0", e.vorschlag && "border-b-0")}>
                   <td className="px-3 py-1.5 font-semibold">{e.einheit || "–"}</td>
                   <td className="px-3 py-1.5">
                     <div className="whitespace-nowrap font-medium">{e.name}</div>
-                    {m?.quelle === "eigentuemer" && <span className="whitespace-nowrap rounded bg-orange-50 px-1.5 py-0.5 text-[11px] text-orange-800 dark:bg-orange-950 dark:text-orange-200">selbst eingetragen</span>}
+                    {m?.quelle === "import" && <span className="whitespace-nowrap rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">übernommen</span>}
+                    {(m?.quelle === "eigentuemer" || m?.quelle === "fragebogen") && <span className="whitespace-nowrap rounded bg-orange-50 px-1.5 py-0.5 text-[11px] text-orange-800 dark:bg-orange-950 dark:text-orange-200">selbst eingetragen</span>}
                   </td>
                   <td className="px-2 py-1.5">
                     <Zelle wert={m?.kontoinhaber ?? ""} platzhalter={e.kontoinhaber ?? e.name} label="Kontoinhaber" onSpeichern={(v) => speichern(e, "kontoinhaber", v)} />
@@ -344,6 +377,30 @@ export function BuildingMandateTab({ buildingId }: { buildingId: string }) {
                     </span>
                   </td>
                 </tr>
+                {e.vorschlag && (
+                  <tr className="border-b bg-amber-50/70 dark:bg-amber-950/30">
+                    <td />
+                    <td colSpan={7} className="px-3 py-2">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                        <span className="font-medium">{e.vorschlag.quelle === "fragebogen" ? "Neues Mandat aus dem Fragebogen" : "Neues Mandat"}</span>
+                        <span className="flex gap-2">
+                          <Button size="sm" className="h-8" onClick={() => vorschlagFreigeben(e)}>
+                            <Check className="mr-1 h-3.5 w-3.5" /> Freigeben
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-8 text-muted-foreground" onClick={() => vorschlagVerwerfen(e)}>
+                            <X className="mr-1 h-3.5 w-3.5" /> Verwerfen
+                          </Button>
+                        </span>
+                        <span className="font-mono text-xs">{e.vorschlag.iban ? ibanFormatiert(e.vorschlag.iban) : "IBAN fehlt"}</span>
+                        <span className="text-muted-foreground">{e.vorschlag.kontoinhaber ?? e.name}</span>
+                        <span className="text-muted-foreground">erteilt am {datumDe(e.vorschlag.unterschrieben_am) || "–"}</span>
+                        <span className="font-mono text-xs text-muted-foreground">{e.vorschlag.mandatsreferenz}</span>
+                        {m && <span className="text-xs text-amber-800 dark:text-amber-300">ersetzt das bisherige Mandat</span>}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
               {sichtbar.length === 0 && (
                 <tr>
@@ -360,6 +417,8 @@ export function BuildingMandateTab({ buildingId }: { buildingId: string }) {
           Ein Mandat verfällt, wenn es 36 Monate nicht genutzt wurde.
         </div>
       </section>
+
+      <MandatImport open={importOffen} onOpenChange={setImportOffen} buildingId={buildingId} glaeubigerId={haus?.creditor_id ?? null} liste={liste} onFertig={() => { neuLaden(); queryClient.invalidateQueries({ queryKey: ["building-detail", buildingId] }); }} />
     </div>
   );
 }

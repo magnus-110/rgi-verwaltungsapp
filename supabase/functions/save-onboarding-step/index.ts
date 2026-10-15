@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
       if (error) return json({ error: error.message }, 500);
 
       // Sync IBAN/SEPA from step 1 into contact_bank_accounts (master data)
-      await syncBankAccountFromStep1(admin, userId, stepNum, data);
+      await syncBankAccountFromStep1(admin, userId, stepNum, data, building_id);
 
       return json({ success: true, id: existing.id });
     }
@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
     if (error) return json({ error: error.message }, 500);
 
     // Sync IBAN/SEPA from step 1 into contact_bank_accounts (master data)
-    await syncBankAccountFromStep1(admin, userId, stepNum, data);
+    await syncBankAccountFromStep1(admin, userId, stepNum, data, building_id);
 
     return json({ success: true, id: created.id });
   } catch (e: any) {
@@ -96,7 +96,8 @@ async function syncBankAccountFromStep1(
   admin: any,
   userId: string,
   stepNum: number,
-  data: any
+  data: any,
+  buildingId?: string | null,
 ) {
   try {
     if (stepNum !== 1 || !data) return;
@@ -146,6 +147,17 @@ async function syncBankAccountFromStep1(
         is_default: true,
       });
     }
+
+    // Mandat als Vorschlag anlegen – die Verwaltung gibt es in Gebäude › Mandate frei
+    const { error: mErr } = await admin.rpc("mandat_vorschlag_anlegen", {
+      p_contact: contact.id,
+      p_building: buildingId ?? null,
+      p_iban: rawIban,
+      p_inhaber: accountHolder,
+      p_datum: sepaDate ?? new Date().toISOString().slice(0, 10),
+      p_notiz: "Aus dem Eigentümer-Fragebogen",
+    });
+    if (mErr) console.error("mandat_vorschlag_anlegen:", mErr.message);
   } catch (e) {
     console.error("syncBankAccountFromStep1 failed", e);
   }
