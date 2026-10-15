@@ -4,8 +4,9 @@ import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, isToday } from "date-fns";
 import {
-  CreditCard, AlertTriangle, Play, StickyNote, Check, X, FileCode, Loader2,
+  Play, StickyNote, Check, X, FileCode, Loader2,
   RefreshCw, Sparkles, ArrowDownToLine, ArrowUpFromLine, Link2, Clock, ArrowUpDown, Download,
+  Plus, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,9 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -25,7 +24,10 @@ import { TransferReviewMode } from "@/components/transfers/TransferReviewMode";
 import { DatevToggle } from "@/components/transfers/DatevToggle";
 import { InvoiceDropZone } from "@/components/finance/InvoiceDropZone";
 import JSZip from "jszip";
-import { FreigabeDialog, useRechnungenInZahlung } from "@/components/zahlungen/FreigabeDialog";
+import { FreigabeAnsicht, useRechnungenInZahlung } from "@/components/zahlungen/FreigabeAnsicht";
+import { NeuerAuftrag } from "@/components/zahlungen/NeuerAuftrag";
+import { AuftraegeListe } from "@/components/zahlungen/AuftraegeListe";
+import { cn } from "@/lib/utils";
 
 
 type Direction = "outgoing" | "incoming";
@@ -34,9 +36,16 @@ export function Transfers() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const initialDirection: Direction =
-    searchParams.get("direction") === "incoming" ? "incoming" : "outgoing";
-  const [direction, setDirection] = useState<Direction>(initialDirection);
+  // Reiter wie im Entwurf: offene Rechnungen, Aufträge, Bezahlt, Gutschriften
+  type Reiter = "offen" | "auftraege" | "bezahlt" | "gutschriften";
+  const startReiter: Reiter =
+    searchParams.get("direction") === "incoming" ? "gutschriften" : ((searchParams.get("tab") as Reiter) || "offen");
+  const [reiter, setReiter] = useState<Reiter>(startReiter);
+  const [ansicht, setAnsicht] = useState<"liste" | "freigabe" | "neu">(
+    searchParams.get("ansicht") === "freigabe" ? "freigabe" : "liste",
+  );
+  const direction: Direction = reiter === "gutschriften" ? "incoming" : "outgoing";
+  const showPaid = reiter === "bezahlt";
 
   const [buildingFilter, setBuildingFilter] = useState<string>("all");
   const [periodPreset, setPeriodPreset] = useState<string>("all");
@@ -72,12 +81,10 @@ export function Transfers() {
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewIndex, setReviewIndex] = useState(0);
   const [reviewInvoices, setReviewInvoices] = useState<any[]>([]);
-  const [showPaid, setShowPaid] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortByBuilding, setSortByBuilding] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
-  const [freigabeOffen, setFreigabeOffen] = useState(false);
   const { data: inZahlung = new Map<string, string>() } = useRechnungenInZahlung();
 
   const toggleSelected = (id: string) => {
@@ -177,15 +184,24 @@ export function Transfers() {
   // Manual-match dialog state (only for incoming)
   const [matchInvoice, setMatchInvoice] = useState<any | null>(null);
 
-  // Sync direction → URL param (without polluting history)
+  // Reiter → URL (ohne neue Einträge im Verlauf)
   useEffect(() => {
-    const current = searchParams.get("direction");
-    if (current !== direction) {
-      const next = new URLSearchParams(searchParams);
-      next.set("direction", direction);
-      setSearchParams(next, { replace: true });
-    }
-  }, [direction]); // eslint-disable-line react-hooks/exhaustive-deps
+    const next = new URLSearchParams(searchParams);
+    next.delete("direction");
+    next.set("tab", reiter);
+    if (ansicht === "liste") next.delete("ansicht");
+    else next.set("ansicht", ansicht);
+    setSearchParams(next, { replace: true });
+  }, [reiter, ansicht]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Anzahl offener Aufträge für den Reiter
+  const { data: auftragsAnzahl = 0 } = useQuery({
+    queryKey: ["auftraege", "anzahl"],
+    queryFn: async () => {
+      const { count } = await (supabase as any).from("payment_orders").select("id", { count: "exact", head: true }).in("status", ["aktiv", "pausiert"]);
+      return count ?? 0;
+    },
+  });
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list"],
@@ -481,364 +497,269 @@ export function Transfers() {
     );
   }
 
+  if (ansicht === "freigabe") {
+    return (
+      <div className="p-3 md:p-0">
+        <FreigabeAnsicht onZurueck={() => { setAnsicht("liste"); refetch(); }} />
+      </div>
+    );
+  }
+  if (ansicht === "neu") {
+    return (
+      <div className="p-3 md:p-0">
+        <NeuerAuftrag
+          onAbbrechen={() => setAnsicht("liste")}
+          onFertig={() => { setAnsicht("liste"); setReiter("auftraege"); queryClient.invalidateQueries({ queryKey: ["auftraege"] }); }}
+        />
+      </div>
+    );
+  }
+
+  const gebaeudeNamen: Record<string, string> = Object.fromEntries(buildings.map((b: any) => [b.id, b.name]));
+  const reiterKnopf = (r: Reiter, text: string) => (
+    <button
+      type="button"
+      onClick={() => setReiter(r)}
+      className={cn(
+        "min-h-[44px] border-b-2 px-1 text-sm font-medium transition-colors md:text-[15px]",
+        reiter === r ? "border-primary font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {text}
+    </button>
+  );
+
   return (
-    <div className="p-3 md:p-0 space-y-4 md:space-y-6">
-      <FreigabeDialog open={freigabeOffen} onOpenChange={setFreigabeOffen} />
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <div className="mx-auto max-w-6xl space-y-5 p-3 md:p-0">
+      {/* Kopf */}
+      <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2">
-            <CreditCard className="h-5 w-5 md:h-6 md:w-6" />
-            Zahlungen
-          </h1>
-          <p className="text-xs md:text-sm text-muted-foreground mt-1">
-            {direction === "outgoing"
-              ? `${unpaidInvoices.length} offene Rechnung${unpaidInvoices.length !== 1 ? "en" : ""} zur Zahlung${
-                  unreviewedInvoices.length > 0 ? ` · ${unreviewedInvoices.length} ungeprüft` : ""
-                }`
-              : `${incomingInvoices.length} Beleg${incomingInvoices.length !== 1 ? "e" : ""} für Zahlungseingänge`}
+          <h1 className="text-2xl font-bold md:text-3xl">Zahlungen</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground md:text-base">
+            Rechnungen prüfen und bestätigen, eigene Aufträge anlegen – alles Bestätigte sammelt sich in der Freigabe.
           </p>
         </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setAnsicht("neu")} className="h-11">
+            <Plus className="h-4 w-4 mr-2" /> Neuer Auftrag
+          </Button>
+          <Button onClick={() => setAnsicht("freigabe")} className="h-11">
+            Freigabe
+            {freigabeAnzahl > 0 && <span className="ml-2 rounded-full bg-background px-2 py-0.5 text-xs font-semibold text-primary">{freigabeAnzahl}</span>}
+          </Button>
+        </div>
+      </header>
 
-      </div>
-
-      {/* Tabs Ausgehend / Eingehend */}
-      <Tabs value={direction} onValueChange={(v) => setDirection(v as Direction)}>
-        <TabsList>
-          <TabsTrigger value="outgoing" className="gap-1.5">
-            <ArrowUpFromLine className="h-3.5 w-3.5" />
-            Ausgehend
-          </TabsTrigger>
-          <TabsTrigger value="incoming" className="gap-1.5">
-            <ArrowDownToLine className="h-3.5 w-3.5 text-success" />
-            Eingehend
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      {/* Filter / Aktionen */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 md:gap-3">
-        {direction === "outgoing" && (
-          <div className="flex items-center gap-2">
-            <Switch checked={showPaid} onCheckedChange={setShowPaid} id="show-paid" />
-            <label htmlFor="show-paid" className="text-sm text-muted-foreground cursor-pointer">
-              Bezahlte anzeigen
-            </label>
+      {/* Filter */}
+      <div className="flex flex-wrap gap-3">
+        <label className="flex flex-1 basis-56 flex-col gap-1.5 text-xs text-muted-foreground sm:max-w-[260px]">
+          Liegenschaft
+          <Select value={buildingFilter} onValueChange={setBuildingFilter}>
+            <SelectTrigger className="h-11 text-sm text-foreground">
+              <SelectValue placeholder="Alle Liegenschaften" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Liegenschaften</SelectItem>
+              {direction === "outgoing" && <SelectItem value="company">RGI Immobilien GmbH & Co. KG</SelectItem>}
+              {buildings.map((b) => (
+                <SelectItem key={b.id} value={b.id}>
+                  {b.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
+        <label className="flex flex-[2] basis-64 flex-col gap-1.5 text-xs text-muted-foreground">
+          Suche
+          <Input
+            type="search"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Empfänger, Rechnungsnummer, Betrag …"
+            className="h-11 text-sm text-foreground"
+          />
+        </label>
+        {reiter !== "auftraege" && (
+          <label className="flex basis-44 flex-col gap-1.5 text-xs text-muted-foreground">
+            Zeitraum
+            <Select value={periodPreset} onValueChange={setPeriodPreset}>
+              <SelectTrigger className="h-11 text-sm text-foreground">
+                <SelectValue placeholder="Zeitraum" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Zeiträume</SelectItem>
+                <SelectItem value="current_month">Aktueller Monat</SelectItem>
+                <SelectItem value="last_month">Letzter Monat</SelectItem>
+                <SelectItem value="last_30">Letzte 30 Tage</SelectItem>
+                <SelectItem value="last_90">Letzte 90 Tage</SelectItem>
+                <SelectItem value="current_year">Aktuelles Jahr</SelectItem>
+                <SelectItem value="last_year">Letztes Jahr</SelectItem>
+                <SelectItem value="custom">Benutzerdefiniert…</SelectItem>
+              </SelectContent>
+            </Select>
+          </label>
+        )}
+        {periodPreset === "custom" && reiter !== "auftraege" && (
+          <div className="flex items-end gap-1">
+            <input type="date" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} className="h-11 rounded-md border bg-background px-2 text-sm" />
+            <span className="pb-3 text-xs text-muted-foreground">–</span>
+            <input type="date" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} className="h-11 rounded-md border bg-background px-2 text-sm" />
           </div>
-        )}
-        <Input
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Suche: Name oder Betrag…"
-          className="w-full sm:w-[220px] h-11 md:h-10"
-        />
-        <Select value={buildingFilter} onValueChange={setBuildingFilter}>
-          <SelectTrigger className="w-full sm:w-[220px] h-11 md:h-10">
-            <SelectValue placeholder="Alle Gebäude" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Gebäude</SelectItem>
-            {direction === "outgoing" && (
-              <SelectItem value="company">RGI Immobilien GmbH & Co. KG</SelectItem>
-            )}
-            {buildings.map((b) => (
-              <SelectItem key={b.id} value={b.id}>
-                {b.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={periodPreset} onValueChange={setPeriodPreset}>
-          <SelectTrigger className="w-full sm:w-[180px] h-11 md:h-10">
-            <SelectValue placeholder="Zeitraum" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Zeiträume</SelectItem>
-            <SelectItem value="current_month">Aktueller Monat</SelectItem>
-            <SelectItem value="last_month">Letzter Monat</SelectItem>
-            <SelectItem value="last_30">Letzte 30 Tage</SelectItem>
-            <SelectItem value="last_90">Letzte 90 Tage</SelectItem>
-            <SelectItem value="current_year">Aktuelles Jahr</SelectItem>
-            <SelectItem value="last_year">Letztes Jahr</SelectItem>
-            <SelectItem value="custom">Benutzerdefiniert…</SelectItem>
-          </SelectContent>
-        </Select>
-        {periodPreset === "custom" && (
-          <div className="flex items-center gap-1">
-            <input
-              type="date"
-              value={periodFrom}
-              onChange={(e) => setPeriodFrom(e.target.value)}
-              className="h-11 md:h-10 px-2 rounded-md border bg-background text-sm"
-            />
-            <span className="text-muted-foreground text-xs">–</span>
-            <input
-              type="date"
-              value={periodTo}
-              onChange={(e) => setPeriodTo(e.target.value)}
-              className="h-11 md:h-10 px-2 rounded-md border bg-background text-sm"
-            />
-          </div>
-        )}
-        {direction === "outgoing" && (
-          <Button onClick={() => setFreigabeOffen(true)} variant={freigabeAnzahl > 0 ? "default" : "outline"} className="h-11 md:h-10">
-            <Check className="h-4 w-4 mr-2" />
-            Freigabe{freigabeAnzahl > 0 ? ` (${freigabeAnzahl})` : ""}
-          </Button>
-        )}
-        {direction === "outgoing" && unreviewedInvoices.length > 0 && (
-          <Button onClick={() => { setReviewInvoices(unreviewedInvoices); setReviewIndex(0); setReviewMode(true); }} className="h-11 md:h-10">
-            <Play className="h-4 w-4 mr-2" />
-            Prüfmodus ({unreviewedInvoices.length})
-          </Button>
-        )}
-        {stuckOcrInvoices.length > 0 && (
-          <Button variant="outline" onClick={retryAllStuckOcr} disabled={retryingOcr === "all"} className="h-11 md:h-10">
-            {retryingOcr === "all" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            OCR neu starten ({stuckOcrInvoices.length})
-          </Button>
-        )}
-        {selectedIds.size > 0 && (
-          <Button variant="outline" onClick={exportZip} disabled={exporting} className="h-11 md:h-10">
-            {exporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
-            ZIP export ({selectedIds.size})
-          </Button>
         )}
       </div>
 
+      {/* Reiter */}
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b">
+        <div className="flex flex-wrap gap-x-6" role="group" aria-label="Ansicht">
+          {reiterKnopf("offen", `Rechnungen offen · ${direction === "outgoing" && !showPaid ? unpaidInvoices.length : "…"}`)}
+          {reiterKnopf("auftraege", `Aufträge · ${auftragsAnzahl}`)}
+          {reiterKnopf("bezahlt", "Bezahlt")}
+          {reiterKnopf("gutschriften", "Gutschriften")}
+        </div>
+        <div className="flex flex-wrap gap-2 pb-2">
+          {reiter === "offen" && unreviewedInvoices.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => { setReviewInvoices(unreviewedInvoices); setReviewIndex(0); setReviewMode(true); }}>
+              <Play className="h-4 w-4 mr-1.5" /> Prüfmodus ({unreviewedInvoices.length})
+            </Button>
+          )}
+          {reiter !== "auftraege" && stuckOcrInvoices.length > 0 && (
+            <Button size="sm" variant="outline" onClick={retryAllStuckOcr} disabled={retryingOcr === "all"}>
+              {retryingOcr === "all" ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
+              OCR neu starten ({stuckOcrInvoices.length})
+            </Button>
+          )}
+          {selectedIds.size > 0 && reiter !== "auftraege" && (
+            <Button size="sm" variant="outline" onClick={exportZip} disabled={exporting}>
+              {exporting ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Download className="h-4 w-4 mr-1.5" />}
+              ZIP export ({selectedIds.size})
+            </Button>
+          )}
+        </div>
+      </div>
 
-      {direction === "outgoing" && <InvoiceDropZone buildings={buildings} selectedBuildingId={buildingFilter === "all" ? "" : buildingFilter} />}
+      {reiter === "offen" && <InvoiceDropZone buildings={buildings} selectedBuildingId={buildingFilter === "all" || buildingFilter === "company" ? "" : buildingFilter} />}
 
-      {/* ───────── OUTGOING TABLE ───────── */}
-      {direction === "outgoing" && (
-        <>
-          {/* Mobile */}
-          <div className="md:hidden space-y-2">
-            {filteredInvoices.length === 0 && (
-              <div className="text-center py-12 text-sm text-muted-foreground border rounded-lg">
-                {searchTerm ? "Keine Treffer für die Suche" : (showPaid ? "Keine Rechnungen vorhanden" : "Keine offenen Rechnungen vorhanden")}
-              </div>
-            )}
-            {filteredInvoices.map((inv) => {
-              const overdue = inv.status !== "paid" && isOverdue(inv.due_date);
-              const isPaid = inv.status === "paid";
-              const hasNote = !!(inv as any).payment_notes;
-              return (
-                <button
-                  key={inv.id}
-                  onClick={() => openReviewForInvoice(inv)}
-                  className={`w-full text-left border rounded-lg p-3 active:bg-muted transition-colors ${overdue ? "border-destructive/40 bg-destructive/5" : ""} ${isPaid ? "opacity-60" : ""}`}
-                >
-                  <div className="flex items-start justify-between gap-2 mb-1.5">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-sm truncate flex items-center gap-1.5">
-                        {(inv as any).einvoice_format && <FileCode className="h-3.5 w-3.5 text-success shrink-0" />}
-                        {inv.vendor_name || "–"}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">{getPurpose(inv)}</p>
-                    </div>
-                    <p className="text-base font-bold tabular-nums whitespace-nowrap">{formatCurrency(inv.gross_amount)}</p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap text-xs">
-                    {!isPaid && (
-                      <span className={`flex items-center gap-1 ${overdue ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                        {overdue && <AlertTriangle className="h-3 w-3" />}
-                        {inv.due_date ? format(new Date(inv.due_date), "dd.MM.yy") : "–"}
-                      </span>
-                    )}
+      {/* Aufträge */}
+      {reiter === "auftraege" && <AuftraegeListe buildingId={buildingFilter} suche={searchTerm} namen={gebaeudeNamen} />}
+
+      {/* Rechnungen (offen / bezahlt) */}
+      {direction === "outgoing" && reiter !== "auftraege" && (
+        <section className="overflow-hidden rounded-xl border bg-card" aria-label={showPaid ? "Bezahlte Rechnungen" : "Offene Rechnungen"}>
+          {filteredInvoices.length > 0 && (
+            <div className="flex items-center gap-3 border-b bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+              <Checkbox
+                checked={filteredInvoices.every((i: any) => selectedIds.has(i.id))}
+                onCheckedChange={(checked) => {
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    if (checked) filteredInvoices.forEach((i: any) => next.add(i.id));
+                    else filteredInvoices.forEach((i: any) => next.delete(i.id));
+                    return next;
+                  });
+                }}
+                aria-label="Alle auswählen"
+              />
+              <span className="flex-1">{filteredInvoices.length} {showPaid ? "bezahlt" : "offen"}</span>
+              <button
+                type="button"
+                onClick={() => setSortByBuilding((v) => !v)}
+                className={cn("inline-flex items-center gap-1", sortByBuilding ? "text-foreground" : "hover:text-foreground")}
+              >
+                Nach Liegenschaft <ArrowUpDown className={cn("h-3 w-3", sortByBuilding ? "opacity-100" : "opacity-40")} />
+              </button>
+            </div>
+          )}
+          {filteredInvoices.length === 0 && (
+            <div className="px-4 py-12 text-center text-sm text-muted-foreground">
+              {searchTerm ? "Keine Treffer für die Suche" : showPaid ? "Keine bezahlten Rechnungen im Zeitraum" : "Keine offenen Rechnungen"}
+            </div>
+          )}
+          {filteredInvoices.map((inv: any) => {
+            const overdue = inv.status !== "paid" && isOverdue(inv.due_date);
+            const isPaid = inv.status === "paid";
+            const hasNote = !!inv.payment_notes;
+            const objekt = inv.is_company_invoice ? "RGI" : inv.buildings?.name || "ohne Liegenschaft";
+            return (
+              <div
+                key={inv.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => openReviewForInvoice(inv)}
+                onKeyDown={(e) => e.key === "Enter" && openReviewForInvoice(inv)}
+                className={cn("flex cursor-pointer items-center gap-3 border-b px-4 py-3 last:border-0 hover:bg-muted/40", overdue && "bg-destructive/5")}
+              >
+                <span onClick={(e) => e.stopPropagation()} className="flex">
+                  <Checkbox checked={selectedIds.has(inv.id)} onCheckedChange={() => toggleSelected(inv.id)} aria-label="Beleg auswählen" />
+                </span>
+                <span className={cn("hidden h-8 w-8 shrink-0 items-center justify-center rounded-full sm:flex", isPaid ? "bg-muted text-muted-foreground" : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300")}>
+                  <ArrowUpFromLine className="h-4 w-4" aria-label="Ausgang" />
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="flex items-center gap-1.5 truncate font-semibold">
+                    {inv.einvoice_format && <FileCode className="h-3.5 w-3.5 shrink-0 text-success" />}
+                    <span className="truncate">{inv.vendor_name || "–"}</span>
+                  </span>
+                  <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
+                    <span className={cn(overdue && "font-medium text-destructive")}>
+                      {inv.invoice_number ? `RE ${inv.invoice_number} · ` : ""}
+                      {objekt}
+                      {!isPaid && ` · fällig ${inv.due_date ? format(new Date(inv.due_date), "dd.MM.yy") : "–"}`}
+                    </span>
                     {isPaid ? (
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-success/15 text-success border-success/30">
-                        ✓ Bezahlt{(inv as any).paid_at ? ` ${format(new Date((inv as any).paid_at), "dd.MM.yy")}` : ""}
+                      <Badge variant="secondary" className="border-success/30 bg-success/15 px-1.5 py-0 text-[11px] text-success">
+                        ✓ Bezahlt{inv.paid_at ? ` ${format(new Date(inv.paid_at), "dd.MM.yy")}` : ""}
                       </Badge>
                     ) : inZahlung.has(inv.id) ? (
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/40 text-primary">Überweisung läuft</Badge>
-                    ) : (inv as any).lastschrift ? (
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">Lastschrift</Badge>
+                      <Badge variant="outline" className="border-primary/40 px-1.5 py-0 text-[11px] text-primary">Überweisung läuft</Badge>
+                    ) : inv.lastschrift ? (
+                      <Badge variant="outline" className="px-1.5 py-0 text-[11px]" title="Wird per Lastschrift eingezogen">Lastschrift</Badge>
                     ) : inv.review_status === "verified" ? (
-                      <Badge variant="default" className="text-[10px] px-1.5 py-0">Geprüft</Badge>
+                      <Badge variant="default" className="px-1.5 py-0 text-[11px]">Bestätigt</Badge>
                     ) : (
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">Offen</Badge>
+                      <Badge variant="outline" className="border-amber-300 bg-amber-50 px-1.5 py-0 text-[11px] text-amber-900 dark:bg-amber-950 dark:text-amber-200">Prüfen</Badge>
                     )}
-                    {(inv as any).is_company_invoice ? (
-                      <>
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/40 text-primary bg-primary/10">RGI</Badge>
-                        {(inv as any).invoice_type !== "credit_note" && <DatevToggle
-                          invoiceId={inv.id}
-                          enabled={(inv as any).datev_upload}
-                          sentAt={(inv as any).datev_sent_at}
-                          status={(inv as any).datev_status}
-                          error={(inv as any).datev_error}
-                          onChanged={refetch}
-                        />}
-                      </>
-                    ) : (inv as any).buildings?.name ? (
-                      <span className="text-muted-foreground truncate">· {(inv as any).buildings?.name}</span>
-                    ) : null}
-                    {hasNote && <StickyNote className="h-3 w-3 text-primary ml-auto" />}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Desktop */}
-          <div className="hidden md:block border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40px]">
-                    <Checkbox
-                      checked={filteredInvoices.length > 0 && filteredInvoices.every((i: any) => selectedIds.has(i.id))}
-                      onCheckedChange={(checked) => {
-                        setSelectedIds(prev => {
-                          const next = new Set(prev);
-                          if (checked) filteredInvoices.forEach((i: any) => next.add(i.id));
-                          else filteredInvoices.forEach((i: any) => next.delete(i.id));
-                          return next;
-                        });
-                      }}
-                      aria-label="Alle auswählen"
-                    />
-                  </TableHead>
-                  {!showPaid && <TableHead>Fällig am</TableHead>}
-
-                  <TableHead>Lieferant</TableHead>
-                  <TableHead>Verwendungszweck</TableHead>
-                  <TableHead>IBAN</TableHead>
-                  <TableHead className="text-right">Betrag</TableHead>
-                  <TableHead>
-                    <button
-                      type="button"
-                      onClick={() => setSortByBuilding((v) => !v)}
-                      className={`inline-flex items-center gap-1 transition-colors ${sortByBuilding ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                      title={sortByBuilding ? "Sortierung nach Liegenschaft aktiv – klicken zum Zurücksetzen" : "Nach Liegenschaft gruppieren"}
-                    >
-                      Liegenschaft
-                      <ArrowUpDown className={`h-3 w-3 ${sortByBuilding ? "opacity-100" : "opacity-40"}`} />
-                    </button>
-                  </TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-10"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredInvoices.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
-                      {searchTerm ? "Keine Treffer für die Suche" : (showPaid ? "Keine Rechnungen vorhanden" : "Keine offenen Rechnungen vorhanden")}
-                    </TableCell>
-                  </TableRow>
-                )}
-                {filteredInvoices.map((inv) => {
-                  const overdue = inv.status !== "paid" && isOverdue(inv.due_date);
-                  const isPaid = inv.status === "paid";
-                  const hasNote = !!(inv as any).payment_notes;
-                  return (
-                    <TableRow
-                      key={inv.id}
-                      className={`cursor-pointer hover:bg-muted/50 ${overdue ? "bg-destructive/5" : ""} ${isPaid ? "opacity-60" : ""}`}
-                      onClick={() => openReviewForInvoice(inv)}
-                    >
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={selectedIds.has(inv.id)}
-                          onCheckedChange={() => toggleSelected(inv.id)}
-                          aria-label="Beleg auswählen"
-                        />
-                      </TableCell>
-                      {!showPaid && (
-
-                        <TableCell className={overdue ? "text-destructive font-medium" : ""}>
-                          <div className="flex items-center gap-1.5">
-                            {overdue && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
-                            {inv.due_date ? format(new Date(inv.due_date), "dd.MM.yyyy") : "–"}
-                          </div>
-                        </TableCell>
-                      )}
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-1.5">
-                          {(inv as any).einvoice_format && <FileCode className="h-3.5 w-3.5 text-success shrink-0" />}
-                          {inv.vendor_name || "–"}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{getPurpose(inv)}</TableCell>
-                      <TableCell className="font-mono text-xs">{inv.vendor_iban || "–"}</TableCell>
-                      <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(inv.gross_amount)}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {(inv as any).is_company_invoice ? (
-                          <div className="flex items-center gap-1.5">
-                            <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/10">RGI</Badge>
-                            {(inv as any).invoice_type !== "credit_note" && <DatevToggle
-                              invoiceId={inv.id}
-                              enabled={(inv as any).datev_upload}
-                              sentAt={(inv as any).datev_sent_at}
-                              status={(inv as any).datev_status}
-                              error={(inv as any).datev_error}
-                              onChanged={refetch}
-                            />}
-                          </div>
-                        ) : ((inv as any).buildings?.name || "–")}
-                      </TableCell>
-                      <TableCell>
-                        {isPaid ? (
-                          <Badge className="text-sm w-fit bg-success/15 text-success border-success/30 hover:bg-success/20 whitespace-nowrap" variant="outline">
-                            ✓ Bezahlt{(inv as any).paid_at ? ` am ${format(new Date((inv as any).paid_at), "dd.MM.yyyy")}` : ""}
-                          </Badge>
-                        ) : inZahlung.has(inv.id) ? (
-                          <Badge variant="outline" className="text-xs border-primary/40 text-primary whitespace-nowrap">Überweisung läuft</Badge>
-                        ) : (inv as any).lastschrift ? (
-                          <Badge variant="outline" className="text-xs whitespace-nowrap" title="Wird per Lastschrift eingezogen">Lastschrift</Badge>
-                        ) : inv.review_status === "verified" ? (
-                          <Badge variant="default" className="text-xs">Geprüft</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-xs">Offen</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost" size="sm" className="h-8 w-8 p-0"
-                            title={isPaid ? "Als unbezahlt markieren" : "Als bezahlt markieren"}
-                            onClick={() => handleMarkAsPaid(inv.id, inv.status)}
-                          >
-                            {isPaid ? (
-                              <X className="h-3.5 w-3.5 text-destructive" />
-                            ) : (
-                              <Check className="h-3.5 w-3.5 text-muted-foreground" />
-                            )}
-                          </Button>
-                          <Popover
-                            open={editingNote === inv.id}
-                            onOpenChange={(open) => {
-                              if (open) { setEditingNote(inv.id); setNoteText((inv as any).payment_notes || ""); }
-                              else setEditingNote(null);
-                            }}
-                          >
-                            <PopoverTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <StickyNote className={`h-3.5 w-3.5 ${hasNote ? "text-primary" : "text-muted-foreground"}`} />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-64" align="end">
-                              <div className="space-y-2">
-                                <p className="text-sm font-medium">Notiz</p>
-                                <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Zahlungsnotiz..." rows={3} />
-                                <Button size="sm" className="w-full" onClick={() => handleSaveNote(inv.id)}>Speichern</Button>
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        </>
+                    {inv.is_company_invoice && inv.invoice_type !== "credit_note" && (
+                      <span onClick={(e) => e.stopPropagation()}>
+                        <DatevToggle invoiceId={inv.id} enabled={inv.datev_upload} sentAt={inv.datev_sent_at} status={inv.datev_status} error={inv.datev_error} onChanged={refetch} />
+                      </span>
+                    )}
+                    {hasNote && <StickyNote className="h-3 w-3 text-primary" />}
+                  </span>
+                </span>
+                <span className="whitespace-nowrap font-semibold tabular-nums">{formatCurrency(inv.gross_amount)}</span>
+                <span className="hidden items-center gap-0.5 md:flex" onClick={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title={isPaid ? "Als unbezahlt markieren" : "Als bezahlt markieren"} onClick={() => handleMarkAsPaid(inv.id, inv.status)}>
+                    {isPaid ? <X className="h-3.5 w-3.5 text-destructive" /> : <Check className="h-3.5 w-3.5 text-muted-foreground" />}
+                  </Button>
+                  <Popover
+                    open={editingNote === inv.id}
+                    onOpenChange={(open) => {
+                      if (open) { setEditingNote(inv.id); setNoteText(inv.payment_notes || ""); }
+                      else setEditingNote(null);
+                    }}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Notiz">
+                        <StickyNote className={cn("h-3.5 w-3.5", hasNote ? "text-primary" : "text-muted-foreground")} />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64" align="end">
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Notiz</p>
+                        <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Zahlungsnotiz..." rows={3} />
+                        <Button size="sm" className="w-full" onClick={() => handleSaveNote(inv.id)}>Speichern</Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </div>
+            );
+          })}
+        </section>
       )}
 
-      {/* ───────── INCOMING TABLE ───────── */}
+      {/* Gutschriften (Belege für Zahlungseingänge) */}
       {direction === "incoming" && (
         <IncomingList
           invoices={filteredInvoices}

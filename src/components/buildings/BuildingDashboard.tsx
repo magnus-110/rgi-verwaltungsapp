@@ -27,6 +27,7 @@ import { BuildingOnboardingTab } from "./BuildingOnboardingTab";
 import { BuildingTakeoverTab } from "./takeover/BuildingTakeoverTab";
 import { BuildingKeysTab } from "./keys/BuildingKeysTab";
 import { BuildingDepositsTab } from "./BuildingDepositsTab";
+import { BuildingMandateTab } from "./BuildingMandateTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -158,6 +159,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "overview", label: "Übersicht" },
               // Jahreszyklus ist als Timeline in der Übersicht eingebunden – kein eigener Tab mehr.
               { value: "people", label: "Personen" },
+              ...(building.management_mode === 'weg' ? [{ value: "mandate", label: "Mandate" }] : []),
               { value: "cases", label: "Vorgänge" },
               { value: "documents", label: "Dokumente" },
               { value: "notes", label: "Notizen" },
@@ -198,6 +200,12 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           <TabsContent value="people" className="p-3 md:p-6 mt-0 space-y-6">
             <BuildingContactsList buildingId={buildingId} managementMode={building?.management_mode || 'weg'} />
           </TabsContent>
+
+          {building.management_mode === 'weg' && (
+            <TabsContent value="mandate" className="p-3 md:p-6 mt-0">
+              <BuildingMandateTab buildingId={buildingId} />
+            </TabsContent>
+          )}
 
           {/* Reports Tab */}
           <TabsContent value="reports" className="p-3 md:p-6 mt-0">

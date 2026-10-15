@@ -31,7 +31,7 @@ import { BalanceInteraction } from "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2
 // @ts-ignore
 import { HICAZ } from "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HICAZ.js";
 import { requireAdmin } from "../_shared/require-admin.ts";
-import { pain001, sepaId, summeVon } from "../_shared/sepa.ts";
+import { glaeubigerIdGueltig, pain001, pain008, sepaId, summeVon } from "../_shared/sepa.ts";
 import { sammelueberweisung } from "./zahlung.ts";
 import {
   addHashes,
@@ -728,25 +728,68 @@ async function zahlungSenden(admin: any, runId: string, akzeptiert: Record<strin
     const { config } = await ladeZugang(admin, zugang.id);
     const konto = (config.bankingInformation?.upd?.bankAccounts ?? []).find((a: any) => cleanIban(a.iban) === iban);
     if (!konto) throw new Error("Die Bank kennt dieses Konto unter diesem Zugang nicht.");
-    if (!config.isAccountTransactionSupported(konto, "HKCCM")) throw new Error("Für dieses Konto sind Sammelüberweisungen über FinTS nicht freigeschaltet.");
+    const lastschrift = lauf.art === "lastschrift";
+    if (!config.isAccountTransactionSupported(konto, lastschrift ? "HKDME" : "HKCCM")) {
+      throw new Error(
+        lastschrift
+          ? "Für dieses Konto ist der Lastschrift-Einzug bei der Bank nicht freigeschaltet (Inkasso-Vereinbarung nötig)."
+          : "Für dieses Konto sind Sammelüberweisungen über FinTS nicht freigeschaltet.",
+      );
+    }
 
     const eintrag = (zugang.konten ?? []).find((k: any) => cleanIban(k.iban) === iban);
     const inhaber = eintrag?.inhaber || lauf.konto_inhaber || "WEG";
-    const zahlungen = posten.map((p: any) => ({
-      empfaenger: p.empfaenger,
-      iban: p.iban,
-      bic: p.bic,
-      betrag: Number(p.betrag),
-      verwendungszweck: p.verwendungszweck ?? "",
-      endToEndId: p.end_to_end_id,
-    }));
-    const pain = pain001({ absender: "RGI Immobilien GmbH & Co. KG", kontoInhaber: inhaber, kontoIban: iban, zahlungen, msgId: sepaId("RGI") });
+    let pain: string;
+    let summe: number;
+    if (lastschrift) {
+      const { data: haus } = await admin.from("buildings").select("name, creditor_id").eq("id", lauf.building_id).single();
+      const gid = (lauf.glaeubiger_id || haus?.creditor_id || "").replace(/\s/g, "");
+      if (!glaeubigerIdGueltig(gid)) throw new Error("Für diese Liegenschaft ist keine gültige Gläubiger-ID hinterlegt.");
+      const fehlt = posten.filter((p: any) => !p.mandatsreferenz || !p.mandat_datum);
+      if (fehlt.length) throw new Error(`Mandat unvollständig bei: ${fehlt.map((p: any) => p.empfaenger).join(", ")}`);
+      const einzugAm = lauf.faellig_am ?? lauf.ausfuehrung_am;
+      if (!einzugAm || einzugAm < frueheserEinzug()) {
+        throw new Error(`Der Einzugstag muss mindestens zwei Bankarbeitstage in der Zukunft liegen (frühestens ${frueheserEinzug()}).`);
+      }
+      const einzuege = posten.map((p: any) => ({
+        name: p.empfaenger,
+        iban: p.iban,
+        bic: p.bic,
+        betrag: Number(p.betrag),
+        verwendungszweck: p.verwendungszweck ?? "",
+        endToEndId: p.end_to_end_id,
+        mandatsreferenz: p.mandatsreferenz,
+        mandatDatum: p.mandat_datum,
+      }));
+      summe = summeVon(einzuege);
+      pain = pain008({
+        absender: "RGI Immobilien GmbH & Co. KG",
+        glaeubigerName: inhaber || `WEG ${haus?.name ?? ""}`,
+        glaeubigerIban: iban,
+        glaeubigerId: gid,
+        einzugAm,
+        einzuege,
+        msgId: sepaId("RGI"),
+      });
+    } else {
+      const zahlungen = posten.map((p: any) => ({
+        empfaenger: p.empfaenger,
+        iban: p.iban,
+        bic: p.bic,
+        betrag: Number(p.betrag),
+        verwendungszweck: p.verwendungszweck ?? "",
+        endToEndId: p.end_to_end_id,
+      }));
+      summe = summeVon(zahlungen);
+      pain = pain001({ absender: "RGI Immobilien GmbH & Co. KG", kontoInhaber: inhaber, kontoIban: iban, zahlungen, msgId: sepaId("RGI") });
+    }
 
     const r = await sammelueberweisung({
       config,
+      art: lastschrift ? "lastschrift" : "ueberweisung",
       konto,
       pain,
-      summe: summeVon(zahlungen),
+      summe,
       akzeptiert,
       bis: START + GESAMT_MS,
       warteAufFreigabeMs: TAN_WARTEZEIT_MS,
@@ -771,4 +814,15 @@ async function zahlungSenden(admin: any, runId: string, akzeptiert: Record<strin
     await ende("fehler", { fehler: text });
     return { ok: false, status: "fehler", fehler: text };
   }
+}
+
+/** Frühester Einzugstag einer Basislastschrift: zwei Bankarbeitstage ab heute. */
+function frueheserEinzug(): string {
+  const d = new Date();
+  let n = 0;
+  while (n < 2) {
+    d.setDate(d.getDate() + 1);
+    if (d.getDay() !== 0 && d.getDay() !== 6) n++;
+  }
+  return d.toISOString().slice(0, 10);
 }

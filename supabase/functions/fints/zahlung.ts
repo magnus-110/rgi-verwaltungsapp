@@ -46,6 +46,7 @@ import { internationalAccount } from "https://cdn.jsdelivr.net/npm/lib-fints@1.5
 import { leseVopBericht, type VopZeile } from "../_shared/sepa.ts";
 
 const PAIN001 = "urn:iso:std:iso:20022:tech:xsd:pain.001.001.09";
+const PAIN008 = "urn:iso:std:iso:20022:tech:xsd:pain.008.001.08";
 const PAIN002 = "urn:iso:std:iso:20022:tech:xsd:pain.002.001.10";
 
 // ── Segmente ────────────────────────────────────────────────────────────────
@@ -56,6 +57,21 @@ class HKCCM extends SegmentDefinition {
   version = 1;
   constructor() {
     super("HKCCM");
+  }
+  elements = [
+    new InternationalAccountGroup("account", 1, 1),
+    new MoneyGroup("sum", 0, 1),
+    new YesNo("singleBooking", 0, 1),
+    new AlphaNumeric("sepaDescriptor", 1, 1, 256),
+    new Binary("painMessage", 1, 1),
+  ];
+}
+
+/** SEPA-Sammellastschrift (terminiert) – gleicher Aufbau wie HKCCM */
+class HKDME extends SegmentDefinition {
+  version = 2;
+  constructor() {
+    super("HKDME");
   }
   elements = [
     new InternationalAccountGroup("account", 1, 1),
@@ -135,7 +151,7 @@ function segmenteEintragen() {
     Map.prototype.get = original;
   }
   if (!liste) throw new Error("Segmentliste von lib-fints nicht gefunden");
-  for (const d of [new HKCCM(), new HKVPP(), new HIVPP(), new HKVPA()]) (liste as Map<string, unknown>).set((d as any).id, d);
+  for (const d of [new HKCCM(), new HKDME(), new HKVPP(), new HIVPP(), new HKVPA()]) (liste as Map<string, unknown>).set((d as any).id, d);
   registriert = true;
 }
 
@@ -150,6 +166,8 @@ export interface ZahlungErgebnis {
 
 interface Optionen {
   config: any;
+  /** Überweisung (HKCCM, mit Empfängerüberprüfung) oder Lastschrift (HKDME) */
+  art?: "ueberweisung" | "lastschrift";
   konto: any; // Eintrag aus upd.bankAccounts
   pain: string;
   summe: number;
@@ -165,6 +183,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function sammelueberweisung(o: Optionen): Promise<ZahlungErgebnis> {
   segmenteEintragen();
   const config = o.config;
+  const lastschrift = o.art === "lastschrift";
+  const AUFTRAG = lastschrift ? "HKDME" : "HKCCM";
   const tm = config.selectedTanMethod;
   if (!tm?.isDecoupled) throw new Error("Für Zahlungen wird ein TAN-Verfahren mit Freigabe in der App benötigt.");
 
@@ -238,18 +258,19 @@ export async function sammelueberweisung(o: Optionen): Promise<ZahlungErgebnis> 
     }
   };
 
+  const version = lastschrift ? Math.min(2, config.getMaxSupportedTransactionVersion("HKDME") ?? 1) : 1;
   const hkccm = {
-    header: { segId: "HKCCM", segNr: 0, version: 1 },
+    header: { segId: AUFTRAG, segNr: 0, version },
     account: internationalAccount(config, config.getBankAccount(o.konto)),
     sum: { value: o.summe, currency: "EUR" },
     singleBooking: true,
-    sepaDescriptor: PAIN001,
+    sepaDescriptor: lastschrift ? PAIN008 : PAIN001,
     painMessage: o.pain,
   };
   const hktan = (prozess: "4" | "S", ref?: string) => ({
     header: { segId: "HKTAN", segNr: 0, version: tm.version },
     tanProcess: prozess,
-    segId: "HKCCM",
+    segId: AUFTRAG,
     orderRef: ref,
     nextTan: prozess === "S" ? false : undefined,
     tanMedia: tanMedium(config),
@@ -267,12 +288,12 @@ export async function sammelueberweisung(o: Optionen): Promise<ZahlungErgebnis> 
   };
 
   try {
-    // 2) Auftrag mit Empfängerüberprüfung
-    let s = await senden([hkccm, hktan("4"), hkvpp()]);
+    // 2) Auftrag – Überweisungen mit Empfängerüberprüfung, Lastschriften ohne
+    let s = await senden(lastschrift ? [hkccm, hktan("4")] : [hkccm, hktan("4"), hkvpp()]);
     if (fehlerText(s.alle)) return { status: "fehler", fehler: fehlerText(s.alle), antworten };
     let bestaetigung = s.hat(3945) || s.hat(3090);
     if (s.hat(3091)) bestaetigung = false;
-    if (s.hatFuer("HKCCM", 20) && !offeneFreigabe(s.antwort)) {
+    if (s.hatFuer(AUFTRAG, 20) && !offeneFreigabe(s.antwort)) {
       const h = s.antwort.findSegment("HIVPP");
       return { status: "gesendet", vop: h?.report ? { ...leseVopBericht(String(h.report)), hinweis: null } : undefined, antworten };
     }
@@ -329,7 +350,7 @@ export async function sammelueberweisung(o: Optionen): Promise<ZahlungErgebnis> 
       s = await senden([hkccm, { header: { segId: "HKVPA", segNr: 0, version: 1 }, vopId: hivpp.vopId }, hktan("4")]);
       if (fehlerText(s.alle)) return { status: "fehler", fehler: fehlerText(s.alle), vop, antworten };
       freigabeRef = offeneFreigabe(s.antwort);
-      if (!freigabeRef && s.hatFuer("HKCCM", 20)) return { status: "gesendet", vop, antworten };
+      if (!freigabeRef && s.hatFuer(AUFTRAG, 20)) return { status: "gesendet", vop, antworten };
       if (!freigabeRef) return { status: "unklar", fehler: "Die Bank hat keine Freigabe angefordert. Bitte im Online-Banking nachsehen.", vop, antworten };
     }
 
@@ -339,7 +360,7 @@ export async function sammelueberweisung(o: Optionen): Promise<ZahlungErgebnis> 
     while (Date.now() < ende) {
       s = await senden([hktan("S", freigabeRef)]);
       if (fehlerText(s.alle)) return { status: "fehler", fehler: fehlerText(s.alle), vop, antworten };
-      if (!s.hat(3956) && (s.hatFuer("HKTAN", 20) || s.hatFuer("HKCCM", 20) || s.hat(900))) {
+      if (!s.hat(3956) && (s.hatFuer("HKTAN", 20) || s.hatFuer(AUFTRAG, 20) || s.hat(900))) {
         return { status: "gesendet", vop, antworten };
       }
       await sleep(Math.max(tm.decoupled?.waitingSecondsBetweenStatusRequests ?? 0, 2) * 1000);

@@ -20,6 +20,8 @@ interface VopZeile {
 
 interface Lauf {
   id: string;
+  art: "ueberweisung" | "lastschrift";
+  faellig_am: string | null;
   name: string;
   konto_iban: string;
   summe: number;
@@ -88,7 +90,7 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
     (async () => {
       const { data, error } = await (supabase as any)
         .from("payment_runs")
-        .select("id, konto_iban, summe, anzahl, status, fehler, empfaengerpruefung, buildings(name), payment_run_items(end_to_end_id, empfaenger, iban, betrag)")
+        .select("id, art, faellig_am, konto_iban, summe, anzahl, status, fehler, empfaengerpruefung, buildings(name), payment_run_items(end_to_end_id, empfaenger, iban, betrag)")
         .in("id", laufIds);
       if (error) {
         toast.error("Zahlläufe konnten nicht geladen werden");
@@ -96,6 +98,8 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
       }
       const liste: Lauf[] = (data ?? []).map((r: any) => ({
         id: r.id,
+        art: r.art ?? "ueberweisung",
+        faellig_am: r.faellig_am,
         name: r.buildings?.name ?? "Liegenschaft",
         konto_iban: r.konto_iban,
         summe: Number(r.summe),
@@ -134,7 +138,7 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
     <Dialog open={!!laufIds?.length} onOpenChange={(o) => !o && !aktiv && onClose()}>
       <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Überweisen per TAN</DialogTitle>
+          <DialogTitle>Freigeben per TAN</DialogTitle>
           <DialogDescription>
             Je Konto kommt eine Anfrage in die Banking-App (SecureGo plus). Erst mit Ihrer Freigabe geht das Geld raus.
           </DialogDescription>
@@ -149,7 +153,9 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
                   <span className="block font-mono text-xs text-muted-foreground">{ibanFormatiert(l.konto_iban)}</span>
                 </span>
                 <span className="tabular-nums text-muted-foreground">
-                  {l.anzahl} Zahlungen · {euro(l.summe)}
+                  {l.art === "lastschrift"
+                    ? `${l.anzahl} Einzüge · ${euro(l.summe)}${l.faellig_am ? ` · am ${l.faellig_am.split("-").reverse().join(".")}` : ""}`
+                    : `${l.anzahl} Überweisungen · ${euro(l.summe)}`}
                 </span>
                 <StatusText zustand={l.zustand} />
               </div>
@@ -157,7 +163,7 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
               {l.zustand === "sendet" && (
                 <div className="flex items-center gap-2 border-t bg-primary/5 px-4 py-3 text-sm">
                   <Smartphone className="h-4 w-4 shrink-0 text-primary" />
-                  Die Bank prüft die Empfänger. Kommt eine Anfrage in die Banking-App: bitte dort freigeben.
+                  {l.art === "lastschrift" ? "Kommt gleich eine Anfrage in die Banking-App: bitte dort freigeben." : "Die Bank prüft die Empfänger. Kommt eine Anfrage in die Banking-App: bitte dort freigeben."}
                 </div>
               )}
 

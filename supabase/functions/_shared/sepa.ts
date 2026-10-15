@@ -104,3 +104,74 @@ export function leseVopBericht(pain002: string): { gesamt: string | null; zeilen
   });
   return { gesamt, zeilen };
 }
+
+export interface SepaEinzug {
+  name: string; // Zahlungspflichtiger (Kontoinhaber)
+  iban: string;
+  bic?: string | null;
+  betrag: number;
+  verwendungszweck: string;
+  endToEndId: string;
+  mandatsreferenz: string;
+  mandatDatum: string; // JJJJ-MM-TT
+}
+
+/**
+ * SEPA-Basislastschrift (CORE) als pain.008.001.08 für EIN Konto der WEG.
+ * Zahlungsempfänger ist die WEG mit ihrer Gläubiger-ID. Sequenz „RCUR":
+ * seit 2016 auch für den ersten Einzug zulässig.
+ */
+export function pain008(opts: {
+  absender: string;
+  glaeubigerName: string;
+  glaeubigerIban: string;
+  glaeubigerId: string;
+  einzugAm: string; // JJJJ-MM-TT
+  einzuege: SepaEinzug[];
+  msgId: string;
+}) {
+  const summe = summeVon(opts.einzuege);
+  const jetzt = new Date().toISOString().slice(0, 19);
+  const tx = opts.einzuege
+    .map(
+      (e) =>
+        `<DrctDbtTxInf><PmtId><EndToEndId>${xml(sepaText(e.endToEndId, 35) || "NOTPROVIDED")}</EndToEndId></PmtId>` +
+        `<InstdAmt Ccy="EUR">${betragText(e.betrag)}</InstdAmt>` +
+        `<DrctDbtTx><MndtRltdInf><MndtId>${xml(sepaText(e.mandatsreferenz, 35))}</MndtId><DtOfSgntr>${e.mandatDatum}</DtOfSgntr></MndtRltdInf></DrctDbtTx>` +
+        (e.bic ? `<DbtrAgt><FinInstnId><BICFI>${xml(e.bic.replace(/\s/g, "").toUpperCase())}</BICFI></FinInstnId></DbtrAgt>` : `<DbtrAgt><FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId></DbtrAgt>`) +
+        `<Dbtr><Nm>${xml(sepaText(e.name, 70))}</Nm></Dbtr>` +
+        `<DbtrAcct><Id><IBAN>${xml(e.iban.replace(/\s/g, "").toUpperCase())}</IBAN></Id></DbtrAcct>` +
+        `<RmtInf><Ustrd>${xml(sepaText(e.verwendungszweck, 140))}</Ustrd></RmtInf></DrctDbtTxInf>`,
+    )
+    .join("");
+  return (
+    `<?xml version="1.0" encoding="UTF-8"?>` +
+    `<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.008.001.08" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:iso:std:iso:20022:tech:xsd:pain.008.001.08 pain.008.001.08.xsd">` +
+    `<CstmrDrctDbtInitn><GrpHdr><MsgId>${xml(opts.msgId)}</MsgId><CreDtTm>${jetzt}</CreDtTm>` +
+    `<NbOfTxs>${opts.einzuege.length}</NbOfTxs><CtrlSum>${betragText(summe)}</CtrlSum>` +
+    `<InitgPty><Nm>${xml(sepaText(opts.absender, 70))}</Nm></InitgPty></GrpHdr>` +
+    `<PmtInf><PmtInfId>${xml(sepaText(`${opts.msgId}-1`, 35))}</PmtInfId><PmtMtd>DD</PmtMtd><BtchBookg>false</BtchBookg>` +
+    `<NbOfTxs>${opts.einzuege.length}</NbOfTxs><CtrlSum>${betragText(summe)}</CtrlSum>` +
+    `<PmtTpInf><SvcLvl><Cd>SEPA</Cd></SvcLvl><LclInstrm><Cd>CORE</Cd></LclInstrm><SeqTp>RCUR</SeqTp></PmtTpInf>` +
+    `<ReqdColltnDt>${opts.einzugAm}</ReqdColltnDt>` +
+    `<Cdtr><Nm>${xml(sepaText(opts.glaeubigerName, 70))}</Nm></Cdtr>` +
+    `<CdtrAcct><Id><IBAN>${xml(opts.glaeubigerIban.replace(/\s/g, "").toUpperCase())}</IBAN></Id></CdtrAcct>` +
+    `<CdtrAgt><FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId></CdtrAgt><ChrgBr>SLEV</ChrgBr>` +
+    `<CdtrSchmeId><Id><PrvtId><Othr><Id>${xml(opts.glaeubigerId.replace(/\s/g, "").toUpperCase())}</Id><SchmeNm><Prtry>SEPA</Prtry></SchmeNm></Othr></PrvtId></Id></CdtrSchmeId>` +
+    tx +
+    `</PmtInf></CstmrDrctDbtInitn></Document>`
+  );
+}
+
+/** Gläubiger-ID prüfen (Aufbau DEkkZZZ + 11 Stellen, Prüfziffer modulo 97). */
+export function glaeubigerIdGueltig(id: string | null | undefined): boolean {
+  const i = (id ?? "").replace(/\s/g, "").toUpperCase();
+  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{3}[A-Z0-9]{1,28}$/.test(i)) return false;
+  const kern = i.slice(7) + i.slice(0, 2) + "00";
+  let rest = 0;
+  for (const ch of kern) {
+    const w = ch >= "A" && ch <= "Z" ? String(ch.charCodeAt(0) - 55) : ch;
+    for (const z of w) rest = (rest * 10 + Number(z)) % 97;
+  }
+  return String(98 - rest).padStart(2, "0") === i.slice(2, 4);
+}
