@@ -8,7 +8,7 @@ import {
 import { useIsRgiAdmin } from "@/hooks/useRgiAdmin";
 import {
   Briefcase, BarChart3, Users, FolderKanban, FileStack,
-  Settings, ClipboardList, Timer, FileSignature, Receipt, Handshake, FolderArchive,
+  Settings, ClipboardList, Timer, FileSignature, Receipt, Handshake, FolderArchive, Landmark,
 } from "lucide-react";
 
 import { CockpitTab } from "@/components/rgi-intern/dashboard/CockpitTab";
@@ -22,9 +22,10 @@ import { ItemPresetsTab } from "@/components/rgi-intern/item-presets/ItemPresets
 import { CompanySettingsTab } from "@/components/rgi-intern/settings/CompanySettingsTab";
 import { TimeClockAdminTab } from "@/components/rgi-intern/timeclock/TimeClockAdminTab";
 import { DocumentsTab } from "@/components/rgi-intern/documents/DocumentsTab";
+import { RgiKontoTab } from "@/components/rgi-intern/konto/RgiKontoTab";
 
 type AreaId =
-  | "cockpit" | "contracts" | "invoices" | "offers"
+  | "cockpit" | "contracts" | "invoices" | "konto" | "offers"
   | "projects" | "timeclock"
   | "clients" | "documents" | "templates" | "presets" | "settings";
 
@@ -53,6 +54,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { id: "contracts", title: "Verträge", icon: FileSignature, caption: "Verwalterverträge mit Honorarbausteinen, Laufzeiten und Indexstand" },
       { id: "invoices", title: "Rechnungen", icon: Receipt, caption: "Von der offenen Leistung bis zur bezahlten Rechnung" },
+      { id: "konto", title: "Bankkonto", icon: Landmark, caption: "Kontobewegungen der RGI – abgerufen über die Bank, verknüpft mit Rechnungen" },
     ],
   },
   {
@@ -178,6 +180,7 @@ export default function RgiIntern() {
           {area === "cockpit" && <CockpitTab onNavigate={(a) => setArea(a as AreaId)} />}
           {area === "contracts" && <ContractsTab />}
           {area === "invoices" && <InvoicesTab />}
+          {area === "konto" && <RgiKontoTab />}
           {area === "offers" && <OffersTab />}
           {area === "projects" && <ProjectsTab />}
           {area === "timeclock" && <TimeClockAdminTab />}

@@ -13,6 +13,8 @@ interface Props {
   onBuchungBearbeiten: (bookingId: string) => void;
   onRechnungOeffnen: (invoice: { file_path: string; name: string }) => void;
   onIgnorieren: (txn: any, ignorieren: boolean) => void;
+  /** Nur Beleg zeigen, ohne Buchung (z. B. RGI-Konto, gebucht wird in DATEV). */
+  ohneBuchung?: boolean;
 }
 
 /**
@@ -21,7 +23,7 @@ interface Props {
  * Bewegung stehen der Vorschlag der App mit Begründung und die Knöpfe
  * „Prüfen & buchen" und „Anders zuordnen" da.
  */
-export function BewegungDetail({ txn, onPruefen, onZuordnen, onBuchungBearbeiten, onRechnungOeffnen, onIgnorieren }: Props) {
+export function BewegungDetail({ txn, onPruefen, onZuordnen, onBuchungBearbeiten, onRechnungOeffnen, onIgnorieren, ohneBuchung }: Props) {
   const { data, isLoading } = useQuery({
     queryKey: ["konten-bewegung-detail", txn.id, txn.booking_id, txn.matched_invoice_id, txn.booked_at],
     queryFn: async () => {
@@ -73,7 +75,7 @@ export function BewegungDetail({ txn, onPruefen, onZuordnen, onBuchungBearbeiten
           <Loader2 className="h-4 w-4 animate-spin" /> Lädt …
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className={ohneBuchung ? "grid gap-4" : "grid gap-4 md:grid-cols-2"}>
           {/* Beleg */}
           <div className="rounded-lg border bg-background p-4">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Beleg</div>
@@ -133,6 +135,7 @@ export function BewegungDetail({ txn, onPruefen, onZuordnen, onBuchungBearbeiten
           </div>
 
           {/* Buchung */}
+          {!ohneBuchung && (
           <div className="rounded-lg border bg-background p-4">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Buchung</div>
             {gebucht && (data?.buchungen?.length ?? 0) > 0 ? (
@@ -199,6 +202,7 @@ export function BewegungDetail({ txn, onPruefen, onZuordnen, onBuchungBearbeiten
               </Button>
             )}
           </div>
+          )}
         </div>
       )}
     </div>

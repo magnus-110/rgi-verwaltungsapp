@@ -20,6 +20,8 @@ interface Props {
   /** Name der Liegenschaft in jeder Zeile zeigen (Suche über alle). */
   zeigeLiegenschaft?: boolean;
   leerText?: string;
+  /** Nur ansehen, nicht buchen (RGI-Konto). */
+  ohneBuchung?: boolean;
 }
 
 const KENNZEICHEN_STIL: Record<string, string> = {
@@ -50,7 +52,7 @@ export function kontenNeuLaden(queryClient: ReturnType<typeof useQueryClient>) {
  * laufen über dieselben Dialoge wie bisher in der Buchhaltung – die Logik
  * dahinter bleibt also genau gleich.
  */
-export function BewegungsListe({ txns, liegenschaftsNamen, zeigeLiegenschaft, leerText }: Props) {
+export function BewegungsListe({ txns, liegenschaftsNamen, zeigeLiegenschaft, leerText, ohneBuchung }: Props) {
   const queryClient = useQueryClient();
   const [offen, setOffen] = useState<string | null>(null);
   const [review, setReview] = useState<{ buildingId: string; liste: any[]; index: number } | null>(null);
@@ -214,7 +216,11 @@ export function BewegungsListe({ txns, liegenschaftsNamen, zeigeLiegenschaft, le
       <ul className="divide-y">
         {txns.map((t) => {
           const eingang = Number(t.amount) >= 0;
-          const k = kennzeichen(t);
+          const k = ohneBuchung
+            ? t.matched_invoice_id
+              ? { text: "Rechnung verknüpft", art: "rechnung" as const }
+              : { text: "", art: "gebucht" as const }
+            : kennzeichen(t);
           const istOffen = offen === t.id;
           const markiert = t.bookings?.needs_review || t.bookings?.ai_confidence_unsicher;
           return (
@@ -245,7 +251,7 @@ export function BewegungsListe({ txns, liegenschaftsNamen, zeigeLiegenschaft, le
                     {t.purpose ? ` · ${t.purpose}` : ""}
                   </span>
                 </span>
-                <span className={cn("hidden sm:inline-flex max-w-[220px] items-center gap-1 truncate rounded-md px-2 py-0.5 text-xs font-medium", KENNZEICHEN_STIL[k.art])}>
+                <span className={cn(!k.text && "invisible", "hidden sm:inline-flex max-w-[220px] items-center gap-1 truncate rounded-md px-2 py-0.5 text-xs font-medium", KENNZEICHEN_STIL[k.art])}>
                   {markiert && <Flag className="h-3 w-3 shrink-0 text-orange-500" />}
                   <span className="truncate">{k.text}</span>
                 </span>
@@ -270,6 +276,7 @@ export function BewegungsListe({ txns, liegenschaftsNamen, zeigeLiegenschaft, le
                     onBuchungBearbeiten={buchungBearbeiten}
                     onRechnungOeffnen={rechnungOeffnen}
                     onIgnorieren={ignorieren}
+                    ohneBuchung={ohneBuchung}
                   />
                 </>
               )}

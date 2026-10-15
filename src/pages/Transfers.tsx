@@ -25,6 +25,7 @@ import { TransferReviewMode } from "@/components/transfers/TransferReviewMode";
 import { DatevToggle } from "@/components/transfers/DatevToggle";
 import { InvoiceDropZone } from "@/components/finance/InvoiceDropZone";
 import JSZip from "jszip";
+import { FreigabeDialog, useRechnungenInZahlung } from "@/components/zahlungen/FreigabeDialog";
 
 
 type Direction = "outgoing" | "incoming";
@@ -76,6 +77,8 @@ export function Transfers() {
   const [sortByBuilding, setSortByBuilding] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
+  const [freigabeOffen, setFreigabeOffen] = useState(false);
+  const { data: inZahlung = new Map<string, string>() } = useRechnungenInZahlung();
 
   const toggleSelected = (id: string) => {
     setSelectedIds(prev => {
@@ -302,6 +305,14 @@ export function Transfers() {
     () => outgoingInvoices.filter(i => i.status !== "paid" && i.review_status !== "verified"),
     [outgoingInvoices]
   );
+  // Freigabe: bestätigte, offene Rechnungen einer Liegenschaft, die noch in keinem Zahllauf stecken
+  const freigabeAnzahl = useMemo(
+    () => outgoingInvoices.filter((i: any) =>
+      i.status === "open" && i.review_status === "verified" && i.building_id &&
+      i.invoice_type !== "credit_note" && Number(i.gross_amount) > 0 && !inZahlung.has(i.id)
+    ).length,
+    [outgoingInvoices, inZahlung]
+  );
   const stuckOcrInvoices = useMemo(
     () => invoices.filter((i: any) => !i.ocr_status || i.ocr_status === "pending" || i.ocr_status === "error"),
     [invoices]
@@ -472,6 +483,7 @@ export function Transfers() {
 
   return (
     <div className="p-3 md:p-0 space-y-4 md:space-y-6">
+      <FreigabeDialog open={freigabeOffen} onOpenChange={setFreigabeOffen} />
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
@@ -568,6 +580,12 @@ export function Transfers() {
             />
           </div>
         )}
+        {direction === "outgoing" && (
+          <Button onClick={() => setFreigabeOffen(true)} variant={freigabeAnzahl > 0 ? "default" : "outline"} className="h-11 md:h-10">
+            <Check className="h-4 w-4 mr-2" />
+            Freigabe{freigabeAnzahl > 0 ? ` (${freigabeAnzahl})` : ""}
+          </Button>
+        )}
         {direction === "outgoing" && unreviewedInvoices.length > 0 && (
           <Button onClick={() => { setReviewInvoices(unreviewedInvoices); setReviewIndex(0); setReviewMode(true); }} className="h-11 md:h-10">
             <Play className="h-4 w-4 mr-2" />
@@ -632,6 +650,8 @@ export function Transfers() {
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-success/15 text-success border-success/30">
                         ✓ Bezahlt{(inv as any).paid_at ? ` ${format(new Date((inv as any).paid_at), "dd.MM.yy")}` : ""}
                       </Badge>
+                    ) : inZahlung.has(inv.id) ? (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/40 text-primary">Überweisung läuft</Badge>
                     ) : inv.review_status === "verified" ? (
                       <Badge variant="default" className="text-[10px] px-1.5 py-0">Geprüft</Badge>
                     ) : (
@@ -762,6 +782,8 @@ export function Transfers() {
                           <Badge className="text-sm w-fit bg-success/15 text-success border-success/30 hover:bg-success/20 whitespace-nowrap" variant="outline">
                             ✓ Bezahlt{(inv as any).paid_at ? ` am ${format(new Date((inv as any).paid_at), "dd.MM.yyyy")}` : ""}
                           </Badge>
+                        ) : inZahlung.has(inv.id) ? (
+                          <Badge variant="outline" className="text-xs border-primary/40 text-primary whitespace-nowrap">Überweisung läuft</Badge>
                         ) : inv.review_status === "verified" ? (
                           <Badge variant="default" className="text-xs">Geprüft</Badge>
                         ) : (

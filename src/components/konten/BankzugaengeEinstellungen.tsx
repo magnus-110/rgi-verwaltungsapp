@@ -9,12 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BankAccountMappingDialog } from "@/components/finance/BankAccountMappingDialog";
 import { cn } from "@/lib/utils";
 import { bankName, cleanIban, ibanFormatiert } from "@/lib/bankInfo";
 import { AuszugImport } from "./AuszugImport";
 import { BankzugangAssistent } from "./BankzugangAssistent";
+import { ZugangKonten } from "./ZugangKonten";
 import { kontenNeuLaden } from "./BewegungsListe";
 import type { KontoZeile } from "./kontenTypes";
 
@@ -56,7 +56,6 @@ export function BankzugaengeEinstellungen() {
   const [pinFuer, setPinFuer] = useState<any | null>(null);
   const [neuePin, setNeuePin] = useState("");
   const [zuordnen, setZuordnen] = useState<{ iban: string; buildingId: string; name?: string | null } | null>(null);
-  const [auswahl, setAuswahl] = useState<Record<string, string>>({});
 
   const { data: zugaenge = [], isLoading } = useQuery({
     queryKey: ["bank-connections"],
@@ -106,7 +105,7 @@ export function BankzugaengeEinstellungen() {
   }, [konten]);
   const perBank = useMemo(() => {
     const m = new Set<string>();
-    zugaenge.forEach((z: any) => (z.konten ?? []).forEach((k: any) => k.iban && m.add(cleanIban(k.iban))));
+    zugaenge.forEach((z: any) => (z.konten ?? []).forEach((k: any) => k.iban && !k.ausgeblendet && m.add(cleanIban(k.iban))));
     return m;
   }, [zugaenge]);
   const zeilen = useMemo(
@@ -187,7 +186,6 @@ export function BankzugaengeEinstellungen() {
           ) : (
             zugaenge.map((z: any) => {
               const st = STATUS[z.status] ?? STATUS.neu;
-              const offeneKonten = (z.konten ?? []).filter((k: any) => k.iban && !ibanLiegenschaft.has(cleanIban(k.iban)));
               const tageBis = z.sca_bis ? Math.ceil((new Date(z.sca_bis).getTime() - Date.now()) / 86400_000) : null;
               return (
                 <div key={z.id} className="rounded-lg border">
@@ -200,7 +198,7 @@ export function BankzugaengeEinstellungen() {
                       <div className="text-xs text-muted-foreground">
                         {z.anmeldename}
                         {z.tan_method_name ? ` · ${z.tan_method_name}` : ""}
-                        {` · ${(z.konten ?? []).length} Konten`}
+                        {` · ${(z.konten ?? []).filter((k: any) => !k.ausgeblendet).length} Konten`}
                       </div>
                     </div>
                     <div className="text-sm">
@@ -235,39 +233,14 @@ export function BankzugaengeEinstellungen() {
                         : z.status_text}
                     </div>
                   )}
-                  {offeneKonten.length > 0 && (
-                    <div className="border-t px-4 py-3 space-y-2">
-                      <div className="text-xs font-medium text-muted-foreground">Konten ohne Liegenschaft (werden nicht abgerufen)</div>
-                      {offeneKonten.map((k: any) => (
-                        <div key={k.iban} className="flex flex-wrap items-center gap-2 text-sm">
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate">{k.inhaber || k.name || "Konto"}</span>
-                            <span className="block font-mono text-xs text-muted-foreground">{ibanFormatiert(k.iban)}</span>
-                          </span>
-                          <Select value={auswahl[k.iban] ?? ""} onValueChange={(v) => setAuswahl((a) => ({ ...a, [k.iban]: v }))}>
-                            <SelectTrigger className="h-9 w-56">
-                              <SelectValue placeholder="Liegenschaft wählen" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {gebaeude.map((g: any) => (
-                                <SelectItem key={g.id} value={g.id}>
-                                  {g.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={!auswahl[k.iban]}
-                            onClick={() => setZuordnen({ iban: k.iban, buildingId: auswahl[k.iban], name: k.inhaber })}
-                          >
-                            Zuordnen
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <ZugangKonten
+                    zugang={z}
+                    ibanLiegenschaft={ibanLiegenschaft}
+                    namen={namen}
+                    gebaeude={gebaeude as any}
+                    onLiegenschaft={setZuordnen}
+                    onGeaendert={neuLaden}
+                  />
                 </div>
               );
             })

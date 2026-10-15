@@ -6,6 +6,8 @@
 //                                                                  danach sind die Konten bekannt
 //  - "abrufen"        { id? }                                    → Umsätze holen (von Hand; wartet bei
 //                                                                  Bedarf auf die Freigabe in der App)
+//  - "salden"         { id }                                     → Kontostände aller sichtbaren Konten
+//  - "konto_setzen"   { id, iban, ausgeblendet?, rgi? }           → Konto ausblenden / RGI intern
 //  - "pin_aendern"    { id, pin }
 //  - "entfernen"      { id }
 //  - "zeitplan"       { token }                                  → pg_cron 06:00/13:00, ohne TAN
@@ -63,7 +65,7 @@ const heute = () => new Date().toISOString().slice(0, 10);
 /** Umsätze im CAMT-Format holen und die XML-Dokumente unverändert behalten. */
 class RohCamt extends StatementInteractionCAMT {
   dokumente: string[] = [];
-  ziel: { iban: string; buildingId: string } | null = null;
+  ziel: { iban: string; buildingId: string | null } | null = null;
   override handleResponse(response: any, clientResponse: any) {
     const roh = response.findAllSegments(HICAZ.Id).flatMap((s: any) => s.bookedTransactions ?? []);
     this.dokumente = roh.map((xml: string) =>
@@ -76,7 +78,7 @@ class RohCamt extends StatementInteractionCAMT {
 /** Kontostand holen und am Objekt merken (mehrere Konten in einem Dialog). */
 class Saldo extends BalanceInteraction {
   ergebnis: { saldo: number; datum: string } | null = null;
-  ziel: { iban: string; buildingId: string } | null = null;
+  ziel: { iban: string; buildingId: string | null } | null = null;
   override handleResponse(response: any, clientResponse: any) {
     super.handleResponse(response, clientResponse);
     const b = clientResponse.balance;
@@ -161,6 +163,10 @@ Deno.serve(async (req) => {
 
     if (aktion === "anlegen") return json(await anlegen(admin, body, userId));
     if (aktion === "tan_waehlen") return json(await tanWaehlen(admin, String(body.id), Number(body.tanMethodId), userId));
+    if (aktion === "salden") {
+      return json(await abrufen(admin, String(body.id), { interaktiv: true, ausloeser: "hand", userId, nurSalden: true }));
+    }
+    if (aktion === "konto_setzen") return json(await kontoSetzen(admin, String(body.id), body));
     if (aktion === "pin_aendern") {
       if (!body.pin) return json({ error: "PIN fehlt" }, 400);
       const { error } = await admin.rpc("fints_pin_setzen", { p_connection: body.id, p_pin: String(body.pin) });
@@ -328,8 +334,10 @@ async function kontenZuordnen(admin: any, connectionId: string, konten: any[]) {
 // ── Abruf ───────────────────────────────────────────────────────────────────
 
 /** Ab wann für ein Konto abgerufen wird: drei Tage vor der letzten Bewegung (Dubletten fallen raus). */
-async function abrufBeginn(admin: any, buildingId: string, iban: string): Promise<Date> {
-  const { data: auszuege } = await admin.from("bank_statements").select("id, account_iban").eq("building_id", buildingId);
+async function abrufBeginn(admin: any, buildingId: string | null, iban: string): Promise<Date> {
+  let q = admin.from("bank_statements").select("id, account_iban");
+  q = buildingId ? q.eq("building_id", buildingId) : q.is("building_id", null);
+  const { data: auszuege } = await q;
   const ids = (auszuege ?? []).filter((s: any) => cleanIban(s.account_iban) === iban).map((s: any) => s.id);
   let letzte: string | null = null;
   for (let i = 0; i < ids.length && ids.length; i += 100) {
@@ -350,7 +358,7 @@ async function abrufBeginn(admin: any, buildingId: string, iban: string): Promis
 async function abrufen(
   admin: any,
   id: string,
-  opts: { interaktiv: boolean; ausloeser: "zeitplan" | "hand"; userId: string | null },
+  opts: { interaktiv: boolean; ausloeser: "zeitplan" | "hand"; userId: string | null; nurSalden?: boolean },
 ) {
   const { data: log } = await admin
     .from("bank_fetch_log")
@@ -384,14 +392,30 @@ async function abrufen(
       zuLiegenschaft.set(i, b.building_id);
     });
 
+    // Einstellungen je Konto (ausgeblendet / RGI intern) aus dem Zugang
+    const flags = new Map<string, any>();
+    (zugang.konten ?? []).forEach((k: any) => k.iban && flags.set(cleanIban(k.iban), k));
+
     const dialog = new Dialog(config, false);
     const camts: RohCamt[] = [];
     const salden: Saldo[] = [];
     for (const konto of konten) {
       const iban = cleanIban(konto.iban);
+      const f = flags.get(iban) ?? {};
+      if (f.ausgeblendet) continue;
       const buildingId = zaehler.get(iban) === 1 ? zuLiegenschaft.get(iban)! : null;
-      if (!buildingId) continue;
-      const ziel = { iban, buildingId };
+      const istRgi = !!f.rgi;
+      const ziel = { iban, buildingId: istRgi ? null : buildingId };
+      if (opts.nurSalden) {
+        if (config.isAccountTransactionSupported(konto, "HKSAL")) {
+          const s = new Saldo(konto);
+          s.ziel = ziel;
+          dialog.addCustomerInteraction(s);
+          salden.push(s);
+        }
+        continue;
+      }
+      if (!buildingId && !istRgi) continue;
       if (config.isAccountTransactionSupported(konto, "HKCAZ")) {
         const c = new RohCamt(konto, await abrufBeginn(admin, buildingId, iban), new Date());
         c.ziel = ziel;
@@ -406,7 +430,7 @@ async function abrufen(
       }
     }
     if (camts.length === 0 && salden.length === 0) {
-      throw new Error("Keines der Konten dieses Zugangs ist einer Liegenschaft zugeordnet.");
+      throw new Error(opts.nurSalden ? "Keine Konten zum Abfragen." : "Keines der Konten dieses Zugangs ist einer Liegenschaft oder RGI intern zugeordnet.");
     }
 
     // Dialog führen; die Antwort der gerade laufenden Abfrage entscheidet
@@ -436,14 +460,23 @@ async function abrufen(
       const r = await camtEinlesen(admin, { ...c.ziel, xmls: c.dokumente, titel, userId: opts.userId ?? zugang.created_by });
       jeKonto.push({ iban: c.ziel.iban, ...r });
     }
+    const saldoJe = new Map<string, { saldo: number; datum: string }>();
     for (const s of salden) {
       if (!s.ziel || !s.ergebnis) continue;
-      await admin
-        .from("building_bank_accounts")
-        .update({ saldo_bank: s.ergebnis.saldo, saldo_bank_am: new Date().toISOString() })
-        .eq("building_id", s.ziel.buildingId)
-        .eq("iban", s.ziel.iban);
+      saldoJe.set(s.ziel.iban, s.ergebnis);
+      if (s.ziel.buildingId) {
+        await admin
+          .from("building_bank_accounts")
+          .update({ saldo_bank: s.ergebnis.saldo, saldo_bank_am: new Date().toISOString() })
+          .eq("building_id", s.ziel.buildingId)
+          .eq("iban", s.ziel.iban);
+      }
     }
+    // Kontostand auch in der Kontenliste des Zugangs merken (zum Zuordnen)
+    const kontenNeu = (zugang.konten ?? []).map((k: any) => {
+      const e = saldoJe.get(cleanIban(k.iban));
+      return e ? { ...k, saldo: e.saldo, saldoAm: e.datum } : k;
+    });
 
     const jetzt = new Date().toISOString();
     const update: any = {
@@ -452,8 +485,13 @@ async function abrufen(
       status: "aktiv",
       status_text: null,
       banking_information: config.bankingInformation,
+      konten: kontenNeu,
       updated_at: jetzt,
     };
+    if (opts.nurSalden) {
+      delete update.letzter_abruf;
+      delete update.letzter_abruf_ok;
+    }
     if (mitTan) update.sca_bis = new Date(Date.now() + 90 * 86400_000).toISOString();
     await admin.from("bank_connections").update(update).eq("id", id);
     if (mitTan) await tanAufgabenErledigen(admin, id);
@@ -485,7 +523,7 @@ async function abrufen(
  */
 async function camtEinlesen(
   admin: any,
-  opts: { buildingId: string; iban: string; xmls: string[]; titel: string; userId: string | null },
+  opts: { buildingId: string | null; iban: string; xmls: string[]; titel: string; userId: string | null },
 ) {
   const bloecke = opts.xmls.flatMap(camtBloecke).filter((b) => {
     const i = cleanIban(leseKopf(b).iban);
@@ -571,4 +609,25 @@ async function tanAufgabenErledigen(admin: any, connectionId: string) {
     .eq("source_type", "bank")
     .eq("source_id", connectionId)
     .neq("status", "done");
+}
+
+/** Ein Konto des Zugangs ausblenden (wird nie abgerufen) oder RGI intern zuordnen. */
+async function kontoSetzen(admin: any, id: string, body: any) {
+  const iban = cleanIban(body.iban);
+  const { data: zugang, error } = await admin.from("bank_connections").select("konten").eq("id", id).single();
+  if (error || !zugang) throw new Error("Bankzugang nicht gefunden");
+  let gefunden = false;
+  const konten = (zugang.konten ?? []).map((k: any) => {
+    if (cleanIban(k.iban) !== iban) return k;
+    gefunden = true;
+    const neu = { ...k };
+    if (typeof body.ausgeblendet === "boolean") neu.ausgeblendet = body.ausgeblendet;
+    if (typeof body.rgi === "boolean") neu.rgi = body.rgi;
+    if (neu.ausgeblendet) neu.rgi = false;
+    return neu;
+  });
+  if (!gefunden) return { error: "Konto gehört nicht zu diesem Bankzugang." };
+  const { error: e2 } = await admin.from("bank_connections").update({ konten, updated_at: new Date().toISOString() }).eq("id", id);
+  if (e2) throw e2;
+  return { ok: true };
 }
