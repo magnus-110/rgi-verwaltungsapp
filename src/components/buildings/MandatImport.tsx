@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { FileUp, Loader2 } from "lucide-react";
+import { FileUp, Landmark, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -108,12 +108,59 @@ function leseCsv(text: string, datei: string): Eintrag[] {
   }).filter((e) => e.iban && e.referenz);
 }
 
+/**
+ * Einzeln gebuchte Lastschrift-Eingänge aus den Kontoauszügen lesen
+ * („… MREF: E1002-0007-01012024 IBAN: DE… BIC: …"). Je Mandatsreferenz der
+ * letzte Einzug. Das Datum am Ende der Referenz (TTMMJJJJ) ist das Mandatsdatum,
+ * die mittlere Zahl die Einheit – so vergibt es das bisherige Programm.
+ */
+async function ausKontoauszuegen(buildingId: string): Promise<Eintrag[]> {
+  const alle: any[] = [];
+  for (let seite = 0; seite < 10; seite++) {
+    const { data, error } = await (supabase as any)
+      .from("bank_transactions")
+      .select("booking_date, amount, debtor_name, debtor_iban, purpose")
+      .eq("building_id", buildingId)
+      .gt("amount", 0)
+      .ilike("purpose", "%MREF:%")
+      .order("booking_date", { ascending: false })
+      .range(seite * 1000, seite * 1000 + 999);
+    if (error) throw error;
+    alle.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  const jeRef = new Map<string, Eintrag>();
+  for (const t of alle) {
+    const p = String(t.purpose ?? "");
+    const referenz = p.match(/MREF:\s*(\S+)/)?.[1]?.trim();
+    if (!referenz || referenz.length < 3) continue;
+    const iban = clean(t.debtor_iban) || clean(p.match(/IBAN:\s*([A-Z]{2}\d{2}[A-Z0-9 ]{10,30}?)(\s+BIC|$)/)?.[1]);
+    if (!iban) continue;
+    const k = `${referenz}|${iban}`;
+    if (jeRef.has(k)) continue; // neueste Buchung kommt zuerst
+    const teile = referenz.split("-");
+    const datum = teile.at(-1)?.match(/^(\d{2})(\d{2})(\d{4})$/);
+    const einheit = teile.length >= 3 && /^\d+$/.test(teile[1]) ? teile[1] : null;
+    jeRef.set(k, {
+      name: String(t.debtor_name ?? "").trim(),
+      iban,
+      referenz,
+      unterschrieben: datum ? `${datum[3]}-${datum[2]}-${datum[1]}` : null,
+      zuletzt: t.booking_date,
+      einheit,
+      datei: "Kontoauszügen",
+    });
+  }
+  return [...jeRef.values()];
+}
+
 /** Eigentümer finden: zuerst über die IBAN, dann Einheit, dann eindeutiger Nachname. */
 function zuordnen(e: Eintrag, liste: Eigentuemer[]): string | null {
   const perIban = liste.filter((x) => [x.iban, x.mandat?.iban, x.vorschlag?.iban].some((i) => clean(i) === e.iban));
   if (perIban.length === 1) return perIban[0].assignmentId;
   if (e.einheit) {
-    const perEinheit = liste.filter((x) => norm(x.einheit) === norm(e.einheit));
+    const ohneNullen = (t: string) => norm(t).replace(/^0+(?=\d)/, "");
+    const perEinheit = liste.filter((x) => ohneNullen(x.einheit) === ohneNullen(e.einheit!));
     if (perEinheit.length === 1) return perEinheit[0].assignmentId;
   }
   const woerter = norm(e.name).split(" ").filter((w) => w.length >= 3 && !["und", "weg", "herr", "frau", "familie", "eheleute"].includes(w));
@@ -163,6 +210,27 @@ export function MandatImport({
       setFehler(e?.message ?? "Datei konnte nicht gelesen werden");
       return;
     }
+    aufbereiten(eintraege, [...gefundeneGids]);
+  };
+
+  const ausAuszuegenLesen = async () => {
+    setFehler(null);
+    setLaeuft(true);
+    try {
+      const e = await ausKontoauszuegen(buildingId);
+      if (!e.length) {
+        setFehler("In den Kontoauszügen dieser Liegenschaft stehen keine einzeln gebuchten Lastschriften mit Mandatsreferenz.");
+        return;
+      }
+      aufbereiten(e, []);
+    } catch (err: any) {
+      setFehler(err?.message ?? "Kontoauszüge konnten nicht gelesen werden");
+    } finally {
+      setLaeuft(false);
+    }
+  };
+
+  const aufbereiten = (eintraege: Eintrag[], gefundeneGids: string[]) => {
     // gleiche Mandatsreferenz aus mehreren Dateien: neuesten Einzug behalten
     const jeRef = new Map<string, Eintrag>();
     for (const e of eintraege) {
@@ -177,8 +245,8 @@ export function MandatImport({
     });
     neu.sort((x, y) => Number(!!y.assignmentId) - Number(!!x.assignmentId) || x.name.localeCompare(y.name, "de"));
     setZeilen(neu);
-    setGids([...gefundeneGids]);
-    if (!neu.length) setFehler("In den Dateien wurden keine Mandate gefunden.");
+    setGids(gefundeneGids);
+    if (!neu.length) setFehler("Es wurden keine Mandate gefunden.");
   };
 
   const gewaehlt = zeilen.filter((z) => z.an && z.assignmentId);
@@ -216,13 +284,13 @@ export function MandatImport({
             assignment_id: e.assignmentId,
             contact_id: e.contactId,
             mandatsreferenz: z.referenz,
-            kontoinhaber: z.name || e.kontoinhaber || e.name,
+            kontoinhaber: (z.name && z.name !== z.name.toUpperCase() ? z.name : null) || e.kontoinhaber || z.name || e.name,
             iban: z.iban,
             unterschrieben_am: z.unterschrieben,
             zuletzt_genutzt: z.zuletzt,
             quelle: "import",
             status: "aktiv",
-            notiz: `Übernommen aus ${z.datei}`,
+            notiz: z.datei === "Kontoauszügen" ? "Übernommen aus den Kontoauszügen (letzter Einzug), Datum aus der Mandatsreferenz" : `Übernommen aus ${z.datei}`,
           }));
         }
         if (error) {
@@ -258,10 +326,18 @@ export function MandatImport({
         <DialogHeader>
           <DialogTitle>Bestehende Mandate übernehmen</DialogTitle>
           <DialogDescription>
-            Am besten die SEPA-Dateien (XML) früherer Sammel-Lastschriften dieser WEG – dort stehen Name, IBAN, Mandatsreferenz und Unterschriftsdatum genau so, wie die Bank sie kennt. Alternativ eine Liste als CSV mit den Spalten Name, IBAN, Mandatsreferenz, Unterschrift am (und gern Einheit).
+            Am einfachsten aus den Kontoauszügen: Wurden Hausgelder bisher eingezogen, stehen Name, IBAN und Mandatsreferenz in jeder Buchung. Sonst die SEPA-Dateien (XML) früherer Sammel-Lastschriften dieser WEG – dort stehen Name, IBAN, Mandatsreferenz und Unterschriftsdatum genau so, wie die Bank sie kennt. Alternativ eine Liste als CSV mit den Spalten Name, IBAN, Mandatsreferenz, Unterschrift am (und gern Einheit).
           </DialogDescription>
         </DialogHeader>
 
+        <div className="grid gap-3 sm:grid-cols-2">
+        <button type="button" onClick={ausAuszuegenLesen} disabled={laeuft} className="flex items-center justify-center gap-2 rounded-xl border bg-primary/5 px-4 py-6 text-sm hover:bg-primary/10 disabled:opacity-60">
+          {laeuft && !zeilen.length ? <Loader2 className="h-5 w-5 animate-spin" /> : <Landmark className="h-5 w-5 text-primary" />}
+          <span>
+            <b>Aus Kontoauszügen übernehmen</b>
+            <span className="block text-xs text-muted-foreground">bisherige Hausgeld-Einzüge mit Mandatsreferenz</span>
+          </span>
+        </button>
         <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-6 text-sm hover:bg-muted/40">
           <FileUp className="h-5 w-5 text-muted-foreground" />
           <span>
@@ -269,6 +345,7 @@ export function MandatImport({
           </span>
           <input type="file" multiple accept=".xml,.csv,text/xml,application/xml,text/csv" className="hidden" onChange={(e) => { dateienLesen(e.target.files); e.target.value = ""; }} />
         </label>
+        </div>
 
         {fehler && <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{fehler}</div>}
         {fremdeGid && (
