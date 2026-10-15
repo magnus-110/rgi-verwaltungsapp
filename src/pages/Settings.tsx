@@ -374,7 +374,7 @@ export const Settings = () => {
             {isAdmin && <TabsTrigger variant="segment" value="email" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">E-Mail</TabsTrigger>}
             {isAdmin && <TabsTrigger variant="segment" value="meldungen" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Meldungen</TabsTrigger>}
             {isAdmin && <TabsTrigger variant="segment" value="templates" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Vorlagen</TabsTrigger>}
-            {isAdmin && <TabsTrigger variant="segment" value="bankzugaenge" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Bankzugänge</TabsTrigger>}
+            {(isAdmin || profile.role === 'employee') && <TabsTrigger variant="segment" value="bankzugaenge" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Bankzugänge</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="notifications" className="space-y-6 mt-6">
@@ -611,9 +611,9 @@ export const Settings = () => {
           )}
 
           {/* Tab: Bankzugänge — Abruf über die Bank, Datei-Import als Notlösung */}
-          {isAdmin && (
+          {(isAdmin || profile.role === 'employee') && (
             <TabsContent value="bankzugaenge" className="space-y-6 mt-6">
-              <BankzugaengeEinstellungen />
+              <BankzugaengeEinstellungen istAdmin={isAdmin} />
             </TabsContent>
           )}
         </Tabs>

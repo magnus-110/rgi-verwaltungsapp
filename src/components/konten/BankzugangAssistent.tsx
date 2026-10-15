@@ -20,6 +20,8 @@ type Schritt = "zugang" | "verfahren" | "freigabe" | "fertig";
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  /** Eigener Zugang des Nutzers für Überweisungen und Einzüge */
+  persoenlich?: boolean;
 }
 
 /**
@@ -27,7 +29,7 @@ interface Props {
  * → Freigabe in der Banking-App → Konten. Die PIN geht nur an die
  * Edge-Funktion und wird dort verschlüsselt abgelegt.
  */
-export function BankzugangAssistent({ open, onOpenChange }: Props) {
+export function BankzugangAssistent({ open, onOpenChange, persoenlich = false }: Props) {
   const queryClient = useQueryClient();
   const [schritt, setSchritt] = useState<Schritt>("zugang");
   const [blz, setBlz] = useState(FINTS_BANKEN[0].blz);
@@ -66,7 +68,7 @@ export function BankzugangAssistent({ open, onOpenChange }: Props) {
     setLaeuft(true);
     setFehler(null);
     const { data, error } = await supabase.functions.invoke("fints", {
-      body: { aktion: "anlegen", blz, anmeldename: anmeldename.trim(), pin },
+      body: { aktion: "anlegen", blz, anmeldename: anmeldename.trim(), pin, persoenlich },
     });
     setLaeuft(false);
     setPin("");
@@ -106,12 +108,16 @@ export function BankzugangAssistent({ open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={schliessen}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Bankzugang hinzufügen</DialogTitle>
+          <DialogTitle>{persoenlich ? "Meinen Bankzugang einrichten" : "Büro-Zugang hinzufügen"}</DialogTitle>
           <DialogDescription>
-            {schritt === "zugang" && "Mit denselben Daten wie im Online-Banking."}
+            {schritt === "zugang" &&
+              (persoenlich
+                ? "Mit deinem eigenen Online-Banking-Zugang (eigener VR-NetKey bzw. Anmeldename). Damit gibst du Überweisungen und Einzüge frei."
+                : "Mit denselben Daten wie im Online-Banking.")}
             {schritt === "verfahren" && "Wie soll die Bank Freigaben anfragen?"}
             {schritt === "freigabe" && "Bitte jetzt in der Banking-App freigeben."}
-            {schritt === "fertig" && "Fertig – ab jetzt holt die App die Umsätze selbst ab."}
+            {schritt === "fertig" &&
+              (persoenlich ? "Fertig – Zahlungen gibst du ab jetzt mit deinem eigenen Zugang per TAN frei." : "Fertig – ab jetzt holt die App die Umsätze selbst ab.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -215,7 +221,9 @@ export function BankzugangAssistent({ open, onOpenChange }: Props) {
             <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
               <CheckCircle2 className="h-5 w-5" />
               <span className="font-medium">
-                {konten.length} Konten gefunden, {zugeordnet} davon einer Liegenschaft zugeordnet
+                {persoenlich
+                  ? `Zugriff auf ${konten.length} Konten`
+                  : `${konten.length} Konten gefunden, ${zugeordnet} davon einer Liegenschaft zugeordnet`}
               </span>
             </div>
             <ul className="max-h-64 overflow-y-auto divide-y rounded-lg border text-sm">
@@ -232,7 +240,9 @@ export function BankzugangAssistent({ open, onOpenChange }: Props) {
               ))}
             </ul>
             <p className="text-xs text-muted-foreground">
-              Konten ohne Liegenschaft werden nicht abgerufen. Zuordnen kannst du gleich in der Liste des Bankzugangs.
+              {persoenlich
+                ? "Von diesen Konten kannst du Überweisungen und Einzüge freigeben. Fehlt ein Konto, kann die Bank es für deinen Zugang freischalten."
+                : "Konten ohne Liegenschaft werden nicht abgerufen. Zuordnen kannst du gleich in der Liste des Bankzugangs."}
             </p>
             <DialogFooter>
               <Button onClick={() => schliessen(false)} className="h-11">

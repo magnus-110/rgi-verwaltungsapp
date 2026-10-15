@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
   if (aktion === "zeitplan") {
     const { data: ok } = await admin.rpc("fints_cron_token_pruefen", { p_token: String(body.token ?? "") });
     if (!ok) return json({ error: "Nicht erlaubt" }, 403);
-    const { data: zugaenge } = await admin.from("bank_connections").select("id").eq("status", "aktiv");
+    const { data: zugaenge } = await admin.from("bank_connections").select("id").eq("status", "aktiv").is("persoenlich_fuer", null);
     const ergebnisse: any[] = [];
     for (const z of zugaenge ?? []) {
       try {
@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
     if (aktion === "abrufen") {
       const ids: string[] = body.id
         ? [String(body.id)]
-        : ((await admin.from("bank_connections").select("id").in("status", ["aktiv", "tan_noetig"])).data ?? []).map((z: any) => z.id);
+        : ((await admin.from("bank_connections").select("id").in("status", ["aktiv", "tan_noetig"]).is("persoenlich_fuer", null)).data ?? []).map((z: any) => z.id);
       const ergebnisse = [];
       // Zeitraum und Konto wählbar: { ab?: "JJJJ-MM-TT", iban? }
       const ab = /^\d{4}-\d{2}-\d{2}$/.test(String(body.ab ?? "")) ? String(body.ab) : null;
@@ -176,15 +176,36 @@ Deno.serve(async (req) => {
       return json({ ok: ergebnisse.every((e: any) => e.ok), ergebnisse });
     }
 
-    if (!nurAdmin) return json({ error: "Bankzugänge dürfen nur Admins ändern." }, 403);
+    // Zahlungen: jeder mit seinem eigenen Bankzugang
+    if (aktion === "zahlung_senden") {
+      if (!userId) return json({ error: "Zahlungen nur mit angemeldetem Nutzer." }, 403);
+      return json(await zahlungSenden(admin, String(body.runId), body.akzeptiert ?? null, userId));
+    }
 
-    if (aktion === "anlegen") return json(await anlegen(admin, body, userId));
+    // Eigener Bankzugang: anlegen darf jeder, ändern nur der Besitzer.
+    // Büro-Zugänge (für den Abruf) nur Admins.
+    if (aktion === "anlegen") {
+      const persoenlich = body.persoenlich === true;
+      if (!persoenlich && !nurAdmin) return json({ error: "Büro-Zugänge dürfen nur Admins einrichten." }, 403);
+      if (persoenlich && !userId) return json({ error: "Nur für angemeldete Nutzer." }, 403);
+      return json(await anlegen(admin, body, userId, persoenlich));
+    }
+    if (body.id) {
+      const { data: z } = await admin.from("bank_connections").select("persoenlich_fuer").eq("id", String(body.id)).maybeSingle();
+      if (!z) return json({ error: "Bankzugang nicht gefunden" }, 404);
+      const eigener = !!z.persoenlich_fuer && z.persoenlich_fuer === userId;
+      const darf = z.persoenlich_fuer ? eigener || (nurAdmin && aktion === "entfernen") : nurAdmin;
+      if (!darf) return json({ error: "Diesen Bankzugang darf nur sein Besitzer ändern." }, 403);
+      if (z.persoenlich_fuer && ["salden", "konto_setzen"].includes(aktion)) return json({ error: "Der eigene Zugang dient nur für Zahlungen." }, 400);
+    } else if (!nurAdmin) {
+      return json({ error: "Bankzugänge dürfen nur Admins ändern." }, 403);
+    }
+
     if (aktion === "tan_waehlen") return json(await tanWaehlen(admin, String(body.id), Number(body.tanMethodId), userId));
     if (aktion === "salden") {
       return json(await abrufen(admin, String(body.id), { interaktiv: true, ausloeser: "hand", userId, nurSalden: true }));
     }
     if (aktion === "konto_setzen") return json(await kontoSetzen(admin, String(body.id), body));
-    if (aktion === "zahlung_senden") return json(await zahlungSenden(admin, String(body.runId), body.akzeptiert ?? null, userId));
     if (aktion === "pin_aendern") {
       if (!body.pin) return json({ error: "PIN fehlt" }, 400);
       const { error } = await admin.rpc("fints_pin_setzen", { p_connection: body.id, p_pin: String(body.pin) });
@@ -206,7 +227,7 @@ Deno.serve(async (req) => {
 
 // ── Einrichtung ─────────────────────────────────────────────────────────────
 
-async function anlegen(admin: any, body: any, userId: string | null) {
+async function anlegen(admin: any, body: any, userId: string | null, persoenlich = false) {
   const blz = String(body.blz ?? "").replace(/\s/g, "");
   const bank = BANKEN[blz];
   if (!bank) return { error: "Diese Bank wird (noch) nicht unterstützt." };
@@ -235,6 +256,7 @@ async function anlegen(admin: any, body: any, userId: string | null) {
       status: "neu",
       status_text: "TAN-Verfahren wählen",
       created_by: userId,
+      persoenlich_fuer: persoenlich ? userId : null,
     })
     .select("id")
     .single();
@@ -317,7 +339,7 @@ async function tanWaehlen(admin: any, id: string, tanMethodId: number, userId: s
     return { error: bankText(antwort) };
   }
 
-  const konten = await kontenZuordnen(admin, id, kontenAusUpd(config));
+  const konten = await kontenZuordnen(admin, id, kontenAusUpd(config), !zugang.persoenlich_fuer);
   const tm = config.selectedTanMethod;
   await admin.from("bank_connections").update({
     tan_method_id: tanMethodId,
@@ -342,7 +364,7 @@ async function tanWaehlen(admin: any, id: string, tanMethodId: number, userId: s
 }
 
 /** Konten der Bank mit den Konten der Liegenschaften (building_bank_accounts) verbinden. */
-async function kontenZuordnen(admin: any, connectionId: string, konten: any[]) {
+async function kontenZuordnen(admin: any, connectionId: string, konten: any[], verknuepfen = true) {
   const ibans = konten.map((k) => k.iban).filter(Boolean);
   const { data: bba } = ibans.length
     ? await admin.from("building_bank_accounts").select("id, building_id, iban, display_name").in("iban", ibans)
@@ -354,7 +376,7 @@ async function kontenZuordnen(admin: any, connectionId: string, konten: any[]) {
     return { ...k, buildingId: treffer.length === 1 ? treffer[0].building_id : null, kontoName: treffer[0]?.display_name ?? null };
   });
   const zugeordnet = (bba ?? []).filter((b: any) => (je.get(cleanIban(b.iban)) ?? []).length === 1).map((b: any) => b.id);
-  if (zugeordnet.length) {
+  if (zugeordnet.length && verknuepfen) {
     await admin.from("building_bank_accounts").update({ bank_connection_id: connectionId }).in("id", zugeordnet);
   }
   return ergebnis;
@@ -718,12 +740,19 @@ async function zahlungSenden(admin: any, runId: string, akzeptiert: Record<strin
     }
     const iban = cleanIban(lauf.konto_iban);
 
-    // Bankzugang mit diesem Konto
-    const { data: zugaenge } = await admin.from("bank_connections").select("id, konten, status").in("status", ["aktiv", "tan_noetig"]);
-    const zugang = (zugaenge ?? []).find((z: any) => (z.konten ?? []).some((k: any) => cleanIban(k.iban) === iban && !k.ausgeblendet));
+    // Nur der EIGENE Bankzugang des angemeldeten Nutzers mit diesem Konto
+    const { data: zugaenge } = await admin
+      .from("bank_connections")
+      .select("id, konten, status")
+      .eq("persoenlich_fuer", userId)
+      .in("status", ["aktiv", "tan_noetig"]);
+    const zugang = (zugaenge ?? []).find((z: any) => (z.konten ?? []).some((k: any) => cleanIban(k.iban) === iban));
     if (!zugang) {
-      await ende("fehler", { fehler: "Für dieses Konto ist kein Bankzugang eingerichtet." });
-      return { error: "Für dieses Konto ist kein Bankzugang eingerichtet." };
+      const text = (zugaenge ?? []).length
+        ? "Dein Bankzugang hat keinen Zugriff auf dieses Konto. Bitte bei der Bank für deinen VR-NetKey freischalten lassen."
+        : "Für Zahlungen brauchst du deinen eigenen Bankzugang (Einstellungen › Bankzugänge › Mein Bankzugang).";
+      await ende("fehler", { fehler: text });
+      return { error: text };
     }
     const { config } = await ladeZugang(admin, zugang.id);
     const konto = (config.bankingInformation?.upd?.bankAccounts ?? []).find((a: any) => cleanIban(a.iban) === iban);

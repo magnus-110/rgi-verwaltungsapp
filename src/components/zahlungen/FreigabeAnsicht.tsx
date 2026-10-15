@@ -77,7 +77,7 @@ const datum = (d: string | null) => (d ? format(new Date(d), "dd.MM.yyyy") : "")
  */
 export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
   const queryClient = useQueryClient();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { managementMode } = useManagementMode();
   const [ab, setAb] = useState<Record<string, boolean>>({});
   const [kontoWahl, setKontoWahl] = useState<Record<string, string>>({});
@@ -131,16 +131,23 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
       return data ?? [];
     },
   });
-  const { data: fintsKonten = new Set<string>() } = useQuery({
-    queryKey: ["bank-connections", "fints-konten"],
+  // Zahlungen nur über den EIGENEN Bankzugang des angemeldeten Nutzers
+  const { data: eigenerZugang } = useQuery({
+    queryKey: ["bank-connections", "eigene", user?.id],
+    enabled: !!user?.id,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("bank_connections").select("konten, status").in("status", ["aktiv", "tan_noetig"]);
+      const { data, error } = await (supabase as any)
+        .from("bank_connections")
+        .select("konten, status")
+        .eq("persoenlich_fuer", user!.id)
+        .in("status", ["aktiv", "tan_noetig"]);
       if (error) throw error;
       const m = new Set<string>();
-      (data ?? []).forEach((z: any) => (z.konten ?? []).forEach((k: any) => k.iban && !k.ausgeblendet && m.add(cleanIban(k.iban))));
-      return m;
+      (data ?? []).forEach((z: any) => (z.konten ?? []).forEach((k: any) => k.iban && m.add(cleanIban(k.iban))));
+      return { anzahl: (data ?? []).length, konten: m };
     },
   });
+  const fintsKonten = eigenerZugang?.konten ?? new Set<string>();
   const { data: offeneEntscheidungen = [] } = useQuery({
     queryKey: ["zahllauf-entscheidung"],
     queryFn: async () => {
@@ -563,10 +570,10 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
               </span>
             </div>
             {banken.map((b) => {
-              const grund = !istAdmin
-                ? "Nur Admins können Überweisungen senden."
+              const grund = !eigenerZugang?.anzahl
+                ? "Für Zahlungen brauchst du deinen eigenen Bankzugang (Einstellungen › Bankzugänge › Mein Bankzugang)."
                 : !b.fints
-                  ? "Für mindestens ein Konto ist noch kein Bankzugang eingerichtet (Einstellungen › Bankzugänge)."
+                  ? "Dein Bankzugang hat keinen Zugriff auf mindestens eines dieser Konten. Die Bank kann es für deinen Zugang freischalten."
                   : null;
               const knopf = (
                 <Button size="sm" disabled={!!grund || !!laeuft} onClick={() => perTanSenden(b)} className="bg-white text-neutral-900 hover:bg-white/90">
@@ -603,6 +610,12 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
                 </div>
               );
             })}
+            {eigenerZugang && !eigenerZugang.anzahl && (
+              <p className="text-xs text-white/80">
+                Zahlungen gibst du mit deinem eigenen Online-Banking-Zugang frei.{" "}
+                <a href="/settings?tab=bankzugaenge" className="underline underline-offset-2">Jetzt einrichten</a>
+              </p>
+            )}
             {banken.some((b) => !b.fints && b.lastschriften) && <p className="text-xs text-white/70">Lastschriften gehen nur über einen Bankzugang, nicht über die SEPA-Datei.</p>}
           </div>
         </div>

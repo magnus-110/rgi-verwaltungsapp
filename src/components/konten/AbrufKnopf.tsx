@@ -85,7 +85,7 @@ export function AbrufKnopf({ zugangId, nurRgi, disabled, children, ...knopf }: P
     queryKey: ["bank-connections", "abruf-konten", zugangId ?? "alle", !!nurRgi],
     enabled: offen,
     queryFn: async () => {
-      let q = (supabase as any).from("bank_connections").select("id, bank_name, konten, status");
+      let q = (supabase as any).from("bank_connections").select("id, bank_name, konten, status").is("persoenlich_fuer", null);
       if (zugangId) q = q.eq("id", zugangId);
       const [{ data: zugaenge, error }, { data: bba }] = await Promise.all([
         q,

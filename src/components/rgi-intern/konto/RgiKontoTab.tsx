@@ -27,7 +27,7 @@ export function RgiKontoTab() {
   const { data: konten = [], isLoading } = useQuery({
     queryKey: ["bank-connections", "rgi"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("bank_connections").select("id, bank_name, konten");
+      const { data, error } = await (supabase as any).from("bank_connections").select("id, bank_name, konten").is("persoenlich_fuer", null);
       if (error) throw error;
       return (data ?? []).flatMap((z: any) =>
         (z.konten ?? []).filter((k: any) => k.rgi && !k.ausgeblendet).map((k: any) => ({ ...k, bank: z.bank_name, iban: cleanIban(k.iban) })),
