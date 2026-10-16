@@ -97,11 +97,10 @@ export const OnboardingFAB = () => {
   // even if (legacy) fully_completed_at was never set on the row.
   if (progress.step5_completed_at) return null;
 
+  // Drei Schritte: Ihre Daten (1) · Aufgefallen (3) · Wichtig (5)
   const completedCount = [
     progress.step1_completed_at,
-    progress.step2_completed_at,
     progress.step3_completed_at,
-    progress.step4_completed_at,
     progress.step5_completed_at,
   ].filter(Boolean).length;
 
@@ -132,7 +131,7 @@ export const OnboardingFAB = () => {
             <span className="font-medium">
               {completedCount === 0
                 ? "Onboarding starten"
-                : `${completedCount} von 5 erledigt`}
+                : `${completedCount} von 3 erledigt`}
             </span>
             {canMinimize && (
               <span

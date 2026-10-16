@@ -7,6 +7,51 @@ import { Textarea } from "@/components/ui/textarea";
 import { RangeSlider } from "../ui/RangeSlider";
 import { EmbeddedInput } from "../ui/InlineField";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
+import { Camera, Loader2, X } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+
+/** Fotos zu einem Bereich hochladen (z. B. Schaden am Dach) */
+function FotoKnopf({ fotos, onChange }: { fotos: { path: string; name: string }[]; onChange: (f: { path: string; name: string }[]) => void }) {
+  const [laeuft, setLaeuft] = useState(false);
+  const hochladen = async (liste: FileList | null) => {
+    if (!liste?.length) return;
+    setLaeuft(true);
+    const { data: u } = await supabase.auth.getUser();
+    const neu: { path: string; name: string }[] = [];
+    for (const datei of Array.from(liste)) {
+      if (datei.size > 15 * 1024 * 1024) {
+        toast.error(`${datei.name}: höchstens 15 MB.`);
+        continue;
+      }
+      const ext = (datei.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${u.user?.id}/gebaeude/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error } = await supabase.storage.from("onboarding-attachments").upload(path, datei, { contentType: datei.type || "image/jpeg" });
+      if (error) toast.error(`Foto konnte nicht hochgeladen werden: ${datei.name}`);
+      else neu.push({ path, name: datei.name });
+    }
+    setLaeuft(false);
+    if (neu.length) onChange([...fotos, ...neu]);
+  };
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      {fotos.map((f) => (
+        <span key={f.path} className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[12px]">
+          {f.name}
+          <button type="button" aria-label="Foto entfernen" onClick={() => onChange(fotos.filter((x) => x.path !== f.path))}>
+            <X className="size-3" />
+          </button>
+        </span>
+      ))}
+      <label className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-dashed border-primary/60 px-3 text-[12px] font-medium text-primary">
+        {laeuft ? <Loader2 className="size-3.5 animate-spin" /> : <Camera className="size-3.5" />}
+        Foto hinzufügen
+        <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => (hochladen(e.target.files), (e.target.value = ""))} />
+      </label>
+    </div>
+  );
+}
 
 export type ProblemAreaId = "dach" | "fassade" | "treppenhaus" | "keller" | "eingang" | "sonstiges";
 
@@ -17,6 +62,8 @@ export interface Step3Data {
   general_impression_score?: number;
   problem_areas?: ProblemAreaId[];
   problem_notes?: Record<string, string>;
+  /** Fotos je Bereich (Pfade im Bucket onboarding-attachments) */
+  problem_fotos?: Record<string, { path: string; name: string }[]>;
   /** Mehrfachauswahl möglich (z. B. Hybrid) */
   heating_types?: HeatingTypeId[];
   heating_other?: string;
@@ -111,57 +158,6 @@ export const Step3Gebaeude = ({ value, onChange }: Props) => {
       </SectionCard>
 
 
-      <SectionCard label="HEIZUNGSART (MEHRFACHAUSWAHL MÖGLICH)">
-        <div className="p-3 space-y-2.5">
-          <div className="grid grid-cols-2 gap-2">
-            {HEATING_TYPES.map(({ id, label, Icon }) => {
-              const sel = heatings.includes(id);
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => toggleHeating(id)}
-                  className={cn(
-                    "h-11 rounded-[10px] border px-3 flex items-center gap-2 text-[13px] font-medium transition",
-                    sel
-                      ? "border-primary bg-primary/[0.06] text-primary"
-                      : "border-border/60 bg-card text-foreground hover:bg-accent/40"
-                  )}
-                >
-                  <Icon className={cn("size-4 shrink-0", sel ? "text-primary" : "text-muted-foreground")} />
-                  <span className="truncate flex-1 text-left">{label}</span>
-                  {sel && <Check className="size-3.5 text-primary shrink-0" strokeWidth={3} />}
-                </button>
-              );
-            })}
-          </div>
-          {heatings.includes("sonstiges") && (
-            <Textarea
-              rows={2}
-              value={value.heating_other ?? ""}
-              onChange={(e) => set({ heating_other: e.target.value })}
-              placeholder="Bitte beschreiben"
-              className="border-0 bg-[hsl(var(--input))] focus-visible:ring-0 resize-none rounded-lg px-3 py-2.5 text-[14px]"
-            />
-          )}
-          {(heatings.includes("pellets") || heatings.includes("oel")) && (
-            <div className="rounded-lg bg-accent/50 border border-border/60 p-3 space-y-1.5">
-              <div className="text-[12px] font-medium text-foreground">
-                Nachbestellung {heatings.includes("pellets") && heatings.includes("oel") ? "Pellets / Öl" : heatings.includes("pellets") ? "Pellets" : "Öl"}
-              </div>
-              <div className="text-[11px] text-muted-foreground">
-                Wer informiert die Hausverwaltung, wenn nachbestellt werden muss? (optional)
-              </div>
-              <EmbeddedInput
-                value={value.refill_contact ?? ""}
-                onChange={(e) => set({ refill_contact: e.target.value })}
-                placeholder="Name / Kontakt"
-              />
-            </div>
-          )}
-        </div>
-      </SectionCard>
-
       <SectionCard label="BEREICHE MIT AUFFÄLLIGKEITEN (OPTIONAL)" flat>
         <div className="p-3 space-y-2">
           {AREAS.map(({ id, name, subtitle, Icon }) => {
@@ -209,6 +205,10 @@ export const Step3Gebaeude = ({ value, onChange }: Props) => {
                       onChange={(e) => setProblemNote(id, e.target.value)}
                       placeholder={`Was ist Ihnen am ${name} aufgefallen?`}
                       className="border-0 bg-[hsl(var(--input))] focus-visible:ring-0 focus-visible:bg-[hsl(35_25%_92%)] resize-none rounded-lg px-3 py-2.5 text-[14px]"
+                    />
+                    <FotoKnopf
+                      fotos={value.problem_fotos?.[id] ?? []}
+                      onChange={(f) => set({ problem_fotos: { ...(value.problem_fotos ?? {}), [id]: f } })}
                     />
                   </div>
                 )}

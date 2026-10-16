@@ -35,6 +35,7 @@ const Pinnwand = lazy(() => import("./pages/Pinnwand"));
 const Zettel = lazy(() => import("./pages/Zettel"));
 const Ablage = lazy(() => import("./pages/Ablage"));
 const Vorgaenge = lazy(() => import("./pages/Vorgaenge"));
+const Aufnahme = lazy(() => import("./pages/Aufnahme"));
 const Vorgang = lazy(() => import("./pages/Vorgang"));
 const Calendar = lazy(() => import("./pages/Calendar").then(m => ({ default: m.Calendar })));
 const Contacts = lazy(() => import("./pages/Contacts").then(m => ({ default: m.Contacts })));
@@ -155,6 +156,8 @@ const App = () => (
               <Route path="/pinnwand/:id" element={<AdminLayout><Zettel /></AdminLayout>} />
               <Route path="/ablage" element={<AdminLayout><Ablage /></AdminLayout>} />
               <Route path="/vorgaenge" element={<AdminLayout><Vorgaenge /></AdminLayout>} />
+              <Route path="/aufnahme" element={<AdminLayout><Aufnahme /></AdminLayout>} />
+              <Route path="/aufnahme/:buildingId" element={<AdminLayout><Aufnahme /></AdminLayout>} />
               <Route path="/vorgaenge/:id" element={<AdminLayout><Vorgang /></AdminLayout>} />
               <Route path="/todos" element={<AdminLayout><Todos /></AdminLayout>} />
               <Route path="/calendar" element={<AdminLayout><Calendar /></AdminLayout>} />

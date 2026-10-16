@@ -19,7 +19,7 @@ import {
   StickyNote,
   Users,
   Wallet,
-  Workflow, ReceiptText } from 'lucide-react';
+  Workflow, ReceiptText, ClipboardList } from 'lucide-react';
 
 /**
  * Die Navigation — an einer Stelle.
@@ -69,6 +69,7 @@ export const adminMenu: MenuItem[] = [
   { title: 'Anleitungen', url: '/checklisten', icon: Workflow, abschnitt: 'Büro' },
 
   { title: 'Gebäude', url: '/buildings', icon: Castle, abschnitt: 'Objekte' },
+  { title: 'Aufnahme', url: '/aufnahme', icon: ClipboardList, abschnitt: 'Objekte' },
   { title: 'Adressen', url: '/contacts', icon: BookUser, abschnitt: 'Objekte' },
   { title: 'Schlüssel', url: '/schluessel', icon: KeyRound, abschnitt: 'Objekte' },
 

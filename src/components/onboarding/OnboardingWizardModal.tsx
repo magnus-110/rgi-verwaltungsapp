@@ -34,20 +34,26 @@ interface Props {
   onComplete: () => void;
 }
 
-const STEP_LABELS = ["Stammdaten", "Wohnung", "Gebäude", "Dienstleister", "Weiteres"];
+/**
+ * Seit 16.10.2026 nur noch drei Schritte: Ihre Daten · Aufgefallen · Wichtig.
+ * Intern bleiben es die Schritte 1, 3 und 5, damit Speichern und Freigeben
+ * auf dem Server unverändert funktionieren. Wohnungsdaten und Dienstleister
+ * klärt die Verwaltung beim Termin vor Ort und aus den Unterlagen.
+ */
+const SCHRITTE = [1, 3, 5] as const;
+const naechster = (s: number) => SCHRITTE.find((x) => x > s) ?? 5;
+const vorheriger = (s: number) => [...SCHRITTE].reverse().find((x) => x < s) ?? 1;
+const anzeigeNr = (s: number) => Math.max(1, SCHRITTE.indexOf(s as 1 | 3 | 5) + 1);
+const STEP_LABELS = ["Ihre Daten", "Aufgefallen", "Wichtig"];
 const STEP_TITLES: Record<number, string> = {
-  1: "Ihre Stammdaten",
-  2: "Wohnungsdaten",
-  3: "Gebäude",
-  4: "Dienstleister",
-  5: "Weiteres",
+  1: "Ihre Daten",
+  3: "Ist Ihnen am Gebäude etwas aufgefallen?",
+  5: "Was ist Ihnen wichtig?",
 };
 const STEP_SUBTITLES: Record<number, string> = {
   1: "Pflichtangaben für Ihre Eigentümerakte.",
-  2: "Optional — Ihre Angaben helfen uns, Ihre Liegenschaft von Beginn an optimal zu betreuen.",
-  3: "Optional — Ihre Angaben helfen uns, Ihre Liegenschaft von Beginn an optimal zu betreuen.",
-  4: "Optional — Ihre Angaben helfen uns, Ihre Liegenschaft von Beginn an optimal zu betreuen.",
-  5: "Optional — Ihre Angaben helfen uns, Ihre Liegenschaft von Beginn an optimal zu betreuen.",
+  3: "Optional — zum Beispiel Schäden oder Dinge, die gemacht werden sollten. Gern mit Foto.",
+  5: "Optional — Ihre Wünsche an die Verwaltung und ob Sie sich einbringen möchten.",
 };
 
 export const OnboardingWizardModal = ({
@@ -60,7 +66,10 @@ export const OnboardingWizardModal = ({
 }: Props) => {
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const [step, setStep] = useState<number>(progress.current_step || 1);
+  const [step, setStep] = useState<number>(() => {
+    const s = progress.current_step || 1;
+    return (SCHRITTE as readonly number[]).includes(s) ? s : naechster(s);
+  });
   const [stepData, setStepData] = useState<Record<string, any>>(progress.step_data || {});
   const [submitting, setSubmitting] = useState(false);
   const [justFinished, setJustFinished] = useState(false);
@@ -102,7 +111,7 @@ export const OnboardingWizardModal = ({
 
   useEffect(() => {
     if (progress.is_repeat_owner && step === 1 && !progress.step1_completed_at) {
-      setStep(2);
+      setStep(3);
     }
   }, [progress.is_repeat_owner, progress.step1_completed_at, step]);
 
@@ -126,8 +135,8 @@ export const OnboardingWizardModal = ({
     [progress]
   );
 
-  const completedCount = Object.values(completed).filter(Boolean).length;
-  const allDone = justFinished || completedCount === 5 || !!progress.fully_completed_at || !!progress.step5_completed_at;
+  const allDone = justFinished || !!progress.fully_completed_at || !!progress.step5_completed_at;
+  const completedAnzeige: Record<number, boolean> = { 1: completed[1], 2: completed[3], 3: completed[5] };
 
   // Step 1 darf nicht mehr hart gesperrt werden — Nutzer darf jederzeit
   // schließen (Onboarding-FAB bleibt sichtbar bis abgeschlossen).
@@ -170,7 +179,7 @@ export const OnboardingWizardModal = ({
     // Steps 2-4 sind optional: bei leeren Daten einfach weiter ohne Submit.
     if (step > 1 && step < 5 && isEmptyData(currentData)) {
       await flush();
-      setStep(step + 1);
+      setStep(naechster(step));
       return;
     }
 
@@ -201,13 +210,13 @@ export const OnboardingWizardModal = ({
               ? "Ihre Daten wurden direkt übernommen."
               : "Die Verwaltung prüft Ihre Angaben.",
         });
-        setStep(step + 1);
+        setStep(naechster(step));
       } else {
         setJustFinished(true);
       }
     } catch (e: any) {
       if (step > 1) {
-        if (step < 5) setStep(step + 1);
+        if (step < 5) setStep(naechster(step));
         else setJustFinished(true);
       } else {
         toast({
@@ -407,10 +416,10 @@ export const OnboardingWizardModal = ({
             <div className="bg-card border-b border-border/40 px-5 py-3.5 shrink-0">
               <StepSlider
                 steps={STEP_LABELS}
-                currentStep={showWelcome || showStammdatenModeQuestion ? 0 : step}
-                completed={showWelcome || showStammdatenModeQuestion ? {} : completed}
+                currentStep={showWelcome || showStammdatenModeQuestion ? 0 : anzeigeNr(step)}
+                completed={showWelcome || showStammdatenModeQuestion ? {} : completedAnzeige}
                 onStepClick={(n) =>
-                  !showWelcome && !showStammdatenModeQuestion && !isStep1HardLocked && setStep(n)
+                  !showWelcome && !showStammdatenModeQuestion && !isStep1HardLocked && setStep(SCHRITTE[n - 1] ?? 1)
                 }
                 lockedFromStep={
                   showWelcome || showStammdatenModeQuestion ? 1 : isStep1HardLocked ? 2 : undefined
@@ -433,7 +442,7 @@ export const OnboardingWizardModal = ({
                   onComplete();
                   onOpenChange(false);
                 }}
-                completed={justFinished || progress.step5_completed_at ? { 1: true, 2: true, 3: true, 4: true, 5: true } : completed}
+                completed={justFinished || progress.step5_completed_at ? { 1: true, 2: true, 3: true } : completedAnzeige}
               />
             ) : showWelcome ? (
               <WelcomeScreen onStart={() => setShowWelcome(false)} />
@@ -494,7 +503,7 @@ export const OnboardingWizardModal = ({
                     return;
                   }
                   await flush();
-                  setStep(step - 1);
+                  setStep(vorheriger(step));
                 }}
                 disabled={submitting}
                 className="border-border/60"
@@ -694,7 +703,7 @@ const CompletionScreen = ({
   onClose: () => void;
   completed: Record<number, boolean>;
 }) => {
-  const stepNames = ["Stammdaten", "Wohnungsdaten", "Gebäude", "Dienstleister", "Weiteres"];
+  const stepNames = ["Ihre Daten", "Aufgefallen", "Wichtig"];
   return (
     <div className="max-w-md mx-auto space-y-7 py-3">
       <div className="bg-card rounded-[16px] border border-border/50 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
