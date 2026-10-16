@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { Info, Landmark, ShieldCheck, Upload, FileText, X, Loader2, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
-import { SEPA_MANDATE_TEXT, logSepaMandateEvent } from "../sepaAuditLog";
+import { sepaGlaeubiger, sepaMandatText, logSepaMandateEvent } from "../sepaAuditLog";
 
 export type PhoneType = "private" | "mobile" | "business";
 export interface PhoneEntry { number: string; type?: PhoneType; note?: string }
@@ -67,7 +67,7 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
   const prefilledRef = useRef(false);
   const hasOverridesRef = useRef(false);
   const valueRef = useRef(value);
-  const [buildingMeta, setBuildingMeta] = useState<{ creditor_id: string | null; building_code: string | null } | null>(null);
+  const [buildingMeta, setBuildingMeta] = useState<{ creditor_id: string | null; building_code: string | null; name?: string | null; postal_code?: string | null; city?: string | null; management_mode?: string | null } | null>(null);
   const mandateInitRef = useRef(false);
 
   useEffect(() => {
@@ -107,7 +107,7 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
     if (!buildingId) return;
     supabase
       .from("buildings")
-      .select("creditor_id, building_code")
+      .select("creditor_id, building_code, name, postal_code, city, management_mode")
       .eq("id", buildingId)
       .single()
       .then(({ data }) => {
@@ -262,6 +262,12 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
               <Landmark className="size-4 text-primary mt-0.5 shrink-0" />
               <div className="flex-1 min-w-0 space-y-1.5 text-[12px]">
                 <div className="flex flex-col">
+                  <span className="text-muted-foreground">Zahlungsempfänger:</span>
+                  <span className="text-foreground">
+                    {buildingMeta?.name ? sepaGlaeubiger(buildingMeta) : "Eigentümergemeinschaft"}, vertreten durch RGI Immobilien GmbH &amp; Co. KG
+                  </span>
+                </div>
+                <div className="flex flex-col">
                   <span className="text-muted-foreground">Gläubiger-ID:</span>
                   <span className="font-mono text-foreground break-all">
                     {buildingMeta?.creditor_id || (
@@ -273,11 +279,7 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
                 </div>
                 <div className="flex flex-col">
                   <span className="text-muted-foreground">Mandatsreferenz:</span>
-                  <span className="font-mono text-foreground break-all">
-                    {value.sepa_mandate_reference || (
-                      <span className="italic text-muted-foreground">wird erzeugt …</span>
-                    )}
-                  </span>
+                  <span className="text-foreground">Wird von der Verwaltung vergeben und vor dem ersten Einzug mitgeteilt</span>
                 </div>
               </div>
             </div>
@@ -319,7 +321,7 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
           {/* Mandatstext + digitale Unterschrift */}
           <div className="rounded-[10px] border border-border/60 bg-card p-3 space-y-3">
             <p className="text-[12.5px] leading-relaxed text-foreground/85">
-              {SEPA_MANDATE_TEXT}
+              {sepaMandatText(buildingMeta ? { ...buildingMeta, creditor_id: value.sepa_creditor_id ?? buildingMeta.creditor_id } : null)}
             </p>
             <label className="flex items-start gap-2.5 cursor-pointer select-none">
               <Checkbox
