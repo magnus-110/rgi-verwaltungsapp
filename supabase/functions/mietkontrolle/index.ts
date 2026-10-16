@@ -213,7 +213,7 @@ async function ladeMieter(admin: any, buildingId: string | null): Promise<{ miet
     if (!aktuell(a) && !a.valid_to) return [];
     return kosten
       .filter((k) => k.assignment_id === a.id)
-      .map((k) => (a.valid_to && (!k.valid_to || k.valid_to > a.valid_to) ? { ...k, valid_to: a.valid_to } : k));
+      .map((k) => ({ ...k, einheit: a.unit_number ?? "", ...(a.valid_to && (!k.valid_to || k.valid_to > a.valid_to) ? { valid_to: a.valid_to } : {}) }));
   };
 
   // je Objekt und Kontakt ein Mieterkonto
@@ -700,7 +700,13 @@ async function uebersicht(admin: any, buildingId: string | null) {
         vortrag: m.vortrag,
         vortragOffen: ohneDaten ? 0 : ergebnis.vortragOffen,
         sollMonat: ergebnis.sollMonat,
-        rueckstand: ohneDaten ? 0 : ergebnis.rueckstand,
+        // alle Beträge, die der Mieter zahlen muss (je Einheit und Art, mit Zeitraum)
+        sollPosten: [...m.kosten].sort(
+          (x: any, y: any) =>
+            String(x.einheit).localeCompare(String(y.einheit), "de", { numeric: true }) ||
+            String(x.cost_type).localeCompare(String(y.cost_type), "de") ||
+            String(x.valid_from ?? "").localeCompare(String(y.valid_from ?? "")),
+        ),
         guthaben: ergebnis.guthaben,
         monate: ergebnis.monate.slice(-12),
         infos: m.infos,

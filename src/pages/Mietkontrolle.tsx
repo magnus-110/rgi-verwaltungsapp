@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Bot, Download, Loader2, MessageSquareText, RefreshCw, Send } from "lucide-react";
+import { Bot, ChevronLeft, ChevronRight, Download, Loader2, MessageSquareText, RefreshCw, Search, Send } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,9 @@ const STATUS_TEXT: Record<string, string> = { puenktlich: "pünktlich", verspaet
 const STUFE: Record<string, string> = { erinnerung: "Zahlungserinnerung", mahnung1: "1. Mahnung", mahnung2: "2. Mahnung" };
 const MONAT_KURZ = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 const datum = (d: string | null | undefined) => (d ? format(new Date(d), "dd.MM.yyyy") : "");
+const PRO_SEITE = 25;
+const suchText = (s: string) =>
+  s.toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").replace(/\s+/g, " ").trim();
 
 async function rufe(aktion: string, daten: Record<string, unknown> = {}) {
   const { data, error } = await supabase.functions.invoke("mietkontrolle", { body: { aktion, ...daten } });
@@ -87,8 +90,19 @@ export default function Mietkontrolle() {
   });
   const neuLaden = () => queryClient.invalidateQueries({ queryKey: ["mietkontrolle"] });
 
+  const [suche, setSuche] = useState("");
+  const [seite, setSeite] = useState(0);
   const mieter: any[] = useMemo(() => (u?.mieter ?? []).filter((x: any) => haus === "alle" || x.buildingId === haus), [u, haus]);
-  const sel = mieter.find((x) => x.assignmentId === auswahl) ?? mieter.find((x) => x.rueckstand > 0) ?? mieter[0] ?? null;
+  // Suche nach Name, Einheit oder Objekt (Groß-/Kleinschreibung und Umlaute egal)
+  const gefiltert: any[] = useMemo(() => {
+    const q = suchText(suche);
+    if (!q) return mieter;
+    return mieter.filter((x) => suchText(`${x.name} ${x.einheit} ${x.haus}`).includes(q));
+  }, [mieter, suche]);
+  const seiten = Math.max(1, Math.ceil(gefiltert.length / PRO_SEITE));
+  const aktSeite = Math.min(seite, seiten - 1);
+  const sichtbar = gefiltert.slice(aktSeite * PRO_SEITE, (aktSeite + 1) * PRO_SEITE);
+  const sel = mieter.find((x) => x.assignmentId === auswahl) ?? sichtbar.find((x) => x.rueckstand > 0) ?? sichtbar[0] ?? null;
   const faelle: any[] = (mahn?.faelle ?? []).filter((f: any) => haus === "alle" || f.building_id === haus);
   const geplant = faelle.filter((f) => f.status === "geplant" || f.status === "fehler");
   const ausgesetzt = faelle.filter((f) => f.status === "ausgesetzt");
@@ -154,7 +168,13 @@ export default function Mietkontrolle() {
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
             Mietobjekt
-            <Select value={haus} onValueChange={setHaus}>
+            <Select
+              value={haus}
+              onValueChange={(v) => {
+                setHaus(v);
+                setSeite(0);
+              }}
+            >
               <SelectTrigger className="h-11 w-64 text-sm text-foreground">
                 <SelectValue />
               </SelectTrigger>
@@ -233,6 +253,24 @@ export default function Mietkontrolle() {
 
           <div className="flex flex-wrap items-start gap-5">
             <section className="min-w-0 flex-[3_1_560px] overflow-hidden rounded-xl border bg-card" aria-label="Mieter">
+              <div className="flex flex-wrap items-center gap-3 border-b px-4 py-3">
+                <div className="relative min-w-[200px] flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={suche}
+                    onChange={(e) => {
+                      setSuche(e.target.value);
+                      setSeite(0);
+                    }}
+                    placeholder="Mieter suchen (Name, Einheit, Objekt)"
+                    aria-label="Mieter suchen"
+                    className="h-10 pl-9 text-sm"
+                  />
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {gefiltert.length} Mieter{suche.trim() ? ` von ${mieter.length}` : ""}
+                </span>
+              </div>
               <div className="overflow-x-auto">
                 <div className="min-w-[600px]">
                   <div className="grid grid-cols-[minmax(130px,1.4fr)_84px_minmax(140px,1.2fr)_92px_minmax(100px,1fr)] gap-3 px-4 pb-2 pt-3 text-xs text-muted-foreground">
@@ -242,7 +280,7 @@ export default function Mietkontrolle() {
                     <span className="text-right">Rückstand</span>
                     <span>Ergebnis</span>
                   </div>
-                  {mieter.map((x) => {
+                  {sichtbar.map((x) => {
                     const e = ergebnis(x);
                     return (
                       <button
@@ -281,9 +319,26 @@ export default function Mietkontrolle() {
                       </button>
                     );
                   })}
-                  {!mieter.length && <div className="border-t px-4 py-10 text-center text-sm text-muted-foreground">Keine Mieter mit hinterlegter Miete (Gebäude › Personen › Kosten).</div>}
+                  {!gefiltert.length && (
+                    <div className="border-t px-4 py-10 text-center text-sm text-muted-foreground">
+                      {suche.trim() ? `Kein Mieter zu „${suche.trim()}“ gefunden.` : "Keine Mieter mit hinterlegter Miete (Gebäude › Personen › Kosten)."}
+                    </div>
+                  )}
                 </div>
               </div>
+              {seiten > 1 && (
+                <div className="flex items-center justify-between gap-3 border-t px-4 py-2.5 text-sm">
+                  <Button variant="outline" size="sm" disabled={aktSeite === 0} onClick={() => setSeite(aktSeite - 1)}>
+                    <ChevronLeft className="h-4 w-4 mr-1" /> Zurück
+                  </Button>
+                  <span className="text-center text-muted-foreground">
+                    Seite {aktSeite + 1} von {seiten} · {aktSeite * PRO_SEITE + 1}–{Math.min((aktSeite + 1) * PRO_SEITE, gefiltert.length)} von {gefiltert.length}
+                  </span>
+                  <Button variant="outline" size="sm" disabled={aktSeite >= seiten - 1} onClick={() => setSeite(aktSeite + 1)}>
+                    Weiter <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              )}
               <div className="flex flex-wrap gap-4 border-t px-4 py-3 text-xs text-muted-foreground">
                 {(["puenktlich", "verspaetet", "zu_wenig", "offen"] as const).map((s) => (
                   <span key={s} className="inline-flex items-center gap-1.5">
@@ -335,6 +390,8 @@ export default function Mietkontrolle() {
                 <Schritt nr={sel.rueckstand > 0 && sel.infos.length ? "3" : "2"} titel="Ergebnis">
                   <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold", ergebnis(sel).stil)}>{ergebnis(sel).lang}</span>
                 </Schritt>
+
+                <SollAufstellung x={sel} />
 
                 <MieterkontoKarte
                   x={sel}
@@ -710,6 +767,129 @@ function MieterkontoKarte({
           Abbrechen
         </Button>
       </div>
+    </div>
+  );
+}
+
+const INTERVALL: Record<string, string> = { quartal: "vierteljährlich", jaehrlich: "jährlich" };
+
+/**
+ * Alles, was der Mieter zahlen muss: die aktuellen Beträge je Einheit und Art
+ * mit Monatssumme, kommende Änderungen, frühere/einmalige Beträge und die
+ * Monate mit Soll und Ist.
+ */
+function SollAufstellung({ x }: { x: any }) {
+  const heuteIso = new Date().toISOString().slice(0, 10);
+  const posten: any[] = x.sollPosten ?? [];
+  const kuenftigP = (p: any) => !!p.valid_from && p.valid_from > heuteIso;
+  const laeuft = (p: any) => p.interval !== "einmalig" && !kuenftigP(p) && (!p.valid_to || p.valid_to >= heuteIso);
+  const aktuell = posten.filter(laeuft);
+  const kuenftig = posten.filter(kuenftigP);
+  const frueher = posten.filter((p) => !laeuft(p) && !kuenftigP(p));
+  const proMonat = (p: any) => (p.interval === "quartal" ? Number(p.amount) / 3 : p.interval === "jaehrlich" ? Number(p.amount) / 12 : Number(p.amount));
+  const summe = aktuell.reduce((s, p) => s + proMonat(p), 0);
+  const mehrereEinheiten = new Set(posten.map((p) => p.einheit)).size > 1;
+  const zeitraum = (p: any) =>
+    p.interval === "einmalig"
+      ? `einmalig, fällig ${datum(p.valid_from)}`
+      : `${p.valid_from ? `ab ${datum(p.valid_from)}` : "seit Beginn"}${p.valid_to ? ` bis ${datum(p.valid_to)}` : ""}${INTERVALL[p.interval] ? ` · ${INTERVALL[p.interval]}` : ""}`;
+
+  const zeile = (p: any, key: string, blass = false) => (
+    <tr key={key} className={cn("border-t", blass && "text-muted-foreground")}>
+      <td className="py-1.5 pr-2">
+        {p.cost_type}
+        {mehrereEinheiten && p.einheit ? <span className="text-muted-foreground"> · Einheit {p.einheit}</span> : null}
+        <span className="block text-xs text-muted-foreground">{zeitraum(p)}</span>
+      </td>
+      <td className="py-1.5 text-right align-top tabular-nums">{euro(Number(p.amount))}</td>
+    </tr>
+  );
+
+  return (
+    <div className="rounded-xl border p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-semibold">Was der Mieter zahlen muss</span>
+        <span className="text-xs text-muted-foreground">{x.zahltag ? `fällig am ${x.zahltag}. des Monats` : "fällig zum 3. Werktag"}</span>
+      </div>
+      {!posten.length && !x.vortrag ? (
+        <div className="mt-2 text-sm text-muted-foreground">Keine Beträge hinterlegt (Gebäude › Personen › Kosten).</div>
+      ) : (
+        <table className="mt-1 w-full text-sm">
+          <tbody>
+            {aktuell.map((p, i) => zeile(p, `a${i}`))}
+            {aktuell.length > 0 && (
+              <tr className="border-t-2 font-semibold">
+                <td className="py-1.5">Summe pro Monat</td>
+                <td className="py-1.5 text-right tabular-nums">{euro(summe)}</td>
+              </tr>
+            )}
+            {x.vortrag && (
+              <tr className="border-t">
+                <td className="py-1.5 pr-2">
+                  Startsaldo
+                  <span className="block text-xs text-muted-foreground">
+                    Stand {datum(x.vortrag.stichtag)}
+                    {Number(x.vortrag.betrag) < 0 ? " · Guthaben" : ""}
+                  </span>
+                </td>
+                <td className="py-1.5 text-right align-top tabular-nums">{euro(Number(x.vortrag.betrag))}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
+      {kuenftig.length > 0 && (
+        <div className="mt-3">
+          <div className="text-xs font-semibold text-muted-foreground">Kommende Änderungen</div>
+          <table className="w-full text-sm">
+            <tbody>{kuenftig.map((p, i) => zeile(p, `k${i}`))}</tbody>
+          </table>
+        </div>
+      )}
+      {frueher.length > 0 && (
+        <details className="mt-3 text-sm">
+          <summary className="min-h-[28px] cursor-pointer text-xs font-semibold text-muted-foreground">Frühere und einmalige Beträge ({frueher.length})</summary>
+          <table className="w-full text-sm">
+            <tbody>{frueher.map((p, i) => zeile(p, `f${i}`, true))}</tbody>
+          </table>
+        </details>
+      )}
+      {x.monate?.length > 0 && (
+        <details className="mt-3 text-sm">
+          <summary className="min-h-[28px] cursor-pointer text-xs font-semibold text-muted-foreground">Monate: Soll und bezahlt</summary>
+          <table className="mt-1 w-full text-sm">
+            <thead>
+              <tr className="text-xs text-muted-foreground">
+                <th className="py-1 text-left font-normal">Monat</th>
+                <th className="py-1 text-right font-normal">Soll</th>
+                <th className="py-1 text-right font-normal">bezahlt</th>
+                <th className="py-1 pl-3 text-left font-normal">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...x.monate].reverse().map((m: any) => (
+                <tr key={m.monat} className="border-t">
+                  <td className="whitespace-nowrap py-1.5">
+                    {MONAT_KURZ[Number(m.monat.slice(5, 7)) - 1]} {m.monat.slice(0, 4)}
+                  </td>
+                  <td className="py-1.5 text-right tabular-nums">{euro(m.soll)}</td>
+                  <td className="py-1.5 text-right tabular-nums">{x.ohneDaten ? "–" : euro(m.bezahlt)}</td>
+                  <td className="py-1.5 pl-3">
+                    {x.ohneDaten ? (
+                      <span className="text-muted-foreground">keine Kontodaten</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className={cn("h-2.5 w-2.5 rounded-[3px]", STATUS_FARBE[m.status])} />
+                        {STATUS_TEXT[m.status]}
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      )}
     </div>
   );
 }
