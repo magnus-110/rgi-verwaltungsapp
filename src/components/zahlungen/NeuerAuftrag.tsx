@@ -30,6 +30,13 @@ const zahl = (t: string) => {
 };
 const leerEmpfaenger = (): Empfaenger => ({ name: "", iban: "", betrag: "", zweck: "" });
 
+/** Einheit für Verwendungszwecke: 3 → 0003, „W 14" bleibt „W 14". */
+const einheitText = (e: Eigentuemer | null | undefined) => (e?.einheit ? (/^\d+$/.test(e.einheit) ? e.einheit.padStart(4, "0") : e.einheit) : "");
+
+/** „Abrechnungsspitze 2025 - Guthaben 0003 EG rechts" */
+const spitzenZweck = (jahr: string, nachzahlung: boolean, e: Eigentuemer | null | undefined) =>
+  `Abrechnungsspitze ${jahr} - ${nachzahlung ? "Nachzahlung" : "Guthaben"} ${einheitText(e)} ${e?.lage ?? ""}`.replace(/\s+/g, " ").trim();
+
 /**
  * Neuer Auftrag: Überweisung (einmalig an einen oder mehrere Empfänger),
  * Einzug (einmalige Lastschrift von Eigentümern) oder Dauerlastschrift
@@ -52,6 +59,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
   const [auswahl, setAuswahl] = useState<Record<string, boolean>>({});
   const [ergebnis, setErgebnis] = useState<Record<string, string>>({}); // Abrechnungsspitze je Eigentümer
   const [guthabenAuszahlen, setGuthabenAuszahlen] = useState(true);
+  const [spitzenJahr, setSpitzenJahr] = useState(String(new Date().getFullYear() - 1));
   const [rhythmus, setRhythmus] = useState<Rhythmus>("monatlich");
   const [tag, setTag] = useState("1");
   const [erster, setErster] = useState(() => plusMonate(heuteIso().slice(0, 8) + "01", 1));
@@ -126,7 +134,8 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
   useEffect(() => {
     if (!beschluss) return;
     setErgebnis(Object.fromEntries(beschluss.zeilen.map((z: any) => [z.assignment_id, Number(z.nachzahlung) ? String(Number(z.nachzahlung).toFixed(2)).replace(".", ",") : ""])));
-    if (beschluss.jahr && !titel) setTitel(`Abrechnung ${beschluss.jahr}`);
+    if (beschluss.jahr) setSpitzenJahr(String(beschluss.jahr));
+    if (beschluss.jahr && !titel) setTitel(`Abrechnungsspitze ${beschluss.jahr}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [beschluss]);
 
@@ -157,7 +166,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
           name: e.name,
           iban: v > 0 ? e.mandat?.iban ?? e.iban : e.iban,
           betrag: Math.abs(v),
-          zweck: "",
+          zweck: spitzenZweck(spitzenJahr, v > 0, e),
           e,
           art: v > 0 ? ("einzug" as const) : ("ueberweisung" as const),
         }));
@@ -165,7 +174,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
     // Wirtschaftsplan
     const monate = { monatlich: 1, quartal: 3, halbjahr: 6, jahr: 12 }[rhythmus];
     return ausgewaehlt.map((e) => ({ name: e.name, iban: e.mandat?.iban ?? e.iban, betrag: Math.round(e.hausgeldMonat * monate * 100) / 100, zweck: "", e, art: "einzug" as const }));
-  }, [quelle, art, empfaenger, ausgewaehlt, festBetrag, eigentuemer, ergebnis, guthabenAuszahlen, rhythmus]);
+  }, [quelle, art, empfaenger, ausgewaehlt, festBetrag, eigentuemer, ergebnis, guthabenAuszahlen, rhythmus, spitzenJahr]);
 
   const summeEin = posten.filter((p) => p.art === "einzug").reduce((s, p) => s + (Number.isFinite(p.betrag) ? p.betrag : 0), 0);
   const summeAus = posten.filter((p) => p.art === "ueberweisung").reduce((s, p) => s + (Number.isFinite(p.betrag) ? p.betrag : 0), 0);
@@ -181,6 +190,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
     }
     if (art === "einzug" && faellig < fruehesterEinzug()) return `Einzug frühestens am ${fruehesterEinzug().split("-").reverse().join(".")}.`;
     if (art === "dauerlastschrift" && !erster) return "Bitte den ersten Einzug angeben.";
+    if (quelle === "abrechnung" && !/^\d{4}$/.test(spitzenJahr)) return "Bitte das Abrechnungsjahr angeben.";
     return null;
   };
 
@@ -202,7 +212,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
       for (const g of gruppen) {
         const ersterTag = art === "dauerlastschrift" ? `${erster.slice(0, 8)}${String(Math.min(28, Math.max(1, Number(tag) || 1))).padStart(2, "0")}` : faellig;
         const standardTitel =
-          art === "dauerlastschrift" ? "Hausgeld" : quelle === "abrechnung" ? (g.art === "einzug" ? "Nachzahlung Jahresabrechnung" : "Guthaben Jahresabrechnung") : g.art === "einzug" ? "Einzug" : "Überweisung";
+          art === "dauerlastschrift" ? "Hausgeld" : quelle === "abrechnung" ? (g.art === "einzug" ? `Abrechnungsspitze ${spitzenJahr} – Nachzahlungen` : `Abrechnungsspitze ${spitzenJahr} – Guthaben`) : g.art === "einzug" ? "Einzug" : "Überweisung";
         const { data: auftrag, error } = await (supabase as any)
           .from("payment_orders")
           .insert({
@@ -211,7 +221,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
             art: g.art,
             betragsquelle: quelle,
             titel: titel.trim() || standardTitel,
-            verwendungszweck: zweck.trim() || (art === "dauerlastschrift" ? "Hausgeld {monat} - {einheit} {lage}" : null),
+            verwendungszweck: quelle === "abrechnung" ? null : zweck.trim() || (art === "dauerlastschrift" ? "Hausgeld {monat} - {einheit} {lage}" : null),
             rhythmus: art === "dauerlastschrift" ? rhythmus : null,
             faellig_am: ersterTag,
             status: "aktiv",
@@ -460,6 +470,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
                             {e.einheit && <span>Einheit {e.einheit}</span>}
                             <MandatChip e={e} />
                           </div>
+                          {Number.isFinite(v) && v !== 0 && <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{spitzenZweck(spitzenJahr, v > 0, e)}</div>}
                         </div>
                         <div className="flex items-center gap-2">
                           {Number.isFinite(v) && v !== 0 && (
@@ -563,14 +574,20 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
                   className="h-11"
                 />
               </Feld>
-              <Feld label="Verwendungszweck" hinweis={art === "dauerlastschrift" ? `Beispiel: ${beispielZweck}` : "steht auf dem Kontoauszug des Empfängers"} breit>
-                <Input
-                  placeholder={art === "dauerlastschrift" ? "Hausgeld {monat} - {einheit} {lage}" : "z. B. Re. Nr. 123, Auslagen"}
-                  value={zweck}
-                  onChange={(e) => setZweck(e.target.value)}
-                  className="h-11"
-                />
-              </Feld>
+              {quelle === "abrechnung" ? (
+                <Feld label="Abrechnungsjahr" hinweis={`Verwendungszweck je Eigentümer, z. B. „${spitzenZweck(spitzenJahr, false, eigentuemer.find((x) => x.lage) ?? eigentuemer[0])}“`} breit>
+                  <Input inputMode="numeric" value={spitzenJahr} onChange={(e) => setSpitzenJahr(e.target.value.replace(/\D/g, "").slice(0, 4))} className="h-11 max-w-[140px]" />
+                </Feld>
+              ) : (
+                <Feld label="Verwendungszweck" hinweis={art === "dauerlastschrift" ? `Beispiel: ${beispielZweck}` : "steht auf dem Kontoauszug des Empfängers"} breit>
+                  <Input
+                    placeholder={art === "dauerlastschrift" ? "Hausgeld {monat} - {einheit} {lage}" : "z. B. Re. Nr. 123, Auslagen"}
+                    value={zweck}
+                    onChange={(e) => setZweck(e.target.value)}
+                    className="h-11"
+                  />
+                </Feld>
+              )}
             </div>
           </Abschnitt>
         </div>
