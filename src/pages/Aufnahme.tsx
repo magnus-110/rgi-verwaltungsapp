@@ -3,16 +3,21 @@
  *  /aufnahme              – laufende Aufnahmen und neue starten
  *  /aufnahme/:buildingId  – Termin vor Ort (Tablet) und Eigentümer (Computer)
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ChevronRight, ClipboardList, Loader2 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Archive, ArrowLeft, CheckCircle2, ChevronRight, ClipboardList, Loader2, RotateCcw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { TerminVorOrt, type AufnahmeGebaeude } from "@/components/aufnahme/TerminVorOrt";
 import { EigentuemerReiter } from "@/components/aufnahme/EigentuemerReiter";
 
@@ -24,6 +29,7 @@ export default function Aufnahme() {
 function AufnahmeListe() {
   const navigate = useNavigate();
   const [neu, setNeu] = useState<string>("");
+  const [zeigeFertige, setZeigeFertige] = useState(false);
 
   const { data: gebaeude = [] } = useQuery({
     queryKey: ["aufnahme-gebaeude-auswahl"],
@@ -43,6 +49,9 @@ function AufnahmeListe() {
     },
   });
   const vorhanden = useMemo(() => new Set(laufend.map((a) => a.building_id)), [laufend]);
+  const offene = laufend.filter((a) => !a.abgeschlossen_am);
+  const fertige = laufend.filter((a) => a.abgeschlossen_am);
+  const liste = zeigeFertige ? fertige : offene;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-3 md:p-0">
@@ -64,7 +73,7 @@ function AufnahmeListe() {
               {gebaeude.map((g: any) => (
                 <SelectItem key={g.id} value={g.id}>
                   {g.name}
-                  {vorhanden.has(g.id) ? " · läuft schon" : ""}
+                  {vorhanden.has(g.id) ? (fertige.some((f) => f.building_id === g.id) ? " · abgeschlossen" : " · läuft schon") : ""}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -76,16 +85,26 @@ function AufnahmeListe() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-lg font-semibold">Laufende Aufnahmen</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">{zeigeFertige ? "Abgeschlossene Aufnahmen" : "Laufende Aufnahmen"}</h2>
+          {(fertige.length > 0 || zeigeFertige) && (
+            <Button variant="outline" size="sm" className="h-10 gap-1.5" onClick={() => setZeigeFertige(!zeigeFertige)}>
+              <Archive className="h-4 w-4" />
+              {zeigeFertige ? `Laufende anzeigen (${offene.length})` : `Abgeschlossene (${fertige.length})`}
+            </Button>
+          )}
+        </div>
         {isLoading ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
-        ) : laufend.length === 0 ? (
-          <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">Noch keine Aufnahme angefangen.</div>
+        ) : liste.length === 0 ? (
+          <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
+            {zeigeFertige ? "Noch keine Aufnahme abgeschlossen." : "Keine laufende Aufnahme – oben ein Gebäude wählen und starten."}
+          </div>
         ) : (
           <div className="overflow-hidden rounded-2xl border bg-card">
-            {laufend.map((a) => (
+            {liste.map((a) => (
               <Link
                 key={a.building_id}
                 to={`/aufnahme/${a.building_id}`}
@@ -100,6 +119,7 @@ function AufnahmeListe() {
                     {[
                       a.buildings?.management_mode === "rent" ? "Miete" : "WEG",
                       a.termin_am ? `Termin am ${new Date(a.termin_am).toLocaleDateString("de-DE")}` : null,
+                      a.abgeschlossen_am ? `abgeschlossen am ${new Date(a.abgeschlossen_am).toLocaleDateString("de-DE")}` : null,
                       a.buildings?.management_start_date ? `Übernahme zum ${new Date(a.buildings.management_start_date).toLocaleDateString("de-DE")}` : null,
                       `zuletzt ${formatDistanceToNow(new Date(a.updated_at), { addSuffix: true, locale: de })}`,
                     ]
@@ -119,6 +139,33 @@ function AufnahmeListe() {
 
 function AufnahmeGebaeudeSeite({ buildingId }: { buildingId: string }) {
   const [params, setParams] = useSearchParams();
+  const qc = useQueryClient();
+  const [beendenFrage, setBeendenFrage] = useState(false);
+
+  // Beim Öffnen gleich anlegen, damit sie sofort in der Liste steht
+  useEffect(() => {
+    (supabase as any)
+      .from("aufnahmen")
+      .upsert({ building_id: buildingId }, { onConflict: "building_id", ignoreDuplicates: true })
+      .then(() => qc.invalidateQueries({ queryKey: ["aufnahmen-liste"] }));
+  }, [buildingId, qc]);
+
+  const { data: status } = useQuery({
+    queryKey: ["aufnahme-status", buildingId],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("aufnahmen").select("abgeschlossen_am").eq("building_id", buildingId).maybeSingle();
+      return (data?.abgeschlossen_am ?? null) as string | null;
+    },
+  });
+  const abschliessen = async (fertig: boolean) => {
+    const { error } = await (supabase as any)
+      .from("aufnahmen")
+      .upsert({ building_id: buildingId, abgeschlossen_am: fertig ? new Date().toISOString() : null }, { onConflict: "building_id" });
+    if (error) return toast.error("Konnte nicht gespeichert werden: " + error.message);
+    qc.invalidateQueries({ queryKey: ["aufnahme-status", buildingId] });
+    qc.invalidateQueries({ queryKey: ["aufnahmen-liste"] });
+    toast.success(fertig ? "Aufnahme abgeschlossen – steht jetzt unter „Abgeschlossene“" : "Aufnahme wieder geöffnet");
+  };
   const { data: gebaeude, isLoading } = useQuery({
     queryKey: ["aufnahme-gebaeude", buildingId],
     queryFn: async () => {
@@ -173,6 +220,16 @@ function AufnahmeGebaeudeSeite({ buildingId }: { buildingId: string }) {
             </h1>
           </div>
         </div>
+        <div className="flex flex-wrap gap-2">
+          {status ? (
+            <Button variant="outline" className="h-11 gap-1.5 rounded-full" onClick={() => abschliessen(false)}>
+              <RotateCcw className="h-4 w-4" /> Wieder öffnen
+            </Button>
+          ) : (
+            <Button variant="outline" className="h-11 gap-1.5 rounded-full" onClick={() => setBeendenFrage(true)}>
+              <CheckCircle2 className="h-4 w-4" /> Aufnahme beenden
+            </Button>
+          )}
         {istWeg && (
           <div className="flex gap-2">
             {(
@@ -195,7 +252,29 @@ function AufnahmeGebaeudeSeite({ buildingId }: { buildingId: string }) {
             ))}
           </div>
         )}
+        </div>
       </header>
+
+      {status && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+          <CheckCircle2 className="h-4 w-4" /> Abgeschlossen am {new Date(status).toLocaleDateString("de-DE")}. Ändern geht trotzdem jederzeit.
+        </div>
+      )}
+
+      <AlertDialog open={beendenFrage} onOpenChange={setBeendenFrage}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Aufnahme beenden?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sie verschwindet aus den laufenden Aufnahmen und steht unter „Abgeschlossene“. Alle Antworten bleiben erhalten und lassen sich weiter ansehen und ändern.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={() => abschliessen(true)}>Beenden</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {reiter === "termin" ? <TerminVorOrt gebaeude={gebaeude} /> : <EigentuemerReiter buildingId={buildingId} managementMode={gebaeude.management_mode} />}
     </div>
