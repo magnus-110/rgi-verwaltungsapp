@@ -58,7 +58,7 @@ export const PasskeysSection = () => {
       }
       const { data, error } = await api.list();
       if (error) throw error;
-      setItems((data as Passkey[]) ?? []);
+      setItems(Array.isArray(data) ? (data as Passkey[]) : []);
     } catch (e: any) {
       console.error("passkey.list failed", e);
     } finally {

@@ -85,7 +85,7 @@ export function RgiKontoTab() {
         <Landmark className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
         <div className="font-medium">Noch kein RGI-Konto verbunden</div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Unter <Link to="/settings?tab=bankzugaenge" className="text-primary hover:underline">Einstellungen › Bankzugänge</Link> beim
+          Unter <Link to="/settings?tab=buero-bank" className="text-primary hover:underline">Einstellungen › Kontoauszüge abrufen</Link> beim
           gewünschten Konto „RGI intern" wählen.
         </p>
       </Card>

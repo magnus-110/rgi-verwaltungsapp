@@ -81,7 +81,7 @@ export const adminMenu: MenuItem[] = [
   { title: 'Umfragen', url: '/umfragen', icon: ListChecks, abschnitt: 'Eigentümer', modus: 'weg' },
 
   { title: 'RGI Intern', url: '/rgi-intern', icon: Briefcase, adminOnly: true, abschnitt: 'Intern' },
-  { title: 'Einstellungen', url: '/settings', icon: Settings, adminOnly: true, abschnitt: 'Intern' },
+  { title: 'Einstellungen', url: '/settings', icon: Settings, abschnitt: 'Intern' },
 ];
 
 export const brokerMenu: MenuItem[] = [
@@ -89,7 +89,7 @@ export const brokerMenu: MenuItem[] = [
   { title: 'Postfach', url: '/postfach', icon: Mail },
   { title: 'Adressen', url: '/contacts', icon: BookUser },
   { title: 'Kalender', url: '/calendar', icon: CalendarDays },
-  { title: 'Einstellungen', url: '/settings', icon: Settings, adminOnly: true },
+  { title: 'Einstellungen', url: '/settings', icon: Settings },
 ];
 
 /** Steht man gerade auf einem der Unterpunkte dieser Gruppe? */
@@ -119,7 +119,7 @@ export function menueFuer(
 ): MenuItem[] {
   return items.filter(item => {
     if (item.adminOnly && rolle !== 'admin') return false;
-    if (rolle === 'employee' && ['Chatbot', 'Einstellungen'].includes(item.title)) return false;
+    if (rolle === 'employee' && item.title === 'Chatbot') return false;
     if (item.modus && modus && item.modus !== modus) return false;
     return true;
   });

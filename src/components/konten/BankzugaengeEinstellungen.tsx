@@ -12,8 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BankAccountMappingDialog } from "@/components/finance/BankAccountMappingDialog";
 import { cn } from "@/lib/utils";
-import { bankName, cleanIban, ibanFormatiert } from "@/lib/bankInfo";
-import { AuszugImport } from "./AuszugImport";
+import { cleanIban } from "@/lib/bankInfo";
 import { BankzugangAssistent } from "./BankzugangAssistent";
 import { ZugangKonten } from "./ZugangKonten";
 import { AbrufKnopf } from "./AbrufKnopf";
@@ -30,13 +29,14 @@ const STATUS: Record<string, { text: string; stil: string }> = {
 export { abrufMeldung, bankAbrufStarten } from "./AbrufKnopf";
 
 /**
- * Einstellungen › Bankzugänge
+ * Einstellungen › „Mein Bankzugang" (bereich="mein") und
+ * „Kontoauszüge abrufen" (bereich="buero", nur Admins).
  *
- * Zugänge zum Online-Banking (FinTS) für den täglichen Abruf um 06:00 und
- * 13:00 Uhr, die Konten mit ihrer Liegenschaft und – als Notlösung – der
- * Datei-Import.
+ * Büro-Zugänge (FinTS) holen täglich um 06:00 und 13:00 Uhr die Umsätze;
+ * der eigene Zugang dient nur zum Freigeben von Zahlungen per TAN. Die
+ * Kontenliste und der Datei-Import stehen unter „Konten".
  */
-export function BankzugaengeEinstellungen({ istAdmin = true }: { istAdmin?: boolean }) {
+export function BankzugaengeEinstellungen({ bereich }: { bereich: "mein" | "buero" }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [assistent, setAssistent] = useState(false);
@@ -93,16 +93,6 @@ export function BankzugaengeEinstellungen({ istAdmin = true }: { istAdmin?: bool
     konten.forEach((k) => m.set(cleanIban(k.iban), k.building_id));
     return m;
   }, [konten]);
-  const perBank = useMemo(() => {
-    const m = new Set<string>();
-    zugaenge.forEach((z: any) => (z.konten ?? []).forEach((k: any) => k.iban && !k.ausgeblendet && m.add(cleanIban(k.iban))));
-    return m;
-  }, [zugaenge]);
-  const zeilen = useMemo(
-    () => [...konten].sort((a, b) => (namen[a.building_id] ?? "").localeCompare(namen[b.building_id] ?? "") || (a.display_name ?? "").localeCompare(b.display_name ?? "")),
-    [konten, namen],
-  );
-
   const neuLaden = () => {
     queryClient.invalidateQueries({ queryKey: ["bank-connections"] });
     kontenNeuLaden(queryClient);
@@ -137,14 +127,15 @@ export function BankzugaengeEinstellungen({ istAdmin = true }: { istAdmin?: bool
   return (
     <div className="space-y-6">
       {/* Eigener Zugang für Zahlungen */}
+      {bereich === "mein" && (
       <Card>
         <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
           <div className="space-y-1.5">
             <CardTitle className="flex items-center gap-2">
-              <UserRound className="h-5 w-5 text-primary" /> Mein Bankzugang für Zahlungen
+              <UserRound className="h-5 w-5 text-primary" /> Deine Zugänge
             </CardTitle>
             <CardDescription>
-              Überweisungen und Einzüge gibst du immer mit deinem eigenen Online-Banking-Zugang frei – mit deiner PIN und deiner TAN-App. So ist bei der Bank klar, wer welche Zahlung ausgelöst hat.
+              Mit deiner eigenen PIN und TAN-App. So ist bei der Bank klar, wer welche Zahlung ausgelöst hat.
             </CardDescription>
           </div>
           <Button onClick={() => setEigenerAssistent(true)} className="shrink-0" variant={eigene.length ? "outline" : "default"}>
@@ -188,20 +179,21 @@ export function BankzugaengeEinstellungen({ istAdmin = true }: { istAdmin?: bool
           )}
         </CardContent>
       </Card>
+      )}
 
-      {istAdmin && (<>
+      {bereich === "buero" && (<>
       <Card>
         <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
           <div className="space-y-1.5">
             <CardTitle className="flex items-center gap-2">
-              <Landmark className="h-5 w-5 text-primary" /> Büro-Zugänge für Kontoauszüge
+              <Landmark className="h-5 w-5 text-primary" /> Büro-Zugänge
             </CardTitle>
             <CardDescription>
-              Die App holt die Umsätze jeden Tag um 06:00 und 13:00 Uhr selbst ab. Pro Bank genügt ein Zugang für alle Konten, die RGI dort führt. Zahlungen laufen nie über diese Zugänge.
+              Abruf jeden Tag um 06:00 und 13:00 Uhr. Pro Bank genügt ein Zugang für alle Konten, die RGI dort führt.
             </CardDescription>
           </div>
           <Button onClick={() => setAssistent(true)} className="shrink-0">
-            <Plus className="h-4 w-4 mr-1.5" /> Büro-Zugang hinzufügen
+            <Plus className="h-4 w-4 mr-1.5" /> Hinzufügen
           </Button>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -212,7 +204,7 @@ export function BankzugaengeEinstellungen({ istAdmin = true }: { istAdmin?: bool
           ) : zugaenge.length === 0 ? (
             <div className="rounded-lg border border-dashed px-4 py-5 text-sm">
               <div className="font-medium">Noch kein Bankzugang verbunden</div>
-              <div className="text-muted-foreground mt-1">Bis dahin Auszüge unten als Datei einlesen.</div>
+              <div className="text-muted-foreground mt-1">Bis dahin lassen sich Auszüge unter Konten als Datei einlesen.</div>
             </div>
           ) : (
             zugaenge.map((z: any) => {
@@ -280,41 +272,6 @@ export function BankzugaengeEinstellungen({ istAdmin = true }: { istAdmin?: bool
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Konten</CardTitle>
-          <CardDescription>{konten.length} Konten</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-y bg-muted/40 text-left text-xs text-muted-foreground">
-                  <th className="px-4 py-2 font-medium">Liegenschaft</th>
-                  <th className="px-4 py-2 font-medium">Konto</th>
-                  <th className="px-4 py-2 font-medium">Bank</th>
-                  <th className="px-4 py-2 font-medium">IBAN</th>
-                  <th className="px-4 py-2 font-medium">Stand</th>
-                  <th className="px-4 py-2 font-medium">Abruf</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {zeilen.map((k) => (
-                  <tr key={`${k.building_id}-${k.iban}`}>
-                    <td className="px-4 py-2">{namen[k.building_id] ?? "–"}</td>
-                    <td className="px-4 py-2">{k.display_name || "–"}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{bankName(k.iban, k.bank_name)}</td>
-                    <td className="px-4 py-2 font-mono text-xs whitespace-nowrap">{ibanFormatiert(k.iban)}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{k.saldo_stand ? format(new Date(k.saldo_stand), "dd.MM.yyyy") : "–"}</td>
-                    <td className="px-4 py-2 whitespace-nowrap text-muted-foreground">{perBank.has(cleanIban(k.iban)) ? "Bank" : "Datei"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
       {protokoll.length > 0 && (
         <Card>
           <CardHeader>
@@ -347,16 +304,6 @@ export function BankzugaengeEinstellungen({ istAdmin = true }: { istAdmin?: bool
           </CardContent>
         </Card>
       )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Datei-Import</CardTitle>
-          <CardDescription>Notlösung: Auszug aus dem Online-Banking als Datei einlesen.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AuszugImport />
-        </CardContent>
-      </Card>
 
       </>)}
 

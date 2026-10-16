@@ -613,7 +613,7 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
             {eigenerZugang && !eigenerZugang.anzahl && (
               <p className="text-xs text-white/80">
                 Zahlungen gibst du mit deinem eigenen Online-Banking-Zugang frei.{" "}
-                <a href="/settings?tab=bankzugaenge" className="underline underline-offset-2">Jetzt einrichten</a>
+                <a href="/settings?tab=bank" className="underline underline-offset-2">Jetzt einrichten</a>
               </p>
             )}
             {banken.some((b) => !b.fints && b.lastschriften) && <p className="text-xs text-white/70">Lastschriften gehen nur über einen Bankzugang, nicht über die SEPA-Datei.</p>}
