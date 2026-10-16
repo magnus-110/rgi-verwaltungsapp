@@ -1,7 +1,5 @@
 import { useState } from "react";
-import { Building2, MapPin, Edit, Trash2, Users, FileText, AlertCircle, Newspaper, Wrench, ChevronLeft, Landmark, Scale, Flame, Briefcase, Send } from "lucide-react";
-import { BuildingCasesTab } from "./BuildingCasesTab";
-import { BuildingCommunicationTab } from "./BuildingCommunicationTab";
+import { Building2, MapPin, Edit, Trash2, Users, FileText, AlertCircle, Wrench, ChevronLeft, Landmark, Scale, Flame, Briefcase } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,17 +12,13 @@ import { BuildingContactsList } from "@/components/contacts/BuildingContactsList
 import { BuildingReportsTab } from "./BuildingReportsTab";
 import { BuildingDocumentsTab } from "./BuildingDocumentsTab";
 import { ExpiringDocumentsWidget } from "./ExpiringDocumentsWidget";
-import { BuildingForumTab } from "./BuildingForumTab";
 import { BuildingMaintenanceTab } from "./BuildingMaintenanceTab";
 import { BuildingFinanceSummary } from "@/components/finance/BuildingFinanceSummary";
 import { BuildingResolutionsTab } from "./BuildingResolutionsTab";
 import { BuildingDistributionKeysTab } from "@/components/finance/BuildingDistributionKeysTab";
 import { BuildingServiceProvidersTab } from "./BuildingServiceProvidersTab";
 import { BuildingOverviewTab } from "./BuildingOverviewTab";
-import { GebaeudeNotizen } from "@/components/notizbuch/GebaeudeNotizen";
 import { AnnualCycleBuildingTab } from "./AnnualCycleBuildingTab";
-import { BuildingOnboardingTab } from "./BuildingOnboardingTab";
-import { BuildingTakeoverTab } from "./takeover/BuildingTakeoverTab";
 import { BuildingKeysTab } from "./keys/BuildingKeysTab";
 import { BuildingDepositsTab } from "./BuildingDepositsTab";
 import { BuildingMandateTab } from "./BuildingMandateTab";
@@ -41,9 +35,13 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isManagerOpen, setIsManagerOpen] = useState(false);
-  // ?tab=notes öffnet gleich einen Reiter (z. B. aus dem Notizbuch heraus)
+  // ?tab=… öffnet gleich einen Reiter; entfernte Reiter (Vorgänge, Notizen,
+  // Schwarzes Brett, Kommunikation, Onboarding, Übernahme) landen auf der Übersicht
   const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") || "overview");
+  const [activeTab, setActiveTab] = useState(() => {
+    const t = searchParams.get("tab") || "overview";
+    return ["cases", "notes", "forum", "communication", "onboarding", "takeover"].includes(t) ? "overview" : t;
+  });
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -160,19 +158,13 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               // Jahreszyklus ist als Timeline in der Übersicht eingebunden – kein eigener Tab mehr.
               { value: "people", label: "Personen" },
               ...(building.management_mode === 'weg' ? [{ value: "mandate", label: "Mandate" }] : []),
-              { value: "cases", label: "Vorgänge" },
               { value: "documents", label: "Dokumente" },
-              { value: "notes", label: "Notizen" },
-              { value: "forum", label: "Schwarzes Brett" },
               { value: "providers", label: "Dienstleister" },
-              { value: "communication", label: "Kommunikation" },
               { value: "distribution", label: "Kontenrahmen" },
               ...(building.management_mode === 'weg' ? [{ value: "resolutions", label: "Beschlüsse" }] : []),
               ...(building.management_mode === 'rent' ? [{ value: "deposits", label: "Kaution" }] : []),
               { value: "maintenance", label: "Wartung" },
               { value: "keys", label: "Schlüssel" },
-              ...(building.management_mode === 'weg' ? [{ value: "onboarding", label: "Onboarding" }] : []),
-              { value: "takeover", label: "Übernahme" },
             ].map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} variant="underline"
                 className="px-3 md:px-4 py-3 text-xs md:text-sm whitespace-nowrap min-h-[44px]">
@@ -212,24 +204,9 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
             <BuildingReportsTab buildingId={buildingId} />
           </TabsContent>
 
-          {/* Cases Tab */}
-          <TabsContent value="cases" className="p-3 md:p-6 mt-0">
-            <BuildingCasesTab buildingId={buildingId} managementMode={building.management_mode as any} />
-          </TabsContent>
-
           {/* Documents Tab */}
           <TabsContent value="documents" className="p-3 md:p-6 mt-0">
             <BuildingDocumentsTab buildingId={buildingId} managementMode={building.management_mode} />
-          </TabsContent>
-
-          {/* Notes Tab */}
-          <TabsContent value="notes" className="p-3 md:p-6 mt-0">
-            <GebaeudeNotizen buildingId={buildingId} />
-          </TabsContent>
-
-          {/* Forum Tab */}
-          <TabsContent value="forum" className="p-3 md:p-6 mt-0">
-            <BuildingForumTab buildingId={buildingId} managementMode={building.management_mode} />
           </TabsContent>
 
           {/* Maintenance Tab */}
@@ -245,11 +222,6 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           {/* Service Providers Tab */}
           <TabsContent value="providers" className="p-3 md:p-6 mt-0">
             <BuildingServiceProvidersTab buildingId={buildingId} />
-          </TabsContent>
-
-          {/* Communication Tab */}
-          <TabsContent value="communication" className="p-3 md:p-6 mt-0">
-            <BuildingCommunicationTab buildingId={buildingId} />
           </TabsContent>
 
           {/* Resolutions Tab (WEG only) */}
@@ -271,17 +243,6 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
             </TabsContent>
           )}
 
-          {/* Onboarding Tab (WEG only) */}
-          {building.management_mode === 'weg' && (
-            <TabsContent value="onboarding" className="p-3 md:p-6 mt-0">
-              <BuildingOnboardingTab buildingId={buildingId} />
-            </TabsContent>
-          )}
-
-          {/* Takeover Tab — Verwaltungs-Übernahme */}
-          <TabsContent value="takeover" className="p-3 md:p-6 mt-0">
-            <BuildingTakeoverTab buildingId={buildingId} />
-          </TabsContent>
         </ScrollArea>
       </Tabs>
 

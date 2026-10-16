@@ -622,7 +622,7 @@ function NotizLesen({
           <div className="flex flex-wrap gap-1.5 text-[12px]">
             {gebaeude && (
               <Link
-                to={`/buildings/${gebaeude.id}?tab=notes`}
+                to={`/buildings/${gebaeude.id}`}
                 className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 font-medium text-foreground hover:underline"
               >
                 <GebaeudeIcon className="h-3 w-3" /> {gebaeude.name}

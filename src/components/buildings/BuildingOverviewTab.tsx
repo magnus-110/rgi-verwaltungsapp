@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
   AlertCircle, Briefcase, TrendingUp, Mail, Phone, Plus,
-  Users, Wrench, ChevronRight, Newspaper, ListTodo, Send,
+  Users, Wrench, ChevronRight, ListTodo, Send,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
@@ -123,7 +123,7 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
           label="Offene Vorgänge"
           value={data.open_cases_count}
           tone={data.open_cases_count > 0 ? "warning" : "neutral"}
-          onClick={() => onJumpTab("cases")}
+          onClick={() => navigate(`/vorgaenge?gebaeude=${encodeURIComponent(buildingName)}`)}
         />
       </div>
 
@@ -156,7 +156,7 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
                 <div
                   key={c.id}
                   className="flex items-start gap-2 p-2 rounded-md hover:bg-accent/50 cursor-pointer"
-                  onClick={() => onJumpTab("cases")}
+                  onClick={() => navigate(`/vorgaenge/${c.id}`)}
                 >
                   <Badge className={cn("text-[10px] px-1.5 py-0 mt-0.5", PRIORITY_COLORS[c.priority] || PRIORITY_COLORS.normal)}>
                     {PRIORITY_LABEL[c.priority] || c.priority}
@@ -173,7 +173,7 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
               ))
             )}
             {data.open_cases_count > data.top_cases.length && (
-              <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => onJumpTab("cases")}>
+              <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => navigate(`/vorgaenge?gebaeude=${encodeURIComponent(buildingName)}`)}>
                 Alle {data.open_cases_count} Vorgänge anzeigen
               </Button>
             )}
@@ -227,7 +227,7 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
             Eigentümer ({data.owners.length})
           </CardTitle>
           {data.owners.some(o => o.email) && (
-            <Button size="sm" variant="outline" className="h-8" onClick={() => onJumpTab("communication")}>
+            <Button size="sm" variant="outline" className="h-8" onClick={sendMailToAllOwners}>
               <Send className="h-3.5 w-3.5 mr-1" /> Rundmail
             </Button>
           )}
@@ -323,7 +323,7 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
       {/* Quick Actions */}
       <Card>
         <CardContent className="p-3 md:p-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <Button variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => setCreateCaseOpen(true)}>
               <Briefcase className="h-5 w-5" />
               <span className="text-xs">Vorgang</span>
@@ -332,12 +332,8 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
               <ListTodo className="h-5 w-5" />
               <span className="text-xs">Aufgabe</span>
             </Button>
-            <Button variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => onJumpTab("forum")}>
-              <Newspaper className="h-5 w-5" />
-              <span className="text-xs">Aushang</span>
-            </Button>
             <Button variant="outline" className="h-auto py-3 flex-col gap-1"
-              onClick={() => onJumpTab("communication")}>
+              onClick={sendMailToAllOwners} disabled={!data.owners.some(o => o.email)}>
               <Send className="h-5 w-5" />
               <span className="text-xs">Rundmail</span>
             </Button>

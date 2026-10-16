@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ChevronDown, ChevronUp, Plus, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -72,7 +72,9 @@ export default function Vorgaenge() {
   const [suche, setSuche] = useState('');
   const [lage, setLage] = useState<Lage>('alle');
   const [statusWahl, setStatusWahl] = useState<StatusWahl>('durchsicht');
-  const [gebaeude, setGebaeude] = useState('');
+  const [searchParams] = useSearchParams();
+  // ?gebaeude=<Name> filtert gleich (z. B. aus der Gebäude-Übersicht)
+  const [gebaeude, setGebaeude] = useState(() => searchParams.get('gebaeude') ?? '');
   const [kategorie, setKategorie] = useState('');
   const [neueAufgabe, setNeueAufgabe] = useState(false);
 
