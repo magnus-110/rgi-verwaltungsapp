@@ -349,8 +349,8 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
             <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
               Ergebnis der Jahresabrechnung je Eigentümer eintragen: <b>Nachzahlung positiv</b>, <b>Guthaben negativ</b> (mit Minus). Nachzahlungen werden per Lastschrift eingezogen.
               {beschluss
-                ? <> Übernommen aus der Abrechnung{beschluss.jahr ? ` ${beschluss.jahr}` : ""}, beschlossen am {beschluss.am.split("-").reverse().join(".")} – bei Bedarf hier anpassen.</>
-                : buildingId ? " Noch keine Abrechnung als beschlossen gespeichert (Finanzen › Abrechnung › „Als beschlossen speichern“) – bis dahin bitte von Hand eintragen." : ""}
+                ? <> Übernommen aus der Abrechnung{beschluss.jahr ? ` ${beschluss.jahr}` : ""} – bei Bedarf hier anpassen.</>
+                : buildingId ? " Noch keine Abrechnung übernommen (Finanzen › Abrechnung › „Für Zahlungen übernehmen“) – bis dahin bitte von Hand eintragen." : ""}
             </div>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={guthabenAuszahlen} onCheckedChange={(v) => setGuthabenAuszahlen(!!v)} />
