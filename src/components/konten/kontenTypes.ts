@@ -63,3 +63,16 @@ export function kiVorschlag(t: any): { grund: string; sicherheit: number } | nul
   if (hint) return { grund: hint, sicherheit: 0 };
   return null;
 }
+
+/**
+ * Reihenfolge wie im Online-Banking: neuester Buchungstag oben, innerhalb
+ * eines Tages so, wie die Bank die Umsätze geliefert hat (Neuestes oben).
+ * Ältere Bewegungen ohne gespeicherte Bank-Reihenfolge nach Eingang.
+ */
+const rang = (t: any) => (t.bank_reihenfolge != null ? Number(t.bank_reihenfolge) : t.created_at ? new Date(t.created_at).getTime() * 1000 : 0);
+export function wieBank(a: any, b: any): number {
+  if (a.booking_date !== b.booking_date) return a.booking_date < b.booking_date ? 1 : -1;
+  const d = rang(b) - rang(a);
+  if (d) return d;
+  return String(b.id).localeCompare(String(a.id));
+}

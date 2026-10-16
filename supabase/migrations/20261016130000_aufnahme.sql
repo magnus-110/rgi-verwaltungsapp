@@ -58,3 +58,19 @@ create policy "Onboarding: Büro liest Anhänge"
 on storage.objects for select
 to authenticated
 using (bucket_id = 'onboarding-attachments' and public.is_rgi_staff());
+
+-- Reihenfolge der Umsätze wie im Kontoauszug der Bank
+alter table public.bank_transactions add column if not exists bank_reihenfolge bigint;
+create index if not exists bank_transactions_reihenfolge on public.bank_transactions(booking_date desc, bank_reihenfolge desc);
+create or replace function public.bank_reihenfolge_nachtragen(p_hashes text[], p_werte bigint[])
+returns integer language sql security definer set search_path to 'public' as $$
+  with x as (select unnest(p_hashes) h, unnest(p_werte) w),
+  u as (
+    update bank_transactions t set bank_reihenfolge = x.w
+    from x where t.transaction_hash = x.h and t.bank_reihenfolge is null
+    returning 1
+  )
+  select count(*)::int from u;
+$$;
+revoke all on function public.bank_reihenfolge_nachtragen(text[], bigint[]) from public, anon, authenticated;
+grant execute on function public.bank_reihenfolge_nachtragen(text[], bigint[]) to service_role;

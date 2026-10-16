@@ -29,7 +29,7 @@ interface Lauf {
   zustand: Zustand;
   fehler?: string | null;
   vop?: { gesamt: string | null; zeilen: VopZeile[]; hinweis: string | null } | null;
-  posten: { end_to_end_id: string; empfaenger: string; iban: string; betrag: number }[];
+  posten: { end_to_end_id: string; empfaenger: string; iban: string; betrag: number; invoice_id?: string | null }[];
 }
 
 const ERGEBNIS: Record<string, { text: string; stil: string; icon: typeof CheckCircle2 }> = {
@@ -54,6 +54,8 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
   const queryClient = useQueryClient();
   const [laeufe, setLaeufe] = useState<Lauf[]>([]);
   const [aktiv, setAktiv] = useState<string | null>(null);
+  // Geänderte Empfängernamen je Zahlung (End-to-End-ID → Name)
+  const [namen, setNamen] = useState<Record<string, string>>({});
   const gestartet = useRef<string>("");
 
   const neuLaden = () => {
@@ -90,7 +92,7 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
     (async () => {
       const { data, error } = await (supabase as any)
         .from("payment_runs")
-        .select("id, art, faellig_am, konto_iban, summe, anzahl, status, fehler, empfaengerpruefung, buildings(name), payment_run_items(end_to_end_id, empfaenger, iban, betrag)")
+        .select("id, art, faellig_am, konto_iban, summe, anzahl, status, fehler, empfaengerpruefung, buildings(name), payment_run_items(end_to_end_id, empfaenger, iban, betrag, invoice_id)")
         .in("id", laufIds);
       if (error) {
         toast.error("Zahlläufe konnten nicht geladen werden");
@@ -125,6 +127,26 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
     }
     setze(lauf.id, { zustand: "abgebrochen" });
     neuLaden();
+  };
+
+  /** Geänderte Namen in den Zahllauf (und die Rechnung) schreiben und die Bank neu prüfen lassen */
+  const mitNeuenNamen = async (lauf: Lauf) => {
+    const geaendert = lauf.posten.filter((p) => namen[p.end_to_end_id] !== undefined && namen[p.end_to_end_id].trim() && namen[p.end_to_end_id].trim() !== p.empfaenger);
+    if (!geaendert.length) return;
+    for (const p of geaendert) {
+      const neu = namen[p.end_to_end_id].trim();
+      const { error } = await (supabase as any).from("payment_run_items").update({ empfaenger: neu }).eq("run_id", lauf.id).eq("end_to_end_id", p.end_to_end_id);
+      if (error) {
+        toast.error("Name konnte nicht gespeichert werden: " + error.message);
+        return;
+      }
+      if (p.invoice_id) await supabase.from("invoices").update({ vendor_name: neu } as any).eq("id", p.invoice_id);
+    }
+    const posten = lauf.posten.map((p) => (namen[p.end_to_end_id]?.trim() ? { ...p, empfaenger: namen[p.end_to_end_id].trim() } : p));
+    setze(lauf.id, { posten });
+    setNamen({});
+    queryClient.invalidateQueries({ queryKey: ["transfer-invoices-outgoing"] });
+    senden({ ...lauf, posten });
   };
 
   const trotzdem = (lauf: Lauf) => {
@@ -174,7 +196,7 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
               {l.zustand === "pruefung" && l.vop && (
                 <div className="border-t">
                   <div className="bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                    <b>Empfängerüberprüfung:</b> Bei mindestens einer Zahlung passt der Name nicht genau zum Konto. Es wurde noch nichts überwiesen.
+                    <b>Empfängerüberprüfung:</b> Bei mindestens einer Zahlung passt der Name nicht genau zum Konto. Es wurde noch nichts überwiesen. Den Namen können Sie hier direkt korrigieren – er wird auch in der Rechnung geändert.
                   </div>
                   <ul className="divide-y">
                     {l.vop.zeilen.map((z, i) => {
@@ -194,6 +216,21 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
                           {z.ergebnis === "RVMC" && z.vorschlag && z.vorschlag.length < 140 && (
                             <span className="w-full text-xs text-muted-foreground">Bei der Bank hinterlegt: {z.vorschlag}</span>
                           )}
+                          {p && z.ergebnis !== "RCVC" && (
+                            <span className="flex w-full flex-wrap items-center gap-2">
+                              <input
+                                aria-label={`Empfängername für ${p.empfaenger}`}
+                                value={namen[p.end_to_end_id] ?? p.empfaenger}
+                                onChange={(ev) => setNamen((n) => ({ ...n, [p.end_to_end_id]: ev.target.value }))}
+                                className="h-9 min-w-[220px] flex-1 rounded-md border border-input bg-background px-2.5 text-sm"
+                              />
+                              {z.vorschlag && z.vorschlag.length < 140 && (namen[p.end_to_end_id] ?? p.empfaenger) !== z.vorschlag && (
+                                <Button type="button" size="sm" variant="outline" className="h-9" onClick={() => setNamen((n) => ({ ...n, [p.end_to_end_id]: z.vorschlag! }))}>
+                                  Namen der Bank übernehmen
+                                </Button>
+                              )}
+                            </span>
+                          )}
                         </li>
                       );
                     })}
@@ -205,9 +242,15 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
                     <Button variant="outline" onClick={() => nichtSenden(l)} disabled={!!aktiv}>
                       Nicht senden
                     </Button>
-                    <Button onClick={() => trotzdem(l)} disabled={!!aktiv}>
-                      Trotzdem senden
-                    </Button>
+                    {l.posten.some((p) => namen[p.end_to_end_id] !== undefined && namen[p.end_to_end_id].trim() && namen[p.end_to_end_id].trim() !== p.empfaenger) ? (
+                      <Button onClick={() => mitNeuenNamen(l)} disabled={!!aktiv}>
+                        Namen speichern und neu prüfen
+                      </Button>
+                    ) : (
+                      <Button onClick={() => trotzdem(l)} disabled={!!aktiv}>
+                        Trotzdem senden
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}

@@ -36,8 +36,8 @@ export function Transfers() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Reiter wie im Entwurf: offene Rechnungen, Aufträge, Bezahlt, Gutschriften
-  type Reiter = "offen" | "auftraege" | "bezahlt" | "gutschriften";
+  // Reiter: offene Rechnungen (zu prüfen), Lastschriften, Aufträge, Bezahlt, Gutschriften
+  type Reiter = "offen" | "lastschrift" | "auftraege" | "bezahlt" | "gutschriften";
   const startReiter: Reiter =
     searchParams.get("direction") === "incoming" ? "gutschriften" : ((searchParams.get("tab") as Reiter) || "offen");
   const [reiter, setReiter] = useState<Reiter>(startReiter);
@@ -86,6 +86,17 @@ export function Transfers() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
   const { data: inZahlung = new Map<string, string>() } = useRechnungenInZahlung();
+
+  // Was in welchen Reiter gehört:
+  //  offen       – noch zu prüfen (Freigegebene liegen in der Freigabe, nicht mehr hier)
+  //  lastschrift – wird vom Empfänger eingezogen, nichts zu überweisen
+  //  bezahlt     – bezahlt oder schon überwiesen (Bank bestätigt noch)
+  const inFreigabe = (i: any) => i.review_status === "verified" && !!i.building_id && !i.is_company_invoice;
+  const gehoertZu = (i: any): Reiter => {
+    if (i.status === "paid" || inZahlung.has(i.id)) return "bezahlt";
+    if (i.lastschrift) return "lastschrift";
+    return "offen";
+  };
 
   const toggleSelected = (id: string) => {
     setSelectedIds(prev => {
@@ -222,9 +233,11 @@ export function Transfers() {
         .neq("invoice_type", "credit_note");
 
       if (showPaid) {
+        // auch Rechnungen, deren Überweisung schon raus ist (noch ohne Kontoauszug)
         query = query
           .order("paid_at", { ascending: false, nullsFirst: false })
-          .order("due_date", { ascending: true, nullsFirst: false });
+          .order("due_date", { ascending: true, nullsFirst: false })
+          .limit(1000);
       } else {
         query = query
           .neq("status", "paid")
@@ -278,7 +291,15 @@ export function Transfers() {
     },
   });
 
-  const invoices = direction === "outgoing" ? outgoingInvoices : incomingInvoices;
+  const invoices = useMemo(() => {
+    if (direction === "incoming") return incomingInvoices;
+    return outgoingInvoices.filter((i: any) => {
+      const r = gehoertZu(i);
+      if (reiter === "offen") return r === "offen" && !inFreigabe(i);
+      return r === reiter;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [direction, incomingInvoices, outgoingInvoices, reiter, inZahlung]);
   const refetch = direction === "outgoing" ? refetchOutgoing : refetchIncoming;
 
   // ───────── Mini-Dashboard Summen (immer beide, klein, oben) ─────────
@@ -310,8 +331,14 @@ export function Transfers() {
   });
 
   const unpaidInvoices = useMemo(
-    () => outgoingInvoices.filter(i => i.status !== "paid"),
-    [outgoingInvoices]
+    () => outgoingInvoices.filter((i: any) => gehoertZu(i) === "offen" && !inFreigabe(i)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [outgoingInvoices, inZahlung]
+  );
+  const lastschriftInvoices = useMemo(
+    () => outgoingInvoices.filter((i: any) => gehoertZu(i) === "lastschrift"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [outgoingInvoices, inZahlung]
   );
   const paidInvoices = useMemo(
     () => outgoingInvoices.filter(i => i.status === "paid"),
@@ -469,11 +496,8 @@ export function Transfers() {
       setReviewMode(true);
       return;
     }
-    const isPaid = inv.status === "paid";
-    // Immer aus der (optional nach Liegenschaft sortierten) gefilterten Liste arbeiten
-    const pool = filteredInvoices.filter((i: any) =>
-      isPaid ? i.status === "paid" : i.status !== "paid"
-    );
+    // Immer aus der (optional nach Liegenschaft sortierten) Liste des Reiters arbeiten
+    const pool = filteredInvoices;
     setReviewInvoices(pool);
     const idx = pool.findIndex((p: any) => p.id === inv.id);
     setReviewIndex(idx >= 0 ? idx : 0);
@@ -622,6 +646,7 @@ export function Transfers() {
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b">
         <div className="flex flex-wrap gap-x-6" role="group" aria-label="Ansicht">
           {reiterKnopf("offen", `Rechnungen offen · ${direction === "outgoing" && !showPaid ? unpaidInvoices.length : "…"}`)}
+          {reiterKnopf("lastschrift", `Lastschrift${direction === "outgoing" && !showPaid ? ` · ${lastschriftInvoices.length}` : ""}`)}
           {reiterKnopf("auftraege", `Aufträge · ${auftragsAnzahl}`)}
           {reiterKnopf("bezahlt", "Bezahlt")}
           {reiterKnopf("gutschriften", "Gutschriften")}
@@ -649,7 +674,7 @@ export function Transfers() {
 
       {/* Rechnungen (offen / bezahlt) */}
       {direction === "outgoing" && reiter !== "auftraege" && (
-        <section className="overflow-hidden rounded-xl border bg-card" aria-label={showPaid ? "Bezahlte Rechnungen" : "Offene Rechnungen"}>
+        <section className="overflow-hidden rounded-xl border bg-card" aria-label={showPaid ? "Bezahlte Rechnungen" : reiter === "lastschrift" ? "Lastschriften" : "Offene Rechnungen"}>
           {filteredInvoices.length > 0 && (
             <div className="flex items-center gap-3 border-b bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
               <Checkbox
@@ -664,7 +689,14 @@ export function Transfers() {
                 }}
                 aria-label="Alle auswählen"
               />
-              <span className="flex-1">{filteredInvoices.length} {showPaid ? "bezahlt" : "offen"}</span>
+              <span className="flex-1">
+                {filteredInvoices.length} {showPaid ? "bezahlt oder überwiesen" : reiter === "lastschrift" ? "per Lastschrift – wird eingezogen" : "zu prüfen"}
+                {reiter === "offen" && freigabeAnzahl > 0 && (
+                  <button type="button" onClick={() => setAnsicht("freigabe")} className="ml-2 text-primary hover:underline">
+                    · {freigabeAnzahl} liegen in der Freigabe
+                  </button>
+                )}
+              </span>
               <button
                 type="button"
                 onClick={() => setSortByBuilding((v) => !v)}
@@ -676,11 +708,19 @@ export function Transfers() {
           )}
           {filteredInvoices.length === 0 && (
             <div className="px-4 py-12 text-center text-sm text-muted-foreground">
-              {searchTerm ? "Keine Treffer für die Suche" : showPaid ? "Keine bezahlten Rechnungen im Zeitraum" : "Keine offenen Rechnungen"}
+              {searchTerm
+                ? "Keine Treffer für die Suche"
+                : showPaid
+                  ? "Keine bezahlten Rechnungen im Zeitraum"
+                  : reiter === "lastschrift"
+                    ? "Keine offenen Lastschriften"
+                    : freigabeAnzahl > 0
+                      ? "Alles geprüft – der Rest liegt in der Freigabe"
+                      : "Keine offenen Rechnungen"}
             </div>
           )}
           {filteredInvoices.map((inv: any) => {
-            const overdue = inv.status !== "paid" && isOverdue(inv.due_date);
+            const overdue = inv.status !== "paid" && !inZahlung.has(inv.id) && !inv.lastschrift && isOverdue(inv.due_date);
             const isPaid = inv.status === "paid";
             const hasNote = !!inv.payment_notes;
             const objekt = inv.is_company_invoice ? "RGI" : inv.buildings?.name || "ohne Liegenschaft";
@@ -708,14 +748,16 @@ export function Transfers() {
                     <span className={cn(overdue && "font-medium text-destructive")}>
                       {inv.invoice_number ? `RE ${inv.invoice_number} · ` : ""}
                       {objekt}
-                      {!isPaid && ` · fällig ${inv.due_date ? format(new Date(inv.due_date), "dd.MM.yy") : "–"}`}
+                      {!isPaid && !inZahlung.has(inv.id) && ` · fällig ${inv.due_date ? format(new Date(inv.due_date), "dd.MM.yy") : "–"}`}
                     </span>
                     {isPaid ? (
                       <Badge variant="secondary" className="border-success/30 bg-success/15 px-1.5 py-0 text-[11px] text-success">
                         ✓ Bezahlt{inv.paid_at ? ` ${format(new Date(inv.paid_at), "dd.MM.yy")}` : ""}
                       </Badge>
                     ) : inZahlung.has(inv.id) ? (
-                      <Badge variant="outline" className="border-primary/40 px-1.5 py-0 text-[11px] text-primary">Überweisung läuft</Badge>
+                      <Badge variant="secondary" className="border-success/30 bg-success/10 px-1.5 py-0 text-[11px] text-success" title="Die Bank hat die Überweisung angenommen – sobald sie im Kontoauszug steht, wird sie als bezahlt gebucht.">
+                        ✓ Überwiesen{inZahlung.get(inv.id) ? ` ${format(new Date(inZahlung.get(inv.id)!), "dd.MM.yy")}` : ""}
+                      </Badge>
                     ) : inv.lastschrift ? (
                       <Badge variant="outline" className="px-1.5 py-0 text-[11px]" title="Wird per Lastschrift eingezogen">Lastschrift</Badge>
                     ) : inv.review_status === "verified" ? (

@@ -11,7 +11,7 @@ import { AssignmentDialog } from "@/components/finance/AssignmentDialog";
 import { EditBookingDialog } from "@/components/finance/EditBookingDialog";
 import { PdfViewerModal } from "@/components/documents/PdfViewerModal";
 import { BewegungDetail } from "./BewegungDetail";
-import { gegenseite, kennzeichen } from "./kontenTypes";
+import { gegenseite, kennzeichen, wieBank } from "./kontenTypes";
 
 interface Props {
   txns: any[];
@@ -66,7 +66,7 @@ export function BewegungsListe({ txns, liegenschaftsNamen, zeigeLiegenschaft, le
   const pruefen = (txn: any) => {
     const liste = txns
       .filter((t) => t.building_id === txn.building_id && !t.booked_at && t.match_status !== "ignored")
-      .sort((a, b) => (a.booking_date === b.booking_date ? String(a.id).localeCompare(String(b.id)) : a.booking_date < b.booking_date ? -1 : 1));
+      .sort((a, b) => wieBank(b, a));
     const index = Math.max(0, liste.findIndex((t) => t.id === txn.id));
     setReview({ buildingId: txn.building_id, liste, index });
   };

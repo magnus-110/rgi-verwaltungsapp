@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { cleanIban, euro, ibanFormatiert } from "@/lib/bankInfo";
 import { BewegungsListe } from "@/components/konten/BewegungsListe";
-import { BEWEGUNG_SELECT } from "@/components/konten/kontenTypes";
+import { BEWEGUNG_SELECT, wieBank } from "@/components/konten/kontenTypes";
 import { AbrufKnopf } from "@/components/konten/AbrufKnopf";
 
 const JETZT = new Date().getFullYear();
@@ -59,7 +59,7 @@ export function RgiKontoTab() {
         if (e2) throw e2;
         alle.push(...(data ?? []));
       }
-      return alle.sort((a, b) => (a.booking_date < b.booking_date ? 1 : -1));
+      return alle.sort(wieBank);
     },
   });
 

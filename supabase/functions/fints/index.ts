@@ -633,11 +633,24 @@ async function camtEinlesen(
 
   let txns = bloecke.flatMap((b) => parseEntries(b, opts.buildingId, auszug.id));
   txns = await addHashes(txns);
+  // Reihenfolge wie im Auszug der Bank merken (spätere Abrufe bekommen größere
+  // Werte, damit am selben Tag Neues oben steht – wie im Online-Banking)
+  const basis = Date.now() * 1000;
+  txns.forEach((t: any, i: number) => (t.bank_reihenfolge = basis + i));
+  const reihenfolgeNachtragen = async () => {
+    const hashes = txns.map((t: any) => t.transaction_hash).filter(Boolean);
+    if (!hashes.length) return;
+    await admin.rpc("bank_reihenfolge_nachtragen", {
+      p_hashes: hashes,
+      p_werte: txns.filter((t: any) => t.transaction_hash).map((t: any) => t.bank_reihenfolge),
+    });
+  };
   const { unique: nachHash } = await deduplicateTransactions(admin, txns, opts.buildingId);
   const unique = await bestandAbziehen(admin, opts.iban, txns, nachHash, von, bis);
   const duplicateCount = txns.length - unique.length;
   if (unique.length === 0) {
     await admin.from("bank_statements").delete().eq("id", auszug.id);
+    await reihenfolgeNachtragen().catch(() => undefined);
     return { neu: 0, schonDa: duplicateCount, zugeordnet: 0 };
   }
   const { error: insErr } = await admin.from("bank_transactions").insert(unique);
@@ -645,6 +658,7 @@ async function camtEinlesen(
     await admin.from("bank_statements").delete().eq("id", auszug.id);
     throw insErr;
   }
+  if (duplicateCount) await reihenfolgeNachtragen().catch(() => undefined);
   const match = await matchTransactions(admin, auszug.id, opts.buildingId);
   return { neu: unique.length, schonDa: duplicateCount, zugeordnet: match.matched };
 }

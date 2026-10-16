@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarCheck, Loader2 } from "lucide-react";
+import { CalendarCheck, Loader2, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,8 +12,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { BankReconciliationTab } from "@/components/finance/BankReconciliationTab";
 import { BankAccountMappingDialog } from "@/components/finance/BankAccountMappingDialog";
 import { bankName, cleanIban, euro, ibanFormatiert } from "@/lib/bankInfo";
-import { BewegungsListe } from "./BewegungsListe";
-import { BEWEGUNG_SELECT, type KontoZeile } from "./kontenTypes";
+import { BewegungsListe, kontenNeuLaden } from "./BewegungsListe";
+import { abrufMeldung, bankAbrufStarten } from "./AbrufKnopf";
+import { BEWEGUNG_SELECT, type KontoZeile, wieBank } from "./kontenTypes";
 
 interface Props {
   konto: KontoZeile;
@@ -32,6 +34,26 @@ export function KontoAnsicht({ konto, buildingName }: Props) {
   const [nurOffene, setNurOffene] = useState(false);
   const [abgleichOffen, setAbgleichOffen] = useState(false);
   const [zuordnungOffen, setZuordnungOffen] = useState(false);
+  const [ruftAb, setRuftAb] = useState(false);
+
+  // Nur dieses Konto abrufen – seit dem letzten Abruf
+  const neuesteAbrufen = async () => {
+    setRuftAb(true);
+    const t = toast.loading("Abruf läuft … Falls die Bank fragt: bitte in der App freigeben.");
+    try {
+      const r = await bankAbrufStarten({ iban: konto.iban });
+      toast.dismiss(t);
+      if (!r.ergebnisse?.length) toast.warning("Für dieses Konto ist kein Büro-Bankzugang eingerichtet.");
+      else if (r.ok) toast.success(abrufMeldung(r.ergebnisse), { duration: 8000 });
+      else toast.warning(abrufMeldung(r.ergebnisse), { duration: 10000 });
+    } catch (e: any) {
+      toast.dismiss(t);
+      toast.error(e?.message || "Abruf fehlgeschlagen");
+    } finally {
+      setRuftAb(false);
+      kontenNeuLaden(queryClient);
+    }
+  };
 
   const { data: txns = [], isLoading } = useQuery({
     queryKey: ["konten-bewegungen", konto.building_id, konto.iban, jahr],
@@ -58,7 +80,7 @@ export function KontoAnsicht({ konto, buildingName }: Props) {
         if (error) throw error;
         alle.push(...(data ?? []));
       }
-      return alle.sort((a, b) => (a.booking_date === b.booking_date ? String(b.id).localeCompare(String(a.id)) : a.booking_date < b.booking_date ? 1 : -1));
+      return alle.sort(wieBank);
     },
   });
 
@@ -127,6 +149,10 @@ export function KontoAnsicht({ konto, buildingName }: Props) {
           </Select>
           <Button variant="outline" size="sm" className="h-9" onClick={() => setAbgleichOffen(true)}>
             <CalendarCheck className="h-4 w-4 mr-1.5" /> Monatsabgleich
+          </Button>
+          <Button size="sm" className="h-9" onClick={neuesteAbrufen} disabled={ruftAb}>
+            {ruftAb ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
+            Neueste Umsätze abrufen
           </Button>
         </div>
       </div>
